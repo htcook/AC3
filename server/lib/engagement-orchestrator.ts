@@ -5216,17 +5216,54 @@ export async function executeEngagement(
     // ── Accuracy Feedback Loop: auto-compare findings against ground truth ──
     try {
       const { runAccuracyComparison } = await import('./accuracy-feedback-loop');
-      // Detect if this is a training lab target
-      const firstHost = state.assets[0]?.hostname || '';
-      const targetPreset = firstHost.includes('juice') ? 'juice-shop'
-        : firstHost.includes('dvwa') ? 'dvwa'
-        : firstHost.includes('webgoat') ? 'webgoat'
-        : firstHost.includes('vampi') ? 'vampi'
-        : firstHost.includes('dvga') ? 'dvga'
-        : firstHost.includes('hackazon') ? 'hackazon'
-        : firstHost.includes('nodegoat') ? 'nodegoat'
-        : firstHost.includes('crapi') ? 'crapi'
-        : null;
+      // Comprehensive training lab target detection map
+      const TRAINING_LAB_PATTERNS: Array<[RegExp, string]> = [
+        [/juice[-_]?shop/i, 'juice-shop'],
+        [/dvwa/i, 'dvwa'],
+        [/webgoat/i, 'webgoat'],
+        [/vampi/i, 'vampi'],
+        [/dvga/i, 'dvga'],
+        [/hackazon/i, 'hackazon'],
+        [/nodegoat/i, 'nodegoat'],
+        [/crapi/i, 'crapi'],
+        [/bwapp/i, 'bwapp'],
+        [/mutillidae/i, 'mutillidae'],
+        [/damn[-_]?vulnerable[-_]?web/i, 'dvwa'],
+        [/bodgeit/i, 'bodgeit'],
+        [/railsgoat/i, 'railsgoat'],
+        [/gruyere/i, 'gruyere'],
+        [/altoro[-_]?mutual/i, 'altoro-mutual'],
+        [/tiredful[-_]?api/i, 'tiredful-api'],
+        [/vulnerable[-_]?graphql/i, 'dvga'],
+        [/damn[-_]?vulnerable[-_]?graphql/i, 'dvga'],
+        [/owasp[-_]?benchmark/i, 'owasp-benchmark'],
+        [/security[-_]?shepherd/i, 'security-shepherd'],
+        [/wavsep/i, 'wavsep'],
+        [/vulnhub/i, 'vulnhub'],
+        [/metasploitable/i, 'metasploitable'],
+        [/hackthebox/i, 'hackthebox'],
+        [/pentesterlab/i, 'pentesterlab'],
+        [/overthewire/i, 'overthewire'],
+        [/picoctf/i, 'picoctf'],
+      ];
+
+      // Detect training lab from hostname, URL, or engagement target name
+      const allHosts = state.assets.map(a => a.hostname || '').join(' ');
+      const targetName = state.targetName || '';
+      const searchStr = `${allHosts} ${targetName}`.toLowerCase();
+
+      let targetPreset: string | null = null;
+      for (const [pattern, preset] of TRAINING_LAB_PATTERNS) {
+        if (pattern.test(searchStr)) {
+          targetPreset = preset;
+          break;
+        }
+      }
+
+      // Also check if the engagement was launched from a training lab page
+      if (!targetPreset && state.metadata?.trainingLabPreset) {
+        targetPreset = state.metadata.trainingLabPreset;
+      }
 
       if (targetPreset) {
         addLog(state, {
@@ -5236,6 +5273,7 @@ export async function executeEngagement(
         });
         broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
 
+        // Collect all findings from all assets (vulns + ZAP findings + nuclei findings)
         const allFindings = state.assets.flatMap(a => [
           ...a.vulns.map(v => ({
             name: v.title,
@@ -5249,16 +5287,29 @@ export async function executeEngagement(
             severity: z.risk,
             cwe: z.cweid ? `CWE-${z.cweid}` : undefined,
           })),
+          ...(a.nucleiFindings || []).map((n: any) => ({
+            name: n.templateId || n.name || n.info?.name || 'nuclei-finding',
+            severity: n.info?.severity || n.severity || 'info',
+            cwe: n.classification?.cweId?.[0] ? `CWE-${n.classification.cweId[0]}` : undefined,
+          })),
         ]);
+
+        // Determine which knowledge modules were used during this engagement
+        const modulesUsed = [
+          'nuclei', 'zap', 'nmap',
+          ...(state.knowledgeModulesUsed || []),
+          ...(state.metadata?.knowledgeModules || []),
+        ];
+        const uniqueModules = [...new Set(modulesUsed)];
 
         const compResult = await runAccuracyComparison({
           sessionId: `eng-${engagementId}-${Date.now()}`,
           engagementId: String(engagementId),
           targetPreset,
-          targetUrl: firstHost,
+          targetUrl: state.assets[0]?.hostname || '',
           scanType: state.engagementType,
           findings: allFindings,
-          knowledgeModulesUsed: ['nuclei', 'zap', 'nmap', 'threat-groups', 'owasp', 'offensive-tools'],
+          knowledgeModulesUsed: uniqueModules,
           scanDurationMs: state.completedAt ? state.completedAt - (state.startedAt || state.completedAt) : undefined,
         });
 
@@ -5266,14 +5317,36 @@ export async function executeEngagement(
           const deltaStr = compResult.f1Delta != null
             ? ` (Δ${compResult.f1Delta >= 0 ? '+' : ''}${(compResult.f1Delta * 100).toFixed(1)}%)`
             : '';
+          const trendEmoji = compResult.f1Delta != null
+            ? (compResult.f1Delta > 0.02 ? '📈' : compResult.f1Delta < -0.02 ? '📉' : '➡️')
+            : '';
           addLog(state, {
             phase: 'completed', type: 'info',
-            title: `✅ Accuracy: F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr}`,
+            title: `✅ Accuracy: F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr} ${trendEmoji}`,
             detail: `P=${(compResult.precision * 100).toFixed(1)}% R=${(compResult.recall * 100).toFixed(1)}% | ` +
               `TP=${compResult.truePositives} FP=${compResult.falsePositives} FN=${compResult.falseNegatives} | ` +
               `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}`,
             data: { accuracyComparison: compResult },
           });
+          broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+          // Emit notification to the owner about accuracy results
+          try {
+            const { notifyOwner } = await import('../_core/notification');
+            const f1Pct = (compResult.f1Score * 100).toFixed(1);
+            const pPct = (compResult.precision * 100).toFixed(1);
+            const rPct = (compResult.recall * 100).toFixed(1);
+            await notifyOwner({
+              title: `Accuracy Report: ${targetPreset} — F1 ${f1Pct}%${deltaStr}`,
+              content: `Engagement #${engagementId} completed on ${targetPreset}.\n` +
+                `F1: ${f1Pct}% | Precision: ${pPct}% | Recall: ${rPct}%\n` +
+                `TP: ${compResult.truePositives} | FP: ${compResult.falsePositives} | FN: ${compResult.falseNegatives}\n` +
+                `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}\n` +
+                `View details on the Knowledge Base → Accuracy Feedback tab.`,
+            });
+          } catch (notifErr: any) {
+            console.warn('[AccuracyFeedback] Notification failed:', notifErr.message);
+          }
         }
       }
     } catch (accErr: any) {

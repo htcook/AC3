@@ -325,6 +325,124 @@ export async function getAggregateVulnTypeAccuracy(targetPreset?: string): Promi
 }
 
 /**
+ * Rescore all targets by re-running accuracy comparisons using the latest
+ * findings stored in the most recent comparison for each target.
+ * This allows re-evaluating accuracy after the learning engine's ground truth
+ * or scoring algorithm has been updated.
+ */
+export async function rescoreAllTargets(): Promise<{
+  rescored: number;
+  failed: number;
+  results: Array<{
+    targetPreset: string;
+    previousF1: number;
+    newF1: number;
+    f1Delta: number;
+    status: 'success' | 'failed' | 'skipped';
+    error?: string;
+  }>;
+}> {
+  const db = await getDb();
+  if (!db) return { rescored: 0, failed: 0, results: [] };
+
+  console.log(`${LOG} Starting rescore of all targets...`);
+
+  // Get the latest comparison for each target (which has the findings data)
+  const latestRows = await db.execute(sql`
+    SELECT ac.*
+    FROM accuracy_comparisons ac
+    INNER JOIN (
+      SELECT target_preset, MAX(scored_at) as max_scored
+      FROM accuracy_comparisons
+      GROUP BY target_preset
+    ) latest ON ac.target_preset = latest.target_preset AND ac.scored_at = latest.max_scored
+  `) as any;
+
+  const targets = Array.isArray(latestRows?.[0]) ? latestRows[0] : (Array.isArray(latestRows) ? latestRows : []);
+  if (targets.length === 0) {
+    console.log(`${LOG} No targets to rescore`);
+    return { rescored: 0, failed: 0, results: [] };
+  }
+
+  const results: Array<{
+    targetPreset: string;
+    previousF1: number;
+    newF1: number;
+    f1Delta: number;
+    status: 'success' | 'failed' | 'skipped';
+    error?: string;
+  }> = [];
+
+  let rescored = 0;
+  let failed = 0;
+
+  for (const target of targets) {
+    const preset = target.target_preset ?? target.targetPreset;
+    const previousF1 = Number(target.f1_score ?? target.f1Score ?? 0);
+
+    // Reconstruct findings from the stored matched + false positive data
+    const matchedFindings = (() => {
+      try {
+        const raw = target.matched_findings ?? target.matchedFindings;
+        return typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch { return []; }
+    })();
+    const fpFindings = (() => {
+      try {
+        const raw = target.false_positive_findings ?? target.falsePositiveFindings;
+        return typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch { return []; }
+    })();
+
+    // Build findings array from matched + false positives
+    const findings = [
+      ...matchedFindings.map((name: string) => ({ name, severity: 'High' })),
+      ...fpFindings.map((name: string) => ({ name, severity: 'Medium' })),
+    ];
+
+    if (findings.length === 0) {
+      results.push({ targetPreset: preset, previousF1, newF1: 0, f1Delta: 0, status: 'skipped', error: 'No findings data stored' });
+      continue;
+    }
+
+    try {
+      const compResult = await runAccuracyComparison({
+        sessionId: `rescore-${preset}-${Date.now()}`,
+        targetPreset: preset,
+        targetUrl: target.target_url ?? target.targetUrl ?? undefined,
+        scanType: 'rescore',
+        findings,
+        knowledgeModulesUsed: (() => {
+          try {
+            const raw = target.knowledge_modules_used ?? target.knowledgeModulesUsed;
+            return typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+          } catch { return []; }
+        })(),
+      });
+
+      if (compResult) {
+        const f1Delta = compResult.f1Score - previousF1;
+        results.push({ targetPreset: preset, previousF1, newF1: compResult.f1Score, f1Delta, status: 'success' });
+        rescored++;
+        console.log(`${LOG} Rescored ${preset}: F1 ${previousF1.toFixed(3)} → ${compResult.f1Score.toFixed(3)} (Δ${f1Delta >= 0 ? '+' : ''}${f1Delta.toFixed(3)})`);
+      } else {
+        results.push({ targetPreset: preset, previousF1, newF1: 0, f1Delta: 0, status: 'failed', error: 'Score endpoint returned null' });
+        failed++;
+      }
+    } catch (err: any) {
+      results.push({ targetPreset: preset, previousF1, newF1: 0, f1Delta: 0, status: 'failed', error: err.message });
+      failed++;
+    }
+
+    // Small delay between targets to avoid overwhelming the DO endpoint
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  console.log(`${LOG} Rescore complete: ${rescored} rescored, ${failed} failed, ${results.length} total`);
+  return { rescored, failed, results };
+}
+
+/**
  * Get accuracy summary statistics.
  */
 export async function getAccuracySummary(): Promise<{

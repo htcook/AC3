@@ -18,6 +18,7 @@ import {
   getVulnTypeBreakdown,
   getAggregateVulnTypeAccuracy,
   getAccuracySummary,
+  rescoreAllTargets,
 } from "../lib/accuracy-feedback-loop";
 import { seedAccuracyData } from "../lib/accuracy-seed";
 
@@ -82,5 +83,10 @@ export const accuracyFeedbackRouter = router({
   /** Seed accuracy data by running comparisons against the DO learning engine */
   seed: protectedProcedure.mutation(async () => {
     return seedAccuracyData();
+  }),
+
+  /** Rescore all targets using their latest findings against current ground truth */
+  rescoreAll: protectedProcedure.mutation(async () => {
+    return rescoreAllTargets();
   }),
 });

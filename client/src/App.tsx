@@ -226,6 +226,7 @@ const MsspAnalyticsDashboard = lazy(() => import("./pages/MsspAnalyticsDashboard
 const DataExfilSimulation = lazy(() => import("./pages/DataExfilSimulation"));
 const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const LlmLearning = lazy(() => import("./pages/LlmLearning"));
+const LearningDashboard = lazy(() => import("./pages/LearningDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -453,6 +454,9 @@ function Router() {
         </Route>
         <Route path="/llm-learning">
           <ProtectedRoute component={LlmLearning} />
+        </Route>
+        <Route path="/learning-dashboard">
+          <ProtectedRoute component={LearningDashboard} />
         </Route>
         <Route path="/campaign-execution">
           <ProtectedRoute component={CampaignExecution} />

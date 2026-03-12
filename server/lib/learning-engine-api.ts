@@ -7,7 +7,7 @@
 
 import { SCAN_SERVICE_URL, SCAN_API_KEY } from "./scan-service-url";
 
-const LEARNING_BASE = `${SCAN_SERVICE_URL}/learning`;
+const LEARNING_BASE = SCAN_SERVICE_URL;
 const API_KEY = SCAN_API_KEY;
 const LOG = "[LearningAPI]";
 
@@ -46,7 +46,7 @@ async function learningFetch(path: string, options?: RequestInit & { timeout?: n
 
 // ═══ Health ═══════════════════════════════════════════════════════════════════
 export async function getLearningHealth() {
-  const raw = await learningFetch("/health");
+  const raw = await learningFetch("/learning/health");
   return {
     status: raw?.status || "unknown",
     service: raw?.service || "learning-engine",

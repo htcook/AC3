@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -106,6 +106,25 @@ export default function KnowledgeBase() {
   const { data: latestPerTarget } = trpc.accuracyFeedback.latestPerTarget.useQuery(undefined, {
     enabled: activeTab === "accuracy",
   });
+  const utils = trpc.useUtils();
+  const rescoreAllMutation = trpc.accuracyFeedback.rescoreAll.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Rescored ${data.rescored} targets`, {
+        description: data.results
+          .filter(r => r.status === 'success')
+          .map(r => `${r.targetPreset}: F1 ${(r.previousF1 * 100).toFixed(1)}% → ${(r.newF1 * 100).toFixed(1)}%`)
+          .join('\n') || 'No targets rescored',
+      });
+      utils.accuracyFeedback.summary.invalidate();
+      utils.accuracyFeedback.history.invalidate();
+      utils.accuracyFeedback.latestPerTarget.invalidate();
+      utils.accuracyFeedback.aggregateVulnAccuracy.invalidate();
+    },
+    onError: (err) => {
+      toast.error('Rescore failed', { description: err.message });
+    },
+  });
+
   const { data: aggregateVulnAccuracy } = trpc.accuracyFeedback.aggregateVulnAccuracy.useQuery({}, {
     enabled: activeTab === "accuracy",
   });
@@ -526,9 +545,59 @@ export default function KnowledgeBase() {
 
           {/* ── Accuracy Feedback Tab ── */}
           <TabsContent value="accuracy" className="mt-6 space-y-6">
-            <p className="text-sm text-muted-foreground">
-              The accuracy feedback loop auto-compares scan findings against ground truth after each training lab scan. It tracks precision, recall, and F1 score over time to measure how effectively the knowledge modules improve vulnerability detection.
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground max-w-3xl">
+                The accuracy feedback loop auto-compares scan findings against ground truth after each training lab scan. It tracks precision, recall, and F1 score over time to measure how effectively the knowledge modules improve vulnerability detection.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-2"
+                onClick={() => rescoreAllMutation.mutate()}
+                disabled={rescoreAllMutation.isPending || !accuracySummary?.totalComparisons}
+              >
+                {rescoreAllMutation.isPending ? (
+                  <><Cpu className="h-4 w-4 animate-spin" /> Rescoring...</>
+                ) : (
+                  <><Zap className="h-4 w-4" /> Rescore All Targets</>
+                )}
+              </Button>
+            </div>
+
+            {/* Rescore Results */}
+            {rescoreAllMutation.data && (
+              <Card className="border-border bg-card/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    Rescore Results — {rescoreAllMutation.data.rescored} rescored, {rescoreAllMutation.data.failed} failed
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {rescoreAllMutation.data.results.map((r) => (
+                      <div key={r.targetPreset} className="flex items-center justify-between px-3 py-2 rounded-md bg-background/50 border border-border text-sm">
+                        <span className="font-medium">{r.targetPreset}</span>
+                        {r.status === 'success' ? (
+                          <span className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">{(r.previousF1 * 100).toFixed(1)}%</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-bold">{(r.newF1 * 100).toFixed(1)}%</span>
+                            <span className={r.f1Delta >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                              ({r.f1Delta >= 0 ? '+' : ''}{(r.f1Delta * 100).toFixed(1)}%)
+                            </span>
+                          </span>
+                        ) : r.status === 'skipped' ? (
+                          <Badge variant="outline" className="text-xs">Skipped</Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-xs">Failed</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
