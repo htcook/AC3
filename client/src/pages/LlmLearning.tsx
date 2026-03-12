@@ -89,7 +89,7 @@ export default function LlmLearning() {
     { retry: 1 }
   );
 
-  const isOnline = health?.status === "ok";
+  const isOnline = health?.status === "healthy" || health?.status === "ok";
   const labStats = dashboard?.trainingLab;
   const threatDash = dashboard?.threatActor;
 

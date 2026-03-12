@@ -47,10 +47,18 @@ async function learningFetch(path: string, options?: RequestInit & { timeout?: n
 // ═══ Health ═══════════════════════════════════════════════════════════════════
 export async function getLearningHealth() {
   const raw = await learningFetch("/learning/health");
+  // Normalize status: DO engine returns "ok", frontend expects "healthy"
+  const rawStatus = raw?.status || "unknown";
+  const status = rawStatus === "ok" ? "healthy" : rawStatus;
+  // Format uptime from seconds to human-readable string
+  const uptimeSec = raw?.uptime ?? 0;
+  const hours = Math.floor(uptimeSec / 3600);
+  const minutes = Math.floor((uptimeSec % 3600) / 60);
+  const uptimeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   return {
-    status: raw?.status || "unknown",
+    status,
     service: raw?.service || "learning-engine",
-    uptime: raw?.uptime ?? 0,
+    uptime: uptimeStr,
     groundTruthTargets: raw?.stats?.groundTruthTargets ?? 0,
     totalVulns: raw?.stats?.totalVulns ?? 0,
     accuracyScores: raw?.stats?.accuracyScores ?? 0,
@@ -62,14 +70,28 @@ export async function getLearningHealth() {
 
 // ═══ Combined Dashboard ══════════════════════════════════════════════════════
 export async function getLearningDashboard() {
-  const raw = await learningFetch("/api/learning/dashboard");
+  // Fetch dashboard + threat-stats in parallel (dashboard doesn't include topGroups)
+  const [raw, threatStatsRaw] = await Promise.all([
+    learningFetch("/api/learning/dashboard"),
+    learningFetch("/api/learning/threat-stats").catch(() => null),
+  ]);
   const streams = raw?.streams || {};
   const lab = streams.trainingLab || {};
   const threat = streams.threatActor || {};
+  // Merge topGroups from threat-stats into the dashboard response
+  const topGroups = (threatStatsRaw?.topGroups || []).map((g: any) => ({
+    groupId: g.threat_group_id ?? g.groupId,
+    name: g.threat_group_name ?? g.name,
+    matchCount: g.detections ?? g.matchCount ?? 0,
+    confidence: (g.avg_confidence ?? g.confidence ?? 0),
+    ttpCount: g.ttp_count ?? g.ttpCount ?? 0,
+    sessions: g.sessions ?? 0,
+  }));
   return {
     trainingLab: {
       groundTruthTargets: lab.groundTruthTargets ?? 0,
       totalVulns: lab.totalGroundTruthVulns ?? 0,
+      totalGroundTruthVulns: lab.totalGroundTruthVulns ?? 0,
       engagementRuns: lab.total_scans ?? 0,
       avgPrecision: lab.avg_precision ?? 0,
       avgRecall: lab.avg_recall ?? 0,
@@ -90,7 +112,9 @@ export async function getLearningDashboard() {
       avgConfidence: threat.avg_confidence ?? 0,
       avgTtpCoverage: threat.avg_ttp_coverage ?? 0,
       avgCveCoverage: threat.avg_cve_coverage ?? 0,
-      topGroups: threat.topGroups || [],
+      ttpDetections: threatStatsRaw?.overall?.total_ttps_detected ?? 0,
+      cveCoverage: threatStatsRaw?.overall?.total_cves_detected ?? 0,
+      topGroups,
       recentEvents: threat.recentEvents || [],
     },
   };

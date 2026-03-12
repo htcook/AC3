@@ -256,12 +256,38 @@ export default function LearningDashboard() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20">
-              <Brain className="h-6 w-6 text-primary" />
-            </div>
-            Learning Dashboard
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20">
+                <Brain className="h-6 w-6 text-primary" />
+              </div>
+              Learning Dashboard
+            </h1>
+            {/* Health Status Indicator */}
+            {!healthLoading && (
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium ${
+                engineHealth?.status === "healthy"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : "border-red-500/30 bg-red-500/10 text-red-400"
+              }`}>
+                <span className={`h-2 w-2 rounded-full ${
+                  engineHealth?.status === "healthy"
+                    ? "bg-emerald-400 animate-pulse"
+                    : "bg-red-400"
+                }`} />
+                {engineHealth?.status === "healthy" ? "Engine Online" : "Engine Offline"}
+                {engineHealth?.uptime && engineHealth.status === "healthy" && (
+                  <span className="text-muted-foreground ml-1">({engineHealth.uptime})</span>
+                )}
+              </div>
+            )}
+            {healthLoading && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground animate-pulse" />
+                Connecting...
+              </div>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
             Unified view of the platform's learning capabilities — combining training lab accuracy, threat actor attribution, knowledge module effectiveness, and scan improvement trends into a single operational picture.
           </p>

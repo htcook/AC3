@@ -147,7 +147,16 @@ export async function runAccuracyComparison(opts: {
     const comparisonId = inserted.id;
 
     // 5. Store per-vuln-type breakdown
-    const vulnBreakdown = acc.per_vuln_type ?? acc.perVulnType ?? scoreResult.per_vuln_type ?? scoreResult.perVulnType ?? [];
+    // The DO engine may return a per_vuln_type array, or we synthesize it from matchedVulns/missedVulns
+    let vulnBreakdown = acc.per_vuln_type ?? acc.perVulnType ?? scoreResult.per_vuln_type ?? scoreResult.perVulnType ?? [];
+    if (vulnBreakdown.length === 0 && (matchedFindings.length > 0 || missedVulns.length > 0)) {
+      // Synthesize per-vuln-type data from matched/missed arrays
+      vulnBreakdown = [
+        ...matchedFindings.map((v: string) => ({ vulnType: v, detectionRate: 100, falsePositiveRate: 0, timesFound: 1, timesMissed: 0, timesFalsePositive: 0 })),
+        ...missedVulns.map((v: string) => ({ vulnType: v, detectionRate: 0, falsePositiveRate: 0, timesFound: 0, timesMissed: 1, timesFalsePositive: 0 })),
+        ...falsePositiveFindings.map((v: string) => ({ vulnType: v, detectionRate: 0, falsePositiveRate: 100, timesFound: 0, timesMissed: 0, timesFalsePositive: 1 })),
+      ];
+    }
     const vulnTypeRows: InsertVulnTypeAccuracy[] = vulnBreakdown.map((v: any) => ({
       comparisonId,
       vulnType: v.vuln_type ?? v.vulnType ?? v.name ?? "unknown",
@@ -267,15 +276,15 @@ export async function getLatestComparisonPerTarget(): Promise<any[]> {
   const db = await getDb();
   if (!db) return [];
 
-  // Use a subquery to get the max scored_at per target
+  // Use MAX(id) to get the truly latest row per target (avoids duplicates when scored_at has same second)
   const rows = await db.execute(sql`
     SELECT ac.*
     FROM accuracy_comparisons ac
     INNER JOIN (
-      SELECT target_preset, MAX(scored_at) as max_scored
+      SELECT target_preset, MAX(id) as max_id
       FROM accuracy_comparisons
       GROUP BY target_preset
-    ) latest ON ac.target_preset = latest.target_preset AND ac.scored_at = latest.max_scored
+    ) latest ON ac.id = latest.max_id
     ORDER BY ac.f1_score DESC
   `);
 
@@ -352,10 +361,10 @@ export async function rescoreAllTargets(): Promise<{
     SELECT ac.*
     FROM accuracy_comparisons ac
     INNER JOIN (
-      SELECT target_preset, MAX(scored_at) as max_scored
+      SELECT target_preset, MAX(id) as max_id
       FROM accuracy_comparisons
       GROUP BY target_preset
-    ) latest ON ac.target_preset = latest.target_preset AND ac.scored_at = latest.max_scored
+    ) latest ON ac.id = latest.max_id
   `) as any;
 
   const targets = Array.isArray(latestRows?.[0]) ? latestRows[0] : (Array.isArray(latestRows) ? latestRows : []);
