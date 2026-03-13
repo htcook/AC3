@@ -605,7 +605,7 @@ export async function processBatch(limit = 5): Promise<ProcessingResult[]> {
   // Get unprocessed reports (raw status), prioritizing high-value sources
   const reports = await db.select({ id: incidentReports.id, source: incidentReports.source })
     .from(incidentReports)
-    .where(eq(incidentReports.status, "raw"))
+    .where(eq(incidentReports.irStatus, "raw"))
     .orderBy(
       sql`FIELD(source, 'dfir_report', 'cisa_advisory', 'unit42', 'misp_circl', 'hacker_news', 'dark_reading') DESC`,
       sql`ir_created_at DESC`

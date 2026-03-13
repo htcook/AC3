@@ -7,66 +7,46 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LogOut, PanelLeft, Crosshair, ChevronDown, ChevronRight, Search, Home } from "lucide-react";
+import {
+  LogOut, PanelLeft, Crosshair, ChevronDown, ChevronRight,
+  Home, Menu, X, ChevronsLeft, ChevronsRight,
+} from "lucide-react";
 import { FIPSIndicator } from "./FIPSIndicator";
+import { CommandPaletteTrigger } from "./CommandPalette";
 import { useEngagement } from "@/contexts/EngagementContext";
-import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { sidebarNavGroups, type NavGroup } from "@/lib/sidebar-nav";
 import { ScrollArea } from "./ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import { sidebarNavGroups, type NavGroup } from "@/lib/sidebar-nav";
 
-const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const SIDEBAR_OPEN_GROUPS_KEY = "sidebar-open-groups";
-const DEFAULT_WIDTH = 280;
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const SIDEBAR_MODE_KEY = "sidebar-mode";
+const RAIL_WIDTH = 56;       // px — icon rail width
+const EXPANDED_WIDTH = 260;  // px — expanded sidebar width
+
+type SidebarMode = "rail" | "expanded";
+
+// ─── Main Layout ─────────────────────────────────────────────────────────────
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
   const { loading, user } = useAuth();
 
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
-
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <DashboardLayoutSkeleton />;
   }
 
   if (!user) {
@@ -82,9 +62,7 @@ export default function DashboardLayout({
             </p>
           </div>
           <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => { window.location.href = getLoginUrl(); }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
@@ -96,48 +74,322 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
-    >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-        <EmbedProvider>{children}</EmbedProvider>
-      </DashboardLayoutContent>
-    </SidebarProvider>
+    <DashboardLayoutContent>
+      <EmbedProvider>{children}</EmbedProvider>
+    </DashboardLayoutContent>
   );
 }
 
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
+// ─── Layout Content ──────────────────────────────────────────────────────────
 
-function DashboardLayoutContent({
-  children,
-  setSidebarWidth,
-}: DashboardLayoutContentProps) {
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  const [isResizing, setIsResizing] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
-  const [searchQuery, setSearchQuery] = useState("");
 
-  // Persist open groups
+  // Sidebar mode: rail (icons only) or expanded
+  const [mode, setMode] = useState<SidebarMode>(() => {
+    const saved = localStorage.getItem(SIDEBAR_MODE_KEY);
+    return (saved === "expanded" ? "expanded" : "rail") as SidebarMode;
+  });
+
+  // Flyout state for rail mode: which group is hovered/open
+  const [flyoutGroupId, setFlyoutGroupId] = useState<string | null>(null);
+  const flyoutTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mobile drawer state
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Persist mode
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_MODE_KEY, mode);
+  }, [mode]);
+
+  const toggleMode = useCallback(() => {
+    setMode(prev => prev === "rail" ? "expanded" : "rail");
+    setFlyoutGroupId(null);
+  }, []);
+
+  // Find active group and item
+  const activeGroupId = useMemo(() => {
+    for (const group of sidebarNavGroups) {
+      if (group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
+        return group.id;
+      }
+    }
+    return null;
+  }, [location]);
+
+  const activeLabel = useMemo(() => {
+    for (const group of sidebarNavGroups) {
+      const item = group.items.find(i => location === i.path || location.startsWith(i.path + "/"));
+      if (item) return item.label;
+    }
+    return "Home";
+  }, [location]);
+
+  // Flyout handlers
+  const openFlyout = useCallback((groupId: string) => {
+    if (flyoutTimeout.current) clearTimeout(flyoutTimeout.current);
+    setFlyoutGroupId(groupId);
+  }, []);
+
+  const closeFlyout = useCallback(() => {
+    flyoutTimeout.current = setTimeout(() => setFlyoutGroupId(null), 200);
+  }, []);
+
+  const cancelCloseFlyout = useCallback(() => {
+    if (flyoutTimeout.current) clearTimeout(flyoutTimeout.current);
+  }, []);
+
+  // ─── Mobile Drawer ──────────────────────────────────────────────────────────
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        {/* Mobile header */}
+        <div className="flex border-b h-14 items-center justify-between bg-background/95 px-3 backdrop-blur sticky top-0 z-40">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <span className="font-semibold text-sm tracking-tight">{activeLabel}</span>
+          </div>
+        </div>
+
+        {/* Mobile drawer overlay */}
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+            <div className="relative w-72 bg-background border-r flex flex-col h-full animate-in slide-in-from-left duration-200">
+              <div className="h-14 flex items-center justify-between px-3 border-b">
+                <span className="font-semibold text-sm tracking-tight">ACE C3</span>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="px-3 py-2">
+                <CommandPaletteTrigger />
+              </div>
+              <EngagementSwitcher isCollapsed={false} />
+              <ScrollArea className="flex-1">
+                <MobileNavList location={location} setLocation={(p) => { setLocation(p); setMobileOpen(false); }} />
+              </ScrollArea>
+              <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+            </div>
+          </div>
+        )}
+
+        <main className="flex-1 p-4">{children}</main>
+      </div>
+    );
+  }
+
+  // ─── Desktop: Rail Mode ──────────────────────────────────────────────────────
+
+  if (mode === "rail") {
+    return (
+      <div className="flex min-h-screen">
+        {/* Icon Rail */}
+        <div
+          className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-30"
+          style={{ width: RAIL_WIDTH }}
+        >
+          {/* Logo / toggle */}
+          <div className="h-14 flex items-center justify-center border-b">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={toggleMode}
+                  className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                >
+                  <ChevronsRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>Expand sidebar</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Search trigger */}
+          <div className="py-2 flex justify-center">
+            <CommandPaletteTrigger collapsed />
+          </div>
+
+          {/* Engagement indicator */}
+          <EngagementSwitcher isCollapsed />
+
+          {/* Nav group icons */}
+          <ScrollArea className="flex-1">
+            <div className="flex flex-col items-center gap-0.5 py-1">
+              {/* Home */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setLocation("/home")}
+                    className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
+                      location === "/" || location === "/home"
+                        ? "bg-accent text-primary"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    }`}
+                  >
+                    <Home className="h-4.5 w-4.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>Home</TooltipContent>
+              </Tooltip>
+
+              {/* Group icons */}
+              {sidebarNavGroups.map(group => {
+                const isActive = activeGroupId === group.id;
+                const isFlyoutOpen = flyoutGroupId === group.id;
+                return (
+                  <div
+                    key={group.id}
+                    className="relative"
+                    onMouseEnter={() => openFlyout(group.id)}
+                    onMouseLeave={closeFlyout}
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
+                            isActive || isFlyoutOpen
+                              ? `bg-accent/70 ${group.color}`
+                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                          }`}
+                        >
+                          <group.icon className="h-4.5 w-4.5" />
+                        </button>
+                      </TooltipTrigger>
+                      {!isFlyoutOpen && (
+                        <TooltipContent side="right" sideOffset={8}>{group.label}</TooltipContent>
+                      )}
+                    </Tooltip>
+
+                    {/* Flyout panel */}
+                    {isFlyoutOpen && (
+                      <div
+                        className="absolute left-full top-0 ml-0 z-50"
+                        onMouseEnter={cancelCloseFlyout}
+                        onMouseLeave={closeFlyout}
+                      >
+                        <div className="w-56 bg-popover border rounded-lg shadow-xl py-1 max-h-[70vh] overflow-y-auto">
+                          <div className={`px-3 py-2 text-[10px] font-semibold tracking-widest uppercase ${group.color}`}>
+                            {group.label}
+                          </div>
+                          {group.items.map(item => {
+                            const isItemActive = location === item.path || location.startsWith(item.path + "/");
+                            return (
+                              <button
+                                key={item.path}
+                                onClick={() => { setLocation(item.path); setFlyoutGroupId(null); }}
+                                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                                  isItemActive
+                                    ? "bg-accent text-foreground font-medium"
+                                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                                }`}
+                              >
+                                <item.icon className={`h-3.5 w-3.5 shrink-0 ${isItemActive ? group.color : ""}`} />
+                                <span className="text-xs truncate">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+
+          {/* Footer */}
+          <SidebarFooterSection user={user} logout={logout} isCollapsed />
+        </div>
+
+        {/* Main content */}
+        <main className="flex-1 p-4" style={{ marginLeft: RAIL_WIDTH }}>
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  // ─── Desktop: Expanded Mode ────────────────────────────────────────────────
+
+  return (
+    <div className="flex min-h-screen">
+      {/* Expanded sidebar */}
+      <div
+        className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-30"
+        style={{ width: EXPANDED_WIDTH }}
+      >
+        {/* Header */}
+        <div className="h-14 flex items-center justify-between px-3 border-b">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold tracking-tight text-sm">ACE C3</span>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleMode}
+                className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+              >
+                <ChevronsLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Collapse to icons</TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Search trigger */}
+        <div className="px-3 py-2 border-b border-border/30">
+          <CommandPaletteTrigger />
+        </div>
+
+        {/* Engagement switcher */}
+        <EngagementSwitcher isCollapsed={false} />
+
+        {/* Nav groups */}
+        <ScrollArea className="flex-1">
+          <ExpandedNavList location={location} setLocation={setLocation} />
+        </ScrollArea>
+
+        {/* Footer */}
+        <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+      </div>
+
+      {/* Main content */}
+      <main className="flex-1 p-4" style={{ marginLeft: EXPANDED_WIDTH }}>
+        {children}
+      </main>
+    </div>
+  );
+}
+
+// ─── Expanded Nav List ───────────────────────────────────────────────────────
+
+function ExpandedNavList({
+  location,
+  setLocation,
+}: {
+  location: string;
+  setLocation: (path: string) => void;
+}) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
-      const saved = localStorage.getItem(SIDEBAR_OPEN_GROUPS_KEY);
+      const saved = localStorage.getItem("sidebar-open-groups");
       if (saved) return JSON.parse(saved);
     } catch {}
-    // Default: open the group containing the current route
     const defaults: Record<string, boolean> = {};
     for (const group of sidebarNavGroups) {
-      if (group.defaultOpen || group.items.some(item => location === item.path || location.startsWith(item.path + "/"))) {
+      if (group.defaultOpen || group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
         defaults[group.id] = true;
       }
     }
@@ -145,291 +397,202 @@ function DashboardLayoutContent({
   });
 
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_OPEN_GROUPS_KEY, JSON.stringify(openGroups));
+    localStorage.setItem("sidebar-open-groups", JSON.stringify(openGroups));
   }, [openGroups]);
 
-  const toggleGroup = useCallback((groupId: string) => {
-    setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  const toggleGroup = useCallback((id: string) => {
+    setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  // Find active page label for mobile header
-  const activeLabel = useMemo(() => {
-    for (const group of sidebarNavGroups) {
-      const item = group.items.find(i => location === i.path || location.startsWith(i.path + "/"));
-      if (item) return item.label;
-    }
-    return "Menu";
-  }, [location]);
-
-  // Filter groups/items by search
-  const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return sidebarNavGroups;
-    const q = searchQuery.toLowerCase();
-    return sidebarNavGroups
-      .map(group => ({
-        ...group,
-        items: group.items.filter(item =>
-          item.label.toLowerCase().includes(q) ||
-          item.path.toLowerCase().includes(q)
-        ),
-      }))
-      .filter(group => group.items.length > 0);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (isCollapsed) {
-      setIsResizing(false);
-    }
-  }, [isCollapsed]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [isResizing, setSidebarWidth]);
-
   return (
-    <>
-      <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
-              <button
-                onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Toggle navigation"
-              >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-              {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="font-semibold tracking-tight truncate text-sm">
-                    ACE C3
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </SidebarHeader>
+    <div className="py-1">
+      {/* Home link */}
+      <button
+        onClick={() => setLocation("/home")}
+        className={`w-full flex items-center gap-2 px-4 py-2 text-left transition-colors ${
+          location === "/" || location === "/home"
+            ? "bg-accent text-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+        }`}
+      >
+        <Home className={`h-4 w-4 shrink-0 ${location === "/" || location === "/home" ? "text-primary" : ""}`} />
+        <span className="text-sm">Home</span>
+      </button>
 
-          {/* Engagement Switcher */}
-          <EngagementSwitcher isCollapsed={isCollapsed} />
+      {/* Groups */}
+      {sidebarNavGroups.map(group => {
+        const isOpen = !!openGroups[group.id];
+        const hasActiveItem = group.items.some(i => location === i.path || location.startsWith(i.path + "/"));
 
-          {/* Search filter */}
-          {!isCollapsed && (
-            <div className="px-3 py-2 border-b border-border/30">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search pages..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 text-xs bg-accent/30 border-border/30 focus-visible:ring-1"
-                />
-              </div>
-            </div>
-          )}
-
-          <SidebarContent className="gap-0">
-            <ScrollArea className="flex-1">
-              {/* Quick Home link */}
-              <SidebarMenu className="px-2 pt-2 pb-0">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={location === "/" || location === "/home"}
-                    onClick={() => setLocation("/home")}
-                    tooltip="Home"
-                    className="h-9 font-normal"
-                  >
-                    <Home className={`h-4 w-4 ${location === "/" || location === "/home" ? "text-primary" : ""}`} />
-                    <span>Home</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-
-              {/* Collapsible nav groups */}
-              {filteredGroups.map((group) => (
-                <NavGroupSection
-                  key={group.id}
-                  group={group}
-                  isOpen={searchQuery.trim() ? true : !!openGroups[group.id]}
-                  onToggle={() => toggleGroup(group.id)}
-                  location={location}
-                  setLocation={setLocation}
-                  isCollapsed={isCollapsed}
-                />
-              ))}
-            </ScrollArea>
-          </SidebarContent>
-
-          <SidebarFooter className="p-3">
-            {/* FIPS 140-3 Compliance Status Indicator */}
-            <div className="mb-1">
-              <FIPSIndicator collapsed={isCollapsed} />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarFooter>
-        </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
-      </div>
-
-      <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeLabel}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        <main className="flex-1 p-4">{children}</main>
-      </SidebarInset>
-    </>
-  );
-}
-
-/** Collapsible navigation group with sub-items */
-function NavGroupSection({
-  group,
-  isOpen,
-  onToggle,
-  location,
-  setLocation,
-  isCollapsed,
-}: {
-  group: NavGroup;
-  isOpen: boolean;
-  onToggle: () => void;
-  location: string;
-  setLocation: (path: string) => void;
-  isCollapsed: boolean;
-}) {
-  const hasActiveItem = group.items.some(
-    item => location === item.path || location.startsWith(item.path + "/")
-  );
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={onToggle}>
-      <SidebarGroup className="py-0">
-        <CollapsibleTrigger asChild>
-          <SidebarGroupLabel
-            className={`h-9 px-3 cursor-pointer hover:bg-accent/50 transition-colors text-[11px] tracking-wider uppercase font-semibold ${
-              hasActiveItem ? group.color : "text-muted-foreground"
-            }`}
-          >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
+        return (
+          <div key={group.id}>
+            <button
+              onClick={() => toggleGroup(group.id)}
+              className={`w-full flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-accent/30 ${
+                hasActiveItem ? group.color : "text-muted-foreground"
+              }`}
+            >
               <group.icon className={`h-3.5 w-3.5 shrink-0 ${hasActiveItem ? group.color : ""}`} />
-              {!isCollapsed && (
-                <>
-                  <span className="truncate">{group.label}</span>
-                  <ChevronRight
-                    className={`h-3 w-3 ml-auto shrink-0 transition-transform duration-200 ${
-                      isOpen ? "rotate-90" : ""
-                    }`}
-                  />
-                </>
-              )}
-            </div>
-          </SidebarGroupLabel>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <SidebarGroupContent>
-            <SidebarMenuSub className="border-l-0 ml-0 pl-0">
-              {group.items.map(item => {
-                const isActive = location === item.path || location.startsWith(item.path + "/");
-                return (
-                  <SidebarMenuSubItem key={item.path}>
-                    <SidebarMenuSubButton
-                      isActive={isActive}
+              <span className="text-[11px] tracking-wider uppercase font-semibold flex-1 truncate">
+                {group.label}
+              </span>
+              <ChevronRight
+                className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+            {isOpen && (
+              <div className="pb-1">
+                {group.items.map(item => {
+                  const isActive = location === item.path || location.startsWith(item.path + "/");
+                  return (
+                    <button
+                      key={item.path}
                       onClick={() => setLocation(item.path)}
-                      className={`h-8 pl-7 text-xs cursor-pointer ${
+                      className={`w-full flex items-center gap-2 pl-8 pr-4 py-1.5 text-left transition-colors ${
                         isActive
                           ? "text-foreground font-medium bg-accent/50"
-                          : "text-muted-foreground hover:text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
                       }`}
                     >
-                      <item.icon className={`h-3.5 w-3.5 shrink-0 mr-2 ${isActive ? group.color : ""}`} />
-                      <span className="truncate">{item.label}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                );
-              })}
-            </SidebarMenuSub>
-          </SidebarGroupContent>
-        </CollapsibleContent>
-      </SidebarGroup>
-    </Collapsible>
+                      <item.icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? group.color : ""}`} />
+                      <span className="text-xs truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-/** Compact engagement switcher for the sidebar */
+// ─── Mobile Nav List ─────────────────────────────────────────────────────────
+
+function MobileNavList({
+  location,
+  setLocation,
+}: {
+  location: string;
+  setLocation: (path: string) => void;
+}) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const defaults: Record<string, boolean> = {};
+    for (const group of sidebarNavGroups) {
+      if (group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
+        defaults[group.id] = true;
+      }
+    }
+    return defaults;
+  });
+
+  return (
+    <div className="py-1">
+      <button
+        onClick={() => setLocation("/home")}
+        className={`w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors ${
+          location === "/" || location === "/home"
+            ? "bg-accent text-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent/50"
+        }`}
+      >
+        <Home className="h-4 w-4 shrink-0" />
+        <span className="text-sm">Home</span>
+      </button>
+
+      {sidebarNavGroups.map(group => {
+        const isOpen = !!openGroups[group.id];
+        const hasActiveItem = group.items.some(i => location === i.path || location.startsWith(i.path + "/"));
+
+        return (
+          <div key={group.id}>
+            <button
+              onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
+              className={`w-full flex items-center gap-2 px-4 py-2.5 text-left ${
+                hasActiveItem ? group.color : "text-muted-foreground"
+              }`}
+            >
+              <group.icon className="h-4 w-4 shrink-0" />
+              <span className="text-xs tracking-wider uppercase font-semibold flex-1">{group.label}</span>
+              <ChevronRight className={`h-3 w-3 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+            </button>
+            {isOpen && group.items.map(item => {
+              const isActive = location === item.path || location.startsWith(item.path + "/");
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => setLocation(item.path)}
+                  className={`w-full flex items-center gap-2 pl-10 pr-4 py-2 text-left ${
+                    isActive ? "text-foreground font-medium bg-accent/50" : "text-muted-foreground hover:bg-accent/30"
+                  }`}
+                >
+                  <item.icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? group.color : ""}`} />
+                  <span className="text-xs truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Sidebar Footer ──────────────────────────────────────────────────────────
+
+function SidebarFooterSection({
+  user,
+  logout,
+  isCollapsed,
+}: {
+  user: any;
+  logout: () => void;
+  isCollapsed: boolean;
+}) {
+  return (
+    <div className="p-2 border-t">
+      <div className="mb-1">
+        <FIPSIndicator collapsed={isCollapsed} />
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className={`flex items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            isCollapsed ? "justify-center" : ""
+          }`}>
+            <Avatar className="h-8 w-8 border shrink-0">
+              <AvatarFallback className="text-xs font-medium">
+                {user?.name?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate leading-none">
+                  {user?.name || "-"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate mt-1">
+                  {user?.email || "-"}
+                </p>
+              </div>
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            onClick={logout}
+            className="cursor-pointer text-destructive focus:text-destructive"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Sign out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// ─── Engagement Switcher ─────────────────────────────────────────────────────
+
 function EngagementSwitcher({ isCollapsed }: { isCollapsed: boolean }) {
   const { activeEngagement, setActiveEngagement, engagements, clearEngagement } = useEngagement();
   const [open, setOpen] = useState(false);
@@ -444,14 +607,21 @@ function EngagementSwitcher({ isCollapsed }: { isCollapsed: boolean }) {
 
   if (isCollapsed) {
     return (
-      <div className="px-2 py-1">
-        <button
-          onClick={() => setOpen(!open)}
-          className="w-full h-8 flex items-center justify-center rounded-md hover:bg-accent transition-colors"
-          title={activeEngagement ? `Active: ${activeEngagement.name}` : "No engagement selected"}
-        >
-          <Crosshair className={`h-4 w-4 ${activeEngagement ? "text-primary" : "text-muted-foreground"}`} />
-        </button>
+      <div className="py-1 flex justify-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => setOpen(!open)}
+              className="h-10 w-10 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+              title={activeEngagement ? `Active: ${activeEngagement.name}` : "No engagement selected"}
+            >
+              <Crosshair className={`h-4 w-4 ${activeEngagement ? "text-primary" : "text-muted-foreground"}`} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            {activeEngagement ? activeEngagement.name : "No engagement"}
+          </TooltipContent>
+        </Tooltip>
       </div>
     );
   }
