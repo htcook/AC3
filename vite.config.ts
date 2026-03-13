@@ -145,19 +145,18 @@ export default defineConfig({
           if (id.includes("node_modules/lucide-react")) {
             return "vendor-lucide";
           }
-          // Group Radix UI primitives together (must stay with React)
-          if (id.includes("node_modules/@radix-ui")) {
-            return "vendor-radix";
-          }
-          // Group React + React-DOM + react-is together (prevents TDZ circular dep errors)
-          // react-is MUST be in this chunk because recharts depends on it,
-          // and if it lands in vendor-charts, Rollup's CJS interop helper creates
-          // a circular import between vendor-react ↔ vendor-charts → black screen.
+          // Group React + React-DOM + react-is + Radix UI together in ONE chunk.
+          // CRITICAL: Radix and React MUST be in the same chunk because Rollup's
+          // CJS interop helper (getDefaultExportFromCjs) gets defined in whichever
+          // chunk first needs it. If Radix is separate, vendor-react imports the
+          // helper from vendor-radix while vendor-radix imports React from
+          // vendor-react → circular TDZ error → black screen in production.
           if (
             id.includes("node_modules/react/") ||
             id.includes("node_modules/react-dom/") ||
             id.includes("node_modules/scheduler/") ||
-            id.includes("node_modules/react-is/")
+            id.includes("node_modules/react-is/") ||
+            id.includes("node_modules/@radix-ui")
           ) {
             return "vendor-react";
           }

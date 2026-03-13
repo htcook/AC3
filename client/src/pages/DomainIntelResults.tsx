@@ -1343,6 +1343,384 @@ export default function DomainIntelResults() {
             </Card>
           )}
 
+          {/* Risk Heatmap */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-purple-400" />
+                Asset Risk Heatmap
+              </CardTitle>
+              <CardDescription className="text-xs">Click any asset to see the supporting details behind its risk score</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5">
+                {sortedAssets.map((asset: any) => {
+                  const band = asset.riskBand || "low";
+                  const isHeatmapExpanded = heatmapExpandedAsset === asset.id;
+                  return (
+                    <div
+                      key={asset.id}
+                      className={`px-2 py-1.5 rounded-md border cursor-pointer transition-all hover:scale-[1.03] ${RISK_COLORS[band]} ${isHeatmapExpanded ? 'ring-2 ring-purple-500 scale-[1.03]' : ''}`}
+                      onClick={() => setHeatmapExpandedAsset(isHeatmapExpanded ? null : asset.id)}
+                    >
+                      <p className="font-mono text-[10px] truncate leading-tight">{asset.hostname}</p>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[9px] opacity-60 truncate mr-1">{asset.assetType}</span>
+                        <span className="text-xs font-bold shrink-0" title="Hybrid Risk Score">{asset.hybridRiskScore}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Expanded Asset Detail Panel */}
+              {heatmapExpandedAsset && (() => {
+                const _asset = sortedAssets.find((a: any) => a.id === heatmapExpandedAsset);
+                if (!_asset) return null;
+                const asset = _asset as any;
+                const band = asset.riskBand || "low";
+                const carver = (asset.carverScores || {}) as Record<string, number>;
+                const shock = (asset.shockScores || {}) as Record<string, number>;
+                const findings = (asset.postureFindings || []) as any[];
+                const vectors = (asset.testVectors || []) as any[];
+                const technologies = (asset.technologies || []) as string[];
+                const isSubdomainAsset = !!(asset as any)._isSubdomainAsset;
+                const confirmedFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'critical' || f.severity === 'high')
+                  : findings.filter((f: any) => f.corroborationTier === 'confirmed');
+                const probableFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'medium')
+                  : findings.filter((f: any) => f.corroborationTier === 'probable');
+                const potentialFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.severity === 'low')
+                  : findings.filter((f: any) => f.corroborationTier === 'potential');
+                const kevFindings = isSubdomainAsset
+                  ? findings.filter((f: any) => f.category === 'vulnerability')
+                  : findings.filter((f: any) => f.kevListed);
+
+                return (
+                  <div className="border border-purple-500/30 rounded-lg bg-card/80 p-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-9 h-9 rounded flex items-center justify-center ${RISK_COLORS[band]}`} title="Hybrid Risk Score">
+                          <span className="text-sm font-bold">{asset.hybridRiskScore}</span>
+                        </div>
+                        <div className="flex flex-col items-center px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/5" title="CVSS Estimate">
+                          <span className="text-sm font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
+                          <span className="text-[7px] text-cyan-400/70 uppercase">CVSS</span>
+                        </div>
+                        <div>
+                          <p className="font-mono text-sm font-semibold">{asset.hostname}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] py-0">{asset.assetType}</Badge>
+                            <Badge className={`text-[9px] py-0 ${RISK_COLORS[band]}`}>{band}</Badge>
+                            {asset.discoveryMethod && (
+                              <Badge variant="outline" className={`text-[9px] py-0 ${
+                                asset.discoveryMethod === 'inferred' ? 'text-purple-400 border-purple-500/40' :
+                                asset.discoveryMethod === 'dns_verified' ? 'text-emerald-400 border-emerald-500/40' :
+                                'text-blue-400 border-blue-500/40'
+                              }`}>
+                                {asset.discoveryMethod === 'inferred' ? 'Inferred' : asset.discoveryMethod === 'dns_verified' ? 'DNS Verified' : asset.discoveryMethod}
+                              </Badge>
+                            )}
+                            {asset.suggestedTier && <Badge variant="outline" className="text-[9px] py-0">{asset.suggestedTier.replace('_', ' ')}</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHeatmapExpandedAsset(null)}>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Score Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Impact Scores */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                          <Target className="h-2.5 w-2.5" /> Impact Scores
+                        </p>
+                        <div className="space-y-1">
+                          {Object.entries(carver).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-20 capitalize">{k}</span>
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Disruption Scores */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                          <Zap className="h-2.5 w-2.5" /> Disruption Scores
+                        </p>
+                        <div className="space-y-1">
+                          {Object.entries(shock).map(([k, v]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground w-24 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Risk Composition */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 uppercase tracking-wider">
+                          <Activity className="h-2.5 w-2.5" /> Risk Composition
+                        </p>
+                        <div className="space-y-1.5">
+                          {/* Impact × Likelihood — the two dimensions that compose the risk score */}
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-sky-400 font-medium">Mission Impact</span>
+                            <span className={`font-bold ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>{asset.impactScore || 0}/100</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-amber-400 font-medium">Likelihood (CVSS+Exposure)</span>
+                            <span className={`font-bold ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.likelihoodScore || 0}/100</span>
+                          </div>
+                          <div className="pt-1.5 border-t border-border/50 space-y-1">
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-muted-foreground">Mission Impact</span>
+                              <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
+                            </div>
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-muted-foreground">Confidence</span>
+                              <span className="font-bold">{asset.confidence || 0}%</span>
+                            </div>
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-muted-foreground">Criticality</span>
+                              <span className={`font-bold ${(asset.assetCriticalityBand || 'low') === 'critical' ? 'text-purple-400' : (asset.assetCriticalityBand || 'low') === 'high' ? 'text-blue-400' : (asset.assetCriticalityBand || 'low') === 'medium' ? 'text-cyan-400' : 'text-slate-400'}`}>
+                                {asset.assetCriticalityScore || 0} ({(asset.assetCriticalityBand || 'low').toUpperCase()})
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-muted-foreground">Vuln Risk</span>
+                              <span className={`font-bold ${(asset.vulnRiskBand || 'low') === 'critical' ? 'text-red-400' : (asset.vulnRiskBand || 'low') === 'high' ? 'text-orange-400' : (asset.vulnRiskBand || 'low') === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                                {asset.vulnRiskScore || 0} ({(asset.vulnRiskBand || 'low').toUpperCase()})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Technologies */}
+                    {technologies.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center gap-1 uppercase tracking-wider">
+                          <Server className="h-2.5 w-2.5" /> Technologies ({technologies.length})
+                        </p>
+                        <div className="flex flex-wrap gap-0.5">
+                          {technologies.slice(0, 12).map((t: string, i: number) => (
+                            <Badge key={i} variant="secondary" className="text-[9px] py-0">{t}</Badge>
+                          ))}
+                          {technologies.length > 12 && <Badge variant="outline" className="text-[9px] py-0">+{technologies.length - 12}</Badge>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Finding Summary */}
+                    {findings.length > 0 && (() => {
+                      if (isSubdomainAsset) {
+                        // Subdomain-specific findings display with category, severity, and remediation
+                        const SCAT_COLORS: Record<string, string> = {
+                          network_exposure: 'bg-red-500/20 text-red-300 border-red-500/40',
+                          vulnerability: 'bg-rose-600/20 text-rose-300 border-rose-500/40',
+                          encryption: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                          technology: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+                          dns_configuration: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+                        };
+                        const SSEV_COLORS: Record<string, string> = {
+                          critical: 'bg-red-600/30 text-red-300 border-red-500/50',
+                          high: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+                          medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+                          low: 'bg-green-500/20 text-green-300 border-green-500/40',
+                        };
+                        const criticalFindings = findings.filter((f: any) => f.severity === 'critical');
+                        const highFindings = findings.filter((f: any) => f.severity === 'high');
+                        const mediumFindings = findings.filter((f: any) => f.severity === 'medium');
+                        return (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> Risks & Weaknesses ({findings.length})
+                            </p>
+                            <div className="flex gap-2 mb-2 flex-wrap">
+                              {criticalFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{criticalFindings.length} Critical</Badge>}
+                              {highFindings.length > 0 && <Badge className="text-[10px] bg-orange-500/20 text-orange-300 border-orange-500/40">{highFindings.length} High</Badge>}
+                              {mediumFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/40">{mediumFindings.length} Medium</Badge>}
+                            </div>
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                              {findings.map((f: any, i: number) => (
+                                <div key={i} className={`p-2 rounded border text-xs ${f.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' : f.severity === 'high' ? 'bg-orange-500/5 border-orange-500/20' : 'bg-muted/20 border-border'}`}>
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                    <Badge className={`text-[9px] px-1 py-0 ${SSEV_COLORS[f.severity] || SSEV_COLORS.medium}`}>{(f.severity || 'medium').toUpperCase()}</Badge>
+                                    {f.category && <Badge className={`text-[9px] px-1 py-0 ${SCAT_COLORS[f.category] || 'bg-muted text-muted-foreground border-border'}`}>{(f.category || '').replace(/_/g, ' ').toUpperCase()}</Badge>}
+                                  </div>
+                                  <p className="font-medium text-foreground/90 mb-1">{f.finding}</p>
+                                  {f.remediation && (
+                                    <div className="mt-1.5 p-1.5 rounded bg-emerald-500/5 border border-emerald-500/20">
+                                      <p className="text-[10px] text-emerald-400"><span className="font-semibold">Remediation:</span> {f.remediation}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {/* Test Vectors for subdomain */}
+                            {vectors.length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                                  <Target className="h-3 w-3" /> Attack Vectors ({vectors.length})
+                                </p>
+                                <div className="space-y-1">
+                                  {vectors.map((v: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-muted/20 border border-border">
+                                      <Badge className={`text-[9px] px-1 py-0 ${v.priority === 'critical' ? 'bg-red-600/30 text-red-300' : v.priority === 'high' ? 'bg-orange-500/20 text-orange-300' : 'bg-yellow-500/20 text-yellow-300'}`}>{v.priority?.toUpperCase()}</Badge>
+                                      <span className="font-medium">{v.vector}</span>
+                                      {v.technique && <span className="ml-auto font-mono text-[10px] text-cyan-400">{v.technique}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {/* Context Indicators */}
+                            {(asset.contextIndicators || []).length > 0 && (
+                              <div className="mt-3">
+                                <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                                  <Info className="h-3 w-3" /> Context Indicators
+                                </p>
+                                <div className="flex gap-1.5 flex-wrap">
+                                  {(asset.contextIndicators as string[]).map((c: string, i: number) => (
+                                    <Badge key={i} variant="outline" className="text-[10px] text-muted-foreground">{c}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      // Standard LLM-analyzed asset findings display
+                      const confirmedOnly = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed)];
+                      return (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Confirmed Findings ({confirmedOnly.length})
+                          </p>
+                          <div className="flex gap-2 mb-2 flex-wrap">
+                            {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
+                            {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
+                          </div>
+                          {confirmedOnly.length > 0 ? (
+                            <div className="space-y-1 max-h-36 overflow-y-auto">
+                              {confirmedOnly.slice(0, 5).map((f: any, i: number) => (
+                                  <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge className="text-[9px] px-1 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
+                                      {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
+                                      {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
+                                      {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
+                                      {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
+                                      <span className="font-medium">{f.title}</span>
+                                      <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
+                                    </div>
+                                    {f.cveIds?.length > 0 && (
+                                      <div className="flex gap-1 mt-0.5 flex-wrap">
+                                        {f.cveIds.slice(0, 3).map((cve: string) => (
+                                          <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
+                                            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                              ))}
+                              {confirmedOnly.length > 8 && (
+                                <p className="text-[10px] text-muted-foreground text-center pt-1">+ {confirmedOnly.length - 8} more — see Findings tab for full details</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">No confirmed findings for this asset.</p>
+                          )}
+                          {/* Probable + Potential collapsed */}
+                          {probableFindings.length > 0 && (
+                            <Collapsible className="mt-1.5">
+                              <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-yellow-400 hover:text-yellow-300 cursor-pointer">
+                                <ChevronDown className="h-2.5 w-2.5" />
+                                <span className="underline decoration-dotted">Probable ({probableFindings.length})</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-1 space-y-1 max-h-28 overflow-y-auto">
+                                {probableFindings.slice(0, 3).map((f: any, i: number) => (
+                                  <div key={`prob-${i}`} className="px-2 py-1 rounded border text-[10px] bg-yellow-500/5 border-yellow-500/20 opacity-70 flex items-center gap-1.5">
+                                    <Badge className="text-[8px] px-1 py-0 text-yellow-400 bg-yellow-500/20 border-yellow-500/40 shrink-0">PROBABLE</Badge>
+                                    <span className="font-medium truncate">{f.title}</span>
+                                  </div>
+                                ))}
+                                {probableFindings.length > 3 && <p className="text-[9px] text-muted-foreground text-center">+{probableFindings.length - 3} more</p>}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
+                          {potentialFindings.length > 0 && (
+                            <Collapsible className="mt-1">
+                              <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-300 cursor-pointer">
+                                <ChevronDown className="h-2.5 w-2.5" />
+                                <span className="underline decoration-dotted">Potential ({potentialFindings.length})</span>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="mt-1 space-y-1 max-h-28 overflow-y-auto">
+                                {potentialFindings.slice(0, 3).map((f: any, i: number) => (
+                                  <div key={`pot-${i}`} className="px-2 py-1 rounded border text-[10px] bg-purple-500/5 border-purple-500/20 opacity-60 flex items-center gap-1.5">
+                                    <Badge className="text-[8px] px-1 py-0 text-purple-400 bg-purple-500/20 border-purple-500/40 shrink-0">POTENTIAL</Badge>
+                                    <span className="font-medium text-muted-foreground truncate">{f.title}</span>
+                                  </div>
+                                ))}
+                                {potentialFindings.length > 3 && <p className="text-[9px] text-muted-foreground text-center">+{potentialFindings.length - 3} more</p>}
+                              </CollapsibleContent>
+                            </Collapsible>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Test Vectors Preview */}
+                    {vectors.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-medium text-muted-foreground mb-1 flex items-center gap-1 uppercase tracking-wider">
+                          <Crosshair className="h-2.5 w-2.5" /> Vectors ({vectors.length})
+                        </p>
+                        <div className="flex flex-wrap gap-0.5">
+                          {vectors.slice(0, 4).map((v: any, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[9px] py-0">
+                              {v.vectorType}
+                              {v.suggestedEmulation?.technique && <span className="ml-0.5 text-purple-400">{v.suggestedEmulation.technique}</span>}
+                            </Badge>
+                          ))}
+                          {vectors.length > 4 && <Badge variant="outline" className="text-[9px] py-0">+{vectors.length - 4}</Badge>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* View Full Details Button */}
+                    <div className="flex justify-end pt-1">
+                      <Button variant="outline" size="sm" className="text-xs" onClick={() => {
+                        setExpandedAsset(asset.id);
+                        setActiveTab("assets");
+                      }}>
+                        <Eye className="h-3 w-3 mr-1" />
+                        View Full Asset Details
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+
           {/* Entity Information & Hybrid Scoring Context */}
           {(() => {
             const orgP = scan.orgProfile as any;
@@ -2045,414 +2423,6 @@ export default function DomainIntelResults() {
             );
           })()}
 
-          {/* Risk Heatmap */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-purple-400" />
-                Asset Risk Heatmap
-              </CardTitle>
-              <CardDescription className="text-xs">Click any asset to see the supporting details behind its risk score</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                {sortedAssets.map((asset: any) => {
-                  const band = asset.riskBand || "low";
-                  const isHeatmapExpanded = heatmapExpandedAsset === asset.id;
-                  return (
-                    <div
-                      key={asset.id}
-                      className={`p-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${RISK_COLORS[band]} ${isHeatmapExpanded ? 'ring-2 ring-purple-500 scale-105' : ''}`}
-                      onClick={() => setHeatmapExpandedAsset(isHeatmapExpanded ? null : asset.id)}
-                    >
-                      <p className="font-mono text-xs truncate">{asset.hostname}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs opacity-70">{asset.assetType}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-cyan-400 font-mono" title="CVSS Estimate (Industry Standard)">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
-                          <span className="text-[9px] text-muted-foreground">/</span>
-                          <span className="text-sm font-bold" title="Ace C3 Hybrid Risk Score">{asset.hybridRiskScore}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Expanded Asset Detail Panel */}
-              {heatmapExpandedAsset && (() => {
-                const _asset = sortedAssets.find((a: any) => a.id === heatmapExpandedAsset);
-                if (!_asset) return null;
-                const asset = _asset as any;
-                const band = asset.riskBand || "low";
-                const carver = (asset.carverScores || {}) as Record<string, number>;
-                const shock = (asset.shockScores || {}) as Record<string, number>;
-                const findings = (asset.postureFindings || []) as any[];
-                const vectors = (asset.testVectors || []) as any[];
-                const technologies = (asset.technologies || []) as string[];
-                const isSubdomainAsset = !!(asset as any)._isSubdomainAsset;
-                const confirmedFindings = isSubdomainAsset
-                  ? findings.filter((f: any) => f.severity === 'critical' || f.severity === 'high')
-                  : findings.filter((f: any) => f.corroborationTier === 'confirmed');
-                const probableFindings = isSubdomainAsset
-                  ? findings.filter((f: any) => f.severity === 'medium')
-                  : findings.filter((f: any) => f.corroborationTier === 'probable');
-                const potentialFindings = isSubdomainAsset
-                  ? findings.filter((f: any) => f.severity === 'low')
-                  : findings.filter((f: any) => f.corroborationTier === 'potential');
-                const kevFindings = isSubdomainAsset
-                  ? findings.filter((f: any) => f.category === 'vulnerability')
-                  : findings.filter((f: any) => f.kevListed);
-
-                return (
-                  <div className="border border-purple-500/30 rounded-lg bg-card/80 p-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`} title="Ace C3 Hybrid Risk Score">
-                            <span className="text-lg font-bold">{asset.hybridRiskScore}</span>
-                          </div>
-                          <div className="flex flex-col items-center px-2 py-1 rounded border border-cyan-500/30 bg-cyan-500/5" title="CVSS Estimate (Industry Standard 0-10)">
-                            <span className="text-lg font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
-                            <span className="text-[8px] text-cyan-400/70 uppercase">CVSS</span>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="font-mono font-semibold">{asset.hostname}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant="outline" className="text-[10px]">{asset.assetType}</Badge>
-                            <Badge className={`text-[10px] ${RISK_COLORS[band]}`}>{band}</Badge>
-                            {asset.discoveryMethod && (
-                              <Badge variant="outline" className={`text-[10px] ${
-                                asset.discoveryMethod === 'inferred' ? 'text-purple-400 border-purple-500/40' :
-                                asset.discoveryMethod === 'dns_verified' ? 'text-emerald-400 border-emerald-500/40' :
-                                'text-blue-400 border-blue-500/40'
-                              }`}>
-                                {asset.discoveryMethod === 'inferred' ? 'Inferred' : asset.discoveryMethod === 'dns_verified' ? 'DNS Verified' : asset.discoveryMethod}
-                              </Badge>
-                            )}
-                            {asset.suggestedTier && <Badge variant="outline" className="text-[10px]">{asset.suggestedTier.replace('_', ' ')}</Badge>}
-                          </div>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => setHeatmapExpandedAsset(null)}>
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    {/* Score Breakdown */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Impact Scores */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <Target className="h-3 w-3" /> Impact Scores
-                        </p>
-                        <div className="space-y-1">
-                          {Object.entries(carver).map(([k, v]) => (
-                            <div key={k} className="flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground w-20 capitalize">{k}</span>
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
-                              </div>
-                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Disruption Scores */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <Zap className="h-3 w-3" /> Disruption Scores
-                        </p>
-                        <div className="space-y-1">
-                          {Object.entries(shock).map(([k, v]) => (
-                            <div key={k} className="flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground w-24 capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${(v as number) >= 7 ? 'bg-red-500' : (v as number) >= 4 ? 'bg-yellow-500' : 'bg-emerald-500'}`} style={{ width: `${(v as number) * 10}%` }} />
-                              </div>
-                              <span className="text-[10px] font-mono w-4 text-right">{v as number}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Risk Composition */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <Activity className="h-3 w-3" /> Risk Composition
-                        </p>
-                        <div className="space-y-2">
-                          {/* Impact × Likelihood — the two dimensions that compose the risk score */}
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-sky-400 font-medium">Mission Impact</span>
-                            <span className={`font-bold ${(asset.impactScore || 0) >= 70 ? 'text-sky-400' : (asset.impactScore || 0) >= 40 ? 'text-sky-300' : 'text-slate-400'}`}>{asset.impactScore || 0}/100</span>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-amber-400 font-medium">Likelihood (CVSS+Exposure)</span>
-                            <span className={`font-bold ${(asset.likelihoodScore || 0) >= 70 ? 'text-amber-400' : (asset.likelihoodScore || 0) >= 40 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.likelihoodScore || 0}/100</span>
-                          </div>
-                          <div className="pt-2 border-t border-border space-y-1.5">
-                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Score Comparison</p>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="rounded-md border border-cyan-500/30 bg-cyan-500/5 p-2 text-center" title="CVSS Estimate — Industry-standard vulnerability severity score derived from CVE data and technology analysis">
-                                <span className="text-lg font-bold text-cyan-400">{((asset.cvssEstimate || 0) / 10).toFixed(1)}</span>
-                                <span className="text-[10px] text-cyan-400/70">/10</span>
-                                <p className="text-[9px] text-cyan-400/60 mt-0.5">CVSS Estimate</p>
-                                <p className="text-[8px] text-muted-foreground/50">Industry Standard</p>
-                              </div>
-                              <div className={`rounded-md border p-2 text-center ${band === 'critical' ? 'border-red-500/30 bg-red-500/5' : band === 'high' ? 'border-orange-500/30 bg-orange-500/5' : band === 'medium' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`} title="Ace C3 Hybrid Risk Score — Proprietary hybrid risk score combining multi-dimensional impact, disruption, CVSS likelihood, and contextual exposure factors">
-                                <span className={`text-lg font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}</span>
-                                <span className="text-[10px] text-muted-foreground">/100</span>
-                                <p className={`text-[9px] mt-0.5 ${band === 'critical' ? 'text-red-400/60' : band === 'high' ? 'text-orange-400/60' : band === 'medium' ? 'text-yellow-400/60' : 'text-emerald-400/60'}`}>Hybrid Risk</p>
-                                <p className="text-[8px] text-muted-foreground/50">Ace C3 Proprietary</p>
-                              </div>
-                            </div>
-                            <div className="text-[8px] text-muted-foreground/60 italic">Hybrid = √(Impact × Likelihood) · CVSS = vulnerability severity estimate</div>
-                          </div>
-                          <div className="flex justify-between text-[11px] pt-1 border-t border-border/50">
-                            <span className="text-muted-foreground">Mission Impact</span>
-                            <span className="font-bold">{((asset.missionImpactScore || 0) / 10).toFixed(1)}/10</span>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-muted-foreground">Confidence</span>
-                            <span className="font-bold">{asset.confidence || 0}%</span>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-muted-foreground">Asset Criticality</span>
-                            <span className={`font-bold ${(asset.assetCriticalityBand || 'low') === 'critical' ? 'text-purple-400' : (asset.assetCriticalityBand || 'low') === 'high' ? 'text-blue-400' : (asset.assetCriticalityBand || 'low') === 'medium' ? 'text-cyan-400' : 'text-slate-400'}`}>
-                              {asset.assetCriticalityScore || 0}/100 ({(asset.assetCriticalityBand || 'low').toUpperCase()})
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-muted-foreground">Vuln Risk (Scan-Confirmed)</span>
-                            <span className={`font-bold ${(asset.vulnRiskBand || 'low') === 'critical' ? 'text-red-400' : (asset.vulnRiskBand || 'low') === 'high' ? 'text-orange-400' : (asset.vulnRiskBand || 'low') === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                              {asset.vulnRiskScore || 0}/100 ({(asset.vulnRiskBand || 'low').toUpperCase()})
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Technologies */}
-                    {technologies.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                          <Server className="h-3 w-3" /> Detected Technologies ({technologies.length})
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {technologies.map((t: string, i: number) => (
-                            <Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Finding Summary */}
-                    {findings.length > 0 && (() => {
-                      if (isSubdomainAsset) {
-                        // Subdomain-specific findings display with category, severity, and remediation
-                        const SCAT_COLORS: Record<string, string> = {
-                          network_exposure: 'bg-red-500/20 text-red-300 border-red-500/40',
-                          vulnerability: 'bg-rose-600/20 text-rose-300 border-rose-500/40',
-                          encryption: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-                          technology: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
-                          dns_configuration: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-                        };
-                        const SSEV_COLORS: Record<string, string> = {
-                          critical: 'bg-red-600/30 text-red-300 border-red-500/50',
-                          high: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
-                          medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
-                          low: 'bg-green-500/20 text-green-300 border-green-500/40',
-                        };
-                        const criticalFindings = findings.filter((f: any) => f.severity === 'critical');
-                        const highFindings = findings.filter((f: any) => f.severity === 'high');
-                        const mediumFindings = findings.filter((f: any) => f.severity === 'medium');
-                        return (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                              <AlertTriangle className="h-3 w-3" /> Risks & Weaknesses ({findings.length})
-                            </p>
-                            <div className="flex gap-2 mb-2 flex-wrap">
-                              {criticalFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{criticalFindings.length} Critical</Badge>}
-                              {highFindings.length > 0 && <Badge className="text-[10px] bg-orange-500/20 text-orange-300 border-orange-500/40">{highFindings.length} High</Badge>}
-                              {mediumFindings.length > 0 && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-300 border-yellow-500/40">{mediumFindings.length} Medium</Badge>}
-                            </div>
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                              {findings.map((f: any, i: number) => (
-                                <div key={i} className={`p-2.5 rounded border text-xs ${f.severity === 'critical' ? 'bg-red-500/5 border-red-500/30' : f.severity === 'high' ? 'bg-orange-500/5 border-orange-500/20' : 'bg-muted/20 border-border'}`}>
-                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                    <Badge className={`text-[9px] px-1 py-0 ${SSEV_COLORS[f.severity] || SSEV_COLORS.medium}`}>{(f.severity || 'medium').toUpperCase()}</Badge>
-                                    {f.category && <Badge className={`text-[9px] px-1 py-0 ${SCAT_COLORS[f.category] || 'bg-muted text-muted-foreground border-border'}`}>{(f.category || '').replace(/_/g, ' ').toUpperCase()}</Badge>}
-                                  </div>
-                                  <p className="font-medium text-foreground/90 mb-1">{f.finding}</p>
-                                  {f.remediation && (
-                                    <div className="mt-1.5 p-1.5 rounded bg-emerald-500/5 border border-emerald-500/20">
-                                      <p className="text-[10px] text-emerald-400"><span className="font-semibold">Remediation:</span> {f.remediation}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            {/* Test Vectors for subdomain */}
-                            {vectors.length > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                                  <Target className="h-3 w-3" /> Attack Vectors ({vectors.length})
-                                </p>
-                                <div className="space-y-1">
-                                  {vectors.map((v: any, i: number) => (
-                                    <div key={i} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-muted/20 border border-border">
-                                      <Badge className={`text-[9px] px-1 py-0 ${v.priority === 'critical' ? 'bg-red-600/30 text-red-300' : v.priority === 'high' ? 'bg-orange-500/20 text-orange-300' : 'bg-yellow-500/20 text-yellow-300'}`}>{v.priority?.toUpperCase()}</Badge>
-                                      <span className="font-medium">{v.vector}</span>
-                                      {v.technique && <span className="ml-auto font-mono text-[10px] text-cyan-400">{v.technique}</span>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {/* Context Indicators */}
-                            {(asset.contextIndicators || []).length > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                                  <Info className="h-3 w-3" /> Context Indicators
-                                </p>
-                                <div className="flex gap-1.5 flex-wrap">
-                                  {(asset.contextIndicators as string[]).map((c: string, i: number) => (
-                                    <Badge key={i} variant="outline" className="text-[10px] text-muted-foreground">{c}</Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-                      // Standard LLM-analyzed asset findings display
-                      const confirmedOnly = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed)];
-                      return (
-                        <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Confirmed Findings ({confirmedOnly.length})
-                          </p>
-                          <div className="flex gap-2 mb-2 flex-wrap">
-                            {kevFindings.length > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50">{kevFindings.length} KEV-listed</Badge>}
-                            {confirmedFindings.length > 0 && <Badge className="text-[10px] bg-emerald-500/20 text-emerald-400 border-emerald-500/40">{confirmedFindings.length} Confirmed</Badge>}
-                          </div>
-                          {confirmedOnly.length > 0 ? (
-                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                              {confirmedOnly.slice(0, 8).map((f: any, i: number) => (
-                                  <div key={i} className={`p-2 rounded border text-xs ${f.kevListed ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/20 border-border'}`}>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <Badge className="text-[9px] px-1 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
-                                      {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
-                                      {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
-                                      {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
-                                      {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
-                                      <span className="font-medium">{f.title}</span>
-                                      <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
-                                    </div>
-                                    {f.cveIds?.length > 0 && (
-                                      <div className="flex gap-1 mt-0.5 flex-wrap">
-                                        {f.cveIds.slice(0, 3).map((cve: string) => (
-                                          <a key={cve} href={`https://nvd.nist.gov/vuln/detail/${cve}`} target="_blank" rel="noopener noreferrer"
-                                            className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 underline decoration-dotted">{cve}</a>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                              ))}
-                              {confirmedOnly.length > 8 && (
-                                <p className="text-[10px] text-muted-foreground text-center pt-1">+ {confirmedOnly.length - 8} more — see Findings tab for full details</p>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-muted-foreground">No confirmed findings for this asset.</p>
-                          )}
-                          {/* Probable findings in their own collapsible */}
-                          {probableFindings.length > 0 && (
-                            <Collapsible className="mt-2">
-                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer">
-                                <ChevronDown className="h-3 w-3" />
-                                <span className="underline decoration-dotted">Probable Matches ({probableFindings.length})</span>
-                                <span className="text-[9px] text-muted-foreground no-underline ml-1">version unconfirmed</span>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
-                                {probableFindings.slice(0, 5).map((f: any, i: number) => (
-                                  <div key={`prob-${i}`} className="p-2 rounded border text-xs bg-yellow-500/5 border-yellow-500/20 opacity-70">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <Badge className="text-[9px] px-1 py-0 text-yellow-400 bg-yellow-500/20 border-yellow-500/40">PROBABLE</Badge>
-                                      <span className="font-medium">{f.title}</span>
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground/60 border-muted-foreground/30 ml-auto">Sev: {f.severity}/10 (capped)</Badge>
-                                    </div>
-                                  </div>
-                                ))}
-                                {probableFindings.length > 5 && (
-                                  <p className="text-[10px] text-muted-foreground text-center">+ {probableFindings.length - 5} more probable matches</p>
-                                )}
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )}
-                          {potentialFindings.length > 0 && (
-                            <Collapsible className="mt-2">
-                              <CollapsibleTrigger className="flex items-center gap-1.5 text-[11px] text-purple-400 hover:text-purple-300 transition-colors cursor-pointer">
-                                <ChevronDown className="h-3 w-3" />
-                                <span className="underline decoration-dotted">Potential Matches ({potentialFindings.length})</span>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
-                                {potentialFindings.slice(0, 5).map((f: any, i: number) => (
-                                  <div key={`pot-${i}`} className="p-2 rounded border text-xs bg-purple-500/5 border-purple-500/20 opacity-60">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <Badge className="text-[9px] px-1 py-0 text-purple-400 bg-purple-500/20 border-purple-500/40">POTENTIAL</Badge>
-                                      <span className="font-medium text-muted-foreground">{f.title}</span>
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground/60 border-muted-foreground/30 ml-auto">NOT RATED</Badge>
-                                    </div>
-                                  </div>
-                                ))}
-                                {potentialFindings.length > 5 && (
-                                  <p className="text-[10px] text-muted-foreground text-center">+ {potentialFindings.length - 5} more potential matches</p>
-                                )}
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Test Vectors Preview */}
-                    {vectors.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                          <Crosshair className="h-3 w-3" /> Test Vectors ({vectors.length})
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {vectors.slice(0, 5).map((v: any, i: number) => (
-                            <Badge key={i} variant="outline" className="text-[10px]">
-                              {v.vectorType}
-                              {v.suggestedEmulation?.technique && <span className="ml-1 text-purple-400">{v.suggestedEmulation.technique}</span>}
-                            </Badge>
-                          ))}
-                          {vectors.length > 5 && <Badge variant="outline" className="text-[10px]">+{vectors.length - 5} more</Badge>}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* View Full Details Button */}
-                    <div className="flex justify-end pt-1">
-                      <Button variant="outline" size="sm" className="text-xs" onClick={() => {
-                        setExpandedAsset(asset.id);
-                        setActiveTab("assets");
-                      }}>
-                        <Eye className="h-3 w-3 mr-1" />
-                        View Full Asset Details
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
 
           {/* Top Campaigns Preview */}
           {campaigns.length > 0 && (
