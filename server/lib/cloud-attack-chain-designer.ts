@@ -509,7 +509,7 @@ ${findings.engagementType === "purple_team" ? "Design chains that test specific 
                                 cloudProvider: { type: "string" },
                                 exploitDetails: { type: "string" },
                               },
-                              required: ["order", "techniqueId", "techniqueName", "description", "target", "tools", "prerequisites", "expectedOutcome", "detectionRisk", "isCloudSpecific"],
+                              required: ["order", "techniqueId", "techniqueName", "description", "target", "tools", "prerequisites", "expectedOutcome", "detectionRisk", "isCloudSpecific", "cloudProvider", "exploitDetails"],
                               additionalProperties: false,
                             },
                           },
@@ -778,18 +778,25 @@ async function persistAttackChains(
 ): Promise<void> {
   const db = await getDb();
   if (!db) return;
+  // Filter out empty/invalid chains before persisting
+  const validChains = chains.filter(c => c && c.name && c.killChainPhases?.length > 0);
+  if (validChains.length === 0) {
+    console.warn("[AttackChainDesigner] No valid chains to persist (all empty or malformed)");
+    return;
+  }
   try {
-    for (const chain of chains) {
+    for (const chain of validChains) {
       await db.insert(aiAttackPlans).values({
-        name: chain.name,
-        targetDescription: findings.targetDescription,
-        threatActorProfile: "cloud-aware-chain-designer",
-        generatedPlan: chain as any,
-        attackSteps: chain.killChainPhases as any,
-        estimatedRiskScore: chain.overallRisk,
-        status: "ready",
+        aapName: chain.name,
+        aapTargetDesc: findings.targetDescription || "Unknown target",
+        aapThreatActor: "cloud-aware-chain-designer",
+        aapGeneratedPlan: chain as any,
+        aapAttackSteps: chain.killChainPhases as any,
+        aapRiskScore: chain.overallRisk || 0,
+        aapStatus: "ready",
       });
     }
+    console.log(`[AttackChainDesigner] Persisted ${validChains.length} attack chains to DB`);
   } catch (err) {
     console.error("[AttackChainDesigner] DB persist failed:", err);
   }

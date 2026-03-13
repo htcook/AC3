@@ -53,6 +53,8 @@ import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
 import type { TabGroup } from "@/components/TabGroupNav";
 import { FindingStateBadge } from "@/components/FindingStateBadge";
+import { VulnDetailDrawer, ZapFindingDetailDrawer } from "@/components/FindingDetailDrawer";
+import type { VulnFinding, ZapFinding as ZapFindingType } from "@/components/FindingDetailDrawer";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -620,6 +622,11 @@ export default function EngagementOps() {
   const [activeTab, setActiveTab] = useState("feed");
   const [selectedProfile, setSelectedProfile] = useState<'quick' | 'standard' | 'deep' | 'stealth'>('standard');
   const [showProfileDetails, setShowProfileDetails] = useState(false);
+
+  // ── Finding detail drawer state ──
+  const [selectedVulnDetail, setSelectedVulnDetail] = useState<VulnFinding | null>(null);
+  const [selectedZapDetail, setSelectedZapDetail] = useState<ZapFindingType | null>(null);
+  const [detailAssetHostname, setDetailAssetHostname] = useState<string | undefined>(undefined);
 
   // ── Target paste-in state ──
   const [targetInput, setTargetInput] = useState("");
@@ -1445,9 +1452,12 @@ export default function EngagementOps() {
 
       {/* ── KPI Mission Posture Strip ── */}
       {ops && (() => {
-        const totalVulns = ops.stats?.vulnsFound || 0;
-        const criticalVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'critical').length, 0);
-        const highVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'high').length, 0);
+        // Compute actual vuln counts from asset data (more accurate than stats counter which can desync)
+        const actualVulnCount = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length, 0);
+        const zapFindingCount = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).length, 0);
+        const totalVulns = actualVulnCount + zapFindingCount;
+        const criticalVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'critical').length, 0) + (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).filter((f: any) => f.risk === 'High').length, 0);
+        const highVulns = (ops.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.severity === 'high').length, 0) + (ops.assets || []).reduce((sum: number, a: any) => sum + (a.zapFindings || []).filter((f: any) => f.risk === 'Medium').length, 0);
 
         // Delta comparison: use the last vuln trend snapshot as the baseline
         const trendData = vulnTrendQ.data as any[] | undefined;
@@ -1471,7 +1481,7 @@ export default function EngagementOps() {
         const kpiItems: KpiItem[] = [
           { label: 'Assets Discovered', value: assetCount, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400', delta: assetDelta, deltaPercent: assetDeltaPct, subtitle: snapshotLabel },
           { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400' },
-          { label: 'Open Ports', value: ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta },
+          { label: 'Open Ports', value: (ops.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta },
           { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel },
           { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted` },
           { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground' },
@@ -1828,7 +1838,7 @@ export default function EngagementOps() {
                 color: 'text-purple-400',
                 subTabs: [
                   { value: 'discovery', label: 'Tool Results', icon: <Radar className="h-3 w-3" />, count: toolCount },
-                  { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credFound > 0 ? credFound : credTests.length },
+                  { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credTests.length },
                   { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
                 ],
               },
@@ -2000,10 +2010,11 @@ export default function EngagementOps() {
                         </div>
                         <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
                           <span>{(asset.ports || []).length} ports</span>
-                          <span>{(asset.vulns || []).length} vulns</span>
+                          <span>{(asset.vulns || []).length + (asset.zapFindings || []).length} findings</span>
+                          {(asset.vulns || []).length > 0 && <span className="text-yellow-400">{(asset.vulns || []).length} vulns</span>}
+                          {(asset.zapFindings || []).length > 0 && <span className="text-blue-400">{(asset.zapFindings || []).length} ZAP</span>}
                           {asset.toolResults?.length > 0 && <span className="text-emerald-400">{asset.toolResults.length} tools</span>}
                           {asset.passiveRecon && <span className="text-indigo-400">OSINT</span>}
-                          {(asset.zapFindings || []).length > 0 && <span className="text-blue-400">{asset.zapFindings.length} ZAP</span>}
                           {asset.wafDetected && (
                             <span className="text-orange-400">WAF: {asset.wafDetected}</span>
                           )}
@@ -2067,7 +2078,7 @@ export default function EngagementOps() {
                               const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
                               return (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5);
                             }).map((v: any, i: number) => (
-                              <div key={i} className="text-xs px-2 py-1.5 bg-muted/10 rounded space-y-1">
+                              <div key={i} className="text-xs px-2 py-1.5 bg-muted/10 rounded space-y-1 cursor-pointer hover:bg-muted/30 hover:ring-1 hover:ring-primary/20 transition-all" onClick={() => { setSelectedVulnDetail(v); setDetailAssetHostname(selectedAssetData?.hostname); }}>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className={`text-[9px] ${
                                     v.severity === "critical" ? "text-red-400 border-red-500/30" :
@@ -2077,6 +2088,7 @@ export default function EngagementOps() {
                                   }`}>{v.severity}</Badge>
                                   <span className="text-foreground truncate flex-1">{v.title}</span>
                                   {v.cve && <span className="text-muted-foreground font-mono text-[10px]">{v.cve}</span>}
+                                  <ChevronRight className="h-3 w-3 text-muted-foreground flex-none" />
                                 </div>
                                 {/* Version Confidence Indicator */}
                                 {v.corroborationTier && (
@@ -2159,14 +2171,15 @@ export default function EngagementOps() {
                         <div>
                           <h4 className="text-xs font-medium text-muted-foreground mb-1">ZAP Web App Findings ({(selectedAssetData.zapFindings || []).length})</h4>
                           <div className="space-y-0.5">
-                            {(selectedAssetData.zapFindings || []).map((f, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
+                            {(selectedAssetData.zapFindings || []).map((f: any, i: number) => (
+                              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded cursor-pointer hover:bg-muted/30 hover:ring-1 hover:ring-primary/20 transition-all" onClick={() => { setSelectedZapDetail(f); setDetailAssetHostname(selectedAssetData?.hostname); }}>
                                 <Badge variant="outline" className={`text-[9px] ${
                                   f.risk === "High" ? "text-red-400 border-red-500/30" :
                                   f.risk === "Medium" ? "text-yellow-400 border-yellow-500/30" :
                                   "text-blue-400 border-blue-500/30"
                                 }`}>{f.risk}</Badge>
-                                <span className="text-foreground truncate">{f.alert}</span>
+                                <span className="text-foreground truncate flex-1">{f.alert}</span>
+                                <ChevronRight className="h-3 w-3 text-muted-foreground flex-none" />
                               </div>
                             ))}
                           </div>
@@ -4019,8 +4032,8 @@ export default function EngagementOps() {
           <div className="space-y-3">
             <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} />
             <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} />
-            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={ops?.stats?.portsFound || 0} />
-            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={ops?.stats?.vulnsFound || 0} />
+            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops?.stats?.portsFound || 0} />
+            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length + (a.zapFindings || []).length, 0) || ops?.stats?.vulnsFound || 0} />
             <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} />
             <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} />
             <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} />
@@ -4745,6 +4758,20 @@ export default function EngagementOps() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+
+      {/* Finding Detail Drawers */}
+      <VulnDetailDrawer
+        vuln={selectedVulnDetail}
+        open={!!selectedVulnDetail}
+        onClose={() => setSelectedVulnDetail(null)}
+        assetHostname={detailAssetHostname}
+      />
+      <ZapFindingDetailDrawer
+        finding={selectedZapDetail}
+        open={!!selectedZapDetail}
+        onClose={() => setSelectedZapDetail(null)}
+        assetHostname={detailAssetHostname}
+      />
     </AppShell>
   );
 }

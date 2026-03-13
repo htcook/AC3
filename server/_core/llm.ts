@@ -500,7 +500,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         });
 
         throw new Error(
-          `LLM invoke failed: ${status} ${response.statusText} \u2013 ${errorText}`
+          `LLM invoke failed [providers_exhausted]: ${status} ${response.statusText} \u2013 ${errorText}`
         );
       }
 
@@ -553,7 +553,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           errorMessage: `Timed out after ${LLM_TIMEOUT_MS / 1000}s \u2014 all ${MAX_RETRIES + 1} attempts exhausted`,
           engagementId: _engagementId,
         });
-        throw new Error(`LLM invoke timed out after ${LLM_TIMEOUT_MS / 1000}s \u2014 all ${MAX_RETRIES + 1} attempts exhausted`);
+        throw new Error(`LLM invoke failed [providers_exhausted]: timed out after ${LLM_TIMEOUT_MS / 1000}s \u2014 all ${MAX_RETRIES + 1} attempts exhausted`);
       }
 
       // Network errors (ECONNRESET, ECONNREFUSED, etc.) are retryable

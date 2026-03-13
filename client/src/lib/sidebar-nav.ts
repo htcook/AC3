@@ -1,0 +1,344 @@
+/**
+ * Sidebar Navigation Configuration
+ * 
+ * Organized into collapsible groups matching the platform's operational domains.
+ * Each group contains items with route paths, labels, and Lucide icon names.
+ */
+import {
+  LayoutDashboard, Activity, Briefcase, Workflow, Key, Target, Cpu, FileText,
+  Zap, Globe, Crosshair, Palette, Sparkles, Bug, Server, Layers, Shield,
+  Brain, Radio, Radar, Lock, Fingerprint, Scan, Eye, Search, Code2,
+  FileCode, Gauge, MonitorPlay, Building2, Stethoscope, GraduationCap,
+  Network, Siren, FlaskConical, Camera, FileCheck2, Atom, BookOpen,
+  Mail, Cloud, Rocket, ShieldCheck, AlertTriangle, TrendingUp, Unplug,
+  Factory, BarChart3, Terminal, MapPin, Phone, Info, Clock, Landmark,
+  type LucideIcon, ChevronRight, Settings, Users, Database, Wrench,
+  ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
+  Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
+  Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
+} from "lucide-react";
+
+export interface NavItem {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+}
+
+export interface NavGroup {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  color: string;
+  defaultOpen?: boolean;
+  items: NavItem[];
+}
+
+export const sidebarNavGroups: NavGroup[] = [
+  // ─── Command & Control ───
+  {
+    id: "command-control",
+    label: "Command & Control",
+    icon: LayoutDashboard,
+    color: "text-primary",
+    defaultOpen: true,
+    items: [
+      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { label: "Home", path: "/home", icon: Activity },
+      { label: "Engagements", path: "/engagements", icon: Briefcase },
+      { label: "Engagement Ops", path: "/engagement-ops", icon: Crosshair },
+      { label: "Engagement Pipeline", path: "/engagement-pipeline", icon: Workflow },
+      { label: "Engagement Automation", path: "/engagement-automation", icon: Rocket },
+      { label: "Kill Chain", path: "/kill-chain", icon: Workflow },
+      { label: "Engagement Timeline", path: "/engagement-timeline", icon: Clock },
+      { label: "Credentials", path: "/credentials", icon: Key },
+      { label: "OEM Credentials", path: "/oem-credentials", icon: Key },
+      { label: "Adversaries", path: "/adversaries", icon: Target },
+      { label: "Agents", path: "/agents", icon: Cpu },
+      { label: "Agent Manager", path: "/agent-manager", icon: Cpu },
+      { label: "Activity Log", path: "/activity", icon: FileText },
+      { label: "Audit Log", path: "/audit-log", icon: ScrollText },
+    ],
+  },
+
+  // ─── Campaign Operations ───
+  {
+    id: "campaign-ops",
+    label: "Campaign Operations",
+    icon: Megaphone,
+    color: "text-red-400",
+    items: [
+      { label: "Phishing Ops", path: "/phishing-ops", icon: Zap },
+      { label: "GoPhish", path: "/gophish", icon: Globe },
+      { label: "Campaign Wizard", path: "/campaign-wizard", icon: Crosshair },
+      { label: "Campaigns", path: "/campaigns", icon: Briefcase },
+      { label: "Campaign Execution", path: "/campaign-execution", icon: Rocket },
+      { label: "Campaign Archetypes", path: "/campaign-archetypes", icon: Layers },
+      { label: "Campaign Advisor", path: "/campaign-advisor", icon: Brain },
+      { label: "Page Builder", path: "/landing-page-builder", icon: Palette },
+      { label: "Template Generator", path: "/template-generator", icon: Sparkles },
+      { label: "Templates", path: "/templates", icon: FileCode },
+      { label: "Email Security", path: "/email-security", icon: Mail },
+      { label: "Phishing Exploit Catalog", path: "/phishing-exploit-catalog", icon: Bug },
+    ],
+  },
+
+  // ─── Exploit & Emulation ───
+  {
+    id: "exploit-emulation",
+    label: "Exploit & Emulation",
+    icon: Sword,
+    color: "text-orange-400",
+    items: [
+      { label: "Exploit Arsenal", path: "/exploit-arsenal", icon: Bug },
+      { label: "Exploit Catalog", path: "/exploit-catalog", icon: Package },
+      { label: "Exploitation Bridge", path: "/exploitation-bridge", icon: Link2 },
+      { label: "MSF Servers", path: "/msf-servers", icon: Server },
+      { label: "MSF Sessions", path: "/msf-sessions", icon: Terminal },
+      { label: "Sliver C2", path: "/sliver-c2", icon: Skull },
+      { label: "C2 Command Center", path: "/c2-command-center", icon: Radio },
+      { label: "Abilities Library", path: "/abilities-library", icon: Layers },
+      { label: "Ability Graph", path: "/ability-graph", icon: GitBranch },
+      { label: "Atomic Red Team", path: "/atomic-red-team", icon: Atom },
+      { label: "Emulation Playbooks", path: "/emulation-playbooks", icon: BookOpen },
+      { label: "Post-Exploit Playbooks", path: "/post-exploit-playbooks", icon: FileCode },
+      { label: "Payload Generator", path: "/payload-generator", icon: Binary },
+      { label: "Evasion Engine", path: "/evasion-engine", icon: Eye },
+      { label: "Privilege Escalation", path: "/privilege-escalation", icon: TrendingUp },
+      { label: "Lateral Movement", path: "/lateral-movement", icon: Network },
+      { label: "File Transfers", path: "/file-transfers", icon: HardDrive },
+      { label: "Session Recordings", path: "/session-recordings", icon: Camera },
+      { label: "Data Exfil Simulation", path: "/data-exfil-simulation", icon: Flame },
+    ],
+  },
+
+  // ─── Intelligence & Recon ───
+  {
+    id: "intel-recon",
+    label: "Intelligence & Recon",
+    icon: Telescope,
+    color: "text-cyan-400",
+    items: [
+      { label: "Domain Intel", path: "/domain-intel", icon: Globe },
+      { label: "Domain Recon", path: "/domain-recon", icon: Search },
+      { label: "OSINT Monitor", path: "/osint-monitor", icon: Eye },
+      { label: "Discovery Chain", path: "/discovery-chain", icon: Link2 },
+      { label: "Threat Actors", path: "/threat-actors", icon: Shield },
+      { label: "Threat Catalog", path: "/threat-catalog", icon: BookOpen },
+      { label: "Threat Group Browser", path: "/threat-group-browser", icon: Users },
+      { label: "Threat Actor Crawler", path: "/threat-actor-crawler", icon: Search },
+      { label: "APT Library", path: "/apt-library", icon: Skull },
+      { label: "TTP Knowledge", path: "/ttp-knowledge", icon: Brain },
+      { label: "Threat Intel Hub", path: "/threat-intel-hub", icon: Radar },
+      { label: "Threat Enrichment", path: "/threat-enrichment", icon: Sparkles },
+      { label: "Darkweb Intel", path: "/darkweb-intel", icon: Eye },
+      { label: "Breach Events", path: "/breach-events", icon: AlertTriangle },
+      { label: "Ransomware Groups", path: "/ransomware-groups", icon: Skull },
+      { label: "IOC Feed", path: "/ioc-feed", icon: Radio },
+      { label: "KEV Catalog", path: "/kev-catalog", icon: AlertTriangle },
+      { label: "NVD CVE Matcher", path: "/nvd-cve-matcher", icon: Bug },
+      { label: "Vuln Intel", path: "/vuln-intel", icon: Scan },
+      { label: "Credential Alerts", path: "/credential-alerts", icon: Key },
+    ],
+  },
+
+  // ─── Scanning & Assessment ───
+  {
+    id: "scanning",
+    label: "Scanning & Assessment",
+    icon: Scan,
+    color: "text-emerald-400",
+    items: [
+      { label: "Web App Scanner", path: "/web-app-scanner", icon: Globe },
+      { label: "ZAP Proxy", path: "/zap-proxy", icon: Scan },
+      { label: "Nuclei Scanner", path: "/nuclei-scanner", icon: Microscope },
+      { label: "Batch Scanner", path: "/batch-scanner", icon: Layers },
+      { label: "Vuln Scanner", path: "/vuln-scanner", icon: Bug },
+      { label: "API Security Testing", path: "/api-security-testing", icon: Code2 },
+      { label: "Auth Assessment", path: "/auth-assessment", icon: Lock },
+      { label: "Web Crawler", path: "/web-crawler", icon: Search },
+      { label: "Scan Scheduler", path: "/scan-scheduler", icon: Clock },
+      { label: "Scan Compare", path: "/scan-compare", icon: BarChart3 },
+      { label: "Subfinder", path: "/tools/subfinder", icon: Search },
+      { label: "Httpx", path: "/tools/httpx", icon: Globe },
+      { label: "Naabu", path: "/tools/naabu", icon: Wifi },
+      { label: "Scan Server Health", path: "/scan-server", icon: Server },
+      { label: "Active Verification", path: "/active-verification", icon: ShieldCheck },
+    ],
+  },
+
+  // ─── Detection & Validation ───
+  {
+    id: "detection-validation",
+    label: "Detection & Validation",
+    icon: ShieldCheck,
+    color: "text-violet-400",
+    items: [
+      { label: "Detection Coverage", path: "/detection-coverage", icon: Shield },
+      { label: "Attack Coverage", path: "/attack-coverage", icon: Target },
+      { label: "AI Security Validation", path: "/ai-security-validation", icon: Brain },
+      { label: "Agentless BAS", path: "/agentless-bas", icon: FlaskConical },
+      { label: "Continuous Validation", path: "/continuous-validation", icon: Rocket },
+      { label: "Validation Engine", path: "/validation-engine", icon: Gauge },
+      { label: "Control Testing", path: "/control-testing", icon: ShieldCheck },
+      { label: "EDR Validation", path: "/edr-validation", icon: MonitorPlay },
+      { label: "NGFW Validation", path: "/ngfw-validation", icon: Shield },
+      { label: "Cloud Security Validation", path: "/cloud-security-validation", icon: Cloud },
+      { label: "Rule Validator", path: "/rule-validator", icon: FileCheck2 },
+      { label: "Sigma Rules", path: "/sigma-rules", icon: FileCode },
+      { label: "Purple Team", path: "/purple-team", icon: Users },
+      { label: "Corroboration Engine", path: "/corroboration-engine", icon: Link2 },
+      { label: "Remediation Verification", path: "/remediation-verification", icon: ShieldCheck },
+    ],
+  },
+
+  // ─── Active Directory & Cloud ───
+  {
+    id: "ad-cloud",
+    label: "AD & Cloud",
+    icon: Building2,
+    color: "text-amber-400",
+    items: [
+      { label: "AD Domain Connector", path: "/ad-domain-connector", icon: Network },
+      { label: "AD Attack Path Graph", path: "/ad-attack-path-graph", icon: GitBranch },
+      { label: "AD Attack Sim", path: "/ad-attack-sim", icon: Sword },
+      { label: "Bloodhound Import", path: "/bloodhound-import", icon: Database },
+      { label: "Forest Mapper", path: "/forest-mapper", icon: Network },
+      { label: "Attack Path Discovery", path: "/attack-path-discovery", icon: Search },
+      { label: "Cloud Attack Paths", path: "/cloud-attack-paths", icon: Cloud },
+      { label: "Cloud Credentials", path: "/cloud-credentials", icon: Key },
+      { label: "Cloud Workload Testing", path: "/cloud-workload-testing", icon: Cloud },
+      { label: "ICS/OT Security", path: "/ics-ot-security", icon: Factory },
+    ],
+  },
+
+  // ─── Compliance & Reporting ───
+  {
+    id: "compliance-reporting",
+    label: "Compliance & Reporting",
+    icon: FileText,
+    color: "text-blue-400",
+    items: [
+      { label: "Reports", path: "/reports", icon: FileText },
+      { label: "Report Templates", path: "/report-templates", icon: FileCode },
+      { label: "Pentest Report", path: "/pentest-report", icon: FileText },
+      { label: "Post-Engagement Report", path: "/post-engagement-report", icon: FileText },
+      { label: "Export Center", path: "/export-center", icon: Package },
+      { label: "Compliance Dashboard", path: "/compliance-dashboard", icon: ShieldCheck },
+      { label: "Compliance Mapper", path: "/compliance-mapper", icon: Landmark },
+      { label: "Compliance", path: "/compliance", icon: ShieldCheck },
+      { label: "FIPS Compliance", path: "/fips-compliance", icon: Lock },
+      { label: "3PAO Review", path: "/3pao-review", icon: Stethoscope },
+      { label: "OSCAL Export", path: "/oscal-export", icon: FileCheck2 },
+      { label: "STIX Export", path: "/stix-export", icon: Code2 },
+      { label: "Evidence", path: "/evidence", icon: FileCheck2 },
+      { label: "Scoring", path: "/scoring", icon: BarChart3 },
+      { label: "BIA Report", path: "/bia-report", icon: BarChart3 },
+      { label: "Risk Trending", path: "/risk-trending", icon: TrendingUp },
+    ],
+  },
+
+  // ─── KSI & FedRAMP ───
+  {
+    id: "ksi-fedramp",
+    label: "KSI & FedRAMP",
+    icon: Landmark,
+    color: "text-indigo-400",
+    items: [
+      { label: "KSI Dashboard", path: "/ksi-dashboard", icon: LayoutDashboard },
+      { label: "KSI Validation", path: "/ksi-validation", icon: ShieldCheck },
+      { label: "KSI Evidence Chain", path: "/ksi-evidence-chain", icon: Link2 },
+      { label: "KSI Threat Map", path: "/ksi-threat-map", icon: Radar },
+      { label: "KSI Auto Collector", path: "/ksi-auto-collector", icon: Bot },
+      { label: "Scheduled Collection", path: "/scheduled-collection", icon: Clock },
+      { label: "Config Baseline", path: "/config-baseline", icon: Settings },
+      { label: "Compensating Controls", path: "/compensating-controls", icon: Shield },
+    ],
+  },
+
+  // ─── SSIL (Security Signals Intelligence Layer) ───
+  {
+    id: "ssil",
+    label: "SSIL",
+    icon: Siren,
+    color: "text-rose-400",
+    items: [
+      { label: "SSIL Overview", path: "/ssil", icon: Siren },
+      { label: "Policies", path: "/ssil/policies", icon: ScrollText },
+      { label: "Guardrails", path: "/ssil/guardrails", icon: Shield },
+      { label: "Observations", path: "/ssil/observations", icon: Eye },
+      { label: "Alert Rules", path: "/ssil/alerts", icon: AlertTriangle },
+      { label: "Correlation", path: "/ssil/correlation", icon: Link2 },
+    ],
+  },
+
+  // ─── Integrations & Infrastructure ───
+  {
+    id: "integrations",
+    label: "Integrations & Infra",
+    icon: Unplug,
+    color: "text-teal-400",
+    items: [
+      { label: "SOC Integration Hub", path: "/soc-integration-hub", icon: Boxes },
+      { label: "SIEM Connectors", path: "/siem-connectors", icon: Unplug },
+      { label: "SIEM Feedback", path: "/siem-feedback", icon: BarChart3 },
+      { label: "SOAR Connectors", path: "/soar-connectors", icon: Unplug },
+      { label: "Vendor Integrations", path: "/vendor-integrations", icon: Package },
+      { label: "Webhooks", path: "/webhooks", icon: Webhook },
+      { label: "Scan Webhooks", path: "/scan-webhooks", icon: Webhook },
+      { label: "Infrastructure", path: "/infrastructure", icon: Server },
+      { label: "Live Infra", path: "/live-infra", icon: Wifi },
+      { label: "Infra Wiki", path: "/infra-wiki", icon: BookOpen },
+      { label: "SSH Keys", path: "/ssh-keys", icon: Key },
+      { label: "Agent Installer", path: "/agent-installer", icon: Laptop },
+      { label: "CI/CD Pipeline", path: "/cicd-pipeline", icon: GitBranch },
+      { label: "Auth Pipeline", path: "/auth-pipeline", icon: Lock },
+      { label: "SAML Config", path: "/saml-config", icon: Settings },
+    ],
+  },
+
+  // ─── Training & Learning ───
+  {
+    id: "training",
+    label: "Training & Learning",
+    icon: GraduationCap,
+    color: "text-lime-400",
+    items: [
+      { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
+      { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
+      { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
+      { label: "LLM Learning", path: "/llm-learning", icon: Brain },
+      { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
+      { label: "Caldera Guide", path: "/guide/caldera", icon: BookOpen },
+      { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
+    ],
+  },
+
+  // ─── Admin & System ───
+  {
+    id: "admin",
+    label: "Admin & System",
+    icon: Settings,
+    color: "text-zinc-400",
+    items: [
+      { label: "Team", path: "/team", icon: Users },
+      { label: "Invitations", path: "/invitations", icon: Mail },
+      { label: "Tenants", path: "/tenants", icon: Building2 },
+      { label: "Account Settings", path: "/account-settings", icon: Settings },
+      { label: "Onboarding", path: "/onboarding", icon: Rocket },
+      { label: "Review Queue", path: "/review-queue", icon: FileCheck2 },
+      { label: "Job Queue", path: "/job-queue", icon: Cog },
+      { label: "Error Dashboard", path: "/error-dashboard", icon: AlertTriangle },
+      { label: "LLM Telemetry", path: "/llm-telemetry", icon: BarChart3 },
+      { label: "LLM Reliability", path: "/llm-reliability", icon: Gauge },
+      { label: "OpSec Dashboard", path: "/opsec-dashboard", icon: Shield },
+      { label: "MSSP Analytics", path: "/mssp-analytics", icon: BarChart3 },
+      { label: "Hunt Ops", path: "/hunt-ops", icon: Search },
+      { label: "Preflight Checks", path: "/preflight-checks", icon: ShieldCheck },
+      { label: "Workflows", path: "/workflows", icon: Workflow },
+      { label: "ROE Builder", path: "/roe-builder", icon: ScrollText },
+      { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
+      { label: "Attack Vector Engine", path: "/attack-vector-engine", icon: Target },
+      { label: "Unified Pipeline", path: "/unified-pipeline", icon: Workflow },
+    ],
+  },
+];

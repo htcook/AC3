@@ -10,31 +10,41 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Crosshair, ChevronDown } from "lucide-react";
+import { LogOut, PanelLeft, Crosshair, ChevronDown, ChevronRight, Search, Home } from "lucide-react";
 import { FIPSIndicator } from "./FIPSIndicator";
 import { useEngagement } from "@/contexts/EngagementContext";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
-
-const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
-];
+import { Input } from "./ui/input";
+import { sidebarNavGroups, type NavGroup } from "@/lib/sidebar-nav";
+import { ScrollArea } from "./ui/scroll-area";
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
+const SIDEBAR_OPEN_GROUPS_KEY = "sidebar-open-groups";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
@@ -114,8 +124,56 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Persist open groups
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_OPEN_GROUPS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    // Default: open the group containing the current route
+    const defaults: Record<string, boolean> = {};
+    for (const group of sidebarNavGroups) {
+      if (group.defaultOpen || group.items.some(item => location === item.path || location.startsWith(item.path + "/"))) {
+        defaults[group.id] = true;
+      }
+    }
+    return defaults;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_OPEN_GROUPS_KEY, JSON.stringify(openGroups));
+  }, [openGroups]);
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  }, []);
+
+  // Find active page label for mobile header
+  const activeLabel = useMemo(() => {
+    for (const group of sidebarNavGroups) {
+      const item = group.items.find(i => location === i.path || location.startsWith(i.path + "/"));
+      if (item) return item.label;
+    }
+    return "Menu";
+  }, [location]);
+
+  // Filter groups/items by search
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return sidebarNavGroups;
+    const q = searchQuery.toLowerCase();
+    return sidebarNavGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item =>
+          item.label.toLowerCase().includes(q) ||
+          item.path.toLowerCase().includes(q)
+        ),
+      }))
+      .filter(group => group.items.length > 0);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (isCollapsed) {
@@ -171,9 +229,9 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="font-semibold tracking-tight truncate text-sm">
+                    ACE C3
                   </span>
                 </div>
               ) : null}
@@ -183,27 +241,51 @@ function DashboardLayoutContent({
           {/* Engagement Switcher */}
           <EngagementSwitcher isCollapsed={isCollapsed} />
 
+          {/* Search filter */}
+          {!isCollapsed && (
+            <div className="px-3 py-2 border-b border-border/30">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search pages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs bg-accent/30 border-border/30 focus-visible:ring-1"
+                />
+              </div>
+            </div>
+          )}
+
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <ScrollArea className="flex-1">
+              {/* Quick Home link */}
+              <SidebarMenu className="px-2 pt-2 pb-0">
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={location === "/" || location === "/home"}
+                    onClick={() => setLocation("/home")}
+                    tooltip="Home"
+                    className="h-9 font-normal"
+                  >
+                    <Home className={`h-4 w-4 ${location === "/" || location === "/home" ? "text-primary" : ""}`} />
+                    <span>Home</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+
+              {/* Collapsible nav groups */}
+              {filteredGroups.map((group) => (
+                <NavGroupSection
+                  key={group.id}
+                  group={group}
+                  isOpen={searchQuery.trim() ? true : !!openGroups[group.id]}
+                  onToggle={() => toggleGroup(group.id)}
+                  location={location}
+                  setLocation={setLocation}
+                  isCollapsed={isCollapsed}
+                />
+              ))}
+            </ScrollArea>
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -259,7 +341,7 @@ function DashboardLayoutContent({
               <div className="flex items-center gap-3">
                 <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+                    {activeLabel}
                   </span>
                 </div>
               </div>
@@ -269,6 +351,80 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
+  );
+}
+
+/** Collapsible navigation group with sub-items */
+function NavGroupSection({
+  group,
+  isOpen,
+  onToggle,
+  location,
+  setLocation,
+  isCollapsed,
+}: {
+  group: NavGroup;
+  isOpen: boolean;
+  onToggle: () => void;
+  location: string;
+  setLocation: (path: string) => void;
+  isCollapsed: boolean;
+}) {
+  const hasActiveItem = group.items.some(
+    item => location === item.path || location.startsWith(item.path + "/")
+  );
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={onToggle}>
+      <SidebarGroup className="py-0">
+        <CollapsibleTrigger asChild>
+          <SidebarGroupLabel
+            className={`h-9 px-3 cursor-pointer hover:bg-accent/50 transition-colors text-[11px] tracking-wider uppercase font-semibold ${
+              hasActiveItem ? group.color : "text-muted-foreground"
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <group.icon className={`h-3.5 w-3.5 shrink-0 ${hasActiveItem ? group.color : ""}`} />
+              {!isCollapsed && (
+                <>
+                  <span className="truncate">{group.label}</span>
+                  <ChevronRight
+                    className={`h-3 w-3 ml-auto shrink-0 transition-transform duration-200 ${
+                      isOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </>
+              )}
+            </div>
+          </SidebarGroupLabel>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <SidebarMenuSub className="border-l-0 ml-0 pl-0">
+              {group.items.map(item => {
+                const isActive = location === item.path || location.startsWith(item.path + "/");
+                return (
+                  <SidebarMenuSubItem key={item.path}>
+                    <SidebarMenuSubButton
+                      isActive={isActive}
+                      onClick={() => setLocation(item.path)}
+                      className={`h-8 pl-7 text-xs cursor-pointer ${
+                        isActive
+                          ? "text-foreground font-medium bg-accent/50"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <item.icon className={`h-3.5 w-3.5 shrink-0 mr-2 ${isActive ? group.color : ""}`} />
+                      <span className="truncate">{item.label}</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                );
+              })}
+            </SidebarMenuSub>
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
   );
 }
 

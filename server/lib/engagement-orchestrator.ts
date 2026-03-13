@@ -1724,35 +1724,52 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         const domainAssets = state.assets.filter(a => a.hostname === domain || a.hostname.endsWith('.' + domain));
         if (domainAssets.length > 0) {
           const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
-          const findings = domainAssets.flatMap(a => [
-            ...(a.passiveRecon?.riskSignals || []).map((r: any) => ({
-              id: `risk-${a.hostname}-${r.rationale?.substring(0, 20)}`,
-              title: r.rationale || 'Risk signal',
-              severity: r.severity || 'medium',
-              source: 'passive_recon',
-              evidence: r.rationale || '',
-            })),
-          ]);
-          if (findings.length > 0) {
-            const hybridResult = await scoreFullHybrid({
-              findings,
-              assets: domainAssets.map(a => ({
-                hostname: a.hostname,
-                ip: a.ip,
-                type: a.type,
-                ports: a.ports,
-                technologies: a.passiveRecon?.technologies || [],
-              })),
-              engagementContext: state.engagementContext,
-              engagementId: state.engagementId,
-            });
-            addLog(state, {
-              phase: 'recon', type: 'llm_decision',
-              title: `🎯 Hybrid Risk Score: ${domain}`,
-              detail: `Overall: ${hybridResult.overallRiskRating}/10 (${hybridResult.confidence})\nSector: ${hybridResult.sectorContext}\n\nTop risks:\n${hybridResult.scoredFindings.slice(0, 5).map((f: any) => `• ${f.title}: ${f.hybridScore}/10 (CARVER: ${f.carverScore}, CVSS: ${f.cvssEstimate}) — ${f.justification}`).join('\n')}\n\nBIA: ${hybridResult.biaInference}`,
+          // Score each asset individually using the correct FullHybridScoreInput interface
+          for (const asset of domainAssets) {
+            try {
+              const riskSignals = (asset.passiveRecon?.riskSignals || []).map((r: any) => ({
+                severity: r.severity || 'medium',
+                rationale: r.rationale || 'Risk signal detected',
+                source: r.source || 'passive_recon',
+              }));
+              const hybridResult = await scoreFullHybrid({
+                assetId: asset.hostname,
+                assetLabel: asset.hostname,
+                domain: domain,
+                hostname: asset.hostname,
+                keywords: (asset.passiveRecon as any)?.keywords || [],
+                ports: (asset.ports || []).map((p: any) => ({
+                  port: p.port,
+                  service: p.service,
+                  version: p.version,
+                  state: p.state || 'open',
+                })),
+                technologies: (asset.passiveRecon as any)?.technologies || [],
+                wafDetected: (asset.passiveRecon as any)?.wafDetected,
+                cloudProvider: (asset.passiveRecon as any)?.cloudProvider,
+                certificates: (asset.passiveRecon as any)?.certificates || [],
+                dnsRecords: (asset.passiveRecon as any)?.dnsRecords || [],
+                httpHeaders: (asset.passiveRecon as any)?.httpHeaders || {},
+                riskSignals,
+                engagementContext: state.engagementContext,
+              });
+              // Store the hybrid score on the asset for downstream use
+              (asset as any).hybridScore = hybridResult.finalScore;
+              (asset as any).hybridTier = hybridResult.finalTier;
+              const adjustmentSummary = Object.entries(hybridResult.llmEnhanced.adjustments || {})
+                .filter(([_, v]: [string, any]) => v.delta !== 0)
+                .map(([k, v]: [string, any]) => `${k}: ${v.delta > 0 ? '+' : ''}${v.delta} (${v.justification})`)
+                .slice(0, 5);
+              addLog(state, {
+                phase: 'recon', type: 'llm_decision',
+              title: `🎯 Hybrid Risk Score: ${asset.hostname}`,
+              detail: `Score: ${hybridResult.finalScore}/10 (${hybridResult.finalTier})\nBaseline: ${hybridResult.baseline.scores.hybrid}/10 (${hybridResult.baseline.scores.priorityTier})\nConfidence: ${hybridResult.llmEnhanced.confidence}\n\nRisk Narrative: ${hybridResult.llmEnhanced.overallRiskNarrative}\n\n${adjustmentSummary.length > 0 ? 'LLM Adjustments:\n' + adjustmentSummary.map(a => '• ' + a).join('\n') : 'No LLM adjustments applied'}`,
               data: { hybridScoring: hybridResult },
             });
             broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+            } catch (assetHsErr: any) {
+              console.warn(`[HybridScorer] Failed for asset ${asset.hostname}:`, assetHsErr.message);
+            }
           }
         }
       } catch (hsErr: any) {
@@ -4218,32 +4235,70 @@ ${(() => {
       addLog(state, {
         phase: 'vuln_detection', type: 'info',
         title: '\ud83c\udfaf Hybrid Risk Scoring (Active Findings)',
-        detail: `Scoring ${activeFindings.length} findings with context-aware CARVER+CVSS fusion...`,
+        detail: `Scoring ${activeFindings.length} findings across ${state.assets.length} assets with context-aware CARVER+CVSS fusion...`,
       });
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
-      const hybridResult = await scoreFullHybrid({
-        findings: activeFindings,
-        assets: state.assets.map(a => ({
-          hostname: a.hostname,
-          ip: a.ip,
-          type: a.type,
-          ports: a.ports,
-          technologies: a.passiveRecon?.technologies || [],
-        })),
-        engagementContext: state.engagementContext,
-        engagementId: state.engagementId,
-      });
-      addLog(state, {
-        phase: 'vuln_detection', type: 'llm_decision',
-        title: `\ud83c\udfaf Active Scan Risk: ${hybridResult.overallRiskRating}/10`,
-        detail: `Confidence: ${hybridResult.confidence} | Sector: ${hybridResult.sectorContext}\n\nTop risks:\n${hybridResult.scoredFindings.slice(0, 5).map((f: any) => `\u2022 ${f.title}: ${f.hybridScore}/10 (CARVER: ${f.carverScore}, CVSS: ${f.cvssEstimate}) \u2014 ${f.justification}`).join('\n')}\n\nBIA: ${hybridResult.biaInference}`,
-        data: { hybridScoring: hybridResult },
-      });
-      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      // Score each asset with findings individually using the correct FullHybridScoreInput interface
+      const assetsWithFindings = state.assets.filter(a => a.vulns.length > 0 || a.zapFindings.length > 0);
+      for (const asset of assetsWithFindings) {
+        try {
+          const assetRiskSignals = [
+            ...asset.vulns.map(v => ({
+              severity: v.severity || 'medium',
+              rationale: `${v.title}${v.cve ? ' (' + v.cve + ')' : ''}`,
+              source: v.title.startsWith('[ZAP]') ? 'ZAP' : 'nuclei',
+            })),
+            ...asset.zapFindings.map(z => ({
+              severity: z.risk || 'medium',
+              rationale: `${z.alert}: ${z.description?.substring(0, 150) || 'ZAP finding'}`,
+              source: 'ZAP',
+            })),
+          ];
+          const hybridResult = await scoreFullHybrid({
+            assetId: asset.hostname,
+            assetLabel: asset.hostname,
+            domain: asset.hostname,
+            hostname: asset.hostname,
+            ports: (asset.ports || []).map((p: any) => ({
+              port: p.port,
+              service: p.service,
+              version: p.version,
+              state: p.state || 'open',
+            })),
+            technologies: (asset.passiveRecon as any)?.technologies || [],
+            wafDetected: (asset.passiveRecon as any)?.wafDetected,
+            cloudProvider: (asset.passiveRecon as any)?.cloudProvider,
+            certificates: (asset.passiveRecon as any)?.certificates || [],
+            dnsRecords: (asset.passiveRecon as any)?.dnsRecords || [],
+            httpHeaders: (asset.passiveRecon as any)?.httpHeaders || {},
+            riskSignals: assetRiskSignals,
+            cvssBase: Math.max(...asset.vulns.map(v => v.cvss || 0), 0) || undefined,
+            engagementContext: state.engagementContext,
+          });
+          // Store the hybrid score on the asset
+          (asset as any).hybridScore = hybridResult.finalScore;
+          (asset as any).hybridTier = hybridResult.finalTier;
+          const adjustmentSummary = Object.entries(hybridResult.llmEnhanced.adjustments || {})
+            .filter(([_, v]: [string, any]) => v.delta !== 0)
+            .map(([k, v]: [string, any]) => `${k}: ${v.delta > 0 ? '+' : ''}${v.delta} (${v.justification})`)
+            .slice(0, 5);
+          addLog(state, {
+            phase: 'vuln_detection', type: 'llm_decision',
+            title: `\ud83c\udfaf Active Scan Risk: ${asset.hostname} \u2014 ${hybridResult.finalScore}/10`,
+            detail: `Tier: ${hybridResult.finalTier} | Baseline: ${hybridResult.baseline.scores.hybrid}/10\nConfidence: ${hybridResult.llmEnhanced.confidence}\nFindings: ${asset.vulns.length} vulns + ${asset.zapFindings.length} ZAP alerts\n\n${hybridResult.llmEnhanced.overallRiskNarrative}\n\n${adjustmentSummary.length > 0 ? 'LLM Adjustments:\n' + adjustmentSummary.map(a => '\u2022 ' + a).join('\n') : 'No LLM adjustments applied'}`,
+            data: { hybridScoring: hybridResult },
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        } catch (assetHsErr: any) {
+          console.warn(`[HybridScorer] Active findings scoring failed for ${asset.hostname}:`, assetHsErr.message);
+        }
+      }
     } catch (hsErr: any) {
       console.warn('[HybridScorer] Active findings scoring failed:', hsErr.message);
     }
   }
+
 
   // ─── Specialist: Map threats to threat actors ───
   if (state.assets.some(a => a.vulns.length > 0 || a.zapFindings.length > 0)) {

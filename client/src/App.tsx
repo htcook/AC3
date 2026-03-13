@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense, useEffect } from "react";
 const GlobalAiChat = lazy(() => import("./components/GlobalAiChat").then(m => ({ default: m.GlobalAiChat })));
+const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
 const SessionTimeoutMonitor = lazy(() => import("./components/SessionTimeoutMonitor").then(m => ({ default: m.SessionTimeoutMonitor })));
 import { useErrorCapture } from "./hooks/useErrorCapture";
 import { EngagementProvider } from "./contexts/EngagementContext";
@@ -277,7 +278,13 @@ function ProtectedRoute({ component: Component, pageName }: { component: React.C
 }
 
 function Router() {
-  return (
+  const [location] = useLocation();
+  // Routes that should NOT have the sidebar
+  const noSidebarRoutes = ["/", "/overview", "/login", "/404"];
+  const isPortalRoute = location.startsWith("/portal/");
+  const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute;
+
+  const routeContent = (
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/">
@@ -911,6 +918,16 @@ function Router() {
       </Switch>
     </Suspense>
   );
+
+  if (showSidebar) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <DashboardLayout>{routeContent}</DashboardLayout>
+      </Suspense>
+    );
+  }
+
+  return routeContent;
 }
 
 function App() {

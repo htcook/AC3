@@ -221,16 +221,24 @@ async function processQueue(): Promise<void> {
       activeCount--;
       const message = err?.message || String(err);
       
-      // Rate limit detected: increase delay
-      if (message.includes('403') || message.includes('429') || message.includes('rate limit') || message.includes('Forbidden') || message.includes('Too Many Requests')) {
+      // Check if this is a rate limit error
+      const isRateLimit = message.includes('403') || message.includes('429') || message.includes('rate limit') || message.includes('Forbidden') || message.includes('Too Many Requests');
+      
+      // Check if invokeLLM already exhausted all its internal retries + fallback
+      // When invokeLLM throws after trying Forge (4 attempts) + OpenAI fallback, 
+      // re-queuing just causes another full retry cycle and potential infinite loop
+      const isExhaustedRetries = message.includes('providers_exhausted') || message.includes('LLM invoke failed') || message.includes('All LLM providers failed');
+      
+      if (isRateLimit) {
         const newDelay = currentDelayMs * config.backoffMultiplier;
         currentDelayMs = Math.min(newDelay, config.maxDelayMs);
         consecutiveSuccesses = 0;
         totalRateLimited++;
         console.warn(`[LLM Throttle] Rate limited! Delay increased to ${Math.round(currentDelayMs)}ms`);
         
-        // Re-queue the failed call at the front of its priority queue (one retry)
-        if (!entry.params._throttleRetried) {
+        // Only re-queue if invokeLLM hasn't already exhausted all retries/fallbacks
+        // and we haven't already throttle-retried this call
+        if (!entry.params._throttleRetried && !isExhaustedRetries) {
           entry.params._throttleRetried = true;
           queues[entry.priority].unshift(entry);
           console.log(`[LLM Throttle] Re-queued ${entry.priority} call from ${entry.caller} for retry`);
@@ -238,6 +246,8 @@ async function processQueue(): Promise<void> {
           // Extra wait before retry
           await sleep(currentDelayMs);
           continue;
+        } else {
+          console.warn(`[LLM Throttle] NOT re-queuing ${entry.caller} — ${isExhaustedRetries ? 'all providers exhausted' : 'already retried once'}. Letting caller handle fallback.`);
         }
       }
       
