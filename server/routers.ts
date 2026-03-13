@@ -137,6 +137,7 @@ import { llmReliabilityRouter } from "./routers/llm-reliability";
 import { agentInstallerRouter } from "./routers/agent-installer";
 import { msspAnalyticsRouter } from "./routers/mssp-analytics";
 import { dataExfilSimulationRouter } from "./routers/data-exfil-simulation";
+import { operatorCockpitRouter } from "./routers/operator-cockpit";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -490,6 +491,7 @@ export const appRouter = router({
   agentInstaller: agentInstallerRouter,
   msspAnalytics: msspAnalyticsRouter,
   dataExfilSimulation: dataExfilSimulationRouter,
+  operatorCockpit: operatorCockpitRouter,
 });
 export type AppRouter = typeof appRouter;
 

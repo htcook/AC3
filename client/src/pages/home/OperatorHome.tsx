@@ -1,13 +1,13 @@
 /**
- * Operator Cockpit — Redesigned
+ * Operator Cockpit — Wired to Real Data
  * 
  * Your real-time command center. View live operations, active scans,
  * engagement status, and OPSEC exposure at a glance.
  * 
  * 3-column layout:
- *   Left   — Live Activity Timeline (what's happening now)
+ *   Left   — Live Activity Timeline (real events from audit logs)
  *   Center — Scan Queue + Engagements (active operations)
- *   Right  — OPSEC Gauge + Campaign Advisor + Quick Launch
+ *   Right  — OPSEC Gauge (real score) + Campaign Advisor + Quick Launch
  */
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -15,24 +15,29 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ShieldAlert, Activity, Crosshair, Zap, ArrowRight, Clock,
   AlertTriangle, CheckCircle2, Target, Brain, Network, Lock,
   Scan, Globe, Play, Plus, Loader2, Radar, Eye, Briefcase,
-  ChevronRight, BarChart3, RefreshCw
+  ChevronRight, BarChart3, RefreshCw, TrendingDown, TrendingUp,
+  Radio, Shield, Flame
 } from "lucide-react";
 
 // ─── OPSEC Risk Gauge ─────────────────────────────────────────────────────────
 
-function OpsecGauge({ score }: { score: number }) {
-  const pct = Math.min(100, Math.max(0, score));
-  const color = pct > 70 ? "text-red-500" : pct > 40 ? "text-amber-500" : "text-emerald-500";
-  const label = pct > 70 ? "HIGH RISK" : pct > 40 ? "MODERATE" : "LOW RISK";
+function OpsecGauge({ score, noiseLevel, detectionChance }: {
+  score: number; noiseLevel: string; detectionChance: number;
+}) {
+  // Score is 0-100 where 100 = fully stealthy. Invert for display (exposure = 100 - stealth)
+  const exposure = 100 - Math.min(100, Math.max(0, score));
+  const color = exposure > 70 ? "text-red-500" : exposure > 40 ? "text-amber-500" : "text-emerald-500";
+  const label = exposure > 70 ? "HIGH RISK" : exposure > 40 ? "MODERATE" : "LOW RISK";
   const circumference = 2 * Math.PI * 45;
-  const dashOffset = circumference - (pct / 100) * circumference * 0.75;
+  const dashOffset = circumference - (exposure / 100) * circumference * 0.75;
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center gap-2">
       <div className="relative w-28 h-28">
         <svg className="w-full h-full -rotate-[135deg]" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor"
@@ -42,8 +47,25 @@ function OpsecGauge({ score }: { score: number }) {
             strokeDashoffset={dashOffset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-2xl font-display font-bold ${color}`}>{pct}</span>
+          <span className={`text-2xl font-display font-bold ${color}`}>{exposure}</span>
           <span className="text-[8px] font-display tracking-widest text-muted-foreground">{label}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 text-[9px]">
+        <div className="flex items-center gap-1">
+          <Radio className="w-3 h-3 text-muted-foreground" />
+          <span className="text-muted-foreground">Noise:</span>
+          <span className={`font-display tracking-wider ${
+            noiseLevel === "critical" || noiseLevel === "elevated" ? "text-red-400" :
+            noiseLevel === "moderate" ? "text-amber-400" : "text-emerald-400"
+          }`}>{(noiseLevel || "stealth").toUpperCase()}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Eye className="w-3 h-3 text-muted-foreground" />
+          <span className="text-muted-foreground">Detect:</span>
+          <span className={`font-display tracking-wider ${
+            detectionChance > 50 ? "text-red-400" : detectionChance > 20 ? "text-amber-400" : "text-emerald-400"
+          }`}>{detectionChance}%</span>
         </div>
       </div>
     </div>
@@ -71,17 +93,49 @@ const ENGAGEMENT_STATUS_CONFIG: Record<string, { color: string; label: string }>
   paused: { color: "bg-amber-500/20 text-amber-400", label: "PAUSED" },
 };
 
+const SEVERITY_CONFIG: Record<string, { dot: string; bg: string }> = {
+  critical: { dot: "bg-red-500", bg: "bg-red-500/20 border-red-500/50" },
+  high: { dot: "bg-orange-500", bg: "bg-orange-500/20 border-orange-500/50" },
+  medium: { dot: "bg-amber-500", bg: "bg-amber-500/20 border-amber-500/50" },
+  low: { dot: "bg-blue-500", bg: "bg-blue-500/20 border-blue-500/50" },
+  info: { dot: "bg-slate-400", bg: "bg-slate-500/20 border-slate-500/50" },
+};
+
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  scan: Scan,
+  engagement: Crosshair,
+  opsec: ShieldAlert,
+  agent: Radio,
+  system: Activity,
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OperatorHome() {
   const [, navigate] = useLocation();
-  const [opsecScore] = useState(35);
+  const [timelineHours, setTimelineHours] = useState(24);
 
-  // Fetch real data
+  // ── Real data queries ──
   const scansQuery = trpc.domainIntel.listScans.useQuery(undefined, {
     refetchInterval: 15000,
   });
   const engagementsQuery = trpc.engagements.list.useQuery();
+
+  // Activity timeline from real audit logs
+  const timelineQuery = trpc.operatorCockpit.activityTimeline.useQuery(
+    { limit: 25, hoursBack: timelineHours },
+    { refetchInterval: 30000 }
+  );
+
+  // OPSEC gauge from real engagement data
+  const opsecQuery = trpc.operatorCockpit.opsecGauge.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+
+  // Quick stats
+  const statsQuery = trpc.operatorCockpit.quickStats.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
 
   const recentScans = useMemo(() => {
     return (scansQuery.data || []).slice(0, 6);
@@ -97,6 +151,10 @@ export default function OperatorHome() {
   const runningScans = (scansQuery.data || []).filter((s: any) =>
     ["discovering", "passive_recon", "analyzing", "scoring", "recommending"].includes(s.status)
   ).length;
+
+  const opsec = opsecQuery.data;
+  const stats = statsQuery.data;
+  const timeline = timelineQuery.data;
 
   return (
     <div className="space-y-4">
@@ -131,49 +189,81 @@ export default function OperatorHome() {
         <div className="xl:col-span-3 space-y-4">
           <Card className="h-full">
             <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-xs font-display tracking-widest flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5 text-primary" />
-                LIVE ACTIVITY
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="relative">
-                {/* Timeline spine */}
-                <div className="absolute left-[7px] top-0 bottom-0 w-px bg-border" />
-                <div className="space-y-0">
-                  {[
-                    { time: "2m", action: "Credential found", detail: "admin:P@ss on 10.0.1.50:22", type: "success" as const },
-                    { time: "8m", action: "OPSEC alert", detail: "Port scan detected by NDR", type: "warning" as const },
-                    { time: "15m", action: "Exploit executed", detail: "CVE-2021-44228 on :8080", type: "success" as const },
-                    { time: "22m", action: "Scan completed", detail: "47 findings across 12 hosts", type: "info" as const },
-                    { time: "1h", action: "Engagement started", detail: "Project Nightfall", type: "info" as const },
-                    { time: "2h", action: "Shell established", detail: "Meterpreter on 10.0.1.100", type: "success" as const },
-                    { time: "3h", action: "Recon complete", detail: "DNS enum: 34 subdomains", type: "info" as const },
-                    { time: "5h", action: "Phish delivered", detail: "12/15 emails opened", type: "warning" as const },
-                  ].map((event, i) => (
-                    <div key={i} className="flex items-start gap-3 py-2 pl-0 relative">
-                      <div className={`w-[15px] h-[15px] rounded-full shrink-0 z-10 flex items-center justify-center ${
-                        event.type === "success" ? "bg-emerald-500/20 border border-emerald-500/50" :
-                        event.type === "warning" ? "bg-amber-500/20 border border-amber-500/50" :
-                        "bg-blue-500/20 border border-blue-500/50"
-                      }`}>
-                        <div className={`w-[5px] h-[5px] rounded-full ${
-                          event.type === "success" ? "bg-emerald-500" :
-                          event.type === "warning" ? "bg-amber-500" :
-                          "bg-blue-500"
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0 -mt-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-display tracking-wider font-medium">{event.action}</span>
-                          <span className="text-[9px] text-muted-foreground/60 font-mono">{event.time}</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{event.detail}</p>
-                      </div>
-                    </div>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-display tracking-widest flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-primary" />
+                  LIVE ACTIVITY
+                  {timeline && timeline.totalCount > 0 && (
+                    <span className="text-[8px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full font-display tracking-widest">
+                      {timeline.totalCount}
+                    </span>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  {[24, 72, 168].map(h => (
+                    <button
+                      key={h}
+                      onClick={() => setTimelineHours(h)}
+                      className={`text-[8px] font-display tracking-wider px-1.5 py-0.5 rounded transition-colors ${
+                        timelineHours === h ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {h === 24 ? "24H" : h === 72 ? "3D" : "7D"}
+                    </button>
                   ))}
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              {timelineQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : !timeline || timeline.events.length === 0 ? (
+                <div className="text-center py-8">
+                  <Activity className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-[10px] text-muted-foreground">No activity in the last {timelineHours}h</p>
+                  <p className="text-[9px] text-muted-foreground/60 mt-1">Start a scan or engagement to see events here</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Timeline spine */}
+                  <div className="absolute left-[7px] top-0 bottom-0 w-px bg-border" />
+                  <div className="space-y-0">
+                    {timeline.events.map((event) => {
+                      const sevCfg = SEVERITY_CONFIG[event.severity] || SEVERITY_CONFIG.info;
+                      const CatIcon = CATEGORY_ICONS[event.category] || Activity;
+                      const timeAgo = getTimeAgo(new Date(event.timestamp));
+
+                      return (
+                        <div key={event.id} className="flex items-start gap-3 py-2 pl-0 relative group">
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className={`w-[15px] h-[15px] rounded-full shrink-0 z-10 flex items-center justify-center border ${sevCfg.bg}`}>
+                                  <div className={`w-[5px] h-[5px] rounded-full ${sevCfg.dot}`} />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="text-[10px] max-w-[200px]">
+                                <p className="font-medium">{event.category.toUpperCase()} — {event.severity.toUpperCase()}</p>
+                                <p className="text-muted-foreground mt-1">{event.description}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <div className="flex-1 min-w-0 -mt-0.5">
+                            <div className="flex items-center gap-2">
+                              <CatIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="text-[10px] font-display tracking-wider font-medium truncate">{event.title}</span>
+                              <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{timeAgo}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate mt-0.5">{event.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -320,68 +410,108 @@ export default function OperatorHome() {
               )}
             </CardContent>
           </Card>
-
-          {/* Active Operations */}
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-display tracking-widest flex items-center gap-2">
-                  <Activity className="w-3.5 h-3.5 text-primary" />
-                  ACTIVE OPERATIONS
-                </CardTitle>
-                <Link href="/engagements">
-                  <Button variant="ghost" size="sm" className="text-[9px] font-display tracking-wider h-6 px-2">
-                    VIEW ALL <ArrowRight className="w-3 h-3 ml-1" />
-                  </Button>
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-2">
-              {[
-                { name: "Project Nightfall", phase: "Gaining Access", progress: 45, status: "active" },
-                { name: "Red Team Exercise Q1", phase: "Lateral Movement", progress: 72, status: "active" },
-                { name: "Cloud Pentest - AWS", phase: "Reconnaissance", progress: 15, status: "planning" },
-              ].map((op) => (
-                <div key={op.name} className="p-2.5 bg-secondary/30 rounded-lg">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-display tracking-wider font-medium truncate">{op.name}</span>
-                    <span className={`text-[8px] font-display tracking-widest px-1.5 py-0.5 rounded-full ${
-                      op.status === "active" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"
-                    }`}>
-                      {(op.status || "").toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-secondary rounded-full h-1">
-                      <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${op.progress}%` }} />
-                    </div>
-                    <span className="text-[9px] text-muted-foreground font-display tracking-wider shrink-0">{op.phase}</span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
 
         {/* ─── RIGHT: Context Inspector ─────────────────────────────────── */}
         <div className="xl:col-span-4 space-y-4">
           {/* Stats Row */}
           <div className="grid grid-cols-2 gap-3">
-            <StatMini label="ENGAGEMENTS" value={activeEngagements.length} icon={Crosshair} color="text-red-400" />
-            <StatMini label="FINDINGS" value={12} icon={AlertTriangle} color="text-amber-400" />
-            <StatMini label="SHELLS" value={5} icon={Target} color="text-emerald-400" />
-            <StatMini label="CREDS" value={28} icon={Lock} color="text-blue-400" />
+            <StatMini
+              label="ENGAGEMENTS"
+              value={stats?.activeEngagements ?? activeEngagements.length}
+              icon={Crosshair}
+              color="text-red-400"
+            />
+            <StatMini
+              label="RUNNING SCANS"
+              value={stats?.runningScans ?? runningScans}
+              icon={Scan}
+              color="text-blue-400"
+            />
+            <StatMini
+              label="CRITICAL FINDINGS"
+              value={stats?.criticalFindings ?? 0}
+              icon={AlertTriangle}
+              color="text-amber-400"
+            />
+            <StatMini
+              label="OPSEC ALERTS"
+              value={opsec?.recentAlerts ?? 0}
+              icon={ShieldAlert}
+              color={opsec && opsec.recentAlerts > 3 ? "text-red-400" : "text-emerald-400"}
+            />
           </div>
 
           {/* OPSEC Gauge */}
           <Card>
             <CardHeader className="pb-0 pt-3 px-4">
-              <CardTitle className="text-[10px] font-display tracking-widest text-muted-foreground flex items-center gap-2">
-                <ShieldAlert className="w-3 h-3" /> OPSEC EXPOSURE
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-[10px] font-display tracking-widest text-muted-foreground flex items-center gap-2">
+                  <ShieldAlert className="w-3 h-3" /> OPSEC EXPOSURE
+                </CardTitle>
+                {opsec && opsec.activeEngagements > 0 && (
+                  <span className="text-[8px] font-display tracking-wider text-muted-foreground">
+                    {opsec.activeEngagements} active op{opsec.activeEngagements !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="p-3 flex justify-center">
-              <OpsecGauge score={opsecScore} />
+            <CardContent className="p-3">
+              {opsecQuery.isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-center">
+                    <OpsecGauge
+                      score={opsec?.overallScore ?? 100}
+                      noiseLevel={opsec?.noiseLevel ?? "stealth"}
+                      detectionChance={opsec?.detectionChance ?? 0}
+                    />
+                  </div>
+
+                  {/* Score Breakdown */}
+                  {opsec && (
+                    <div className="mt-3 space-y-1.5">
+                      <ScoreBar label="STEALTH" value={opsec.breakdown.stealthScore} />
+                      <ScoreBar label="EXPOSURE" value={opsec.breakdown.exposureScore} />
+                      <ScoreBar label="ASSET HEALTH" value={opsec.breakdown.assetHealthScore} />
+                      <ScoreBar label="EVENT VELOCITY" value={opsec.breakdown.eventVelocityScore} />
+                    </div>
+                  )}
+
+                  {/* Burned Assets */}
+                  {opsec && opsec.burnedAssets.length > 0 && (
+                    <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Flame className="w-3 h-3 text-red-400" />
+                        <span className="text-[9px] font-display tracking-wider text-red-400">BURNED ASSETS ({opsec.burnedAssets.length})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {opsec.burnedAssets.slice(0, 5).map((asset, i) => (
+                          <span key={i} className="text-[8px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded font-mono">{asset}</span>
+                        ))}
+                        {opsec.burnedAssets.length > 5 && (
+                          <span className="text-[8px] text-red-400">+{opsec.burnedAssets.length - 5} more</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {opsec && opsec.recommendations.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {opsec.recommendations.slice(0, 3).map((rec, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[9px]">
+                          <Shield className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+                          <span className="text-muted-foreground leading-relaxed">{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -402,21 +532,31 @@ export default function OperatorHome() {
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-2">
               <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                <p className="text-[9px] text-purple-300 font-display tracking-wider mb-1.5">RECOMMENDED NEXT ACTION</p>
-                <p className="text-xs leading-relaxed">Consider escalating privileges on the compromised web server before lateral movement to the domain controller.</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-display tracking-wider">PRIVESC</span>
-                  <span className="text-[8px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-display tracking-wider">OPSEC: MODERATE</span>
-                </div>
-              </div>
-              <div className="p-2.5 bg-secondary/30 rounded-lg">
-                <p className="text-[9px] text-muted-foreground font-display tracking-wider mb-1">CONTEXT</p>
-                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                  <div><span className="text-muted-foreground">Phase:</span> <span className="text-foreground">Gaining Access</span></div>
-                  <div><span className="text-muted-foreground">Targets:</span> <span className="text-foreground">12 hosts</span></div>
-                  <div><span className="text-muted-foreground">Compromised:</span> <span className="text-foreground">3 hosts</span></div>
-                  <div><span className="text-muted-foreground">OPSEC:</span> <span className="text-amber-400">Moderate</span></div>
-                </div>
+                <p className="text-[9px] text-purple-300 font-display tracking-wider mb-1.5">OPERATIONAL SUMMARY</p>
+                <p className="text-xs leading-relaxed">
+                  {opsec && opsec.activeEngagements > 0
+                    ? `${opsec.activeEngagements} active engagement${opsec.activeEngagements !== 1 ? "s" : ""} with ${opsec.totalOpsecEvents} OPSEC events tracked. ${
+                        opsec.highRiskEvents > 0
+                          ? `${opsec.highRiskEvents} high-risk events require attention.`
+                          : "Operations running within acceptable risk parameters."
+                      }`
+                    : "No active engagements. Launch a scan or engagement to get AI-powered operational recommendations."
+                  }
+                </p>
+                {opsec && opsec.activeEngagements > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded font-display tracking-wider ${
+                      opsec.overallScore > 70 ? "bg-emerald-500/20 text-emerald-400" :
+                      opsec.overallScore > 40 ? "bg-amber-500/20 text-amber-400" :
+                      "bg-red-500/20 text-red-400"
+                    }`}>
+                      OPSEC: {opsec.overallScore > 70 ? "CLEAN" : opsec.overallScore > 40 ? "MODERATE" : "ELEVATED"}
+                    </span>
+                    <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-display tracking-wider">
+                      {opsec.noiseLevel.toUpperCase()} NOISE
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -453,6 +593,21 @@ export default function OperatorHome() {
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Score Bar Component ────────────────────────────────────────────────────
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const color = value > 70 ? "bg-emerald-500" : value > 40 ? "bg-amber-500" : "bg-red-500";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[8px] font-display tracking-wider text-muted-foreground w-20 shrink-0">{label}</span>
+      <div className="flex-1 bg-secondary rounded-full h-1.5">
+        <div className={`${color} h-full rounded-full transition-all duration-700`} style={{ width: `${value}%` }} />
+      </div>
+      <span className="text-[9px] font-display font-medium w-6 text-right">{value}</span>
     </div>
   );
 }
