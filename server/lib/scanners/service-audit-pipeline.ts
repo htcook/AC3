@@ -29,6 +29,8 @@ import { startArachniScan, type ArachniScanResult } from "./arachni-scanner";
 import { startSMTPAudit, type SMTPAuditResult } from "./smtp-audit-scanner";
 import { startSNMPAudit, type SNMPAuditResult } from "./snmp-audit-scanner";
 import { startRDPAudit, type RDPAuditResult } from "./rdp-audit-scanner";
+import { startDNSAudit, type DNSAuditResult } from "./dns-audit-scanner";
+import { startHTTPHeaderAudit, type HTTPHeaderAuditResult } from "./http-header-audit-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -59,6 +61,8 @@ export interface ServiceAuditConfig {
     smtp?: boolean;
     snmp?: boolean;
     rdp?: boolean;
+    dns?: boolean;
+    httpHeaders?: boolean;
   };
   /** Scan profile (affects depth/speed) */
   profile?: "quick" | "standard" | "deep";
@@ -89,6 +93,8 @@ export interface ServiceAuditPipelineResult {
     smtp: SMTPAuditResult[];
     snmp: SNMPAuditResult[];
     rdp: RDPAuditResult[];
+    dns: DNSAuditResult[];
+    httpHeaders: HTTPHeaderAuditResult[];
   };
   totalFindings: number;
   severitySummary: {
@@ -119,6 +125,8 @@ const SERVICE_SCANNER_MAP: Record<string, ScannerMapping> = {
   snmp: { scanners: ["snmp-audit"], description: "SNMP security audit" },
   "ms-wbt-server": { scanners: ["rdp-audit"], description: "RDP security audit" },
   rdp: { scanners: ["rdp-audit"], description: "RDP security audit" },
+  dns: { scanners: ["dns-audit"], description: "DNS security audit" },
+  domain: { scanners: ["dns-audit"], description: "DNS security audit" },
 };
 
 const PORT_SCANNER_MAP: Record<number, ScannerMapping> = {
@@ -142,6 +150,8 @@ const PORT_SCANNER_MAP: Record<number, ScannerMapping> = {
   162: { scanners: ["snmp-audit"], description: "SNMP trap audit" },
   3389: { scanners: ["rdp-audit"], description: "RDP audit" },
   3388: { scanners: ["rdp-audit"], description: "RDP alt audit" },
+  53: { scanners: ["dns-audit"], description: "DNS audit" },
+  5353: { scanners: ["dns-audit"], description: "mDNS audit" },
 };
 
 /**
@@ -164,6 +174,12 @@ function getScannersForService(service: DiscoveredService, enabled: ServiceAudit
     for (const s of portMapping.scanners) scanners.add(s);
   }
 
+  // Auto-add HTTP header audit for web ports
+  const webPorts = [80, 443, 8080, 8443, 3000, 5000, 8000, 8888, 9090];
+  if (webPorts.includes(service.port) || serviceLower.includes("http")) {
+    scanners.add("http-header-audit");
+  }
+
   // Filter by enabled scanners
   const enabledMap: Record<string, boolean> = {
     "ssh-audit": enabled?.ssh !== false,
@@ -174,6 +190,8 @@ function getScannersForService(service: DiscoveredService, enabled: ServiceAudit
     "smtp-audit": enabled?.smtp !== false,
     "snmp-audit": enabled?.snmp !== false,
     "rdp-audit": enabled?.rdp !== false,
+    "dns-audit": enabled?.dns !== false,
+    "http-header-audit": enabled?.httpHeaders !== false,
   };
 
   return Array.from(scanners).filter(s => enabledMap[s] !== false);
@@ -290,6 +308,31 @@ async function runScanner(
         return { scanner, result };
       }
 
+      case "dns-audit": {
+        const result = await startDNSAudit({
+          host: service.host,
+          port: service.port,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+          domain: service.host,
+        });
+        return { scanner, result };
+      }
+
+      case "http-header-audit": {
+        const isHttps = service.service?.toLowerCase().includes("https") || service.port === 443 || service.port === 8443;
+        const result = await startHTTPHeaderAudit({
+          host: service.host,
+          port: service.port,
+          https: isHttps,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+        });
+        return { scanner, result };
+      }
+
       default:
         return { scanner, result: null, error: `Unknown scanner: ${scanner}` };
     }
@@ -321,6 +364,8 @@ export async function runServiceAuditPipeline(
     smtp: [],
     snmp: [],
     rdp: [],
+    dns: [],
+    httpHeaders: [],
   };
 
   let auditsTriggered = 0;
@@ -379,6 +424,8 @@ export async function runServiceAuditPipeline(
           case "smtp-audit": results.smtp.push(result); break;
           case "snmp-audit": results.snmp.push(result); break;
           case "rdp-audit": results.rdp.push(result); break;
+          case "dns-audit": results.dns.push(result); break;
+          case "http-header-audit": results.httpHeaders.push(result); break;
         }
 
         emit({
@@ -419,6 +466,8 @@ export async function runServiceAuditPipeline(
     ...results.smtp.flatMap(r => r.findings),
     ...results.snmp.flatMap(r => r.findings),
     ...results.rdp.flatMap(r => r.findings),
+    ...results.dns.flatMap(r => r.findings),
+    ...results.httpHeaders.flatMap(r => r.findings),
   ];
 
   for (const finding of allResults) {
@@ -571,6 +620,57 @@ export async function autoAuditRDPPorts(
       results.push(result);
     } catch (err: any) {
       console.error(`[ServiceAuditPipeline] RDP audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Convenience function: auto-audit DNS ports from naabu/nmap discovery.
+ */
+export async function autoAuditDNSPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<DNSAuditResult[]> {
+  const dnsHosts = hosts.filter(h => h.port === 53 || h.port === 5353);
+  if (dnsHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${dnsHosts.length} DNS service(s)`);
+
+  const results: DNSAuditResult[] = [];
+  for (const { host, port } of dnsHosts) {
+    try {
+      const result = await startDNSAudit({ host, port, engagementId, operatorId, domain: host });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] DNS audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Convenience function: auto-audit HTTP ports for security headers.
+ */
+export async function autoAuditHTTPPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<HTTPHeaderAuditResult[]> {
+  const httpHosts = hosts.filter(h => [80, 443, 8080, 8443, 3000, 5000, 8000, 8888, 9090].includes(h.port));
+  if (httpHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${httpHosts.length} HTTP service(s) for security headers`);
+
+  const results: HTTPHeaderAuditResult[] = [];
+  for (const { host, port } of httpHosts) {
+    try {
+      const isHttps = port === 443 || port === 8443;
+      const result = await startHTTPHeaderAudit({ host, port, https: isHttps, engagementId, operatorId });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] HTTP header audit failed for ${host}:${port}: ${err.message}`);
     }
   }
   return results;

@@ -10,6 +10,8 @@
  * - SMTP Audit: Open relay, VRFY/EXPN enum, STARTTLS, auth methods, version CVEs
  * - SNMP Audit: Community string brute, v1/v2c weak auth, info disclosure, MIB walk
  * - RDP Audit: NLA check, CredSSP/BlueKeep CVEs, encryption level, NTLMv1 downgrade
+ * - DNS Audit: Zone transfer, DNSSEC, recursion, version disclosure, cache poisoning
+ * - HTTP Header Audit: Security headers, CORS, cookies, TLS, server disclosure
  * - Service Audit Pipeline: Auto-triggers appropriate scanners after port discovery
  */
 
@@ -21,6 +23,8 @@ export { startFTPAudit, type FTPAuditConfig, type FTPAuditResult, type FTPAuditF
 export { startSMTPAudit, type SMTPAuditConfig, type SMTPAuditResult, type SMTPAuditFinding } from "./smtp-audit-scanner";
 export { startSNMPAudit, type SNMPAuditConfig, type SNMPAuditResult, type SNMPAuditFinding } from "./snmp-audit-scanner";
 export { startRDPAudit, type RDPAuditConfig, type RDPAuditResult, type RDPAuditFinding } from "./rdp-audit-scanner";
+export { startDNSAudit, type DNSAuditConfig, type DNSAuditResult, type DNSFinding } from "./dns-audit-scanner";
+export { startHTTPHeaderAudit, type HTTPHeaderAuditConfig, type HTTPHeaderAuditResult, type HTTPHeaderFinding, type SecurityHeader, type CookieAudit, type CORSAudit, type TLSInfo } from "./http-header-audit-scanner";
 export {
   runServiceAuditPipeline,
   autoAuditSSHPorts,
@@ -28,6 +32,8 @@ export {
   autoAuditSMTPPorts,
   autoAuditSNMPPorts,
   autoAuditRDPPorts,
+  autoAuditDNSPorts,
+  autoAuditHTTPPorts,
   type DiscoveredService,
   type ServiceAuditConfig,
   type ServiceAuditPipelineResult,

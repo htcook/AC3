@@ -41,6 +41,8 @@ const SCANNER_ICONS: Record<string, React.ReactNode> = {
   "smtp-audit": <Globe className="w-5 h-5" />,
   "snmp-audit": <Wifi className="w-5 h-5" />,
   "rdp-audit": <Server className="w-5 h-5" />,
+  "dns-audit": <Globe className="w-5 h-5" />,
+  "http-header-audit": <Shield className="w-5 h-5" />,
 };
 
 const SCANNER_COLORS: Record<string, string> = {
@@ -52,6 +54,8 @@ const SCANNER_COLORS: Record<string, string> = {
   "smtp-audit": "text-orange-400",
   "snmp-audit": "text-teal-400",
   "rdp-audit": "text-indigo-400",
+  "dns-audit": "text-sky-400",
+  "http-header-audit": "text-lime-400",
 };
 
 // ─── Severity Badge ─────────────────────────────────────────────────────────
@@ -739,6 +743,191 @@ function RDPAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
   );
 }
 
+// ─── DNS Audit Launch Dialog ────────────────────────────────────────────────
+
+function DNSAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("53");
+  const [domain, setDomain] = useState("");
+  const [timeout, setTimeout] = useState("60");
+  const [checkRecursion, setCheckRecursion] = useState(true);
+  const [checkZoneTransfer, setCheckZoneTransfer] = useState(true);
+  const [checkDnssec, setCheckDnssec] = useState(true);
+  const [checkVersion, setCheckVersion] = useState(true);
+  const [checkAmplification, setCheckAmplification] = useState(true);
+
+  const startScan = trpc.dastScanners.startDNSAudit.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`DNS audit complete: ${data.findings?.length || 0} findings`);
+      onClose();
+    },
+    onError: (e) => toast.error(`DNS audit failed: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-sky-400" /> Launch DNS Audit
+          </DialogTitle>
+          <DialogDescription>DNS security — zone transfer, DNSSEC, recursion, version disclosure, cache poisoning, SPF/DMARC</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>DNS Server (IP or hostname)</Label>
+            <Input placeholder="ns1.target.com or 8.8.8.8" value={host} onChange={e => setHost(e.target.value)} />
+          </div>
+          <div>
+            <Label>Domain to audit (optional — defaults to host)</Label>
+            <Input placeholder="target.com" value={domain} onChange={e => setDomain(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Port</Label>
+              <Input value={port} onChange={e => setPort(e.target.value)} />
+            </div>
+            <div>
+              <Label>Timeout (seconds)</Label>
+              <Input value={timeout} onChange={e => setTimeout(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={checkZoneTransfer} onCheckedChange={setCheckZoneTransfer} />
+              <Label>Check zone transfer (AXFR)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkDnssec} onCheckedChange={setCheckDnssec} />
+              <Label>Check DNSSEC validation</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkRecursion} onCheckedChange={setCheckRecursion} />
+              <Label>Check open recursion</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkVersion} onCheckedChange={setCheckVersion} />
+              <Label>Check version disclosure</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkAmplification} onCheckedChange={setCheckAmplification} />
+              <Label>Check DNS amplification</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => startScan.mutate({
+              host,
+              port: parseInt(port) || 53,
+              domain: domain || undefined,
+              engagementId,
+              checkRecursion,
+              checkZoneTransfer,
+              checkDnssec,
+              checkVersion,
+              checkAmplification,
+              timeoutSeconds: parseInt(timeout) || 60,
+            })}
+            disabled={!host || startScan.isPending}
+          >
+            {startScan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            Start Audit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── HTTP Header Audit Launch Dialog ────────────────────────────────────────
+
+function HTTPHeaderAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("");
+  const [useHttps, setUseHttps] = useState(true);
+  const [path, setPath] = useState("/");
+  const [timeout, setTimeout] = useState("30");
+  const [checkTLS, setCheckTLS] = useState(true);
+  const [followRedirects, setFollowRedirects] = useState(true);
+
+  const startScan = trpc.dastScanners.startHTTPHeaderAudit.useMutation({
+    onSuccess: (data: any) => {
+      const grade = data.stats?.grade || "N/A";
+      toast.success(`HTTP header audit complete: Grade ${grade}, ${data.findings?.length || 0} findings`);
+      onClose();
+    },
+    onError: (e) => toast.error(`HTTP header audit failed: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-lime-400" /> Launch HTTP Header Audit
+          </DialogTitle>
+          <DialogDescription>Security header analysis — HSTS, CSP, CORS, cookie flags, TLS config, server disclosure</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Host (domain or IP)</Label>
+            <Input placeholder="www.target.com or 192.168.1.1" value={host} onChange={e => setHost(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label>Port (optional)</Label>
+              <Input placeholder="443" value={port} onChange={e => setPort(e.target.value)} />
+            </div>
+            <div>
+              <Label>Path</Label>
+              <Input value={path} onChange={e => setPath(e.target.value)} />
+            </div>
+            <div>
+              <Label>Timeout (sec)</Label>
+              <Input value={timeout} onChange={e => setTimeout(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={useHttps} onCheckedChange={setUseHttps} />
+              <Label>Use HTTPS</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkTLS} onCheckedChange={setCheckTLS} />
+              <Label>Check TLS configuration</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={followRedirects} onCheckedChange={setFollowRedirects} />
+              <Label>Follow redirects</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => startScan.mutate({
+              host,
+              port: port ? parseInt(port) : undefined,
+              https: useHttps,
+              path,
+              engagementId,
+              checkTLS,
+              followRedirects,
+              timeoutSeconds: parseInt(timeout) || 30,
+            })}
+            disabled={!host || startScan.isPending}
+          >
+            {startScan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            Start Audit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Service Audit Pipeline Dialog ──────────────────────────────────────────
 
 function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
@@ -752,6 +941,8 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
   const [enableNikto, setEnableNikto] = useState(true);
   const [enableWapiti, setEnableWapiti] = useState(true);
   const [enableArachni, setEnableArachni] = useState(false);
+  const [enableDNS, setEnableDNS] = useState(true);
+  const [enableHTTPHeaders, setEnableHTTPHeaders] = useState(true);
 
   const runPipeline = trpc.dastScanners.runServiceAuditPipeline.useMutation({
     onSuccess: (data: any) => {
@@ -842,6 +1033,14 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                 <Switch checked={enableArachni} onCheckedChange={setEnableArachni} />
                 <Label className="text-sm">Arachni (heavy)</Label>
               </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={enableDNS} onCheckedChange={setEnableDNS} />
+                <Label className="text-sm">DNS Audit</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={enableHTTPHeaders} onCheckedChange={setEnableHTTPHeaders} />
+                <Label className="text-sm">HTTP Header Audit</Label>
+              </div>
             </div>
           </div>
         </div>
@@ -864,6 +1063,8 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                   nikto: enableNikto,
                   wapiti: enableWapiti,
                   arachni: enableArachni,
+                  dns: enableDNS,
+                  httpHeaders: enableHTTPHeaders,
                 },
               });
             }}
@@ -1000,6 +1201,8 @@ export default function DastScanners() {
   const [showSMTP, setShowSMTP] = useState(false);
   const [showSNMP, setShowSNMP] = useState(false);
   const [showRDP, setShowRDP] = useState(false);
+  const [showDNS, setShowDNS] = useState(false);
+  const [showHTTPHeaders, setShowHTTPHeaders] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [toolFilter, setToolFilter] = useState<string>("all");
@@ -1299,6 +1502,54 @@ export default function DastScanners() {
                 </CardContent>
               </Card>
 
+              {/* DNS Audit */}
+              <Card className="border-sky-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-sky-400" /> DNS Audit
+                  </CardTitle>
+                  <CardDescription>Zone transfer (AXFR), DNSSEC validation, open recursion, version disclosure, cache poisoning, SPF/DMARC</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Fast</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 53</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowDNS(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["dns-audit"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["dns-audit"]} audit(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* HTTP Header Audit */}
+              <Card className="border-lime-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-lime-400" /> HTTP Header Audit
+                  </CardTitle>
+                  <CardDescription>HSTS, CSP, X-Frame-Options, CORS, cookie flags, TLS config, server disclosure, OWASP compliance</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Fast</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 80/443</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowHTTPHeaders(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["http-header-audit"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["http-header-audit"]} audit(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Pipeline Card */}
               <Card className="border-yellow-500/20 bg-yellow-500/5">
                 <CardHeader className="pb-3">
@@ -1337,6 +1588,8 @@ export default function DastScanners() {
                   <Badge variant="outline" className="border-orange-500/30 text-orange-400">Port 25/587 → SMTP Audit</Badge>
                   <Badge variant="outline" className="border-teal-500/30 text-teal-400">Port 161 → SNMP Audit</Badge>
                   <Badge variant="outline" className="border-indigo-500/30 text-indigo-400">Port 3389 → RDP Audit</Badge>
+                  <Badge variant="outline" className="border-sky-500/30 text-sky-400">Port 53 → DNS Audit</Badge>
+                  <Badge variant="outline" className="border-lime-500/30 text-lime-400">Port 80/443 → HTTP Header Audit</Badge>
                   <Badge variant="outline" className="border-cyan-500/30 text-cyan-400">Port 80/443 → Nikto + Wapiti</Badge>
                   <ChevronRight className="w-3 h-3" />
                   <Badge variant="outline">Findings Aggregated</Badge>
@@ -1369,6 +1622,8 @@ export default function DastScanners() {
                       <SelectItem value="smtp-audit">SMTP Audit</SelectItem>
                       <SelectItem value="snmp-audit">SNMP Audit</SelectItem>
                       <SelectItem value="rdp-audit">RDP Audit</SelectItem>
+                      <SelectItem value="dns-audit">DNS Audit</SelectItem>
+                      <SelectItem value="http-header-audit">HTTP Header Audit</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button variant="ghost" size="sm" onClick={() => resultsQuery.refetch()}>
@@ -1434,6 +1689,8 @@ export default function DastScanners() {
         <SMTPAuditLaunchDialog open={showSMTP} onClose={() => setShowSMTP(false)} engagementId={engagementId} />
         <SNMPAuditLaunchDialog open={showSNMP} onClose={() => setShowSNMP(false)} engagementId={engagementId} />
         <RDPAuditLaunchDialog open={showRDP} onClose={() => setShowRDP(false)} engagementId={engagementId} />
+        <DNSAuditLaunchDialog open={showDNS} onClose={() => setShowDNS(false)} engagementId={engagementId} />
+        <HTTPHeaderAuditLaunchDialog open={showHTTPHeaders} onClose={() => setShowHTTPHeaders(false)} engagementId={engagementId} />
         <PipelineLaunchDialog open={showPipeline} onClose={() => setShowPipeline(false)} engagementId={engagementId} />
       </div>
     </AppShell>

@@ -369,6 +369,96 @@ export const dastScannersRouter = router({
     }),
 
   /**
+   * Start a DNS Audit against a target DNS server.
+   */
+  startDNSAudit: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().default(53),
+      domain: z.string().optional(),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(60),
+      checkRecursion: z.boolean().default(true),
+      checkZoneTransfer: z.boolean().default(true),
+      checkDnssec: z.boolean().default(true),
+      checkVersion: z.boolean().default(true),
+      checkAmplification: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, [input.host], "DNS Audit", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startDNSAudit } = await import("../lib/scanners/dns-audit-scanner");
+      const result = await startDNSAudit({
+        ...input,
+        operatorId: ctx.user?.id,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:dns-audit:complete", {
+          scanId: result.scanId,
+          target: `${input.host}:${input.port}`,
+          findingCount: result.findings.length,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
+   * Start an HTTP Header Audit against a target web server.
+   */
+  startHTTPHeaderAudit: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().optional(),
+      https: z.boolean().default(true),
+      path: z.string().default("/"),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(30),
+      checkTLS: z.boolean().default(true),
+      followRedirects: z.boolean().default(true),
+      userAgent: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, [input.host], "HTTP Header Audit", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startHTTPHeaderAudit } = await import("../lib/scanners/http-header-audit-scanner");
+      const result = await startHTTPHeaderAudit({
+        ...input,
+        operatorId: ctx.user?.id,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:http-header-audit:complete", {
+          scanId: result.scanId,
+          target: result.url,
+          findingCount: result.findings.length,
+          gradeScore: result.stats.gradeScore,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
    * Compute CARVER+Shock scoring adjustments from DAST/service audit results.
    */
   computeCarverScoring: protectedProcedure
@@ -389,6 +479,7 @@ export const dastScannersRouter = router({
               "nikto", "wapiti", "arachni",
               "ssh-audit", "ftp-audit",
               "smtp-audit", "snmp-audit", "rdp-audit",
+              "dns-audit", "http-header-audit",
             ]),
           ),
         );
@@ -492,7 +583,7 @@ export const dastScannersRouter = router({
   getResults: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit"]).optional(),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit"]).optional(),
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
@@ -561,7 +652,7 @@ export const dastScannersRouter = router({
   analyzeScanFindings: protectedProcedure
     .input(z.object({
       scanId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit"]),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit"]),
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -697,6 +788,26 @@ export const dastScannersRouter = router({
         depth: "deep",
         bestFor: "Windows RDP hardening, BlueKeep detection, NLA compliance",
         icon: "🖥️",
+      },
+      {
+        id: "dns-audit",
+        name: "DNS Audit",
+        type: "service",
+        description: "DNS server security audit — zone transfer (AXFR), DNSSEC validation, open recursion, version disclosure, cache poisoning, SPF/DMARC",
+        speed: "fast",
+        depth: "deep",
+        bestFor: "DNS hardening, zone transfer detection, DNSSEC compliance, email security",
+        icon: "🌐",
+      },
+      {
+        id: "http-header-audit",
+        name: "HTTP Header Audit",
+        type: "service",
+        description: "HTTP security header analysis — HSTS, CSP, X-Frame-Options, CORS, cookie flags, TLS config, server disclosure",
+        speed: "fast",
+        depth: "deep",
+        bestFor: "Web server hardening, security header compliance, OWASP best practices",
+        icon: "🛡️",
       },
     ];
   }),
