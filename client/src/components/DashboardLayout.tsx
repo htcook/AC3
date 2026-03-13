@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { EmbedProvider } from "@/contexts/EmbedContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -103,7 +104,7 @@ export default function DashboardLayout({
       }
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-        {children}
+        <EmbedProvider>{children}</EmbedProvider>
       </DashboardLayoutContent>
     </SidebarProvider>
   );
