@@ -2376,6 +2376,72 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       detail: `Excluded: ${skippedAssets.map(a => a.hostname).join(", ")}\nOnly RoE-authorized targets will be actively probed.`,
     });
   }
+  // ═══ DNS PRE-RESOLUTION: Resolve hostnames to IPs before nmap ═══
+  // nmap on the scan server may fail to resolve hostnames (e.g., training labs
+  // hosted via path-based routing on scan.aceofcloud.io). Pre-resolve here and
+  // fall back to scan server IP for known self-hosted labs.
+  const dns = await import('dns');
+  const { promisify } = await import('util');
+  const dnsResolve4 = promisify(dns.resolve4);
+  const scanServerHost = process.env.SCAN_SERVER_HOST || '';
+  const SCAN_SERVER_DOMAIN = 'scan.aceofcloud.io';
+
+  addLog(state, { phase: 'enumeration', type: 'info', title: `DNS Pre-Resolution: checking ${scopedAssets.length} assets`, detail: `Resolving hostnames to IPs before nmap scan` });
+  for (const asset of scopedAssets) {
+    if (asset.ip) continue; // Already has an IP
+    const hostname = asset.hostname;
+    try {
+      const ips = await dnsResolve4(hostname);
+      if (ips.length > 0) {
+        asset.ip = ips[0];
+        addLog(state, { phase: 'enumeration', type: 'info', title: `DNS Resolved: ${hostname}`, detail: `${hostname} → ${ips[0]}` });
+      }
+    } catch (_dnsErr: any) {
+      // DNS failed — check if this is a training lab hosted on the scan server
+      // Detection heuristics: engagement type, liveInstanceUrl, hostname pattern, or scan server domain match
+      const knownLabSubdomains = ['dvwa', 'juice-shop', 'juiceshop', 'webgoat', 'bwapp', 'mutillidae', 'vampi', 'crapi', 'hackazon'];
+      const hostnameBase = hostname.split('.')[0]?.toLowerCase() || '';
+      const isLabOnScanServer = state.engagementType === 'training_lab' ||
+        (asset.passiveRecon as any)?.liveInstanceUrl?.includes(SCAN_SERVER_DOMAIN) ||
+        (asset.passiveRecon as any)?.liveInstanceUrl?.includes(scanServerHost) ||
+        (hostname.endsWith('.aceofcloud.io') && knownLabSubdomains.includes(hostnameBase)) ||
+        (hostname.includes(SCAN_SERVER_DOMAIN));
+
+      if (isLabOnScanServer) {
+        // Resolve scan server domain to get the IP
+        try {
+          const scanIps = await dnsResolve4(SCAN_SERVER_DOMAIN);
+          if (scanIps.length > 0) {
+            asset.ip = scanIps[0];
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `DNS Fallback: ${hostname} → scan server IP`,
+              detail: `${hostname} failed DNS resolution. Training lab detected — using scan server IP ${scanIps[0]} (${SCAN_SERVER_DOMAIN})`,
+            });
+          }
+        } catch {
+          // Even scan server domain failed — try raw IP from env
+          if (/^\d{1,3}(\.\d{1,3}){3}$/.test(scanServerHost)) {
+            asset.ip = scanServerHost;
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `DNS Fallback: ${hostname} → scan server IP (env)`,
+              detail: `Using SCAN_SERVER_HOST env IP: ${scanServerHost}`,
+            });
+          }
+        }
+      }
+
+      if (!asset.ip) {
+        addLog(state, {
+          phase: 'enumeration', type: 'warning',
+          title: `⚠️ DNS Resolution Failed: ${hostname}`,
+          detail: `Could not resolve ${hostname} to an IP address. nmap may fail for this target.`,
+        });
+      }
+    }
+  }
+
   const targets = scopedAssets.map(a => a.ip || a.hostname);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2532,6 +2598,44 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             service: p.service || 'unknown',
             version: p.product ? `${p.product}${p.version ? ' ' + p.version : ''}`.trim() : undefined,
           }));
+
+          // ── PASSIVE RECON PORT SEEDING ──────────────────────────────────────
+          // If nmap found 0 ports but passive recon detected web services,
+          // seed standard web ports (80/443) so the pipeline continues to
+          // credential testing and ZAP scanning. This handles training labs
+          // behind nginx reverse proxies and CDN-fronted targets.
+          if (discoveredPorts.length === 0) {
+            const isWebAsset = asset.type === 'web_app' ||
+              (asset.passiveRecon as any)?.technologies?.some((t: string) => /nginx|apache|iis|http|web|php|node|express|flask|django/i.test(t)) ||
+              (asset.passiveRecon as any)?.services?.some((s: any) => /http/i.test(s.service || ''));
+
+            // Also check if passive recon already found ports
+            const passivePorts = (asset.passiveRecon as any)?.services?.map((s: any) => s.port).filter(Boolean) || [];
+
+            if (isWebAsset || passivePorts.length > 0) {
+              const seedPorts = passivePorts.length > 0
+                ? passivePorts
+                : [80, 443]; // Default web ports
+
+              for (const port of seedPorts) {
+                if (!asset.ports.some(p => p.port === port)) {
+                  asset.ports.push({
+                    port,
+                    service: port === 443 ? 'https' : 'http',
+                    version: undefined,
+                  });
+                }
+              }
+
+              addLog(state, {
+                phase: 'enumeration', type: 'info',
+                title: `🌐 Port Seeding: ${fmtTarget(asset, target)}`,
+                detail: `nmap found 0 open ports but passive recon indicates web services. Seeded ports: ${asset.ports.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue to credential testing and ZAP.`,
+              });
+
+              state.stats.portsFound += asset.ports.length;
+            }
+          }
 
           // Store nmap discovery result
           asset.toolResults.push({
