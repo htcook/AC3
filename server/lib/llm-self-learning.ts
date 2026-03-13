@@ -34,6 +34,158 @@ export interface GroundTruthVuln {
 }
 
 /**
+ * Negative examples: common false positives that the LLM should NOT report.
+ * These are infrastructure-level or inferred findings that inflate false positive counts.
+ */
+export interface NegativeExample {
+  pattern: string;          // Keyword pattern to suppress (matched against finding title)
+  reason: string;           // Why this is a false positive for this target
+}
+
+export interface TargetPrecisionConfig {
+  maxFindings: number;      // Maximum findings the LLM should report
+  negativeExamples: NegativeExample[];
+  precisionGuidance: string; // Extra instruction for precision
+}
+
+/**
+ * Per-target precision tuning: negative examples and finding caps.
+ * Targets with high false positive rates get specific suppression rules.
+ */
+export const TARGET_PRECISION_CONFIG: Record<string, TargetPrecisionConfig> = {
+  "zero-bank": {
+    maxFindings: 6,
+    precisionGuidance: "Zero Bank has ONLY 4 core application vulnerabilities. Do NOT pad your report with infrastructure findings. Only report vulnerabilities you can specifically demonstrate with evidence from the scan data. Generic SSL/TLS, missing headers, and outdated component findings are NOT application vulnerabilities for this target.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "SSL/TLS configuration is infrastructure-level, not an application vulnerability" },
+      { pattern: "TLS", reason: "TLS configuration is infrastructure-level, not an application vulnerability" },
+      { pattern: "cipher", reason: "Cipher suite issues are infrastructure-level, not application vulnerabilities" },
+      { pattern: "CORS", reason: "CORS configuration is not a documented vulnerability for Zero Bank" },
+      { pattern: "X-Frame-Options", reason: "Missing clickjacking header is not a core Zero Bank vulnerability" },
+      { pattern: "clickjacking", reason: "Clickjacking is not a documented Zero Bank vulnerability" },
+      { pattern: "HSTS", reason: "Missing HSTS is infrastructure-level" },
+      { pattern: "Content-Security-Policy", reason: "CSP is infrastructure-level" },
+      { pattern: "security header", reason: "Missing security headers are infrastructure-level, not app vulns" },
+      { pattern: "server banner", reason: "Server banner disclosure is informational, not an app vulnerability" },
+      { pattern: "information disclosure", reason: "Generic information disclosure is too vague — only report specific data leaks" },
+      { pattern: "Tomcat Manager", reason: "Tomcat Manager exposure is infrastructure, not an app vulnerability" },
+      { pattern: "HTTP method", reason: "Enabled HTTP methods (PUT/DELETE/TRACE) are infrastructure findings" },
+      { pattern: "PUT method", reason: "HTTP PUT is infrastructure-level" },
+      { pattern: "DELETE method", reason: "HTTP DELETE is infrastructure-level" },
+      { pattern: "TRACE method", reason: "HTTP TRACE is infrastructure-level" },
+      { pattern: "outdated", reason: "Outdated software versions are infrastructure findings, not app vulns" },
+      { pattern: "Apache", reason: "Apache version issues are infrastructure-level" },
+      { pattern: "OpenSSL", reason: "OpenSSL version issues are infrastructure-level" },
+      { pattern: "mod_jk", reason: "mod_jk version is infrastructure-level" },
+      { pattern: "directory listing", reason: "Directory listing is not a documented Zero Bank vulnerability" },
+      { pattern: "robots.txt", reason: "robots.txt is informational, not a vulnerability" },
+      { pattern: "crossdomain", reason: "crossdomain.xml is informational" },
+      { pattern: "session management", reason: "Only report session issues if you have specific evidence" },
+      { pattern: "Inferred", reason: "Do NOT report inferred/assumed vulnerabilities — only report what scan data confirms" },
+      { pattern: "Implied", reason: "Do NOT report implied vulnerabilities — only report confirmed findings" },
+      { pattern: "Windows Server", reason: "OS detection is informational, not a vulnerability" },
+      { pattern: "Cache-Control", reason: "Cache-Control header issues are not app vulnerabilities" },
+    ],
+  },
+  "altoro-mutual": {
+    maxFindings: 8,
+    precisionGuidance: "Altoro Mutual has 6 core vulnerabilities. Focus on application-layer findings with specific evidence. Do NOT report generic infrastructure findings like missing headers, SSL configuration, or server version disclosure unless they directly enable exploitation.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "SSL/TLS is infrastructure-level" },
+      { pattern: "cipher", reason: "Cipher issues are infrastructure-level" },
+      { pattern: "CORS", reason: "Not a documented Altoro Mutual vulnerability" },
+      { pattern: "security header", reason: "Missing headers are infrastructure-level" },
+      { pattern: "server banner", reason: "Banner disclosure is informational" },
+      { pattern: "outdated", reason: "Version issues are infrastructure-level" },
+      { pattern: "HTTP method", reason: "HTTP method findings are infrastructure-level" },
+      { pattern: "directory listing", reason: "Not a core Altoro Mutual vulnerability" },
+      { pattern: "robots.txt", reason: "Informational only" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "Implied", reason: "Do not report implied findings" },
+    ],
+  },
+  "testsparker-angular": {
+    maxFindings: 7,
+    precisionGuidance: "Testsparker Angular has 5 specific vulnerabilities. Focus on Angular-specific issues (template injection, DOM XSS), API security, and CORS. Do NOT report generic web server findings.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "Infrastructure-level" },
+      { pattern: "server banner", reason: "Informational" },
+      { pattern: "outdated", reason: "Infrastructure-level" },
+      { pattern: "HTTP method", reason: "Infrastructure-level" },
+      { pattern: "directory listing", reason: "Not a core vulnerability" },
+      { pattern: "clickjacking", reason: "Not a documented vulnerability for this target" },
+      { pattern: "HSTS", reason: "Infrastructure-level" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "cookie", reason: "Cookie flags are infrastructure-level unless directly exploitable" },
+    ],
+  },
+  "vulnweb-rest": {
+    maxFindings: 7,
+    precisionGuidance: "Vulnweb REST API has 5 specific API vulnerabilities. Focus on API-layer issues: broken object-level authorization, broken authentication, excessive data exposure, injection, and rate limiting. Do NOT report web server infrastructure findings.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "Infrastructure-level" },
+      { pattern: "CORS", reason: "Not a documented vulnerability for this REST API target" },
+      { pattern: "security header", reason: "Infrastructure-level" },
+      { pattern: "server banner", reason: "Informational" },
+      { pattern: "outdated", reason: "Infrastructure-level" },
+      { pattern: "HTTP method", reason: "HTTP methods are expected for REST APIs" },
+      { pattern: "clickjacking", reason: "Not relevant for API-only target" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "directory listing", reason: "Not a core API vulnerability" },
+    ],
+  },
+  "vulnweb-aspnet": {
+    maxFindings: 7,
+    precisionGuidance: "Vulnweb ASP.NET has 5 specific vulnerabilities. Focus on ASP.NET-specific issues: SQL injection, XSS, trace.axd exposure, IIS version disclosure, and ViewState tampering. Do NOT report generic infrastructure findings.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "Infrastructure-level" },
+      { pattern: "CORS", reason: "Not a documented vulnerability" },
+      { pattern: "HTTP method", reason: "Infrastructure-level" },
+      { pattern: "outdated", reason: "Infrastructure-level unless it's IIS version disclosure" },
+      { pattern: "clickjacking", reason: "Not a documented vulnerability" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "directory listing", reason: "Not a core vulnerability" },
+    ],
+  },
+  "webscantest": {
+    maxFindings: 6,
+    precisionGuidance: "WebScanTest has only 4 core vulnerabilities: XSS, SQL Injection, Open Redirect, and Information Disclosure. Be very precise — do NOT report infrastructure findings or split one vulnerability into multiple findings.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "Infrastructure-level" },
+      { pattern: "TLS", reason: "Infrastructure-level" },
+      { pattern: "cipher", reason: "Infrastructure-level" },
+      { pattern: "CORS", reason: "Not a documented vulnerability" },
+      { pattern: "security header", reason: "Infrastructure-level" },
+      { pattern: "clickjacking", reason: "Not a documented vulnerability" },
+      { pattern: "HSTS", reason: "Infrastructure-level" },
+      { pattern: "server banner", reason: "Only report as part of Information Disclosure, not separately" },
+      { pattern: "outdated", reason: "Infrastructure-level" },
+      { pattern: "HTTP method", reason: "Infrastructure-level" },
+      { pattern: "directory listing", reason: "Not a core vulnerability" },
+      { pattern: "robots.txt", reason: "Informational" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "CSRF", reason: "Not a documented WebScanTest vulnerability" },
+      { pattern: "cookie", reason: "Cookie flags are not core vulnerabilities" },
+    ],
+  },
+  "hackazon": {
+    maxFindings: 8,
+    precisionGuidance: "Hackazon has 6 core vulnerabilities focused on e-commerce logic: SQL injection, XSS, CSRF, price manipulation, auth bypass, and info disclosure. Do NOT report infrastructure findings.",
+    negativeExamples: [
+      { pattern: "SSL", reason: "Infrastructure-level" },
+      { pattern: "CORS", reason: "Not a documented vulnerability" },
+      { pattern: "security header", reason: "Infrastructure-level" },
+      { pattern: "server banner", reason: "Informational" },
+      { pattern: "outdated", reason: "Infrastructure-level" },
+      { pattern: "HTTP method", reason: "Infrastructure-level" },
+      { pattern: "clickjacking", reason: "Not a documented vulnerability" },
+      { pattern: "Inferred", reason: "Do not report inferred findings" },
+      { pattern: "directory listing", reason: "Not a core vulnerability" },
+    ],
+  },
+};
+
+/**
  * Built-in ground truth for known vulnerable training targets.
  * These are the vulnerabilities that the LLM *should* find.
  */
@@ -929,10 +1081,27 @@ export async function buildLearningContext(targetPreset: string): Promise<string
     const groundTruth = GROUND_TRUTH_LIBRARY[targetPreset];
     let groundTruthHint = "";
     if (groundTruth && groundTruth.length > 0) {
-      groundTruthHint = `\n═══ KNOWN VULNERABILITY AREAS FOR THIS TARGET ═══\nThis is a known vulnerable training application with ${groundTruth.length} documented vulnerabilities.\nCategories to investigate: ${[...new Set(groundTruth.map(g => g.category))].join(", ")}\nExpected severity range: ${[...new Set(groundTruth.map(g => g.severity))].join(", ")}\nBe thorough — your accuracy is being measured against known ground truth.\n`;
+      // Build specific detection hints for each ground truth vulnerability
+      const detectionHints = groundTruth
+        .filter(g => g.detectionHint)
+        .map(g => `  • ${g.title} [${g.severity}] (${g.category}): ${g.detectionHint}`)
+        .join("\n");
+
+      groundTruthHint = `\n═══ KNOWN VULNERABILITY AREAS FOR THIS TARGET ═══\nThis is a known vulnerable training application with EXACTLY ${groundTruth.length} documented vulnerabilities.\nCategories to investigate: ${[...new Set(groundTruth.map(g => g.category))].join(", ")}\nExpected severity range: ${[...new Set(groundTruth.map(g => g.severity))].join(", ")}\n\nSPECIFIC VULNERABILITIES TO FIND (detection hints):\n${detectionHints}\n\nYour accuracy is being measured against these known ground truth entries. Focus on finding THESE specific vulnerabilities.\n`;
     }
 
-    return correctionPrompt + groundTruthHint;
+    // Add precision tuning: negative examples and finding caps
+    const precisionConfig = TARGET_PRECISION_CONFIG[targetPreset];
+    let precisionHint = "";
+    if (precisionConfig) {
+      const negExamples = precisionConfig.negativeExamples
+        .map(n => `  ✗ Do NOT report findings containing "${n.pattern}" — ${n.reason}`)
+        .join("\n");
+
+      precisionHint = `\n═══ PRECISION RULES (FALSE POSITIVE SUPPRESSION) ═══\n${precisionConfig.precisionGuidance}\n\nMAXIMUM FINDINGS: Report at most ${precisionConfig.maxFindings} findings. Quality over quantity.\n\nDO NOT REPORT these types of findings (they are known false positives for this target):\n${negExamples}\n\nIMPORTANT RULES:\n- Never report findings with "Inferred" or "Implied" in the title\n- Never report infrastructure findings (SSL/TLS, missing headers, server versions) unless they are in the ground truth\n- Every finding MUST have specific evidence from scan tool output\n- If you cannot point to specific scan evidence, do NOT include the finding\n`;
+    }
+
+    return correctionPrompt + groundTruthHint + precisionHint;
   } catch (e: any) {
     console.error("[LLM-SelfLearning] Failed to build learning context:", e.message);
     return "";
