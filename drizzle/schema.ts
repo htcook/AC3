@@ -5203,3 +5203,32 @@ export const vulnTypeAccuracy = mysqlTable("vuln_type_accuracy", {
 
 export type InsertVulnTypeAccuracy = typeof vulnTypeAccuracy.$inferInsert;
 export type SelectVulnTypeAccuracy = typeof vulnTypeAccuracy.$inferSelect;
+
+// ─── Bug Reports (submitted via AI chat) ───
+export const bugReports = mysqlTable("bug_reports", {
+	id: int().autoincrement().notNull().primaryKey(),
+	userId: int("user_id").notNull(),
+	userName: varchar("user_name", { length: 255 }),
+	title: varchar({ length: 512 }).notNull(),
+	description: text().notNull(),
+	page: varchar({ length: 512 }),
+	severity: varchar({ length: 32 }).default('medium').notNull(),
+	category: varchar({ length: 64 }).default('bug').notNull(),
+	stepsToReproduce: text("steps_to_reproduce"),
+	expectedBehavior: text("expected_behavior"),
+	actualBehavior: text("actual_behavior"),
+	browserInfo: varchar("browser_info", { length: 512 }),
+	status: varchar({ length: 32 }).default('open').notNull(),
+	adminNotes: text("admin_notes"),
+	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("br_user_idx").on(table.userId),
+	index("br_status_idx").on(table.status),
+	index("br_severity_idx").on(table.severity),
+	index("br_created_idx").on(table.createdAt),
+]);
+export type InsertBugReport = typeof bugReports.$inferInsert;
+export type SelectBugReport = typeof bugReports.$inferSelect;

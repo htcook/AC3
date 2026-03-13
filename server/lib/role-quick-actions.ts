@@ -266,13 +266,44 @@ const ADMIN_ACTIONS: QuickAction[] = [
   },
 ];
 
+/** Bug/error report action — available to ALL roles */
+const SUBMIT_BUG_REPORT: QuickAction = {
+  name: "submit_bug_report",
+  displayName: "Submit Bug Report",
+  description: "Submit a bug report or error report about a platform issue. Collect the title, description, severity, and steps to reproduce from the user before calling this.",
+  icon: "Bug",
+  confirmRequired: false,
+  params: [
+    { name: "title", type: "string", description: "Short title summarizing the bug or error", required: true },
+    { name: "description", type: "string", description: "Detailed description of the bug or error", required: true },
+    { name: "severity", type: "string", description: "Severity level of the bug", required: true, enum: ["critical", "high", "medium", "low"] },
+    { name: "category", type: "string", description: "Category of the report", required: false, enum: ["bug", "error", "ui_issue", "performance", "feature_request", "other"] },
+    { name: "steps_to_reproduce", type: "string", description: "Steps to reproduce the issue", required: false },
+    { name: "expected_behavior", type: "string", description: "What the user expected to happen", required: false },
+    { name: "actual_behavior", type: "string", description: "What actually happened", required: false },
+    { name: "page", type: "string", description: "The page/URL where the issue occurred", required: false },
+  ],
+};
+
+/** Navigate/explain page action — available to ALL roles */
+const EXPLAIN_CURRENT_PAGE: QuickAction = {
+  name: "explain_current_page",
+  displayName: "Explain Current Page",
+  description: "Explain what the current page does, its features, and how to use it. Use this when the user asks about the page they are on.",
+  icon: "Info",
+  confirmRequired: false,
+  params: [
+    { name: "page_path", type: "string", description: "The current page path/URL", required: true },
+  ],
+};
+
 const ROLE_ACTIONS: Record<CalderaRole, QuickAction[]> = {
-  operator: OPERATOR_ACTIONS,
-  executive: EXECUTIVE_ACTIONS,
-  analyst: ANALYST_ACTIONS,
-  team_lead: TEAM_LEAD_ACTIONS,
-  client: CLIENT_ACTIONS,
-  admin: ADMIN_ACTIONS,
+  operator: [...OPERATOR_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
+  executive: [...EXECUTIVE_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
+  analyst: [...ANALYST_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
+  team_lead: [...TEAM_LEAD_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
+  client: [...CLIENT_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
+  admin: [...ADMIN_ACTIONS, SUBMIT_BUG_REPORT, EXPLAIN_CURRENT_PAGE],
 };
 
 /**

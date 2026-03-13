@@ -19,7 +19,9 @@ import {
   users,
   pentestReports,
   defenseScores,
+  bugReports,
 } from "../../drizzle/schema";
+import { buildPageContextForChat, buildPlatformOverview, getPageFeatureInfo } from "./platform-feature-map";
 import { getRecentErrors, purgeOldErrors } from "./error-logger";
 
 type ActionResult = {
@@ -318,6 +320,73 @@ async function executePurgeOldErrors(params: { olderThanDays?: number }): Promis
   });
 }
 
+// ─── Bug Report & Page Explanation (shared across all roles) ────────────────
+
+/** Context holder for the current user — set by executeQuickAction */
+let _currentUserId: number | null = null;
+let _currentUserName: string | null = null;
+
+async function submitBugReport(params: {
+  title: string;
+  description: string;
+  severity?: string;
+  category?: string;
+  steps_to_reproduce?: string;
+  expected_behavior?: string;
+  actual_behavior?: string;
+  page?: string;
+}): Promise<ActionResult> {
+  return safe(async () => {
+    const db = (await getDb())!;
+    const [result] = await db.insert(bugReports).values({
+      userId: _currentUserId || 0,
+      userName: _currentUserName || 'Unknown',
+      title: params.title,
+      description: params.description,
+      severity: params.severity || 'medium',
+      category: params.category || 'bug',
+      stepsToReproduce: params.steps_to_reproduce || null,
+      expectedBehavior: params.expected_behavior || null,
+      actualBehavior: params.actual_behavior || null,
+      page: params.page || null,
+      status: 'open',
+    });
+    const reportId = result.insertId;
+    return {
+      success: true,
+      data: { reportId, title: params.title, severity: params.severity || 'medium' },
+      message: `Bug report #${reportId} submitted successfully: "${params.title}" (severity: ${params.severity || 'medium'}). The team will review it shortly.`,
+    };
+  });
+}
+
+async function explainCurrentPage(params: { page_path: string }): Promise<ActionResult> {
+  return safe(async () => {
+    const pageInfo = getPageFeatureInfo(params.page_path);
+    if (!pageInfo) {
+      const overview = buildPlatformOverview();
+      return {
+        success: true,
+        data: { page: params.page_path, found: false },
+        message: `I don't have specific information about the page "${params.page_path}". Here's a platform overview:\n${overview}`,
+      };
+    }
+    const context = buildPageContextForChat(params.page_path);
+    return {
+      success: true,
+      data: {
+        page: pageInfo.name,
+        group: pageInfo.group,
+        purpose: pageInfo.purpose,
+        features: pageInfo.features,
+        commonTasks: pageInfo.commonTasks,
+        tips: pageInfo.tips || [],
+      },
+      message: context,
+    };
+  });
+}
+
 // ─── Dispatcher ─────────────────────────────────────────────────────────────
 
 const ACTION_HANDLERS: Record<string, (params: any) => Promise<ActionResult>> = {
@@ -347,7 +416,19 @@ const ACTION_HANDLERS: Record<string, (params: any) => Promise<ActionResult>> = 
   get_error_report: getErrorReport,
   get_user_activity: getUserActivity,
   purge_old_errors: executePurgeOldErrors,
+  // Shared — all roles
+  submit_bug_report: submitBugReport,
+  explain_current_page: explainCurrentPage,
 };
+
+/**
+ * Set user context for actions that need it (e.g., bug reports).
+ * Must be called before executeQuickAction when user info is available.
+ */
+export function setActionUserContext(userId: number | null, userName: string | null) {
+  _currentUserId = userId;
+  _currentUserName = userName;
+}
 
 /**
  * Execute a quick action by name with the given parameters.

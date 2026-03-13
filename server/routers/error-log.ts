@@ -16,7 +16,8 @@ import { getRoleContext } from "../lib/role-chat-context";
 import { buildKnowledgeContextForLLM, searchTechniques, searchTools } from "../lib/pentest-knowledge-base";
 import { KnowledgeIndex, getRagSources, buildAttributionNotice, autoTagDocument } from "../lib/knowledge-store";
 import { getRoleActions, actionsToLLMTools } from "../lib/role-quick-actions";
-import { executeQuickAction } from "../lib/quick-action-executor";
+import { executeQuickAction, setActionUserContext } from "../lib/quick-action-executor";
+import { buildPageContextForChat, buildPlatformOverview } from "../lib/platform-feature-map";
 import { chatSessions, chatMessages } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { eq, desc, and, count as drizzleCount } from "drizzle-orm";
@@ -375,12 +376,23 @@ export const aiChatRouter = router({
         await db.update(chatSessions).set({ messageCount: (await db.select({ cnt: drizzleCount() }).from(chatMessages).where(eq(chatMessages.sessionId, sessionId)))[0]?.cnt || 0, lastMessageAt: new Date() }).where(eq(chatSessions.id, sessionId));
       }
 
+      // ── Set user context for tool actions (bug reports, etc.) ──
+      setActionUserContext(ctx.user?.id || null, ctx.user?.name || null);
+
       // ── Build the role-specialized system prompt ──
       const systemParts: string[] = [
         roleConfig.systemPrompt,
         `\nCurrent user: ${ctx.user?.name || 'Unknown'} (role: ${userRole})`,
         `Current page: ${input.currentPage || 'unknown'}`,
       ];
+
+      // ── Inject page-specific platform feature context ──
+      if (input.currentPage) {
+        const pageContext = buildPageContextForChat(input.currentPage);
+        systemParts.push(pageContext);
+      }
+      // Always include a high-level platform overview so the bot can guide users
+      systemParts.push(buildPlatformOverview());
 
       if (input.includeRoleContext) {
         try {
