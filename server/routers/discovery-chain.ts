@@ -46,7 +46,7 @@ import {
 
 // ─── Input Schemas ──────────────────────────────────────────────────
 
-const chainStageIdSchema = z.enum(["amass", "nmap", "service_fingerprinter", "nuclei"]);
+const chainStageIdSchema = z.enum(["amass", "nmap", "service_fingerprinter", "nuclei", "service_audit"]);
 
 const chainRunConfigSchema = z.object({
   domains: z.array(z.string().min(1)).min(1).max(20),

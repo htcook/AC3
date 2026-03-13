@@ -633,10 +633,11 @@ export function computeChainSummary(run: ChainRun): ChainRunSummary {
   const cves = new Set<string>();
   const techniques = new Set<string>();
 
-  let totalSubdomains = 0;
-  let totalHosts = 0;
-  let totalOpenPorts = 0;
-  let totalServices = 0;
+  // Deduplicate hosts, ports, subdomains, and services using Sets
+  const uniqueSubdomains = new Set<string>();
+  const uniqueHosts = new Set<string>();
+  const uniquePorts = new Set<string>(); // "host:port/protocol" keys
+  const uniqueServices = new Set<string>(); // "host:port:service" keys
   let totalVulnerabilities = 0;
 
   for (const f of allFindings) {
@@ -649,19 +650,31 @@ export function computeChainSummary(run: ChainRun): ChainRunSummary {
     if (f.cveId) cves.add(f.cveId);
     if (f.attackTechnique) techniques.add(f.attackTechnique);
 
-    // Count by type
-    if (f.evidence?.assetType === "subdomain") totalSubdomains++;
-    if (f.evidence?.assetType === "ip" || f.evidence?.assetType === "port") totalHosts++;
-    if (f.evidence?.ports) totalOpenPorts += f.evidence.ports.length;
-    if (f.evidence?.assetType === "service" || f.evidence?.protocol) totalServices++;
+    // Deduplicated counting by type
+    if (f.evidence?.assetType === "subdomain" && f.host) {
+      uniqueSubdomains.add(f.host.toLowerCase());
+    }
+    if ((f.evidence?.assetType === "ip" || f.evidence?.assetType === "port") && f.host) {
+      uniqueHosts.add(f.host.toLowerCase());
+    }
+    if (f.evidence?.ports && f.host) {
+      for (const p of f.evidence.ports) {
+        const proto = f.evidence?.protocol || "tcp";
+        uniquePorts.add(`${f.host.toLowerCase()}:${p}/${proto}`);
+      }
+    }
+    if ((f.evidence?.assetType === "service" || f.evidence?.protocol) && f.host) {
+      const svcKey = `${f.host.toLowerCase()}:${f.port || 0}:${f.evidence?.service || f.evidence?.protocol || "unknown"}`;
+      uniqueServices.add(svcKey);
+    }
     if (f.type === "vulnerability") totalVulnerabilities++;
   }
 
   return {
-    totalSubdomains,
-    totalHosts,
-    totalOpenPorts,
-    totalServices,
+    totalSubdomains: uniqueSubdomains.size,
+    totalHosts: uniqueHosts.size,
+    totalOpenPorts: uniquePorts.size,
+    totalServices: uniqueServices.size,
     totalVulnerabilities,
     totalFindings: allFindings.length,
     findingsBySeverity,
@@ -684,6 +697,18 @@ function toolToStage(tool: ToolModule): ChainStageId | null {
     case "nuclei_vuln":
     case "nuclei_critical":
       return "nuclei";
+    case "ssh_audit":
+    case "ftp_audit":
+    case "smtp_audit":
+    case "snmp_audit":
+    case "rdp_audit":
+    case "dns_audit":
+    case "http_header_audit":
+    case "tls_deep_scan":
+    case "nikto":
+    case "wapiti":
+    case "arachni":
+      return "service_audit";
     default:
       return null;
   }

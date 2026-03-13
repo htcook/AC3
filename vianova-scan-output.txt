@@ -1,0 +1,47 @@
+═══════════════════════════════════════════════════════
+VIANOVA ENGAGEMENT SCAN — Fri Mar 13 20:07:44 UTC 2026
+═══════════════════════════════════════════════════════
+
+═══ TLS DEEP SCAN: dashboard-dev.vianovahealth.com ═══
+  [1/4] nmap ssl-enum-ciphers...
+  Exit: 0, Duration: 13591ms
+    | ssl-cert: Subject: commonName=*.vianova.ai
+    | Subject Alternative Name: DNS:*.vianova.ai, DNS:*.rosie.health, DNS:*.rosie.cloud, DNS:*.vianovahealth.com
+    | ssl-enum-ciphers:
+    |   TLSv1.2:
+    |     ciphers:
+    |       TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 (ecdh_x25519) - A
+    |       TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 (ecdh_x25519) - A
+    |       TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 (ecdh_x25519) - A
+    |       TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 (ecdh_x25519) - A
+    |       TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 (ecdh_x25519) - A
+    |     cipher preference: server
+    |_  least strength: A
+  [2/4] openssl s_client...
+    depth=2 C = US, O = Amazon, CN = Amazon Root CA 1
+    depth=1 C = US, O = Amazon, CN = Amazon RSA 2048 M03
+    depth=0 CN = *.vianova.ai
+    OCSP response:
+    OCSP Response Data:
+    OCSP Response Status: successful (0x0)
+    Response Type: Basic OCSP Response
+  [3/4] Heartbleed check...
+    Heartbleed: Not vulnerable
+  [4/4] CCS Injection check...
+    CCS Injection: Not vulnerable
+
+═══ TLS DEEP SCAN: api.dev.vianova.ai ═══
+  [1/4] nmap ssl-enum-ciphers...
+  Exit: 0, Duration: 19223ms
+    | ssl-cert: Subject: commonName=api.dev.vianova.ai
+    | Subject Alternative Name: DNS:api.dev.vianova.ai
+    | ssl-enum-ciphers:
+    |   TLSv1.2:
+    |     ciphers:
+    |       TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 (secp256r1) - A
+    |       TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 (secp256r1) - A
+    |       TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 (secp256r1) - A
+    |     cipher preference: client
+    |       Key exchange (secp256r1) of lower strength than certificate key
+    |_  least strength: A
+  [2/4] openssl s_client...

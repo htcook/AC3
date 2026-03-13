@@ -74,7 +74,18 @@ export type ToolModule =
   | 'detection_rules'
   | 'amass'
   | 'nmap'
-  | 'service_fingerprinter';
+  | 'service_fingerprinter'
+  | 'ssh_audit'
+  | 'ftp_audit'
+  | 'smtp_audit'
+  | 'snmp_audit'
+  | 'rdp_audit'
+  | 'dns_audit'
+  | 'http_header_audit'
+  | 'tls_deep_scan'
+  | 'nikto'
+  | 'wapiti'
+  | 'arachni';
 
 export interface PipelineStageConfig {
   phase: PipelinePhase;
@@ -345,6 +356,72 @@ export const TOOL_PHASE_MATRIX: Record<ToolModule, {
     role: 'Protocol-specific service fingerprinting — SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, Telnet, MySQL, PostgreSQL, MSSQL, Redis, MongoDB, VNC. Extracts banners, versions, security flags, default credential checks, and risk indicators.',
     inputsFrom: ['nmap', 'passive_osint', 'amass'],
     outputsTo: ['nuclei_vuln', 'metasploit', 'nvd_kev', 'corroboration', 'scoring'],
+  },
+  ssh_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'SSH security audit — weak algorithms, key exchange, auth methods, known CVEs (regreSSHion, Terrapin)',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  ftp_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'FTP security audit — anonymous login, bounce attacks, default creds, TLS support, version CVEs',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  smtp_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'SMTP security audit — open relay, VRFY/EXPN enum, STARTTLS, auth methods, version CVEs',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  snmp_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'SNMP security audit — community string brute, v1/v2c weak auth, info disclosure, MIB walk',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  rdp_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'RDP security audit — NLA check, CredSSP/BlueKeep CVEs, encryption level, NTLMv1 downgrade',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  dns_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'DNS security audit — zone transfer (AXFR), DNSSEC, recursion, version disclosure, cache poisoning, amplification',
+    inputsFrom: ['nmap', 'amass'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  http_header_audit: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'HTTP header security audit — HSTS, CSP, X-Frame-Options, CORS, cookie flags, TLS config, server disclosure',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring', 'zap_active'],
+  },
+  tls_deep_scan: {
+    phases: ['enumeration', 'vulnerability_assessment'],
+    role: 'SSL/TLS deep scan — cipher suites, certificate chain, OCSP stapling, protocol downgrades (Heartbleed, POODLE, DROWN, ROBOT)',
+    inputsFrom: ['nmap', 'service_fingerprinter'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  nikto: {
+    phases: ['vulnerability_assessment'],
+    role: 'Nikto web server scanner — misconfigurations, dangerous files, outdated software, CGI vulnerabilities',
+    inputsFrom: ['nmap', 'zap_passive'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  wapiti: {
+    phases: ['vulnerability_assessment'],
+    role: 'Wapiti web app scanner — XSS, SQL injection, command injection, file disclosure, SSRF',
+    inputsFrom: ['nmap', 'zap_passive'],
+    outputsTo: ['corroboration', 'scoring'],
+  },
+  arachni: {
+    phases: ['vulnerability_assessment'],
+    role: 'Arachni web app scanner — comprehensive OWASP testing, DOM-based XSS, path traversal',
+    inputsFrom: ['nmap', 'zap_passive'],
+    outputsTo: ['corroboration', 'scoring'],
   },
 };
 

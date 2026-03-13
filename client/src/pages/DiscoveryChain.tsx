@@ -22,8 +22,9 @@ import {
   Loader2, CheckCircle2, XCircle, SkipForward,
   BarChart3, Target, Fingerprint, Network,
   ChevronDown, ChevronRight, RefreshCw, Trash2,
-  Eye, Zap, Activity, Info,
+  Eye, Zap, Activity, Info, Filter, ExternalLink,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -66,6 +67,12 @@ const STAGE_META: Record<string, { label: string; icon: React.ComponentType<{ cl
     color: "text-red-400",
     description: "Template-based vulnerability scanning",
   },
+  service_audit: {
+    label: "Service Audit",
+    icon: Shield,
+    color: "text-purple-400",
+    description: "SSH/FTP/SMTP/SNMP/RDP/DNS/HTTP/TLS deep security audits",
+  },
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -97,6 +104,7 @@ export default function DiscoveryChain() {
   const [skipNmap, setSkipNmap] = useState(false);
   const [skipFingerprint, setSkipFingerprint] = useState(false);
   const [skipNuclei, setSkipNuclei] = useState(false);
+  const [enableServiceAudit, setEnableServiceAudit] = useState(true);
   const [continueOnFailure, setContinueOnFailure] = useState(false);
 
   // Active chain tracking
@@ -104,6 +112,9 @@ export default function DiscoveryChain() {
   const [showHistory, setShowHistory] = useState(false);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+  const [findingsStageFilter, setFindingsStageFilter] = useState<string>("all");
+  const [findingsSeverityFilter, setFindingsSeverityFilter] = useState<string>("all");
+  const [findingsPage, setFindingsPage] = useState(0);
 
   // tRPC queries
   const startMutation = trpc.discoveryChain.start.useMutation();
@@ -114,6 +125,17 @@ export default function DiscoveryChain() {
   const statusQuery = trpc.discoveryChain.getStatus.useQuery(
     { chainId: activeChainId! },
     { enabled: !!activeChainId, refetchInterval: activeChainId ? 3000 : false }
+  );
+
+  const findingsQuery = trpc.discoveryChain.getFindings.useQuery(
+    {
+      chainId: activeChainId!,
+      stageId: findingsStageFilter !== "all" ? findingsStageFilter as any : undefined,
+      severity: findingsSeverityFilter !== "all" ? findingsSeverityFilter as any : undefined,
+      limit: 50,
+      offset: findingsPage * 50,
+    },
+    { enabled: !!activeChainId && !!chainStatus, refetchInterval: activeChainId ? 5000 : false }
   );
 
   const dataFlowQuery = trpc.discoveryChain.getDataFlow.useQuery(
@@ -151,8 +173,9 @@ export default function DiscoveryChain() {
     if (skipNmap) skipStages.push("nmap");
     if (skipFingerprint) skipStages.push("service_fingerprinter");
     if (skipNuclei) skipStages.push("nuclei");
+    if (!enableServiceAudit) skipStages.push("service_audit");
 
-    if (skipStages.length === 4) {
+    if (skipStages.length >= 5) {
       toast.error("Cannot skip all stages");
       return;
     }
@@ -166,6 +189,10 @@ export default function DiscoveryChain() {
           amass: { mode: amassMode as any },
           nmap: { profile: nmapProfile as any },
         },
+        serviceAudit: enableServiceAudit ? {
+          enable: true,
+          scanners: ['ssh_audit', 'ftp_audit', 'smtp_audit', 'snmp_audit', 'rdp_audit', 'dns_audit', 'http_header_audit', 'tls_deep_scan'],
+        } : undefined,
         continueOnPartialFailure: continueOnFailure,
       });
       setActiveChainId(result.chainId);
@@ -173,7 +200,7 @@ export default function DiscoveryChain() {
     } catch (err: any) {
       toast.error(sanitizeErrorForToast(err?.message || "Failed to start chain"));
     }
-  }, [domains, engagementId, nmapProfile, amassMode, skipAmass, skipNmap, skipFingerprint, skipNuclei, continueOnFailure]);
+  }, [domains, engagementId, nmapProfile, amassMode, skipAmass, skipNmap, skipFingerprint, skipNuclei, enableServiceAudit, continueOnFailure]);
 
   const handleCancel = useCallback(async () => {
     if (!activeChainId) return;
@@ -382,25 +409,30 @@ export default function DiscoveryChain() {
                 <Label className="text-sm font-medium">Stage Controls</Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {Object.entries(STAGE_META).map(([id, meta]) => {
-                    const isSkipped =
-                      id === "amass" ? skipAmass :
-                      id === "nmap" ? skipNmap :
-                      id === "service_fingerprinter" ? skipFingerprint :
-                      skipNuclei;
-                    const toggle =
-                      id === "amass" ? setSkipAmass :
-                      id === "nmap" ? setSkipNmap :
-                      id === "service_fingerprinter" ? setSkipFingerprint :
-                      setSkipNuclei;
+                    // service_audit uses "enable" logic (inverted from skip)
+                    const isEnabled =
+                      id === "amass" ? !skipAmass :
+                      id === "nmap" ? !skipNmap :
+                      id === "service_fingerprinter" ? !skipFingerprint :
+                      id === "nuclei" ? !skipNuclei :
+                      id === "service_audit" ? enableServiceAudit :
+                      true;
+                    const handleToggle = (checked: boolean) => {
+                      if (id === "amass") setSkipAmass(!checked);
+                      else if (id === "nmap") setSkipNmap(!checked);
+                      else if (id === "service_fingerprinter") setSkipFingerprint(!checked);
+                      else if (id === "nuclei") setSkipNuclei(!checked);
+                      else if (id === "service_audit") setEnableServiceAudit(checked);
+                    };
                     return (
                       <div key={id} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
                         <Switch
-                          checked={!isSkipped}
-                          onCheckedChange={(checked) => toggle(!checked)}
+                          checked={isEnabled}
+                          onCheckedChange={handleToggle}
                           id={`skip-${id}`}
                         />
                         <Label htmlFor={`skip-${id}`} className="text-xs cursor-pointer flex items-center gap-1.5">
-                          <meta.icon className={`w-3.5 h-3.5 ${isSkipped ? "text-muted-foreground" : meta.color}`} />
+                          <meta.icon className={`w-3.5 h-3.5 ${!isEnabled ? "text-muted-foreground" : meta.color}`} />
                           {meta.label}
                         </Label>
                       </div>
@@ -455,7 +487,7 @@ export default function DiscoveryChain() {
         {chainStatus && (
           <>
             {/* Summary Bar */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-3">
               <SummaryCard label="Status" value={chainStatus.status} icon={Activity} highlight />
               <SummaryCard
                 label="Progress"
@@ -463,9 +495,9 @@ export default function DiscoveryChain() {
                 icon={BarChart3}
               />
               <SummaryCard
-                label="Findings"
-                value={String(chainStatus.summary?.totalFindings || 0)}
-                icon={AlertTriangle}
+                label="Subdomains"
+                value={String(chainStatus.summary?.totalSubdomains || 0)}
+                icon={Globe}
               />
               <SummaryCard
                 label="Hosts"
@@ -476,6 +508,26 @@ export default function DiscoveryChain() {
                 label="Open Ports"
                 value={String(chainStatus.summary?.totalOpenPorts || 0)}
                 icon={Target}
+              />
+              <SummaryCard
+                label="Services"
+                value={String(chainStatus.summary?.totalServices || 0)}
+                icon={Fingerprint}
+              />
+              <SummaryCard
+                label="Findings"
+                value={String(chainStatus.summary?.totalFindings || 0)}
+                icon={AlertTriangle}
+              />
+              <SummaryCard
+                label="Vulns"
+                value={String(chainStatus.summary?.totalVulnerabilities || 0)}
+                icon={Zap}
+              />
+              <SummaryCard
+                label="CVEs"
+                value={String(chainStatus.summary?.uniqueCves?.length || 0)}
+                icon={Shield}
               />
               <SummaryCard
                 label="Duration"
@@ -659,6 +711,97 @@ export default function DiscoveryChain() {
                 </CardContent>
               </Card>
             )}
+
+            {/* ─── Findings Detail Section ─── */}
+            <Card className="border-border/50">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-primary" />
+                    Discovery Findings
+                    {findingsQuery.data && (
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        {findingsQuery.data.total}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Select value={findingsStageFilter} onValueChange={(v) => { setFindingsStageFilter(v); setFindingsPage(0); }}>
+                      <SelectTrigger className="h-8 w-[140px] text-xs">
+                        <Filter className="w-3 h-3 mr-1" />
+                        <SelectValue placeholder="Stage" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Stages</SelectItem>
+                        {Object.entries(STAGE_META).map(([id, meta]) => (
+                          <SelectItem key={id} value={id}>{meta.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={findingsSeverityFilter} onValueChange={(v) => { setFindingsSeverityFilter(v); setFindingsPage(0); }}>
+                      <SelectTrigger className="h-8 w-[120px] text-xs">
+                        <SelectValue placeholder="Severity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Severity</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="info">Info</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {findingsQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : findingsQuery.data && findingsQuery.data.findings.length > 0 ? (
+                  <div className="space-y-2">
+                    {findingsQuery.data.findings.map((f: any, idx: number) => (
+                      <FindingRow key={`${f.host}-${f.port}-${f.tool}-${idx}`} finding={f} />
+                    ))}
+
+                    {/* Pagination */}
+                    {findingsQuery.data.total > 50 && (
+                      <div className="flex items-center justify-between pt-3 border-t border-border/30">
+                        <span className="text-xs text-muted-foreground">
+                          Showing {findingsPage * 50 + 1}–{Math.min((findingsPage + 1) * 50, findingsQuery.data.total)} of {findingsQuery.data.total}
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={findingsPage === 0}
+                            onClick={() => setFindingsPage(p => p - 1)}
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={(findingsPage + 1) * 50 >= findingsQuery.data.total}
+                            onClick={() => setFindingsPage(p => p + 1)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">
+                      {chainStatus?.status === "running" ? "Findings will appear as stages complete..." : "No findings match the current filters."}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
 
@@ -742,6 +885,154 @@ function SeverityPills({ counts, compact }: { counts: Record<string, number>; co
       })}
     </div>
   );
+}
+
+function FindingRow({ finding: f }: { finding: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const sevColor = SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.info;
+  const stageMeta = STAGE_META[toolToStageUI(f.tool)] || { label: f.tool, icon: Info, color: "text-muted-foreground" };
+  const StageIcon = stageMeta.icon;
+
+  return (
+    <div
+      className="rounded-lg border border-border/40 bg-card/50 hover:bg-card/80 transition-colors cursor-pointer"
+      onClick={() => setExpanded(!expanded)}
+    >
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Severity dot */}
+        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${sevColor}`} />
+
+        {/* Title + host */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium truncate">{f.title}</span>
+            {f.cveId && (
+              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+                {f.cveId}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs font-mono text-muted-foreground">
+              {f.host}{f.port ? `:${f.port}` : ""}
+            </span>
+            {f.evidence?.service && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                {f.evidence.service}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Type badge */}
+        <Badge variant="secondary" className="text-[10px] capitalize shrink-0">
+          {f.type}
+        </Badge>
+
+        {/* Stage icon */}
+        <div className={`flex items-center gap-1 shrink-0 ${stageMeta.color}`}>
+          <StageIcon className="w-3.5 h-3.5" />
+          <span className="text-xs">{stageMeta.label}</span>
+        </div>
+
+        {/* Severity label */}
+        <Badge
+          className={`text-[10px] capitalize shrink-0 ${
+            f.severity === "critical" ? "bg-red-500/20 text-red-400 border-red-500/30" :
+            f.severity === "high" ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+            f.severity === "medium" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+            f.severity === "low" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
+            "bg-slate-500/20 text-slate-400 border-slate-500/30"
+          }`}
+          variant="outline"
+        >
+          {f.severity}
+        </Badge>
+
+        {/* Confidence */}
+        {f.confidence != null && (
+          <span className="text-xs text-muted-foreground font-mono shrink-0">
+            {Math.round(f.confidence * 100)}%
+          </span>
+        )}
+
+        {/* Expand chevron */}
+        {expanded ? (
+          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        )}
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="px-4 pb-3 pt-1 border-t border-border/30 space-y-2">
+          {f.description && (
+            <p className="text-xs text-muted-foreground leading-relaxed">{f.description}</p>
+          )}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {f.tool && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">tool: {f.tool}</span>
+            )}
+            {f.cweId && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">{f.cweId}</span>
+            )}
+            {f.attackTechnique && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">{f.attackTechnique}</span>
+            )}
+            {f.evidence?.assetType && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">asset: {f.evidence.assetType}</span>
+            )}
+            {f.evidence?.protocol && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">proto: {f.evidence.protocol}</span>
+            )}
+            {f.evidence?.ports && f.evidence.ports.length > 0 && (
+              <span className="font-mono bg-muted/50 px-2 py-0.5 rounded">
+                ports: {f.evidence.ports.join(", ")}
+              </span>
+            )}
+          </div>
+          {f.corroborated && f.corroboratingTools?.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <CheckCircle2 className="w-3 h-3" />
+              Corroborated by: {f.corroboratingTools.join(", ")}
+            </div>
+          )}
+          {f.crossRefs?.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Cross-refs: {f.crossRefs.join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function toolToStageUI(tool: string): string {
+  switch (tool) {
+    case "amass": return "amass";
+    case "nmap": return "nmap";
+    case "service_fingerprinter": return "service_fingerprinter";
+    case "nuclei_info":
+    case "nuclei_vuln":
+    case "nuclei_critical":
+      return "nuclei";
+    case "ssh_audit":
+    case "ftp_audit":
+    case "smtp_audit":
+    case "snmp_audit":
+    case "rdp_audit":
+    case "dns_audit":
+    case "http_header_audit":
+    case "tls_deep_scan":
+    case "nikto":
+    case "wapiti":
+    case "arachni":
+      return "service_audit";
+    default:
+      return tool;
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
