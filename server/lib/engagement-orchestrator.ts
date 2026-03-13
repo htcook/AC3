@@ -102,6 +102,10 @@ import {
   scoreEngagementThreatAttribution,
   clearThreatLearningCache,
 } from "./threat-actor-learning-context";
+import {
+  buildSourceSecretsContext,
+  buildCompactSourceSecretsContext,
+} from "./knowledge/zap-source-secrets-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1027,6 +1031,15 @@ Return valid JSON per the response_format schema.`;
       : undefined;
     const methodologyCtx = buildMethodologyContext(targetPreset);
     const phaseToolCtx = buildPhaseToolContext('enumeration');
+    // Build ZAP source code & secrets analysis context
+    const sourceSecretsCtx = buildSourceSecretsContext({
+      phase: 'enumeration',
+      includeSecretPatterns: true,
+      includeSourceDisclosure: true,
+      includeJSAnalysis: false,
+      includeBrowserStorage: false,
+      technology: uniqueTech[0],
+    });
     // Fetch live threat actor learning data from DO learning engine
     let threatActorLearningCtx = '';
     try {
@@ -1045,6 +1058,7 @@ Return valid JSON per the response_format schema.`;
       threatActorLearningCtx || '',
       offensiveTechCtx || '',
       zapKnowledgeCtx || '',
+      sourceSecretsCtx || '',
       toolsCtx || '',
       methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '',
       phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '',
@@ -4145,7 +4159,16 @@ ${(() => {
     authType: state.assets.some(a => (a.confirmedCredentials || []).length > 0) ? 'form' : undefined,
     footholdMinimum: 'medium',
   });
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '') + (zapVulnCtx ? '\n\n' + zapVulnCtx : '');
+  // Build ZAP source code & secrets analysis context for vuln detection
+  const sourceSecretsVulnCtx = buildSourceSecretsContext({
+    phase: 'vuln_detection',
+    includeSecretPatterns: true,
+    includeJSAnalysis: true,
+    includeSourceDisclosure: true,
+    includeBrowserStorage: true,
+    technology: detectedTech[0],
+  });
+  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '') + (zapVulnCtx ? '\n\n' + zapVulnCtx : '') + (sourceSecretsVulnCtx ? '\n\n' + sourceSecretsVulnCtx : '');
 })()}`,
     });
 
@@ -4448,7 +4471,9 @@ ${(() => {
     includePayloads: true,
     footholdMinimum: 'high',
   });
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '') + (zapExploitCtx ? '\n\n' + zapExploitCtx : '');
+  // Compact source secrets context for exploitation (token-limited)
+  const sourceSecretsExploitCtx = buildCompactSourceSecretsContext();
+  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '') + (zapExploitCtx ? '\n\n' + zapExploitCtx : '') + '\n\n' + sourceSecretsExploitCtx;
 })()}`,
   });
 

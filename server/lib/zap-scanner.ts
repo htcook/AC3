@@ -382,8 +382,13 @@ Return a JSON object with these fields:
 - Threshold: OFF, DEFAULT, LOW, MEDIUM, HIGH
 - For foothold acquisition: set all injection rules to HIGH strength, INSANE threshold
 - For secrets discovery: enable 40034, 40032, 40035, 10095, 90034, 10048 at MEDIUM strength
+- For JavaScript/source code analysis: enable 10025 (Suspicious Comments), 10094 (Base64 Disclosure), 100034 (Google API Key), 10099 (Source Code Disclosure PHP), 42 (Git Disclosure), 41 (SVN Disclosure), 10045 (WEB-INF Disclosure)
+- For browser storage secrets: enable 120000, 120001, 120002 (requires Ajax Spider with browser-based crawling)
+- ALWAYS set parseComments=true and parseGit=true in spider config to discover source maps and hidden files
+- ALWAYS use Ajax Spider for JavaScript-heavy apps to trigger client-side storage and DOM-based vulnerabilities
 - ALWAYS include technology-specific rules based on detected stack
-- ALWAYS include secrets/storage discovery rules regardless of technology`;
+- ALWAYS include secrets/storage discovery rules regardless of technology
+- ALWAYS include source code disclosure rules (41, 42, 43, 10045, 10099) regardless of technology`;
 
 export interface LLMScanConfig {
   scanPolicy: string;
