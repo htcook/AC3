@@ -148,11 +148,11 @@ export function initCertPinning(): void {
 
       if (isHttps) {
         registerPinConfig({
-          service: "Caldera",
+          service: "Cyber C2",
           hostname,
           port,
           mode: envPins ? "enforce" : "learn",
-          pins: parsePinEnv(envPins, "Caldera"),
+          pins: parsePinEnv(envPins, "Cyber C2"),
           backupPins: [],
           allowSelfSigned: false,
         });

@@ -36,7 +36,7 @@ export async function createContext(
         };
         // Create a synthetic user object that satisfies the User type
         user = {
-          id: -1, // Synthetic ID for Caldera-auth users
+          id: -1, // Synthetic ID for Cyber C2-auth users
           openId: `caldera:${decoded.username}`,
           name: decoded.username,
           email: null,

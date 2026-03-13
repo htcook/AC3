@@ -243,7 +243,7 @@ export async function getActivityLogsByServer(serverId: number, limit = 50) {
   return db.select().from(activityLogs).where(eq(activityLogs.serverId, serverId)).orderBy(desc(activityLogs.createdAt)).limit(limit);
 }
 
-// Caldera stats operations
+// Cyber C2 stats operations
 export async function upsertCalderaStats(stats: InsertCalderaStats) {
   const db = await getDb();
   if (!db) return;

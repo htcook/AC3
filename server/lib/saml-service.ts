@@ -102,8 +102,8 @@ export function generateSPMetadata(): string {
                             Location="${escapeXml(sloUrl)}"/>
   </md:SPSSODescriptor>
   <md:Organization>
-    <md:OrganizationName xml:lang="en">Ace of Cloud - Caldera Dashboard</md:OrganizationName>
-    <md:OrganizationDisplayName xml:lang="en">Caldera Dashboard</md:OrganizationDisplayName>
+    <md:OrganizationName xml:lang="en">Ace of Cloud - Cyber C2 Dashboard</md:OrganizationName>
+    <md:OrganizationDisplayName xml:lang="en">Cyber C2 Dashboard</md:OrganizationDisplayName>
     <md:OrganizationURL xml:lang="en">${escapeXml(getBaseUrl())}</md:OrganizationURL>
   </md:Organization>
 </md:EntityDescriptor>`;

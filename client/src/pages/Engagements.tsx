@@ -651,16 +651,16 @@ export default function Engagements() {
                     onChange={(e) => setFormData(p => ({ ...p, c2Framework: e.target.value } as any))}
                     className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
                   >
-                    <option value="caldera">Caldera (Default)</option>
+                    <option value="caldera">Cyber C2 (Default)</option>
                     <option value="sliver">Sliver</option>
                     <option value="metasploit">Metasploit</option>
                     <option value="cobalt_strike">Cobalt Strike</option>
                   </select>
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {!editingId ? (
-                      <span className="text-emerald-500">A Caldera operation will be auto-created. You can switch C2 frameworks after creation.</span>
+                      <span className="text-emerald-500">A Cyber C2 operation will be auto-created. You can switch C2 frameworks after creation.</span>
                     ) : (
-                      <span>Change the C2 framework for this engagement. Caldera operations sync automatically.</span>
+                      <span>Change the C2 framework for this engagement. Cyber C2 operations sync automatically.</span>
                     )}
                   </p>
                 </div>
@@ -828,7 +828,7 @@ export default function Engagements() {
                         {engagement.description && (
                           <p className="text-sm text-muted-foreground mt-2 line-clamp-1">{engagement.description}</p>
                         )}
-                        {/* Caldera C2 Operation */}
+                        {/* Cyber C2 Operation */}
                         {(engagement as any).calderaOperationId && (
                           <a
                             href="https://caldera.aceofcloud.io"
@@ -837,7 +837,7 @@ export default function Engagements() {
                             className="flex items-center gap-1.5 mt-2 text-xs text-orange-400 hover:text-orange-300 font-display tracking-wider"
                           >
                             <Crosshair className="w-3 h-3" />
-                            CALDERA OP: {(engagement as any).calderaOperationId.substring(0, 8)}...
+                            CYBER C2 OP: {(engagement as any).calderaOperationId.substring(0, 8)}...
                             <span className="px-1.5 py-0.5 text-[10px] bg-orange-500/20 text-orange-300">
                               C2 LINKED
                             </span>

@@ -18,8 +18,8 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  // Redirect to /login (Caldera auth) instead of Manus OAuth portal
-  // This preserves the Caldera credential login flow on mobile and desktop
+  // Redirect to /login (Cyber C2 auth) instead of Manus OAuth portal
+  // This preserves the Cyber C2 credential login flow on mobile and desktop
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }

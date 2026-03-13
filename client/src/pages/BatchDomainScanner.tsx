@@ -575,7 +575,7 @@ export default function BatchDomainScanner() {
                           </div>
                         </div>
 
-                        {/* Regulatory & Caldera */}
+                        {/* Regulatory & Cyber C2 */}
                         <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-border/50">
                           {Array.isArray(regulatoryTags) && regulatoryTags.length > 0 && (
                             <div>
@@ -589,7 +589,7 @@ export default function BatchDomainScanner() {
                           )}
                           {calderaOps && (
                             <div>
-                              <span className="text-[10px] text-muted-foreground uppercase">Caldera Priority:</span>
+                              <span className="text-[10px] text-muted-foreground uppercase">Cyber C2 Priority:</span>
                               <div className="mt-1">
                                 <Badge variant="secondary" className="text-[10px]">
                                   {typeof calderaOps === "object" ? calderaOps.tier || calderaOps.priority || JSON.stringify(calderaOps) : calderaOps}

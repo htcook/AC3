@@ -550,10 +550,10 @@ function NodeDetailPanel({ node, onClose }: { node: any; onClose: () => void }) 
           </div>
         )}
 
-        {/* Caldera ability */}
+        {/* Emulation ability */}
         {node.calderaAbilityId && (
           <div>
-            <Label className="text-xs text-muted-foreground">Caldera Ability</Label>
+            <Label className="text-xs text-muted-foreground">Emulation Ability</Label>
             <p className="font-mono text-xs text-primary">{node.calderaAbilityId}</p>
           </div>
         )}
@@ -951,7 +951,7 @@ function SimulationDialog({ graphId, onSimulated }: { graphId: string; onSimulat
   );
 }
 
-// ─── Execute on Caldera Dialog ──────────────────────────────────────────
+// ─── Execute on Cyber C2 Dialog ──────────────────────────────────────────
 
 function ExecuteDialog({ graphId, onExecuted }: { graphId: string; onExecuted?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -985,9 +985,9 @@ function ExecuteDialog({ graphId, onExecuted }: { graphId: string; onExecuted?: 
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Execute on Caldera Agent</DialogTitle>
+          <DialogTitle>Execute on Cyber C2 Agent</DialogTitle>
           <DialogDescription>
-            Dispatch this graph's abilities to a live Caldera agent for execution.
+            Dispatch this graph's abilities to a live Cyber C2 agent for execution.
           </DialogDescription>
         </DialogHeader>
 
@@ -1007,7 +1007,7 @@ function ExecuteDialog({ graphId, onExecuted }: { graphId: string; onExecuted?: 
               </SelectContent>
             </Select>
             {agents.data?.length === 0 && (
-              <p className="text-xs text-amber-400 mt-1">No agents available. Deploy a Caldera agent first.</p>
+              <p className="text-xs text-amber-400 mt-1">No agents available. Deploy a Cyber C2 agent first.</p>
             )}
           </div>
 
@@ -1081,7 +1081,7 @@ function ExecuteDialog({ graphId, onExecuted }: { graphId: string; onExecuted?: 
               </div>
               {result.operationId && (
                 <div className="text-xs text-muted-foreground">
-                  Caldera Operation: <span className="font-mono">{result.operationId}</span>
+                  Cyber C2 Operation: <span className="font-mono">{result.operationId}</span>
                 </div>
               )}
               {result.executionLog?.length > 0 && (

@@ -2,7 +2,7 @@
  * Ability Graph Engine
  *
  * Directed Acyclic Graph (DAG) engine for composing, ordering, and
- * executing Caldera abilities as structured attack emulation plans.
+ * executing emulation abilities as structured attack emulation plans.
  *
  * Core capabilities:
  * - Build DAGs from MITRE ATT&CK technique chains

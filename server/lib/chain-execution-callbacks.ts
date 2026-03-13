@@ -266,7 +266,29 @@ export function buildRealCallbacks(options?: {
       };
     },
 
-    // ─── Scope Enforcement ─────────────────────────────────────────
+    // ─── Service Audit Pipeline ─────────────────────────────
+    executeServiceAudit: async (config) => {
+      const { runServiceAuditPipeline } = await import("./scanners/service-audit-pipeline");
+
+      console.log(`[DiscoveryChain] Running service audit pipeline on ${config.services.length} discovered services`);
+
+      const result = await runServiceAuditPipeline(config.services, {
+        engagementId: config.engagementId,
+        operatorId: config.operatorId,
+        concurrency: config.concurrency || 3,
+        timeoutPerAudit: config.timeoutPerAudit || 300,
+        profile: config.profile || "standard",
+        enabledScanners: config.enabledScanners as any,
+      });
+
+      return {
+        results: result.results,
+        totalFindings: result.totalFindings,
+        severitySummary: result.severitySummary,
+      };
+    },
+
+    // ─── Scope Enforcement ─────────────────────────────────
     enforceScope: async (scopeConfig) => {
       try {
         await enforceMultiTargetScope(

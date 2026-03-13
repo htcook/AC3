@@ -206,7 +206,7 @@ async function downloadFileSSH(
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 export const payloadGeneratorRouter = router({
-  // ─── Get available options (with Caldera C2 defaults) ────────────────────
+  // ─── Get available options (with Cyber C2 defaults) ────────────────────
   getOptions: protectedProcedure.query(async () => {
     const { getCalderaListenerDefaults, checkCalderaStatus } = await import("../lib/caldera-preflight");
     const calderaDefaults = getCalderaListenerDefaults();
@@ -218,7 +218,7 @@ export const payloadGeneratorRouter = router({
       encoders: [...ENCODERS],
       architectures: [...ARCHITECTURES],
       platforms: [...PLATFORMS],
-      // Caldera C2 defaults for LHOST/LPORT
+      // Cyber C2 defaults for LHOST/LPORT
       calderaDefaults: {
         lhost: calderaDefaults.lhost,
         lport: calderaDefaults.lport,
@@ -231,7 +231,7 @@ export const payloadGeneratorRouter = router({
     };
   }),
 
-  // ─── Caldera C2 preflight check ───────────────────────────────────────────
+  // ─── Cyber C2 preflight check ───────────────────────────────────────────
   calderaPreflight: protectedProcedure.query(async () => {
     const { checkCalderaStatus, getCalderaListenerDefaults } = await import("../lib/caldera-preflight");
     const status = await checkCalderaStatus({ timeout: 8000 });
@@ -242,7 +242,7 @@ export const payloadGeneratorRouter = router({
     };
   }),
 
-  // ─── Generate a payload (defaults to Caldera C2 callback) ────────────────
+  // ─── Generate a payload (defaults to Cyber C2 callback) ────────────────
   generate: protectedProcedure
     .input(
       z.object({
@@ -273,7 +273,7 @@ export const payloadGeneratorRouter = router({
         } catch (preflightErr: any) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: `Caldera C2 preflight failed — cannot build payload. ${preflightErr.message}`,
+            message: `Cyber C2 preflight failed — cannot build payload. ${preflightErr.message}`,
           });
         }
       }
@@ -438,7 +438,7 @@ export const payloadGeneratorRouter = router({
           // When deployCalderaAgent is true, generate a secondary Caldera Sandcat
           // agent stager script that will be executed post-exploitation.
           // This ensures that successful MSF exploits automatically establish
-          // a Caldera C2 channel for persistent access and ability execution.
+          // a Cyber C2 channel for persistent access and ability execution.
           if (input.deployCalderaAgent) {
             try {
               const { getCalderaListenerDefaults } = await import("../lib/caldera-preflight");

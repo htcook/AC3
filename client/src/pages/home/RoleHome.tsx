@@ -46,7 +46,7 @@ function DashboardSkeleton() {
 }
 
 export default function RoleHome() {
-  // Use Caldera auth session (not Manus OAuth) for role detection
+  // Use Cyber C2 auth session (not Manus OAuth) for role detection
   const { data: session } = trpc.calderaAuth.session.useQuery();
   const userRole = session?.authenticated ? (session.user?.role as string || "operator") : "operator";
   const [previewRole, setPreviewRole] = useState<string | null>(null);

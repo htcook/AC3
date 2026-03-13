@@ -6,7 +6,7 @@
  * 2. Asset Signal Extraction & Classification
  * 3. Auto-BIA Inference (CARVER+SHOCK factor scoring)
  * 4. Hybrid Risk Scoring (CVSS + Mission Impact + Context)
- * 5. Campaign Recommendation (Caldera abilities + GoPhish templates)
+ * 5. Campaign Recommendation (emulation abilities + GoPhish templates)
  */
 
 import { invokeLLM } from "./_core/llm";
@@ -1429,7 +1429,7 @@ For each campaign, provide:
   ],
   "attackChain": [
     { "step": 1, "phase": "Initial Access", "action": "Send phishing email", "technique": "T1566.001", "tool": "GoPhish" },
-    { "step": 2, "phase": "Execution", "action": "Execute payload", "technique": "T1059.001", "tool": "Caldera" }
+    { "step": 2, "phase": "Execution", "action": "Execute payload", "technique": "T1059.001", "tool": "Cyber C2" }
   ],
   "estimatedRisk": 85,
   "mitreTactics": ["initial-access", "execution", "persistence"]
@@ -2509,7 +2509,7 @@ export async function runDomainIntelPipeline(
     const findingsWithCves = allFindings.filter(f => f.cveIds && f.cveIds.length > 0);
     if (findingsWithCves.length > 0) {
       exploitMatchResult = await matchExploitsToFindings(findingsWithCves);
-      console.log(`[DomainIntel] Exploit matching: ${exploitMatchResult.matches.length} CVEs matched → ${exploitMatchResult.totalMetasploit} MSF modules, ${exploitMatchResult.totalExploitDb} EDB entries, ${exploitMatchResult.totalCalderaAbilities} Caldera abilities, ${exploitMatchResult.remoteAccessCount} remote access`);
+      console.log(`[DomainIntel] Exploit matching: ${exploitMatchResult.matches.length} CVEs matched → ${exploitMatchResult.totalMetasploit} MSF modules, ${exploitMatchResult.totalExploitDb} EDB entries, ${exploitMatchResult.totalCalderaAbilities} emulation abilities, ${exploitMatchResult.remoteAccessCount} remote access`);
     }
   } catch (err: any) {
     console.error(`[DomainIntel] Exploit matching failed (non-fatal): ${err.message}`);

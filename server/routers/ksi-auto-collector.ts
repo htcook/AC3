@@ -803,7 +803,7 @@ export const ksiAutoCollectorRouter = router({
     return { collected, source: "ngfw-validation-live", testsRun: tests.length, passed: tests.filter(t => t.actualResult === t.expectedResult).length, failed: tests.filter(t => t.actualResult !== t.expectedResult).length };
   }),
 
-  /** Live: Collect AD attack simulation data from Caldera API */
+  /** Live: Collect AD attack simulation data from Cyber C2 API */
   collectAdAttackSimLive: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDbSafe();
     let collected = 0;
@@ -864,7 +864,7 @@ export const ksiAutoCollectorRouter = router({
     return { collected, source: "ad-attack-sim-live", simsFound: sims.length };
   }),
 
-  /** Live: Collect EDR validation data from Caldera operation results */
+  /** Live: Collect EDR validation data from Cyber C2 operation results */
   collectEdrLive: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDbSafe();
     let collected = 0;
@@ -935,7 +935,7 @@ export const ksiAutoCollectorRouter = router({
     return { collected, source: "edr-validation-live", testsProcessed: results.length, detected: results.filter(r => r.detectionResult === "detected" || r.detectionResult === "blocked").length, missed: results.filter(r => r.detectionResult === "missed").length };
   }),
 
-  /** Live: Collect Atomic Red Team test results from Caldera */
+  /** Live: Collect Atomic Red Team test results from Cyber C2 */
   collectAtomicRedTeamLive: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDbSafe();
     let collected = 0;

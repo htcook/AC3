@@ -3,7 +3,7 @@ import * as db from "../db";
 /**
  * Engagement Workflow Automation Router
  * Pipes attack vectors from the Attack Vector Engine into the engagement pipeline,
- * auto-creating engagements with pre-loaded Caldera abilities and Metasploit modules.
+ * auto-creating engagements with pre-loaded emulation abilities and Metasploit modules.
  * Cross-references the threat catalog for threat-informed engagement planning.
  */
 import { router, protectedProcedure } from "../_core/trpc";
@@ -30,7 +30,7 @@ async function getDbSafe() {
 }
 
 // ─── Threat-Informed Engagement Templates ─────────────────────────────────
-// Maps engagement types to recommended Caldera abilities and MSF modules
+// Maps engagement types to recommended emulation abilities and MSF modules
 const ENGAGEMENT_TEMPLATES: Record<string, {
   name: string;
   description: string;
@@ -162,7 +162,7 @@ export const engagementAutomationRouter = router({
         }
       }
 
-      // Fetch matching Caldera abilities from the threat catalog
+      // Fetch matching emulation abilities from the threat catalog
       const techniqueArray = Array.from(allTechniques);
       let calderaAbilities: any[] = [];
       if (techniqueArray.length > 0) {
@@ -309,7 +309,7 @@ export const engagementAutomationRouter = router({
         }));
       }
 
-      // Fetch available Caldera abilities
+      // Fetch available emulation abilities
       let calderaAbilities: any[] = [];
       if (techniqueArray.length > 0) {
         calderaAbilities = await db.select().from(threatActorAbilities)
@@ -458,8 +458,8 @@ export const engagementAutomationRouter = router({
         totalSteps: 6,
         stepLog: [
           { step: 1, status: "completed", message: "Playbook loaded", timestamp: new Date().toISOString() },
-          { step: 2, status: "completed", message: `${calderaAbilities.length} Caldera abilities + ${msfModules.length} MSF modules pre-loaded`, timestamp: new Date().toISOString() },
-          { step: 3, status: "in_progress", message: "Setting up Caldera operation", timestamp: new Date().toISOString() },
+          { step: 2, status: "completed", message: `${calderaAbilities.length} emulation abilities + ${msfModules.length} MSF modules pre-loaded`, timestamp: new Date().toISOString() },
+          { step: 3, status: "in_progress", message: "Setting up Cyber C2 operation", timestamp: new Date().toISOString() },
         ],
       });
 

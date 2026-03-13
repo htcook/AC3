@@ -76,7 +76,7 @@ async function tcpReachable(host: string, port: number, timeoutMs = 5000): Promi
 // ─── Main Preflight Check ───────────────────────────────────────────────────
 
 /**
- * Validate that the Caldera C2 server is reachable and authenticated.
+ * Validate that the Cyber C2 server is reachable and authenticated.
  * Call this before any payload build, campaign export, or operation creation.
  *
  * @param options.timeout - Max wait in ms (default 10000)
@@ -96,7 +96,7 @@ export async function validateCalderaConnection(options?: {
 
   if (!baseUrl) {
     throw new Error(
-      "Caldera C2 server URL is not configured. Set CALDERA_BASE_URL in environment variables."
+      "Cyber C2 server URL is not configured. Set CALDERA_BASE_URL in environment variables."
     );
   }
 
@@ -180,7 +180,7 @@ export async function validateCalderaConnection(options?: {
     }
 
     // Re-throw our own descriptive errors
-    if (err.message?.includes("Caldera")) {
+    if (err.message?.includes("Cyber C2")) {
       throw err;
     }
 
@@ -218,7 +218,7 @@ export async function checkCalderaStatus(options?: {
 }
 
 /**
- * Get the default Caldera C2 listener address for payload generation.
+ * Get the default Cyber C2 listener address for payload generation.
  * Returns { lhost, lport } suitable for msfvenom LHOST/LPORT.
  *
  * The idea: MSF payloads should call back to the Caldera server,

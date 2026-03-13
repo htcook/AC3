@@ -261,7 +261,7 @@ export default function SamlConfig() {
                 <FileText className="h-5 w-5" /> Service Provider Metadata
               </CardTitle>
               <CardDescription>
-                Use these values when configuring Caldera Dashboard as a SAML SP in your IdP.
+                Use these values when configuring Cyber C2 Dashboard as a SAML SP in your IdP.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

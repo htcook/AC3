@@ -242,6 +242,189 @@ export const dastScannersRouter = router({
     }),
 
   /**
+   * Start an SMTP Audit against a mail server.
+   */
+  startSMTPAudit: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().default(25),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(300),
+      testRelay: z.boolean().default(true),
+      checkDmarc: z.boolean().default(true),
+      checkStarttls: z.boolean().default(true),
+      enumerateUsers: z.boolean().default(false),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, [input.host], "SMTP Audit", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startSmtpAudit } = await import("../lib/scanners/smtp-audit-scanner");
+      const result = await startSmtpAudit({
+        ...input,
+        operatorId: ctx.user?.id,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:smtp-audit:complete", {
+          scanId: result.scanId,
+          target: `${input.host}:${input.port}`,
+          findingCount: result.findings.length,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
+   * Start an SNMP Audit against a target.
+   */
+  startSNMPAudit: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().default(161),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(300),
+      communityStrings: z.array(z.string()).optional(),
+      checkWriteAccess: z.boolean().default(false),
+      enumerateOids: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, [input.host], "SNMP Audit", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startSnmpAudit } = await import("../lib/scanners/snmp-audit-scanner");
+      const result = await startSnmpAudit({
+        ...input,
+        operatorId: ctx.user?.id,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:snmp-audit:complete", {
+          scanId: result.scanId,
+          target: `${input.host}:${input.port}`,
+          findingCount: result.findings.length,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
+   * Start an RDP Audit against a target.
+   */
+  startRDPAudit: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().default(3389),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(300),
+      checkNla: z.boolean().default(true),
+      checkBluekeep: z.boolean().default(true),
+      checkEncryption: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceMultiTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceMultiTargetScope(input.engagementId, [input.host], "RDP Audit", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startRdpAudit } = await import("../lib/scanners/rdp-audit-scanner");
+      const result = await startRdpAudit({
+        ...input,
+        operatorId: ctx.user?.id,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:rdp-audit:complete", {
+          scanId: result.scanId,
+          target: `${input.host}:${input.port}`,
+          findingCount: result.findings.length,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
+   * Compute CARVER+Shock scoring adjustments from DAST/service audit results.
+   */
+  computeCarverScoring: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      hostname: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      // Fetch all DAST/service audit results for this engagement
+      const rows = await db
+        .select()
+        .from(scanResults)
+        .where(
+          and(
+            eq(scanResults.engagementId, input.engagementId),
+            inArray(scanResults.tool, [
+              "nikto", "wapiti", "arachni",
+              "ssh-audit", "ftp-audit",
+              "smtp-audit", "snmp-audit", "rdp-audit",
+            ]),
+          ),
+        );
+
+      if (rows.length === 0) {
+        return {
+          adjustment: null,
+          message: "No DAST/service audit results found for this engagement",
+        };
+      }
+
+      // Group findings by scanner type
+      const pipelineResults: Record<string, any[]> = {};
+      for (const row of rows) {
+        const tool = row.tool.replace("-audit", "").replace("-", "_");
+        if (!pipelineResults[tool]) pipelineResults[tool] = [];
+        const findings = typeof row.findings === "string" ? JSON.parse(row.findings) : row.findings;
+        pipelineResults[tool].push({
+          host: row.target?.split(":")[0] || "unknown",
+          port: parseInt(row.target?.split(":")[1] || "0") || 0,
+          service: tool,
+          findings: Array.isArray(findings) ? findings : findings?.vulnerabilities || findings?.findings || [],
+        });
+      }
+
+      const { computeDastCarverAdjustment } = await import("../lib/dast-carver-integration");
+      const adjustment = computeDastCarverAdjustment(pipelineResults, input.hostname || "unknown");
+
+      return {
+        adjustment,
+        scansAnalyzed: rows.length,
+        message: `Computed CARVER+Shock adjustments from ${rows.length} scan results`,
+      };
+    }),
+
+  /**
    * Run the service audit pipeline against discovered services.
    * Auto-maps services to appropriate scanners.
    */
@@ -261,6 +444,9 @@ export const dastScannersRouter = router({
       enabledScanners: z.object({
         ssh: z.boolean().default(true),
         ftp: z.boolean().default(true),
+        smtp: z.boolean().default(true),
+        snmp: z.boolean().default(true),
+        rdp: z.boolean().default(true),
         nikto: z.boolean().default(true),
         wapiti: z.boolean().default(true),
         arachni: z.boolean().default(false), // Off by default (heavier)
@@ -306,7 +492,7 @@ export const dastScannersRouter = router({
   getResults: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit"]).optional(),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit"]).optional(),
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
@@ -316,7 +502,11 @@ export const dastScannersRouter = router({
         conditions.push(eq(scanResults.tool, input.tool));
       } else {
         conditions.push(
-          inArray(scanResults.tool, ["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit"])
+          inArray(scanResults.tool, [
+            "nikto", "wapiti", "arachni",
+            "ssh-audit", "ftp-audit",
+            "smtp-audit", "snmp-audit", "rdp-audit",
+          ])
         );
       }
 
@@ -371,7 +561,7 @@ export const dastScannersRouter = router({
   analyzeScanFindings: protectedProcedure
     .input(z.object({
       scanId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni"]),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit"]),
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -407,6 +597,18 @@ export const dastScannersRouter = router({
             Array.isArray(findings) ? findings : [],
             row.target,
           );
+        }
+        case "ssh-audit":
+        case "ftp-audit":
+        case "smtp-audit":
+        case "snmp-audit":
+        case "rdp-audit": {
+          // Service audits already include analysis in their output
+          return {
+            analysis: `${input.tool} findings already include built-in analysis`,
+            findings: Array.isArray(findings) ? findings : findings?.findings || [],
+            tool: input.tool,
+          };
         }
       }
     }),
@@ -465,6 +667,36 @@ export const dastScannersRouter = router({
         depth: "deep",
         bestFor: "FTP security assessment, anonymous access detection",
         icon: "📁",
+      },
+      {
+        id: "smtp-audit",
+        name: "SMTP Audit",
+        type: "service",
+        description: "Mail server security audit — open relay, STARTTLS, DMARC/SPF, VRFY/EXPN user enumeration, CVE detection",
+        speed: "fast",
+        depth: "deep",
+        bestFor: "Mail server hardening, open relay detection, email security compliance",
+        icon: "📧",
+      },
+      {
+        id: "snmp-audit",
+        name: "SNMP Audit",
+        type: "service",
+        description: "SNMP security audit — default community strings, write access, OID enumeration, version detection",
+        speed: "fast",
+        depth: "deep",
+        bestFor: "Network device security, community string brute-force, information disclosure",
+        icon: "📡",
+      },
+      {
+        id: "rdp-audit",
+        name: "RDP Audit",
+        type: "service",
+        description: "Remote Desktop security audit — NLA enforcement, BlueKeep/DejaBlue CVEs, encryption level, CredSSP",
+        speed: "fast",
+        depth: "deep",
+        bestFor: "Windows RDP hardening, BlueKeep detection, NLA compliance",
+        icon: "🖥️",
       },
     ];
   }),

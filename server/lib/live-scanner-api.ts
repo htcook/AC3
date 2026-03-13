@@ -67,7 +67,7 @@ export async function checkCalderaHealth(): Promise<ScannerHealth> {
       calderaFetch("/operations"),
     ]);
     return {
-      name: "Caldera",
+      name: "Cyber C2",
       connected: agents !== null,
       lastChecked: now,
       agentCount: Array.isArray(agents) ? agents.length : 0,
@@ -75,7 +75,7 @@ export async function checkCalderaHealth(): Promise<ScannerHealth> {
       version: "4.x",
     };
   } catch (err: any) {
-    return { name: "Caldera", connected: false, lastChecked: now, error: err.message };
+    return { name: "Cyber C2", connected: false, lastChecked: now, error: err.message };
   }
 }
 
@@ -140,7 +140,7 @@ export async function collectCalderaEvidence(): Promise<CollectedEvidence[]> {
     evidence.push({
       sourceModule: "caldera",
       ksiIds,
-      title: `Caldera Operation: ${op.name || op.id}`,
+      title: `Cyber C2 Operation: ${op.name || op.id}`,
       description: `Operation "${op.name}" executed ${completedLinks}/${totalLinks} links across ${hostPlatforms.join(", ") || "unknown"} platforms. Techniques: ${Array.from(new Set(techniqueIds)).join(", ") || "none mapped"}.`,
       evidenceData: {
         operationId: op.id,

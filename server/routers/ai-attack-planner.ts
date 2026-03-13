@@ -109,7 +109,7 @@ export const aiAttackPlannerRouter = router({
         }
       }
 
-      // 3. Try to create a live Caldera operation
+      // 3. Try to create a live Cyber C2 operation
       const CALDERA_BASE_URL = process.env.CALDERA_BASE_URL;
       const CALDERA_API_KEY = process.env.CALDERA_API_KEY;
       let calderaOperationId: string | null = null;
@@ -118,7 +118,7 @@ export const aiAttackPlannerRouter = router({
 
       if (CALDERA_BASE_URL && CALDERA_API_KEY) {
         try {
-          // 3a. Fetch all Caldera abilities to map technique IDs
+          // 3a. Fetch all emulation abilities to map technique IDs
           const abilitiesRes = await fetch(`${CALDERA_BASE_URL}/api/v2/abilities`, {
             headers: { "KEY": CALDERA_API_KEY },
             signal: AbortSignal.timeout(15000),
@@ -199,7 +199,7 @@ export const aiAttackPlannerRouter = router({
           ? `Operation created in Caldera with ${matchedAbilities}/${techniqueIds.length} techniques mapped to abilities. Operation is paused — start it from the Caldera UI or assign an agent.`
           : CALDERA_BASE_URL
             ? `Plan accepted. ${matchedAbilities} abilities matched but operation creation failed. Check Caldera connectivity.`
-            : "Plan accepted locally. Caldera not configured — set CALDERA_BASE_URL and CALDERA_API_KEY to enable live operations.",
+            : "Plan accepted locally. Cyber C2 not configured — set CALDERA_BASE_URL and CALDERA_API_KEY to enable live operations.",
       };
     }),
 
@@ -237,14 +237,14 @@ export const aiAttackPlannerRouter = router({
       return { html, filename: `attack-plan-${plan.id}-${Date.now()}.html` };
     }),
 
-  /** Poll live Caldera operation status — returns ability execution progress */
+  /** Poll live Cyber C2 operation status — returns ability execution progress */
   operationStatus: protectedProcedure
     .input(z.object({ operationId: z.string() }))
     .query(async ({ input }) => {
       const CALDERA_BASE_URL = process.env.CALDERA_BASE_URL;
       const CALDERA_API_KEY = process.env.CALDERA_API_KEY;
       if (!CALDERA_BASE_URL || !CALDERA_API_KEY) {
-        return { available: false, state: "unknown" as const, progress: 0, totalAbilities: 0, completedAbilities: 0, succeededAbilities: 0, failedAbilities: 0, queuedAbilities: 0, operationName: "", startedAt: null, abilities: [] as any[], message: "Caldera not configured" };
+        return { available: false, state: "unknown" as const, progress: 0, totalAbilities: 0, completedAbilities: 0, succeededAbilities: 0, failedAbilities: 0, queuedAbilities: 0, operationName: "", startedAt: null, abilities: [] as any[], message: "Cyber C2 not configured" };
       }
       try {
         const opRes = await fetch(`${CALDERA_BASE_URL}/api/v2/operations/${input.operationId}`, {

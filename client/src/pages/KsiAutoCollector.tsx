@@ -104,7 +104,7 @@ export default function KsiAutoCollector() {
     onError: (e) => toast.error(`NGFW: ${e.message}`),
   });
   const liveAdSim = trpc.ksiAutoCollector.collectAdAttackSimLive.useMutation({
-    onSuccess: (d) => { refetchStats(); toast.success(`Live: ${d.simsFound} AD attack simulations from Caldera`); },
+    onSuccess: (d) => { refetchStats(); toast.success(`Live: ${d.simsFound} AD attack simulations from Cyber C2`); },
     onError: (e) => toast.error(`AD Sim: ${e.message}`),
   });
   const liveEdr = trpc.ksiAutoCollector.collectEdrLive.useMutation({
@@ -112,7 +112,7 @@ export default function KsiAutoCollector() {
     onError: (e) => toast.error(`EDR: ${e.message}`),
   });
   const liveAtomic = trpc.ksiAutoCollector.collectAtomicRedTeamLive.useMutation({
-    onSuccess: (d) => { refetchStats(); toast.success(`Live: ${d.executionsProcessed} Atomic Red Team executions from Caldera`); },
+    onSuccess: (d) => { refetchStats(); toast.success(`Live: ${d.executionsProcessed} Atomic Red Team executions from Cyber C2`); },
     onError: (e) => toast.error(`Atomic: ${e.message}`),
   });
   const liveSiem = trpc.ksiAutoCollector.collectSiemLive.useMutation({
@@ -152,9 +152,9 @@ export default function KsiAutoCollector() {
   const liveCollectors = [
     { key: "cloud-misconfigs", name: "Cloud Misconfigs", desc: "DigitalOcean droplets, firewalls, load balancers, databases", icon: Cloud, mutation: liveCloudMisconfigs, color: "text-sky-500" },
     { key: "ngfw-validation", name: "NGFW Validation", desc: "DigitalOcean firewall rule validation & port probes", icon: Shield, mutation: liveNgfw, color: "text-orange-500" },
-    { key: "ad-attack-sim", name: "AD Attack Sim", desc: "Caldera AD techniques (Kerberoasting, DCSync, Pass-the-Hash)", icon: Crosshair, mutation: liveAdSim, color: "text-red-500" },
-    { key: "edr-validation", name: "EDR Validation", desc: "Caldera operation detection coverage analysis", icon: Shield, mutation: liveEdr, color: "text-emerald-500" },
-    { key: "atomic-red-team", name: "Atomic Red Team", desc: "Caldera ability executions mapped to MITRE ATT&CK", icon: Atom, mutation: liveAtomic, color: "text-yellow-500" },
+    { key: "ad-attack-sim", name: "AD Attack Sim", desc: "Cyber C2 AD techniques (Kerberoasting, DCSync, Pass-the-Hash)", icon: Crosshair, mutation: liveAdSim, color: "text-red-500" },
+    { key: "edr-validation", name: "EDR Validation", desc: "Cyber C2 operation detection coverage analysis", icon: Shield, mutation: liveEdr, color: "text-emerald-500" },
+    { key: "atomic-red-team", name: "Atomic Red Team", desc: "Cyber C2 ability executions mapped to MITRE ATT&CK", icon: Atom, mutation: liveAtomic, color: "text-yellow-500" },
     { key: "siem-connectors", name: "SIEM Connectors", desc: "Wazuh & Elasticsearch connectivity and alert counts", icon: BarChart3, mutation: liveSiem, color: "text-purple-500" },
     { key: "threat-intel", name: "Threat Intel", desc: "abuse.ch URLhaus/ThreatFox, Shodan, SecurityTrails", icon: Globe, mutation: liveThreatIntel, color: "text-rose-500" },
   ];
@@ -297,7 +297,7 @@ export default function KsiAutoCollector() {
               Live API Collectors
             </CardTitle>
             <CardDescription>
-              Real-time evidence collection from external APIs. Each collector calls live endpoints (DigitalOcean, Caldera, Shodan, abuse.ch, SecurityTrails, Wazuh) and stores results in the database.
+              Real-time evidence collection from external APIs. Each collector calls live endpoints (DigitalOcean, Cyber C2, Shodan, abuse.ch, SecurityTrails, Wazuh) and stores results in the database.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -308,7 +308,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
       { label: "LLM Learning", path: "/llm-learning", icon: Brain },
       { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
-      { label: "Caldera Guide", path: "/guide/caldera", icon: BookOpen },
+      { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
       { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
     ],
   },

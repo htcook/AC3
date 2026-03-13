@@ -138,8 +138,8 @@ export const engagementsRouter = router({
           }
         }
 
-        // ── Auto-Create Caldera Operation/Campaign ──────────────────────────
-        // Every engagement gets a Caldera operation by default.
+        // ── Auto-Create Cyber C2 Operation/Campaign ──────────────────────────
+        // Every engagement gets a Cyber C2 operation by default.
         // Preflight check ensures the server is reachable before attempting.
         let calderaOpId: string | null = input.calderaOperationId || null;
         let calderaError: string | null = null;
@@ -150,7 +150,7 @@ export const engagementsRouter = router({
             const preflight = await validateCalderaConnection({ timeout: 8000 });
             console.log(`[EngagementCreate] Caldera preflight OK: ${preflight.ip}:${preflight.port} (${preflight.latencyMs}ms)`);
 
-            // Create a new Caldera operation for this engagement
+            // Create a new Cyber C2 operation for this engagement
             const opName = `${input.name} — ${input.customerName} [#${id}]`;
             const calderaBaseUrl = preflight.baseUrl;
             const calderaApiKey = (await import('../_core/env')).ENV.calderaApiKey;
@@ -203,7 +203,7 @@ export const engagementsRouter = router({
             if (opResponse.ok) {
               const opData = await opResponse.json();
               calderaOpId = opData.id || opData.operation_id || null;
-              console.log(`[EngagementCreate] Caldera operation created: ${calderaOpId} for engagement #${id}`);
+              console.log(`[EngagementCreate] Cyber C2 operation created: ${calderaOpId} for engagement #${id}`);
 
               // Link the operation back to the engagement
               if (calderaOpId) {
@@ -221,7 +221,7 @@ export const engagementsRouter = router({
                 }
               }
             } else {
-              calderaError = `Caldera operation creation failed: HTTP ${opResponse.status}`;
+              calderaError = `Cyber C2 operation creation failed: HTTP ${opResponse.status}`;
               console.warn(`[EngagementCreate] ${calderaError}`);
             }
           } catch (calErr: any) {
@@ -435,7 +435,7 @@ export const engagementsRouter = router({
           }
         }
 
-        // Auto-create Caldera operation (same as regular create)
+        // Auto-create Cyber C2 operation (same as regular create)
         let calderaOpId: string | null = null;
         try {
           const { validateCalderaConnection } = await import('../lib/caldera-preflight');

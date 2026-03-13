@@ -393,7 +393,7 @@ export async function collectAdAttackSims(): Promise<AdSimResult[]> {
 
   const results: AdSimResult[] = [];
 
-  // Fetch Caldera abilities that map to AD attack techniques
+  // Fetch emulation abilities that map to AD attack techniques
   const abilities = await fetchJson(`${baseUrl}/api/v2/abilities`, {
     headers: { KEY: apiKey, "Content-Type": "application/json" },
   }).catch(() => []);
@@ -465,7 +465,7 @@ export async function collectAdAttackSims(): Promise<AdSimResult[]> {
           status: linkStatus,
           riskScore: adMatch.riskScore * (linkStatus === "success" ? 1.0 : 0.5),
           severity: adMatch.severity,
-          description: `Executed ${adMatch.attackType} via Caldera operation "${op.name}". Link status: ${linkStatus}. Technique: ${techId}.`,
+          description: `Executed ${adMatch.attackType} via Cyber C2 operation "${op.name}". Link status: ${linkStatus}. Technique: ${techId}.`,
           mitreTechniques: [{ id: techId, name: link.ability?.name || techId }],
           evidence: {
             operationId: op.id,

@@ -218,8 +218,8 @@ export const atomicRedTeamRouter = router({
       }
     }),
 
-  /** Map Caldera abilities to matching atomic tests
-   *  Used by: Caldera Operations, Emulation Playbooks */
+  /** Map emulation abilities to matching atomic tests
+   *  Used by: Cyber C2 Operations, Emulation Playbooks */
   mapCalderaAbilities: protectedProcedure
     .input(z.object({
       abilities: z.array(z.object({

@@ -1666,7 +1666,7 @@ export const scoringRouter = router({
       return getSectorThreatLikelihood(input.sector);
     }),
 
-  /** Get Caldera operation priority recommendation */
+  /** Get Cyber C2 operation priority recommendation */
   getCalderaOpPriority: protectedProcedure
     .input(z.object({
       priorityTier: z.enum(["P0", "P1", "P2", "P3"]),

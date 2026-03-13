@@ -203,7 +203,7 @@ export default function AdminHome() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            <HealthIndicator label="Caldera C2 Server" status="healthy" detail="v4.2.0 — 3 active agents" />
+            <HealthIndicator label="Cyber C2 Server" status="healthy" detail="v4.2.0 — 3 active agents" />
             <HealthIndicator label="Database" status="healthy" detail="TiDB — 2.1GB used, 98.7% uptime" />
             <HealthIndicator label="GoPhish Server" status="healthy" detail="v0.12.1 — 2 active campaigns" />
             <HealthIndicator label="ZAP Proxy" status="warning" detail="High memory usage (87%)" />

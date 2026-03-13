@@ -2,7 +2,7 @@ import * as db from "../db";
 import { CALDERA_BASE_URL, CALDERA_API_KEY } from "../lib/api-helpers";
 /**
  * Adversary Emulation Playbooks Router
- * Maps threat actor TTPs to Caldera abilities for one-click emulation operations.
+ * Maps threat actor TTPs to emulation abilities for one-click emulation operations.
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
@@ -211,7 +211,7 @@ export const emulationPlaybooksRouter = router({
       return { success: true };
     }),
 
-  // ─── Launch playbook as Caldera operation ───
+  // ─── Launch playbook as Cyber C2 operation ───
   launch: protectedProcedure
     .input(z.object({
       playbookId: z.string(),

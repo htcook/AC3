@@ -206,7 +206,7 @@ ${truncatedContent}`,
             dwellTime: { type: "string", description: "Estimated total dwell time" },
             narrative: { type: "string", description: "Narrative summary of the full attack flow (2-3 paragraphs)" },
             lessonsLearned: { type: "string", description: "Key takeaways for defenders" },
-            emulationGuidance: { type: "string", description: "How to emulate this attack in Caldera" },
+            emulationGuidance: { type: "string", description: "How to emulate this attack in Cyber C2" },
             environmentalAssumptions: {
               type: "object",
               properties: {

@@ -26,7 +26,7 @@ export type WsEventType =
   | "agent:deployed"
   | "agent:checkin"
   | "agent:lost"
-  // Caldera operation events
+  // Cyber C2 operation events
   | "operation:started"
   | "operation:step_complete"
   | "operation:finished"
@@ -468,7 +468,7 @@ export function emitAgentCheckin(data: {
   });
 }
 
-/** Emit when a Caldera operation updates */
+/** Emit when a Cyber C2 operation updates */
 export function emitOperationUpdate(data: {
   operationId: string;
   name: string;

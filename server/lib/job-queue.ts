@@ -620,7 +620,7 @@ export const NETWORK_ISOLATION_CONFIG = {
           protocol: "tcp" as const,
           ports: "6379",
           sources: { tags: ["caldera-worker", "caldera-api"] },
-          description: "Redis access from Caldera workers and API only (VPC)",
+          description: "Redis access from Cyber C2 workers and API only (VPC)",
         },
       ],
       outbound: [] as FirewallRule[],

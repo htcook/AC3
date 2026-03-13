@@ -547,7 +547,7 @@ function formatOffensiveAction(actionType: string, target: string): string {
     msf_auxiliary: "MSF Auxiliary Module",
     msf_exploit: "MSF Exploit",
     phishing_launch: "Phishing Campaign Launch",
-    caldera_operation: "Caldera Operation",
+    caldera_operation: "Cyber C2 Operation",
     payload_delivery: "Payload Delivery",
     session_interaction: "Session Interaction",
   };

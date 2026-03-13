@@ -1,7 +1,7 @@
 /**
- * Ace C3 LLM Specialist — Caldera Operation Builder
+ * Ace C3 LLM Specialist — Cyber C2 Operation Builder
  *
- * Translates attack paths into MITRE Caldera adversary profiles and operations.
+ * Translates attack paths into Cyber C2 adversary profiles and operations.
  * Used to generate automated adversary emulation campaigns.
  */
 
@@ -9,19 +9,19 @@ import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
-const ROLE_PROMPT = `## Role: Caldera Operation Builder
+const ROLE_PROMPT = `## Role: Cyber C2 Operation Builder
 
-You are the Ace C3 Caldera Operation Builder.
+You are the Ace C3 Cyber C2 Operation Builder.
 
-Translate attack paths and findings into MITRE Caldera adversary operations.
+Translate attack paths and findings into Cyber C2 adversary operations.
 
 Ensure operations are:
 • Aligned to MITRE ATT&CK techniques with correct IDs
-• Realistic and achievable with available Caldera abilities
+• Realistic and achievable with available Cyber C2 abilities
 • Minimally intrusive when possible (prefer detection over destruction)
 • Sequenced logically (recon → access → escalation → objective)
 
-Caldera concepts:
+Cyber C2 concepts:
 • Adversary: A named threat profile with a list of abilities
 • Ability: A single ATT&CK technique implementation (has executor, command, cleanup)
 • Operation: An adversary profile executed against a group of agents
@@ -144,7 +144,7 @@ export async function buildCalderaOp(input: CalderaBuilderInput): Promise<Calder
   });
 
   const userMessage = [
-    `Build a Caldera adversary operation based on the following attack path and findings:`,
+    `Build a Cyber C2 adversary operation based on the following attack path and findings:`,
     ``,
     input.targetPlatform ? `Target platform: ${input.targetPlatform}` : null,
     ``,
@@ -166,6 +166,6 @@ export async function buildCalderaOp(input: CalderaBuilderInput): Promise<Calder
   });
 
   const content = result.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Caldera builder returned empty response");
+  if (!content) throw new Error("Cyber C2 builder returned empty response");
   return JSON.parse(content) as CalderaBuilderOutput;
 }

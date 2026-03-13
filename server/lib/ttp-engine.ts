@@ -194,7 +194,7 @@ Return JSON with this exact structure:
     artifacts: parsed.artifacts || [],
     detectionRules: parsed.detectionRules || [],
     eventLogSources: parsed.eventLogSources || [],
-    calderaAbilities: [], // Will be populated from Caldera ability catalog
+    calderaAbilities: [], // Will be populated from Cyber C2 ability catalog
     attackChainPosition: parsed.attackChainPosition || tactic,
     prerequisiteTechniques: parsed.prerequisiteTechniques || [],
     followUpTechniques: parsed.followUpTechniques || [],
@@ -226,7 +226,7 @@ export async function enrichTechnique(techniqueId: string, techniqueName: string
   console.log(`[TTP Engine] Researching ${techniqueId}: ${techniqueName}...`);
   const knowledge = await researchTechnique(techniqueId, techniqueName, tactic);
   
-  // Cross-reference with Caldera abilities
+  // Cross-reference with emulation abilities
   try {
     const abilities = await db.listAllAbilities({ search: techniqueId, limit: 50 });
     if (abilities && Array.isArray(abilities) && abilities.length > 0) {
@@ -333,7 +333,7 @@ ${ttpSummary}
 
 CAMPAIGN DESIGN PRINCIPLES:
 1. Chain techniques in realistic attack sequences (initial access → execution → persistence → lateral movement → objective)
-2. Select Caldera abilities that match the threat actor's known TTPs
+2. Select emulation abilities that match the threat actor's known TTPs
 3. Include detection validation points for Blue Team
 4. Design phishing templates that match the actor's known social engineering patterns
 5. Ensure each campaign step has corresponding detection rules for SOC validation

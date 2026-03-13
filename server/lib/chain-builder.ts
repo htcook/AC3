@@ -1,7 +1,7 @@
 /**
  * Intelligent Campaign Chain Builder
  * 
- * Automatically populates Caldera operations with abilities based on:
+ * Automatically populates Cyber C2 operations with abilities based on:
  * 1. Matched threat actors and their known TTPs
  * 2. TTP Knowledge Base technique-to-ability mappings
  * 3. OSINT/Discovery findings (vulns, misconfigs)
@@ -129,10 +129,10 @@ interface ChainBuildResult {
 }
 
 /**
- * Build an intelligent attack chain for a Caldera operation based on:
+ * Build an intelligent attack chain for a Cyber C2 operation based on:
  * - Campaign recommendation attack chains
  * - Matched threat actor TTPs
- * - Available Caldera abilities
+ * - Available emulation abilities
  * - OSINT findings (vulns, misconfigs)
  */
 export async function buildOperationChain(params: {

@@ -26,7 +26,7 @@ import {
 type C2Framework = "caldera" | "metasploit" | "sliver" | "empire" | "cobaltstrike";
 
 const FRAMEWORK_META: Record<C2Framework, { label: string; color: string; icon: React.ReactNode; description: string }> = {
-  caldera: { label: "CALDERA", color: "bg-red-500/10 text-red-400 border-red-500/20", icon: <Target className="h-5 w-5 text-red-400" />, description: "MITRE ATT&CK adversary emulation" },
+  caldera: { label: "CYBER C2", color: "bg-red-500/10 text-red-400 border-red-500/20", icon: <Target className="h-5 w-5 text-red-400" />, description: "MITRE ATT&CK adversary emulation" },
   metasploit: { label: "METASPLOIT", color: "bg-blue-500/10 text-blue-400 border-blue-500/20", icon: <Crosshair className="h-5 w-5 text-blue-400" />, description: "Exploitation framework" },
   sliver: { label: "SLIVER", color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", icon: <Hexagon className="h-5 w-5 text-emerald-400" />, description: "Implant C2 framework" },
   empire: { label: "EMPIRE", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: <Swords className="h-5 w-5 text-purple-400" />, description: "PowerShell/Python post-exploitation" },
@@ -415,7 +415,7 @@ function OrchestrationDashboard() {
           <DialogContent className="bg-zinc-900 border-zinc-700">
             <DialogHeader>
               <DialogTitle>Create Cross-C2 Orchestration</DialogTitle>
-              <DialogDescription>Coordinate operations across Caldera, Metasploit, Sliver, Empire, and Cobalt Strike</DialogDescription>
+              <DialogDescription>Coordinate operations across Cyber C2, Metasploit, Sliver, Empire, and Cobalt Strike</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -671,8 +671,8 @@ export default function C2CommandCenter() {
               </div>
               C2 COMMAND CENTER
             </h1>
-            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central hub for managing Command & Control infrastructure across all active engagements. Monitor C2 server status, manage listeners, view active callbacks, and issue commands to compromised systems. This page provides unified visibility into Caldera, Sliver, and other C2 frameworks. Use it to coordinate post-exploitation activities, manage implant communications, and track operator actions during red team operations.</p>
-            <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Caldera · Metasploit · Sliver · Empire · Cobalt Strike · GoPhish</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central hub for managing Command & Control infrastructure across all active engagements. Monitor C2 server status, manage listeners, view active callbacks, and issue commands to compromised systems. This page provides unified visibility into Cyber C2, Sliver, and other C2 frameworks. Use it to coordinate post-exploitation activities, manage implant communications, and track operator actions during red team operations.</p>
+            <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Cyber C2 · Metasploit · Sliver · Empire · Cobalt Strike · GoPhish</p>
           </div>
         </div>
 

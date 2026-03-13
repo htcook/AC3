@@ -155,7 +155,7 @@ export default function SSILGuardrails() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {ctx === "analyst" && "Threat analysis & intelligence"}
                         {ctx === "risk_card" && "Risk scoring & reporting"}
-                        {ctx === "caldera_hooks" && "Caldera C2 integration"}
+                        {ctx === "caldera_hooks" && "Cyber C2 integration"}
                         {ctx === "detection" && "Detection rule generation"}
                         {ctx === "phishing" && "Phishing campaign analysis"}
                         {ctx === "report" && "Report generation"}

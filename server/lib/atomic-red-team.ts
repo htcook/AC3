@@ -190,7 +190,7 @@ const GITHUB_API_BASE = "https://api.github.com/repos/redcanaryco/atomic-red-tea
  */
 async function fetchTechniqueIndex(): Promise<string[]> {
   const resp = await fetch(GITHUB_API_BASE, {
-    headers: { "Accept": "application/vnd.github.v3+json", "User-Agent": "CalderaDashboard/1.0" },
+    headers: { "Accept": "application/vnd.github.v3+json", "User-Agent": "CyberC2Dashboard/1.0" },
     signal: AbortSignal.timeout(30000),
   });
   if (!resp.ok) throw new Error(`GitHub API error: ${resp.status}`);
@@ -207,7 +207,7 @@ async function fetchTechniqueYaml(techniqueId: string): Promise<AtomicTestYaml |
   try {
     const url = `${GITHUB_RAW_BASE}/${techniqueId}/${techniqueId}.yaml`;
     const resp = await fetch(url, {
-      headers: { "User-Agent": "CalderaDashboard/1.0" },
+      headers: { "User-Agent": "CyberC2Dashboard/1.0" },
       signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) return null;
@@ -673,8 +673,8 @@ export async function findTestsForDetectionRule(params: {
 }
 
 /**
- * Map Caldera abilities to matching Atomic Red Team tests.
- * Used by: Caldera Operations, Emulation Playbooks
+ * Map emulation abilities to matching Atomic Red Team tests.
+ * Used by: Cyber C2 Operations, Emulation Playbooks
  */
 export async function mapCalderaAbilities(abilities: Array<{
   abilityId: string;

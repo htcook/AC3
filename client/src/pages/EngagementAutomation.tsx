@@ -38,7 +38,7 @@ export default function EngagementAutomation() {
 
   const createFromVectors = trpc.engagementAutomation.createFromVectors.useMutation({
     onSuccess: (data) => {
-      toast.success(`Engagement "${data.name}" created with ${data.vectorCount} vectors, ${data.calderaAbilityCount} Caldera abilities, ${data.exploitScriptCount} exploits`);
+      toast.success(`Engagement "${data.name}" created with ${data.vectorCount} vectors, ${data.calderaAbilityCount} emulation abilities, ${data.exploitScriptCount} exploits`);
       setShowCreateDialog(false);
       refetchEngagements();
       resetForm();
@@ -118,7 +118,7 @@ export default function EngagementAutomation() {
             Engagement Workflow Automation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Automatically create engagements from attack vectors with pre-loaded Caldera abilities and Metasploit modules.
+            Automatically create engagements from attack vectors with pre-loaded emulation abilities and Metasploit modules.
             Cross-references the threat catalog for threat-informed engagement planning.
           </p>
         </div>
@@ -367,7 +367,7 @@ export default function EngagementAutomation() {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           {item.metadata.vectorCount && <span>{item.metadata.vectorCount} vectors</span>}
                           {item.metadata.techniqueCount && <span>{item.metadata.techniqueCount} techniques</span>}
-                          {item.metadata.calderaAbilityCount && <span>{item.metadata.calderaAbilityCount} Caldera abilities</span>}
+                          {item.metadata.calderaAbilityCount && <span>{item.metadata.calderaAbilityCount} emulation abilities</span>}
                           {item.metadata.exploitScriptCount && <span>{item.metadata.exploitScriptCount} exploits</span>}
                         </div>
                       )}
@@ -421,7 +421,7 @@ export default function EngagementAutomation() {
                 <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-semibold mb-2">No Automated Engagements Yet</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Create an engagement from attack vectors to automatically load Caldera abilities and Metasploit modules.
+                  Create an engagement from attack vectors to automatically load emulation abilities and Metasploit modules.
                 </p>
                 <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
                   <Play className="h-4 w-4" /> Create First Engagement

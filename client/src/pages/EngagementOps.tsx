@@ -8,7 +8,7 @@
  * 4. LLM orchestrates: nmap → tool matching (ZAP for web, nuclei for CVEs) → credential testing → exploit approval
  * 5. Operator approves high-risk actions inline
  * 6. Pentest: per-asset unauthorized access evidence → report
- * 7. Red Team: C2 agent deploy → Caldera callback → pivot
+ * 7. Red Team: C2 agent deploy → Cyber C2 callback → pivot
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";

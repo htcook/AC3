@@ -26,6 +26,9 @@ import { startFTPAudit, type FTPAuditResult } from "./ftp-audit-scanner";
 import { startNiktoScan, type NiktoScanResult } from "./nikto-scanner";
 import { startWapitiScan, type WapitiScanResult } from "./wapiti-scanner";
 import { startArachniScan, type ArachniScanResult } from "./arachni-scanner";
+import { startSMTPAudit, type SMTPAuditResult } from "./smtp-audit-scanner";
+import { startSNMPAudit, type SNMPAuditResult } from "./snmp-audit-scanner";
+import { startRDPAudit, type RDPAuditResult } from "./rdp-audit-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +56,9 @@ export interface ServiceAuditConfig {
     nikto?: boolean;
     wapiti?: boolean;
     arachni?: boolean;
+    smtp?: boolean;
+    snmp?: boolean;
+    rdp?: boolean;
   };
   /** Scan profile (affects depth/speed) */
   profile?: "quick" | "standard" | "deep";
@@ -80,6 +86,9 @@ export interface ServiceAuditPipelineResult {
     nikto: NiktoScanResult[];
     wapiti: WapitiScanResult[];
     arachni: ArachniScanResult[];
+    smtp: SMTPAuditResult[];
+    snmp: SNMPAuditResult[];
+    rdp: RDPAuditResult[];
   };
   totalFindings: number;
   severitySummary: {
@@ -106,6 +115,10 @@ const SERVICE_SCANNER_MAP: Record<string, ScannerMapping> = {
   https: { scanners: ["nikto", "wapiti"], description: "Web server + injection testing (TLS)" },
   "http-proxy": { scanners: ["nikto"], description: "HTTP proxy audit" },
   "http-alt": { scanners: ["nikto"], description: "Alternate HTTP audit" },
+  smtp: { scanners: ["smtp-audit"], description: "SMTP security audit" },
+  snmp: { scanners: ["snmp-audit"], description: "SNMP security audit" },
+  "ms-wbt-server": { scanners: ["rdp-audit"], description: "RDP security audit" },
+  rdp: { scanners: ["rdp-audit"], description: "RDP security audit" },
 };
 
 const PORT_SCANNER_MAP: Record<number, ScannerMapping> = {
@@ -121,6 +134,14 @@ const PORT_SCANNER_MAP: Record<number, ScannerMapping> = {
   8000: { scanners: ["nikto"], description: "Dev server audit" },
   8888: { scanners: ["nikto"], description: "Dev server audit" },
   9090: { scanners: ["nikto"], description: "Admin panel audit" },
+  25: { scanners: ["smtp-audit"], description: "SMTP audit" },
+  465: { scanners: ["smtp-audit"], description: "SMTPS audit" },
+  587: { scanners: ["smtp-audit"], description: "SMTP submission audit" },
+  2525: { scanners: ["smtp-audit"], description: "SMTP alt audit" },
+  161: { scanners: ["snmp-audit"], description: "SNMP audit" },
+  162: { scanners: ["snmp-audit"], description: "SNMP trap audit" },
+  3389: { scanners: ["rdp-audit"], description: "RDP audit" },
+  3388: { scanners: ["rdp-audit"], description: "RDP alt audit" },
 };
 
 /**
@@ -150,6 +171,9 @@ function getScannersForService(service: DiscoveredService, enabled: ServiceAudit
     nikto: enabled?.nikto !== false,
     wapiti: enabled?.wapiti !== false,
     arachni: enabled?.arachni !== false,
+    "smtp-audit": enabled?.smtp !== false,
+    "snmp-audit": enabled?.snmp !== false,
+    "rdp-audit": enabled?.rdp !== false,
   };
 
   return Array.from(scanners).filter(s => enabledMap[s] !== false);
@@ -232,6 +256,40 @@ async function runScanner(
         return { scanner, result };
       }
 
+      case "smtp-audit": {
+        const result = await startSMTPAudit({
+          host: service.host,
+          port: service.port,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+          domain: service.host,
+        });
+        return { scanner, result };
+      }
+
+      case "snmp-audit": {
+        const result = await startSNMPAudit({
+          host: service.host,
+          port: service.port,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+        });
+        return { scanner, result };
+      }
+
+      case "rdp-audit": {
+        const result = await startRDPAudit({
+          host: service.host,
+          port: service.port,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+        });
+        return { scanner, result };
+      }
+
       default:
         return { scanner, result: null, error: `Unknown scanner: ${scanner}` };
     }
@@ -260,6 +318,9 @@ export async function runServiceAuditPipeline(
     nikto: [],
     wapiti: [],
     arachni: [],
+    smtp: [],
+    snmp: [],
+    rdp: [],
   };
 
   let auditsTriggered = 0;
@@ -315,6 +376,9 @@ export async function runServiceAuditPipeline(
           case "nikto": results.nikto.push(result); break;
           case "wapiti": results.wapiti.push(result); break;
           case "arachni": results.arachni.push(result); break;
+          case "smtp-audit": results.smtp.push(result); break;
+          case "snmp-audit": results.snmp.push(result); break;
+          case "rdp-audit": results.rdp.push(result); break;
         }
 
         emit({
@@ -352,6 +416,9 @@ export async function runServiceAuditPipeline(
     ...results.nikto.flatMap(r => r.findings),
     ...results.wapiti.flatMap(r => r.findings),
     ...results.arachni.flatMap(r => r.findings),
+    ...results.smtp.flatMap(r => r.findings),
+    ...results.snmp.flatMap(r => r.findings),
+    ...results.rdp.flatMap(r => r.findings),
   ];
 
   for (const finding of allResults) {
@@ -429,6 +496,81 @@ export async function autoAuditFTPPorts(
       results.push(result);
     } catch (err: any) {
       console.error(`[ServiceAuditPipeline] FTP audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Convenience function: auto-audit SMTP ports from naabu/nmap discovery.
+ */
+export async function autoAuditSMTPPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<SMTPAuditResult[]> {
+  const smtpHosts = hosts.filter(h => [25, 465, 587, 2525].includes(h.port));
+  if (smtpHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${smtpHosts.length} SMTP service(s)`);
+
+  const results: SMTPAuditResult[] = [];
+  for (const { host, port } of smtpHosts) {
+    try {
+      const result = await startSMTPAudit({ host, port, engagementId, operatorId, domain: host });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] SMTP audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Convenience function: auto-audit SNMP ports from naabu/nmap discovery.
+ */
+export async function autoAuditSNMPPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<SNMPAuditResult[]> {
+  const snmpHosts = hosts.filter(h => h.port === 161 || h.port === 162);
+  if (snmpHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${snmpHosts.length} SNMP service(s)`);
+
+  const results: SNMPAuditResult[] = [];
+  for (const { host, port } of snmpHosts) {
+    try {
+      const result = await startSNMPAudit({ host, port, engagementId, operatorId });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] SNMP audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+/**
+ * Convenience function: auto-audit RDP ports from naabu/nmap discovery.
+ */
+export async function autoAuditRDPPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<RDPAuditResult[]> {
+  const rdpHosts = hosts.filter(h => h.port === 3389 || h.port === 3388);
+  if (rdpHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${rdpHosts.length} RDP service(s)`);
+
+  const results: RDPAuditResult[] = [];
+  for (const { host, port } of rdpHosts) {
+    try {
+      const result = await startRDPAudit({ host, port, engagementId, operatorId });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] RDP audit failed for ${host}:${port}: ${err.message}`);
     }
   }
   return results;

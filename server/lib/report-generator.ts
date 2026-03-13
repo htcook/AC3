@@ -502,7 +502,7 @@ Return JSON with:
       classification: 'CONFIDENTIAL',
     },
     executiveSummary,
-    scopeAndMethodology: `This ${input.engagementType || 'purple team exercise'} was conducted using the MITRE ATT&CK framework as the primary reference for adversary emulation. The engagement leveraged Caldera as the adversary emulation platform, executing ${techniquesAttempted} techniques across ${tacticsCovered} tactical phases. Each technique was mapped to specific MITRE ATT&CK identifiers and tested against the target environment's detection capabilities. Detection rules were auto-generated and validated using the Ace C3 Rule Validation Engine, covering Sigma, YARA, and Suricata rule formats.`,
+    scopeAndMethodology: `This ${input.engagementType || 'purple team exercise'} was conducted using the MITRE ATT&CK framework as the primary reference for adversary emulation. The engagement leveraged the Cyber C2 adversary emulation platform, executing ${techniquesAttempted} techniques across ${tacticsCovered} tactical phases. Each technique was mapped to specific MITRE ATT&CK identifiers and tested against the target environment's detection capabilities. Detection rules were auto-generated and validated using the Ace C3 Rule Validation Engine, covering Sigma, YARA, and Suricata rule formats.`,
     operationTimeline: timeline.map((t: any) => ({
       time: t.time || t.finishTime || '',
       event: t.abilityName || 'Unknown',

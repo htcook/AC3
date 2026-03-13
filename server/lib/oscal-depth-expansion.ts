@@ -97,7 +97,7 @@ export function generateComponentDefinition(
         parties: [{
           uuid: generateUUID(),
           type: "organization",
-          name: "ACE C3 Platform — Caldera Dashboard",
+          name: "ACE C3 Platform — Cyber C2 Dashboard",
         }],
         props: [
           { name: "fedramp-ready", value: "true" },

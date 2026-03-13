@@ -2,12 +2,12 @@
  * Caldera Graph Executor
  *
  * Connects the Ability Graph Engine to live Caldera agent execution.
- * Dispatches graph nodes as Caldera operations following topological order,
+ * Dispatches graph nodes as Cyber C2 operations following topological order,
  * polls for results, updates node statuses, and handles cleanup on failure/abort.
  *
  * Execution flow:
  * 1. Validate graph (acyclic, safety tier, preconditions)
- * 2. Create a Caldera operation for the graph
+ * 2. Create a Cyber C2 operation for the graph
  * 3. Walk the graph in topological order
  * 4. For each ready node: dispatch ability to agent, poll for completion
  * 5. Evaluate exit criteria → follow conditional edges
@@ -54,7 +54,7 @@ export interface ExecutionConfig {
   pollIntervalMs?: number;     // status poll interval (default: 3000)
   timeoutOverrideMs?: number;  // global timeout override
   autoCleanup?: boolean;       // run cleanup commands on abort (default: true)
-  operationName?: string;      // custom Caldera operation name
+  operationName?: string;      // custom Cyber C2 operation name
 }
 
 export interface ExecutionState {
@@ -98,7 +98,7 @@ export interface NodeExecutionResult {
 
 async function calderaFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
   if (!CALDERA_BASE_URL || !CALDERA_API_KEY) {
-    throw new Error("Caldera credentials not configured");
+    throw new Error("Cyber C2 credentials not configured");
   }
   const response = await fetch(`${CALDERA_BASE_URL}${endpoint}`, {
     ...options,
@@ -117,7 +117,7 @@ async function calderaFetch(endpoint: string, options: RequestInit = {}): Promis
 }
 
 /**
- * Create a new Caldera operation.
+ * Create a new Cyber C2 operation.
  */
 async function createCalderaOperation(params: {
   name: string;
@@ -215,7 +215,7 @@ async function pollLinkCompletion(params: {
 }
 
 /**
- * Update a Caldera operation state.
+ * Update a Cyber C2 operation state.
  */
 async function updateOperationState(
   operationId: string,
@@ -228,7 +228,7 @@ async function updateOperationState(
 }
 
 /**
- * Get available agents from Caldera.
+ * Get available agents from Cyber C2.
  */
 export async function getCalderaAgents(): Promise<Array<{
   paw: string;
@@ -332,7 +332,7 @@ export async function executeGraph(config: ExecutionConfig): Promise<ExecutionSt
       }
     }
 
-    // 2. Create Caldera operation (unless dry run)
+    // 2. Create Cyber C2 operation (unless dry run)
     if (!config.dryRun) {
       const opName = config.operationName || `AG-${graph.name}-${Date.now().toString(36)}`;
       const op = await createCalderaOperation({
@@ -340,7 +340,7 @@ export async function executeGraph(config: ExecutionConfig): Promise<ExecutionSt
         agentPaw: config.agentPawId,
       });
       state.operationId = op.id;
-      log(state, { nodeId: null, event: "start", message: `Created Caldera operation: ${op.id}` });
+      log(state, { nodeId: null, event: "start", message: `Created Cyber C2 operation: ${op.id}` });
     }
 
     // 3. Update graph status
@@ -607,7 +607,7 @@ export async function executeGraph(config: ExecutionConfig): Promise<ExecutionSt
 
     await updateGraphStatus(config.graphId, hasFailures ? "failed" : "completed");
 
-    // Close Caldera operation
+    // Close Cyber C2 operation
     if (state.operationId && !config.dryRun) {
       try {
         await updateOperationState(state.operationId, "finished");
@@ -684,7 +684,7 @@ export async function abortExecution(graphId: string): Promise<ExecutionState | 
   state.completedAt = new Date().toISOString();
   log(state, { nodeId: null, event: "abort", message: "Execution aborted by user" });
 
-  // Stop Caldera operation
+  // Stop Cyber C2 operation
   if (state.operationId) {
     try {
       await updateOperationState(state.operationId, "finished");

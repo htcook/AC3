@@ -30,7 +30,7 @@
  * 
  * Phase 5: POST-EXPLOITATION (Persistence & Lateral Movement)
  *   - Sliver C2 session management
- *   - Caldera operations (lateral movement, persistence)
+ *   - Cyber C2 operations (lateral movement, persistence)
  *   - Credential harvesting & rotation testing
  *   - AD attack paths (BloodHound)
  * 

@@ -582,7 +582,7 @@ export const attackVectorEngineRouter = router({
 
       const evidence = await db.select().from(attackVectorEvidence).where(eq(attackVectorEvidence.vectorId, input.vectorId));
 
-      // Map techniques to Caldera abilities and MSF modules
+      // Map techniques to emulation abilities and MSF modules
       const techniques = (vector.mitreTechniqueIds as string[]) || [];
       const calderaAbilities = techniques.flatMap(t => CALDERA_ABILITY_MAP[t] || []);
       const msfModules = techniques.flatMap(t => MSF_MODULE_MAP[t] || []);
@@ -767,7 +767,7 @@ export const attackVectorEngineRouter = router({
         }]
         : [];
 
-      // Aggregate all Caldera abilities and MSF modules
+      // Aggregate all emulation abilities and MSF modules
       const allCalderaAbilities = [
         ...preExploitSteps.flatMap(s => s.calderaAbilities),
         ...postExploitSteps.flatMap(s => s.calderaAbilities),

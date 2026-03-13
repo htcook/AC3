@@ -9,8 +9,8 @@
  * 3. Delivery → GoPhish campaigns, typosquatDomains
  * 4. Exploitation → exploitJobs (Metasploit execution)
  * 5. Installation → exploitJobs.calderaAgentPaw (agent deployment)
- * 6. Command & Control → Caldera operations, agents
- * 7. Actions on Objectives → Caldera operation results, activityLogs
+ * 6. Command & Control → Cyber C2 operations, agents
+ * 7. Actions on Objectives → Cyber C2 operation results, activityLogs
  */
 
 import { getDb } from '../db';
@@ -469,7 +469,7 @@ async function collectC2Events(db: any, filter: TimelineFilter): Promise<Timelin
   const events: TimelineEvent[] = [];
 
   try {
-    // Activity logs related to Caldera operations
+    // Activity logs related to Cyber C2 operations
     let logQuery = db.select().from(activityLogs);
     const logConditions: any[] = [];
     logConditions.push(

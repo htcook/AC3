@@ -58,7 +58,7 @@ async function startServer() {
   enforceFIPSTLS();
   // FIPS 140-3: Initialize OpenSSL FIPS provider (attempts --enable-fips activation)
   initFIPSProvider();
-  // FIPS 140-3: Initialize certificate pinning for Caldera and GoPhish
+  // FIPS 140-3: Initialize certificate pinning for Cyber C2 and GoPhish
   initCertPinning();
 
   const app = express();
@@ -112,7 +112,7 @@ async function startServer() {
     }
   });
 
-  // === Unified Auth: Auto-login for Caldera ===
+  // === Unified Auth: Auto-login for Cyber C2 ===
   app.get('/api/auth/caldera-login', async (req, res) => {
     const token = req.cookies?.['caldera_session'];
     if (!token) {
@@ -120,14 +120,14 @@ async function startServer() {
     }
     try {
       jwt.verify(token, AUTH_SECRET);
-      // Authenticate with Caldera and redirect with session
+      // Authenticate with Cyber C2 and redirect with session
       const calderaResp = await fetch('http://127.0.0.1:8888/enter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: ENV.calderaUsername, password: ENV.calderaPassword }),
         redirect: 'manual',
       });
-      // Extract Set-Cookie from Caldera response and forward to user
+      // Extract Set-Cookie from Cyber C2 response and forward to user
       const setCookies = calderaResp.headers.getSetCookie?.() || [];
       for (const cookie of setCookies) {
         // Rewrite cookie domain for the subdomain
@@ -382,11 +382,11 @@ async function startServer() {
         console.warn("[IOC Sync] Failed to initialize scheduled sync:", err);
       });
 
-      // Initialize Caldera adversary sync cron job (daily at 07:00 UTC)
+      // Initialize Cyber C2 adversary sync cron job (daily at 07:00 UTC)
       import("../lib/caldera-sync").then(({ initCalderaSyncSchedule }) => {
         initCalderaSyncSchedule();
       }).catch((err) => {
-        console.warn("[Caldera Sync] Failed to initialize scheduled sync:", err);
+        console.warn("[Cyber C2 Sync] Failed to initialize scheduled sync:", err);
       });
 
       // Initialize Vulnerability Feed sync cron job (daily at 05:00 UTC)

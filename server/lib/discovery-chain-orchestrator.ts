@@ -22,7 +22,7 @@ import type { PipelineFinding, PipelinePhase, ToolModule } from "./unified-pipel
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type ChainStageId = "amass" | "nmap" | "service_fingerprinter" | "nuclei";
+export type ChainStageId = "amass" | "nmap" | "service_fingerprinter" | "nuclei" | "service_audit";
 
 export type ChainStageStatus =
   | "pending"
@@ -106,6 +106,27 @@ export interface ChainRunConfig {
       templateCategories?: string[];
       rateLimit?: number;
       timeout?: number;
+    };
+    service_audit?: {
+      /** Enable auto-audit after port discovery (default: true) */
+      enabled?: boolean;
+      /** Max concurrent audits (default: 3) */
+      concurrency?: number;
+      /** Timeout per audit in seconds (default: 300) */
+      timeoutPerAudit?: number;
+      /** Scan depth profile */
+      profile?: "quick" | "standard" | "deep";
+      /** Which service auditors to enable */
+      enabledScanners?: {
+        ssh?: boolean;
+        ftp?: boolean;
+        smtp?: boolean;
+        snmp?: boolean;
+        rdp?: boolean;
+        nikto?: boolean;
+        wapiti?: boolean;
+        arachni?: boolean;
+      };
     };
   };
   /** Maximum total chain duration in seconds (default: 3600 = 1 hour) */
@@ -194,6 +215,16 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
     tool: "nuclei_vuln",
     dependsOn: ["nmap", "service_fingerprinter"],
     estimatedDurationSec: 600,
+    optional: true,
+  },
+  {
+    id: "service_audit",
+    name: "Service-Specific Security Audit",
+    description:
+      "Auto-trigger protocol-specific security audits based on discovered services: SSH audit (port 22), FTP audit (port 21), SMTP audit (port 25/587), SNMP audit (port 161), RDP audit (port 3389), and web DAST scanners (HTTP/HTTPS ports).",
+    tool: "service_fingerprinter" as ToolModule,
+    dependsOn: ["nmap"],
+    estimatedDurationSec: 300,
     optional: true,
   },
 ];
@@ -583,9 +614,9 @@ function createEmptySummary(): ChainRunSummary {
     totalVulnerabilities: 0,
     totalFindings: 0,
     findingsBySeverity: {},
-    findingsByStage: { amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0 },
+    findingsByStage: { amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0 },
     stagesCompleted: 0,
-    stagesTotal: 4,
+    stagesTotal: 5,
     stagesFailed: 0,
     stagesSkipped: 0,
     uniqueCves: [],
@@ -597,7 +628,7 @@ export function computeChainSummary(run: ChainRun): ChainRunSummary {
   const allFindings = run.stages.flatMap(s => s.findings);
   const findingsBySeverity: Record<string, number> = {};
   const findingsByStage: Record<ChainStageId, number> = {
-    amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0,
+    amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0,
   };
   const cves = new Set<string>();
   const techniques = new Set<string>();
@@ -710,6 +741,17 @@ export interface ChainExecutionCallbacks {
     engagementId?: number;
     operatorId?: string;
   }) => Promise<{ findings: any[]; rawResult: any }>;
+
+  /** Execute Service Audit Pipeline */
+  executeServiceAudit?: (config: {
+    services: Array<{ host: string; port: number; service: string; banner?: string }>;
+    engagementId: number;
+    operatorId?: number;
+    concurrency?: number;
+    timeoutPerAudit?: number;
+    profile?: "quick" | "standard" | "deep";
+    enabledScanners?: Record<string, boolean>;
+  }) => Promise<{ results: any; totalFindings: number; severitySummary: Record<string, number> }>;
 
   /** Scope enforcement check */
   enforceScope: (config: {
@@ -1031,6 +1073,75 @@ export async function executeChain(
         updateStageResult(run.id, "nuclei", nucleiStage);
         callbacks.onProgress?.(run);
       }
+    }
+
+    // ─── Stage 5: Service Audit (Auto-Trigger) ─────────────────
+    const saStage = run.stages.find(s => s.stageId === "service_audit")!;
+    const saConfig = config.stageConfig?.service_audit;
+    const serviceAuditEnabled = saConfig?.enabled !== false;
+
+    if (saStage.status !== "skipped" && serviceAuditEnabled && callbacks.executeServiceAudit) {
+      if (run.cancelled || Date.now() > deadline) {
+        saStage.status = "skipped";
+        saStage.errors.push("Chain cancelled or timed out before Service Audit stage");
+        updateStageResult(run.id, "service_audit", saStage);
+      } else {
+        // Extract discovered services from nmap output
+        const { extractServicesFromNmap, convertServiceAuditFindings } = await import("./service-audit-chain-hook");
+        const discoveredServices = extractServicesFromNmap(nmapStage.rawOutput);
+
+        if (discoveredServices.length === 0) {
+          saStage.status = "skipped";
+          saStage.errors.push("No auditable services found in Nmap results");
+          updateStageResult(run.id, "service_audit", saStage);
+        } else {
+          saStage.status = "running";
+          saStage.startedAt = Date.now();
+          saStage.inputTargetCount = discoveredServices.length;
+          run.currentStage = "service_audit";
+          callbacks.onProgress?.(run);
+
+          try {
+            const auditResult = await callbacks.executeServiceAudit({
+              services: discoveredServices,
+              engagementId: config.engagementId || 0,
+              operatorId: config.operatorId ? Number(config.operatorId) : undefined,
+              concurrency: saConfig?.concurrency || 3,
+              timeoutPerAudit: saConfig?.timeoutPerAudit || 300,
+              profile: saConfig?.profile || "standard",
+              enabledScanners: saConfig?.enabledScanners as Record<string, boolean>,
+            });
+
+            saStage.rawOutput = auditResult.results;
+            saStage.outputCount = auditResult.totalFindings;
+            saStage.status = "completed";
+            saStage.completedAt = Date.now();
+            saStage.durationMs = saStage.completedAt - saStage.startedAt;
+
+            // Convert to pipeline findings
+            saStage.findings = convertServiceAuditFindings(auditResult.results, "vulnerability_assessment");
+
+            console.log(`[DiscoveryChain] Service Audit completed: ${auditResult.totalFindings} findings across ${discoveredServices.length} services`);
+            callbacks.onStageComplete?.(run, "service_audit");
+          } catch (err: any) {
+            saStage.status = "failed";
+            saStage.completedAt = Date.now();
+            saStage.durationMs = saStage.completedAt - saStage.startedAt;
+            saStage.errors.push(err.message || "Service audit failed");
+
+            if (!config.continueOnPartialFailure) {
+              throw err;
+            }
+          }
+
+          updateStageResult(run.id, "service_audit", saStage);
+          callbacks.onProgress?.(run);
+        }
+      }
+    } else if (saStage.status !== "skipped") {
+      saStage.status = "skipped";
+      saStage.errors.push(serviceAuditEnabled ? "No executeServiceAudit callback provided" : "Service audit disabled in config");
+      updateStageResult(run.id, "service_audit", saStage);
     }
 
     // ─── Complete ─────────────────────────────────────────────────

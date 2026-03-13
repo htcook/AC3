@@ -10,8 +10,8 @@ function resolveGophishUrl(): string {
   return "https://gophish.aceofcloud.io";
 }
 
-// ─── Resolve Caldera URL ────────────────────────────────────────────────────
-// Caldera runs on the app server (134.199.213.248:8888) and is proxied through
+// ─── Resolve Cyber C2 URL ────────────────────────────────────────────────────
+// Cyber C2 runs on the app server (134.199.213.248:8888) and is proxied through
 // nginx at https://caldera.aceofcloud.io. The HTTPS proxy is the reliable path.
 function resolveCalderaUrl(): string {
   const env = process.env.CALDERA_BASE_URL;
@@ -20,7 +20,7 @@ function resolveCalderaUrl(): string {
   return "https://caldera.aceofcloud.io";
 }
 
-// ─── Resolve Caldera API Key ────────────────────────────────────────────────
+// ─── Resolve Cyber C2 API Key ────────────────────────────────────────────────
 // The default ADMIN123 was rotated. Override if the env still has the old key.
 function resolveCalderaApiKey(): string {
   const env = process.env.CALDERA_API_KEY;
@@ -28,7 +28,7 @@ function resolveCalderaApiKey(): string {
   return "kmpJNkws7KXEdyIc2K8FYAGdMoRgrZ4c3hvJ1F9SI94";
 }
 
-// ─── Resolve Caldera Password ──────────────────────────────────────────────
+// ─── Resolve Cyber C2 Password ──────────────────────────────────────────────
 // Custom dashboard login password. The hardcoded value is the canonical password.
 // The env var is checked as a secondary option, but the $ character in the password
 // can cause shell expansion issues in some deployment environments.
@@ -46,7 +46,7 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
-  // Caldera
+  // Cyber C2
   calderaBaseUrl: resolveCalderaUrl(),
   calderaApiKey: resolveCalderaApiKey(),
   calderaUsername: process.env.CALDERA_USERNAME ?? "red",

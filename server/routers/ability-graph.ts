@@ -394,7 +394,7 @@ export const abilityGraphRouter = router({
       // Check for nodes without technique mapping
       const unmappedNodes = graphData.nodes.filter(n => !n.calderaAbilityId);
       if (unmappedNodes.length > 0) {
-        issues.push(`${unmappedNodes.length} node(s) not mapped to Caldera abilities`);
+        issues.push(`${unmappedNodes.length} node(s) not mapped to emulation abilities`);
       }
 
       const valid = issues.length === 0;

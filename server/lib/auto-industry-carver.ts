@@ -7,7 +7,7 @@
  *     hybrid fusion formula, auto-BIA asset priority
  * v2: NAICS auto-mapping with multi-stage inference, threat actor likelihood,
  *     FedRAMP Moderate/High profiles, explainable risk cards,
- *     Caldera operation prioritization tiers + ability set library
+ *     Cyber C2 operation prioritization tiers + ability set library
  *
  * Integration points:
  *   1) Industry/Sector inference → sector tag + confidence
@@ -819,7 +819,7 @@ export function priorityTierFromScore(hybrid: number, thresholds?: { P0: number;
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Determine the Caldera operation tier and recommended ability sets
+ * Determine the Cyber C2 operation tier and recommended ability sets
  * based on priority tier, regulatory profile, and asset signals.
  */
 export function getCalderaOperationPriority(input: {
@@ -947,7 +947,7 @@ export function buildExplainableRiskCard(input: {
   // Step 6: Generate recommended actions
   const actions = generateRecommendedActions(sectorResult.sector, priorityTier, input.assetSignals || []);
 
-  // Step 7: Get Caldera operation priority
+  // Step 7: Get Cyber C2 operation priority
   const calderaPriority = getCalderaOperationPriority({
     priorityTier,
     regulatory: sectorResult.regulatoryProfile,

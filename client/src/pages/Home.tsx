@@ -49,7 +49,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "CVE & Threat Actor Sorting", desc: "CVE lists now default to most-recent-first ordering by published date, with sort options for date, priority, CVSS, and actor count. Threat actor catalog defaults to most-recently-active sorting for faster triage of current threats." },
   { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 75 FedRAMP 20x KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
   { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of live scan evidence against the threat catalog. Auto-collection pipelines with 6 configurable sources feed KSI evidence chains. Scheduled collection with cron-based automation and source health monitoring." },
-  { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded Caldera abilities and Metasploit modules." },
+  { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded emulation abilities and Metasploit modules." },
   { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how ACE C3 addresses 75 FedRAMP 20x Key Security Indicators across 13 compliance themes — 34 with direct automated validation and 32 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules and honest capability grounding." },
   { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
   { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
@@ -577,11 +577,11 @@ export default function Home() {
               icon={<Rocket className="w-7 h-7" />}
               number="07"
               title="ENGAGEMENT AUTOMATION"
-              description="Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates with kill chain phase mapping, recommended techniques, and pre-loaded Caldera abilities and Metasploit modules."
+              description="Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates with kill chain phase mapping, recommended techniques, and pre-loaded emulation abilities and Metasploit modules."
               features={[
                 "5 templates: pentest, red team, purple team, phishing, cloud",
                 "Kill chain phase mapping per engagement type",
-                "Auto-loaded Caldera abilities and Metasploit modules",
+                "Auto-loaded emulation abilities and Metasploit modules",
                 "Live scanner integration with threat catalog cross-reference",
                 "Scheduled auto-collection with 6 configurable sources",
                 "Source health monitoring and evidence chain feeds",
@@ -675,7 +675,7 @@ export default function Home() {
               modules={[
                 { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs against 75 KSIs across 13 FedRAMP 20x themes" },
                 { icon: TrendingUp, name: "Coverage Matrix", desc: "KSI-to-MITRE technique coverage across 13 FedRAMP 20x themes with actor density and risk scoring" },
-                { icon: Zap, name: "Engagement Automation", desc: "5 engagement templates with kill chain mapping, pre-loaded Caldera abilities and Metasploit modules" },
+                { icon: Zap, name: "Engagement Automation", desc: "5 engagement templates with kill chain mapping, pre-loaded emulation abilities and Metasploit modules" },
                 { icon: Scan, name: "Live Scanner", desc: "Real-time cross-referencing of scan evidence against threat catalog with auto-collection pipelines" },
                 { icon: Clock, name: "Scheduled Collection", desc: "Cron-based automated evidence collection with source health monitoring" },
                 { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for 75 KSIs, attack vectors, config, and validation" },

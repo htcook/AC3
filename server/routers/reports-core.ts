@@ -80,7 +80,7 @@ export const reportsRouter = router({
           }
         }
 
-        // Fetch Caldera operation results
+        // Fetch Cyber C2 operation results
         let calderaOpsData: any[] = [];
         try {
           const calderaUrl = ENV.calderaBaseUrl;
@@ -560,7 +560,7 @@ ${domainIntelData.slice(0, 3).map(s => {
 Matched Threat Actors (${threatActorMatches.length} actors targeting this organization):
 ${threatActorMatches.slice(0, 10).map((a: any) => "- " + a.name + " (" + a.origin + ") - Score: " + a.matchScore + "/100 - Techniques: " + (a.techniques?.length || 0)).join('\n')}
 
-Caldera Operation Results (${calderaOpsData.length} operations):
+Cyber C2 Operation Results (${calderaOpsData.length} operations):
 ${calderaOpsData.map((op: any) => JSON.stringify({
   name: op.name,
   state: op.state,

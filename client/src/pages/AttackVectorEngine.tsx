@@ -72,7 +72,7 @@ export default function AttackVectorEngine() {
 
   const generatePlaybookMutation = trpc.attackVectorEngine.generatePlaybook.useMutation({
     onSuccess: () => {
-      toast.success("Attack playbook generated with Caldera abilities and Metasploit modules mapped");
+      toast.success("Attack playbook generated with emulation abilities and Metasploit modules mapped");
       playbooks.refetch();
       setShowPlaybookDialog(false);
     },
@@ -101,7 +101,7 @@ export default function AttackVectorEngine() {
             Attack Vector Engine
           </h1>
           <p className="text-muted-foreground mt-1">
-            Cross-reference OSINT, dark web intel, exploits, and threat actor TTPs to identify actionable attack vectors with Caldera and Metasploit mappings
+            Cross-reference OSINT, dark web intel, exploits, and threat actor TTPs to identify actionable attack vectors with Cyber C2 and Metasploit mappings
           </p>
         </div>
         <div className="flex gap-2">
@@ -260,7 +260,7 @@ export default function AttackVectorEngine() {
                           )}
                           {vector.calderaAbilityIds && (
                             <span className="flex items-center gap-1">
-                              <Swords className="h-3 w-3 text-purple-500" /> {safeJsonParse<any[]>(vector.calderaAbilityIds, []).length} Caldera abilities
+                              <Swords className="h-3 w-3 text-purple-500" /> {safeJsonParse<any[]>(vector.calderaAbilityIds, []).length} emulation abilities
                             </span>
                           )}
                           {vector.msfModuleIds && (
@@ -354,7 +354,7 @@ export default function AttackVectorEngine() {
             <div>
               <h3 className="font-medium">Attack Playbooks</h3>
               <p className="text-sm text-muted-foreground">
-                Pre/post-exploitation workflows with mapped Caldera abilities and Metasploit modules
+                Pre/post-exploitation workflows with mapped emulation abilities and Metasploit modules
               </p>
             </div>
           </div>
@@ -397,7 +397,7 @@ export default function AttackVectorEngine() {
                           {pb.estimatedDuration && <span>Duration: {pb.estimatedDuration}</span>}
                           {pb.calderaAbilities && (
                             <span className="text-purple-400">
-                              {safeJsonParse<any[]>(pb.calderaAbilities, []).length} Caldera abilities
+                              {safeJsonParse<any[]>(pb.calderaAbilities, []).length} emulation abilities
                             </span>
                           )}
                           {pb.msfModules && (
@@ -444,7 +444,7 @@ export default function AttackVectorEngine() {
           <DialogHeader>
             <DialogTitle>Analyze Attack Sources</DialogTitle>
             <DialogDescription>
-              Cross-reference OSINT findings, dark web intelligence, exploit catalogs, and threat actor TTPs to identify attack vectors with Caldera and Metasploit mappings.
+              Cross-reference OSINT findings, dark web intelligence, exploit catalogs, and threat actor TTPs to identify attack vectors with Cyber C2 and Metasploit mappings.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
@@ -499,7 +499,7 @@ export default function AttackVectorEngine() {
           <DialogHeader>
             <DialogTitle>Generate Attack Playbook</DialogTitle>
             <DialogDescription>
-              Create an engagement playbook from {selectedVectors.length} selected attack vectors with Caldera abilities and Metasploit modules mapped to each kill chain phase.
+              Create an engagement playbook from {selectedVectors.length} selected attack vectors with emulation abilities and Metasploit modules mapped to each kill chain phase.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

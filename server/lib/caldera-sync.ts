@@ -43,7 +43,7 @@ interface CalderaAbility {
 
 async function fetchCalderaAPI(endpoint: string, retries = 2): Promise<any> {
   if (!CALDERA_BASE_URL || !CALDERA_API_KEY) {
-    throw new Error("Caldera credentials not configured");
+    throw new Error("Cyber C2 credentials not configured");
   }
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -60,7 +60,7 @@ async function fetchCalderaAPI(endpoint: string, retries = 2): Promise<any> {
       return response.json();
     } catch (err: any) {
       if (attempt === retries) throw err;
-      console.warn(`[Caldera Sync] Fetch attempt ${attempt + 1} failed for ${endpoint}, retrying in 3s...`);
+      console.warn(`[Cyber C2 Sync] Fetch attempt ${attempt + 1} failed for ${endpoint}, retrying in 3s...`);
       await new Promise(r => setTimeout(r, 3000));
     }
   }
@@ -112,7 +112,7 @@ export interface SyncResult {
  * Optimized with batch upserts and deduplication.
  */
 export async function syncCalderaAdversaries(): Promise<SyncResult> {
-  console.log("[Caldera Sync] Starting adversary sync...");
+  console.log("[Cyber C2 Sync] Starting adversary sync...");
   
   const result: SyncResult = {
     totalCalderaAdversaries: 0,
@@ -124,19 +124,19 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
   };
 
   try {
-    // Fetch all adversaries and abilities from Caldera
-    console.log("[Caldera Sync] Fetching data from Caldera API...");
+    // Fetch all adversaries and abilities from Cyber C2
+    console.log("[Cyber C2 Sync] Fetching data from Cyber C2 API...");
     const [adversaries, abilities] = await Promise.all([
       fetchCalderaAPI("/api/v2/adversaries") as Promise<CalderaAdversary[]>,
       fetchCalderaAPI("/api/v2/abilities") as Promise<CalderaAbility[]>,
     ]);
 
     if (!Array.isArray(adversaries)) {
-      throw new Error("Invalid adversaries response from Caldera");
+      throw new Error("Invalid adversaries response from Cyber C2");
     }
 
     result.totalCalderaAdversaries = adversaries.length;
-    console.log(`[Caldera Sync] Fetched ${adversaries.length} adversaries and ${Array.isArray(abilities) ? abilities.length : 0} abilities`);
+    console.log(`[Cyber C2 Sync] Fetched ${adversaries.length} adversaries and ${Array.isArray(abilities) ? abilities.length : 0} abilities`);
 
     // Build ability lookup map
     const abilityMap = new Map<string, CalderaAbility>();
@@ -157,7 +157,7 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
       }
     }
     
-    console.log(`[Caldera Sync] ${uniqueAdversaries.size} unique adversaries after dedup (from ${adversaries.length})`);
+    console.log(`[Cyber C2 Sync] ${uniqueAdversaries.size} unique adversaries after dedup (from ${adversaries.length})`);
 
     // Process in batches of 25
     const BATCH_SIZE = 25;
@@ -169,7 +169,7 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
       const totalBatches = Math.ceil(entries.length / BATCH_SIZE);
       
       if (batchNum % 5 === 1 || batchNum === totalBatches) {
-        console.log(`[Caldera Sync] Processing batch ${batchNum}/${totalBatches}...`);
+        console.log(`[Cyber C2 Sync] Processing batch ${batchNum}/${totalBatches}...`);
       }
       
       // Process batch concurrently with Promise.allSettled
@@ -244,14 +244,14 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
       }
     }
 
-    console.log(`[Caldera Sync] Complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities mapped`);
+    console.log(`[Cyber C2 Sync] Complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities mapped`);
     if (result.errors.length > 0) {
-      console.warn(`[Caldera Sync] ${result.errors.length} errors:`, result.errors.slice(0, 5));
+      console.warn(`[Cyber C2 Sync] ${result.errors.length} errors:`, result.errors.slice(0, 5));
     }
 
     return result;
   } catch (err: any) {
-    console.error("[Caldera Sync] Fatal error:", err.message);
+    console.error("[Cyber C2 Sync] Fatal error:", err.message);
     result.errors.push(`Fatal: ${err.message}`);
     return result;
   }
@@ -262,20 +262,20 @@ export async function syncCalderaAdversaries(): Promise<SyncResult> {
  * Runs daily at 07:00 UTC (1 hour after IOC sync at 06:00).
  */
 export function initCalderaSyncSchedule() {
-  console.log("[Caldera Sync] Scheduling daily sync at 07:00 UTC");
+  console.log("[Cyber C2 Sync] Scheduling daily sync at 07:00 UTC");
   
   const task = cron.schedule("0 7 * * *", async () => {
-    console.log(`[Caldera Sync] Scheduled sync starting at ${new Date().toISOString()}`);
+    console.log(`[Cyber C2 Sync] Scheduled sync starting at ${new Date().toISOString()}`);
     try {
       const result = await syncCalderaAdversaries();
-      console.log(`[Caldera Sync] Scheduled sync complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities`);
+      console.log(`[Cyber C2 Sync] Scheduled sync complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities`);
     } catch (err: any) {
-      console.error("[Caldera Sync] Scheduled sync failed:", err.message);
+      console.error("[Cyber C2 Sync] Scheduled sync failed:", err.message);
     }
   }, {
     timezone: "UTC",
   });
 
   task.start();
-  console.log("[Caldera Sync] Daily sync cron job active");
+  console.log("[Cyber C2 Sync] Daily sync cron job active");
 }

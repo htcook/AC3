@@ -1814,7 +1814,7 @@ export const domainIntelRouter = router({
         };
       }),
 
-    // Deploy matched exploits as Caldera abilities
+    // Deploy matched exploits as emulation abilities
     deployExploits: protectedProcedure
       .input(z.object({
         scanId: z.number(),

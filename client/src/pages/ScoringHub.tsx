@@ -2287,7 +2287,7 @@ function CarverModuleTab() {
               </CardTitle>
               <CardDescription className="text-zinc-400 mt-1">
                 Industry-aware hybrid scoring presets with NAICS inference, regulatory overlays,
-                threat actor likelihood, and Caldera operation prioritization.
+                threat actor likelihood, and Cyber C2 operation prioritization.
                 Trained on 124 domains across 18 sectors.
               </CardDescription>
             </div>
@@ -2434,11 +2434,11 @@ function CarverModuleTab() {
                 </div>
               </div>
 
-              {/* Caldera Priority */}
+              {/* Cyber C2 Priority */}
               {riskCardData.calderaPriority && (
                 <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20">
                   <h4 className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-1">
-                    <Target className="w-3 h-3 text-red-400" /> Caldera Operation Priority
+                    <Target className="w-3 h-3 text-red-400" /> Cyber C2 Operation Priority
                   </h4>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div>
@@ -2627,7 +2627,7 @@ function CarverModuleTab() {
                   <div className="flex justify-between"><span className="text-zinc-400">Scoring Calibration</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
                   <div className="flex justify-between"><span className="text-zinc-400">Sector Baselines</span><Badge variant="outline" className="text-[9px]">18 sectors</Badge></div>
                   <div className="flex justify-between"><span className="text-zinc-400">Threat Likelihood</span><Badge variant="outline" className="text-[9px]">18 sectors</Badge></div>
-                  <div className="flex justify-between"><span className="text-zinc-400">Caldera Operations</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
+                  <div className="flex justify-between"><span className="text-zinc-400">Cyber C2 Operations</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
                   <div className="flex justify-between"><span className="text-zinc-400">Prompt-Response Pairs</span><Badge variant="outline" className="text-[9px]">124 pairs</Badge></div>
                 </div>
               </div>

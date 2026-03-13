@@ -10,7 +10,7 @@ export const vulnScannerRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
     const { desc } = await import("drizzle-orm");
-    return db.select().from(vulnScanImports).orderBy(desc(vulnScanImports.importedAt));
+    return db.select().from(vulnScanImports).orderBy(desc(vulnScanImports.vsiImportedAt));
   }),
 
   importScan: protectedProcedure
@@ -27,8 +27,8 @@ export const vulnScannerRouter = router({
       const [existingImport] = await db.select({ id: vulnScanImports.id })
         .from(vulnScanImports)
         .where(andCheck(
-          eqCheck(vulnScanImports.fileName, input.fileName),
-          eqCheck(vulnScanImports.scannerType, input.scannerType)
+          eqCheck(vulnScanImports.vsiFileName, input.fileName),
+          eqCheck(vulnScanImports.vsiScannerType, input.scannerType)
         ))
         .limit(1);
       if (existingImport) {
@@ -38,15 +38,15 @@ export const vulnScannerRouter = router({
       const result = await parseVulnScan(input.scannerType, input.fileContent);
 
       const importResult = await db.insert(vulnScanImports).values({
-        scannerType: input.scannerType,
-        fileName: input.fileName,
-        totalHosts: result.totalHosts,
-        totalVulns: result.totalVulns,
-        criticalCount: result.criticalCount,
-        highCount: result.highCount,
-        mediumCount: result.mediumCount,
-        lowCount: result.lowCount,
-        importedBy: String(ctx.user.id),
+        vsiScannerType: input.scannerType,
+        vsiFileName: input.fileName,
+        vsiTotalHosts: result.totalHosts,
+        vsiTotalVulns: result.totalVulns,
+        vsiCritical: result.criticalCount,
+        vsiHigh: result.highCount,
+        vsiMedium: result.mediumCount,
+        vsiLow: result.lowCount,
+        vsiImportedBy: String(ctx.user.id),
       });
 
       const importId = importResult[0].insertId;
@@ -337,15 +337,15 @@ export const vulnScannerRouter = router({
       const result = await pullScanResults(input, input.scanId);
 
       const importResult = await db.insert(vulnScanImports).values({
-        scannerType: input.type,
-        fileName: `API Pull: ${input.type} scan #${input.scanId}`,
-        totalHosts: result.totalHosts,
-        totalVulns: result.totalVulns,
-        criticalCount: result.criticalCount,
-        highCount: result.highCount,
-        mediumCount: result.mediumCount,
-        lowCount: result.lowCount,
-        importedBy: String(ctx.user.id),
+        vsiScannerType: input.type,
+        vsiFileName: `API Pull: ${input.type} scan #${input.scanId}`,
+        vsiTotalHosts: result.totalHosts,
+        vsiTotalVulns: result.totalVulns,
+        vsiCritical: result.criticalCount,
+        vsiHigh: result.highCount,
+        vsiMedium: result.mediumCount,
+        vsiLow: result.lowCount,
+        vsiImportedBy: String(ctx.user.id),
       });
 
       const importId = importResult[0].insertId;

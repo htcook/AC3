@@ -52,8 +52,8 @@ const EXPLOIT_EMULATION: PageFeatureInfo[] = [
   { path: "/msf-servers", name: "MSF Servers", group: "Exploit & Emulation", purpose: "Manage Metasploit Framework server instances for exploitation.", features: ["MSF server management", "Module browser", "Listener configuration"], commonTasks: ["Start/stop MSF servers", "Configure listeners"] },
   { path: "/msf-sessions", name: "MSF Sessions", group: "Exploit & Emulation", purpose: "Monitor and interact with active Metasploit sessions.", features: ["Session list", "Session interaction", "Post-exploitation modules"], commonTasks: ["Manage active sessions", "Run post-exploitation"] },
   { path: "/sliver-c2", name: "Sliver C2", group: "Exploit & Emulation", purpose: "Sliver C2 framework integration for implant management.", features: ["Implant management", "Listener config", "Beacon/session control"], commonTasks: ["Deploy Sliver implants", "Manage beacons"] },
-  { path: "/c2-command-center", name: "C2 Command Center", group: "Exploit & Emulation", purpose: "Unified command center for all C2 frameworks (Caldera, MSF, Sliver).", features: ["Multi-framework view", "Unified command interface", "Cross-framework session management"], commonTasks: ["Manage all C2 sessions", "Execute cross-framework commands"] },
-  { path: "/abilities-library", name: "Abilities Library", group: "Exploit & Emulation", purpose: "Library of Caldera abilities (atomic actions) mapped to MITRE ATT&CK.", features: ["Ability browser", "ATT&CK mapping", "Custom ability creation"], commonTasks: ["Browse abilities", "Create custom abilities"] },
+  { path: "/c2-command-center", name: "C2 Command Center", group: "Exploit & Emulation", purpose: "Unified command center for all C2 frameworks (Cyber C2, MSF, Sliver).", features: ["Multi-framework view", "Unified command interface", "Cross-framework session management"], commonTasks: ["Manage all C2 sessions", "Execute cross-framework commands"] },
+  { path: "/abilities-library", name: "Abilities Library", group: "Exploit & Emulation", purpose: "Library of emulation abilities (atomic actions) mapped to MITRE ATT&CK.", features: ["Ability browser", "ATT&CK mapping", "Custom ability creation"], commonTasks: ["Browse abilities", "Create custom abilities"] },
   { path: "/atomic-red-team", name: "Atomic Red Team", group: "Exploit & Emulation", purpose: "Atomic Red Team test library for validating detection capabilities.", features: ["Atomic test browser", "Test execution", "Result tracking"], commonTasks: ["Run atomic tests", "Validate detections"] },
   { path: "/payload-generator", name: "Payload Generator", group: "Exploit & Emulation", purpose: "Generate custom payloads for various platforms and protocols.", features: ["Multi-platform payload generation", "Encoding options", "Evasion techniques"], commonTasks: ["Generate reverse shells", "Create encoded payloads"] },
   { path: "/evasion-engine", name: "Evasion Engine", group: "Exploit & Emulation", purpose: "Test and develop defense evasion techniques against security controls.", features: ["Evasion technique library", "EDR bypass testing", "Payload obfuscation"], commonTasks: ["Test evasion techniques", "Obfuscate payloads"] },
@@ -142,7 +142,7 @@ const TRAINING: PageFeatureInfo[] = [
   { path: "/training-lab", name: "Training Lab", group: "Training & Learning", purpose: "Hands-on training environment with vulnerable targets for skill development.", features: ["Lab environments", "Guided exercises", "Skill tracking"], commonTasks: ["Launch training labs", "Complete exercises"] },
   { path: "/training-dashboard", name: "Training Dashboard", group: "Training & Learning", purpose: "Track team training progress and skill development metrics.", features: ["Progress tracking", "Skill metrics", "Certification tracking"], commonTasks: ["Review training progress", "Track certifications"] },
   { path: "/knowledge-base", name: "Knowledge Base", group: "Training & Learning", purpose: "Platform knowledge base with guides, tutorials, and reference documentation.", features: ["Searchable docs", "Tutorials", "Best practices", "FAQ"], commonTasks: ["Search for guides", "Read tutorials"] },
-  { path: "/guide/caldera", name: "Caldera Guide", group: "Training & Learning", purpose: "Comprehensive guide to using the Caldera C2 framework.", features: ["Setup guide", "Usage tutorials", "Best practices"], commonTasks: ["Learn Caldera basics", "Follow setup guide"] },
+  { path: "/guide/caldera", name: "Emulation Guide", group: "Training & Learning", purpose: "Comprehensive guide to using the Cyber C2 emulation framework.", features: ["Setup guide", "Usage tutorials", "Best practices"], commonTasks: ["Learn emulation basics", "Follow setup guide"] },
   { path: "/guide/gophish", name: "GoPhish Guide", group: "Training & Learning", purpose: "Guide to using GoPhish for phishing campaign management.", features: ["GoPhish setup", "Campaign tutorials", "Template creation"], commonTasks: ["Learn GoPhish", "Create first campaign"] },
 ];
 
@@ -244,7 +244,7 @@ export function buildPlatformOverview(): string {
 
   const parts: string[] = [
     `\n--- ACE C3 PLATFORM OVERVIEW ---`,
-    `Ace C3 (Caldera Command & Control) is a comprehensive offensive security platform built by AceofCloud.`,
+    `Ace C3 (Cyber Command & Control) is a comprehensive offensive security platform built by AceofCloud.`,
     `It provides end-to-end capabilities for penetration testing, red teaming, and security validation.`,
     `\nPlatform Modules:`,
   ];

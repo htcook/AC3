@@ -38,6 +38,9 @@ const SCANNER_ICONS: Record<string, React.ReactNode> = {
   arachni: <Globe className="w-5 h-5" />,
   "ssh-audit": <Terminal className="w-5 h-5" />,
   "ftp-audit": <FolderOpen className="w-5 h-5" />,
+  "smtp-audit": <Globe className="w-5 h-5" />,
+  "snmp-audit": <Wifi className="w-5 h-5" />,
+  "rdp-audit": <Server className="w-5 h-5" />,
 };
 
 const SCANNER_COLORS: Record<string, string> = {
@@ -46,6 +49,9 @@ const SCANNER_COLORS: Record<string, string> = {
   arachni: "text-violet-400",
   "ssh-audit": "text-amber-400",
   "ftp-audit": "text-rose-400",
+  "smtp-audit": "text-orange-400",
+  "snmp-audit": "text-teal-400",
+  "rdp-audit": "text-indigo-400",
 };
 
 // ─── Severity Badge ─────────────────────────────────────────────────────────
@@ -487,6 +493,252 @@ function FTPAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
   );
 }
 
+// ─── SMTP Audit Launch Dialog ──────────────────────────────────────────────
+
+function SMTPAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("25");
+  const [testRelay, setTestRelay] = useState(true);
+  const [checkDmarc, setCheckDmarc] = useState(true);
+  const [checkStarttls, setCheckStarttls] = useState(true);
+  const [enumerateUsers, setEnumerateUsers] = useState(false);
+  const [timeout, setTimeout] = useState("300");
+
+  const startScan = trpc.dastScanners.startSMTPAudit.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`SMTP audit complete: ${data.findings?.length || 0} findings`);
+      onClose();
+    },
+    onError: (e) => toast.error(`SMTP audit failed: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-orange-400" /> Launch SMTP Audit
+          </DialogTitle>
+          <DialogDescription>Mail server security — open relay, STARTTLS, DMARC/SPF, user enumeration</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Host (IP or hostname)</Label>
+            <Input placeholder="mail.target.com" value={host} onChange={e => setHost(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Port</Label>
+              <Input value={port} onChange={e => setPort(e.target.value)} />
+            </div>
+            <div>
+              <Label>Timeout (seconds)</Label>
+              <Input value={timeout} onChange={e => setTimeout(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={testRelay} onCheckedChange={setTestRelay} />
+              <Label>Test open relay</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkDmarc} onCheckedChange={setCheckDmarc} />
+              <Label>Check DMARC/SPF records</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkStarttls} onCheckedChange={setCheckStarttls} />
+              <Label>Check STARTTLS support</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={enumerateUsers} onCheckedChange={setEnumerateUsers} />
+              <Label>Enumerate users (VRFY/EXPN)</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => startScan.mutate({
+              host,
+              port: parseInt(port) || 25,
+              engagementId,
+              testRelay,
+              checkDmarc,
+              checkStarttls,
+              enumerateUsers,
+              timeoutSeconds: parseInt(timeout) || 300,
+            })}
+            disabled={!host || startScan.isPending}
+          >
+            {startScan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            Start Audit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── SNMP Audit Launch Dialog ──────────────────────────────────────────────
+
+function SNMPAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("161");
+  const [communityStrings, setCommunityStrings] = useState("public,private,community");
+  const [checkWriteAccess, setCheckWriteAccess] = useState(false);
+  const [enumerateOids, setEnumerateOids] = useState(true);
+  const [timeout, setTimeout] = useState("300");
+
+  const startScan = trpc.dastScanners.startSNMPAudit.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`SNMP audit complete: ${data.findings?.length || 0} findings`);
+      onClose();
+    },
+    onError: (e) => toast.error(`SNMP audit failed: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Wifi className="w-5 h-5 text-teal-400" /> Launch SNMP Audit
+          </DialogTitle>
+          <DialogDescription>SNMP community string brute-force, OID enumeration, write access detection</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Host (IP or hostname)</Label>
+            <Input placeholder="192.168.1.1" value={host} onChange={e => setHost(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Port</Label>
+              <Input value={port} onChange={e => setPort(e.target.value)} />
+            </div>
+            <div>
+              <Label>Timeout (seconds)</Label>
+              <Input value={timeout} onChange={e => setTimeout(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <Label>Community Strings (comma-separated)</Label>
+            <Input placeholder="public,private,community" value={communityStrings} onChange={e => setCommunityStrings(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={enumerateOids} onCheckedChange={setEnumerateOids} />
+              <Label>Enumerate OIDs (system info, interfaces)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkWriteAccess} onCheckedChange={setCheckWriteAccess} />
+              <Label>Check write access (caution: may modify device)</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => startScan.mutate({
+              host,
+              port: parseInt(port) || 161,
+              engagementId,
+              communityStrings: communityStrings.split(",").map(s => s.trim()).filter(Boolean),
+              checkWriteAccess,
+              enumerateOids,
+              timeoutSeconds: parseInt(timeout) || 300,
+            })}
+            disabled={!host || startScan.isPending}
+          >
+            {startScan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            Start Audit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── RDP Audit Launch Dialog ───────────────────────────────────────────────
+
+function RDPAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState("3389");
+  const [checkNla, setCheckNla] = useState(true);
+  const [checkBluekeep, setCheckBluekeep] = useState(true);
+  const [checkEncryption, setCheckEncryption] = useState(true);
+  const [timeout, setTimeout] = useState("300");
+
+  const startScan = trpc.dastScanners.startRDPAudit.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`RDP audit complete: ${data.findings?.length || 0} findings`);
+      onClose();
+    },
+    onError: (e) => toast.error(`RDP audit failed: ${e.message}`),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Server className="w-5 h-5 text-indigo-400" /> Launch RDP Audit
+          </DialogTitle>
+          <DialogDescription>Remote Desktop security — NLA enforcement, BlueKeep/DejaBlue CVEs, encryption level</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Host (IP or hostname)</Label>
+            <Input placeholder="192.168.1.1 or rdp.target.com" value={host} onChange={e => setHost(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Port</Label>
+              <Input value={port} onChange={e => setPort(e.target.value)} />
+            </div>
+            <div>
+              <Label>Timeout (seconds)</Label>
+              <Input value={timeout} onChange={e => setTimeout(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={checkNla} onCheckedChange={setCheckNla} />
+              <Label>Check NLA enforcement</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkBluekeep} onCheckedChange={setCheckBluekeep} />
+              <Label>Check BlueKeep (CVE-2019-0708)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkEncryption} onCheckedChange={setCheckEncryption} />
+              <Label>Check encryption level</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() => startScan.mutate({
+              host,
+              port: parseInt(port) || 3389,
+              engagementId,
+              checkNla,
+              checkBluekeep,
+              checkEncryption,
+              timeoutSeconds: parseInt(timeout) || 300,
+            })}
+            disabled={!host || startScan.isPending}
+          >
+            {startScan.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+            Start Audit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Service Audit Pipeline Dialog ──────────────────────────────────────────
 
 function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
@@ -494,6 +746,9 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
   const [profile, setProfile] = useState<string>("standard");
   const [enableSSH, setEnableSSH] = useState(true);
   const [enableFTP, setEnableFTP] = useState(true);
+  const [enableSMTP, setEnableSMTP] = useState(true);
+  const [enableSNMP, setEnableSNMP] = useState(true);
+  const [enableRDP, setEnableRDP] = useState(true);
   const [enableNikto, setEnableNikto] = useState(true);
   const [enableWapiti, setEnableWapiti] = useState(true);
   const [enableArachni, setEnableArachni] = useState(false);
@@ -564,6 +819,18 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                 <Label className="text-sm">FTP Audit</Label>
               </div>
               <div className="flex items-center gap-2">
+                <Switch checked={enableSMTP} onCheckedChange={setEnableSMTP} />
+                <Label className="text-sm">SMTP Audit</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={enableSNMP} onCheckedChange={setEnableSNMP} />
+                <Label className="text-sm">SNMP Audit</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={enableRDP} onCheckedChange={setEnableRDP} />
+                <Label className="text-sm">RDP Audit</Label>
+              </div>
+              <div className="flex items-center gap-2">
                 <Switch checked={enableNikto} onCheckedChange={setEnableNikto} />
                 <Label className="text-sm">Nikto</Label>
               </div>
@@ -591,6 +858,9 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                 enabledScanners: {
                   ssh: enableSSH,
                   ftp: enableFTP,
+                  smtp: enableSMTP,
+                  snmp: enableSNMP,
+                  rdp: enableRDP,
                   nikto: enableNikto,
                   wapiti: enableWapiti,
                   arachni: enableArachni,
@@ -727,6 +997,9 @@ export default function DastScanners() {
   const [showArachni, setShowArachni] = useState(false);
   const [showSSH, setShowSSH] = useState(false);
   const [showFTP, setShowFTP] = useState(false);
+  const [showSMTP, setShowSMTP] = useState(false);
+  const [showSNMP, setShowSNMP] = useState(false);
+  const [showRDP, setShowRDP] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [toolFilter, setToolFilter] = useState<string>("all");
@@ -954,6 +1227,78 @@ export default function DastScanners() {
                 </CardContent>
               </Card>
 
+              {/* SMTP Audit */}
+              <Card className="border-orange-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-orange-400" /> SMTP Audit
+                  </CardTitle>
+                  <CardDescription>Mail server security — open relay, STARTTLS, DMARC/SPF, VRFY/EXPN user enumeration, CVE detection</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Fast</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 25/587</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowSMTP(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["smtp-audit"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["smtp-audit"]} audit(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* SNMP Audit */}
+              <Card className="border-teal-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Wifi className="w-5 h-5 text-teal-400" /> SNMP Audit
+                  </CardTitle>
+                  <CardDescription>Default community strings, write access detection, OID enumeration, version fingerprinting</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Fast</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 161</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowSNMP(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["snmp-audit"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["snmp-audit"]} audit(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* RDP Audit */}
+              <Card className="border-indigo-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Server className="w-5 h-5 text-indigo-400" /> RDP Audit
+                  </CardTitle>
+                  <CardDescription>NLA enforcement, BlueKeep/DejaBlue CVEs, encryption level, CredSSP analysis</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Fast</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 3389</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowRDP(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["rdp-audit"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["rdp-audit"]} audit(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Pipeline Card */}
               <Card className="border-yellow-500/20 bg-yellow-500/5">
                 <CardHeader className="pb-3">
@@ -989,9 +1334,14 @@ export default function DastScanners() {
                   <ChevronRight className="w-3 h-3" />
                   <Badge variant="outline" className="border-amber-500/30 text-amber-400">Port 22 → SSH Audit</Badge>
                   <Badge variant="outline" className="border-rose-500/30 text-rose-400">Port 21 → FTP Audit</Badge>
+                  <Badge variant="outline" className="border-orange-500/30 text-orange-400">Port 25/587 → SMTP Audit</Badge>
+                  <Badge variant="outline" className="border-teal-500/30 text-teal-400">Port 161 → SNMP Audit</Badge>
+                  <Badge variant="outline" className="border-indigo-500/30 text-indigo-400">Port 3389 → RDP Audit</Badge>
                   <Badge variant="outline" className="border-cyan-500/30 text-cyan-400">Port 80/443 → Nikto + Wapiti</Badge>
                   <ChevronRight className="w-3 h-3" />
                   <Badge variant="outline">Findings Aggregated</Badge>
+                  <ChevronRight className="w-3 h-3" />
+                  <Badge variant="outline" className="border-purple-500/30 text-purple-400">CARVER+Shock Scoring</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -1016,6 +1366,9 @@ export default function DastScanners() {
                       <SelectItem value="arachni">Arachni</SelectItem>
                       <SelectItem value="ssh-audit">SSH Audit</SelectItem>
                       <SelectItem value="ftp-audit">FTP Audit</SelectItem>
+                      <SelectItem value="smtp-audit">SMTP Audit</SelectItem>
+                      <SelectItem value="snmp-audit">SNMP Audit</SelectItem>
+                      <SelectItem value="rdp-audit">RDP Audit</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button variant="ghost" size="sm" onClick={() => resultsQuery.refetch()}>
@@ -1078,6 +1431,9 @@ export default function DastScanners() {
         <ArachniLaunchDialog open={showArachni} onClose={() => setShowArachni(false)} engagementId={engagementId} />
         <SSHAuditLaunchDialog open={showSSH} onClose={() => setShowSSH(false)} engagementId={engagementId} />
         <FTPAuditLaunchDialog open={showFTP} onClose={() => setShowFTP(false)} engagementId={engagementId} />
+        <SMTPAuditLaunchDialog open={showSMTP} onClose={() => setShowSMTP(false)} engagementId={engagementId} />
+        <SNMPAuditLaunchDialog open={showSNMP} onClose={() => setShowSNMP(false)} engagementId={engagementId} />
+        <RDPAuditLaunchDialog open={showRDP} onClose={() => setShowRDP(false)} engagementId={engagementId} />
         <PipelineLaunchDialog open={showPipeline} onClose={() => setShowPipeline(false)} engagementId={engagementId} />
       </div>
     </AppShell>

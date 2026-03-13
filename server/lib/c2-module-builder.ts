@@ -534,10 +534,10 @@ function validateFrameworkCode(gen: GeneratedModule): { errors: string[]; warnin
 
   switch (gen.framework) {
     case "caldera":
-      if (!gen.code.includes("id:")) errors.push("Caldera: Missing ability ID");
-      if (!gen.code.includes("name:")) errors.push("Caldera: Missing ability name");
-      if (!gen.code.includes("tactic:")) errors.push("Caldera: Missing tactic");
-      if (!gen.code.includes("platform:")) warnings.push("Caldera: No platform specified");
+      if (!gen.code.includes("id:")) errors.push("Cyber C2: Missing ability ID");
+      if (!gen.code.includes("name:")) errors.push("Cyber C2: Missing ability name");
+      if (!gen.code.includes("tactic:")) errors.push("Cyber C2: Missing tactic");
+      if (!gen.code.includes("platform:")) warnings.push("Cyber C2: No platform specified");
       break;
 
     case "metasploit":
@@ -642,12 +642,12 @@ export async function pushModulesToC2(
       // Framework-specific push logic
       switch (gen.framework) {
         case "caldera": {
-          // Caldera abilities are pushed via POST /api/v2/abilities
+          // emulation abilities are pushed via POST /api/v2/abilities
           const { ENV } = await import("../_core/env");
           const baseUrl = ENV.calderaBaseUrl;
           const apiKey = ENV.calderaApiKey;
           if (!baseUrl || !apiKey) {
-            results.push({ framework: "caldera", success: false, error: "Caldera not configured" });
+            results.push({ framework: "caldera", success: false, error: "Cyber C2 not configured" });
             continue;
           }
           // Parse YAML to extract ability data

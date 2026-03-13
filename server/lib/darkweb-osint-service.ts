@@ -525,7 +525,7 @@ export async function fetchHIBPBreaches(): Promise<FeedResult> {
   const start = Date.now();
   try {
     const res = await safeFetch("https://haveibeenpwned.com/api/v3/breaches", {
-      headers: { "User-Agent": "CalderaDashboard-ThreatIntel" },
+      headers: { "User-Agent": "CyberC2Dashboard-ThreatIntel" },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const breaches = (await res.json()) as any[];

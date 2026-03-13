@@ -549,7 +549,7 @@ Make the phishing content highly realistic and tailored to the target domain and
       const calderaApiKey = ENV.calderaApiKey;
 
       if (!calderaUrl || !calderaApiKey) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Caldera not configured" });
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cyber C2 not configured" });
       }
 
       const [draft] = await db.select().from(phishingDrafts)
@@ -575,7 +575,7 @@ Make the phishing content highly realistic and tailored to the target domain and
 
       if (!opRes.ok) {
         const errText = await opRes.text();
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Caldera operation creation failed: ${errText}` });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Cyber C2 operation creation failed: ${errText}` });
       }
 
       const operation = await opRes.json();
@@ -589,7 +589,7 @@ Make the phishing content highly realistic and tailored to the target domain and
         success: true,
         calderaOperationId: operation.id,
         operationName: opName,
-        message: `Caldera operation "${opName}" created and linked to campaign`,
+        message: `Cyber C2 operation "${opName}" created and linked to campaign`,
       };
     }),
 });

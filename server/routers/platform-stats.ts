@@ -13,7 +13,7 @@ export const platformStatsRouter = router({
       // Threat actors count from DB
       const threatActorCount = await db.getThreatActorCount();
 
-      // Caldera abilities count (from catalog or live API)
+      // emulation abilities count (from catalog or live API)
       const calderaAbilities = catalogStats.bySource['caldera_stockpile'] || 0;
 
       // Metasploit modules count (from catalog)

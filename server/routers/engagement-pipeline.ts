@@ -31,7 +31,7 @@ export const engagementPipelineRouter = router({
             { step: 1, name: 'Domain Intel Scan', status: 'pending', timestamp: Date.now() },
             { step: 2, name: 'Risk Assessment', status: 'pending', timestamp: Date.now() },
             { step: 3, name: 'Campaign Recommendations', status: 'pending', timestamp: Date.now() },
-            { step: 4, name: 'Create Caldera Operation', status: 'pending', timestamp: Date.now() },
+            { step: 4, name: 'Create Cyber C2 Operation', status: 'pending', timestamp: Date.now() },
             { step: 5, name: 'Create GoPhish Campaign', status: 'pending', timestamp: Date.now() },
             { step: 6, name: 'Create Engagement', status: 'pending', timestamp: Date.now() },
           ],
@@ -97,16 +97,16 @@ export const engagementPipelineRouter = router({
           stepLog[2] = { ...stepLog[2], status: 'complete', timestamp: Date.now() };
           emitPipelineStep({ pipelineId: input.pipelineId, step: 3, stepName: 'Campaign Recommendations', status: 'complete' });
 
-          // Step 4: Create Caldera Operation (ready state)
+          // Step 4: Create Cyber C2 Operation (ready state)
           stepLog[3] = { ...stepLog[3], status: 'running', timestamp: Date.now() };
           await db.updateEngagementPipeline(input.pipelineId, { currentStep: 4, stepLog });
-          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Caldera Operation', status: 'running' });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Cyber C2 Operation', status: 'running' });
           riskSummary.calderaOperation = {
             status: 'ready',
             recommendedAbilities: (scanResult.campaignRecommendations || []).flatMap((c: any) => c.calderaAbilities || []),
           };
           stepLog[3] = { ...stepLog[3], status: 'complete', timestamp: Date.now() };
-          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Caldera Operation', status: 'complete' });
+          emitPipelineStep({ pipelineId: input.pipelineId, step: 4, stepName: 'Create Cyber C2 Operation', status: 'complete' });
 
           // Step 5: Auto-Materialize Phishing Drafts from scan recommendations
           stepLog[4] = { ...stepLog[4], status: 'running', timestamp: Date.now() };

@@ -651,7 +651,7 @@ When generating content, adapt the templates above to the specific target contex
 
   /**
    * triggerCaldera — After a phishing campaign captures credentials,
-   * trigger a Caldera operation for post-exploitation.
+   * trigger a Cyber C2 operation for post-exploitation.
    */
   triggerCaldera: protectedProcedure
     .input(z.object({
@@ -675,13 +675,13 @@ When generating content, adapt the templates above to the specific target contex
         });
       }
 
-      // Create a Caldera operation using the linked abilities
+      // Create a Cyber C2 operation using the linked abilities
       const { ENV } = await import("../_core/env");
       const calderaUrl = ENV.calderaBaseUrl;
       const calderaApiKey = ENV.calderaApiKey;
 
       if (!calderaUrl || !calderaApiKey) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Caldera not configured" });
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cyber C2 not configured" });
       }
 
       const operationName = input.operationName ||
@@ -714,7 +714,7 @@ When generating content, adapt the templates above to the specific target contex
 
         const operation = await res.json();
 
-        // Update draft with Caldera operation ID
+        // Update draft with Cyber C2 operation ID
         await db.update(phishingDrafts).set({
           calderaOperationId: operation.id || operation.name,
         }).where(eq(phishingDrafts.id, input.draftId));
@@ -724,12 +724,12 @@ When generating content, adapt the templates above to the specific target contex
           operationId: operation.id,
           operationName: operation.name,
           state: operation.state,
-          message: `Caldera operation "${operationName}" created in PAUSED state. Review and start manually.`,
+          message: `Cyber C2 operation "${operationName}" created in PAUSED state. Review and start manually.`,
         };
       } catch (e: any) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: `Failed to create Caldera operation: ${e.message}`,
+          message: `Failed to create Cyber C2 operation: ${e.message}`,
         });
       }
     }),
@@ -927,7 +927,7 @@ When generating content, adapt the templates above to the specific target contex
 
   /**
    * generateReport — Generate a branded AceofCloud post-campaign report
-   * Pulls GoPhish campaign stats + Caldera operation results into a structured report.
+   * Pulls GoPhish campaign stats + Cyber C2 operation results into a structured report.
    */
   generateReport: protectedProcedure
     .input(z.object({
@@ -1010,7 +1010,7 @@ When generating content, adapt the templates above to the specific target contex
         riskScore >= 50 ? "High" :
         riskScore >= 30 ? "Medium" : "Low";
 
-      // Caldera operation results
+      // Cyber C2 operation results
       let calderaResults: any = null;
       if (input.includeCaldera && draft.calderaOperationId) {
         try {
@@ -1026,7 +1026,7 @@ When generating content, adapt the templates above to the specific target contex
             }
           }
         } catch (e: any) {
-          console.warn(`[Report] Could not fetch Caldera operation:`, e.message);
+          console.warn(`[Report] Could not fetch Cyber C2 operation:`, e.message);
         }
       }
 
