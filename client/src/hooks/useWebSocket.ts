@@ -83,7 +83,10 @@ export type WsEventType =
   | "job:worker_lost"
   // System events
   | "system:notification"
-  | "system:alert";
+  | "system:alert"
+  // Cockpit timeline events
+  | "cockpit:timeline_event"
+  | "cockpit:opsec_update";
 
 export interface WsEvent {
   type: WsEventType;
@@ -474,6 +477,42 @@ export function usePrivescEvents(engagementId?: number) {
     []
   );
   return useWebSocket({ channels, filterTypes, maxEvents: 50 });
+}
+
+// ─── Operator Cockpit hooks ────────────────────────────────────────
+/** Hook for the Operator Cockpit — real-time timeline events from all sources */
+export function useCockpitTimeline() {
+  const filterTypes = useMemo<WsEventType[]>(
+    () => [
+      // Scan/recon events
+      "recon:started", "recon:complete", "recon:finding", "domain:scan_complete",
+      // Exploit/agent events
+      "exploit:fired", "exploit:result", "exploit:session_opened",
+      "agent:deployed", "agent:checkin", "agent:lost",
+      // Operation events
+      "operation:started", "operation:step_complete", "operation:finished",
+      // OPSEC events
+      "opsec:action_scored", "opsec:burn_detected", "opsec:threshold_warning", "opsec:risk_update",
+      // Credential events
+      "credential:attack_started", "credential:attack_complete", "credential:found",
+      // Lateral/privesc events
+      "lateral:movement_executed", "privesc:escalation_found",
+      // Campaign events
+      "campaign:launched", "campaign:creds_submitted",
+      // Engagement events
+      "engagement:phase_changed", "engagement:timeline_event",
+      // Pipeline events
+      "pipeline:started", "pipeline:finished",
+      // Job events
+      "job:completed", "job:failed",
+      // System events
+      "system:alert", "system:notification",
+      // Cockpit-specific
+      "cockpit:timeline_event", "cockpit:opsec_update",
+    ],
+    []
+  );
+  return useWebSocket({ filterTypes, maxEvents: 100, showToasts: true });
 }
 
 // ─── Engagement Workflow hooks ──────────────────────────────────────

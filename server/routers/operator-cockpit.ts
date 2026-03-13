@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { invokeLLM } from "../_core/llm";
 import { desc, sql, and, gte, isNotNull, eq, count } from "drizzle-orm";
 import {
   activityLogs,
@@ -357,6 +358,131 @@ export const operatorCockpitRouter = router({
 
     return { activeEngagements, runningScans, criticalFindings };
   }),
+
+  /**
+   * LLM Campaign Advisor — generates contextual next-action recommendations
+   * based on current OPSEC score, active engagements, and recent events.
+   */
+  campaignAdvice: protectedProcedure
+    .input(z.object({
+      opsecScore: z.number().min(0).max(100).optional(),
+      noiseLevel: z.string().optional(),
+      detectionChance: z.number().min(0).max(100).optional(),
+      activeEngagements: z.number().optional(),
+      highRiskEvents: z.number().optional(),
+      burnedAssets: z.array(z.string()).optional(),
+      recentEvents: z.array(z.object({
+        category: z.string(),
+        severity: z.string(),
+        title: z.string(),
+        description: z.string(),
+      })).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const opsecScore = input?.opsecScore ?? 100;
+      const noiseLevel = input?.noiseLevel ?? "stealth";
+      const detectionChance = input?.detectionChance ?? 0;
+      const activeEngagements = input?.activeEngagements ?? 0;
+      const highRiskEvents = input?.highRiskEvents ?? 0;
+      const burnedAssets = input?.burnedAssets ?? [];
+      const recentEvents = input?.recentEvents ?? [];
+
+      // Build a context-rich prompt for the LLM
+      const recentEventsSummary = recentEvents.slice(0, 10).map(e =>
+        `- [${e.severity.toUpperCase()}] ${e.category}: ${e.title} — ${e.description}`
+      ).join("\n");
+
+      const systemPrompt = `You are an expert Red Team Campaign Advisor embedded in an offensive security operations platform. Your role is to provide concise, actionable tactical recommendations based on the current operational state.
+
+Rules:
+- Be specific and tactical, not generic
+- Reference specific MITRE ATT&CK techniques when relevant (use T-codes)
+- Consider OPSEC implications of every recommendation
+- If OPSEC score is low, prioritize stealth recovery actions
+- If burned assets exist, recommend rotation strategies
+- Keep each recommendation to 1-2 sentences
+- Return exactly 3-5 recommendations
+- Format as a JSON array of objects with "priority" (high/medium/low), "action" (short title), and "detail" (explanation)
+- Do not include any sensitivity markings or classified references`;
+
+      const userPrompt = `Current Operational State:
+- OPSEC Score: ${opsecScore}/100 (${opsecScore > 70 ? "CLEAN" : opsecScore > 40 ? "MODERATE" : "ELEVATED RISK"})
+- Noise Level: ${noiseLevel}
+- Detection Chance: ${detectionChance}%
+- Active Engagements: ${activeEngagements}
+- High-Risk Events (7d): ${highRiskEvents}
+- Burned Assets: ${burnedAssets.length > 0 ? burnedAssets.join(", ") : "None"}
+
+Recent Activity:
+${recentEventsSummary || "No recent events."}
+
+Provide tactical recommendations for the next operational actions.`;
+
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "campaign_advice",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  recommendations: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        priority: { type: "string", enum: ["high", "medium", "low"] },
+                        action: { type: "string", description: "Short action title" },
+                        detail: { type: "string", description: "1-2 sentence explanation" },
+                        technique: { type: "string", description: "MITRE ATT&CK T-code if applicable, or empty string" },
+                      },
+                      required: ["priority", "action", "detail", "technique"],
+                      additionalProperties: false,
+                    },
+                  },
+                  summary: { type: "string", description: "One-sentence operational summary" },
+                },
+                required: ["recommendations", "summary"],
+                additionalProperties: false,
+              },
+            },
+          },
+          _caller: "operator-cockpit-advisor",
+        });
+
+        const content = response.choices?.[0]?.message?.content;
+        if (content) {
+          const parsed = JSON.parse(content);
+          return {
+            success: true,
+            summary: parsed.summary || "Analysis complete.",
+            recommendations: parsed.recommendations || [],
+            generatedAt: new Date().toISOString(),
+          };
+        }
+
+        return {
+          success: false,
+          summary: "Unable to generate recommendations at this time.",
+          recommendations: [],
+          generatedAt: new Date().toISOString(),
+        };
+      } catch (error: any) {
+        console.error("[CampaignAdvisor] LLM error:", error?.message);
+        return {
+          success: false,
+          summary: "Campaign advisor temporarily unavailable.",
+          recommendations: [],
+          generatedAt: new Date().toISOString(),
+        };
+      }
+    }),
 });
 
 // ─── Helper Functions ───────────────────────────────────────────────────

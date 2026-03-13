@@ -1,17 +1,25 @@
 /**
- * Operator Cockpit — Wired to Real Data
+ * Operator Cockpit — Real-Time Command Center
  * 
  * Your real-time command center. View live operations, active scans,
  * engagement status, and OPSEC exposure at a glance.
  * 
+ * Features:
+ *   - WebSocket real-time timeline events (merged with DB history)
+ *   - Category filter toggles (scan/engagement/opsec/agent/system)
+ *   - LLM-powered Campaign Advisor with contextual recommendations
+ *   - OPSEC Gauge with score breakdown
+ * 
  * 3-column layout:
- *   Left   — Live Activity Timeline (real events from audit logs)
+ *   Left   — Live Activity Timeline (real-time + historical)
  *   Center — Scan Queue + Engagements (active operations)
- *   Right  — OPSEC Gauge (real score) + Campaign Advisor + Quick Launch
+ *   Right  — OPSEC Gauge + Campaign Advisor + Quick Launch
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useCockpitTimeline } from "@/hooks/useWebSocket";
+import type { WsEvent } from "@/hooks/useWebSocket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,15 +29,35 @@ import {
   AlertTriangle, CheckCircle2, Target, Brain, Network, Lock,
   Scan, Globe, Play, Plus, Loader2, Radar, Eye, Briefcase,
   ChevronRight, BarChart3, RefreshCw, TrendingDown, TrendingUp,
-  Radio, Shield, Flame
+  Radio, Shield, Flame, Filter, Sparkles, ChevronDown, ChevronUp
 } from "lucide-react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type TimelineCategory = "scan" | "engagement" | "opsec" | "agent" | "system";
+
+interface UnifiedTimelineEvent {
+  id: string;
+  category: TimelineCategory;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  title: string;
+  description: string;
+  timestamp: Date;
+  source: "db" | "ws";
+}
+
+interface LlmRecommendation {
+  priority: "high" | "medium" | "low";
+  action: string;
+  detail: string;
+  technique: string;
+}
 
 // ─── OPSEC Risk Gauge ─────────────────────────────────────────────────────────
 
 function OpsecGauge({ score, noiseLevel, detectionChance }: {
   score: number; noiseLevel: string; detectionChance: number;
 }) {
-  // Score is 0-100 where 100 = fully stealthy. Invert for display (exposure = 100 - stealth)
   const exposure = 100 - Math.min(100, Math.max(0, score));
   const color = exposure > 70 ? "text-red-500" : exposure > 40 ? "text-amber-500" : "text-emerald-500";
   const label = exposure > 70 ? "HIGH RISK" : exposure > 40 ? "MODERATE" : "LOW RISK";
@@ -48,15 +76,17 @@ function OpsecGauge({ score, noiseLevel, detectionChance }: {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className={`text-2xl font-display font-bold ${color}`}>{exposure}</span>
-          <span className="text-[8px] font-display tracking-widest text-muted-foreground">{label}</span>
+          <span className="text-[7px] font-display tracking-widest text-muted-foreground">{label}</span>
         </div>
       </div>
-      <div className="flex items-center gap-3 text-[9px]">
+      <div className="flex items-center gap-3 text-[10px]">
         <div className="flex items-center gap-1">
-          <Radio className="w-3 h-3 text-muted-foreground" />
-          <span className="text-muted-foreground">Noise:</span>
+          <Radio className={`w-3 h-3 ${
+            noiseLevel === "critical" ? "text-red-400" : noiseLevel === "elevated" ? "text-orange-400" :
+            noiseLevel === "moderate" ? "text-amber-400" : "text-emerald-400"
+          }`} />
           <span className={`font-display tracking-wider ${
-            noiseLevel === "critical" || noiseLevel === "elevated" ? "text-red-400" :
+            noiseLevel === "critical" ? "text-red-400" : noiseLevel === "elevated" ? "text-orange-400" :
             noiseLevel === "moderate" ? "text-amber-400" : "text-emerald-400"
           }`}>{(noiseLevel || "stealth").toUpperCase()}</span>
         </div>
@@ -109,11 +139,94 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>
   system: Activity,
 };
 
+const CATEGORY_COLORS: Record<string, string> = {
+  scan: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  engagement: "bg-red-500/20 text-red-400 border-red-500/30",
+  opsec: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  agent: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  system: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+};
+
+// ─── WebSocket event to timeline event converter ──────────────────────────────
+
+function wsEventToTimeline(wsEvent: WsEvent): UnifiedTimelineEvent {
+  const type = wsEvent.type;
+  let category: TimelineCategory = "system";
+  let severity: UnifiedTimelineEvent["severity"] = "info";
+  let title = type.replace(/[_:]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  let description = "";
+
+  if (type.startsWith("recon:") || type.startsWith("domain:")) {
+    category = "scan";
+    severity = type === "recon:complete" || type === "domain:scan_complete" ? "medium" : "low";
+    title = type === "recon:complete" ? "Recon Complete" : type === "recon:started" ? "Recon Started" :
+            type === "domain:scan_complete" ? "Domain Scan Complete" : "Recon Finding";
+    description = wsEvent.data?.domain || wsEvent.data?.target || JSON.stringify(wsEvent.data).slice(0, 80);
+  } else if (type.startsWith("exploit:") || type.startsWith("agent:")) {
+    category = "agent";
+    if (type === "exploit:result") {
+      severity = wsEvent.data?.success ? "high" : "medium";
+      title = wsEvent.data?.success ? "Exploit Succeeded" : "Exploit Failed";
+      description = `${wsEvent.data?.module || "Module"} on ${wsEvent.data?.targetIp || "target"}`;
+    } else if (type === "agent:deployed") {
+      severity = "high";
+      title = "Agent Deployed";
+      description = `${wsEvent.data?.paw || "agent"} on ${wsEvent.data?.host || "host"}`;
+    } else if (type === "agent:lost") {
+      severity = "critical";
+      title = "Agent Lost";
+      description = `${wsEvent.data?.paw || "agent"} on ${wsEvent.data?.host || "host"}`;
+    } else {
+      title = type.split(":")[1]?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || title;
+      description = wsEvent.data?.paw || wsEvent.data?.module || "";
+    }
+  } else if (type.startsWith("opsec:")) {
+    category = "opsec";
+    severity = type === "opsec:burn_detected" ? "critical" : type === "opsec:threshold_warning" ? "high" : "medium";
+    title = type === "opsec:burn_detected" ? "BURN DETECTED" : type === "opsec:threshold_warning" ? "Threshold Warning" :
+            type === "opsec:risk_update" ? "Risk Update" : "Action Scored";
+    description = wsEvent.data?.description || wsEvent.data?.indicator || wsEvent.data?.recommendation || "";
+  } else if (type.startsWith("credential:") || type.startsWith("lateral:") || type.startsWith("privesc:")) {
+    category = "engagement";
+    severity = type.includes("found") || type.includes("executed") || type.includes("escalation") ? "high" : "medium";
+    title = type.split(":")[1]?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || title;
+    description = wsEvent.data?.target || wsEvent.data?.technique || wsEvent.data?.username || "";
+  } else if (type.startsWith("operation:") || type.startsWith("engagement:") || type.startsWith("campaign:") || type.startsWith("pipeline:")) {
+    category = "engagement";
+    severity = type.includes("finished") || type.includes("complete") ? "medium" : "low";
+    title = type.split(":")[1]?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || title;
+    description = wsEvent.data?.name || wsEvent.data?.phase || "";
+  } else if (type.startsWith("job:")) {
+    category = "system";
+    severity = type === "job:failed" ? "high" : "low";
+    title = type === "job:completed" ? "Job Completed" : type === "job:failed" ? "Job Failed" : title;
+    description = wsEvent.data?.type || wsEvent.data?.error || "";
+  } else {
+    severity = wsEvent.data?.severity === "critical" ? "critical" : wsEvent.data?.severity === "error" ? "high" : "info";
+    description = wsEvent.data?.message || wsEvent.data?.title || "";
+  }
+
+  return {
+    id: `ws-${wsEvent.type}-${wsEvent.timestamp}-${Math.random().toString(36).slice(2, 6)}`,
+    category,
+    severity,
+    title,
+    description: description.slice(0, 120),
+    timestamp: new Date(wsEvent.timestamp),
+    source: "ws",
+  };
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function OperatorHome() {
   const [, navigate] = useLocation();
   const [timelineHours, setTimelineHours] = useState(24);
+  const [activeFilters, setActiveFilters] = useState<Set<TimelineCategory>>(
+    new Set(["scan", "engagement", "opsec", "agent", "system"])
+  );
+  const [showFilters, setShowFilters] = useState(false);
+  const [advisorExpanded, setAdvisorExpanded] = useState(false);
 
   // ── Real data queries ──
   const scansQuery = trpc.domainIntel.listScans.useQuery(undefined, {
@@ -123,7 +236,7 @@ export default function OperatorHome() {
 
   // Activity timeline from real audit logs
   const timelineQuery = trpc.operatorCockpit.activityTimeline.useQuery(
-    { limit: 25, hoursBack: timelineHours },
+    { limit: 50, hoursBack: timelineHours },
     { refetchInterval: 30000 }
   );
 
@@ -137,6 +250,80 @@ export default function OperatorHome() {
     refetchInterval: 30000,
   });
 
+  // ── WebSocket real-time events ──
+  const { events: wsEvents, status: wsStatus } = useCockpitTimeline();
+
+  // ── LLM Campaign Advisor ──
+  const advisorMutation = trpc.operatorCockpit.campaignAdvice.useMutation();
+  const [advisorResult, setAdvisorResult] = useState<{
+    summary: string;
+    recommendations: LlmRecommendation[];
+    generatedAt: string;
+  } | null>(null);
+
+  const generateAdvice = useCallback(() => {
+    const opsec = opsecQuery.data;
+    const timeline = timelineQuery.data;
+
+    advisorMutation.mutate({
+      opsecScore: opsec?.overallScore,
+      noiseLevel: opsec?.noiseLevel,
+      detectionChance: opsec?.detectionChance,
+      activeEngagements: opsec?.activeEngagements,
+      highRiskEvents: opsec?.highRiskEvents,
+      burnedAssets: opsec?.burnedAssets,
+      recentEvents: timeline?.events.slice(0, 10).map(e => ({
+        category: e.category,
+        severity: e.severity,
+        title: e.title,
+        description: e.description,
+      })),
+    }, {
+      onSuccess: (data) => {
+        if (data.success) {
+          setAdvisorResult({
+            summary: data.summary,
+            recommendations: data.recommendations,
+            generatedAt: data.generatedAt,
+          });
+          setAdvisorExpanded(true);
+        }
+      },
+    });
+  }, [opsecQuery.data, timelineQuery.data, advisorMutation]);
+
+  // ── Merge DB timeline + WebSocket events ──
+  const mergedTimeline = useMemo(() => {
+    const dbEvents: UnifiedTimelineEvent[] = (timelineQuery.data?.events || []).map((e: any) => ({
+      id: e.id,
+      category: e.category as TimelineCategory,
+      severity: e.severity,
+      title: e.title,
+      description: e.description,
+      timestamp: new Date(e.timestamp),
+      source: "db" as const,
+    }));
+
+    const wsConverted: UnifiedTimelineEvent[] = wsEvents.map(wsEventToTimeline);
+
+    // Merge and deduplicate (WS events that match recent DB events by title+time within 5s)
+    const merged = [...wsConverted];
+    for (const dbEvt of dbEvents) {
+      const isDuplicate = wsConverted.some(ws =>
+        ws.title === dbEvt.title &&
+        Math.abs(ws.timestamp.getTime() - dbEvt.timestamp.getTime()) < 5000
+      );
+      if (!isDuplicate) merged.push(dbEvt);
+    }
+
+    // Sort by timestamp descending
+    merged.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    // Apply category filters
+    return merged.filter(e => activeFilters.has(e.category));
+  }, [timelineQuery.data, wsEvents, activeFilters]);
+
+  // ── Derived data ──
   const recentScans = useMemo(() => {
     return (scansQuery.data || []).slice(0, 6);
   }, [scansQuery.data]);
@@ -154,7 +341,22 @@ export default function OperatorHome() {
 
   const opsec = opsecQuery.data;
   const stats = statsQuery.data;
-  const timeline = timelineQuery.data;
+
+  // ── Filter toggle ──
+  const toggleFilter = useCallback((cat: TimelineCategory) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) {
+        if (next.size > 1) next.delete(cat); // Don't allow empty
+      } else {
+        next.add(cat);
+      }
+      return next;
+    });
+  }, []);
+
+  // Count WS events for live indicator
+  const liveCount = wsEvents.length;
 
   return (
     <div className="space-y-4">
@@ -167,6 +369,32 @@ export default function OperatorHome() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* WS Connection Status */}
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-display tracking-wider ${
+                  wsStatus === "connected" ? "bg-emerald-500/10 text-emerald-400" :
+                  wsStatus === "connecting" ? "bg-amber-500/10 text-amber-400" :
+                  "bg-red-500/10 text-red-400"
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${
+                    wsStatus === "connected" ? "bg-emerald-500 animate-pulse" :
+                    wsStatus === "connecting" ? "bg-amber-500 animate-pulse" :
+                    "bg-red-500"
+                  }`} />
+                  {wsStatus === "connected" ? "LIVE" : wsStatus === "connecting" ? "CONNECTING" : "OFFLINE"}
+                  {liveCount > 0 && wsStatus === "connected" && (
+                    <span className="text-[8px] opacity-60">({liveCount})</span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[10px]">
+                WebSocket {wsStatus} — {liveCount} real-time events received this session
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Link href="/domain-intel">
             <Button size="sm" className="text-[10px] font-display tracking-wider h-8 gap-1.5">
               <Plus className="w-3.5 h-3.5" />
@@ -193,12 +421,21 @@ export default function OperatorHome() {
                 <CardTitle className="text-xs font-display tracking-widest flex items-center gap-2">
                   <Activity className="w-3.5 h-3.5 text-primary" />
                   LIVE ACTIVITY
-                  {timeline && timeline.totalCount > 0 && (
+                  {mergedTimeline.length > 0 && (
                     <span className="text-[8px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded-full font-display tracking-widest">
-                      {timeline.totalCount}
+                      {mergedTimeline.length}
+                    </span>
+                  )}
+                  {liveCount > 0 && (
+                    <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-display tracking-widest animate-pulse">
+                      {liveCount} LIVE
                     </span>
                   )}
                 </CardTitle>
+              </div>
+
+              {/* Time range + Filter toggle */}
+              <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-1">
                   {[24, 72, 168].map(h => (
                     <button
@@ -212,41 +449,82 @@ export default function OperatorHome() {
                     </button>
                   ))}
                 </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-1 text-[8px] font-display tracking-wider px-1.5 py-0.5 rounded transition-colors ${
+                    showFilters ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Filter className="w-3 h-3" />
+                  FILTER
+                  {activeFilters.size < 5 && (
+                    <span className="text-[7px] bg-primary/30 px-1 rounded">{activeFilters.size}</span>
+                  )}
+                </button>
               </div>
+
+              {/* Category Filter Toggles */}
+              {showFilters && (
+                <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border/50">
+                  {(["scan", "engagement", "opsec", "agent", "system"] as TimelineCategory[]).map(cat => {
+                    const CatIcon = CATEGORY_ICONS[cat];
+                    const isActive = activeFilters.has(cat);
+                    const catColor = CATEGORY_COLORS[cat];
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => toggleFilter(cat)}
+                        className={`flex items-center gap-1 text-[8px] font-display tracking-wider px-2 py-1 rounded-md border transition-all ${
+                          isActive ? catColor : "bg-secondary/20 text-muted-foreground/40 border-transparent"
+                        }`}
+                      >
+                        <CatIcon className="w-2.5 h-2.5" />
+                        {cat.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="px-4 pb-4">
               {timelineQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                 </div>
-              ) : !timeline || timeline.events.length === 0 ? (
+              ) : mergedTimeline.length === 0 ? (
                 <div className="text-center py-8">
                   <Activity className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
                   <p className="text-[10px] text-muted-foreground">No activity in the last {timelineHours}h</p>
                   <p className="text-[9px] text-muted-foreground/60 mt-1">Start a scan or engagement to see events here</p>
                 </div>
               ) : (
-                <div className="relative">
+                <div className="relative max-h-[600px] overflow-y-auto scrollbar-thin">
                   {/* Timeline spine */}
                   <div className="absolute left-[7px] top-0 bottom-0 w-px bg-border" />
                   <div className="space-y-0">
-                    {timeline.events.map((event) => {
+                    {mergedTimeline.slice(0, 40).map((event) => {
                       const sevCfg = SEVERITY_CONFIG[event.severity] || SEVERITY_CONFIG.info;
                       const CatIcon = CATEGORY_ICONS[event.category] || Activity;
-                      const timeAgo = getTimeAgo(new Date(event.timestamp));
+                      const timeAgo = getTimeAgo(event.timestamp);
+                      const isLive = event.source === "ws";
 
                       return (
-                        <div key={event.id} className="flex items-start gap-3 py-2 pl-0 relative group">
+                        <div key={event.id} className={`flex items-start gap-3 py-2 pl-0 relative group ${
+                          isLive ? "animate-in fade-in slide-in-from-left-2 duration-300" : ""
+                        }`}>
                           <TooltipProvider delayDuration={200}>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className={`w-[15px] h-[15px] rounded-full shrink-0 z-10 flex items-center justify-center border ${sevCfg.bg}`}>
-                                  <div className={`w-[5px] h-[5px] rounded-full ${sevCfg.dot}`} />
+                                <div className={`w-[15px] h-[15px] rounded-full shrink-0 z-10 flex items-center justify-center border ${sevCfg.bg} ${
+                                  isLive ? "ring-1 ring-emerald-500/50" : ""
+                                }`}>
+                                  <div className={`w-[5px] h-[5px] rounded-full ${sevCfg.dot} ${isLive ? "animate-pulse" : ""}`} />
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="right" className="text-[10px] max-w-[200px]">
                                 <p className="font-medium">{event.category.toUpperCase()} — {event.severity.toUpperCase()}</p>
                                 <p className="text-muted-foreground mt-1">{event.description}</p>
+                                {isLive && <p className="text-emerald-400 mt-1 text-[9px]">Real-time event</p>}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -254,6 +532,9 @@ export default function OperatorHome() {
                             <div className="flex items-center gap-2">
                               <CatIcon className="w-3 h-3 text-muted-foreground shrink-0" />
                               <span className="text-[10px] font-display tracking-wider font-medium truncate">{event.title}</span>
+                              {isLive && (
+                                <span className="text-[7px] bg-emerald-500/20 text-emerald-400 px-1 py-0 rounded font-display">LIVE</span>
+                              )}
                               <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{timeAgo}</span>
                             </div>
                             <p className="text-[10px] text-muted-foreground truncate mt-0.5">{event.description}</p>
@@ -515,49 +796,113 @@ export default function OperatorHome() {
             </CardContent>
           </Card>
 
-          {/* Campaign Advisor */}
-          <Card>
+          {/* LLM Campaign Advisor */}
+          <Card className="border-purple-500/20">
             <CardHeader className="pb-2 pt-4 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-display tracking-widest flex items-center gap-2">
                   <Brain className="w-3.5 h-3.5 text-purple-400" />
                   CAMPAIGN ADVISOR
+                  <Badge variant="outline" className="text-[7px] font-display tracking-widest px-1 py-0 h-3.5 border-purple-500/30 text-purple-400 bg-purple-500/10">
+                    AI
+                  </Badge>
                 </CardTitle>
-                <Link href="/campaign-advisor">
-                  <Button variant="ghost" size="sm" className="text-[9px] font-display tracking-wider h-6 px-2">
-                    CHAT <ArrowRight className="w-3 h-3 ml-1" />
+                <div className="flex items-center gap-1.5">
+                  {advisorResult && (
+                    <button
+                      onClick={() => setAdvisorExpanded(!advisorExpanded)}
+                      className="text-[8px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {advisorExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-[9px] font-display tracking-wider h-6 px-2 gap-1 border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+                    onClick={generateAdvice}
+                    disabled={advisorMutation.isPending}
+                  >
+                    {advisorMutation.isPending ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    {advisorMutation.isPending ? "ANALYZING..." : advisorResult ? "REFRESH" : "GENERATE"}
                   </Button>
-                </Link>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-2">
-              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                <p className="text-[9px] text-purple-300 font-display tracking-wider mb-1.5">OPERATIONAL SUMMARY</p>
-                <p className="text-xs leading-relaxed">
-                  {opsec && opsec.activeEngagements > 0
-                    ? `${opsec.activeEngagements} active engagement${opsec.activeEngagements !== 1 ? "s" : ""} with ${opsec.totalOpsecEvents} OPSEC events tracked. ${
-                        opsec.highRiskEvents > 0
-                          ? `${opsec.highRiskEvents} high-risk events require attention.`
-                          : "Operations running within acceptable risk parameters."
-                      }`
-                    : "No active engagements. Launch a scan or engagement to get AI-powered operational recommendations."
-                  }
-                </p>
-                {opsec && opsec.activeEngagements > 0 && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded font-display tracking-wider ${
-                      opsec.overallScore > 70 ? "bg-emerald-500/20 text-emerald-400" :
-                      opsec.overallScore > 40 ? "bg-amber-500/20 text-amber-400" :
-                      "bg-red-500/20 text-red-400"
-                    }`}>
-                      OPSEC: {opsec.overallScore > 70 ? "CLEAN" : opsec.overallScore > 40 ? "MODERATE" : "ELEVATED"}
-                    </span>
-                    <span className="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-display tracking-wider">
-                      {opsec.noiseLevel.toUpperCase()} NOISE
-                    </span>
+              {!advisorResult && !advisorMutation.isPending ? (
+                <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-lg">
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    {opsec && opsec.activeEngagements > 0
+                      ? `${opsec.activeEngagements} active engagement${opsec.activeEngagements !== 1 ? "s" : ""} detected. Click "GENERATE" for AI-powered tactical recommendations based on your current OPSEC posture and recent activity.`
+                      : "Launch a scan or engagement, then click \"GENERATE\" for AI-powered tactical recommendations."
+                    }
+                  </p>
+                </div>
+              ) : advisorMutation.isPending ? (
+                <div className="flex flex-col items-center justify-center py-4 gap-2">
+                  <div className="relative">
+                    <Brain className="w-6 h-6 text-purple-400 animate-pulse" />
+                    <Sparkles className="w-3 h-3 text-purple-300 absolute -top-1 -right-1 animate-bounce" />
                   </div>
-                )}
-              </div>
+                  <p className="text-[10px] text-purple-400 font-display tracking-wider">ANALYZING OPERATIONAL STATE...</p>
+                </div>
+              ) : advisorResult && (
+                <>
+                  {/* Summary */}
+                  <div className="p-2.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                    <p className="text-[9px] text-purple-300 font-display tracking-wider mb-1">OPERATIONAL SUMMARY</p>
+                    <p className="text-[10px] leading-relaxed">{advisorResult.summary}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[8px] text-muted-foreground/50 font-mono">
+                        {new Date(advisorResult.generatedAt).toLocaleTimeString()}
+                      </span>
+                      {opsec && (
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-display tracking-wider ${
+                          opsec.overallScore > 70 ? "bg-emerald-500/20 text-emerald-400" :
+                          opsec.overallScore > 40 ? "bg-amber-500/20 text-amber-400" :
+                          "bg-red-500/20 text-red-400"
+                        }`}>
+                          OPSEC: {opsec.overallScore > 70 ? "CLEAN" : opsec.overallScore > 40 ? "MODERATE" : "ELEVATED"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  {advisorExpanded && advisorResult.recommendations.length > 0 && (
+                    <div className="space-y-1.5">
+                      {advisorResult.recommendations.map((rec, i) => {
+                        const priorityColor = rec.priority === "high" ? "border-red-500/30 bg-red-500/5" :
+                          rec.priority === "medium" ? "border-amber-500/30 bg-amber-500/5" :
+                          "border-blue-500/30 bg-blue-500/5";
+                        const priorityBadge = rec.priority === "high" ? "bg-red-500/20 text-red-400" :
+                          rec.priority === "medium" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-blue-500/20 text-blue-400";
+
+                        return (
+                          <div key={i} className={`p-2.5 rounded-lg border ${priorityColor}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge className={`text-[7px] font-display tracking-widest px-1 py-0 h-3.5 ${priorityBadge}`}>
+                                {rec.priority.toUpperCase()}
+                              </Badge>
+                              <span className="text-[10px] font-display tracking-wider font-medium">{rec.action}</span>
+                              {rec.technique && (
+                                <span className="text-[8px] font-mono text-muted-foreground/60">{rec.technique}</span>
+                              )}
+                            </div>
+                            <p className="text-[9px] text-muted-foreground leading-relaxed">{rec.detail}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 

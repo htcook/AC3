@@ -1097,3 +1097,48 @@ export function emitJobWorkerEvent(data: {
     data,
   });
 }
+
+// ─── Operator Cockpit Timeline Emitter ─────────────────────────────
+// Broadcasts unified timeline events to the cockpit:timeline channel
+// so the Operator Cockpit receives real-time updates without polling.
+
+export interface TimelineEvent {
+  id: string;
+  timestamp: string;
+  category: "scan" | "engagement" | "opsec" | "agent" | "system";
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  title: string;
+  description: string;
+  source: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Broadcast a timeline event to the cockpit:timeline channel + global */
+export function emitTimelineEvent(event: TimelineEvent): void {
+  const wsEvent: WsEvent = {
+    type: "engagement:timeline_event",
+    timestamp: Date.now(),
+    data: event,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
+
+/** Broadcast an OPSEC risk update to the cockpit:timeline channel */
+export function emitOpsecUpdate(data: {
+  overallScore: number;
+  noiseLevel: string;
+  detectionChance: number;
+  recentAlerts: number;
+  burnedAssets: string[];
+  engagementId?: number;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "opsec:risk_update",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
