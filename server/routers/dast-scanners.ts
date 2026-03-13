@@ -459,6 +459,64 @@ export const dastScannersRouter = router({
     }),
 
   /**
+   * Start a TLS Deep Scan against a target.
+   */
+  startTLSDeepScan: protectedProcedure
+    .input(z.object({
+      host: z.string(),
+      port: z.number().default(443),
+      engagementId: z.number(),
+      timeoutSeconds: z.number().default(120),
+      checkDowngrade: z.boolean().default(true),
+      checkCVEs: z.boolean().default(true),
+      enumerateCiphers: z.boolean().default(true),
+      checkCertChain: z.boolean().default(true),
+      checkOCSP: z.boolean().default(true),
+      sniHostname: z.string().optional(),
+      starttls: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.engagementId) {
+        try {
+          const { enforceScanTargetScope } = await import("../lib/scope-enforcement-middleware");
+          await enforceScanTargetScope(input.engagementId, input.host, "TLS Deep Scan", ctx);
+        } catch (e: any) {
+          if (e.code === "FORBIDDEN") throw e;
+        }
+      }
+
+      const { startTLSDeepScan } = await import("../lib/scanners/tls-deep-scanner");
+      const result = await startTLSDeepScan({
+        host: input.host,
+        port: input.port,
+        engagementId: input.engagementId,
+        operatorId: ctx.user?.id,
+        timeoutSeconds: input.timeoutSeconds,
+        checkDowngrade: input.checkDowngrade,
+        checkCVEs: input.checkCVEs,
+        enumerateCiphers: input.enumerateCiphers,
+        checkCertChain: input.checkCertChain,
+        checkOCSP: input.checkOCSP,
+        sniHostname: input.sniHostname,
+        starttls: input.starttls,
+      });
+
+      try {
+        const { wsHub } = await import("../lib/ws-event-hub");
+        wsHub.emit("scan:tls-deep-scan:complete", {
+          engagementId: input.engagementId,
+          target: `${input.host}:${input.port}`,
+          findingCount: result.findings.length,
+          gradeScore: result.stats.gradeScore,
+          gradeLetter: result.stats.gradeLetter,
+          status: result.status,
+        });
+      } catch { /* ws not critical */ }
+
+      return result;
+    }),
+
+  /**
    * Compute CARVER+Shock scoring adjustments from DAST/service audit results.
    */
   computeCarverScoring: protectedProcedure
@@ -479,7 +537,7 @@ export const dastScannersRouter = router({
               "nikto", "wapiti", "arachni",
               "ssh-audit", "ftp-audit",
               "smtp-audit", "snmp-audit", "rdp-audit",
-              "dns-audit", "http-header-audit",
+              "dns-audit", "http-header-audit", "tls-deep-scan",
             ]),
           ),
         );
@@ -583,7 +641,7 @@ export const dastScannersRouter = router({
   getResults: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit"]).optional(),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit", "tls-deep-scan"]).optional(),
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
@@ -597,6 +655,7 @@ export const dastScannersRouter = router({
             "nikto", "wapiti", "arachni",
             "ssh-audit", "ftp-audit",
             "smtp-audit", "snmp-audit", "rdp-audit",
+            "dns-audit", "http-header-audit", "tls-deep-scan",
           ])
         );
       }
@@ -652,7 +711,7 @@ export const dastScannersRouter = router({
   analyzeScanFindings: protectedProcedure
     .input(z.object({
       scanId: z.number(),
-      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit"]),
+      tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit", "tls-deep-scan"]),
     }))
     .mutation(async ({ input }) => {
       const db = getDb();
@@ -693,7 +752,10 @@ export const dastScannersRouter = router({
         case "ftp-audit":
         case "smtp-audit":
         case "snmp-audit":
-        case "rdp-audit": {
+        case "rdp-audit":
+        case "dns-audit":
+        case "http-header-audit":
+        case "tls-deep-scan": {
           // Service audits already include analysis in their output
           return {
             analysis: `${input.tool} findings already include built-in analysis`,
@@ -808,6 +870,16 @@ export const dastScannersRouter = router({
         depth: "deep",
         bestFor: "Web server hardening, security header compliance, OWASP best practices",
         icon: "🛡️",
+      },
+      {
+        id: "tls-deep-scan",
+        name: "TLS Deep Scan",
+        type: "service",
+        description: "Comprehensive SSL/TLS analysis — cipher suites, certificate chain, OCSP stapling, protocol downgrade (Heartbleed, POODLE, DROWN, FREAK, ROBOT), forward secrecy",
+        speed: "medium",
+        depth: "comprehensive",
+        bestFor: "TLS hardening, certificate validation, compliance auditing, vulnerability detection",
+        icon: "🔒",
       },
     ];
   }),

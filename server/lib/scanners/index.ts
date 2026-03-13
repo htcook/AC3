@@ -12,6 +12,7 @@
  * - RDP Audit: NLA check, CredSSP/BlueKeep CVEs, encryption level, NTLMv1 downgrade
  * - DNS Audit: Zone transfer, DNSSEC, recursion, version disclosure, cache poisoning
  * - HTTP Header Audit: Security headers, CORS, cookies, TLS, server disclosure
+ * - TLS Deep Scan: Cipher suites, cert chain, OCSP, protocol downgrade, CVEs (Heartbleed, POODLE, etc.)
  * - Service Audit Pipeline: Auto-triggers appropriate scanners after port discovery
  */
 
@@ -25,6 +26,7 @@ export { startSNMPAudit, type SNMPAuditConfig, type SNMPAuditResult, type SNMPAu
 export { startRDPAudit, type RDPAuditConfig, type RDPAuditResult, type RDPAuditFinding } from "./rdp-audit-scanner";
 export { startDNSAudit, type DNSAuditConfig, type DNSAuditResult, type DNSFinding } from "./dns-audit-scanner";
 export { startHTTPHeaderAudit, type HTTPHeaderAuditConfig, type HTTPHeaderAuditResult, type HTTPHeaderFinding, type SecurityHeader, type CookieAudit, type CORSAudit, type TLSInfo } from "./http-header-audit-scanner";
+export { startTLSDeepScan, type TLSDeepScanConfig, type TLSDeepScanResult, type TLSProtocol, type TLSCipherSuite, type TLSCertificate, type TLSVulnerability, type TLSFinding } from "./tls-deep-scanner";
 export {
   runServiceAuditPipeline,
   autoAuditSSHPorts,
@@ -34,6 +36,7 @@ export {
   autoAuditRDPPorts,
   autoAuditDNSPorts,
   autoAuditHTTPPorts,
+  autoAuditTLSPorts,
   type DiscoveredService,
   type ServiceAuditConfig,
   type ServiceAuditPipelineResult,

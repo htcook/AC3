@@ -31,6 +31,7 @@ import { startSNMPAudit, type SNMPAuditResult } from "./snmp-audit-scanner";
 import { startRDPAudit, type RDPAuditResult } from "./rdp-audit-scanner";
 import { startDNSAudit, type DNSAuditResult } from "./dns-audit-scanner";
 import { startHTTPHeaderAudit, type HTTPHeaderAuditResult } from "./http-header-audit-scanner";
+import { startTLSDeepScan, type TLSDeepScanResult } from "./tls-deep-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ export interface ServiceAuditConfig {
     rdp?: boolean;
     dns?: boolean;
     httpHeaders?: boolean;
+    tlsDeepScan?: boolean;
   };
   /** Scan profile (affects depth/speed) */
   profile?: "quick" | "standard" | "deep";
@@ -95,6 +97,7 @@ export interface ServiceAuditPipelineResult {
     rdp: RDPAuditResult[];
     dns: DNSAuditResult[];
     httpHeaders: HTTPHeaderAuditResult[];
+    tlsDeepScan: TLSDeepScanResult[];
   };
   totalFindings: number;
   severitySummary: {
@@ -118,7 +121,7 @@ const SERVICE_SCANNER_MAP: Record<string, ScannerMapping> = {
   ssh: { scanners: ["ssh-audit"], description: "SSH security audit" },
   ftp: { scanners: ["ftp-audit"], description: "FTP security audit" },
   http: { scanners: ["nikto", "wapiti"], description: "Web server + injection testing" },
-  https: { scanners: ["nikto", "wapiti"], description: "Web server + injection testing (TLS)" },
+  https: { scanners: ["nikto", "wapiti", "tls-deep-scan"], description: "Web server + injection testing (TLS)" },
   "http-proxy": { scanners: ["nikto"], description: "HTTP proxy audit" },
   "http-alt": { scanners: ["nikto"], description: "Alternate HTTP audit" },
   smtp: { scanners: ["smtp-audit"], description: "SMTP security audit" },
@@ -134,16 +137,16 @@ const PORT_SCANNER_MAP: Record<number, ScannerMapping> = {
   22: { scanners: ["ssh-audit"], description: "SSH audit" },
   2222: { scanners: ["ssh-audit"], description: "SSH audit (alt port)" },
   80: { scanners: ["nikto", "wapiti"], description: "HTTP web audit" },
-  443: { scanners: ["nikto", "wapiti"], description: "HTTPS web audit" },
+  443: { scanners: ["nikto", "wapiti", "tls-deep-scan"], description: "HTTPS web audit" },
   8080: { scanners: ["nikto"], description: "HTTP alt web audit" },
-  8443: { scanners: ["nikto"], description: "HTTPS alt web audit" },
+  8443: { scanners: ["nikto", "tls-deep-scan"], description: "HTTPS alt web audit" },
   3000: { scanners: ["nikto"], description: "Dev server audit" },
   5000: { scanners: ["nikto"], description: "Dev server audit" },
   8000: { scanners: ["nikto"], description: "Dev server audit" },
   8888: { scanners: ["nikto"], description: "Dev server audit" },
   9090: { scanners: ["nikto"], description: "Admin panel audit" },
   25: { scanners: ["smtp-audit"], description: "SMTP audit" },
-  465: { scanners: ["smtp-audit"], description: "SMTPS audit" },
+  465: { scanners: ["smtp-audit", "tls-deep-scan"], description: "SMTPS audit" },
   587: { scanners: ["smtp-audit"], description: "SMTP submission audit" },
   2525: { scanners: ["smtp-audit"], description: "SMTP alt audit" },
   161: { scanners: ["snmp-audit"], description: "SNMP audit" },
@@ -180,6 +183,12 @@ function getScannersForService(service: DiscoveredService, enabled: ServiceAudit
     scanners.add("http-header-audit");
   }
 
+  // Auto-add TLS deep scan for TLS-capable ports
+  const tlsPorts = [443, 8443, 993, 995, 465, 636, 989, 990];
+  if (tlsPorts.includes(service.port) || serviceLower.includes("ssl") || serviceLower.includes("tls")) {
+    scanners.add("tls-deep-scan");
+  }
+
   // Filter by enabled scanners
   const enabledMap: Record<string, boolean> = {
     "ssh-audit": enabled?.ssh !== false,
@@ -192,6 +201,7 @@ function getScannersForService(service: DiscoveredService, enabled: ServiceAudit
     "rdp-audit": enabled?.rdp !== false,
     "dns-audit": enabled?.dns !== false,
     "http-header-audit": enabled?.httpHeaders !== false,
+    "tls-deep-scan": enabled?.tlsDeepScan !== false,
   };
 
   return Array.from(scanners).filter(s => enabledMap[s] !== false);
@@ -333,6 +343,22 @@ async function runScanner(
         return { scanner, result };
       }
 
+      case "tls-deep-scan": {
+        const result = await startTLSDeepScan({
+          host: service.host,
+          port: service.port,
+          engagementId: config.engagementId,
+          operatorId: config.operatorId,
+          timeoutSeconds: timeout,
+          checkDowngrade: config.profile !== "quick",
+          checkCVEs: true,
+          enumerateCiphers: true,
+          checkCertChain: true,
+          checkOCSP: config.profile !== "quick",
+        });
+        return { scanner, result };
+      }
+
       default:
         return { scanner, result: null, error: `Unknown scanner: ${scanner}` };
     }
@@ -366,6 +392,7 @@ export async function runServiceAuditPipeline(
     rdp: [],
     dns: [],
     httpHeaders: [],
+    tlsDeepScan: [],
   };
 
   let auditsTriggered = 0;
@@ -426,6 +453,7 @@ export async function runServiceAuditPipeline(
           case "rdp-audit": results.rdp.push(result); break;
           case "dns-audit": results.dns.push(result); break;
           case "http-header-audit": results.httpHeaders.push(result); break;
+          case "tls-deep-scan": results.tlsDeepScan.push(result); break;
         }
 
         emit({
@@ -468,6 +496,7 @@ export async function runServiceAuditPipeline(
     ...results.rdp.flatMap(r => r.findings),
     ...results.dns.flatMap(r => r.findings),
     ...results.httpHeaders.flatMap(r => r.findings),
+    ...results.tlsDeepScan.flatMap(r => r.findings),
   ];
 
   for (const finding of allResults) {
@@ -671,6 +700,42 @@ export async function autoAuditHTTPPorts(
       results.push(result);
     } catch (err: any) {
       console.error(`[ServiceAuditPipeline] HTTP header audit failed for ${host}:${port}: ${err.message}`);
+    }
+  }
+  return results;
+}
+
+
+/**
+ * Convenience function: auto-audit TLS ports for deep SSL/TLS analysis.
+ */
+export async function autoAuditTLSPorts(
+  hosts: Array<{ host: string; port: number }>,
+  engagementId: number,
+  operatorId?: number,
+): Promise<TLSDeepScanResult[]> {
+  const tlsHosts = hosts.filter(h => [443, 8443, 993, 995, 465, 636, 989, 990].includes(h.port));
+  if (tlsHosts.length === 0) return [];
+
+  console.log(`[ServiceAuditPipeline] Auto-auditing ${tlsHosts.length} TLS service(s) for deep SSL/TLS analysis`);
+
+  const results: TLSDeepScanResult[] = [];
+  for (const { host, port } of tlsHosts) {
+    try {
+      const result = await startTLSDeepScan({
+        host,
+        port,
+        engagementId,
+        operatorId,
+        checkDowngrade: true,
+        checkCVEs: true,
+        enumerateCiphers: true,
+        checkCertChain: true,
+        checkOCSP: true,
+      });
+      results.push(result);
+    } catch (err: any) {
+      console.error(`[ServiceAuditPipeline] TLS deep scan failed for ${host}:${port}: ${err.message}`);
     }
   }
   return results;

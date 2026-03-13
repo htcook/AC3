@@ -43,6 +43,7 @@ const SCANNER_ICONS: Record<string, React.ReactNode> = {
   "rdp-audit": <Server className="w-5 h-5" />,
   "dns-audit": <Globe className="w-5 h-5" />,
   "http-header-audit": <Shield className="w-5 h-5" />,
+  "tls-deep-scan": <Lock className="w-5 h-5" />,
 };
 
 const SCANNER_COLORS: Record<string, string> = {
@@ -56,6 +57,7 @@ const SCANNER_COLORS: Record<string, string> = {
   "rdp-audit": "text-indigo-400",
   "dns-audit": "text-sky-400",
   "http-header-audit": "text-lime-400",
+  "tls-deep-scan": "text-fuchsia-400",
 };
 
 // ─── Severity Badge ─────────────────────────────────────────────────────────
@@ -928,6 +930,114 @@ function HTTPHeaderAuditLaunchDialog({ open, onClose, engagementId }: { open: bo
   );
 }
 
+// ─── TLS Deep Scan Launch Dialog ───────────────────────────────────────────
+
+function TLSDeepScanLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState(443);
+  const [checkDowngrade, setCheckDowngrade] = useState(true);
+  const [checkCVEs, setCheckCVEs] = useState(true);
+  const [enumerateCiphers, setEnumerateCiphers] = useState(true);
+  const [checkCertChain, setCheckCertChain] = useState(true);
+  const [checkOCSP, setCheckOCSP] = useState(true);
+  const [sniHostname, setSniHostname] = useState("");
+  const [starttls, setStarttls] = useState("");
+
+  const mutation = trpc.dastScanners.startTLSDeepScan.useMutation({
+    onSuccess: (data) => {
+      toast.success(`TLS Deep Scan complete: ${data.findings.length} findings, Grade: ${data.stats.gradeLetter}`);
+      onClose();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Lock className="w-5 h-5 text-fuchsia-400" /> TLS Deep Scan</DialogTitle>
+          <DialogDescription>Comprehensive SSL/TLS analysis — cipher suites, certificate chain, OCSP, protocol downgrade attacks, forward secrecy</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Host</Label>
+              <Input value={host} onChange={e => setHost(e.target.value)} placeholder="example.com" />
+            </div>
+            <div>
+              <Label>Port</Label>
+              <Input type="number" value={port} onChange={e => setPort(Number(e.target.value))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>SNI Hostname (optional)</Label>
+              <Input value={sniHostname} onChange={e => setSniHostname(e.target.value)} placeholder="Override SNI" />
+            </div>
+            <div>
+              <Label>STARTTLS Protocol (optional)</Label>
+              <Select value={starttls} onValueChange={setStarttls}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="smtp">SMTP</SelectItem>
+                  <SelectItem value="ftp">FTP</SelectItem>
+                  <SelectItem value="imap">IMAP</SelectItem>
+                  <SelectItem value="pop3">POP3</SelectItem>
+                  <SelectItem value="ldap">LDAP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <Separator />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={enumerateCiphers} onCheckedChange={setEnumerateCiphers} />
+              <Label>Enumerate cipher suites</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkCertChain} onCheckedChange={setCheckCertChain} />
+              <Label>Validate certificate chain</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkOCSP} onCheckedChange={setCheckOCSP} />
+              <Label>Check OCSP stapling</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkDowngrade} onCheckedChange={setCheckDowngrade} />
+              <Label>Protocol downgrade tests</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={checkCVEs} onCheckedChange={setCheckCVEs} />
+              <Label>Known CVE detection</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!host || mutation.isPending}
+            onClick={() => mutation.mutate({
+              host,
+              port,
+              engagementId,
+              checkDowngrade,
+              checkCVEs,
+              enumerateCiphers,
+              checkCertChain,
+              checkOCSP,
+              sniHostname: sniHostname || undefined,
+              starttls: starttls === "none" ? undefined : starttls || undefined,
+            })}
+          >
+            {mutation.isPending ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Scanning...</> : <><Play className="w-3 h-3 mr-1" /> Start Scan</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Service Audit Pipeline Dialog ──────────────────────────────────────────
 
 function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; onClose: () => void; engagementId: number }) {
@@ -941,6 +1051,7 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
   const [enableNikto, setEnableNikto] = useState(true);
   const [enableWapiti, setEnableWapiti] = useState(true);
   const [enableArachni, setEnableArachni] = useState(false);
+  const [enableTLS, setEnableTLS] = useState(true);
   const [enableDNS, setEnableDNS] = useState(true);
   const [enableHTTPHeaders, setEnableHTTPHeaders] = useState(true);
 
@@ -1041,6 +1152,10 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                 <Switch checked={enableHTTPHeaders} onCheckedChange={setEnableHTTPHeaders} />
                 <Label className="text-sm">HTTP Header Audit</Label>
               </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={enableTLS} onCheckedChange={setEnableTLS} />
+                <Label className="text-sm">TLS Deep Scan</Label>
+              </div>
             </div>
           </div>
         </div>
@@ -1065,6 +1180,7 @@ function PipelineLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
                   arachni: enableArachni,
                   dns: enableDNS,
                   httpHeaders: enableHTTPHeaders,
+                  tlsDeepScan: enableTLS,
                 },
               });
             }}
@@ -1203,6 +1319,7 @@ export default function DastScanners() {
   const [showRDP, setShowRDP] = useState(false);
   const [showDNS, setShowDNS] = useState(false);
   const [showHTTPHeaders, setShowHTTPHeaders] = useState(false);
+  const [showTLSDeepScan, setShowTLSDeepScan] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
   const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [toolFilter, setToolFilter] = useState<string>("all");
@@ -1550,6 +1667,30 @@ export default function DastScanners() {
                 </CardContent>
               </Card>
 
+              {/* TLS Deep Scan */}
+              <Card className="border-fuchsia-500/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Lock className="w-5 h-5 text-fuchsia-400" /> TLS Deep Scan
+                  </CardTitle>
+                  <CardDescription>Cipher suites, certificate chain, OCSP stapling, protocol downgrade (Heartbleed, POODLE, DROWN, FREAK, ROBOT), forward secrecy</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      <Badge variant="outline" className="text-[10px]">Medium</Badge>
+                      <Badge variant="outline" className="text-[10px]">Port 443/TLS</Badge>
+                    </div>
+                    <Button size="sm" onClick={() => setShowTLSDeepScan(true)}>
+                      <Play className="w-3 h-3 mr-1" /> Launch
+                    </Button>
+                  </div>
+                  {stats.byTool["tls-deep-scan"] && (
+                    <p className="text-xs text-muted-foreground mt-2">{stats.byTool["tls-deep-scan"]} scan(s) completed</p>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Pipeline Card */}
               <Card className="border-yellow-500/20 bg-yellow-500/5">
                 <CardHeader className="pb-3">
@@ -1590,6 +1731,7 @@ export default function DastScanners() {
                   <Badge variant="outline" className="border-indigo-500/30 text-indigo-400">Port 3389 → RDP Audit</Badge>
                   <Badge variant="outline" className="border-sky-500/30 text-sky-400">Port 53 → DNS Audit</Badge>
                   <Badge variant="outline" className="border-lime-500/30 text-lime-400">Port 80/443 → HTTP Header Audit</Badge>
+                  <Badge variant="outline" className="border-fuchsia-500/30 text-fuchsia-400">Port 443/TLS → TLS Deep Scan</Badge>
                   <Badge variant="outline" className="border-cyan-500/30 text-cyan-400">Port 80/443 → Nikto + Wapiti</Badge>
                   <ChevronRight className="w-3 h-3" />
                   <Badge variant="outline">Findings Aggregated</Badge>
@@ -1624,6 +1766,7 @@ export default function DastScanners() {
                       <SelectItem value="rdp-audit">RDP Audit</SelectItem>
                       <SelectItem value="dns-audit">DNS Audit</SelectItem>
                       <SelectItem value="http-header-audit">HTTP Header Audit</SelectItem>
+                      <SelectItem value="tls-deep-scan">TLS Deep Scan</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button variant="ghost" size="sm" onClick={() => resultsQuery.refetch()}>
@@ -1691,6 +1834,7 @@ export default function DastScanners() {
         <RDPAuditLaunchDialog open={showRDP} onClose={() => setShowRDP(false)} engagementId={engagementId} />
         <DNSAuditLaunchDialog open={showDNS} onClose={() => setShowDNS(false)} engagementId={engagementId} />
         <HTTPHeaderAuditLaunchDialog open={showHTTPHeaders} onClose={() => setShowHTTPHeaders(false)} engagementId={engagementId} />
+        <TLSDeepScanLaunchDialog open={showTLSDeepScan} onClose={() => setShowTLSDeepScan(false)} engagementId={engagementId} />
         <PipelineLaunchDialog open={showPipeline} onClose={() => setShowPipeline(false)} engagementId={engagementId} />
       </div>
     </AppShell>
