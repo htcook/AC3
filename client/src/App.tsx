@@ -229,6 +229,7 @@ const DataExfilSimulation = lazy(() => import("./pages/DataExfilSimulation"));
 const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const LlmLearning = lazy(() => import("./pages/LlmLearning"));
 const LearningDashboard = lazy(() => import("./pages/LearningDashboard"));
+const DastScanners = lazy(() => import("./pages/DastScanners"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -913,6 +914,9 @@ function Router() {
         </Route>
         <Route path="/data-exfil-simulation">
           <ProtectedRoute component={DataExfilSimulation} />
+        </Route>
+        <Route path="/dast-scanners">
+          <ProtectedRoute component={DastScanners} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

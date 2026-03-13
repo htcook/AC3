@@ -191,6 +191,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/tools/naabu", icon: Radar, label: "PORT SCANNER (NMAP)" },
           { href: "/nuclei-scanner", icon: ScanLine, label: "VULN SCANNING" },
           { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
+          { href: "/dast-scanners", icon: Shield, label: "DAST & SERVICE AUDIT" },
           { href: "/scan-scheduler", icon: Clock, label: "SCAN MANAGEMENT" },
           { href: "/config-baseline", icon: Settings, label: "CONFIG BASELINE" },
         ],

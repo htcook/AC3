@@ -138,6 +138,7 @@ import { agentInstallerRouter } from "./routers/agent-installer";
 import { msspAnalyticsRouter } from "./routers/mssp-analytics";
 import { dataExfilSimulationRouter } from "./routers/data-exfil-simulation";
 import { operatorCockpitRouter } from "./routers/operator-cockpit";
+import { dastScannersRouter } from "./routers/dast-scanners";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -492,6 +493,9 @@ export const appRouter = router({
   msspAnalytics: msspAnalyticsRouter,
   dataExfilSimulation: dataExfilSimulationRouter,
   operatorCockpit: operatorCockpitRouter,
+
+  // ─── DAST Scanners & Service Audits (Nikto, Wapiti, Arachni, SSH, FTP) ─────
+  dastScanners: dastScannersRouter,
 });
 export type AppRouter = typeof appRouter;
 

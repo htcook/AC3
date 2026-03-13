@@ -55,6 +55,7 @@ export const operatorCockpitRouter = router({
       limit: z.number().min(1).max(200).default(50),
       hoursBack: z.number().min(1).max(720).default(24),
       categories: z.array(z.enum(["scan", "engagement", "opsec", "agent", "system"])).optional(),
+      engagementId: z.number().optional(),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -63,6 +64,7 @@ export const operatorCockpitRouter = router({
       const limit = input?.limit ?? 50;
       const hoursBack = input?.hoursBack ?? 24;
       const categories = input?.categories;
+      const engagementId = input?.engagementId;
       const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
 
       const events: UnifiedEvent[] = [];
@@ -93,8 +95,10 @@ export const operatorCockpitRouter = router({
       // ── Source 2: Offensive Audit Log (engagement/scan events) ──
       if (!categories || categories.includes("engagement") || categories.includes("scan")) {
         try {
+          const offConditions = [gte(offensiveAuditLog.createdAt, cutoff)];
+          if (engagementId) offConditions.push(eq(offensiveAuditLog.engagementId, engagementId));
           const offLogs = await db.select().from(offensiveAuditLog)
-            .where(gte(offensiveAuditLog.createdAt, cutoff))
+            .where(and(...offConditions))
             .orderBy(desc(offensiveAuditLog.createdAt))
             .limit(limit);
 
@@ -128,8 +132,10 @@ export const operatorCockpitRouter = router({
       // ── Source 3: OPSEC Events ──
       if (!categories || categories.includes("opsec")) {
         try {
+          const opsConditions = [gte(opsecEvents.opsecCreatedAt, cutoff)];
+          if (engagementId) opsConditions.push(eq(opsecEvents.engagementId, engagementId));
           const opsEvents = await db.select().from(opsecEvents)
-            .where(gte(opsecEvents.opsecCreatedAt, cutoff))
+            .where(and(...opsConditions))
             .orderBy(desc(opsecEvents.opsecCreatedAt))
             .limit(limit);
 
@@ -194,9 +200,12 @@ export const operatorCockpitRouter = router({
    * OPSEC Gauge — calculates a real-time composite OPSEC score
    * from actual engagement data, events, and scores.
    */
-  opsecGauge: protectedProcedure.query(async (): Promise<OpsecGaugeResult> => {
+  opsecGauge: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }).optional())
+    .query(async ({ input }): Promise<OpsecGaugeResult> => {
     const db = await getDb();
     if (!db) return defaultOpsecGauge();
+    const engagementId = input?.engagementId;
 
     const now = Date.now();
     const last24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
@@ -219,8 +228,10 @@ export const operatorCockpitRouter = router({
     let noiseLevels: string[] = [];
 
     try {
+      const opsecConditions = [gte(opsecEvents.opsecCreatedAt, last7d)];
+      if (engagementId) opsecConditions.push(eq(opsecEvents.engagementId, engagementId));
       const opsEvents = await db.select().from(opsecEvents)
-        .where(gte(opsecEvents.opsecCreatedAt, last7d))
+        .where(and(...opsecConditions))
         .orderBy(desc(opsecEvents.opsecCreatedAt))
         .limit(500);
 
@@ -253,7 +264,11 @@ export const operatorCockpitRouter = router({
     let latestDetectionChance = 0;
 
     try {
+      const scoreConditions = engagementId
+        ? [eq(opsecScores.engagementId, engagementId)]
+        : [];
       const scores = await db.select().from(opsecScores)
+        .where(scoreConditions.length > 0 ? and(...scoreConditions) : undefined)
         .orderBy(desc(opsecScores.opsecScoreUpdatedAt))
         .limit(20);
 
@@ -330,9 +345,12 @@ export const operatorCockpitRouter = router({
   /**
    * Quick Stats — lightweight counts for the cockpit header cards
    */
-  quickStats: protectedProcedure.query(async () => {
+  quickStats: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
     const db = await getDb();
     if (!db) return { activeEngagements: 0, runningScans: 0, criticalFindings: 0, opsecScore: 100 };
+    const engagementId = input?.engagementId;
 
     let activeEngagements = 0;
     let runningScans = 0;

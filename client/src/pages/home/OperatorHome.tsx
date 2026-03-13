@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useEngagement } from "@/contexts/EngagementContext";
 import { useCockpitTimeline } from "@/hooks/useWebSocket";
 import type { WsEvent } from "@/hooks/useWebSocket";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -221,6 +222,7 @@ function wsEventToTimeline(wsEvent: WsEvent): UnifiedTimelineEvent {
 
 export default function OperatorHome() {
   const [, navigate] = useLocation();
+  const { activeEngagement } = useEngagement();
   const [timelineHours, setTimelineHours] = useState(24);
   const [activeFilters, setActiveFilters] = useState<Set<TimelineCategory>>(
     new Set(["scan", "engagement", "opsec", "agent", "system"])
@@ -228,27 +230,32 @@ export default function OperatorHome() {
   const [showFilters, setShowFilters] = useState(false);
   const [advisorExpanded, setAdvisorExpanded] = useState(false);
 
-  // ── Real data queries ──
+  // Engagement-scoped filter
+  const engId = activeEngagement?.id;
+
+  // ── Real data queries (scoped to active engagement when selected) ──
   const scansQuery = trpc.domainIntel.listScans.useQuery(undefined, {
     refetchInterval: 15000,
   });
   const engagementsQuery = trpc.engagements.list.useQuery();
 
-  // Activity timeline from real audit logs
+  // Activity timeline from real audit logs — filtered by engagement
   const timelineQuery = trpc.operatorCockpit.activityTimeline.useQuery(
-    { limit: 50, hoursBack: timelineHours },
+    { limit: 50, hoursBack: timelineHours, engagementId: engId ?? undefined },
     { refetchInterval: 30000 }
   );
 
-  // OPSEC gauge from real engagement data
-  const opsecQuery = trpc.operatorCockpit.opsecGauge.useQuery(undefined, {
-    refetchInterval: 60000,
-  });
+  // OPSEC gauge from real engagement data — filtered by engagement
+  const opsecQuery = trpc.operatorCockpit.opsecGauge.useQuery(
+    { engagementId: engId ?? undefined },
+    { refetchInterval: 60000 }
+  );
 
-  // Quick stats
-  const statsQuery = trpc.operatorCockpit.quickStats.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
+  // Quick stats — filtered by engagement
+  const statsQuery = trpc.operatorCockpit.quickStats.useQuery(
+    { engagementId: engId ?? undefined },
+    { refetchInterval: 30000 }
+  );
 
   // ── WebSocket real-time events ──
   const { events: wsEvents, status: wsStatus } = useCockpitTimeline();
@@ -323,16 +330,23 @@ export default function OperatorHome() {
     return merged.filter(e => activeFilters.has(e.category));
   }, [timelineQuery.data, wsEvents, activeFilters]);
 
-  // ── Derived data ──
+  // ── Derived data (filtered by active engagement when selected) ──
   const recentScans = useMemo(() => {
-    return (scansQuery.data || []).slice(0, 6);
-  }, [scansQuery.data]);
+    const all = scansQuery.data || [];
+    if (engId) {
+      return all.filter((s: any) => s.engagementId === engId).slice(0, 6);
+    }
+    return all.slice(0, 6);
+  }, [scansQuery.data, engId]);
 
-  const activeEngagements = useMemo(() => {
-    return (engagementsQuery.data || [])
-      .filter((e: any) => e.status === "active" || e.status === "planning")
-      .slice(0, 5);
-  }, [engagementsQuery.data]);
+  const activeEngagementsList = useMemo(() => {
+    const all = (engagementsQuery.data || [])
+      .filter((e: any) => e.status === "active" || e.status === "planning");
+    if (engId) {
+      return all.filter((e: any) => e.id === engId).slice(0, 5);
+    }
+    return all.slice(0, 5);
+  }, [engagementsQuery.data, engId]);
 
   const totalScans = scansQuery.data?.length || 0;
   const runningScans = (scansQuery.data || []).filter((s: any) =>
@@ -648,7 +662,7 @@ export default function OperatorHome() {
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                 </div>
-              ) : activeEngagements.length === 0 ? (
+              ) : activeEngagementsList.length === 0 ? (
                 <div className="text-center py-6">
                   <Briefcase className="w-6 h-6 text-muted-foreground/40 mx-auto mb-2" />
                   <p className="text-[10px] text-muted-foreground">No active engagements</p>
@@ -659,7 +673,7 @@ export default function OperatorHome() {
                   </Link>
                 </div>
               ) : (
-                activeEngagements.map((eng: any) => {
+                activeEngagementsList.map((eng: any) => {
                   const statusCfg = ENGAGEMENT_STATUS_CONFIG[eng.status] || ENGAGEMENT_STATUS_CONFIG.planning;
                   const scanCount = eng.scanCount || 0;
                   return (
@@ -699,7 +713,7 @@ export default function OperatorHome() {
           <div className="grid grid-cols-2 gap-3">
             <StatMini
               label="ENGAGEMENTS"
-              value={stats?.activeEngagements ?? activeEngagements.length}
+              value={stats?.activeEngagements ?? activeEngagementsList.length}
               icon={Crosshair}
               color="text-red-400"
             />
