@@ -202,7 +202,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           style={{ width: RAIL_WIDTH }}
         >
           {/* Logo / toggle */}
-          <div className="h-14 flex items-center justify-center border-b">
+          <div className="h-14 flex items-center justify-center border-b shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -217,15 +217,17 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Search trigger */}
-          <div className="py-2 flex justify-center">
+          <div className="py-2 flex justify-center shrink-0">
             <CommandPaletteTrigger collapsed />
           </div>
 
           {/* Engagement indicator */}
-          <EngagementSwitcher isCollapsed />
+          <div className="shrink-0">
+            <EngagementSwitcher isCollapsed />
+          </div>
 
           {/* Nav group icons */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col items-center gap-0.5 py-1">
               {/* Home */}
               <Tooltip>
@@ -317,7 +319,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </ScrollArea>
 
           {/* Footer */}
-          <SidebarFooterSection user={user} logout={logout} isCollapsed />
+          <div className="shrink-0">
+            <SidebarFooterSection user={user} logout={logout} isCollapsed />
+          </div>
         </div>
 
         {/* Main content */}
@@ -338,7 +342,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         style={{ width: EXPANDED_WIDTH }}
       >
         {/* Header */}
-        <div className="h-14 flex items-center justify-between px-3 border-b">
+        <div className="h-14 flex items-center justify-between px-3 border-b shrink-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold tracking-tight text-sm">ACE C3</span>
           </div>
@@ -356,20 +360,24 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Search trigger */}
-        <div className="px-3 py-2 border-b border-border/30">
+        <div className="px-3 py-2 border-b border-border/30 shrink-0">
           <CommandPaletteTrigger />
         </div>
 
         {/* Engagement switcher */}
-        <EngagementSwitcher isCollapsed={false} />
+        <div className="shrink-0">
+          <EngagementSwitcher isCollapsed={false} />
+        </div>
 
         {/* Nav groups */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0 overflow-hidden">
           <ExpandedNavList location={location} setLocation={setLocation} />
         </ScrollArea>
 
         {/* Footer */}
-        <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+        <div className="shrink-0">
+          <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+        </div>
       </div>
 
       {/* Main content */}
