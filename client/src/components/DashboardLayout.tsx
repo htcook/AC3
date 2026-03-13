@@ -258,6 +258,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
+                          onClick={() => {
+                            if (isFlyoutOpen) {
+                              setFlyoutGroupId(null);
+                            } else {
+                              setFlyoutGroupId(group.id);
+                            }
+                          }}
                           className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
                             isActive || isFlyoutOpen
                               ? `bg-accent/70 ${group.color}`
