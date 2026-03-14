@@ -568,6 +568,522 @@ function LiveCaptureTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PCAP REPLAY TAB
+// ═══════════════════════════════════════════════════════════════
+
+function PcapReplayTab() {
+  const [pcapPath, setPcapPath] = useState("");
+  const [speed, setSpeed] = useState<"original" | "topspeed" | "custom">("original");
+  const [speedMultiplier, setSpeedMultiplier] = useState("1.0");
+  const [iface, setIface] = useState("eth0");
+  const [loopCount, setLoopCount] = useState("1");
+  const [rewriteDestIp, setRewriteDestIp] = useState("");
+  const [rewriteSrcIp, setRewriteSrcIp] = useState("");
+  const [captureResponses, setCaptureResponses] = useState(true);
+  const [captureFilter, setCaptureFilter] = useState("");
+  const [label, setLabel] = useState("");
+  const [engagementId, setEngagementId] = useState("");
+
+  const pcapFiles = trpc.packetAnalysis.listPcapFiles.useQuery(undefined, { refetchInterval: 15000 });
+  const replayHistory = trpc.packetAnalysis.replayHistory.useQuery(
+    { engagementId: engagementId ? parseInt(engagementId) : undefined },
+    { refetchInterval: 10000 }
+  );
+  const startReplay = trpc.packetAnalysis.startReplay.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Replay complete — ${data.stats.packetsReplayed} packets replayed in ${data.stats.durationMs}ms`);
+      replayHistory.refetch();
+    },
+    onError: (e) => toast.error(`Replay failed: ${e.message}`),
+  });
+  const provisionTools = trpc.packetAnalysis.provisionReplayTools.useMutation({
+    onSuccess: () => { toast.success("tcpreplay tools installed"); pcapFiles.refetch(); },
+    onError: (e) => toast.error(`Provision failed: ${e.message}`),
+  });
+  const compareReplays = trpc.packetAnalysis.compareReplays.useMutation({
+    onSuccess: () => toast.success("Comparison complete"),
+    onError: (e) => toast.error(`Compare failed: ${e.message}`),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Replay Controls */}
+      <Card className="border-violet-500/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-violet-400">
+            <Play className="h-5 w-5" />
+            PCAP Replay (tcpreplay)
+          </CardTitle>
+          <CardDescription>
+            Replay captured traffic against targets for regression testing. Supports speed control, IP rewriting, and response capture.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* PCAP File Selection */}
+          <div className="space-y-2">
+            <Label>PCAP File</Label>
+            {pcapFiles.data && pcapFiles.data.length > 0 ? (
+              <Select value={pcapPath} onValueChange={setPcapPath}>
+                <SelectTrigger className="font-mono">
+                  <SelectValue placeholder="Select a PCAP file..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {pcapFiles.data.map((f) => (
+                    <SelectItem key={f.path} value={f.path}>
+                      {f.path} ({f.size})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Input
+                  placeholder="/tmp/capture_*.pcap"
+                  value={pcapPath}
+                  onChange={(e) => setPcapPath(e.target.value)}
+                  className="font-mono"
+                />
+                <Button variant="outline" size="sm" onClick={() => provisionTools.mutate()} disabled={provisionTools.isPending}>
+                  {provisionTools.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Install tcpreplay"}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Speed & Interface */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label>Speed</Label>
+              <Select value={speed} onValueChange={(v) => setSpeed(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="original">Original Timing</SelectItem>
+                  <SelectItem value="topspeed">Top Speed</SelectItem>
+                  <SelectItem value="custom">Custom Multiplier</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {speed === "custom" && (
+              <div className="space-y-2">
+                <Label>Speed Multiplier</Label>
+                <Input type="number" min="0.1" max="100" step="0.1" value={speedMultiplier} onChange={(e) => setSpeedMultiplier(e.target.value)} className="font-mono" />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Interface</Label>
+              <Input value={iface} onChange={(e) => setIface(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-2">
+              <Label>Loop Count</Label>
+              <Input type="number" min="1" max="100" value={loopCount} onChange={(e) => setLoopCount(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+
+          {/* Rewrite Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Rewrite Destination IP (optional)</Label>
+              <Input placeholder="e.g. 10.0.0.5" value={rewriteDestIp} onChange={(e) => setRewriteDestIp(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-2">
+              <Label>Rewrite Source IP (optional)</Label>
+              <Input placeholder="e.g. 10.0.0.1" value={rewriteSrcIp} onChange={(e) => setRewriteSrcIp(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+
+          {/* Capture & Label */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3">
+              <Switch checked={captureResponses} onCheckedChange={setCaptureResponses} />
+              <Label>Capture Responses</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Capture Filter (optional)</Label>
+              <Input placeholder="e.g. tcp port 80" value={captureFilter} onChange={(e) => setCaptureFilter(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-2">
+              <Label>Label (optional)</Label>
+              <Input placeholder="e.g. baseline-v1" value={label} onChange={(e) => setLabel(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Engagement ID (optional)</Label>
+            <Input type="number" placeholder="Links replay to engagement" value={engagementId} onChange={(e) => setEngagementId(e.target.value)} className="font-mono w-48" />
+          </div>
+
+          <Button
+            onClick={() => startReplay.mutate({
+              pcapPath,
+              speed,
+              speedMultiplier: speed === "custom" ? parseFloat(speedMultiplier) : undefined,
+              interface: iface,
+              loopCount: parseInt(loopCount) || 1,
+              rewriteDestIp: rewriteDestIp || undefined,
+              rewriteSrcIp: rewriteSrcIp || undefined,
+              captureResponses,
+              captureFilter: captureFilter || undefined,
+              engagementId: engagementId ? parseInt(engagementId) : undefined,
+              label: label || undefined,
+            })}
+            disabled={!pcapPath || startReplay.isPending}
+            className="bg-violet-600 hover:bg-violet-700"
+          >
+            {startReplay.isPending ? (
+              <><Loader2 className="h-4 w-4 animate-spin mr-2" />Replaying...</>
+            ) : (
+              <><Play className="h-4 w-4 mr-2" />Start Replay</>
+            )}
+          </Button>
+
+          {/* Replay Result */}
+          {startReplay.data && (
+            <div className="bg-card/50 border border-violet-500/20 rounded-lg p-4 space-y-3">
+              <div className="text-xs font-semibold text-violet-400">REPLAY RESULT</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div><span className="text-muted-foreground">Packets Replayed: </span><span className="font-mono text-violet-400">{startReplay.data.stats.packetsReplayed}</span></div>
+                <div><span className="text-muted-foreground">Duration: </span><span className="font-mono">{startReplay.data.stats.durationMs}ms</span></div>
+                <div><span className="text-muted-foreground">Avg Rate: </span><span className="font-mono">{startReplay.data.stats.avgPacketsPerSec.toFixed(0)} pps</span></div>
+                <div><span className="text-muted-foreground">Bytes Sent: </span><span className="font-mono">{startReplay.data.stats.bytesSent.toLocaleString()}</span></div>
+              </div>
+              {startReplay.data.responseCapture && (
+                <div className="mt-2">
+                  <div className="text-xs text-muted-foreground">Response Capture: <span className="font-mono">{startReplay.data.responseCapture.pcapPath}</span></div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Replay History */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Replay History</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => replayHistory.refetch()}>
+              <RefreshCw className="h-3 w-3" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {replayHistory.data && replayHistory.data.length > 0 ? (
+            <div className="space-y-2">
+              {replayHistory.data.map((r: any) => (
+                <div key={r.id} className="flex items-center justify-between bg-muted/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <Play className="h-4 w-4 text-violet-400" />
+                    <span className="font-mono text-sm">{r.sourcePcap}</span>
+                    <Badge variant="outline" className={r.status === "completed" ? "text-emerald-400 border-emerald-500/30" : "text-amber-400 border-amber-500/30"}>
+                      {r.status}
+                    </Badge>
+                    {r.label && <Badge variant="secondary" className="text-xs">{r.label}</Badge>}
+                    <span className="text-xs text-muted-foreground">
+                      {r.stats?.packetsReplayed || 0} pkts • {r.stats?.durationMs || 0}ms
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{new Date(r.startedAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No replay history yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Compare Replays */}
+      {replayHistory.data && replayHistory.data.length >= 2 && engagementId && (
+        <Card className="border-cyan-500/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-cyan-400 text-sm">
+              <Eye className="h-4 w-4" />
+              Compare Replays
+            </CardTitle>
+            <CardDescription>Select two replay sessions to compare response differences (regression testing).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const replays = replayHistory.data as any[];
+                  if (replays.length >= 2) {
+                    compareReplays.mutate({
+                      baselineReplayId: replays[replays.length - 1].id,
+                      currentReplayId: replays[0].id,
+                      engagementId: parseInt(engagementId),
+                    });
+                  }
+                }}
+                disabled={compareReplays.isPending}
+              >
+                {compareReplays.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                Compare Latest vs Oldest
+              </Button>
+              {compareReplays.data && (
+                <div className="text-sm">
+                  <Badge variant="outline" className={compareReplays.data.regressionDetected ? "text-red-400 border-red-500/30" : "text-emerald-400 border-emerald-500/30"}>
+                    {compareReplays.data.regressionDetected ? "Regression Detected" : "No Regression"}
+                  </Badge>
+                  <span className="ml-2 text-muted-foreground">
+                    {compareReplays.data.newFindings} new findings, {compareReplays.data.resolvedFindings} resolved
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NETWORK TOPOLOGY TAB
+// ═══════════════════════════════════════════════════════════════
+
+function NetworkTopologyTab() {
+  const [engagementId, setEngagementId] = useState("");
+  const engId = engagementId ? parseInt(engagementId) : 0;
+
+  const topology = trpc.packetAnalysis.getTopology.useQuery(
+    { engagementId: engId },
+    { enabled: engId > 0, refetchInterval: 15000 }
+  );
+  const buildTopology = trpc.packetAnalysis.buildTopology.useMutation({
+    onSuccess: () => { toast.success("Topology built from engagement data"); topology.refetch(); },
+    onError: (e) => toast.error(`Build failed: ${e.message}`),
+  });
+  const autoCaptures = trpc.packetAnalysis.autoCaptureSessions.useQuery(
+    { engagementId: engId },
+    { enabled: engId > 0 }
+  );
+
+  const nodeTypeIcons: Record<string, string> = {
+    scanner: "🔍", target: "🎯", router: "🔀", dns_server: "📡", external: "🌐", cdn: "🛡️", unknown: "❓",
+  };
+  const severityColors: Record<string, string> = {
+    critical: "text-red-500", high: "text-red-400", medium: "text-amber-400", low: "text-blue-400", info: "text-gray-400", none: "text-gray-500",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Build Controls */}
+      <Card className="border-emerald-500/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-emerald-400">
+            <Network className="h-5 w-5" />
+            Network Topology Visualizer
+          </CardTitle>
+          <CardDescription>
+            Build and view network topology from engagement scan data — nmap results, traceroute hops, PCAP conversations, and asset metadata.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="space-y-2">
+              <Label>Engagement ID</Label>
+              <Input
+                type="number"
+                placeholder="Enter engagement ID"
+                value={engagementId}
+                onChange={(e) => setEngagementId(e.target.value)}
+                className="font-mono w-48"
+              />
+            </div>
+            <Button
+              onClick={() => engId > 0 && buildTopology.mutate({ engagementId: engId })}
+              disabled={!engId || buildTopology.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 mt-6"
+            >
+              {buildTopology.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Building...</>
+              ) : (
+                <><Network className="h-4 w-4 mr-2" />Build Topology</>
+              )}
+            </Button>
+            <Button variant="outline" className="mt-6" onClick={() => topology.refetch()} disabled={!engId}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Topology Graph */}
+      {topology.data && (
+        <>
+          {/* Stats Bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {[
+              { label: "Nodes", value: topology.data.stats.totalNodes, color: "text-blue-400" },
+              { label: "Edges", value: topology.data.stats.totalEdges, color: "text-violet-400" },
+              { label: "Hosts", value: topology.data.stats.totalHosts, color: "text-red-400" },
+              { label: "Routers", value: topology.data.stats.totalRouters, color: "text-purple-400" },
+              { label: "Findings", value: topology.data.stats.totalFindings, color: "text-amber-400" },
+              { label: "Protocols", value: topology.data.stats.protocols.length, color: "text-cyan-400" },
+              { label: "Max Hops", value: topology.data.stats.maxHopDistance, color: "text-emerald-400" },
+            ].map((s) => (
+              <div key={s.label} className="bg-card/50 border border-border/50 rounded-lg p-3 text-center">
+                <div className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Node Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Discovered Nodes ({topology.data.nodes.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/30 text-muted-foreground text-xs">
+                      <th className="text-left py-2 px-3">Type</th>
+                      <th className="text-left py-2 px-3">IP</th>
+                      <th className="text-left py-2 px-3">Hostname</th>
+                      <th className="text-left py-2 px-3">OS</th>
+                      <th className="text-left py-2 px-3">Ports</th>
+                      <th className="text-left py-2 px-3">Services</th>
+                      <th className="text-left py-2 px-3">Findings</th>
+                      <th className="text-left py-2 px-3">Risk</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topology.data.nodes.map((node: any) => (
+                      <tr key={node.id} className="border-b border-border/10 hover:bg-muted/10">
+                        <td className="py-2 px-3">
+                          <span className="mr-1">{nodeTypeIcons[node.type] || "❓"}</span>
+                          <Badge variant="outline" className="text-xs">{node.type}</Badge>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{node.ip}</td>
+                        <td className="py-2 px-3 text-xs">{node.hostname || "—"}</td>
+                        <td className="py-2 px-3 text-xs">{node.os || "—"}</td>
+                        <td className="py-2 px-3">
+                          <div className="flex flex-wrap gap-1">
+                            {node.ports.slice(0, 5).map((p: number) => (
+                              <Badge key={p} variant="outline" className="text-xs font-mono">{p}</Badge>
+                            ))}
+                            {node.ports.length > 5 && <Badge variant="secondary" className="text-xs">+{node.ports.length - 5}</Badge>}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex flex-wrap gap-1">
+                            {node.services.slice(0, 3).map((s: string, i: number) => (
+                              <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{node.findingCount}</td>
+                        <td className={`py-2 px-3 text-xs font-semibold ${severityColors[node.maxSeverity] || "text-gray-500"}`}>
+                          {node.maxSeverity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Edge Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Network Edges ({topology.data.edges.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/30 text-muted-foreground text-xs">
+                      <th className="text-left py-2 px-3">Source</th>
+                      <th className="text-left py-2 px-3">Target</th>
+                      <th className="text-left py-2 px-3">Type</th>
+                      <th className="text-left py-2 px-3">Protocol</th>
+                      <th className="text-left py-2 px-3">Port</th>
+                      <th className="text-left py-2 px-3">Packets</th>
+                      <th className="text-left py-2 px-3">Bytes</th>
+                      <th className="text-left py-2 px-3">Findings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topology.data.edges.map((edge: any) => (
+                      <tr key={edge.id} className="border-b border-border/10 hover:bg-muted/10">
+                        <td className="py-2 px-3 font-mono text-xs">{edge.source}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.target}</td>
+                        <td className="py-2 px-3">
+                          <Badge variant="outline" className="text-xs" style={{ borderColor: edge.color + "50", color: edge.color }}>
+                            {edge.type}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.protocol}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.port || "—"}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.packets.toLocaleString()}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.bytes.toLocaleString()}</td>
+                        <td className="py-2 px-3 font-mono text-xs">{edge.findingCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Auto-Capture Sessions */}
+      {autoCaptures.data && autoCaptures.data.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Activity className="h-4 w-4 text-amber-400" />
+              Auto-Capture Sessions (nmap-triggered)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {autoCaptures.data.map((s: any) => (
+                <div key={s.sessionId} className="flex items-center justify-between bg-muted/20 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <Radio className="h-4 w-4 text-amber-400" />
+                    <span className="font-mono text-xs">{s.target}</span>
+                    <Badge variant="outline" className={s.status === "completed" ? "text-emerald-400 border-emerald-500/30" : s.status === "capturing" ? "text-amber-400 border-amber-500/30" : "text-red-400 border-red-500/30"}>
+                      {s.status}
+                    </Badge>
+                    {s.pcapPath && <span className="text-xs text-muted-foreground font-mono">{s.pcapPath}</span>}
+                    {s.packetsCaptured > 0 && <span className="text-xs text-muted-foreground">{s.packetsCaptured} pkts</span>}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{new Date(s.startedAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!topology.data && engId > 0 && !topology.isLoading && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Network className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>No topology data yet. Click "Build Topology" to generate from engagement scan data.</p>
+        </div>
+      )}
+
+      {!engId && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Network className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>Enter an engagement ID to view or build its network topology.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // TOOL STATUS TAB
 // ═══════════════════════════════════════════════════════════════
 
@@ -700,6 +1216,14 @@ export default function PacketAnalysis() {
             <Radio className="h-3.5 w-3.5" />
             Live Capture
           </TabsTrigger>
+          <TabsTrigger value="replay" className="flex items-center gap-1.5">
+            <Play className="h-3.5 w-3.5" />
+            PCAP Replay
+          </TabsTrigger>
+          <TabsTrigger value="topology" className="flex items-center gap-1.5">
+            <Network className="h-3.5 w-3.5" />
+            Topology
+          </TabsTrigger>
           <TabsTrigger value="tools" className="flex items-center gap-1.5">
             <Shield className="h-3.5 w-3.5" />
             Tool Status
@@ -714,6 +1238,12 @@ export default function PacketAnalysis() {
         </TabsContent>
         <TabsContent value="capture">
           <LiveCaptureTab />
+        </TabsContent>
+        <TabsContent value="replay">
+          <PcapReplayTab />
+        </TabsContent>
+        <TabsContent value="topology">
+          <NetworkTopologyTab />
         </TabsContent>
         <TabsContent value="tools">
           <ToolStatusTab />

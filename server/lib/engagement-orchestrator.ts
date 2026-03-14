@@ -2535,6 +2535,24 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         });
 
         const startTime = Date.now();
+        // ═══ AUTO-CAPTURE: Start tcpdump before nmap ═══
+        let autoCaptureSessionId: string | null = null;
+        try {
+          const { beforeNmapScan } = await import('./pcap-auto-capture');
+          autoCaptureSessionId = await beforeNmapScan(
+            state.engagementId, target, asset.hostname,
+            { enabled: !!(state as any).autoCaptureEnabled }
+          );
+          if (autoCaptureSessionId) {
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `📡 Auto-Capture: ${fmtTarget(asset, target)}`,
+              detail: `Background tcpdump started for forensic analysis during nmap scan`,
+            });
+          }
+        } catch (capErr: any) {
+          console.warn(`[AutoCapture] Hook failed: ${capErr.message}`);
+        }
         try {
           const nmapArgs = `${discoveryFlags} ${target}`;
           addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${fmtTarget(asset, target)}`, detail: `nmap ${nmapArgs}` });
@@ -2717,6 +2735,34 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         } catch (e: any) {
           addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
           asset.status = 'enumerated'; // Continue pipeline
+        }
+
+        // ═══ AUTO-CAPTURE: Stop tcpdump after nmap ═══
+        if (autoCaptureSessionId) {
+          try {
+            const { afterNmapScan } = await import('./pcap-auto-capture');
+            const captureResult = await afterNmapScan(autoCaptureSessionId);
+            if (captureResult && captureResult.packetsCaptured) {
+              addLog(state, {
+                phase: 'enumeration', type: 'info',
+                title: `📡 Auto-Capture Complete: ${fmtTarget(asset, target)}`,
+                detail: `Captured ${captureResult.packetsCaptured} packets during nmap scan (${Math.round((captureResult.stoppedAt! - captureResult.startedAt) / 1000)}s)${
+                  captureResult.analysisSummary ? `\nFindings: ${captureResult.analysisSummary.findings} security findings detected, ${captureResult.analysisSummary.conversations} conversations, protocols: ${captureResult.analysisSummary.protocols.join(', ')}` : ''
+                }`,
+                data: { pcapPath: captureResult.pcapPath, packetsCaptured: captureResult.packetsCaptured, analysisSummary: captureResult.analysisSummary },
+              });
+              // Store capture reference on asset for topology builder
+              if (!(asset as any).pcapCaptures) (asset as any).pcapCaptures = [];
+              (asset as any).pcapCaptures.push({
+                sessionId: captureResult.sessionId,
+                pcapPath: captureResult.pcapPath,
+                packetsCaptured: captureResult.packetsCaptured,
+                analysisSummary: captureResult.analysisSummary,
+              });
+            }
+          } catch (capErr: any) {
+            console.warn(`[AutoCapture] Stop hook failed: ${capErr.message}`);
+          }
         }
 
         // ── Step 3: httpx (HTTP probing on web ports) ────────────────────

@@ -223,7 +223,141 @@ export const packetAnalysisRouter = router({
       return { deleted: true };
     }),
 
-  // ─── Get probe template descriptions ──────────────────────────────────
+   // ═══════════════════════════════════════════════════════════════════
+  // PCAP REPLAY
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── Provision tcpreplay tools ───────────────────────────────────
+  provisionReplayTools: protectedProcedure.mutation(async () => {
+    const { provisionReplayTools } = await import("../lib/pcap-replay");
+    return await provisionReplayTools();
+  }),
+
+  // ─── List PCAP files available for replay ─────────────────────────
+  listPcapFiles: protectedProcedure.query(async () => {
+    const { listPcapFiles } = await import("../lib/pcap-replay");
+    return await listPcapFiles();
+  }),
+
+  // ─── Execute a PCAP replay ────────────────────────────────────────
+  startReplay: protectedProcedure
+    .input(
+      z.object({
+        pcapPath: z.string().min(1),
+        speed: z.enum(["original", "topspeed", "custom"]).default("original"),
+        speedMultiplier: z.number().min(0.1).max(100).optional(),
+        interface: z.string().default("eth0"),
+        loopCount: z.number().min(1).max(100).default(1),
+        rewriteDestIp: z.string().optional(),
+        rewriteSrcIp: z.string().optional(),
+        rewriteDestMac: z.string().optional(),
+        rewriteSrcMac: z.string().optional(),
+        portRemap: z.array(z.string()).optional(),
+        captureResponses: z.boolean().default(true),
+        captureFilter: z.string().optional(),
+        maxDuration: z.number().min(10).max(600).default(300),
+        engagementId: z.number().optional(),
+        label: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { executeReplay } = await import("../lib/pcap-replay");
+      return await executeReplay(input);
+    }),
+
+  // ─── Get replay history ───────────────────────────────────────────
+  replayHistory: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }))
+    .query(async ({ input }) => {
+      const { getReplayHistory, getAllReplays } = await import("../lib/pcap-replay");
+      return input.engagementId ? getReplayHistory(input.engagementId) : getAllReplays();
+    }),
+
+  // ─── Compare two replay results ───────────────────────────────────
+  compareReplays: protectedProcedure
+    .input(
+      z.object({
+        baselineReplayId: z.string(),
+        currentReplayId: z.string(),
+        engagementId: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { compareReplays } = await import("../lib/pcap-replay");
+      const result = await compareReplays(input.baselineReplayId, input.currentReplayId, input.engagementId);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Could not compare replays — ensure both have response captures" });
+      return result;
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NETWORK TOPOLOGY
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── Get topology for an engagement ───────────────────────────────
+  getTopology: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getTopology, exportTopologyForVisualization } = await import("../lib/network-topology");
+      const topology = getTopology(input.engagementId);
+      if (!topology) return null;
+      return exportTopologyForVisualization(topology);
+    }),
+
+  // ─── Build topology from engagement state ─────────────────────────
+  buildTopology: protectedProcedure
+    .input(
+      z.object({
+        engagementId: z.number(),
+        scannerIp: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { buildTopology, setTopology, exportTopologyForVisualization } = await import("../lib/network-topology");
+      // Try to get engagement state from the ops state cache
+      const { getOpsState } = await import("../lib/engagement-orchestrator");
+      const state = getOpsState(input.engagementId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No engagement state found" });
+
+      const scannerIp = input.scannerIp || process.env.SCAN_SERVER_HOST || "10.0.0.1";
+
+      // Extract data from engagement state
+      const nmapResults = state.assets
+        .filter((a: any) => a.ip && a.ports?.length > 0)
+        .map((a: any) => ({
+          targetIp: a.ip,
+          targetHostname: a.hostname,
+          ports: (a.ports || []).map((p: any) => ({
+            port: p.port,
+            service: p.service,
+            version: p.version,
+          })),
+        }));
+
+      const topology = buildTopology(input.engagementId, {
+        scannerIp,
+        nmapResults,
+        assets: state.assets.map((a: any) => ({
+          hostname: a.hostname,
+          ip: a.ip,
+          type: a.type,
+          ports: a.ports,
+          passiveRecon: a.passiveRecon,
+        })),
+      });
+
+      setTopology(input.engagementId, topology);
+      return exportTopologyForVisualization(topology);
+    }),
+
+  // ─── Get auto-capture sessions for an engagement ──────────────────
+  autoCaptureSessions: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getCaptureSessions } = await import("../lib/pcap-auto-capture");
+      return getCaptureSessions(input.engagementId);
+    }),
+
+  // ─── Get probe template descriptions ──────────────────────────────
   probeTemplates: protectedProcedure.query(() => {
     return [
       {
