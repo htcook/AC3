@@ -155,6 +155,20 @@ export default function Engagements() {
   const [expandedEngagement, setExpandedEngagement] = useState<number | null>(null);
   const [linkingEngagementId, setLinkingEngagementId] = useState<number | null>(null);
   const [selectedCampaignToLink, setSelectedCampaignToLink] = useState<number | null>(null);
+  const [showTrainingLabDialog, setShowTrainingLabDialog] = useState(false);
+  const [trainingLabTarget, setTrainingLabTarget] = useState('demo.testfire.net');
+  const [trainingLabScanMode, setTrainingLabScanMode] = useState<'strict_passive' | 'standard' | 'active'>('active');
+
+  const launchTrainingLabMutation = trpc.engagementAutomation.launchTrainingLab.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Training lab launched: ${data.labProfile}`);
+      setShowTrainingLabDialog(false);
+      engagementsQuery.refetch();
+      // Navigate to the engagement ops page
+      navigate(`/engagements/${data.engagementId}/ops`);
+    },
+    onError: (err) => toast.error(sanitizeErrorForToast(err.message)),
+  });
 
   const createMutation = trpc.engagements.create.useMutation({
     onSuccess: () => {
@@ -362,6 +376,15 @@ export default function Engagements() {
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             EMULATION UI
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="font-display tracking-wider text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+            onClick={() => setShowTrainingLabDialog(true)}
+          >
+            <Target className="w-4 h-4 mr-2" />
+            TRAINING LAB
           </Button>
         </div>
       </div>
@@ -1236,6 +1259,96 @@ export default function Engagements() {
             </p>
           </div>
         </>
+      )}
+      {/* Training Lab Dialog */}
+      {showTrainingLabDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowTrainingLabDialog(false)}>
+          <div className="bg-card border border-amber-500/30 p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h2 className="font-display text-lg tracking-wider text-amber-400 mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5" />
+              LAUNCH TRAINING LAB
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Run the full engagement pipeline against an authorized training lab target.
+              All approval gates will be auto-approved. Exploitable vulns will be automatically exploited.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1 block">TARGET</label>
+                <select
+                  value={trainingLabTarget}
+                  onChange={e => setTrainingLabTarget(e.target.value)}
+                  className="w-full bg-background border border-border p-2 text-sm"
+                >
+                  <option value="demo.testfire.net">Altoro Mutual (demo.testfire.net) — SQLi, XSS, Auth Bypass</option>
+                  <option value="zero.webappsecurity.com">Zero Bank (zero.webappsecurity.com) — SQLi, XSS, CSRF</option>
+                  <option value="testphp.vulnweb.com">Acunetix PHP (testphp.vulnweb.com) — SQLi, XSS, File Inclusion</option>
+                  <option value="dvwa.co.uk">DVWA (dvwa.co.uk) — 14 Vuln Exercises</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-display tracking-wider text-muted-foreground mb-1 block">SCAN MODE</label>
+                <div className="flex gap-2">
+                  {(['strict_passive', 'standard', 'active'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setTrainingLabScanMode(mode)}
+                      className={`flex-1 p-2 text-xs font-display tracking-wider border transition-colors ${
+                        trainingLabScanMode === mode
+                          ? mode === 'active' ? 'bg-red-500/20 border-red-500 text-red-400'
+                            : mode === 'standard' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-400'
+                            : 'bg-green-500/20 border-green-500 text-green-400'
+                          : 'border-border text-muted-foreground hover:border-border/80'
+                      }`}
+                    >
+                      {mode === 'strict_passive' ? '\uD83D\uDD12 PASSIVE' : mode === 'standard' ? '\uD83D\uDD0D STANDARD' : '\u26A1 ACTIVE'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {trainingLabScanMode === 'active' ? 'Full exploitation pipeline — will attempt to pop shells on discovered vulns' :
+                   trainingLabScanMode === 'standard' ? 'Enumeration + vuln detection, no active exploitation' :
+                   'Passive recon only — no direct target interaction'}
+                </p>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 p-3">
+                <p className="text-[10px] text-amber-400">
+                  <strong>\u26A0\uFE0F AUTHORIZED TARGETS ONLY:</strong> Training labs are intentionally vulnerable applications.
+                  All approval gates will be auto-approved and RoE auto-signed.
+                  KEV-listed vulns will be prioritized for exploitation.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 font-display tracking-wider"
+                  onClick={() => setShowTrainingLabDialog(false)}
+                >
+                  CANCEL
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 font-display tracking-wider bg-amber-600 hover:bg-amber-700 text-white"
+                  disabled={launchTrainingLabMutation.isPending}
+                  onClick={() => {
+                    launchTrainingLabMutation.mutate({
+                      target: trainingLabTarget,
+                      scanMode: trainingLabScanMode,
+                      engagementType: 'pentest',
+                    });
+                  }}
+                >
+                  {launchTrainingLabMutation.isPending ? 'LAUNCHING...' : '\uD83D\uDE80 LAUNCH'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </AppShell>
   );

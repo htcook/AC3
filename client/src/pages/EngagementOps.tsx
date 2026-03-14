@@ -43,7 +43,7 @@ import {
   Sparkles, ClipboardList, Key, KeyRound,
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
-  ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3,
+  ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -55,6 +55,7 @@ import type { TabGroup } from "@/components/TabGroupNav";
 import { FindingStateBadge } from "@/components/FindingStateBadge";
 import { VulnDetailDrawer, ZapFindingDetailDrawer } from "@/components/FindingDetailDrawer";
 import type { VulnFinding, ZapFinding as ZapFindingType } from "@/components/FindingDetailDrawer";
+import EngagementTerminal from "@/components/EngagementTerminal";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -873,6 +874,9 @@ export default function EngagementOps() {
   const [execExploitIdx, setExecExploitIdx] = useState<number | null>(null);
   const [execDryRun, setExecDryRun] = useState(true);
   const [execResult, setExecResult] = useState<any>(null);
+  // ── Terminal ──
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [exploitShellContext, setExploitShellContext] = useState<any>(null);
   const executeExploitMut = trpc.engagementOps.executeExploit.useMutation({
     onSuccess: (data) => { setExecResult(data); toast({ title: data.status === 'success' ? 'Exploit executed successfully' : `Execution ${data.status}`, description: `Exit code: ${data.exitCode} | Duration: ${data.durationMs}ms${data.dryRun ? ' (dry run)' : ''}` }); },
     onError: (err) => toast({ title: 'Execution failed', description: err.message, variant: 'destructive' }),
@@ -1381,6 +1385,20 @@ export default function EngagementOps() {
                 )}
               </div>
             )}
+
+            {/* ── Supplemental Scan Tools ── */}
+            <div className="flex items-center gap-1 ml-2 border-l border-border/30 pl-2">
+              <a href={`/web-app-scanner?engagementId=${engagementId}`}>
+                <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs h-8" title="Open Web App Scanner for supplemental testing">
+                  <Scan className="h-3.5 w-3.5 mr-1" /> Scan Tools
+                </Button>
+              </a>
+              <a href={`/nuclei-scanner?engagementId=${engagementId}`}>
+                <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs h-8" title="Run Nuclei templates against targets">
+                  <Microscope className="h-3.5 w-3.5 mr-1" /> Nuclei
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -2828,7 +2846,7 @@ export default function EngagementOps() {
                                       </span>
                                     </div>
                                     {tr.command && (
-                                      <div className="bg-black/30 rounded px-2 py-1 font-mono text-[9px] text-green-300/80 overflow-x-auto whitespace-nowrap">
+                                      <div className="bg-black/30 rounded px-2 py-1 font-mono text-[9px] text-green-300/80 whitespace-pre-wrap break-all">
                                         $ {tr.command}
                                       </div>
                                     )}
@@ -4548,6 +4566,28 @@ export default function EngagementOps() {
                 <div className="text-[10px] text-muted-foreground">
                   Sandbox: {execResult.sandboxInfo?.memoryLimitMb}MB RAM | {execResult.sandboxInfo?.cpuTimeLimitSec}s CPU | {execResult.sandboxInfo?.timeoutSec}s timeout
                 </div>
+                {execResult.status === 'success' && execResult.exitCode === 0 && !execResult.dryRun && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white mt-2"
+                    onClick={() => {
+                      const exploit = execExploitIdx !== null ? generatedExploitsQ.data?.[execExploitIdx] : null;
+                      setExploitShellContext({
+                        shellType: exploit?.exploit?.shellType || 'reverse_shell',
+                        targetHost: exploit?.asset || '',
+                        targetPort: exploit?.exploit?.targetPort,
+                        shellPayload: exploit?.exploit?.shellPayload,
+                        stabilizationCmds: exploit?.exploit?.shellStabilization,
+                        exploitName: exploit?.exploit?.filename || 'exploit',
+                      });
+                      setTerminalOpen(true);
+                      setExecExploitIdx(null);
+                      setExecResult(null);
+                    }}
+                  >
+                    <Terminal className="h-3.5 w-3.5 mr-1.5" /> Open Shell Session
+                  </Button>
+                )}
               </div>
             )}
             {(execHistoryQ.data?.length || 0) > 0 && !execResult && (
@@ -4771,6 +4811,28 @@ export default function EngagementOps() {
         open={!!selectedZapDetail}
         onClose={() => setSelectedZapDetail(null)}
         assetHostname={detailAssetHostname}
+      />
+      {/* ── Floating Terminal Button ── */}
+      {!terminalOpen && (
+        <button
+          onClick={() => setTerminalOpen(true)}
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-green-500/40 rounded-full shadow-lg shadow-green-500/10 hover:bg-green-900/30 hover:border-green-500/60 transition-all group"
+          title="Open Pentest Terminal"
+        >
+          <Terminal className="h-4 w-4 text-green-400" />
+          <span className="text-xs font-mono text-green-400 group-hover:text-green-300">Terminal</span>
+          {exploitShellContext && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
+          )}
+        </button>
+      )}
+      {/* ── Engagement Terminal ── */}
+      <EngagementTerminal
+        engagementId={engagementId}
+        assets={(ops?.assets || []).map(a => ({ hostname: a.hostname, ip: a.ip, ports: a.ports?.map(p => p.port) }))}
+        exploitContext={exploitShellContext}
+        open={terminalOpen}
+        onOpenChange={setTerminalOpen}
       />
     </AppShell>
   );

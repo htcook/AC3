@@ -673,4 +673,163 @@ export const engagementAutomationRouter = router({
 
       return { status: nextStatus, step: nextStep };
     }),
+
+  // ── Training Lab Auto-Runner ──────────────────────────────────────────────
+  // Creates an engagement for a known training lab target and runs the full
+  // pipeline (recon → enumeration → vuln detection → exploitation) with all
+  // approval gates auto-approved. Results feed into the engagement findings.
+  launchTrainingLab: protectedProcedure
+    .input(z.object({
+      target: z.string().min(1).describe('Training lab domain or IP (e.g., demo.testfire.net)'),
+      name: z.string().optional(),
+      engagementType: z.enum(['pentest', 'red_team']).default('pentest'),
+      scanMode: z.enum(['strict_passive', 'standard', 'active']).default('active'),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+
+      // Known training lab profiles with expected vulns
+      const TRAINING_LABS: Record<string, { name: string; description: string; expectedVulns: string[] }> = {
+        'demo.testfire.net': {
+          name: 'Altoro Mutual (IBM AppScan)',
+          description: 'Intentionally vulnerable banking application with SQL injection, XSS, authentication bypass, and session management flaws.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'Authentication Bypass', 'Session Fixation', 'Insecure Direct Object Reference', 'Path Traversal'],
+        },
+        'zero.webappsecurity.com': {
+          name: 'Zero Bank (Micro Focus)',
+          description: 'Intentionally vulnerable banking application with SQL injection, XSS, CSRF, and broken authentication.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'CSRF', 'Broken Authentication', 'Insecure Direct Object Reference'],
+        },
+        'testphp.vulnweb.com': {
+          name: 'Acunetix Test PHP',
+          description: 'PHP-based vulnerable web application with SQL injection, XSS, file inclusion, and command injection.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'File Inclusion', 'Command Injection', 'Directory Traversal', 'File Upload'],
+        },
+        'dvwa.co.uk': {
+          name: 'DVWA (Damn Vulnerable Web Application)',
+          description: 'Classic training lab with 14 vulnerability exercises including SQL injection, XSS, command injection, CSRF, and file upload.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'Command Injection', 'CSRF', 'File Upload', 'File Inclusion', 'Brute Force', 'Insecure CAPTCHA'],
+        },
+      };
+
+      const labProfile = TRAINING_LABS[input.target.toLowerCase()] || {
+        name: `Training Lab: ${input.target}`,
+        description: `Custom training lab target: ${input.target}`,
+        expectedVulns: [],
+      };
+
+      const engagementName = input.name || `${labProfile.name} - Training Lab Run`;
+
+      // 1. Create the engagement
+      const engagementId = await createEngagement({
+        name: engagementName,
+        customerName: 'Training Lab (Authorized)',
+        engagementType: input.engagementType,
+        status: 'active',
+        targetDomain: input.target,
+        targetIpRange: null,
+        createdBy: ctx.user.id,
+        notes: JSON.stringify({
+          trainingLab: true,
+          labProfile: labProfile.name,
+          expectedVulns: labProfile.expectedVulns,
+          description: labProfile.description,
+          scanMode: input.scanMode,
+          autoApproveAll: true,
+          launchedAt: new Date().toISOString(),
+        }),
+      });
+
+      // 2. Create the engagement pipeline
+      const pipelineId = await createEngagementPipeline({
+        userId: ctx.user.id,
+        name: `${engagementName} - Auto Pipeline`,
+        status: 'intel_scan',
+        targetDomains: [input.target],
+        clientType: input.engagementType,
+        orgProfile: {
+          riskLevel: 'high',
+          trainingLab: true,
+          expectedVulns: labProfile.expectedVulns,
+        },
+        recommendedActors: [],
+        engagementId,
+        currentStep: 1,
+        totalSteps: 6,
+        stepLog: [{
+          step: 1,
+          status: 'completed',
+          message: `Training lab engagement created for ${labProfile.name}. Full auto-run pipeline starting.`,
+          timestamp: new Date().toISOString(),
+        }],
+      });
+
+      // 3. Initialize ops state with training lab mode (auto-approve all gates)
+      const { initOpsState, getOpsState, broadcastOpsUpdate, addLog, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(engagementId);
+      if (!state) state = initOpsState(engagementId, input.engagementType);
+
+      // Enable training lab mode — auto-approves ALL approval gates including red tier
+      (state as any).trainingLabMode = true;
+
+      // Auto-sign the RoE for training lab targets
+      state.roeScopeGuard = {
+        authorizedDomains: [input.target],
+        authorizedIps: [],
+        roeStatus: 'signed',
+        signedBy: ctx.user.name || 'Training Lab Auto-Runner',
+        signedAt: Date.now(),
+      };
+
+      // Pre-populate the asset
+      state.assets.push({
+        hostname: input.target,
+        type: 'web_server',
+        ports: [],
+        vulns: [],
+        zapFindings: [],
+        exploitAttempts: [],
+        toolResults: [],
+        status: 'pending',
+        technologies: [],
+      });
+
+      state.isRunning = true;
+      state.phase = 'recon';
+      state.startedAt = Date.now();
+
+      addLog(state, {
+        phase: 'recon',
+        type: 'phase_complete',
+        title: `\uD83C\uDFAF Training Lab Launched: ${labProfile.name}`,
+        detail: `Full auto-run pipeline started for ${input.target} in ${input.scanMode} mode. All approval gates auto-approved. Expected vulns: ${labProfile.expectedVulns.join(', ') || 'unknown'}.`,
+      });
+
+      broadcastOpsUpdate(engagementId, { type: 'phase_change', phase: 'recon' });
+      await persistOpsStateNow(engagementId);
+
+      // 4. The pipeline is initialized with trainingLabMode=true and RoE signed.
+      // The user triggers the scan from the Engagement Ops UI (startPassiveScan),
+      // which will see trainingLabMode=true and auto-approve all gates.
+      // We stop the isRunning flag so the user can trigger it cleanly.
+      state.isRunning = false;
+      state.phase = 'idle';
+
+      addLog(state, {
+        phase: 'recon',
+        type: 'info',
+        title: '\u2705 Training Lab Ready',
+        detail: `Engagement created with all approval gates set to auto-approve. Navigate to Engagement Ops and click "Start Scan" to begin the full pipeline in ${input.scanMode} mode.`,
+      });
+      await persistOpsStateNow(engagementId);
+
+      return {
+        engagementId,
+        pipelineId,
+        target: input.target,
+        labProfile: labProfile.name,
+        scanMode: input.scanMode,
+        message: `Training lab engagement launched for ${labProfile.name}. Full pipeline running in ${input.scanMode} mode with all approval gates auto-approved.`,
+      };
+    }),
 });

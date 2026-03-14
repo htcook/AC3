@@ -2632,6 +2632,52 @@ Return ONLY a JSON object with vulnerabilities array.`;
         return getVulnDiff(input.engagementId, input.fromSnapshotId, input.toSnapshotId);
       }),
 
+    /** Run a command on the scan server terminal for manual pentesting */
+    runTerminalCommand: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        command: z.string().min(1).max(2000),
+        targetHost: z.string().optional(),
+        timeoutSeconds: z.number().min(5).max(300).default(120),
+      }))
+      .mutation(async ({ input }) => {
+        const { executeRawCommand } = await import('../lib/scan-server-executor');
+        const result = await executeRawCommand(input.command, input.timeoutSeconds);
+        // Store command in engagement terminal history for evidence
+        const historyKey = `terminal_${input.engagementId}`;
+        if (!(globalThis as any).__terminalHistory) (globalThis as any).__terminalHistory = new Map();
+        const history = (globalThis as any).__terminalHistory as Map<string, any[]>;
+        if (!history.has(historyKey)) history.set(historyKey, []);
+        history.get(historyKey)!.push({
+          command: input.command,
+          targetHost: input.targetHost,
+          stdout: result.stdout?.slice(0, 50000) || '',
+          stderr: result.stderr?.slice(0, 10000) || '',
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+          timestamp: new Date().toISOString(),
+        });
+        // Keep last 500 entries
+        const arr = history.get(historyKey)!;
+        if (arr.length > 500) arr.splice(0, arr.length - 500);
+        return {
+          stdout: result.stdout || '',
+          stderr: result.stderr || '',
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+          timedOut: result.timedOut,
+        };
+      }),
+
+    /** Get terminal command history for an engagement (for evidence) */
+    getTerminalHistory: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const historyKey = `terminal_${input.engagementId}`;
+        const history = ((globalThis as any).__terminalHistory as Map<string, any[]>) || new Map();
+        return history.get(historyKey) || [];
+      }),
+
     /** Manually record a scan snapshot for trend tracking */
     recordScanSnapshot: protectedProcedure
       .input(z.object({ engagementId: z.number() }))

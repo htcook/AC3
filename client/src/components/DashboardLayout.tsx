@@ -186,7 +186,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4 overflow-x-hidden max-w-full">{children}</main>
       </div>
     );
   }
@@ -325,7 +325,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Main content */}
-        <main className="flex-1 p-4" style={{ marginLeft: RAIL_WIDTH }}>
+        <main className="flex-1 p-4 overflow-x-hidden max-w-full" style={{ marginLeft: RAIL_WIDTH }}>
           {children}
         </main>
       </div>
@@ -381,7 +381,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 p-4" style={{ marginLeft: EXPANDED_WIDTH }}>
+      <main className="flex-1 p-4 overflow-x-hidden max-w-full" style={{ marginLeft: EXPANDED_WIDTH }}>
         {children}
       </main>
     </div>

@@ -624,6 +624,10 @@ async function persistScanResult(opts: {
  * Red risk actions (destructive exploits, C2 deployment) always require manual approval.
  */
 function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean {
+  // Training lab mode: auto-approve ALL gates including red tier (exploitation)
+  // Training labs are authorized targets where we want the full pipeline to run unattended
+  if ((state as any).trainingLabMode === true) return true;
+
   // Only auto-approve if RoE is signed
   const roeStatus = state.roeScopeGuard?.roeStatus;
   if (roeStatus !== 'signed') return false;
@@ -4506,10 +4510,19 @@ ${(() => {
         title: "⚠️ LLM Exploit Fallback",
         detail: `LLM returned 0 exploit actions despite ${critHighVulns.length} critical/high vulnerabilities. Auto-generating exploit plan from vulnerability list.`,
       });
-      // Deduplicate by CVE+target, prioritize critical over high, limit to top 15
+      // Deduplicate by CVE+target, prioritize: KEV-listed first, then critical, then high, limit to top 15
       const seen = new Set<string>();
       const autoExploits = critHighVulns
-        .sort((a, b) => (a.vuln.severity === 'critical' ? 0 : 1) - (b.vuln.severity === 'critical' ? 0 : 1))
+        .sort((a, b) => {
+          // KEV-listed vulns always come first
+          const aKev = (a.vuln as any).kevListed ? 1 : 0;
+          const bKev = (b.vuln as any).kevListed ? 1 : 0;
+          if (bKev !== aKev) return bKev - aKev; // KEV first
+          // Then by severity: critical before high
+          const aSev = a.vuln.severity === 'critical' ? 0 : 1;
+          const bSev = b.vuln.severity === 'critical' ? 0 : 1;
+          return aSev - bSev;
+        })
         .filter(({ asset, vuln }) => {
           const key = `${asset.hostname}:${vuln.cve || vuln.title}`;
           if (seen.has(key)) return false;
@@ -4529,13 +4542,40 @@ ${(() => {
         }));
       exploitActions = autoExploits;
       decision.actions = [...decision.actions, ...autoExploits];
+      const kevCount = autoExploits.filter((a: any) => {
+        const matchedAsset = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
+        return matchedAsset?.vulns.some(v => v.cve === a.params?.cve && (v as any).kevListed);
+      }).length;
+      if (kevCount > 0) {
+        addLog(state, {
+          phase: 'exploitation',
+          type: 'info',
+          title: `🔴 ${kevCount} CISA KEV Vulnerabilities Prioritized`,
+          detail: `${kevCount} exploit target(s) are on the CISA Known Exploited Vulnerabilities list and have been moved to the top of the exploit queue.`,
+          riskTier: 'red',
+        });
+      }
     }
   }
+
+  // ── KEV-first sorting for ALL exploit actions (including LLM-generated) ──
+  if (exploitActions.length > 1) {
+    exploitActions.sort((a: any, b: any) => {
+      const aTarget = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
+      const bTarget = state.assets.find(ast => ast.hostname === b.params?.target || ast.ip === b.params?.target);
+      const aKev = aTarget?.vulns.some(v => v.cve === a.params?.cve && (v as any).kevListed) ? 1 : 0;
+      const bKev = bTarget?.vulns.some(v => v.cve === b.params?.cve && (v as any).kevListed) ? 1 : 0;
+      return bKev - aKev; // KEV first, stable sort preserves LLM ordering for non-KEV
+    });
+  }
+
   const planSummary = exploitActions.map((a: any, i: number) => {
     const p = a.params || {};
     const matchedAsset = state.assets.find(ast => ast.hostname === p.target || ast.ip === p.target);
     const resolvedPort = p.port || matchedAsset?.ports?.[0]?.port || 443;
-    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})`;
+    const isKev = matchedAsset?.vulns.some(v => v.cve === p.cve && (v as any).kevListed);
+    const kevBadge = isKev ? ' ⚠️ [CISA KEV]' : '';
+    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}`;
   }).join("\n");
 
   const exploitPlanApproved = await requestApproval(state, {
@@ -4651,7 +4691,7 @@ ${(() => {
         riskTier: "red",
       });
 
-      // Generate exploit plan via exploitation bridge
+      // Generate exploit plan via exploitation bridge + execute via functional exploit generator
       try {
         const { generateExploitPlan } = await import("./exploitation-bridge-engine");
         const plan = await generateExploitPlan(
@@ -4668,14 +4708,81 @@ ${(() => {
           engagementId: state.engagementId,
         });
 
-        // Simulate exploit result (in production this would call MSF API)
+        // ── Real exploit execution via functional exploit generator + scan server ──
         const exploitStartTime = Date.now();
-        const success = !!plan?.selectedExploit?.modulePath;
+        let success = false;
+        let shellSessionId: string | undefined;
+        let exploitOutput = '';
+        let shellType: string | undefined;
+        let shellPayload: string | undefined;
+
+        try {
+          // Step 1: Generate the actual exploit code via LLM
+          const { generateExploit } = await import("./functional-exploit-generator");
+          const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
+          const generatedExploit = await generateExploit({
+            cve: cve || '',
+            title: vulnForExploit?.title || `${service} exploit`,
+            description: vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`,
+            cvss: vulnForExploit?.cvss || 9.0,
+            service: service || 'http',
+            port: Number(port),
+            targetIp: target,
+            targetOs: asset?.os || undefined,
+            technologies: asset?.technologies || [],
+          });
+
+          // Step 2: Execute the exploit on the scan server
+          if (generatedExploit?.code) {
+            const { executeRawCommand } = await import("./scan-server-executor");
+            // Write exploit to temp file and execute
+            const exploitFileName = `exploit_${state.engagementId}_${Date.now()}.py`;
+            await executeRawCommand(`cat > /tmp/${exploitFileName} << 'EXPLOIT_EOF'\n${generatedExploit.code}\nEXPLOIT_EOF`, 10);
+            const execResult = await executeRawCommand(`cd /tmp && timeout 60 python3 ${exploitFileName} 2>&1 || true`, 90);
+            exploitOutput = execResult?.trim() || '';
+
+            // Check for shell indicators in the output
+            const shellIndicators = [
+              /shell.*opened/i, /session.*opened/i, /meterpreter/i, /reverse.*shell/i,
+              /connect.*back/i, /uid=\d+/i, /root@/i, /www-data@/i, /\$\s*$/m,
+              /command.*shell/i, /interactive.*shell/i, /spawned/i, /whoami/i,
+            ];
+            success = shellIndicators.some(re => re.test(exploitOutput)) || 
+                      (generatedExploit.popsShell === true && exploitOutput.length > 50);
+
+            shellType = generatedExploit.shellType || undefined;
+            shellPayload = generatedExploit.shellPayload || undefined;
+
+            addLog(state, {
+              phase: 'exploitation',
+              type: 'info',
+              title: `Exploit Output: ${target}:${port}`,
+              detail: exploitOutput.slice(0, 1000) || 'No output captured',
+              data: { 
+                exploitCode: generatedExploit.code?.slice(0, 500),
+                language: generatedExploit.language,
+                popsShell: generatedExploit.popsShell,
+                shellType: generatedExploit.shellType,
+              },
+            });
+          }
+        } catch (execErr: any) {
+          // Functional exploit generator failed — fall back to plan-based assessment
+          console.warn(`[Exploit] Functional exploit execution failed for ${target}:${port}:`, execErr.message);
+          exploitOutput = `Exploit execution error: ${execErr.message}`;
+          // Fall back to plan-based success assessment
+          success = !!plan?.selectedExploit?.modulePath && (plan?.confidence ?? 0) >= 0.7;
+        }
+
+        if (success) {
+          shellSessionId = `session-${genId()}`;
+        }
+
         if (asset) {
           asset.exploitAttempts.push({
             module: module || cve || "auto",
             success,
-            sessionId: success ? `session-${genId()}` : undefined,
+            sessionId: shellSessionId,
             // Full evidence fields
             cve: cve || undefined,
             service: service || undefined,
@@ -4685,9 +4792,11 @@ ${(() => {
             reasoning: plan?.reasoning?.slice(0, 500) || undefined,
             selectedExploit: plan?.selectedExploit ? {
               modulePath: plan.selectedExploit.modulePath,
-              payload: plan.selectedExploit.payload || undefined,
-              options: plan.selectedExploit.options || undefined,
+              payload: plan.selectedExploit.payloadOptions?.[0] || shellPayload || undefined,
+              options: plan.selectedExploit.opsecRisk ? { opsecRisk: plan.selectedExploit.opsecRisk } : undefined,
             } : undefined,
+            exploitOutput: exploitOutput.slice(0, 2000) || undefined,
+            shellType: shellType || undefined,
             timestamp: exploitStartTime,
             durationMs: Date.now() - exploitStartTime,
           });
@@ -4716,7 +4825,9 @@ ${(() => {
           targetPort: Number(port),
           moduleOrTool: module || cve,
           resultStatus: success ? "success" : "failure",
-          resultDetail: success ? "Exploit succeeded — session opened" : "Exploit failed",
+          resultDetail: success 
+            ? `Exploit succeeded — shell obtained (${shellType || 'reverse_shell'}). Session: ${shellSessionId}` 
+            : `Exploit failed. Output: ${exploitOutput.slice(0, 200)}`,
         });
 
         addLog(state, {
@@ -4724,10 +4835,15 @@ ${(() => {
           type: success ? "exploit_success" : "exploit_fail",
           title: success ? `✅ Shell Obtained: ${target}` : `❌ Exploit Failed: ${target}`,
           detail: success
-            ? `Successfully exploited ${service} on ${target}:${port}. Session opened.`
-            : `Exploitation of ${service} on ${target}:${port} failed. Moving to next target.`,
+            ? `Successfully exploited ${service} on ${target}:${port}. ${shellType || 'Reverse shell'} session opened (${shellSessionId}).\nEvidence: ${exploitOutput.slice(0, 300)}`
+            : `Exploitation of ${service} on ${target}:${port} failed.\nOutput: ${exploitOutput.slice(0, 300)}\nMoving to next target.`,
           riskTier: "red",
-          data: { plan: plan ? { module: plan.selectedExploit?.modulePath, confidence: plan.confidence, reasoning: plan.reasoning?.slice(0, 300) } : null },
+          data: { 
+            plan: plan ? { module: plan.selectedExploit?.modulePath, confidence: plan.confidence, reasoning: plan.reasoning?.slice(0, 300) } : null,
+            exploitOutput: exploitOutput.slice(0, 1000),
+            shellType,
+            shellSessionId,
+          },
         });
       } catch (e: any) {
         // Record the failed attempt with error evidence

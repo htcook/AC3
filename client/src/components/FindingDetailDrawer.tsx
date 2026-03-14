@@ -7,12 +7,41 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Shield, AlertTriangle, ExternalLink, Bug, Copy, Check,
   Target, Fingerprint, Gauge, Flame, Globe2, GitBranch,
-  FileWarning, Skull, TrendingUp, Info,
+  FileWarning, Skull, TrendingUp, Info, ChevronDown, ChevronRight,
+  Terminal, Scan, ShieldCheck, FileText, Clock, Layers,
 } from "lucide-react";
 
 /* ── Types ── */
+export interface EvidenceStep {
+  stage: string;
+  tool: string;
+  timestamp?: string;
+  description: string;
+  rawOutput?: string;
+  httpRequest?: string;
+  httpResponse?: string;
+  command?: string;
+  commandOutput?: string;
+  confidence: string;
+}
+
+export interface ExploitEvidence {
+  exploitName: string;
+  exploitType: string;
+  popsShell: boolean;
+  shellType?: string;
+  payload?: string;
+  executionOutput?: string;
+  shellSession?: string[];
+  timestamp?: string;
+  success: boolean;
+}
+
 export interface VulnFinding {
   id: string;
   severity: string;
@@ -25,6 +54,14 @@ export interface VulnFinding {
   evidenceDetail?: string | null;
   cvssScore?: number | null;
   tool?: string;
+  evidenceChain?: EvidenceStep[];
+  exploitEvidence?: ExploitEvidence;
+  validationResult?: {
+    validated: boolean;
+    method: string;
+    proof: string;
+    timestamp?: string;
+  };
   essEnrichment?: {
     cessScore: number;
     cvssBase: number;
@@ -76,7 +113,7 @@ function cvssToSeverity(score: number): string {
 
 /* ── CVSS Vector Breakdown ── */
 function CvssVectorBreakdown({ vector }: { vector: string }) {
-  const parts = vector.split("/").slice(1); // skip CVSS:3.1
+  const parts = vector.split("/").slice(1);
   const labels: Record<string, string> = {
     AV: "Attack Vector", AC: "Attack Complexity", PR: "Privileges Required",
     UI: "User Interaction", S: "Scope", C: "Confidentiality", I: "Integrity", A: "Availability",
@@ -137,6 +174,149 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   );
 }
 
+/* ── Collapsible Raw Output ── */
+function CollapsibleOutput({ label, content }: { label: string; content: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button className="flex items-center gap-1.5 text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors w-full text-left">
+          {open ? <ChevronDown className="h-3 w-3 flex-none" /> : <ChevronRight className="h-3 w-3 flex-none" />}
+          <span className="font-medium">{label}</span>
+          <span className="text-muted-foreground ml-auto">{content.length > 500 ? `${(content.length / 1024).toFixed(1)}KB` : `${content.length} chars`}</span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <pre className="mt-1.5 p-2.5 rounded bg-black/40 border border-border/20 text-[10px] font-mono text-green-300/80 overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap break-all">
+          {content.slice(0, 10000)}
+          {content.length > 10000 && "\n\n... [truncated]"}
+        </pre>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/* ── Evidence Chain Step ── */
+function EvidenceStepCard({ step, index }: { step: EvidenceStep; index: number }) {
+  const confidenceColor = step.confidence === 'high' ? 'text-green-400 border-green-500/30 bg-green-500/10' :
+    step.confidence === 'medium' ? 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10' :
+    'text-zinc-400 border-zinc-500/30 bg-zinc-500/10';
+
+  const stageIcon = step.stage === 'detection' ? <Scan className="h-3.5 w-3.5 text-blue-400" /> :
+    step.stage === 'validation' ? <ShieldCheck className="h-3.5 w-3.5 text-green-400" /> :
+    step.stage === 'exploitation' ? <Skull className="h-3.5 w-3.5 text-red-400" /> :
+    <Layers className="h-3.5 w-3.5 text-muted-foreground" />;
+
+  return (
+    <div className="relative pl-6">
+      {/* Timeline connector */}
+      <div className="absolute left-[9px] top-0 bottom-0 w-px bg-border/40" />
+      <div className="absolute left-0 top-2 h-5 w-5 rounded-full bg-card border border-border flex items-center justify-center z-10">
+        <span className="text-[9px] font-bold text-muted-foreground">{index + 1}</span>
+      </div>
+
+      <div className="p-3 rounded-lg bg-muted/10 border border-border/30 space-y-2 ml-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {stageIcon}
+          <span className="text-xs font-semibold text-foreground capitalize">{step.stage}</span>
+          <Badge variant="outline" className="text-[9px]">{step.tool}</Badge>
+          <Badge variant="outline" className={`text-[9px] ${confidenceColor}`}>
+            {step.confidence} confidence
+          </Badge>
+          {step.timestamp && (
+            <span className="text-[9px] text-muted-foreground flex items-center gap-0.5 ml-auto">
+              <Clock className="h-2.5 w-2.5" />{step.timestamp}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-foreground/80 leading-relaxed">{step.description}</p>
+
+        {/* Raw artifacts */}
+        <div className="space-y-1.5">
+          {step.rawOutput && <CollapsibleOutput label="Raw Scanner Output" content={step.rawOutput} />}
+          {step.httpRequest && <CollapsibleOutput label="HTTP Request" content={step.httpRequest} />}
+          {step.httpResponse && <CollapsibleOutput label="HTTP Response" content={step.httpResponse} />}
+          {step.command && <CollapsibleOutput label="Command Executed" content={step.command} />}
+          {step.commandOutput && <CollapsibleOutput label="Command Output" content={step.commandOutput} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Exploit Evidence Panel ── */
+function ExploitEvidencePanel({ evidence }: { evidence: ExploitEvidence }) {
+  return (
+    <div className={`p-4 rounded-lg border space-y-3 ${
+      evidence.success
+        ? evidence.popsShell
+          ? 'bg-red-500/5 border-red-500/30'
+          : 'bg-orange-500/5 border-orange-500/30'
+        : 'bg-zinc-500/5 border-zinc-500/30'
+    }`}>
+      {/* Header */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {evidence.popsShell ? (
+          <Badge className="bg-red-600/80 text-white border-red-500 text-[10px] font-bold">
+            <Terminal className="h-3 w-3 mr-1" />SHELL OBTAINED
+          </Badge>
+        ) : evidence.success ? (
+          <Badge className="bg-orange-600/80 text-white border-orange-500 text-[10px] font-bold">
+            <Skull className="h-3 w-3 mr-1" />EXPLOIT SUCCESS
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-[10px] text-zinc-400 border-zinc-500/30">
+            EXPLOIT ATTEMPTED
+          </Badge>
+        )}
+        <span className="text-xs font-semibold text-foreground">{evidence.exploitName}</span>
+        <Badge variant="outline" className="text-[9px]">{evidence.exploitType}</Badge>
+        {evidence.shellType && (
+          <Badge variant="outline" className="text-[9px] text-red-400 border-red-500/30">
+            {evidence.shellType}
+          </Badge>
+        )}
+      </div>
+
+      {/* Payload */}
+      {evidence.payload && (
+        <CollapsibleOutput label="Exploit Payload" content={evidence.payload} />
+      )}
+
+      {/* Execution Output */}
+      {evidence.executionOutput && (
+        <CollapsibleOutput label="Execution Output" content={evidence.executionOutput} />
+      )}
+
+      {/* Shell Session */}
+      {evidence.shellSession && evidence.shellSession.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] font-medium text-red-400 flex items-center gap-1">
+            <Terminal className="h-3 w-3" />Shell Session Transcript
+          </span>
+          <div className="p-2.5 rounded bg-black/60 border border-red-500/20 max-h-[250px] overflow-y-auto">
+            {evidence.shellSession.map((line, i) => (
+              <div key={i} className="text-[10px] font-mono leading-relaxed">
+                {line.startsWith('$') || line.startsWith('#') || line.startsWith('root@') || line.startsWith('www-data@') ? (
+                  <span className="text-green-400">{line}</span>
+                ) : (
+                  <span className="text-gray-300">{line}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {evidence.timestamp && (
+        <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+          <Clock className="h-2.5 w-2.5" />Executed: {evidence.timestamp}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /* ── Vuln Detail Drawer ── */
 export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
   vuln: VulnFinding | null;
@@ -149,17 +329,26 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
   const ess = vuln.essEnrichment;
   const effectiveCvss = ess?.cvssBase || vuln.cvssScore || 0;
   const effectiveVector = ess?.cvssVector || null;
+  const hasEvidenceChain = vuln.evidenceChain && vuln.evidenceChain.length > 0;
+  const hasExploitEvidence = !!vuln.exploitEvidence;
+  const hasValidation = !!vuln.validationResult;
+
+  // Determine if this is truly confirmed (has evidence)
+  const hasAnyEvidence = hasEvidenceChain || hasExploitEvidence || hasValidation || !!vuln.evidenceDetail;
+  const effectiveTier = vuln.corroborationTier === 'confirmed' && !hasAnyEvidence
+    ? 'probable' // Downgrade if no evidence
+    : vuln.corroborationTier;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-[520px] sm:max-w-[520px] bg-card border-l border-border p-0">
+      <SheetContent className="w-[560px] sm:max-w-[560px] bg-card border-l border-border p-0">
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-start gap-3">
             <div className={`p-2 rounded-lg ${sev.bg} ${sev.border} border`}>
               <Bug className={`h-5 w-5 ${sev.color}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-base font-semibold text-foreground leading-tight">
+              <SheetTitle className="text-base font-semibold text-foreground leading-tight break-words">
                 {vuln.title}
               </SheetTitle>
               <SheetDescription className="mt-1 flex items-center gap-2 flex-wrap">
@@ -170,11 +359,8 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                   <span className="flex items-center gap-1">
                     <span className="font-mono text-xs text-cyan-400">{vuln.cve}</span>
                     <CopyButton text={vuln.cve} />
-                    <a
-                      href={`https://nvd.nist.gov/vuln/detail/${vuln.cve}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
+                    <a href={`https://nvd.nist.gov/vuln/detail/${vuln.cve}`} target="_blank" rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-foreground">
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   </span>
@@ -219,45 +405,119 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
             )}
 
             {/* Corroboration & Confidence */}
-            {vuln.corroborationTier && (
-              <Section title="Confidence Assessment" icon={<Fingerprint className="h-3.5 w-3.5" />}>
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={`text-[10px] font-bold ${
-                      vuln.corroborationTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
-                      vuln.corroborationTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
-                      'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
-                    }`}>
-                      {vuln.corroborationTier === 'confirmed' ? '\u2713 CONFIRMED' :
-                       vuln.corroborationTier === 'probable' ? '\u223c PROBABLE' : '? POTENTIAL'}
+            <Section title="Confidence Assessment" icon={<Fingerprint className="h-3.5 w-3.5" />}>
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className={`text-[10px] font-bold ${
+                    effectiveTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
+                    effectiveTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
+                    'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
+                  }`}>
+                    {effectiveTier === 'confirmed' ? '\u2713 CONFIRMED' :
+                     effectiveTier === 'probable' ? '\u223c PROBABLE' : '? POTENTIAL'}
+                  </Badge>
+                  {vuln.versionMatchConfirmed && (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                      VERSION MATCH
                     </Badge>
-                    {vuln.versionMatchConfirmed && (
-                      <Badge variant="outline" className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
-                        VERSION MATCH
-                      </Badge>
-                    )}
-                  </div>
-                  {vuln.detectedVersion && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">Detected Version: </span>
-                      <span className="font-mono text-emerald-400">v{vuln.detectedVersion}</span>
-                    </div>
                   )}
-                  {vuln.affectedVersions && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">Affected Versions: </span>
-                      <span className="font-mono text-foreground">{vuln.affectedVersions}</span>
-                    </div>
+                  {hasExploitEvidence && vuln.exploitEvidence?.success && (
+                    <Badge variant="outline" className="text-[10px] bg-red-500/20 text-red-300 border-red-500/40">
+                      EXPLOITED
+                    </Badge>
+                  )}
+                  {hasValidation && vuln.validationResult?.validated && (
+                    <Badge variant="outline" className="text-[10px] bg-green-500/20 text-green-300 border-green-500/40">
+                      VALIDATED
+                    </Badge>
+                  )}
+                  {!hasAnyEvidence && (
+                    <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-300 border-amber-500/40">
+                      NO EVIDENCE
+                    </Badge>
                   )}
                 </div>
-              </Section>
+                {vuln.corroborationTier === 'confirmed' && !hasAnyEvidence && (
+                  <p className="text-[10px] text-amber-400 leading-relaxed">
+                    This finding was marked as confirmed but has no supporting evidence. 
+                    It has been downgraded to probable until evidence is collected through active validation or exploitation.
+                  </p>
+                )}
+                {vuln.detectedVersion && (
+                  <div className="text-xs">
+                    <span className="text-muted-foreground">Detected Version: </span>
+                    <span className="font-mono text-emerald-400">v{vuln.detectedVersion}</span>
+                  </div>
+                )}
+                {vuln.affectedVersions && (
+                  <div className="text-xs">
+                    <span className="text-muted-foreground">Affected Versions: </span>
+                    <span className="font-mono text-foreground">{vuln.affectedVersions}</span>
+                  </div>
+                )}
+              </div>
+            </Section>
+
+            {/* ── EVIDENCE CHAIN ── */}
+            {hasEvidenceChain && (
+              <>
+                <Separator />
+                <Section title={`Evidence Chain (${vuln.evidenceChain!.length} steps)`} icon={<Layers className="h-3.5 w-3.5" />}>
+                  <div className="space-y-3">
+                    {vuln.evidenceChain!.map((step, i) => (
+                      <EvidenceStepCard key={i} step={step} index={i} />
+                    ))}
+                  </div>
+                </Section>
+              </>
             )}
 
-            {/* Evidence */}
-            {vuln.evidenceDetail && (
+            {/* ── VALIDATION RESULT ── */}
+            {hasValidation && (
+              <>
+                <Separator />
+                <Section title="Active Validation" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+                  <div className={`p-3 rounded-lg border space-y-2 ${
+                    vuln.validationResult!.validated
+                      ? 'bg-green-500/5 border-green-500/30'
+                      : 'bg-zinc-500/5 border-zinc-500/30'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {vuln.validationResult!.validated ? (
+                        <Badge className="bg-green-600/80 text-white border-green-500 text-[10px] font-bold">
+                          <ShieldCheck className="h-3 w-3 mr-1" />VALIDATED
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-zinc-400">NOT VALIDATED</Badge>
+                      )}
+                      <Badge variant="outline" className="text-[9px]">{vuln.validationResult!.method}</Badge>
+                      {vuln.validationResult!.timestamp && (
+                        <span className="text-[9px] text-muted-foreground flex items-center gap-0.5 ml-auto">
+                          <Clock className="h-2.5 w-2.5" />{vuln.validationResult!.timestamp}
+                        </span>
+                      )}
+                    </div>
+                    <CollapsibleOutput label="Validation Proof" content={vuln.validationResult!.proof} />
+                  </div>
+                </Section>
+              </>
+            )}
+
+            {/* ── EXPLOIT EVIDENCE ── */}
+            {hasExploitEvidence && (
+              <>
+                <Separator />
+                <Section title="Exploit Evidence" icon={<Skull className="h-3.5 w-3.5" />}>
+                  <ExploitEvidencePanel evidence={vuln.exploitEvidence!} />
+                </Section>
+              </>
+            )}
+
+            {/* ── Legacy Evidence Detail (text) ── */}
+            {vuln.evidenceDetail && !hasEvidenceChain && (
               <Section title="Evidence" icon={<FileWarning className="h-3.5 w-3.5" />}>
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{vuln.evidenceDetail}</p>
+                  <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap break-words">{vuln.evidenceDetail}</p>
                 </div>
               </Section>
             )}
@@ -268,24 +528,18 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                 <Separator />
                 <Section title="Exploit Intelligence (ESS)" icon={<Skull className="h-3.5 w-3.5" />}>
                   <div className="space-y-3">
-                    {/* Risk Summary */}
                     {ess.riskSummary && (
                       <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
                         <p className="text-xs text-foreground leading-relaxed">{ess.riskSummary}</p>
                       </div>
                     )}
-
-                    {/* Key Indicators Grid */}
                     <div className="grid grid-cols-2 gap-2">
-                      {/* CESS Score */}
                       <div className={`p-2.5 rounded-lg border ${ess.cessScore >= 0.7 ? 'bg-red-500/10 border-red-500/30' : ess.cessScore >= 0.4 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">CESS Exploit Prob.</div>
                         <div className={`text-lg font-bold font-mono ${ess.cessScore >= 0.7 ? 'text-red-400' : ess.cessScore >= 0.4 ? 'text-yellow-400' : 'text-green-400'}`}>
                           {(ess.cessScore * 100).toFixed(0)}%
                         </div>
                       </div>
-
-                      {/* EPSS Score */}
                       <div className={`p-2.5 rounded-lg border ${ess.epssScore >= 0.5 ? 'bg-red-500/10 border-red-500/30' : ess.epssScore >= 0.1 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">EPSS Score</div>
                         <div className={`text-lg font-bold font-mono ${ess.epssScore >= 0.5 ? 'text-red-400' : ess.epssScore >= 0.1 ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -293,8 +547,6 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                         </div>
                       </div>
                     </div>
-
-                    {/* Exploit Availability */}
                     <div className="space-y-1.5">
                       <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Exploit Availability</h5>
                       <div className="flex flex-wrap gap-2">
@@ -323,8 +575,6 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                         )}
                       </div>
                     </div>
-
-                    {/* Risk Tier */}
                     {ess.riskTier && (
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">ESS Risk Tier:</span>
@@ -343,7 +593,7 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
               </>
             )}
 
-            {/* Why This CVSS Score */}
+            {/* Why This Severity Rating */}
             <Separator />
             <Section title="Why This Severity Rating?" icon={<Info className="h-3.5 w-3.5" />}>
               <div className="p-3 rounded-lg bg-muted/20 border border-border/30 space-y-2 text-xs text-foreground leading-relaxed">
@@ -364,20 +614,22 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                         {" "}making this a {ess.cessScore >= 0.7 ? "high-priority" : ess.cessScore >= 0.4 ? "moderate-priority" : "lower-priority"} remediation target.
                       </p>
                     )}
-                    {vuln.corroborationTier && (
+                    {effectiveTier && (
                       <p>
-                        Confidence: <strong>{vuln.corroborationTier === 'confirmed' ? 'Confirmed' : vuln.corroborationTier === 'probable' ? 'Probable' : 'Potential'}</strong>
+                        Confidence: <strong>{effectiveTier === 'confirmed' ? 'Confirmed' : effectiveTier === 'probable' ? 'Probable' : 'Potential'}</strong>
                         {vuln.detectedVersion && ` — detected version ${vuln.detectedVersion}`}
                         {vuln.affectedVersions && ` falls within affected range ${vuln.affectedVersions}`}
                         {vuln.versionMatchConfirmed && " (version match confirmed)"}.
+                        {hasExploitEvidence && vuln.exploitEvidence?.success && " This vulnerability has been successfully exploited."}
+                        {hasValidation && vuln.validationResult?.validated && " Active validation has confirmed exploitability."}
                       </p>
                     )}
                   </>
                 ) : (
                   <p>
                     This finding is rated <strong className={sev.color}>{sev.label}</strong> based on
-                    the tool's assessment. {vuln.corroborationTier === 'confirmed'
-                      ? "It has been confirmed by active scanning."
+                    the tool's assessment. {effectiveTier === 'confirmed'
+                      ? "It has been confirmed by active scanning with supporting evidence."
                       : "Further validation may be needed to confirm exploitability."}
                   </p>
                 )}
@@ -445,7 +697,7 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
               <Shield className={`h-5 w-5 ${sev.color}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <SheetTitle className="text-base font-semibold text-foreground leading-tight">
+              <SheetTitle className="text-base font-semibold text-foreground leading-tight break-words">
                 {finding.alert}
               </SheetTitle>
               <SheetDescription className="mt-1 flex items-center gap-2 flex-wrap">
@@ -501,7 +753,7 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
             {finding.evidence && (
               <Section title="Evidence" icon={<FileWarning className="h-3.5 w-3.5" />}>
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <pre className="text-xs text-foreground whitespace-pre-wrap font-mono">{finding.evidence}</pre>
+                  <pre className="text-xs text-foreground whitespace-pre-wrap font-mono break-words">{finding.evidence}</pre>
                 </div>
               </Section>
             )}
@@ -510,7 +762,7 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
             {finding.description && (
               <Section title="Description" icon={<Info className="h-3.5 w-3.5" />}>
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed">{finding.description}</p>
+                  <p className="text-xs text-foreground leading-relaxed break-words">{finding.description}</p>
                 </div>
               </Section>
             )}
@@ -519,7 +771,7 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
             {finding.solution && (
               <Section title="Remediation" icon={<Shield className="h-3.5 w-3.5" />}>
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed">{finding.solution}</p>
+                  <p className="text-xs text-foreground leading-relaxed break-words">{finding.solution}</p>
                 </div>
               </Section>
             )}
@@ -536,8 +788,8 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
                 )}
                 {finding.reference && finding.reference.split('\n').filter(Boolean).map((ref, i) => (
                   <a key={i} href={ref.trim()} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300 transition-colors truncate">
-                    <ExternalLink className="h-3 w-3 flex-none" />{ref.trim()}
+                    className="flex items-center gap-2 text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
+                    <ExternalLink className="h-3 w-3 flex-none" /><span className="truncate">{ref.trim()}</span>
                   </a>
                 ))}
               </div>
@@ -547,7 +799,7 @@ export function ZapFindingDetailDrawer({ finding, open, onClose, assetHostname }
             {finding.otherInfo && (
               <Section title="Additional Information" icon={<TrendingUp className="h-3.5 w-3.5" />}>
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
-                  <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{finding.otherInfo}</p>
+                  <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap break-words">{finding.otherInfo}</p>
                 </div>
               </Section>
             )}

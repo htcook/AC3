@@ -1222,7 +1222,7 @@ export default function AppShell({
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 min-w-0">
+      <main className="flex-1 lg:ml-64 min-w-0 overflow-x-hidden">
         {/* Mobile Header Bar */}
         <div className="sticky top-0 z-30 lg:hidden bg-card/95 backdrop-blur-sm border-b border-border">
           <div className="flex items-center justify-between px-3 py-2 min-h-[56px]">
