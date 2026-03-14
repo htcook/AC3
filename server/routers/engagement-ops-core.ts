@@ -1056,13 +1056,16 @@ export const engagementOpsRouter = router({
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
-        if (engagement.roeStatus !== 'signed' && engagement.roeStatus !== 'pending') {
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
-        }
-
         const { getOpsState, initOpsState, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+
+        // RoE check — bypass for training lab engagements
+        const isTrainingLab = (state as any).trainingLabMode === true;
+        if (!isTrainingLab && engagement.roeStatus !== 'signed' && engagement.roeStatus !== 'pending') {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
+        }
+
         if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
         if (state.assets.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets. Run passive scan or add targets first.' });
 

@@ -73,6 +73,10 @@ const ALLOWED_TOOLS = new Set([
   "zap", "docker", "zaproxy",
   // Cloud storage & misconfiguration enumeration tools
   "cloud_enum", "s3scanner", "trufflehog", "aws",
+  // Packet capture, analysis & manipulation tools
+  "tcpdump", "tshark", "editcap", "mergecap", "capinfos",
+  // Scapy packet crafting (via Python)
+  "python3", "scapy",
   // Allow reading tool manifest and health check
   "bash", "sh",
 ]);

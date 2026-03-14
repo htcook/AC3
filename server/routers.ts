@@ -139,6 +139,7 @@ import { msspAnalyticsRouter } from "./routers/mssp-analytics";
 import { dataExfilSimulationRouter } from "./routers/data-exfil-simulation";
 import { operatorCockpitRouter } from "./routers/operator-cockpit";
 import { dastScannersRouter } from "./routers/dast-scanners";
+import { packetAnalysisRouter } from "./routers/packet-analysis";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -496,6 +497,8 @@ export const appRouter = router({
 
   // ─── DAST Scanners & Service Audits (Nikto, Wapiti, Arachni, SSH, FTP) ─────
   dastScanners: dastScannersRouter,
+  // ─── Packet Analysis & Manipulation (tcpdump, tshark, Scapy) ────────────────
+  packetAnalysis: packetAnalysisRouter,
 });
 export type AppRouter = typeof appRouter;
 

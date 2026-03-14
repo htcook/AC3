@@ -1139,9 +1139,37 @@ export async function getIocFeedStats() {
 }
 
 // ─── Engagement Pipelines ────────────────────────────────────────────────
-export async function createEngagementPipeline(pipeline: InsertEngagementPipeline) {
+// Friendly interface that callers use (maps to schema column names)
+interface CreatePipelineInput {
+  userId: number;
+  name: string;
+  status?: string;
+  targetDomains?: any;
+  clientType?: string;
+  orgProfile?: any;
+  recommendedActors?: any;
+  engagementId?: number;
+  currentStep?: number;
+  totalSteps?: number;
+  stepLog?: any;
+  errorMessage?: string;
+}
+export async function createEngagementPipeline(pipeline: CreatePipelineInput) {
   const db = await getDbRequired();
-  const result = await db.insert(engagementPipelines).values(pipeline);
+  const result = await db.insert(engagementPipelines).values({
+    userId: pipeline.userId,
+    pipelineName: pipeline.name,
+    pipelineStatus: (pipeline.status as any) || 'pending',
+    targetDomains: pipeline.targetDomains,
+    pipelineClientType: pipeline.clientType,
+    orgProfile: pipeline.orgProfile,
+    recommendedActors: pipeline.recommendedActors,
+    engagementId: pipeline.engagementId,
+    currentStep: pipeline.currentStep ?? 0,
+    totalSteps: pipeline.totalSteps ?? 6,
+    stepLog: pipeline.stepLog,
+    errorMessage: pipeline.errorMessage,
+  });
   return Number(result[0].insertId);
 }
 
@@ -1152,9 +1180,18 @@ export async function getEngagementPipeline(id: number) {
   return results[0] || null;
 }
 
-export async function updateEngagementPipeline(id: number, updates: Partial<InsertEngagementPipeline>) {
+export async function updateEngagementPipeline(id: number, updates: Partial<CreatePipelineInput> & Record<string, any>) {
   const db = await getDbRequired();
-  await db.update(engagementPipelines).set(updates).where(eq(engagementPipelines.id, id));
+  // Map friendly field names to schema column names
+  const mapped: Record<string, any> = {};
+  if (updates.name !== undefined) mapped.pipelineName = updates.name;
+  if (updates.status !== undefined) mapped.pipelineStatus = updates.status;
+  if (updates.clientType !== undefined) mapped.pipelineClientType = updates.clientType;
+  // Pass through fields that already match schema column names
+  for (const key of ['userId', 'targetDomains', 'orgProfile', 'recommendedActors', 'engagementId', 'currentStep', 'totalSteps', 'stepLog', 'errorMessage', 'completedAt', 'riskSummary', 'pipelineName', 'pipelineStatus', 'pipelineClientType', 'calderaOperationId', 'calderaAdversaryId', 'calderaAbilitiesDeployed', 'gophishCampaignId', 'gophishTemplateId', 'gophishLandingPageId', 'intelScanId']) {
+    if (updates[key] !== undefined && !(key in mapped)) mapped[key] = updates[key];
+  }
+  await db.update(engagementPipelines).set(mapped).where(eq(engagementPipelines.id, id));
 }
 
 export async function listEngagementPipelines(limit = 20) {

@@ -5026,7 +5026,7 @@ export async function executeEngagement(
   }
 
   // Check RoE status
-  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending") {
+  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && !(state as any).trainingLabMode) {
     addLog(state, {
       phase: "idle",
       type: "error",
@@ -5152,8 +5152,8 @@ export async function executeEngagement(
       if (!state.isRunning) return;
     }
 
-    // Phase 2+: Require RoE for active scanning
-    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending") {
+    // Phase 2+: Require RoE for active scanning (training lab mode bypasses RoE)
+    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || (state as any).trainingLabMode === true) {
       // Phase 2: Enumeration (nmap first — always)
       if (['recon', 'enumeration'].includes(startPhase)) {
         await executeEnumeration(state, engagement, operatorCtx);

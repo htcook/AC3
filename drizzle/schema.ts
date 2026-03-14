@@ -5232,3 +5232,11 @@ export const bugReports = mysqlTable("bug_reports", {
 ]);
 export type InsertBugReport = typeof bugReports.$inferInsert;
 export type SelectBugReport = typeof bugReports.$inferSelect;
+
+// ─── Missing Type Exports ────────────────────────────────────────────────
+export type InsertEngagement = typeof engagements.$inferInsert;
+export type Engagement = typeof engagements.$inferSelect;
+export type InsertEngagementPipeline = typeof engagementPipelines.$inferInsert;
+export type EngagementPipeline = typeof engagementPipelines.$inferSelect;
+export type InsertCampaignEngagement = typeof campaignEngagements.$inferInsert;
+export type CampaignEngagement = typeof campaignEngagements.$inferSelect;
