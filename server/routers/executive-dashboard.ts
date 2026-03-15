@@ -240,6 +240,109 @@ export const executiveDashboardRouter = router({
     };
   }),
 
+  // ── C2 Operational Readiness ─────────────────────────────────────────────
+  c2Readiness: protectedProcedure.query(async () => {
+    const { getAutoGenerationStats, getAutoGenerationHistory } = await import("../lib/threat-intel-auto-enrich");
+    const { getPostExploitTriggerHistory } = await import("../lib/post-exploit-auto-trigger");
+    const { getDeploymentStatus } = await import("../lib/caldera-profile-push");
+    const { FRAMEWORK_PROFILES } = await import("../lib/c2-tactical-knowledge");
+
+    const autoGenStats = getAutoGenerationStats();
+    const recentAutoGen = getAutoGenerationHistory(5);
+    const postExploitHistory = getPostExploitTriggerHistory();
+    const deploymentStatus = await getDeploymentStatus();
+
+    // C2 framework readiness
+    const frameworks = Object.entries(FRAMEWORK_PROFILES).map(([key, profile]) => ({
+      id: key,
+      name: profile.displayName,
+      techniqueCount: Object.keys(profile.techniqueModuleMap).length,
+      postExploitCount: profile.postExploitCapabilities.length,
+      evasionCount: profile.evasionCapabilities.length,
+    }));
+
+    return {
+      frameworks,
+      autoGeneration: {
+        totalChecks: autoGenStats.totalChecks,
+        totalGenerated: autoGenStats.totalGenerated,
+        totalPushed: autoGenStats.totalPushed,
+        totalFailed: autoGenStats.totalFailed,
+        lastRunAt: autoGenStats.lastRunAt,
+        recentEvents: recentAutoGen,
+      },
+      postExploit: {
+        totalTriggered: postExploitHistory.length,
+        autoTriggered: postExploitHistory.filter(h => h.autoTriggered).length,
+        successRate: postExploitHistory.length > 0
+          ? Math.round((postExploitHistory.filter(h => h.success).length / postExploitHistory.length) * 100)
+          : 0,
+        recentTriggers: postExploitHistory.slice(-5).reverse(),
+      },
+      deployment: {
+        totalDeployed: deploymentStatus.actors.filter(a => a.status === "deployed").length,
+        totalLocal: deploymentStatus.actors.filter(a => a.status === "local_only").length,
+        totalFailed: deploymentStatus.actors.filter(a => a.status === "failed").length,
+      },
+    };
+  }),
+
+  // ── MITRE ATT&CK Coverage ───────────────────────────────────────────────
+  mitreCoverage: protectedProcedure.query(async () => {
+    const { FRAMEWORK_PROFILES } = await import("../lib/c2-tactical-knowledge");
+
+    // Aggregate technique coverage across all frameworks
+    const tacticCoverage: Record<string, { techniques: Set<string>; frameworks: Set<string> }> = {};
+    const tactics = [
+      "reconnaissance", "resource-development", "initial-access", "execution",
+      "persistence", "privilege-escalation", "defense-evasion", "credential-access",
+      "discovery", "lateral-movement", "collection", "command-and-control",
+      "exfiltration", "impact"
+    ];
+
+    for (const tactic of tactics) {
+      tacticCoverage[tactic] = { techniques: new Set(), frameworks: new Set() };
+    }
+
+    for (const [fwKey, profile] of Object.entries(FRAMEWORK_PROFILES)) {
+      for (const techId of Object.keys(profile.techniqueModuleMap)) {
+        // Map technique IDs to tactics (simplified mapping)
+        const tacticGuess = techId.startsWith("T1595") || techId.startsWith("T1592") || techId.startsWith("T1589") ? "reconnaissance" :
+          techId.startsWith("T1583") || techId.startsWith("T1584") || techId.startsWith("T1587") || techId.startsWith("T1588") ? "resource-development" :
+          techId.startsWith("T1566") || techId.startsWith("T1190") || techId.startsWith("T1133") || techId.startsWith("T1078") ? "initial-access" :
+          techId.startsWith("T1059") || techId.startsWith("T1053") || techId.startsWith("T1047") || techId.startsWith("T1203") ? "execution" :
+          techId.startsWith("T1547") || techId.startsWith("T1543") || techId.startsWith("T1546") || techId.startsWith("T1136") ? "persistence" :
+          techId.startsWith("T1548") || techId.startsWith("T1134") || techId.startsWith("T1068") ? "privilege-escalation" :
+          techId.startsWith("T1027") || techId.startsWith("T1070") || techId.startsWith("T1036") || techId.startsWith("T1562") ? "defense-evasion" :
+          techId.startsWith("T1003") || techId.startsWith("T1110") || techId.startsWith("T1555") || techId.startsWith("T1552") ? "credential-access" :
+          techId.startsWith("T1087") || techId.startsWith("T1082") || techId.startsWith("T1083") || techId.startsWith("T1016") ? "discovery" :
+          techId.startsWith("T1021") || techId.startsWith("T1570") || techId.startsWith("T1563") ? "lateral-movement" :
+          techId.startsWith("T1560") || techId.startsWith("T1005") || techId.startsWith("T1074") ? "collection" :
+          techId.startsWith("T1071") || techId.startsWith("T1095") || techId.startsWith("T1572") || techId.startsWith("T1573") ? "command-and-control" :
+          techId.startsWith("T1041") || techId.startsWith("T1048") || techId.startsWith("T1567") ? "exfiltration" :
+          techId.startsWith("T1485") || techId.startsWith("T1486") || techId.startsWith("T1489") || techId.startsWith("T1490") ? "impact" :
+          "execution"; // default
+
+        if (tacticCoverage[tacticGuess]) {
+          tacticCoverage[tacticGuess].techniques.add(techId);
+          tacticCoverage[tacticGuess].frameworks.add(fwKey);
+        }
+      }
+    }
+
+    return {
+      tactics: Object.entries(tacticCoverage).map(([tactic, data]) => ({
+        tactic,
+        techniqueCount: data.techniques.size,
+        frameworkCount: data.frameworks.size,
+        coverage: Math.min(100, data.techniques.size * 8), // rough percentage
+      })),
+      totalTechniques: new Set(
+        Object.values(tacticCoverage).flatMap(d => [...d.techniques])
+      ).size,
+    };
+  }),
+
   // ── Engagement Summary for Executives ────────────────────────────────────
   engagementSummary: protectedProcedure.query(async () => {
     const drizzleDb = await getDb();

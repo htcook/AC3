@@ -23,6 +23,7 @@ import {
   emitReconComplete, emitSystemNotification, emitSystemAlert,
   eventHub,
 } from "./ws-event-hub";
+import { onShellObtained } from "./post-exploit-auto-trigger";
 import {
   getChainsByVulnDescriptions,
   formatChainsForPrompt,
@@ -4891,6 +4892,19 @@ ${(() => {
             shellSessionId,
           },
         });
+
+        // Auto-trigger post-exploitation playbook when a shell is obtained
+        if (success) {
+          onShellObtained({
+            engagementId: state.engagementId,
+            targetHost: target,
+            exploitOutput: exploitOutput.slice(0, 2000),
+            shellType: shellType || undefined,
+            objectives: engagement?.objectives ? [engagement.objectives].flat() : undefined,
+          }).catch((err: any) => {
+            console.warn(`[PostExploit] Auto-trigger failed for engagement #${state.engagementId}:`, err.message);
+          });
+        }
       } catch (e: any) {
         // Record the failed attempt with error evidence
         if (asset) {

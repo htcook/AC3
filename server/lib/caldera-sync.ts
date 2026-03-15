@@ -269,6 +269,18 @@ export function initCalderaSyncSchedule() {
     try {
       const result = await syncCalderaAdversaries();
       console.log(`[Cyber C2 Sync] Scheduled sync complete: ${result.created} synced, ${result.skipped} skipped, ${result.abilitiesSynced} abilities`);
+
+      // Auto-trigger adversary profile generation for newly synced actors
+      if (result.created > 0) {
+        try {
+          const { onCalderaSyncComplete } = await import("./threat-intel-auto-enrich");
+          onCalderaSyncComplete(result).catch((err: any) => {
+            console.warn(`[Cyber C2 Sync] Auto-enrich after sync failed:`, err.message);
+          });
+        } catch (e: any) {
+          // Module may not be available
+        }
+      }
     } catch (err: any) {
       console.error("[Cyber C2 Sync] Scheduled sync failed:", err.message);
     }

@@ -204,6 +204,17 @@ export async function checkAndTriggerProfileGeneration(
       `[AutoEnrich] Generated profile for ${score.actorName}: ${profile.abilityCount} abilities, ${profile.killChainPhases.length} phases`,
     );
 
+    // Notify operator about auto-generated profile
+    try {
+      const { notifyOwner } = await import("../_core/notification");
+      await notifyOwner({
+        title: `Adversary Profile Auto-Generated — ${score.actorName}`,
+        content: `An adversary emulation profile was automatically generated for ${score.actorName} (completeness score: ${score.score}/100).\n\nAbilities: ${profile.abilityCount}\nKill Chain Phases: ${profile.killChainPhases.join(', ')}\nTrigger: ${triggerSource}\n\nReview in the C2 Knowledge Base → Deploy & Pipeline tab.`,
+      });
+    } catch (e: any) {
+      console.warn(`[AutoEnrich] Notification failed:`, e.message);
+    }
+
     // Auto-push to Caldera if enabled
     let pushedToCaldera = false;
     if (AUTO_GENERATION_CONFIG.autoPushToCaldera) {
@@ -213,6 +224,17 @@ export async function checkAndTriggerProfileGeneration(
         if (pushedToCaldera) {
           stats.totalPushed++;
           console.log(`[AutoEnrich] Auto-pushed profile for ${score.actorName} to Caldera`);
+
+          // Notify operator about auto-push to Caldera
+          try {
+            const { notifyOwner } = await import("../_core/notification");
+            await notifyOwner({
+              title: `Profile Deployed to Caldera — ${score.actorName}`,
+              content: `The adversary profile for ${score.actorName} was automatically pushed to the Caldera server.\n\nAbilities: ${profile.abilityCount}\nPhases: ${profile.killChainPhases.join(', ')}\n\nThe profile is now available for adversary emulation operations.`,
+            });
+          } catch (e: any) {
+            console.warn(`[AutoEnrich] Push notification failed:`, e.message);
+          }
         }
       } catch (pushErr: any) {
         console.warn(`[AutoEnrich] Auto-push failed for ${score.actorName}:`, pushErr.message);

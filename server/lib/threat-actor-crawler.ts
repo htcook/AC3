@@ -927,6 +927,16 @@ async function enrichActorFromIntel(
 
   if (Object.keys(updates).length > 0) {
     await db.update(threatActors).set(updates).where(eq(threatActors.actorId, actorId));
+
+    // Auto-trigger adversary profile generation when actor is enriched
+    try {
+      const { onActorEnriched } = await import("./threat-intel-auto-enrich");
+      onActorEnriched(actorId).catch((err: any) => {
+        console.warn(`[ThreatIntel] Auto-enrich profile generation failed for ${actorId}:`, err.message);
+      });
+    } catch (e: any) {
+      // Module may not be available, silently skip
+    }
   }
 }
 
