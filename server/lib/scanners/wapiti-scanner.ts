@@ -16,11 +16,11 @@
 import { executeTool, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeWapitiFindingsDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
+// ─── Types ──────────────────────────────────────────────────────────────────────
 export interface WapitiConfig {
   /** Target URL */
   targetUrl: string;
@@ -421,6 +421,13 @@ export async function analyzeWapitiFindings(
     return { riskSummary: "No findings to analyze.", injectionVectors: [], recommendations: [] };
   }
 
+  // Tier 1 Offload: Use deterministic analysis by default
+  if (useDeterministicAnalysis("wapiti")) {
+    console.log(`[Wapiti] Using deterministic analysis for ${findings.length} findings (Tier 1 offload)`);
+    return analyzeWapitiFindingsDeterministic(findings, targetUrl);
+  }
+
+  // Fallback: LLM-powered analysis
   const findingSummary = findings.slice(0, 25).map(f =>
     `[${f.severity.toUpperCase()}] ${f.module} — ${f.method} ${f.path}${f.parameter ? ` (param: ${f.parameter})` : ""} — ${f.description.slice(0, 120)}`
   ).join("\n");

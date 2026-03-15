@@ -15,6 +15,7 @@
 import { executeTool, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeNiktoFindingsDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -385,6 +386,13 @@ export async function analyzeNiktoFindings(
     return { riskSummary: "No findings to analyze.", prioritizedFindings: [], attackSurface: [] };
   }
 
+  // Tier 1 Offload: Use deterministic analysis by default
+  if (useDeterministicAnalysis("nikto")) {
+    console.log(`[Nikto] Using deterministic analysis for ${findings.length} findings (Tier 1 offload)`);
+    return analyzeNiktoFindingsDeterministic(findings, targetUrl, serverBanner) as any;
+  }
+
+  // Fallback: LLM-powered analysis (when SCANNER_ANALYSIS_MODE_NIKTO=llm)
   const findingSummary = findings.slice(0, 30).map(f =>
     `[${f.severity.toUpperCase()}] ${f.method} ${f.uri} — ${f.description}`
   ).join("\n");

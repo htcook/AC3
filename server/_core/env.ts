@@ -90,6 +90,19 @@ export const ENV = {
   CS_API_PORT: parseInt(process.env.CS_API_PORT ?? "55553", 10),
   CS_USERNAME: process.env.CS_USERNAME ?? "",
   CS_PASSWORD: process.env.CS_PASSWORD ?? "",
+  // Empire C2 (REST API — Starkiller/BC Security)
+  EMPIRE_BASE_URL: process.env.EMPIRE_BASE_URL ?? "",
+  EMPIRE_API_KEY: process.env.EMPIRE_API_KEY ?? "",
+  EMPIRE_USERNAME: process.env.EMPIRE_USERNAME ?? "empireadmin",
+  EMPIRE_PASSWORD: process.env.EMPIRE_PASSWORD ?? "",
+  // Sliver C2 (gRPC operator API)
+  SLIVER_SERVER_URL: process.env.SLIVER_SERVER_URL ?? "",
+  SLIVER_OPERATOR_TOKEN: process.env.SLIVER_OPERATOR_TOKEN ?? "",
+  SLIVER_OPERATOR_CONFIG: process.env.SLIVER_OPERATOR_CONFIG ?? "", // Base64-encoded operator config JSON
+  // Manjusaka C2 (REST API)
+  MANJUSAKA_SERVER_URL: process.env.MANJUSAKA_SERVER_URL ?? "",
+  MANJUSAKA_API_TOKEN: process.env.MANJUSAKA_API_TOKEN ?? "",
+  MANJUSAKA_ADMIN_PASSWORD: process.env.MANJUSAKA_ADMIN_PASSWORD ?? "",
   // OpenAI — direct API access (bypasses Forge proxy token limits)
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
 };

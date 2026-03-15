@@ -234,6 +234,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Scoring", path: "/scoring", icon: BarChart3 },
       { label: "BIA Report", path: "/bia-report", icon: BarChart3 },
       { label: "Risk Trending", path: "/risk-trending", icon: TrendingUp },
+      { label: "Remediation Tracking", path: "/remediation-tracking", icon: Target },
     ],
   },
 
@@ -330,6 +331,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Error Dashboard", path: "/error-dashboard", icon: AlertTriangle },
       { label: "LLM Telemetry", path: "/llm-telemetry", icon: BarChart3 },
       { label: "LLM Reliability", path: "/llm-reliability", icon: Gauge },
+      { label: "Graduation Engine", path: "/graduation-engine", icon: GraduationCap },
       { label: "OpSec Dashboard", path: "/opsec-dashboard", icon: Shield },
       { label: "MSSP Analytics", path: "/mssp-analytics", icon: BarChart3 },
       { label: "Hunt Ops", path: "/hunt-ops", icon: Search },

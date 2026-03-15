@@ -4326,14 +4326,15 @@ export const threatActors = mysqlTable("threat_actors", {
 	activityTimeline: json(),
 	stixId: varchar({ length: 128 }),
 	dataSource: varchar({ length: 128 }),
+	logoUrl: varchar({ length: 512 }),
 	confidence: int(),
 	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	taTenantId: int("ta_tenant_id"),
-},
-(table) => [
-	index("threat_actors_actorId_unique").on(table.actorId),
-]);
+	},
+	(table) => [
+		index("threat_actors_actorId_unique").on(table.actorId),
+	]);
 
 export const threatGroupEvents = mysqlTable("threat_group_events", {
 	id: int().autoincrement().notNull(),
@@ -5240,3 +5241,38 @@ export type InsertEngagementPipeline = typeof engagementPipelines.$inferInsert;
 export type EngagementPipeline = typeof engagementPipelines.$inferSelect;
 export type InsertCampaignEngagement = typeof campaignEngagements.$inferInsert;
 export type CampaignEngagement = typeof campaignEngagements.$inferSelect;
+
+// ─── Remediation Tracking ────────────────────────────────────────────────
+export const remediationTasks = mysqlTable("remediation_tasks", {
+  id: int().autoincrement().notNull(),
+  engagementId: int("engagement_id").notNull(),
+  findingId: int("finding_id"),
+  scanResultId: int("scan_result_id"),
+  title: varchar({ length: 512 }).notNull(),
+  description: text(),
+  severity: mysqlEnum(['critical','high','medium','low','info']).default('medium').notNull(),
+  status: mysqlEnum(['open','assigned','in_progress','fixed','verified','wont_fix','deferred']).default('open').notNull(),
+  assignedTeam: varchar("assigned_team", { length: 128 }),
+  assignedUserId: int("assigned_user_id"),
+  slaDeadline: timestamp("sla_deadline", { mode: 'string' }),
+  fixedAt: timestamp("fixed_at", { mode: 'string' }),
+  verifiedAt: timestamp("verified_at", { mode: 'string' }),
+  rescanId: int("rescan_id"),
+  rescanStatus: mysqlEnum("rescan_status", ['pending','passed','failed','not_required']).default('not_required'),
+  priority: int().default(0),
+  notes: text(),
+  cveId: varchar("cve_id", { length: 32 }),
+  affectedAsset: varchar("affected_asset", { length: 255 }),
+  remediationGuidance: text("remediation_guidance"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+  index("rt_engagement_idx").on(table.engagementId),
+  index("rt_status_idx").on(table.status),
+  index("rt_severity_idx").on(table.severity),
+  index("rt_assigned_team_idx").on(table.assignedTeam),
+  index("rt_sla_idx").on(table.slaDeadline),
+]);
+export type InsertRemediationTask = typeof remediationTasks.$inferInsert;
+export type RemediationTask = typeof remediationTasks.$inferSelect;

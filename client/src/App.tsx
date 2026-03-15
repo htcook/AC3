@@ -234,6 +234,11 @@ const PacketAnalysis = lazy(() => import("./pages/PacketAnalysis"));
 const AIGovernance = lazy(() => import("./pages/AIGovernance"));
 const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
 const ThreatGroupProfile = lazy(() => import("./pages/ThreatGroupProfile"));
+const GraduationEngine = lazy(() => import("./pages/GraduationEngine"));
+const RemediationTracking = lazy(() => import("./pages/RemediationTracking"));
+const C2KnowledgeBase = lazy(() => import("./pages/C2KnowledgeBase"));
+const ServerAccess = lazy(() => import("./pages/ServerAccess"));
+const EmpirePage = lazy(() => import("./pages/EmpirePage"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -844,6 +849,15 @@ function Router() {
         <Route path="/ability-graph-compare">
           <ProtectedRoute component={GraphComparePage} />
         </Route>
+        <Route path="/c2-knowledge-base">
+          <ProtectedRoute component={C2KnowledgeBase} />
+        </Route>
+        <Route path="/server-access">
+          <ProtectedRoute component={ServerAccess} />
+        </Route>
+        <Route path="/empire">
+          <ProtectedRoute component={EmpirePage} />
+        </Route>
         <Route path="/c2-command-center">
           <ProtectedRoute component={C2Hub} />
         </Route>
@@ -933,6 +947,12 @@ function Router() {
         </Route>
         <Route path="/threat-group/:id">
           <ProtectedRoute component={ThreatGroupProfile} />
+        </Route>
+        <Route path="/graduation-engine">
+          <ProtectedRoute component={GraduationEngine} />
+        </Route>
+        <Route path="/remediation-tracking">
+          <ProtectedRoute component={RemediationTracking} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

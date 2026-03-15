@@ -19,6 +19,7 @@
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeTLSDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -1239,7 +1240,12 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
     }
   }
 
-  // ── Phase 6: LLM Analysis ────────────────────────────────────────────────
+  // ── Phase 6: LLM Analysis (or deterministic offload) ───────────────────────────────────────────────────────
+  if (useDeterministicAnalysis("tls")) {
+    console.log(`[TLSDeepScan] Using deterministic analysis (Tier 1 offload)`);
+    const tlsAnalysis = analyzeTLSDeterministic(protocols, cipherSuites, certificate, vulnerabilities, compression, secureRenegotiation);
+    rawOutput += `\n=== Deterministic Analysis ===\n${tlsAnalysis}\n`;
+  } else {
   try {
     const analysisPrompt = `Analyze this TLS/SSL deep scan result and provide additional insights:
 
@@ -1265,6 +1271,7 @@ Provide a brief security assessment and any additional recommendations not alrea
   } catch (err: any) {
     console.warn(`[TLSDeepScan] LLM analysis failed: ${err.message}`);
   }
+  } // end else (LLM path)
 
   // ── Generate findings ──────────────────────────────────────────────────
   const findings = generateFindings(protocols, cipherSuites, certificate, vulnerabilities, compression, secureRenegotiation);

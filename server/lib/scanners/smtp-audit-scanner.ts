@@ -19,6 +19,7 @@
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeProtocolAuditDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -599,8 +600,8 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
       });
     }
 
-    // ── Step 8: LLM Analysis ──
-    if (rawOutput.length > 100) {
+    // ── Step 8: LLM Analysis (or deterministic offload) ──
+    if (rawOutput.length > 100 && !useDeterministicAnalysis("smtp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({

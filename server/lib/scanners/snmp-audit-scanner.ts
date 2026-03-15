@@ -18,6 +18,7 @@
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeProtocolAuditDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -471,8 +472,8 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
       }
     }
 
-    // ── Step 6: LLM Analysis ──
-    if (rawOutput.length > 100) {
+    // ── Step 6: LLM Analysis (or deterministic offload) ──
+    if (rawOutput.length > 100 && !useDeterministicAnalysis("snmp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({

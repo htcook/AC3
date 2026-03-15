@@ -97,6 +97,8 @@ import {
   HeartPulse,
   Building2,
   PieChart,
+  Crown,
+  Flame,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -296,6 +298,9 @@ const NAV_GROUPS: NavGroup[] = [
         label: "C2 & Post-Exploit",
         items: [
           { href: "/c2-command-center", icon: Radio, label: "C2 HUB" },
+          { href: "/c2-knowledge-base", icon: Brain, label: "C2 KNOWLEDGE" },
+          { href: "/server-access", icon: Server, label: "SERVER ACCESS" },
+          { href: "/empire", icon: Crown, label: "EMPIRE" },
           { href: "/msf-sessions", icon: Terminal, label: "LIVE SESSIONS" },
           { href: "/session-recordings", icon: Video, label: "RECORDINGS" },
           { href: "/ssh-keys", icon: KeyRound, label: "SSH KEYS" },

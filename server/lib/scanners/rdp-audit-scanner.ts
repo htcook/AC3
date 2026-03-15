@@ -19,6 +19,7 @@
 import { executeTool, executeRawCommand } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeProtocolAuditDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -482,8 +483,8 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
       });
     }
 
-    // ── Step 5: LLM Analysis ──
-    if (rawOutput.length > 100) {
+    // ── Step 5: LLM Analysis (or deterministic offload) ──
+    if (rawOutput.length > 100 && !useDeterministicAnalysis("rdp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({

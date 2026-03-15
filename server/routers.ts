@@ -143,6 +143,10 @@ import { packetAnalysisRouter } from "./routers/packet-analysis";
 import { aiGovernanceRouter } from "./routers/ai-governance";
 import { executiveDashboardRouter } from "./routers/executive-dashboard";
 import { threatIntelMatchingRouter } from "./routers/threat-intel-matching";
+import { graduationEngineRouter } from "./routers/graduation-engine";
+import { remediationRouter } from "./routers/remediation";
+import { c2KnowledgeBaseRouter } from "./routers/c2-knowledge-base";
+import { empireRouter } from "./routers/empire";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -506,6 +510,10 @@ export const appRouter = router({
   aiGovernance: aiGovernanceRouter,
   executiveDashboard: executiveDashboardRouter,
   threatIntelMatching: threatIntelMatchingRouter,
+  graduationEngine: graduationEngineRouter,
+  remediation: remediationRouter,
+  c2KnowledgeBase: c2KnowledgeBaseRouter,
+  empire: empireRouter,
 });
 export type AppRouter = typeof appRouter;
 

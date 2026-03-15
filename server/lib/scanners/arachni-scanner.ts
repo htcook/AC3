@@ -19,6 +19,7 @@
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
+import { analyzeArachniFindingsDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
 
@@ -419,10 +420,17 @@ export async function analyzeArachniFindings(
   exploitChains: Array<{ chain: string[]; impact: string; likelihood: string }>;
   recommendations: string[];
 }> {
-  if (findings.length === 0) {
+   if (findings.length === 0) {
     return { riskSummary: "No findings to analyze.", exploitChains: [], recommendations: [] };
   }
 
+  // Tier 1 Offload: Use deterministic analysis by default
+  if (useDeterministicAnalysis("arachni")) {
+    console.log(`[Arachni] Using deterministic analysis for ${findings.length} findings (Tier 1 offload)`);
+    return analyzeArachniFindingsDeterministic(findings, targetUrl);
+  }
+
+  // Fallback: LLM-powered analysis
   const findingSummary = findings.slice(0, 25).map(f =>
     `[${f.severity.toUpperCase()}] ${f.name} (${f.module}) — ${f.method} ${f.url}${f.parameter ? ` [param: ${f.parameter}]` : ""}${f.proof ? ` — proof: ${f.proof.slice(0, 80)}` : ""}`
   ).join("\n");
