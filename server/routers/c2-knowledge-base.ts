@@ -55,6 +55,20 @@ import {
 import { getDb } from "../db";
 import { threatActors } from "../../drizzle/schema";
 import { sql, desc, isNotNull, and, ne } from "drizzle-orm";
+import {
+  launchOperation,
+  getOperationStatus,
+  listOperations,
+  controlOperation,
+  deleteOperation,
+  getOperationReport,
+  getAvailableAgents,
+  getAvailablePlanners,
+  getTrackedOperations,
+  getOperationStats,
+  type OperationState,
+  type PlannerType,
+} from "../lib/caldera-operation-launcher";
 
 const frameworkTypeSchema = z.enum([
   "caldera", "metasploit", "sliver", "empire", "cobaltstrike", "manjusaka",
@@ -582,5 +596,119 @@ export const c2KnowledgeBaseRouter = router({
    */
   getSchedulerConfig: protectedProcedure.query(async () => {
     return getSchedulerConfig();
+  }),
+
+  // ─── Caldera Operation Launcher ──────────────────────────────────────────
+
+  /**
+   * Launch a new Caldera operation from a pushed adversary profile.
+   */
+  launchOperation: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      adversaryId: z.string().min(1),
+      adversaryName: z.string().optional(),
+      group: z.string().optional(),
+      planner: z.enum(["batch", "buckets", "atomic"]).optional(),
+      source: z.string().optional(),
+      jitter: z.string().optional(),
+      obfuscator: z.enum(["plain-text", "base64", "caesar"]).optional(),
+      visibility: z.number().min(0).max(100).optional(),
+      autonomous: z.boolean().optional(),
+      phasesEnabled: z.boolean().optional(),
+      autoClose: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return launchOperation(
+        {
+          name: input.name,
+          adversaryId: input.adversaryId,
+          group: input.group,
+          planner: input.planner as PlannerType,
+          source: input.source,
+          jitter: input.jitter,
+          obfuscator: input.obfuscator,
+          visibility: input.visibility,
+          autonomous: input.autonomous,
+          phasesEnabled: input.phasesEnabled,
+          autoClose: input.autoClose,
+        },
+        ctx.user?.name || "operator",
+        input.adversaryName || input.adversaryId,
+      );
+    }),
+
+  /**
+   * Get the status of a specific operation.
+   */
+  getOperationStatus: protectedProcedure
+    .input(z.object({ operationId: z.union([z.string(), z.number()]) }))
+    .query(async ({ input }) => {
+      return getOperationStatus(input.operationId);
+    }),
+
+  /**
+   * List all operations from Caldera.
+   */
+  listOperations: protectedProcedure.query(async () => {
+    return listOperations();
+  }),
+
+  /**
+   * Control an operation (pause, resume, stop).
+   */
+  controlOperation: protectedProcedure
+    .input(z.object({
+      operationId: z.union([z.string(), z.number()]),
+      state: z.enum(["running", "paused", "run_one_link", "finished", "cleanup"]),
+    }))
+    .mutation(async ({ input }) => {
+      return controlOperation(input.operationId, input.state as OperationState);
+    }),
+
+  /**
+   * Delete an operation.
+   */
+  deleteOperation: protectedProcedure
+    .input(z.object({ operationId: z.union([z.string(), z.number()]) }))
+    .mutation(async ({ input }) => {
+      return deleteOperation(input.operationId);
+    }),
+
+  /**
+   * Get operation report/results.
+   */
+  getOperationReport: protectedProcedure
+    .input(z.object({ operationId: z.union([z.string(), z.number()]) }))
+    .query(async ({ input }) => {
+      return getOperationReport(input.operationId);
+    }),
+
+  /**
+   * Get available agents for targeting.
+   */
+  getAvailableAgents: protectedProcedure.query(async () => {
+    return getAvailableAgents();
+  }),
+
+  /**
+   * Get available planners.
+   */
+  getAvailablePlanners: protectedProcedure.query(async () => {
+    return getAvailablePlanners();
+  }),
+
+  /**
+   * Get locally tracked operations.
+   */
+  getTrackedOperations: protectedProcedure.query(async () => {
+    return getTrackedOperations();
+  }),
+
+  /**
+   * Get operation launch statistics.
+   */
+  getOperationStats: protectedProcedure.query(async () => {
+    return getOperationStats();
   }),
 });

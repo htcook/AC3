@@ -17,8 +17,426 @@ import {
   BarChart3, Lock, Unlock, AlertTriangle, CheckCircle2,
   Play, Loader2, BookOpen, Layers, Swords, ArrowRight,
   Upload, RefreshCw, Clock, Rocket, Activity, Settings2,
-  CloudUpload, Workflow, Sparkles, XCircle,
+  CloudUpload, Workflow, Sparkles, XCircle, Pause, Square,
+  SkipForward, Trash2, FileText, Users, MonitorPlay,
 } from "lucide-react";
+
+// ─── Operation Launcher Tab ─────────────────────────────────────────────────
+
+function OperationLauncherTab() {
+  const [launchName, setLaunchName] = useState("");
+  const [selectedAdversary, setSelectedAdversary] = useState("");
+  const [selectedPlanner, setSelectedPlanner] = useState("batch");
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [jitter, setJitter] = useState("2/8");
+  const [obfuscator, setObfuscator] = useState("plain-text");
+  const [autonomous, setAutonomous] = useState(true);
+  const [autoClose, setAutoClose] = useState(false);
+  const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
+
+  const deploymentStatus = trpc.c2KnowledgeBase.getDeploymentStatus.useQuery();
+  const agents = trpc.c2KnowledgeBase.getAvailableAgents.useQuery();
+  const planners = trpc.c2KnowledgeBase.getAvailablePlanners.useQuery();
+  const operations = trpc.c2KnowledgeBase.listOperations.useQuery(undefined, { refetchInterval: 10000 });
+  const opStats = trpc.c2KnowledgeBase.getOperationStats.useQuery(undefined, { refetchInterval: 10000 });
+  const trackedOps = trpc.c2KnowledgeBase.getTrackedOperations.useQuery(undefined, { refetchInterval: 10000 });
+  const opDetail = trpc.c2KnowledgeBase.getOperationStatus.useQuery(
+    { operationId: selectedOpId! },
+    { enabled: !!selectedOpId, refetchInterval: 5000 },
+  );
+  const utils = trpc.useUtils();
+
+  const launchMut = trpc.c2KnowledgeBase.launchOperation.useMutation({
+    onSuccess: (r) => {
+      if (r.success) {
+        toast.success(`Operation "${r.operationName}" launched successfully`);
+        utils.c2KnowledgeBase.listOperations.invalidate();
+        utils.c2KnowledgeBase.getOperationStats.invalidate();
+        utils.c2KnowledgeBase.getTrackedOperations.invalidate();
+        setLaunchName("");
+      } else {
+        toast.error(r.error || "Failed to launch operation");
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const controlMut = trpc.c2KnowledgeBase.controlOperation.useMutation({
+    onSuccess: (r) => {
+      if (r.success) {
+        toast.success("Operation state updated");
+        utils.c2KnowledgeBase.listOperations.invalidate();
+        utils.c2KnowledgeBase.getTrackedOperations.invalidate();
+      } else toast.error(r.error || "Failed");
+    },
+  });
+
+  const deleteMut = trpc.c2KnowledgeBase.deleteOperation.useMutation({
+    onSuccess: (r) => {
+      if (r.success) {
+        toast.success("Operation deleted");
+        utils.c2KnowledgeBase.listOperations.invalidate();
+        utils.c2KnowledgeBase.getTrackedOperations.invalidate();
+        setSelectedOpId(null);
+      } else toast.error(r.error || "Failed");
+    },
+  });
+
+  const deployedProfiles = deploymentStatus.data?.filter((d) => d.status === "deployed") || [];
+
+  const handleLaunch = () => {
+    if (!launchName || !selectedAdversary) {
+      toast.error("Operation name and adversary are required");
+      return;
+    }
+    const adv = deployedProfiles.find((d) => d.actorId === selectedAdversary);
+    launchMut.mutate({
+      name: launchName,
+      adversaryId: selectedAdversary,
+      adversaryName: adv?.actorName || selectedAdversary,
+      group: selectedGroup || undefined,
+      planner: selectedPlanner as "batch" | "buckets" | "atomic",
+      jitter,
+      obfuscator: obfuscator as "plain-text" | "base64" | "caesar",
+      autonomous,
+      autoClose,
+    });
+  };
+
+  const stateColor = (s: string) => {
+    switch (s) {
+      case "running": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+      case "paused": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+      case "finished": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "cleanup": return "bg-red-500/20 text-red-400 border-red-500/30";
+      default: return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { label: "Total Launched", value: opStats.data?.totalLaunched ?? 0, icon: Rocket, color: "text-blue-400" },
+          { label: "Running", value: opStats.data?.running ?? 0, icon: Play, color: "text-emerald-400" },
+          { label: "Completed", value: opStats.data?.completed ?? 0, icon: CheckCircle2, color: "text-cyan-400" },
+          { label: "Adversaries Used", value: opStats.data?.uniqueAdversaries ?? 0, icon: Target, color: "text-purple-400" },
+        ].map((s) => (
+          <Card key={s.label} className="bg-zinc-900/60 border-zinc-800">
+            <CardContent className="p-4 flex items-center gap-3">
+              <s.icon className={`h-5 w-5 ${s.color}`} />
+              <div>
+                <p className="text-2xl font-bold text-white">{s.value}</p>
+                <p className="text-xs text-zinc-400">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Launch Panel */}
+        <Card className="bg-zinc-900/60 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Rocket className="h-4 w-4 text-orange-400" /> Launch Operation
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Create a Caldera operation from a deployed adversary profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {deployedProfiles.length === 0 ? (
+              <div className="text-center py-8 text-zinc-500">
+                <CloudUpload className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No deployed profiles available</p>
+                <p className="text-xs mt-1">Deploy adversary profiles to Caldera first from the Deploy & Pipeline tab</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-zinc-400">Operation Name</label>
+                  <input
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                    placeholder="e.g., APT29 Emulation - Sprint 3"
+                    value={launchName}
+                    onChange={(e) => setLaunchName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-zinc-400">Adversary Profile</label>
+                  <Select value={selectedAdversary} onValueChange={setSelectedAdversary}>
+                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                      <SelectValue placeholder="Select deployed adversary" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deployedProfiles.map((p) => (
+                        <SelectItem key={p.actorId} value={p.actorId}>
+                          {p.actorName} ({p.abilityCount} abilities)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-xs text-zinc-400">Planner</label>
+                    <Select value={selectedPlanner} onValueChange={setSelectedPlanner}>
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(planners.data?.planners || [
+                          { id: "batch", name: "Batch" },
+                          { id: "buckets", name: "Buckets" },
+                          { id: "atomic", name: "Atomic" },
+                        ]).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-zinc-400">Agent Group</label>
+                    <input
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                      placeholder="All agents (blank)"
+                      value={selectedGroup}
+                      onChange={(e) => setSelectedGroup(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-xs text-zinc-400">Jitter</label>
+                    <input
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none"
+                      value={jitter}
+                      onChange={(e) => setJitter(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-zinc-400">Obfuscator</label>
+                    <Select value={obfuscator} onValueChange={setObfuscator}>
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="plain-text">Plain Text</SelectItem>
+                        <SelectItem value="base64">Base64</SelectItem>
+                        <SelectItem value="caesar">Caesar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-zinc-400">Agents</label>
+                    <div className="flex items-center gap-2 h-9 px-3 bg-zinc-800 border border-zinc-700 rounded text-sm">
+                      <Users className="h-3.5 w-3.5 text-zinc-400" />
+                      <span className="text-white">{agents.data?.agents?.length ?? "?"}</span>
+                      <span className="text-zinc-500 text-xs">available</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                    <input type="checkbox" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} className="rounded" />
+                    Autonomous
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                    <input type="checkbox" checked={autoClose} onChange={(e) => setAutoClose(e.target.checked)} className="rounded" />
+                    Auto-close
+                  </label>
+                </div>
+
+                <Button
+                  onClick={handleLaunch}
+                  disabled={launchMut.isPending || !launchName || !selectedAdversary}
+                  className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500"
+                >
+                  {launchMut.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Launching...</>
+                  ) : (
+                    <><Rocket className="h-4 w-4 mr-2" /> Launch Operation</>
+                  )}
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Operation Detail / Agent List */}
+        <Card className="bg-zinc-900/60 border-zinc-800">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MonitorPlay className="h-4 w-4 text-cyan-400" />
+              {selectedOpId ? "Operation Detail" : "Available Agents"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {selectedOpId && opDetail.data?.success && opDetail.data.operation ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium text-white">{opDetail.data.operation.name}</h4>
+                    <p className="text-xs text-zinc-500">ID: {opDetail.data.operation.id}</p>
+                  </div>
+                  <Badge className={stateColor(opDetail.data.operation.state)}>
+                    {opDetail.data.operation.state}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-zinc-800/50 rounded p-2">
+                    <p className="text-lg font-bold text-white">{opDetail.data.operation.hostGroup?.length || 0}</p>
+                    <p className="text-xs text-zinc-500">Agents</p>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded p-2">
+                    <p className="text-lg font-bold text-emerald-400">
+                      {opDetail.data.operation.chain?.filter((l) => l.status === 0).length || 0}
+                    </p>
+                    <p className="text-xs text-zinc-500">Succeeded</p>
+                  </div>
+                  <div className="bg-zinc-800/50 rounded p-2">
+                    <p className="text-lg font-bold text-red-400">
+                      {opDetail.data.operation.chain?.filter((l) => l.status === 1 || l.status === -2).length || 0}
+                    </p>
+                    <p className="text-xs text-zinc-500">Failed</p>
+                  </div>
+                </div>
+
+                {/* Control Buttons */}
+                <div className="flex gap-2">
+                  {opDetail.data.operation.state === "running" && (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => controlMut.mutate({ operationId: selectedOpId, state: "paused" })}>
+                        <Pause className="h-3.5 w-3.5 mr-1" /> Pause
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1" onClick={() => controlMut.mutate({ operationId: selectedOpId, state: "run_one_link" })}>
+                        <SkipForward className="h-3.5 w-3.5 mr-1" /> Step
+                      </Button>
+                      <Button size="sm" variant="destructive" className="flex-1" onClick={() => controlMut.mutate({ operationId: selectedOpId, state: "finished" })}>
+                        <Square className="h-3.5 w-3.5 mr-1" /> Stop
+                      </Button>
+                    </>
+                  )}
+                  {opDetail.data.operation.state === "paused" && (
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => controlMut.mutate({ operationId: selectedOpId, state: "running" })}>
+                      <Play className="h-3.5 w-3.5 mr-1" /> Resume
+                    </Button>
+                  )}
+                  {opDetail.data.operation.state === "finished" && (
+                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => deleteMut.mutate({ operationId: selectedOpId })}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedOpId(null)}>
+                    Back
+                  </Button>
+                </div>
+
+                {/* Chain Steps */}
+                <ScrollArea className="h-48">
+                  <div className="space-y-1">
+                    {(opDetail.data.operation.chain || []).map((link, i) => (
+                      <div key={link.id || i} className="flex items-center gap-2 px-2 py-1.5 bg-zinc-800/40 rounded text-xs">
+                        <span className={`h-2 w-2 rounded-full ${link.status === 0 ? "bg-emerald-400" : link.status === 1 || link.status === -2 ? "bg-red-400" : link.status === -3 ? "bg-zinc-500" : "bg-amber-400"}`} />
+                        <span className="text-zinc-300 truncate flex-1">{link.abilityName || link.abilityId}</span>
+                        <span className="text-zinc-500">{link.paw}</span>
+                      </div>
+                    ))}
+                    {(!opDetail.data.operation.chain || opDetail.data.operation.chain.length === 0) && (
+                      <p className="text-xs text-zinc-500 text-center py-4">No links executed yet</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <ScrollArea className="h-72">
+                <div className="space-y-2">
+                  {agents.data?.agents?.map((a) => (
+                    <div key={a.paw} className="flex items-center gap-3 px-3 py-2 bg-zinc-800/40 rounded">
+                      <Terminal className="h-4 w-4 text-emerald-400" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{a.host}</p>
+                        <p className="text-xs text-zinc-500">{a.platform} • {a.group || "default"} • {a.paw}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{a.executors.join(", ")}</Badge>
+                    </div>
+                  ))}
+                  {(!agents.data?.agents || agents.data.agents.length === 0) && (
+                    <div className="text-center py-8 text-zinc-500">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No agents connected</p>
+                      <p className="text-xs mt-1">Deploy Caldera agents to target systems first</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Active & Recent Operations */}
+      <Card className="bg-zinc-900/60 border-zinc-800">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Activity className="h-4 w-4 text-emerald-400" /> Operations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-64">
+            <div className="space-y-2">
+              {(operations.data?.operations || []).map((op) => (
+                <div
+                  key={op.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded cursor-pointer transition-colors ${
+                    String(selectedOpId) === String(op.id)
+                      ? "bg-orange-500/10 border border-orange-500/30"
+                      : "bg-zinc-800/40 hover:bg-zinc-800/60 border border-transparent"
+                  }`}
+                  onClick={() => setSelectedOpId(String(op.id))}
+                >
+                  <div className={`h-2.5 w-2.5 rounded-full ${
+                    op.state === "running" ? "bg-emerald-400 animate-pulse" :
+                    op.state === "paused" ? "bg-amber-400" :
+                    op.state === "finished" ? "bg-blue-400" : "bg-zinc-500"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{op.name}</p>
+                    <p className="text-xs text-zinc-500">
+                      {op.adversaryName || op.adversaryId} • {new Date(op.startedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-zinc-400"><Users className="h-3 w-3 inline mr-1" />{op.agentCount}</span>
+                    <span className="text-emerald-400">{op.successCount} ok</span>
+                    {op.failCount > 0 && <span className="text-red-400">{op.failCount} fail</span>}
+                    {op.inProgressCount > 0 && <span className="text-amber-400">{op.inProgressCount} pending</span>}
+                  </div>
+                  <Badge className={stateColor(op.state)}>{op.state}</Badge>
+                </div>
+              ))}
+              {(!operations.data?.operations || operations.data.operations.length === 0) && (
+                <div className="text-center py-8 text-zinc-500">
+                  <Rocket className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No operations yet</p>
+                  <p className="text-xs mt-1">Launch an operation from a deployed adversary profile</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 // ─── Framework Profiles Tab ─────────────────────────────────────────────────
 
@@ -1226,7 +1644,7 @@ const C2KnowledgeBase: React.FC = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="profiles" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="profiles" className="text-xs">
               <Server className="h-3.5 w-3.5 mr-1.5" /> Frameworks
             </TabsTrigger>
@@ -1245,6 +1663,9 @@ const C2KnowledgeBase: React.FC = () => {
             <TabsTrigger value="matrix" className="text-xs">
               <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Comparison
             </TabsTrigger>
+            <TabsTrigger value="operations" className="text-xs">
+              <Rocket className="h-3.5 w-3.5 mr-1.5" /> Operations
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profiles"><FrameworkProfilesTab /></TabsContent>
@@ -1253,6 +1674,7 @@ const C2KnowledgeBase: React.FC = () => {
           <TabsContent value="deployment"><CalderaDeploymentTab /></TabsContent>
           <TabsContent value="playbook"><PlaybookTab /></TabsContent>
           <TabsContent value="matrix"><ComparisonMatrixTab /></TabsContent>
+          <TabsContent value="operations"><OperationLauncherTab /></TabsContent>
         </Tabs>
       </div>
     </AppShell>
