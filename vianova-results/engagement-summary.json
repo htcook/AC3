@@ -1,0 +1,136 @@
+{
+  "engagementId": 1350014,
+  "name": "Vianova External Pentest",
+  "date": "2026-03-15",
+  "status": "completed",
+  "finalPhase": "exploitation (auto-denied by RoE)",
+  "progress": 55,
+  "targets": [
+    {
+      "hostname": "dashboard-dev.vianovahealth.com",
+      "ip": "3.170.152.24",
+      "type": "web_app"
+    },
+    {
+      "hostname": "api.dev.vianova.ai",
+      "ip": "23.20.98.48",
+      "type": "web_app"
+    }
+  ],
+  "stats": {
+    "hostsScanned": 3,
+    "portsFound": 4,
+    "vulnsFound": 23,
+    "exploitsAttempted": 0,
+    "exploitsSucceeded": 0,
+    "sessionsOpened": 0,
+    "zapScansRun": 4,
+    "wafDetections": 0
+  },
+  "severityDistribution": {
+    "critical": 4,
+    "high": 10,
+    "medium": 1,
+    "low": 2,
+    "info": 6,
+    "total": 23
+  },
+  "criticalFindings": [
+    "admin:admin on dashboard-dev.vianovahealth.com:80",
+    "admin:password on dashboard-dev.vianovahealth.com:80",
+    "admin:123456 on dashboard-dev.vianovahealth.com:80",
+    "root:root on dashboard-dev.vianovahealth.com:80"
+  ],
+  "highCVEs": [
+    "CVE-2025-69770",
+    "CVE-2025-69633",
+    "CVE-2026-1306",
+    "CVE-2025-8572",
+    "CVE-2025-15157"
+  ],
+  "attackChains": [
+    {
+      "name": "Exposed Web Interface and Misauthenticated API Attack",
+      "risk": 8,
+      "feasibility": 9,
+      "steps": 4
+    },
+    {
+      "name": "API Misconfiguration and Vulnerability Chain",
+      "risk": 7,
+      "feasibility": 7,
+      "steps": 3
+    },
+    {
+      "name": "Dashboard Exploit and Credential Harvesting",
+      "risk": 6,
+      "feasibility": 8,
+      "steps": 3
+    }
+  ],
+  "owaspCoverage": {
+    "grade": "A",
+    "score": 94,
+    "tested": 16,
+    "partial": 2,
+    "gaps": 0,
+    "notApplicable": 2
+  },
+  "toolsUsed": [
+    "nmap",
+    "httpx",
+    "feroxbuster",
+    "nuclei",
+    "nikto",
+    "hydra",
+    "zap"
+  ],
+  "logEntries": 308,
+  "phaseLogs": {
+    "recon": 123,
+    "enumeration": 80,
+    "vuln_detection": 102,
+    "exploitation": 6,
+    "completed": 2
+  },
+  "threatLandscape": [
+    {
+      "category": "credential_stuffing",
+      "likelihood": 0.7
+    },
+    {
+      "category": "supply_chain",
+      "likelihood": 0.65
+    },
+    {
+      "category": "abuse_of_apis",
+      "likelihood": 0.6
+    },
+    {
+      "category": "ransomware_ecrime",
+      "likelihood": 0.55
+    },
+    {
+      "category": "apt_state_espionage",
+      "likelihood": 0.5
+    }
+  ],
+  "crownJewels": [
+    "Production API",
+    "Customer Data Store",
+    "CI/CD Pipeline",
+    "Admin Portal"
+  ],
+  "platformFeaturesValidated": [
+    "Context Engine",
+    "RoE Scope Guard",
+    "Multi-Tool Scanning",
+    "LLM-Driven Analysis",
+    "Smart Fallback",
+    "Cloud Security Knowledge",
+    "OWASP Coverage Assessment",
+    "Approval Gates",
+    "VulnAgents",
+    "Scan Feedback Loop"
+  ]
+}
