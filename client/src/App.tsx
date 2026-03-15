@@ -233,6 +233,7 @@ const DastScanners = lazy(() => import("./pages/DastScanners"));
 const PacketAnalysis = lazy(() => import("./pages/PacketAnalysis"));
 const AIGovernance = lazy(() => import("./pages/AIGovernance"));
 const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
+const ThreatGroupProfile = lazy(() => import("./pages/ThreatGroupProfile"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -929,6 +930,9 @@ function Router() {
         </Route>
         <Route path="/executive-dashboard">
           <ProtectedRoute component={ExecutiveDashboard} />
+        </Route>
+        <Route path="/threat-group/:id">
+          <ProtectedRoute component={ThreatGroupProfile} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

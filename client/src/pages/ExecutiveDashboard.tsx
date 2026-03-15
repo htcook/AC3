@@ -1,11 +1,12 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import {
   Shield, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   BarChart3, PieChart, Activity, Building2, Target, Clock,
   ChevronRight, ArrowUpRight, ArrowDownRight, Minus,
   ShieldCheck, ShieldAlert, FileText, Layers, Globe,
-  Briefcase, Lock, Eye, Zap, Users
+  Briefcase, Lock, Eye, Zap, Users, Download, Crosshair, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 // ─── Risk Score Gauge ──────────────────────────────────────────────────────
 function RiskGauge({ score, level }: { score: number; level: string }) {
@@ -234,11 +237,37 @@ function TopRisksTable({ categories }: { categories: Array<{
 
 // ─── Main Executive Dashboard ──────────────────────────────────────────────
 export default function ExecutiveDashboard() {
+  const [, navigate] = useLocation();
+  const [selectedEngagementId, setSelectedEngagementId] = useState<number | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
   const { data: riskPosture, isLoading: riskLoading } = trpc.executiveDashboard.riskPosture.useQuery();
   const { data: compliance, isLoading: compLoading } = trpc.executiveDashboard.complianceOverview.useQuery();
   const { data: impact, isLoading: impactLoading } = trpc.executiveDashboard.businessImpact.useQuery();
   const { data: topRisks, isLoading: risksLoading } = trpc.executiveDashboard.topRisks.useQuery();
   const { data: engagements, isLoading: engLoading } = trpc.executiveDashboard.engagementSummary.useQuery();
+  const { data: threatSummary } = trpc.threatIntelMatching.summary.useQuery();
+
+  // Threat group matching for selected engagement
+  const matchInput = useMemo(() => selectedEngagementId ? { engagementId: selectedEngagementId } : null, [selectedEngagementId]);
+  const { data: threatMatches, isLoading: threatLoading } = trpc.threatIntelMatching.matchGroups.useQuery(
+    matchInput as { engagementId: number },
+    { enabled: !!selectedEngagementId }
+  );
+
+  // PDF export handler
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      // Trigger browser print dialog for PDF generation
+      window.print();
+      toast.success("PDF export initiated — use your browser's print dialog to save.");
+    } catch {
+      toast.error("PDF export failed");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-[1600px] mx-auto">
@@ -253,11 +282,15 @@ export default function ExecutiveDashboard() {
             Risk posture, compliance status, and business impact at a glance
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-xs">
             <Clock className="w-3 h-3 mr-1" />
             Last updated: {new Date().toLocaleDateString()}
           </Badge>
+          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf}>
+            <Download className="w-4 h-4 mr-1" />
+            {exportingPdf ? "Exporting..." : "Export PDF"}
+          </Button>
         </div>
       </div>
 
@@ -342,6 +375,9 @@ export default function ExecutiveDashboard() {
           </TabsTrigger>
           <TabsTrigger value="engagements" className="gap-1.5">
             <Layers className="w-4 h-4" /> Engagements
+          </TabsTrigger>
+          <TabsTrigger value="threats" className="gap-1.5">
+            <Crosshair className="w-4 h-4" /> Threat Groups
           </TabsTrigger>
         </TabsList>
 
@@ -571,6 +607,172 @@ export default function ExecutiveDashboard() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        {/* Threat Groups Tab */}
+        <TabsContent value="threats" className="mt-4">
+          <div className="flex flex-col gap-6">
+            {/* Threat Intel Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <Crosshair className="w-5 h-5 mx-auto mb-1 text-red-500" />
+                  <div className="text-2xl font-bold tabular-nums">{threatSummary?.totalGroups || 0}</div>
+                  <div className="text-xs text-muted-foreground">Threat Groups Tracked</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <Cpu className="w-5 h-5 mx-auto mb-1 text-primary" />
+                  <div className="text-2xl font-bold tabular-nums">{threatSummary?.totalTechniques || 0}</div>
+                  <div className="text-xs text-muted-foreground">Unique TTPs</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <Building2 className="w-5 h-5 mx-auto mb-1 text-blue-500" />
+                  <div className="text-2xl font-bold tabular-nums">{threatSummary?.fedrampProviderCount || 0}</div>
+                  <div className="text-xs text-muted-foreground">FedRAMP Providers</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <AlertTriangle className="w-5 h-5 mx-auto mb-1 text-orange-500" />
+                  <div className="text-2xl font-bold tabular-nums">{threatSummary?.activeGroups || 0}</div>
+                  <div className="text-xs text-muted-foreground">Active Groups</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Engagement Selector for Threat Matching */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-primary" />
+                    Threat Group Matching
+                  </span>
+                  <div className="w-[300px]">
+                    <Select
+                      value={selectedEngagementId?.toString() || ""}
+                      onValueChange={(v) => setSelectedEngagementId(v ? Number(v) : null)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an engagement to match..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(engagements?.engagements || []).map((eng) => (
+                          <SelectItem key={eng.id} value={eng.id.toString()}>
+                            {eng.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!selectedEngagementId ? (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Crosshair className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p>Select an engagement above to match against known threat groups.</p>
+                    <p className="text-xs mt-1">The matching engine correlates TTPs, CVEs, tools, and sector targeting.</p>
+                  </div>
+                ) : threatLoading ? (
+                  <div className="flex flex-col gap-3">
+                    {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-[100px]" />)}
+                  </div>
+                ) : !threatMatches?.matches.length ? (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <ShieldCheck className="w-8 h-8 mx-auto mb-3 opacity-30" />
+                    <p>No threat group matches found for this engagement.</p>
+                    <p className="text-xs mt-1">This may indicate the engagement has limited findings or uses novel TTPs.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      Analyzed {threatMatches.totalGroupsAnalyzed} groups — {threatMatches.matches.length} matches found
+                    </p>
+                    {threatMatches.matches.map((match) => {
+                      const riskColor = match.riskLevel === "critical" ? "text-red-500" :
+                                        match.riskLevel === "high" ? "text-orange-500" :
+                                        match.riskLevel === "medium" ? "text-yellow-500" : "text-emerald-500";
+                      const riskBg = match.riskLevel === "critical" ? "bg-red-500/10 border-red-500/30" :
+                                     match.riskLevel === "high" ? "bg-orange-500/10 border-orange-500/30" :
+                                     match.riskLevel === "medium" ? "bg-yellow-500/10 border-yellow-500/30" : "bg-emerald-500/10 border-emerald-500/30";
+                      return (
+                        <div
+                          key={match.groupId}
+                          className={`p-4 rounded-lg border ${riskBg} hover:border-primary/50 cursor-pointer transition-colors`}
+                          onClick={() => navigate(`/threat-group/${match.groupId}`)}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-sm">{match.groupName}</h4>
+                                <Badge variant="outline" className="text-xs uppercase">{match.groupType}</Badge>
+                                {match.active && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Active</Badge>}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Origin: {match.origin} — {match.aliases.join(", ")}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-2xl font-bold tabular-nums ${riskColor}`}>{match.matchScore}%</span>
+                              <p className={`text-xs font-medium uppercase ${riskColor}`}>{match.riskLevel} risk</p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-3">{match.matchSummary}</p>
+                          <div className="flex flex-wrap gap-4 text-xs">
+                            <span className="flex items-center gap-1">
+                              <Crosshair className="w-3 h-3" /> {match.matchedTechniqueCount} TTPs
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" /> {match.matchedCVECount} CVEs
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Cpu className="w-3 h-3" /> {match.matchedToolCount} Tools
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Building2 className="w-3 h-3" /> {match.fedrampExposureCount} FedRAMP
+                            </span>
+                            {match.sectorRelevance > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                Sector match: {match.sectorRelevance}%
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 mt-2 text-xs text-primary">
+                            View full profile <ChevronRight className="w-3 h-3" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Threat Group Type Breakdown */}
+            {threatSummary?.byType && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="w-4 h-4" /> Groups by Type
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(threatSummary.byType).map(([type, count]) => (
+                      <div key={type} className="p-3 rounded-lg bg-muted/30 border text-center">
+                        <span className="text-lg font-bold tabular-nums">{count as number}</span>
+                        <p className="text-xs text-muted-foreground capitalize mt-1">{type.replace(/_/g, " ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -142,6 +142,7 @@ import { dastScannersRouter } from "./routers/dast-scanners";
 import { packetAnalysisRouter } from "./routers/packet-analysis";
 import { aiGovernanceRouter } from "./routers/ai-governance";
 import { executiveDashboardRouter } from "./routers/executive-dashboard";
+import { threatIntelMatchingRouter } from "./routers/threat-intel-matching";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -504,6 +505,7 @@ export const appRouter = router({
   // ─── AI Governance & Guardrails (NIST AI RMF, OMB M-24-10, DoD RAI) ────────
   aiGovernance: aiGovernanceRouter,
   executiveDashboard: executiveDashboardRouter,
+  threatIntelMatching: threatIntelMatchingRouter,
 });
 export type AppRouter = typeof appRouter;
 
