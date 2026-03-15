@@ -33,6 +33,14 @@ import {
   getAutoGenerationStats,
 } from "../lib/threat-intel-auto-enrich";
 import {
+  executePipelineRun,
+  getPipelineStatus,
+  getPipelineRunHistory,
+  getCurrentRun,
+  updateSchedulerConfig,
+  getSchedulerConfig,
+} from "../lib/auto-generation-scheduler";
+import {
   FRAMEWORK_PROFILES,
   selectC2Framework,
   mapActorTTPs,
@@ -519,5 +527,60 @@ export const c2KnowledgeBaseRouter = router({
       totalAbilityMappings,
       actorsWithProfiles,
     };
+  }),
+
+  // ── Pipeline Scheduler Endpoints ──────────────────────────────────────
+
+  /**
+   * Get pipeline scheduler status and stats
+   */
+  getPipelineStatus: protectedProcedure.query(async () => {
+    return getPipelineStatus();
+  }),
+
+  /**
+   * Get pipeline run history
+   */
+  getPipelineHistory: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(50).default(20) }).optional())
+    .query(async ({ input }) => {
+      return getPipelineRunHistory(input?.limit ?? 20);
+    }),
+
+  /**
+   * Get current pipeline run (if any)
+   */
+  getCurrentPipelineRun: protectedProcedure.query(async () => {
+    return getCurrentRun();
+  }),
+
+  /**
+   * Manually trigger a pipeline run
+   */
+  triggerPipelineRun: protectedProcedure.mutation(async () => {
+    const result = await executePipelineRun("manual");
+    return result;
+  }),
+
+  /**
+   * Update scheduler configuration
+   */
+  updateSchedulerConfig: protectedProcedure
+    .input(z.object({
+      enabled: z.boolean().optional(),
+      cronExpression: z.string().optional(),
+      timezone: z.string().optional(),
+      notifyOnComplete: z.boolean().optional(),
+      autoPushToCaldera: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return updateSchedulerConfig(input);
+    }),
+
+  /**
+   * Get scheduler configuration
+   */
+  getSchedulerConfig: protectedProcedure.query(async () => {
+    return getSchedulerConfig();
   }),
 });

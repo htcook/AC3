@@ -388,13 +388,68 @@ export default function ExecutiveDashboard() {
     { enabled: !!selectedEngagementId }
   );
 
+  // Pipeline status for PDF export
+  const { data: pipelineStatus } = trpc.c2KnowledgeBase.getPipelineStatus.useQuery();
+
   // PDF export handler
   const handleExportPdf = async () => {
     setExportingPdf(true);
     try {
-      window.print();
-      toast.success("PDF export initiated — use your browser's print dialog to save.");
-    } catch {
+      const { exportExecutiveDashboardPdf } = await import("@/lib/executive-pdf-export");
+      await exportExecutiveDashboardPdf({
+        summary: riskPosture ? {
+          totalEngagements: riskPosture.engagements.total,
+          activeEngagements: riskPosture.engagements.active,
+          completedEngagements: riskPosture.engagements.completed,
+          totalFindings: riskPosture.vulnerabilities.total,
+          criticalFindings: riskPosture.vulnerabilities.critical,
+          highFindings: riskPosture.vulnerabilities.high,
+          mediumFindings: riskPosture.vulnerabilities.medium,
+          lowFindings: riskPosture.vulnerabilities.low,
+          totalScans: 0,
+          totalAssets: 0,
+          totalThreatGroups: threatSummary?.totalGroups ?? 0,
+          avgRiskScore: riskPosture.riskScore,
+        } : undefined,
+        mitreCoverage: mitreCoverage ? {
+          totalTechniques: mitreCoverage.totalTechniques ?? 0,
+          coveredTechniques: mitreCoverage.coveredTechniques ?? 0,
+          coveragePercent: mitreCoverage.coveragePercent ?? 0,
+          tacticBreakdown: mitreCoverage.tacticBreakdown ?? [],
+        } : undefined,
+        c2Readiness: c2Readiness ? {
+          frameworks: (c2Readiness.frameworks ?? []).map((fw: any) => ({
+            id: fw.id,
+            name: fw.name,
+            status: fw.status ?? "available",
+            techniques: fw.techniques ?? 0,
+            postExploitCapabilities: fw.postExploitCapabilities ?? 0,
+          })),
+          totalDeployed: c2Readiness.totalDeployed ?? 0,
+          totalLocal: c2Readiness.totalLocal ?? 0,
+        } : undefined,
+        pipelineStatus: pipelineStatus ? {
+          schedulerEnabled: pipelineStatus.schedulerEnabled,
+          cronExpression: pipelineStatus.cronExpression,
+          totalRuns: pipelineStatus.totalRuns,
+          totalProfilesGenerated: pipelineStatus.totalProfilesGenerated,
+          totalProfilesPushed: pipelineStatus.totalProfilesPushed,
+          lastRun: pipelineStatus.lastRun,
+        } : undefined,
+        threatLandscape: threatSummary ? {
+          topActors: (threatSummary.topGroups ?? []).slice(0, 15).map((g: any) => ({
+            name: g.name ?? g.actorId,
+            techniques: g.techniqueCount ?? 0,
+            severity: g.severity ?? "unknown",
+            lastSeen: g.lastSeen ? new Date(g.lastSeen).toLocaleDateString() : "N/A",
+          })),
+          totalActors: threatSummary.totalGroups ?? 0,
+          actorsWithProfiles: kbStats?.actorsWithProfiles ?? 0,
+        } : undefined,
+      });
+      toast.success("Executive Dashboard PDF exported successfully");
+    } catch (err) {
+      console.error("PDF export failed:", err);
       toast.error("PDF export failed");
     } finally {
       setExportingPdf(false);

@@ -93,7 +93,13 @@ export type WsEventType =
   | "job:worker_lost"
   // System events
   | "system:notification"
-  | "system:alert";
+  | "system:alert"
+  // Automation pipeline events
+  | "automation:profile_generated"
+  | "automation:profile_pushed"
+  | "automation:playbook_triggered"
+  | "automation:pipeline_run"
+  | "automation:enrichment_complete";
 
 export interface WsEvent {
   type: WsEventType;
@@ -1119,6 +1125,100 @@ export function emitTimelineEvent(event: TimelineEvent): void {
     type: "engagement:timeline_event",
     timestamp: Date.now(),
     data: event,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
+
+// ─── Automation Pipeline Event Emitters ─────────────────────────────
+
+/** Emit when an adversary profile is auto-generated */
+export function emitProfileGenerated(data: {
+  actorId: string;
+  actorName: string;
+  completenessScore: number;
+  techniquesCount: number;
+  tacticsCount: number;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "automation:profile_generated",
+    timestamp: Date.now(),
+    data,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
+
+/** Emit when an adversary profile is pushed to Caldera */
+export function emitProfilePushed(data: {
+  actorId: string;
+  actorName: string;
+  calderaAdversaryId?: string;
+  success: boolean;
+  error?: string;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "automation:profile_pushed",
+    timestamp: Date.now(),
+    data,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
+
+/** Emit when a post-exploitation playbook is auto-triggered */
+export function emitPlaybookTriggered(data: {
+  engagementId?: number;
+  targetHost: string;
+  targetPlatform: string;
+  privilegeLevel: string;
+  playbookSteps: number;
+  framework: string;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "automation:playbook_triggered",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, wsEvent);
+  }
+}
+
+/** Emit when the auto-generation pipeline runs */
+export function emitPipelineRun(data: {
+  runId: string;
+  status: "started" | "completed" | "failed";
+  actorsScanned?: number;
+  profilesGenerated?: number;
+  profilesPushed?: number;
+  error?: string;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "automation:pipeline_run",
+    timestamp: Date.now(),
+    data,
+  };
+  eventHub.broadcast(wsEvent, "cockpit:timeline");
+  eventHub.broadcastGlobal(wsEvent);
+}
+
+/** Emit when a threat actor enrichment triggers profile generation */
+export function emitEnrichmentComplete(data: {
+  actorId: string;
+  actorName: string;
+  previousScore: number;
+  newScore: number;
+  thresholdMet: boolean;
+  profileGenerated: boolean;
+}): void {
+  const wsEvent: WsEvent = {
+    type: "automation:enrichment_complete",
+    timestamp: Date.now(),
+    data,
   };
   eventHub.broadcast(wsEvent, "cockpit:timeline");
   eventHub.broadcastGlobal(wsEvent);

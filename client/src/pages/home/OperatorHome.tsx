@@ -30,12 +30,12 @@ import {
   AlertTriangle, CheckCircle2, Target, Brain, Network, Lock,
   Scan, Globe, Play, Plus, Loader2, Radar, Eye, Briefcase,
   ChevronRight, BarChart3, RefreshCw, TrendingDown, TrendingUp,
-  Radio, Shield, Flame, Filter, Sparkles, ChevronDown, ChevronUp
+  Radio, Shield, Flame, Filter, Sparkles, ChevronDown, ChevronUp, Bot
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TimelineCategory = "scan" | "engagement" | "opsec" | "agent" | "system";
+type TimelineCategory = "scan" | "engagement" | "opsec" | "agent" | "system" | "automation";
 
 interface UnifiedTimelineEvent {
   id: string;
@@ -138,6 +138,7 @@ const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string }>
   opsec: ShieldAlert,
   agent: Radio,
   system: Activity,
+  automation: Bot,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -146,6 +147,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   opsec: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   agent: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   system: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  automation: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
 };
 
 // ─── WebSocket event to timeline event converter ──────────────────────────────
@@ -197,6 +199,31 @@ function wsEventToTimeline(wsEvent: WsEvent): UnifiedTimelineEvent {
     severity = type.includes("finished") || type.includes("complete") ? "medium" : "low";
     title = type.split(":")[1]?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || title;
     description = wsEvent.data?.name || wsEvent.data?.phase || "";
+  } else if (type.startsWith("automation:")) {
+    category = "automation";
+    if (type === "automation:profile_generated") {
+      severity = "high";
+      title = "Adversary Profile Generated";
+      description = `${wsEvent.data?.actorName || wsEvent.data?.actorId || "Actor"} (score: ${wsEvent.data?.completenessScore || "?"}/100)`;
+    } else if (type === "automation:profile_pushed") {
+      severity = wsEvent.data?.success ? "high" : "medium";
+      title = wsEvent.data?.success ? "Profile Pushed to Caldera" : "Profile Push Failed";
+      description = wsEvent.data?.actorName || wsEvent.data?.actorId || "";
+    } else if (type === "automation:playbook_triggered") {
+      severity = "critical";
+      title = "Post-Exploit Playbook Triggered";
+      description = `${wsEvent.data?.targetHost || "target"} (${wsEvent.data?.targetPlatform || ""}, ${wsEvent.data?.privilegeLevel || ""}) — ${wsEvent.data?.playbookSteps || 0} steps`;
+    } else if (type === "automation:pipeline_run") {
+      severity = wsEvent.data?.status === "failed" ? "high" : wsEvent.data?.status === "completed" ? "medium" : "low";
+      title = `Pipeline ${wsEvent.data?.status === "started" ? "Started" : wsEvent.data?.status === "completed" ? "Completed" : "Failed"}`;
+      description = wsEvent.data?.status === "completed"
+        ? `${wsEvent.data?.profilesGenerated || 0} generated, ${wsEvent.data?.profilesPushed || 0} pushed`
+        : wsEvent.data?.error || `Run ${wsEvent.data?.runId || ""}`;
+    } else if (type === "automation:enrichment_complete") {
+      severity = wsEvent.data?.profileGenerated ? "high" : "low";
+      title = "Threat Intel Enrichment";
+      description = `${wsEvent.data?.actorName || "Actor"}: ${wsEvent.data?.previousScore || 0} → ${wsEvent.data?.newScore || 0}${wsEvent.data?.thresholdMet ? " (threshold met)" : ""}`;
+    }
   } else if (type.startsWith("job:")) {
     category = "system";
     severity = type === "job:failed" ? "high" : "low";
@@ -225,7 +252,7 @@ export default function OperatorHome() {
   const { activeEngagement } = useEngagement();
   const [timelineHours, setTimelineHours] = useState(24);
   const [activeFilters, setActiveFilters] = useState<Set<TimelineCategory>>(
-    new Set(["scan", "engagement", "opsec", "agent", "system"])
+    new Set(["scan", "engagement", "opsec", "agent", "automation", "system"])
   );
   const [showFilters, setShowFilters] = useState(false);
   const [advisorExpanded, setAdvisorExpanded] = useState(false);
@@ -480,7 +507,7 @@ export default function OperatorHome() {
               {/* Category Filter Toggles */}
               {showFilters && (
                 <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-border/50">
-                  {(["scan", "engagement", "opsec", "agent", "system"] as TimelineCategory[]).map(cat => {
+                  {(["scan", "engagement", "opsec", "agent", "automation", "system"] as TimelineCategory[]).map(cat => {
                     const CatIcon = CATEGORY_ICONS[cat];
                     const isActive = activeFilters.has(cat);
                     const catColor = CATEGORY_COLORS[cat];

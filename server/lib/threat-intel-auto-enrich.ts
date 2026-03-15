@@ -204,6 +204,20 @@ export async function checkAndTriggerProfileGeneration(
       `[AutoEnrich] Generated profile for ${score.actorName}: ${profile.abilityCount} abilities, ${profile.killChainPhases.length} phases`,
     );
 
+    // Emit WS event for the Operator Cockpit timeline
+    try {
+      const { emitProfileGenerated } = await import("./ws-event-hub");
+      emitProfileGenerated({
+        actorId,
+        actorName: score.actorName,
+        completenessScore: score.score,
+        techniquesCount: score.techniqueCount,
+        tacticsCount: score.tacticsCovered,
+      });
+    } catch (e: any) {
+      console.warn(`[AutoEnrich] WS event emission failed:`, e.message);
+    }
+
     // Notify operator about auto-generated profile
     try {
       const { notifyOwner } = await import("../_core/notification");
@@ -224,6 +238,18 @@ export async function checkAndTriggerProfileGeneration(
         if (pushedToCaldera) {
           stats.totalPushed++;
           console.log(`[AutoEnrich] Auto-pushed profile for ${score.actorName} to Caldera`);
+
+          // Emit WS event for Caldera push
+          try {
+            const { emitProfilePushed } = await import("./ws-event-hub");
+            emitProfilePushed({
+              actorId,
+              actorName: score.actorName,
+              success: true,
+            });
+          } catch (e: any) {
+            console.warn(`[AutoEnrich] WS push event emission failed:`, e.message);
+          }
 
           // Notify operator about auto-push to Caldera
           try {

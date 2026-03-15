@@ -458,6 +458,12 @@ async function startServer() {
         console.warn("[AgentWatchdog] Failed to initialize watchdog scheduler:", err);
       });
 
+      // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
+      import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
+        initAutoGenerationSchedule();
+      }).catch((err) => {
+        console.warn("[AutoGenPipeline] Failed to initialize auto-generation scheduler:", err);
+      });
       // Initialize Scheduled FIPS Compliance Audit (daily at 02:00 UTC)
       import("../lib/fips-audit-scheduler").then(({ initFipsAuditScheduler }) => {
         initFipsAuditScheduler();

@@ -86,7 +86,13 @@ export type WsEventType =
   | "system:alert"
   // Cockpit timeline events
   | "cockpit:timeline_event"
-  | "cockpit:opsec_update";
+  | "cockpit:opsec_update"
+  // Automation pipeline events
+  | "automation:profile_generated"
+  | "automation:profile_pushed"
+  | "automation:playbook_triggered"
+  | "automation:pipeline_run"
+  | "automation:enrichment_complete";
 
 export interface WsEvent {
   type: WsEventType;
@@ -387,6 +393,11 @@ export function useDashboardEvents() {
       "campaign:launched",
       "system:alert",
       "system:notification",
+      "automation:profile_generated",
+      "automation:profile_pushed",
+      "automation:playbook_triggered",
+      "automation:pipeline_run",
+      "automation:enrichment_complete",
     ],
     []
   );
@@ -507,6 +518,9 @@ export function useCockpitTimeline() {
       "job:completed", "job:failed",
       // System events
       "system:alert", "system:notification",
+      // Automation events
+      "automation:profile_generated", "automation:profile_pushed",
+      "automation:playbook_triggered", "automation:pipeline_run", "automation:enrichment_complete",
       // Cockpit-specific
       "cockpit:timeline_event", "cockpit:opsec_update",
     ],
