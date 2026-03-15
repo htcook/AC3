@@ -26,7 +26,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "./ui/tooltip";
-import { sidebarNavGroups, type NavGroup } from "@/lib/sidebar-nav";
+import { sidebarNavGroups, getFilteredNavGroups, type NavGroup, type UserRole } from "@/lib/sidebar-nav";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -84,6 +84,10 @@ export default function DashboardLayout({
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const filteredNavGroups = useMemo(
+    () => getFilteredNavGroups(user?.role as UserRole | undefined),
+    [user?.role]
+  );
   const [location, setLocation] = useLocation();
   const isMobile = useIsMobile();
 
@@ -112,7 +116,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   // Find active group and item
   const activeGroupId = useMemo(() => {
-    for (const group of sidebarNavGroups) {
+    for (const group of filteredNavGroups) {
       if (group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
         return group.id;
       }
@@ -121,7 +125,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   }, [location]);
 
   const activeLabel = useMemo(() => {
-    for (const group of sidebarNavGroups) {
+    for (const group of filteredNavGroups) {
       const item = group.items.find(i => location === i.path || location.startsWith(i.path + "/"));
       if (item) return item.label;
     }
@@ -247,7 +251,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               </Tooltip>
 
               {/* Group icons */}
-              {sidebarNavGroups.map(group => {
+              {filteredNavGroups.map(group => {
                 const isActive = activeGroupId === group.id;
                 const isFlyoutOpen = flyoutGroupId === group.id;
                 return (
@@ -403,7 +407,7 @@ function ExpandedNavList({
       if (saved) return JSON.parse(saved);
     } catch {}
     const defaults: Record<string, boolean> = {};
-    for (const group of sidebarNavGroups) {
+    for (const group of filteredNavGroups) {
       if (group.defaultOpen || group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
         defaults[group.id] = true;
       }
@@ -435,7 +439,7 @@ function ExpandedNavList({
       </button>
 
       {/* Groups */}
-      {sidebarNavGroups.map(group => {
+      {filteredNavGroups.map(group => {
         const isOpen = !!openGroups[group.id];
         const hasActiveItem = group.items.some(i => location === i.path || location.startsWith(i.path + "/"));
 
@@ -494,7 +498,7 @@ function MobileNavList({
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
-    for (const group of sidebarNavGroups) {
+    for (const group of filteredNavGroups) {
       if (group.items.some(i => location === i.path || location.startsWith(i.path + "/"))) {
         defaults[group.id] = true;
       }
@@ -516,7 +520,7 @@ function MobileNavList({
         <span className="text-sm">Home</span>
       </button>
 
-      {sidebarNavGroups.map(group => {
+      {filteredNavGroups.map(group => {
         const isOpen = !!openGroups[group.id];
         const hasActiveItem = group.items.some(i => location === i.path || location.startsWith(i.path + "/"));
 

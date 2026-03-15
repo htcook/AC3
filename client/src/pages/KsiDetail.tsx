@@ -20,7 +20,7 @@ export default function KsiDetail() {
 
   const defsQuery = trpc.ksiEvidenceChain.getCoverageSummary.useQuery();
   const evidenceQuery = trpc.ksiEvidenceChain.listEvidence.useQuery({ ksiId, limit: 50 });
-  const validationQuery = trpc.ksiValidation.listRuns.useQuery({ ksiId, limit: 50 });
+  const validationQuery = trpc.ksiValidationScheduler.listRuns.useQuery({ ksiId, limit: 50 });
   const mappingsQuery = trpc.ksiEvidenceChain.getControlMappings.useQuery();
 
   const enriched = useMemo(() => getKsiEnriched(ksiId), [ksiId]);

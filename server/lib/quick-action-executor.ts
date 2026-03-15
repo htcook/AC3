@@ -7,6 +7,7 @@
  */
 
 import { getDb } from "../db";
+import { notifyOwner } from "../_core/notification";
 import { desc, eq, sql, gt, count, and } from "drizzle-orm";
 import {
   engagements,
@@ -352,10 +353,28 @@ async function submitBugReport(params: {
       status: 'open',
     });
     const reportId = result.insertId;
+    // Notify owner/admin about the new bug report
+    try {
+      await notifyOwner({
+        title: `Bug Report #${reportId}: ${params.title}`,
+        content: [
+          `**Severity:** ${params.severity || 'medium'}`,
+          `**Reporter:** ${_currentUserName || 'Unknown'} (ID: ${_currentUserId || 0})`,
+          `**Category:** ${params.category || 'bug'}`,
+          params.page ? `**Page:** ${params.page}` : '',
+          `**Description:** ${params.description}`,
+          params.steps_to_reproduce ? `**Steps to Reproduce:** ${params.steps_to_reproduce}` : '',
+          params.actual_behavior ? `**Actual Behavior:** ${params.actual_behavior}` : '',
+          params.expected_behavior ? `**Expected Behavior:** ${params.expected_behavior}` : '',
+        ].filter(Boolean).join('\n'),
+      });
+    } catch (e) {
+      console.error('[BugReport] Failed to notify owner:', e);
+    }
     return {
       success: true,
       data: { reportId, title: params.title, severity: params.severity || 'medium' },
-      message: `Bug report #${reportId} submitted successfully: "${params.title}" (severity: ${params.severity || 'medium'}). The team will review it shortly.`,
+      message: `Bug report #${reportId} submitted successfully: "${params.title}" (severity: ${params.severity || 'medium'}). The admin has been notified and the team will review it shortly.`,
     };
   });
 }

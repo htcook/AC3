@@ -18,10 +18,14 @@ import {
   Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
 } from "lucide-react";
 
+export type UserRole = 'admin' | 'operator' | 'analyst' | 'team_lead' | 'executive' | 'client' | 'soc' | 'viewer';
+
 export interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  /** Roles that can see this item. If omitted, visible to all roles. */
+  roles?: UserRole[];
 }
 
 export interface NavGroup {
@@ -30,7 +34,61 @@ export interface NavGroup {
   icon: LucideIcon;
   color: string;
   defaultOpen?: boolean;
+  /** Roles that can see this entire group. If omitted, visible to all roles. */
+  roles?: UserRole[];
   items: NavItem[];
+}
+
+/**
+ * Role-based navigation access matrix.
+ *
+ * - admin: Full access to all groups
+ * - operator: Offensive operations, scanning, exploit, C2, campaigns
+ * - analyst: Intel, detection, compliance, reporting, SSIL
+ * - team_lead: Command & control, compliance, reporting, team management
+ * - executive: Dashboard, compliance, reporting only
+ * - client: Dashboard, compliance, reporting (read-only view)
+ * - soc: Detection, SSIL, integrations, intel
+ * - viewer: Dashboard and reporting only
+ */
+const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
+  admin: 'all',
+  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
+  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training'],
+  team_lead: ['command-control', 'campaign-ops', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
+  executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
+  client: ['command-control', 'compliance-reporting'],
+  soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
+  viewer: ['command-control', 'compliance-reporting'],
+};
+
+/**
+ * Filter sidebar navigation groups and items based on the user's role.
+ * Admin sees everything. Other roles see only their assigned groups.
+ * Within groups, individual items can further restrict by role.
+ */
+export function getFilteredNavGroups(role: UserRole | undefined): NavGroup[] {
+  const effectiveRole = role || 'viewer';
+  const access = ROLE_GROUP_ACCESS[effectiveRole];
+
+  return sidebarNavGroups
+    .filter(group => {
+      // Admin sees all
+      if (access === 'all') return true;
+      // Group-level role restriction
+      if (group.roles && !group.roles.includes(effectiveRole)) return false;
+      // Check if this group is in the role's access list
+      return access.includes(group.id);
+    })
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        // If item has role restrictions, check them
+        if (item.roles && !item.roles.includes(effectiveRole)) return false;
+        return true;
+      }),
+    }))
+    .filter(group => group.items.length > 0);
 }
 
 export const sidebarNavGroups: NavGroup[] = [
@@ -50,13 +108,13 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Engagement Automation", path: "/engagement-automation", icon: Rocket },
       { label: "Kill Chain", path: "/kill-chain", icon: Workflow },
       { label: "Engagement Timeline", path: "/engagement-timeline", icon: Clock },
-      { label: "Credentials", path: "/credentials", icon: Key },
-      { label: "OEM Credentials", path: "/oem-credentials", icon: Key },
+      { label: "Credentials", path: "/credentials", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: Key },
+      { label: "OEM Credentials", path: "/oem-credentials", roles: ["admin", "operator"] as UserRole[], icon: Key },
       { label: "Adversaries", path: "/adversaries", icon: Target },
       { label: "Agents", path: "/agents", icon: Cpu },
       { label: "Agent Manager", path: "/agent-manager", icon: Cpu },
       { label: "Activity Log", path: "/activity", icon: FileText },
-      { label: "Audit Log", path: "/audit-log", icon: ScrollText },
+      { label: "Audit Log", path: "/audit-log", roles: ["admin", "team_lead", "executive"] as UserRole[], icon: ScrollText },
     ],
   },
 
@@ -289,11 +347,11 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Infrastructure", path: "/infrastructure", icon: Server },
       { label: "Live Infra", path: "/live-infra", icon: Wifi },
       { label: "Infra Wiki", path: "/infra-wiki", icon: BookOpen },
-      { label: "SSH Keys", path: "/ssh-keys", icon: Key },
+      { label: "SSH Keys", path: "/ssh-keys", roles: ["admin", "operator"] as UserRole[], icon: Key },
       { label: "Agent Installer", path: "/agent-installer", icon: Laptop },
       { label: "CI/CD Pipeline", path: "/cicd-pipeline", icon: GitBranch },
       { label: "Auth Pipeline", path: "/auth-pipeline", icon: Lock },
-      { label: "SAML Config", path: "/saml-config", icon: Settings },
+      { label: "SAML Config", path: "/saml-config", roles: ["admin"] as UserRole[], icon: Settings },
     ],
   },
 
@@ -323,24 +381,24 @@ export const sidebarNavGroups: NavGroup[] = [
     items: [
       { label: "Team", path: "/team", icon: Users },
       { label: "Invitations", path: "/invitations", icon: Mail },
-      { label: "Tenants", path: "/tenants", icon: Building2 },
+      { label: "Tenants", path: "/tenants", roles: ["admin"] as UserRole[], icon: Building2 },
       { label: "Account Settings", path: "/account-settings", icon: Settings },
       { label: "Onboarding", path: "/onboarding", icon: Rocket },
       { label: "Review Queue", path: "/review-queue", icon: FileCheck2 },
-      { label: "Job Queue", path: "/job-queue", icon: Cog },
-      { label: "Error Dashboard", path: "/error-dashboard", icon: AlertTriangle },
-      { label: "LLM Telemetry", path: "/llm-telemetry", icon: BarChart3 },
-      { label: "LLM Reliability", path: "/llm-reliability", icon: Gauge },
-      { label: "Graduation Engine", path: "/graduation-engine", icon: GraduationCap },
-      { label: "OpSec Dashboard", path: "/opsec-dashboard", icon: Shield },
-      { label: "MSSP Analytics", path: "/mssp-analytics", icon: BarChart3 },
+      { label: "Job Queue", path: "/job-queue", roles: ["admin"] as UserRole[], icon: Cog },
+      { label: "Error Dashboard", path: "/error-dashboard", roles: ["admin"] as UserRole[], icon: AlertTriangle },
+      { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
+      { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
+      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
+      { label: "OpSec Dashboard", path: "/opsec-dashboard", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: Shield },
+      { label: "MSSP Analytics", path: "/mssp-analytics", roles: ["admin", "executive", "team_lead"] as UserRole[], icon: BarChart3 },
       { label: "Hunt Ops", path: "/hunt-ops", icon: Search },
       { label: "Preflight Checks", path: "/preflight-checks", icon: ShieldCheck },
       { label: "Workflows", path: "/workflows", icon: Workflow },
       { label: "ROE Builder", path: "/roe-builder", icon: ScrollText },
       { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
       { label: "Attack Vector Engine", path: "/attack-vector-engine", icon: Target },
-      { label: "Unified Pipeline", path: "/unified-pipeline", icon: Workflow },
+      { label: "Unified Pipeline", path: "/unified-pipeline", roles: ["admin"] as UserRole[], icon: Workflow },
     ],
   },
 ];

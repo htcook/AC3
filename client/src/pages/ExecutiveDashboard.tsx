@@ -116,7 +116,7 @@ function ComplianceCard({ framework, version, percent, passed, total, status }: 
     .replace("FEDRAMP AI", "FedRAMP AI");
 
   return (
-    <Card className="hover:border-primary/30 transition-colors">
+    <Card className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => window.location.href = '/ai-governance'}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
@@ -515,6 +515,7 @@ export default function ExecutiveDashboard() {
                 variant={riskPosture?.vulnerabilities.critical ? "danger" : "default"}
                 trend="flat"
                 trendLabel="Requires immediate attention"
+                onClick={() => navigate("/engagement-ops")}
               />
               <StatCard
                 icon={Target}
@@ -523,6 +524,7 @@ export default function ExecutiveDashboard() {
                 variant="default"
                 trend="flat"
                 trendLabel="Across all engagements"
+                onClick={() => navigate("/engagement-ops")}
               />
               <StatCard
                 icon={Briefcase}
@@ -531,6 +533,7 @@ export default function ExecutiveDashboard() {
                 variant="default"
                 trend="flat"
                 trendLabel={`${riskPosture?.engagements.completed || 0} completed`}
+                onClick={() => navigate("/engagement-ops")}
               />
               <StatCard
                 icon={ShieldCheck}
@@ -542,6 +545,7 @@ export default function ExecutiveDashboard() {
                 }
                 trend="flat"
                 trendLabel="8 frameworks assessed"
+                onClick={() => navigate("/ai-governance")}
               />
               <StatCard
                 icon={Crosshair}
@@ -643,11 +647,12 @@ export default function ExecutiveDashboard() {
           <div className="flex flex-col gap-6">
             {/* Coverage Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-primary/20">
+              <Card className="border-primary/20 cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate("/c2-knowledge-base")}>
                 <CardContent className="p-5 text-center">
                   <Radar className="w-6 h-6 mx-auto mb-2 text-primary" />
                   <div className="text-3xl font-bold tabular-nums">{mitreCoverage?.totalTechniques || 0}</div>
                   <div className="text-xs text-muted-foreground mt-1">Total Techniques Covered</div>
+                  <div className="text-[10px] text-primary mt-2 flex items-center justify-center gap-1"><ChevronRight className="w-3 h-3" />View Details</div>
                 </CardContent>
               </Card>
               <Card>
@@ -1057,32 +1062,36 @@ export default function ExecutiveDashboard() {
         <TabsContent value="threats" className="mt-4">
           <div className="flex flex-col gap-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate("/threat-group-knowledge")}>
                 <CardContent className="p-4 text-center">
                   <Crosshair className="w-5 h-5 mx-auto mb-1 text-red-500" />
                   <div className="text-2xl font-bold tabular-nums">{threatSummary?.totalGroups || 0}</div>
                   <div className="text-xs text-muted-foreground">Threat Groups Tracked</div>
+                  <div className="text-[10px] text-primary mt-1 flex items-center justify-center gap-1"><ChevronRight className="w-3 h-3" />View All</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate("/c2-knowledge-base")}>
                 <CardContent className="p-4 text-center">
                   <Cpu className="w-5 h-5 mx-auto mb-1 text-primary" />
                   <div className="text-2xl font-bold tabular-nums">{threatSummary?.totalTechniques || 0}</div>
                   <div className="text-xs text-muted-foreground">Unique TTPs</div>
+                  <div className="text-[10px] text-primary mt-1 flex items-center justify-center gap-1"><ChevronRight className="w-3 h-3" />View Details</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate("/fedramp-supply-chain")}>
                 <CardContent className="p-4 text-center">
                   <Building2 className="w-5 h-5 mx-auto mb-1 text-blue-500" />
                   <div className="text-2xl font-bold tabular-nums">{threatSummary?.fedrampProviderCount || 0}</div>
                   <div className="text-xs text-muted-foreground">FedRAMP Providers</div>
+                  <div className="text-[10px] text-primary mt-1 flex items-center justify-center gap-1"><ChevronRight className="w-3 h-3" />View Details</div>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate("/threat-group-knowledge")}>
                 <CardContent className="p-4 text-center">
                   <AlertTriangle className="w-5 h-5 mx-auto mb-1 text-orange-500" />
                   <div className="text-2xl font-bold tabular-nums">{threatSummary?.activeGroups || 0}</div>
                   <div className="text-xs text-muted-foreground">Active Groups</div>
+                  <div className="text-[10px] text-primary mt-1 flex items-center justify-center gap-1"><ChevronRight className="w-3 h-3" />View All</div>
                 </CardContent>
               </Card>
             </div>
