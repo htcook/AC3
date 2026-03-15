@@ -1988,7 +1988,8 @@ export const engagementOpsRouter = router({
 
                   const synthPrompt = `You are a senior penetration tester performing a vulnerability assessment of ${asset.hostname}.
 
-Your task: Analyze the passive reconnaissance data and identify the most likely REAL vulnerabilities.
+Your task: Analyze the passive reconnaissance data and identify POTENTIAL vulnerabilities that warrant further investigation.
+IMPORTANT: These are HYPOTHETICAL findings based on passive signals only — they have NOT been confirmed by active scanning tools.
 
 CRITICAL RULES:
 1. You MUST identify vulnerabilities across DIVERSE categories. Do NOT list multiple vulns of the same type.
@@ -2103,7 +2104,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                     } catch (retryErr: any) {
                       // Retry with minimal prompt on failure (e.g., 403 from too-large prompt)
                       addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f504} Retrying Vuln Synthesis: ${asset.hostname}`, detail: 'Retrying with reduced prompt...' });
-                      const minimalPrompt = `Identify the TOP 10 vulnerabilities for ${asset.hostname} (technologies: ${techs.join(', ') || 'Unknown'}, ports: ${ports.map((p: any) => p.port + '/' + p.service).join(', ')}).\nKey risk signals: ${sampledSignals.slice(0, 10).map((s: any) => s.rationale).join('; ')}\n\nFocus on: SQL Injection, XSS, Broken Auth, Sensitive Data Exposure, Directory Traversal, CRLF Injection, File Inclusion, SSRF, Misconfig.\nReturn JSON with vulnerabilities array containing: title, severity, cve, description, confidence, category.`;
+                      const minimalPrompt = `Identify the TOP 10 POTENTIAL (unconfirmed) vulnerabilities for ${asset.hostname} (technologies: ${techs.join(', ') || 'Unknown'}, ports: ${ports.map((p: any) => p.port + '/' + p.service).join(', ')}).\nKey risk signals: ${sampledSignals.slice(0, 10).map((s: any) => s.rationale).join('; ')}\n\nFocus on: SQL Injection, XSS, Broken Auth, Sensitive Data Exposure, Directory Traversal, CRLF Injection, File Inclusion, SSRF, Misconfig.\nReturn JSON with vulnerabilities array containing: title, severity, cve, description, confidence, category.`;
                       llmResult = await invokeLLM({
                         _caller: "engagement-ops-core",
                         messages: [
@@ -2122,17 +2123,19 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                       if (v.confidence >= 40) {
                         pushVulnDedupedSynth(asset as any, {
                           id: `synth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
-                          title: v.title,
+                          title: `[Potential] ${v.title}`,
                           severity: v.severity,
                           cve: v.cve || '',
                           description: v.description,
                           tool: 'llm-synthesis',
                           confidence: v.confidence,
                           category: v.category,
+                          corroborationTier: 'potential',
+                          evidenceDetail: `LLM-synthesized from passive recon signals (confidence: ${v.confidence}%). Not confirmed by active scanning.`,
                         } as any);
                       }
                     }
-                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Vuln Synthesis: ${asset.hostname}`, detail: `${synthVulns.filter((v: any) => v.confidence >= 40).length} vulnerabilities identified from ${signals.length} risk signals` });
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Vuln Synthesis: ${asset.hostname}`, detail: `${synthVulns.filter((v: any) => v.confidence >= 40).length} POTENTIAL vulnerabilities identified from ${signals.length} risk signals (not confirmed — require active validation)` });
                   } catch (synthErr: any) {
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Vuln Synthesis failed: ${asset.hostname}`, detail: synthErr.message });
                   }
@@ -2460,7 +2463,8 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         const signalsStr = sampledSignals.map((s: any, i: number) => (i+1) + '. [' + (s.severity || 'medium') + '] ' + (s.rationale || s.title || 'Unknown')).join('\n');
         const synthPrompt = `You are a senior penetration tester performing a targeted vulnerability re-assessment of ${asset.hostname}.
 
-Your task: Analyze the passive reconnaissance data and identify vulnerabilities.${categoryFocus}${existingContext}
+Your task: Analyze the passive reconnaissance data and identify POTENTIAL vulnerabilities that warrant further investigation.
+IMPORTANT: These are HYPOTHETICAL findings based on passive signals only — they have NOT been confirmed by active scanning tools.${categoryFocus}${existingContext}
 
 CRITICAL RULES:
 1. You MUST identify vulnerabilities across DIVERSE categories.
@@ -2541,13 +2545,15 @@ Return ONLY a JSON object with vulnerabilities array.`;
             if (!isDuplicate || input.replaceExisting) {
               const newVuln = {
                 id: `resynth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
-                title: v.title,
+                title: v.title.startsWith('[Potential]') ? v.title : `[Potential] ${v.title}`,
                 severity: v.severity,
                 cve: v.cve || '',
                 description: v.description,
                 tool: 'llm-synthesis',
                 confidence: v.confidence,
                 category: v.category,
+                corroborationTier: 'potential',
+                evidenceDetail: `LLM-synthesized from passive recon signals (confidence: ${v.confidence}%). Not confirmed by active scanning.`,
               };
               asset.vulns.push(newVuln as any);
               newVulns.push(newVuln);

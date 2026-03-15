@@ -3603,6 +3603,17 @@ export default function EngagementOps() {
                     </Card>
                   )}
 
+                  {/* Potential Findings Disclaimer */}
+                  {(ops?.assets || []).some((a: any) => (a.vulns || []).some((v: any) => v.tool === 'llm-synthesis')) && (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">Potential Findings — Not Confirmed</p>
+                        <p className="text-amber-300/70 mt-0.5">These vulnerabilities were identified by LLM analysis of passive reconnaissance signals. They have NOT been confirmed by active scanning tools (nuclei, Hydra, ZAP). Treat as hypotheses requiring validation through active testing.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Per-Asset Synthesized Vulnerabilities */}
                   {(ops?.assets || []).map((asset: any) => {
                     const synthVulns = (asset.vulns || []).filter((v: any) => v.tool === 'llm-synthesis');
@@ -3615,7 +3626,7 @@ export default function EngagementOps() {
                               {assetIcon(asset.type)}
                               <span>{asset.hostname}</span>
                               <Badge variant="secondary" className="text-[9px] bg-emerald-500/20 text-emerald-400">
-                                {synthVulns.length} synthesized
+                                  {synthVulns.length} potential (unconfirmed)
                               </Badge>
                             </CardTitle>
                             <Button
@@ -3661,7 +3672,7 @@ export default function EngagementOps() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {v.confirmedByActiveScan && (
-                                    <Badge variant="outline" className="text-[8px] text-green-300 border-green-500/30 bg-green-500/10">✓ confirmed</Badge>
+                                    <Badge variant="outline" className="text-[8px] text-green-300 border-green-500/30 bg-green-500/10">✓ active scan confirmed</Badge>
                                   )}
                                   {v.corroborationTier && (
                                     <Badge variant="outline" className={`text-[8px] font-semibold ${

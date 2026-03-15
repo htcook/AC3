@@ -4199,20 +4199,20 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error`, detail: e.message });
         }
       }
-    }
-
+     }
     // ── Post-Hydra HTTP Credential Verification ──
     // For any http-get/https-get credentials that passed the initial FP heuristic
     // (1-2 hits), perform an active verification: fetch the target URL with and
     // without the Authorization header and compare responses. If they're identical,
     // the server doesn't use HTTP Basic Auth and the credentials are false positives.
-    const httpCreds = (asset.confirmedCredentials || []).filter(
+    for (const verifyAsset of state.assets) {
+    const httpCreds = (verifyAsset.confirmedCredentials || []).filter(
       c => c.source === 'hydra' && (c.service === 'http-get' || c.service === 'https-get')
     );
     if (httpCreds.length > 0) {
       try {
         const scheme = httpCreds[0].service === 'https-get' ? 'https' : 'http';
-        const verifyTarget = asset.hostname || asset.ip;
+        const verifyTarget = verifyAsset.hostname || verifyAsset.ip;
         const verifyUrl = `${scheme}://${verifyTarget}:${httpCreds[0].port}/`;
 
         // Use curl on the scan server to compare responses (with and without auth)
@@ -4244,12 +4244,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           });
 
           // Remove false positive credentials from confirmedCredentials
-          asset.confirmedCredentials = (asset.confirmedCredentials || []).filter(
+          verifyAsset.confirmedCredentials = (verifyAsset.confirmedCredentials || []).filter(
             c => !(c.source === 'hydra' && (c.service === 'http-get' || c.service === 'https-get'))
           );
 
           // Downgrade corresponding vulns from critical to info
-          for (const vuln of asset.vulns) {
+          for (const vuln of verifyAsset.vulns) {
             if (vuln.title?.includes('[Hydra]') && vuln.title?.includes('http-get')) {
               vuln.severity = 'info';
               vuln.title = vuln.title.replace('[Hydra] Valid credentials found:', '[Hydra] FALSE POSITIVE (no HTTP Basic Auth):');
@@ -4274,6 +4274,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
       }
     }
+    } // end for verifyAsset
   } catch (e: any) {
     addLog(state, { phase: "vuln_detection", type: "error", title: "Credential Testing Error", detail: e.message });
   }

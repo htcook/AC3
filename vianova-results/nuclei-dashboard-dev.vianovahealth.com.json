@@ -1,1 +1,0 @@
-{"success":true,"result":{"tool":"nuclei","command":"nuclei -u https://dashboard-dev.vianovahealth.com -severity critical,high,medium -json -silent","stdout":"flag provided but not defined: -json\n","stderr":"","exitCode":2,"durationMs":406,"timedOut":false}}
