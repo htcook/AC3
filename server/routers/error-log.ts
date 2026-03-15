@@ -496,7 +496,7 @@ export const aiChatRouter = router({
 
       try {
         // First LLM call — may return a tool call or a direct response
-        const response = await invokeLLM({ _priority: 'bulk', messages, tools, tool_choice: tools ? 'auto' : undefined } as any);
+        const response = await invokeLLM({ _caller: "error-log", _priority: 'bulk', messages, tools, tool_choice: tools ? 'auto' : undefined } as any);
         const choice = response.choices?.[0];
         const toolCalls = choice?.message?.tool_calls;
         let executedActions: Array<{ name: string; displayName: string; result: any; confirmRequired: boolean }> = [];
@@ -535,7 +535,7 @@ export const aiChatRouter = router({
           }
 
           // Second LLM call — with tool results
-          const followUp = await invokeLLM({ _priority: 'bulk', messages } as any);
+          const followUp = await invokeLLM({ _caller: "error-log", _priority: 'bulk', messages } as any);
           const content = followUp.choices?.[0]?.message?.content || "Action completed. See the results above.";
 
           // Persist assistant response

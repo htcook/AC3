@@ -436,6 +436,7 @@ export async function analyzeArachniFindings(
   ).join("\n");
 
   const response = await throttledLLMCall("arachni-analyst", () => invokeLLM({
+    _caller: "arachni-scanner.analyzeArachniFindings",
     messages: [
       {
         role: "system",

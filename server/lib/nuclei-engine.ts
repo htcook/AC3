@@ -162,6 +162,7 @@ let scanCounter = 0;
 async function selectTemplates(targets: NucleiTarget[], engagementType: string): Promise<string[]> {
   try {
     const response = await invokeLLM({
+      _caller: "nuclei-engine.selectTemplates",
       messages: [
         {
           role: "system",

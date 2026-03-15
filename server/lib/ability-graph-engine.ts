@@ -743,6 +743,7 @@ export async function decomposeTechniquesToGraph(params: {
   const graphId = generateGraphId();
 
   const response = await invokeLLM({
+    _caller: "ability-graph-engine.decomposeTechniquesToGraph",
     messages: [
       {
         role: "system",

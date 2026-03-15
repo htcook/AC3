@@ -298,7 +298,7 @@ export async function generateReport(input: ReportInput): Promise<ReportData> {
   let conclusion = '';
 
   try {
-    const llmResponse = await invokeLLM({ _priority: 'bulk',
+    const llmResponse = await invokeLLM({ _caller: "report-generator", _priority: 'bulk',
       messages: [
         {
           role: "system",

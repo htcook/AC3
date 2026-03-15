@@ -364,6 +364,7 @@ ${constraints ? JSON.stringify(constraints) : "None"}
 Analyze this state and provide your recommendation as JSON.`;
 
   const response = await invokeLLM({
+    _caller: "engagement-workflow-engine.llmEvaluateState",
     messages: [
       { role: "system", content: WORKFLOW_SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
@@ -572,6 +573,7 @@ export async function generatePhaseHandoff(
   try {
     const { invokeLLM } = await import("../_core/llm");
     const response = await invokeLLM({
+      _caller: "engagement-workflow-engine.generatePhaseHandoff",
       messages: [
         {
           role: "system",

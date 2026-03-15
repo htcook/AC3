@@ -327,6 +327,7 @@ export async function generateLLMPoC(finding: {
 
   try {
     const response = await invokeLLM({
+      _caller: "poc-generator.generateLLMPoC",
       messages: [
         {
           role: "system",

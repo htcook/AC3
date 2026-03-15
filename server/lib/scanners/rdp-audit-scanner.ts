@@ -488,6 +488,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({
+            _caller: "rdp-audit-scanner",
             messages: [
               {
                 role: "system",

@@ -96,7 +96,7 @@ export async function extractAttackSequence(reportId: number): Promise<Extracted
   // Truncate to fit LLM context window
   const truncatedContent = content.slice(0, 25000);
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _caller: "attack-sequence-learner.analyze",
     messages: [
       {
         role: "system",
@@ -303,7 +303,7 @@ export async function generateAttackTemplate(reportId: number): Promise<InsertAt
   if (!phases || phases.length === 0) return null;
 
   // Generate Caldera adversary profile mapping
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _caller: "attack-sequence-learner.generateAttackTemplate",
     messages: [
       {
         role: "system",

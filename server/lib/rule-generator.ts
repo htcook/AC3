@@ -927,6 +927,7 @@ ${genericRules.map(r => `- ${r.techniqueId}: ${r.techniqueName} (${r.tactic})`).
 Return JSON array of objects with: { techniqueId, sigmaRule }`;
 
     const response = await invokeLLM({
+      _caller: "rule-generator.generateRulesWithLLM",
       messages: [
         { role: "system", content: "You are a detection engineering expert. Return valid JSON only." },
         { role: "user", content: prompt },

@@ -645,6 +645,7 @@ async function inferAttackPaths(
 ): Promise<PredictedAttackPath[]> {
   try {
     const response = await invokeLLM({
+      _caller: "actor-behavioral-sequence-engine.inferAttackPaths",
       messages: [
         {
           role: "system",

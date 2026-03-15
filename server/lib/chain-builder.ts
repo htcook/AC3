@@ -650,7 +650,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({ _priority: 'essential',
+    const response = await invokeLLM({ _caller: "chain-builder.buildChainWithLLM", _priority: 'essential',
       messages: [
         { role: "system", content: `You are an expert adversary emulation engineer. Return valid JSON only.
 

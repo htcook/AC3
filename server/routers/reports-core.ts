@@ -469,7 +469,7 @@ export const reportsRouter = router({
         const reportPrompt = sectionPrompts[input.reportType] || sectionPrompts.full_engagement;
 
         try {
-          const response = await invokeLLM({ _priority: 'bulk',
+          const response = await invokeLLM({ _caller: "reports-core", _priority: 'bulk',
             messages: [
               {
                 role: 'system',
@@ -837,7 +837,7 @@ Generate a JSON response with these exact fields:
 Make the email realistic and based on actual ${input.threatActorName} phishing campaigns. Include proper HTML formatting, logos, and branding that matches the phishing type. The landing page should capture credentials realistically. Use GoPhish template variables: {{.FirstName}}, {{.LastName}}, {{.Email}}, {{.URL}}, {{.TrackingURL}}, {{.From}}.`;
 
         try {
-          const response = await invokeLLM({ _priority: 'bulk',
+          const response = await invokeLLM({ _caller: "reports-core", _priority: 'bulk',
             messages: [
               { role: 'system', content: 'You are an expert red team phishing template designer. Always respond with valid JSON only, no markdown code blocks.' },
               { role: 'user', content: prompt },

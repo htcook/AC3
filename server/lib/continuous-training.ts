@@ -222,7 +222,7 @@ export async function runAnalysisIteration(
   if (httpxMeta.httpxTech?.length) techFingerprint.push(`Detected Stack: ${httpxMeta.httpxTech.join(', ')}`);
   if (portsSummary) techFingerprint.push(`Open Ports: ${portsSummary}`);
 
-  const result = await invokeLLM({
+  const result = await invokeLLM({ _caller: "continuous-training.evaluate",
     messages: [
       {
         role: "system",

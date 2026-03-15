@@ -477,6 +477,7 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({
+            _caller: "snmp-audit-scanner",
             messages: [
               {
                 role: "system",

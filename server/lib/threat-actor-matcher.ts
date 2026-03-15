@@ -416,6 +416,7 @@ export async function matchThreatActorsWithLLM(params: {
   ).join("\n");
   
   const response = await invokeLLM({
+    _caller: "threat-actor-matcher.matchThreatActorsWithLLM",
     messages: [
       {
         role: "system",

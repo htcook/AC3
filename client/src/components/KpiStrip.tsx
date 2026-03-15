@@ -7,7 +7,7 @@
  * Delta indicators show changes since the last scan/state with arrows,
  * absolute change values, and percentage changes.
  */
-import { ReactNode } from "react";
+import React, { ReactNode } from "react";
 import { TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 
 export interface KpiItem {
@@ -30,6 +30,8 @@ export interface KpiItem {
   progress?: number;
   /** Optional progress bar color class */
   progressColor?: string;
+  /** Optional click handler for drill-down navigation */
+  onClick?: () => void;
 }
 
 interface KpiStripProps {
@@ -85,7 +87,13 @@ function KpiCard({ item }: { item: KpiItem }) {
   };
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/40 bg-background/50 px-3 py-2 min-w-0 group relative">
+    <div
+      className={`flex items-center gap-2.5 rounded-lg border border-border/40 bg-background/50 px-3 py-2 min-w-0 group relative transition-all duration-150 ${item.onClick ? 'cursor-pointer hover:border-primary/50 hover:bg-primary/5 active:scale-[0.98]' : ''}`}
+      onClick={item.onClick}
+      role={item.onClick ? 'button' : undefined}
+      tabIndex={item.onClick ? 0 : undefined}
+      onKeyDown={item.onClick ? (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.onClick!(); } } : undefined}
+    >
       <div className="flex-none text-muted-foreground/70">
         {item.icon}
       </div>

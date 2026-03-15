@@ -34,7 +34,7 @@ export const osintRouter = router({
           // Generate LLM spoofability analysis
           let spoofAnalysis = '';
           try {
-            const llmResponse = await invokeLLM({ _priority: 'bulk',
+            const llmResponse = await invokeLLM({ _caller: "osint-core", _priority: 'bulk',
               messages: [
                 {
                   role: 'system',
@@ -256,7 +256,7 @@ For each campaign, provide:
 Respond in JSON format as an array of 3 campaign objects.`;
 
         try {
-          const response = await invokeLLM({ _priority: 'bulk',
+          const response = await invokeLLM({ _caller: "osint-core", _priority: 'bulk',
             messages: [
               { role: 'system', content: 'You are an expert red team campaign designer. Always respond with valid JSON.' },
               { role: 'user', content: prompt },

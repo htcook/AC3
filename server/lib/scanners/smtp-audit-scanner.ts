@@ -605,6 +605,7 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
       try {
         const llmResult = await throttledLLMCall(async () => {
           return invokeLLM({
+            _caller: "smtp-audit-scanner",
             messages: [
               {
                 role: "system",

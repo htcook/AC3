@@ -433,6 +433,7 @@ export async function analyzeWapitiFindings(
   ).join("\n");
 
   const response = await throttledLLMCall("wapiti-analyst", () => invokeLLM({
+    _caller: "wapiti-scanner.analyzeWapitiFindings",
     messages: [
       {
         role: "system",

@@ -1497,14 +1497,14 @@ export default function EngagementOps() {
         const snapshotLabel = lastSnapshot ? `vs. snapshot ${new Date(lastSnapshot.date).toLocaleTimeString()}` : undefined;
 
         const kpiItems: KpiItem[] = [
-          { label: 'Assets Discovered', value: assetCount, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400', delta: assetDelta, deltaPercent: assetDeltaPct, subtitle: snapshotLabel },
-          { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400' },
-          { label: 'Open Ports', value: (ops.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta },
-          { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel },
-          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted` },
-          { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground' },
-          ...(liveOwaspCoverage ? [{ label: 'OWASP Score', value: liveOwaspCoverage.overallScore, suffix: '%', icon: <ShieldCheck className="h-4 w-4 text-purple-400" />, color: liveOwaspCoverage.overallScore >= 70 ? 'text-green-400' : liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400' : 'text-red-400', progress: liveOwaspCoverage.overallScore, progressColor: liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' : liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' : 'bg-red-500' }] : []),
-          { label: 'WAFs Detected', value: ops.stats?.wafDetections || 0, icon: <ShieldAlert className="h-4 w-4 text-orange-400" />, color: (ops.stats?.wafDetections || 0) > 0 ? 'text-orange-400' : 'text-foreground' },
+          { label: 'Assets Discovered', value: assetCount, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400', delta: assetDelta, deltaPercent: assetDeltaPct, subtitle: snapshotLabel, onClick: () => setActiveTab('assets') },
+          { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400', onClick: () => setActiveTab('discovery') },
+          { label: 'Open Ports', value: (ops.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta, onClick: () => setActiveTab('assets') },
+          { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel, onClick: () => setActiveTab('assets') },
+          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted`, onClick: () => setActiveTab('exploits') },
+          { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground', onClick: () => setActiveTab('exploits') },
+          ...(liveOwaspCoverage ? [{ label: 'OWASP Score', value: liveOwaspCoverage.overallScore, suffix: '%', icon: <ShieldCheck className="h-4 w-4 text-purple-400" />, color: liveOwaspCoverage.overallScore >= 70 ? 'text-green-400' : liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400' : 'text-red-400', progress: liveOwaspCoverage.overallScore, progressColor: liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' : liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' : 'bg-red-500', onClick: () => setActiveTab('scope') }] : []),
+          { label: 'WAFs Detected', value: ops.stats?.wafDetections || 0, icon: <ShieldAlert className="h-4 w-4 text-orange-400" />, color: (ops.stats?.wafDetections || 0) > 0 ? 'text-orange-400' : 'text-foreground', onClick: () => setActiveTab('discovery') },
         ];
         return <KpiStrip items={kpiItems} />;
       })()}
@@ -4048,15 +4048,15 @@ export default function EngagementOps() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stats</h3>
 
           <div className="space-y-3">
-            <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} />
-            <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} />
-            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops?.stats?.portsFound || 0} />
-            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length + (a.zapFindings || []).length, 0) || ops?.stats?.vulnsFound || 0} />
-            <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} />
-            <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} />
-            <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} />
-            <StatCard icon={<Skull className="h-4 w-4 text-red-500" />} label="Exploits OK" value={ops?.stats?.exploitsSucceeded || 0} />
-            <StatCard icon={<Terminal className="h-4 w-4 text-green-400" />} label="Sessions" value={ops?.stats?.sessionsOpened || 0} />
+            <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} onClick={() => setActiveTab('assets')} />
+            <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} onClick={() => setActiveTab('discovery')} />
+            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops?.stats?.portsFound || 0} onClick={() => setActiveTab('assets')} />
+            <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length + (a.zapFindings || []).length, 0) || ops?.stats?.vulnsFound || 0} onClick={() => setActiveTab('assets')} />
+            <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} onClick={() => setActiveTab('discovery')} />
+            <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} onClick={() => setActiveTab('discovery')} />
+            <StatCard icon={<Crosshair className="h-4 w-4 text-red-400" />} label="Exploits Tried" value={ops?.stats?.exploitsAttempted || 0} onClick={() => setActiveTab('exploits')} />
+            <StatCard icon={<Skull className="h-4 w-4 text-red-500" />} label="Exploits OK" value={ops?.stats?.exploitsSucceeded || 0} onClick={() => setActiveTab('exploits')} />
+            <StatCard icon={<Terminal className="h-4 w-4 text-green-400" />} label="Sessions" value={ops?.stats?.sessionsOpened || 0} onClick={() => setActiveTab('exploits')} />
           </div>
 
           <Separator />
@@ -4838,9 +4838,15 @@ export default function EngagementOps() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
+function StatCard({ icon, label, value, onClick }: { icon: React.ReactNode; label: string; value: number | string; onClick?: () => void }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div
+      className={`flex items-center gap-2.5 rounded-md px-2 py-1 -mx-2 transition-all duration-150 ${onClick ? 'cursor-pointer hover:bg-primary/5 hover:text-primary active:scale-[0.98]' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+    >
       {icon}
       <div className="flex-1 flex justify-between items-baseline">
         <span className="text-xs text-muted-foreground">{label}</span>

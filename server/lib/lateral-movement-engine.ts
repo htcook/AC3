@@ -343,6 +343,7 @@ async function llmPlanLateralMovement(
   const { invokeLLM } = await import("../_core/llm");
 
   const response = await invokeLLM({
+    _caller: "lateral-movement-engine.llmPlanLateralMovement",
     messages: [
       { role: "system", content: LATERAL_SYSTEM_PROMPT },
       {
@@ -535,6 +536,7 @@ export async function planPivotPath(
   try {
     const { invokeLLM } = await import("../_core/llm");
     const response = await invokeLLM({
+      _caller: "lateral-movement-engine.planPivotPath",
       messages: [
         {
           role: "system",

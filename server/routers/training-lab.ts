@@ -2044,6 +2044,7 @@ export const trainingLabRouter = router({
           }
 
           const result = await invokeLLM({
+            _caller: "training-lab.portsSummary",
             messages: [
               { role: "system", content: "You are an expert penetration tester providing detailed vulnerability analysis. Always respond with valid JSON." },
               { role: "user", content: `Analyze the following scan results from a training lab session.
@@ -2066,7 +2067,6 @@ For EACH finding, you MUST also select the optimal exploit method:
 Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskRating, findings (array with title, severity, category, description, confidence, evidence, remediation, cve, cvss, exploitMethod object with method, reasoning, primaryTool, cliCommands array), attackChains, missedAreas, recommendations.` },
             ],
             response_format: { type: "json_schema", json_schema: { name: "security_analysis", strict: false, schema: { type: "object", properties: { executiveSummary: { type: "string" }, riskScore: { type: "integer" }, riskRating: { type: "string" }, findings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, severity: { type: "string" }, category: { type: "string" }, cve: { type: "string" }, description: { type: "string" }, confidence: { type: "string" }, evidence: { type: "string" }, remediation: { type: "string" }, cvss: { type: "number" }, exploitMethod: { type: "object", properties: { method: { type: "string" }, reasoning: { type: "string" }, primaryTool: { type: "string" }, cliCommands: { type: "array", items: { type: "object", properties: { order: { type: "integer" }, tool: { type: "string" }, command: { type: "string" }, description: { type: "string" }, expectedOutput: { type: "string" } }, required: ["order", "tool", "command", "description"] } }, alternativeMethod: { type: "object", properties: { method: { type: "string" }, reasoning: { type: "string" } } }, preConditions: { type: "array", items: { type: "string" } }, expectedOutcome: { type: "string" }, opsecNotes: { type: "string" } }, required: ["method", "reasoning", "primaryTool", "cliCommands"] } }, required: ["title", "severity", "category", "description", "exploitMethod"] } }, attackChains: { type: "array", items: { type: "object", properties: { name: { type: "string" }, steps: { type: "array", items: { type: "string" } }, impact: { type: "string" }, likelihood: { type: "string" } }, required: ["name", "steps", "impact", "likelihood"] } }, missedAreas: { type: "array", items: { type: "string" } }, recommendations: { type: "array", items: { type: "string" } } }, required: ["executiveSummary", "riskScore", "riskRating", "findings", "attackChains", "missedAreas", "recommendations"] } } },
-            _caller: "training-lab.rerunAnalysis",
           });
 
           const content = result.choices?.[0]?.message?.content;

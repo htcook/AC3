@@ -438,6 +438,7 @@ Provide tactical recommendations for the next operational actions.`;
 
       try {
         const response = await invokeLLM({
+          _caller: "operator-cockpit",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -471,7 +472,6 @@ Provide tactical recommendations for the next operational actions.`;
               },
             },
           },
-          _caller: "operator-cockpit-advisor",
         });
 
         const content = response.choices?.[0]?.message?.content;

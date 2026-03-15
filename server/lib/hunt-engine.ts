@@ -367,6 +367,7 @@ Return JSON:
 
   try {
     const response = await invokeLLM({
+      _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are an expert threat hunter. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -495,6 +496,7 @@ Return JSON:
 
   try {
     const response = await invokeLLM({
+      _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are an expert threat hunt analyst. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -593,6 +595,7 @@ Return JSON:
 
   try {
     const response = await invokeLLM({
+      _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are a senior threat hunt lead writing a GSA HACS-compliant deliverable. Return only valid JSON." },
         { role: "user", content: prompt },
@@ -665,6 +668,7 @@ export async function translateSigmaToSiem(
 
   try {
     const response = await invokeLLM({
+      _caller: "hunt-engine.translateSigmaToSiem",
       messages: [
         {
           role: "system",
@@ -693,6 +697,7 @@ export async function generateBaselineQuery(
 ): Promise<{ query: string; description: string }> {
   try {
     const response = await invokeLLM({
+      _caller: "hunt-engine.generateBaselineQuery",
       messages: [
         {
           role: "system",

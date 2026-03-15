@@ -182,7 +182,7 @@ export async function chatWithAdvisor(
     ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
   ];
 
-  const response = await invokeLLM({ _priority: 'bulk', messages: llmMessages });
+  const response = await invokeLLM({ _caller: "campaign-advisor.chatWithAdvisor", _priority: 'bulk', messages: llmMessages });
   const content = response.choices?.[0]?.message?.content || "I'm unable to provide a recommendation at this time. Please try again.";
 
   return { response: content, context: ctx };

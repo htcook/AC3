@@ -2266,6 +2266,7 @@ export const domainIntelRouter = router({
             let biaProfile = null;
             try {
               const orgLLMResponse = await invokeLLM({
+                _caller: "domain-intel-core",
                 messages: [
                   { role: 'system', content: 'You are an expert OSINT analyst. Extract structured organization information from the provided website data. Return valid JSON only.' },
                   { role: 'user', content: enrichResult.llmOrgPrompt },
@@ -2303,6 +2304,7 @@ export const domainIntelRouter = router({
 
               // Build BIA profile
               const biaLLMResponse = await invokeLLM({
+                _caller: "domain-intel-core",
                 messages: [
                   { role: 'system', content: 'You are a business impact analysis expert. Analyze the organization and produce a structured BIA assessment. Return valid JSON only.' },
                   { role: 'user', content: enrichResult.llmBiaPrompt },

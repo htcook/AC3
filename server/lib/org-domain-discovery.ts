@@ -653,7 +653,7 @@ async function classifyMissionRelevanceLLM(
       const { invokeLLM } = await import("../_core/llm");
       const domainList = domains.map(d => d.domain).join(", ");
 
-      const response = await invokeLLM({ _priority: 'bulk',
+      const response = await invokeLLM({ _caller: "org-domain-discovery.classifyMissionRelevanceLLM", _priority: 'bulk',
         messages: [
           {
             role: "system",

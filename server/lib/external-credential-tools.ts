@@ -729,7 +729,7 @@ export async function recommendTool(scenario: {
 
   try {
     const { invokeLLM } = await import("../_core/llm");
-    const response = await invokeLLM({ _priority: 'bulk',
+    const response = await invokeLLM({ _caller: "external-credential-tools.recommendTool", _priority: 'bulk',
       messages: [
         { role: "system", content: TOOL_SELECTION_SYSTEM_PROMPT },
         {

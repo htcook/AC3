@@ -48,7 +48,7 @@ export async function enrichEvent(eventId: number): Promise<InsertDarkwebEnriche
   const startTime = Date.now();
 
   try {
-    const response = await invokeLLM({ _priority: 'bulk',
+    const response = await invokeLLM({ _caller: "darkweb-enrichment-service.enrichEvent", _priority: 'bulk',
       messages: [
         {
           role: "system",

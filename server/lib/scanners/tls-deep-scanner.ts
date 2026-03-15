@@ -1261,6 +1261,7 @@ Provide a brief security assessment and any additional recommendations not alrea
 
     await throttledLLMCall(async () => {
       const response = await invokeLLM({
+        _caller: "tls-deep-scanner",
         messages: [
           { role: "system", content: "You are a TLS/SSL security expert. Provide concise, actionable analysis." },
           { role: "user", content: analysisPrompt },

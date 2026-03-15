@@ -275,6 +275,7 @@ async function generateCalderaAbility(spec: ModuleSpec): Promise<GeneratedModule
 
   // LLM-generate the command
   const response = await invokeLLM({
+    _caller: "c2-module-builder.generateCalderaAbility",
     messages: [
       {
         role: "system",
@@ -345,6 +346,7 @@ async function generateMsfModule(spec: ModuleSpec): Promise<GeneratedModule> {
 
   const msfType = categoryToMsfType(spec.category);
   const response = await invokeLLM({
+    _caller: "c2-module-builder.generateMsfModule",
     messages: [
       {
         role: "system",
@@ -382,6 +384,7 @@ async function generateSliverExtension(spec: ModuleSpec): Promise<GeneratedModul
   // Sliver extensions are typically Go or BOF
   const lang = spec.language === "bof" ? "bof" : "go";
   const response = await invokeLLM({
+    _caller: "c2-module-builder.generateSliverExtension",
     messages: [
       {
         role: "system",
@@ -423,6 +426,7 @@ async function generateEmpireModule(spec: ModuleSpec): Promise<GeneratedModule> 
 
   const empireType = categoryToEmpireType(spec.category);
   const response = await invokeLLM({
+    _caller: "c2-module-builder.generateEmpireModule",
     messages: [
       {
         role: "system",
@@ -797,6 +801,7 @@ async function llmRecommendModules(request: DynamicModuleRequest): Promise<Modul
   }));
 
   const response = await invokeLLM({
+    _caller: "c2-module-builder.llmRecommendModules",
     messages: [
       {
         role: "system",
@@ -961,6 +966,7 @@ async function generateCobaltStrikeModule(spec: ModuleSpec): Promise<GeneratedMo
   const isBof = spec.language === "bof" || spec.category === "credential_access" || spec.category === "discovery";
 
   const response = await invokeLLM({
+    _caller: "c2-module-builder.generateCobaltStrikeModule",
     messages: [
       {
         role: "system",

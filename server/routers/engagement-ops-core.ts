@@ -268,8 +268,8 @@ export const engagementOpsRouter = router({
             ];
           }
           const result = await invokeLLM({
+            _caller: 'engagement-ops:analyzeTarget',
             messages,
-            _caller: 'engagement-ops.testLlm',
             ...opts,
           });
           return {
@@ -2093,6 +2093,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                     let llmResult;
                     try {
                       llmResult = await invokeLLM({
+                        _caller: "engagement-ops-core",
                         messages: [
                           { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON arrays.' },
                           { role: 'user', content: synthPrompt },
@@ -2104,6 +2105,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                       addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f504} Retrying Vuln Synthesis: ${asset.hostname}`, detail: 'Retrying with reduced prompt...' });
                       const minimalPrompt = `Identify the TOP 10 vulnerabilities for ${asset.hostname} (technologies: ${techs.join(', ') || 'Unknown'}, ports: ${ports.map((p: any) => p.port + '/' + p.service).join(', ')}).\nKey risk signals: ${sampledSignals.slice(0, 10).map((s: any) => s.rationale).join('; ')}\n\nFocus on: SQL Injection, XSS, Broken Auth, Sensitive Data Exposure, Directory Traversal, CRLF Injection, File Inclusion, SSRF, Misconfig.\nReturn JSON with vulnerabilities array containing: title, severity, cve, description, confidence, category.`;
                       llmResult = await invokeLLM({
+                        _caller: "engagement-ops-core",
                         messages: [
                           { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON.' },
                           { role: 'user', content: minimalPrompt },
@@ -2512,6 +2514,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
 
         try {
           const llmResult = await invokeLLM({
+            _caller: "engagement-ops-core",
             messages: [
               { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON.' },
               { role: 'user', content: synthPrompt },

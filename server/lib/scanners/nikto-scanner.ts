@@ -398,6 +398,7 @@ export async function analyzeNiktoFindings(
   ).join("\n");
 
   const response = await throttledLLMCall("nikto-analyst", () => invokeLLM({
+    _caller: "nikto-scanner.analyzeNiktoFindings",
     messages: [
       {
         role: "system",

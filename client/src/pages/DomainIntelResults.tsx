@@ -803,6 +803,7 @@ export default function DomainIntelResults() {
             delta: assetDelta,
             deltaPercent: assetDeltaPct,
             subtitle: subdomainAssets.length > 0 ? `${assets.length} analyzed + ${subdomainAssets.length} subs` : (scanDelta ? `vs. ${prevAssets ?? '?'} prev` : undefined),
+            onClick: () => setActiveTab('assets'),
           },
           {
             label: "Critical Findings",
@@ -810,6 +811,7 @@ export default function DomainIntelResults() {
             icon: <Skull className="h-4 w-4 text-red-400" />,
             color: criticalCount > 0 ? "text-red-400" : "text-muted-foreground",
             deltaInverted: true,
+            onClick: () => setActiveTab('vulns'),
           },
           {
             label: "High Findings",
@@ -817,11 +819,13 @@ export default function DomainIntelResults() {
             icon: <AlertTriangle className="h-4 w-4 text-orange-400" />,
             color: highCount > 0 ? "text-orange-400" : "text-muted-foreground",
             deltaInverted: true,
+            onClick: () => setActiveTab('vulns'),
           },
           {
             label: "Risk Score",
             value: scan.overallRiskScore || 0,
             icon: <Shield className="h-4 w-4 text-purple-400" />,
+            onClick: () => setActiveTab('overview'),
             color: (scan.overallRiskBand === 'critical' ? 'text-red-400' : scan.overallRiskBand === 'high' ? 'text-orange-400' : scan.overallRiskBand === 'medium' ? 'text-yellow-400' : 'text-emerald-400'),
             delta: riskDelta,
             deltaPercent: riskDeltaPct,
@@ -835,6 +839,7 @@ export default function DomainIntelResults() {
             icon: <Crosshair className="h-4 w-4 text-red-500" />,
             color: verifiedCount > 0 ? "text-red-500" : "text-muted-foreground",
             deltaInverted: true,
+            onClick: () => setActiveTab('vulns'),
           },
           {
             label: "Breach Exposures",
@@ -842,6 +847,7 @@ export default function DomainIntelResults() {
             icon: <Lock className="h-4 w-4 text-amber-400" />,
             color: breachExposures > 0 ? "text-amber-400" : "text-muted-foreground",
             deltaInverted: true,
+            onClick: () => setActiveTab('breaches'),
           },
           {
             label: "Recon Coverage",
@@ -852,6 +858,7 @@ export default function DomainIntelResults() {
             progress: coverageScore,
             progressColor: coverageScore >= 70 ? "bg-emerald-500" : coverageScore >= 40 ? "bg-yellow-500" : "bg-red-500",
             subtitle: coverageBand,
+            onClick: () => setActiveTab('coverage'),
           },
           {
             label: "Total Findings",
@@ -861,6 +868,7 @@ export default function DomainIntelResults() {
             deltaPercent: findingsDeltaPct,
             deltaInverted: true,
             subtitle: scanDelta ? `prev: ${prevFindings ?? '?'}` : undefined,
+            onClick: () => setActiveTab('vulns'),
           },
         ];
 

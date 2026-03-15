@@ -36,6 +36,7 @@ const TACTIC_ORDER = [
  */
 export async function researchTechnique(techniqueId: string, techniqueName: string, tactic: string): Promise<InsertTtpKnowledge> {
   const response = await invokeLLM({
+    _caller: "ttp-engine.analyze",
     messages: [
       {
         role: "system",
