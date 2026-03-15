@@ -195,7 +195,7 @@ export default function KsiDetail() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm leading-relaxed">{enriched.howAceC3Delivers}</p>
+                    <p className="text-sm leading-relaxed">{enriched.howAC3Delivers}</p>
                   </CardContent>
                 </Card>
 
@@ -393,7 +393,7 @@ export default function KsiDetail() {
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Implementation Notes</div>
-                      <p className="text-sm">{def?.implementationNotes || (enriched ? enriched.howAceC3Delivers.slice(0, 200) + "..." : "No notes")}</p>
+                      <p className="text-sm">{def?.implementationNotes || (enriched ? enriched.howAC3Delivers.slice(0, 200) + "..." : "No notes")}</p>
                     </div>
                   </div>
                 </div>

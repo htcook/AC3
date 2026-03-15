@@ -169,6 +169,7 @@ const ThreatActorCrawler = lazy(() => import("./pages/ThreatActorCrawler"));
 const AISecurityValidation = lazy(() => import("./pages/AISecurityValidation"));
 const DiscoveryChain = lazy(() => import("./pages/DiscoveryChain"));
 const ErrorDashboard = lazy(() => import("./pages/ErrorDashboard"));
+const BugReportDashboard = lazy(() => import("./pages/BugReportDashboard"));
 const OemCredentials = lazy(() => import("./pages/OemCredentials"));
 
 // Hub pages (consolidated tab navigation)
@@ -872,6 +873,9 @@ function Router() {
         </Route>
         <Route path="/error-dashboard">
           <ProtectedRoute component={ErrorDashboard} />
+        </Route>
+        <Route path="/bug-reports">
+          <ProtectedRoute component={BugReportDashboard} />
         </Route>
         <Route path="/oem-credentials">
           <ProtectedRoute component={OemCredentials} />

@@ -554,7 +554,7 @@ export async function startHTTPHeaderAudit(config: HTTPHeaderAuditConfig): Promi
   const path = config.path || "/";
   const url = `${protocol}://${config.host}:${port}${path}`;
   const timeout = config.timeoutSeconds || 30;
-  const ua = config.userAgent || "Mozilla/5.0 (compatible; AceC3-SecurityAudit/1.0)";
+  const ua = config.userAgent || "Mozilla/5.0 (compatible; AC3-SecurityAudit/1.0)";
 
   console.log(`[HTTPHeaderAudit] Starting audit of ${url}`);
 

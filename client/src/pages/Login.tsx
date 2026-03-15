@@ -187,7 +187,7 @@ export default function Login() {
             <span className="font-display text-2xl tracking-wider text-foreground">ACE OF CLOUD</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl tracking-tight text-foreground mb-2">
-            ACE <span className="text-primary">C3</span>
+            A<span className="text-primary">C3</span>
           </h1>
           <p className="text-muted-foreground">Cyber Campaign Command Platform</p>
         </div>

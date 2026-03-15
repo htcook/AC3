@@ -77,7 +77,7 @@ function safeArray(val: unknown): any[] {
 
 // ─── AC3 Identity (source of all intelligence) ─────────────────────────────
 
-export function createAceC3Identity(): StixObject {
+export function createAC3Identity(): StixObject {
   return {
     type: "identity",
     spec_version: "2.1",
@@ -588,7 +588,7 @@ export function createStixBundle(objects: StixObject[]): StixBundle {
   const deduped: StixObject[] = [];
   
   // Always include the AC3 identity and TLP marking
-  const identity = createAceC3Identity();
+  const identity = createAC3Identity();
   deduped.push(identity);
   seen.add(identity.id);
 

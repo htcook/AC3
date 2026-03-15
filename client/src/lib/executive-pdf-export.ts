@@ -524,6 +524,6 @@ export async function exportExecutiveDashboardPdf(
   addFooter();
 
   // ─── Save ──────────────────────────────────────────────────────────
-  const filename = `Ace_C3_Executive_Dashboard_${now.toISOString().slice(0, 10)}.pdf`;
+  const filename = `AC3_Executive_Dashboard_${now.toISOString().slice(0, 10)}.pdf`;
   doc.save(filename);
 }

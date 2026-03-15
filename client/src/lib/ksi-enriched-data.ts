@@ -12,7 +12,7 @@
 
 export type CoverageLevel = "direct" | "supporting" | "planned";
 
-export interface AceC3Module {
+export interface AC3Module {
   name: string;
   /** What this module actually does for this KSI */
   role: string;
@@ -26,9 +26,9 @@ export interface EnrichedKSI {
   /** Plain-language summary of what this KSI requires */
   requirement: string;
   /** How AC3 meets or supports this KSI — the self-explanatory description */
-  howAceC3Delivers: string;
+  howAC3Delivers: string;
   /** Specific AC3 modules involved, with per-module role descriptions */
-  aceModules: AceC3Module[];
+  aceModules: AC3Module[];
   /** Types of evidence AC3 generates for this KSI */
   evidenceTypes: string[];
   /** Validation approach: machine, human, mixed, or n/a */
@@ -152,7 +152,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-ADS", name: "Authorization Data Sharing", themeCode: "AFR",
     coverageLevel: "supporting",
     requirement: "CSPs must share security authorization data with FedRAMP in machine-readable formats, enabling automated review and continuous monitoring of compliance posture across the authorization lifecycle.",
-    howAceC3Delivers: "AC3 generates machine-readable compliance evidence through three integrated systems. The OSCAL Export module produces FedRAMP-compliant OSCAL packages containing assessment results, findings, and control implementation details. The STIX Export module provides threat intelligence in standardized STIX 2.1 format for interoperability with government threat sharing platforms. The Evidence Chain maintains a tamper-resistant audit trail with SHA-256 integrity hashing, ensuring all shared data can be independently verified for authenticity.",
+    howAC3Delivers: "AC3 generates machine-readable compliance evidence through three integrated systems. The OSCAL Export module produces FedRAMP-compliant OSCAL packages containing assessment results, findings, and control implementation details. The STIX Export module provides threat intelligence in standardized STIX 2.1 format for interoperability with government threat sharing platforms. The Evidence Chain maintains a tamper-resistant audit trail with SHA-256 integrity hashing, ensuring all shared data can be independently verified for authenticity.",
     aceModules: [
       { name: "OSCAL Export", role: "Produces machine-readable FedRAMP compliance packages in NIST OSCAL format for automated review" },
       { name: "STIX Export", role: "Generates standardized threat intelligence feeds in STIX 2.1 format for government interoperability" },
@@ -167,7 +167,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-CCM", name: "Continuous Compliance Monitoring", themeCode: "AFR",
     coverageLevel: "direct",
     requirement: "CSPs must demonstrate continuous monitoring of security controls through automated evidence collection, scheduled assessments, and real-time compliance posture tracking — replacing point-in-time annual audits.",
-    howAceC3Delivers: "AC3 tracks all 75 Key Security Indicators through the KSI Dashboard with NIST SP 800-53 control mappings. The Validation Scheduler automates assessment cadence at configurable frequencies (3-day, 7-day, monthly), ensuring no KSI goes unvalidated past its required frequency. Auto-Collectors gather evidence from live API integrations including Shodan, Censys, abuse.ch, and NVD feeds, providing continuous real-world data rather than static documentation.",
+    howAC3Delivers: "AC3 tracks all 75 Key Security Indicators through the KSI Dashboard with NIST SP 800-53 control mappings. The Validation Scheduler automates assessment cadence at configurable frequencies (3-day, 7-day, monthly), ensuring no KSI goes unvalidated past its required frequency. Auto-Collectors gather evidence from live API integrations including Shodan, Censys, abuse.ch, and NVD feeds, providing continuous real-world data rather than static documentation.",
     aceModules: [
       { name: "KSI Dashboard", role: "Tracks 75 Key Security Indicators with NIST SP 800-53 control mappings and real-time posture scoring" },
       { name: "Validation Scheduler", role: "Automates assessment cadence at configurable frequencies (3-day, 7-day, monthly) with overdue alerting" },
@@ -182,7 +182,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-FSI", name: "FedRAMP Security Inbox", themeCode: "AFR",
     coverageLevel: "planned",
     requirement: "CSPs must maintain a dedicated communication channel for FedRAMP-related security correspondence with agencies and the PMO.",
-    howAceC3Delivers: "The platform notification system exists for operational alerts, but a dedicated FedRAMP communication channel for structured agency-CSP correspondence is planned for future development. Currently, security findings and assessment results can be exported and shared through OSCAL packages and evidence chain exports.",
+    howAC3Delivers: "The platform notification system exists for operational alerts, but a dedicated FedRAMP communication channel for structured agency-CSP correspondence is planned for future development. Currently, security findings and assessment results can be exported and shared through OSCAL packages and evidence chain exports.",
     aceModules: [
       { name: "Notification System", role: "Provides operational alerting infrastructure that will be extended for FedRAMP communication" },
     ],
@@ -195,7 +195,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-ICP", name: "Initial Compliance Posture", themeCode: "AFR",
     coverageLevel: "supporting",
     requirement: "CSPs must document their initial security posture with traceable control mappings and evidence that security functions are operational from the start of the authorization process.",
-    howAceC3Delivers: "AC3's KSI Evidence Chain documents initial security posture with 142 NIST SP 800-53 control mappings across all 75 KSIs. Each piece of evidence is stored with integrity verification (SHA-256 hashing) for audit readiness. The initial posture assessment can be generated by running the full KSI validation suite and exporting results in OSCAL format.",
+    howAC3Delivers: "AC3's KSI Evidence Chain documents initial security posture with 142 NIST SP 800-53 control mappings across all 75 KSIs. Each piece of evidence is stored with integrity verification (SHA-256 hashing) for audit readiness. The initial posture assessment can be generated by running the full KSI validation suite and exporting results in OSCAL format.",
     aceModules: [
       { name: "KSI Evidence Chain", role: "Documents initial security posture with 142 NIST SP 800-53 control mappings and integrity verification" },
       { name: "NIST Control Mappings", role: "Maps all 75 KSIs to specific NIST SP 800-53 controls for FedRAMP traceability" },
@@ -209,7 +209,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-MAS", name: "Minimum Assessment Scope", themeCode: "AFR",
     coverageLevel: "direct",
     requirement: "CSPs must define and enforce assessment scope boundaries that cover all system components, ensuring no critical assets are excluded from security testing.",
-    howAceC3Delivers: "The RoE Builder defines and enforces assessment scope with version-controlled rules of engagement that specify authorized targets, testing windows, and escalation procedures. The Engagement Pipeline orchestrates multi-phase assessments (passive recon, active scanning, exploitation, reporting) ensuring comprehensive coverage. Scope Guard prevents out-of-scope testing by validating every scan target against approved boundaries before execution.",
+    howAC3Delivers: "The RoE Builder defines and enforces assessment scope with version-controlled rules of engagement that specify authorized targets, testing windows, and escalation procedures. The Engagement Pipeline orchestrates multi-phase assessments (passive recon, active scanning, exploitation, reporting) ensuring comprehensive coverage. Scope Guard prevents out-of-scope testing by validating every scan target against approved boundaries before execution.",
     aceModules: [
       { name: "RoE Builder", role: "Defines version-controlled rules of engagement with authorized targets, testing windows, and escalation procedures" },
       { name: "Engagement Pipeline", role: "Orchestrates multi-phase assessments (passive → active → exploitation → reporting) for comprehensive coverage" },
@@ -224,7 +224,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-PVA", name: "Periodic Vulnerability Assessment", themeCode: "AFR",
     coverageLevel: "direct",
     requirement: "CSPs must conduct regular vulnerability assessments using multiple scanning methodologies, covering web applications, infrastructure, and APIs with results tracked over time.",
-    howAceC3Delivers: "AC3 performs periodic vulnerability assessments through multiple complementary tools. ZAP DAST performs active web application testing with authenticated and unauthenticated scanning. Nuclei Scanner executes 9,000+ template-based vulnerability checks on remote scan servers via SSH. Vuln Scanner Import normalizes results from Nessus, Qualys, and Burp Suite into a unified format. The Engagement Pipeline orchestrates periodic assessment cycles with configurable scheduling.",
+    howAC3Delivers: "AC3 performs periodic vulnerability assessments through multiple complementary tools. ZAP DAST performs active web application testing with authenticated and unauthenticated scanning. Nuclei Scanner executes 9,000+ template-based vulnerability checks on remote scan servers via SSH. Vuln Scanner Import normalizes results from Nessus, Qualys, and Burp Suite into a unified format. The Engagement Pipeline orchestrates periodic assessment cycles with configurable scheduling.",
     aceModules: [
       { name: "ZAP DAST", role: "Performs active web application vulnerability scanning with authenticated and unauthenticated modes" },
       { name: "Nuclei Scanner", role: "Executes 9,000+ template-based vulnerability checks on remote scan servers via SSH" },
@@ -240,7 +240,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-SCG", name: "Secure Configuration Guide", themeCode: "AFR",
     coverageLevel: "supporting",
     requirement: "CSPs must maintain secure configuration guides that define approved baselines for all system components and validate compliance against those baselines.",
-    howAceC3Delivers: "AC3's Config Baseline Engine tracks security configurations against approved baselines and detects drift from expected states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture. These tools inform secure configuration guide development and validate compliance, but do not auto-generate the configuration guides themselves.",
+    howAC3Delivers: "AC3's Config Baseline Engine tracks security configurations against approved baselines and detects drift from expected states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture. These tools inform secure configuration guide development and validate compliance, but do not auto-generate the configuration guides themselves.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks security configurations against approved baselines and detects configuration drift" },
       { name: "SCAP Compliance Scanner", role: "Checks CIS benchmarks for infrastructure security posture against industry standards" },
@@ -254,7 +254,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-AFR-SCN", name: "Significant Change Notification", themeCode: "AFR",
     coverageLevel: "supporting",
     requirement: "CSPs must detect and report significant changes to their security posture, including configuration changes, new vulnerabilities, and infrastructure modifications.",
-    howAceC3Delivers: "The Audit Log records all security-relevant changes with timestamps, user attribution, and change details. The Config Baseline Engine detects drift from approved configurations, flagging significant deviations. The Evidence Chain provides tamper-resistant change records with SHA-256 integrity hashing, ensuring change history cannot be altered retroactively.",
+    howAC3Delivers: "The Audit Log records all security-relevant changes with timestamps, user attribution, and change details. The Config Baseline Engine detects drift from approved configurations, flagging significant deviations. The Evidence Chain provides tamper-resistant change records with SHA-256 integrity hashing, ensuring change history cannot be altered retroactively.",
     aceModules: [
       { name: "Audit Log", role: "Records all security-relevant changes with timestamps, user attribution, and change details" },
       { name: "Config Baseline Engine", role: "Detects drift from approved configurations and flags significant deviations" },
@@ -271,7 +271,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CMT-LMC", name: "Log and Monitor Modifications", themeCode: "CMT",
     coverageLevel: "direct",
     requirement: "All modifications to system components must be logged with timestamps, user attribution, and change details, with monitoring for unauthorized changes.",
-    howAceC3Delivers: "AC3's Audit Log records every security-relevant modification with timestamps, user attribution, and detailed change descriptions. The Evidence Chain stores modification records in a tamper-resistant format with SHA-256 integrity hashing, ensuring the modification history cannot be altered. Together, these provide a complete, verifiable record of all changes made through the platform.",
+    howAC3Delivers: "AC3's Audit Log records every security-relevant modification with timestamps, user attribution, and detailed change descriptions. The Evidence Chain stores modification records in a tamper-resistant format with SHA-256 integrity hashing, ensuring the modification history cannot be altered. Together, these provide a complete, verifiable record of all changes made through the platform.",
     aceModules: [
       { name: "Audit Log", role: "Records every security-relevant modification with timestamps, user attribution, and change details" },
       { name: "Evidence Chain", role: "Stores modification records in tamper-resistant format with SHA-256 integrity hashing" },
@@ -285,7 +285,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CMT-RMV", name: "Redeployment of Version-Controlled Resources", themeCode: "CMT",
     coverageLevel: "supporting",
     requirement: "Infrastructure changes must be deployed through version-controlled, immutable deployment pipelines with rollback capabilities.",
-    howAceC3Delivers: "The Config Baseline Engine tracks deployment configurations and detects drift from approved baselines, verifying that deployments match expected states. The Audit Log records deployment events with version information. While AC3 does not manage Infrastructure-as-Code directly, it validates that deployed configurations match version-controlled baselines.",
+    howAC3Delivers: "The Config Baseline Engine tracks deployment configurations and detects drift from approved baselines, verifying that deployments match expected states. The Audit Log records deployment events with version information. While AC3 does not manage Infrastructure-as-Code directly, it validates that deployed configurations match version-controlled baselines.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks deployment configurations and detects drift from approved baselines" },
       { name: "Audit Log", role: "Records deployment events with version information and timestamps" },
@@ -299,7 +299,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CMT-RVP", name: "Review Change Management Procedures", themeCode: "CMT",
     coverageLevel: "supporting",
     requirement: "Change management procedures must be documented, version-controlled, and periodically reviewed for effectiveness.",
-    howAceC3Delivers: "The Evidence Chain stores procedure documentation with version history and integrity verification. The RoE Builder maintains version-controlled rules of engagement that serve as operational change management documentation. LLM analysis can review procedures for completeness and identify gaps against FedRAMP requirements.",
+    howAC3Delivers: "The Evidence Chain stores procedure documentation with version history and integrity verification. The RoE Builder maintains version-controlled rules of engagement that serve as operational change management documentation. LLM analysis can review procedures for completeness and identify gaps against FedRAMP requirements.",
     aceModules: [
       { name: "Evidence Chain", role: "Stores procedure documentation with version history and integrity verification" },
       { name: "RoE Builder", role: "Maintains version-controlled rules of engagement as operational change management documentation" },
@@ -313,7 +313,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CMT-VTD", name: "Validate Changes Throughout Deployment", themeCode: "CMT",
     coverageLevel: "direct",
     requirement: "Security controls must be re-validated after every deployment to ensure changes have not introduced vulnerabilities or degraded security posture.",
-    howAceC3Delivers: "The Validation Scheduler triggers post-deployment security validation at configurable cadences, ensuring every change is followed by security re-testing. Agentless BAS tests detection coverage without deploying agents, verifying that security monitoring still functions after changes. ATT&CK Validation Tests confirm that security controls detect and respond to known attack techniques after deployment.",
+    howAC3Delivers: "The Validation Scheduler triggers post-deployment security validation at configurable cadences, ensuring every change is followed by security re-testing. Agentless BAS tests detection coverage without deploying agents, verifying that security monitoring still functions after changes. ATT&CK Validation Tests confirm that security controls detect and respond to known attack techniques after deployment.",
     aceModules: [
       { name: "Validation Scheduler", role: "Triggers post-deployment security validation at configurable cadences" },
       { name: "Agentless BAS", role: "Tests detection coverage without deploying agents to verify monitoring after changes" },
@@ -328,7 +328,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CMT-CMG", name: "Change Management Governance", themeCode: "CMT",
     coverageLevel: "supporting",
     requirement: "Organizations must maintain governance structures for change management including approval workflows, documentation requirements, and compliance tracking.",
-    howAceC3Delivers: "The RoE Builder maintains version-controlled governance documentation with approval workflows. The Audit Log provides a complete change audit trail for governance oversight. Scope Guard enforces operational boundaries during testing, demonstrating governance enforcement. While AC3 supports governance documentation, it does not enforce organizational CM policy.",
+    howAC3Delivers: "The RoE Builder maintains version-controlled governance documentation with approval workflows. The Audit Log provides a complete change audit trail for governance oversight. Scope Guard enforces operational boundaries during testing, demonstrating governance enforcement. While AC3 supports governance documentation, it does not enforce organizational CM policy.",
     aceModules: [
       { name: "RoE Builder", role: "Maintains version-controlled governance documentation with approval workflows" },
       { name: "Audit Log", role: "Provides complete change audit trail for governance oversight" },
@@ -345,7 +345,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-DFP", name: "Define Functionality and Privileges", themeCode: "CNA",
     coverageLevel: "direct",
     requirement: "Cloud environments must follow least-functionality principles with clearly defined privilege boundaries and minimal unnecessary services.",
-    howAceC3Delivers: "Cloud Attack Paths maps permission chains across cloud environments to identify over-privileged roles, unnecessary functionality, and excessive service exposure. AD Attack Simulation tests whether privilege boundaries are actually enforced by attempting escalation through discovered paths. Together, these prove whether environments follow least-functionality principles through real testing rather than documentation review.",
+    howAC3Delivers: "Cloud Attack Paths maps permission chains across cloud environments to identify over-privileged roles, unnecessary functionality, and excessive service exposure. AD Attack Simulation tests whether privilege boundaries are actually enforced by attempting escalation through discovered paths. Together, these prove whether environments follow least-functionality principles through real testing rather than documentation review.",
     aceModules: [
       { name: "Cloud Attack Paths", role: "Maps permission chains across cloud environments to identify over-privileged roles and unnecessary functionality" },
       { name: "AD Attack Simulation", role: "Tests whether privilege boundaries are enforced by attempting escalation through discovered paths" },
@@ -359,7 +359,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-EDE", name: "Encrypt Data at Rest and In Transit (FIPS)", themeCode: "CNA",
     coverageLevel: "supporting",
     requirement: "All data must be encrypted at rest and in transit using FIPS 140-2/3 validated cryptographic modules with proper key management.",
-    howAceC3Delivers: "ZAP DAST validates TLS configurations, cipher suites, and certificate validity across all endpoints, identifying weak encryption or misconfigured certificates. The Email Security Analyzer tests SPF, DKIM, and DMARC configurations for email encryption compliance. AC3 tests encryption implementation but does not implement encryption itself.",
+    howAC3Delivers: "ZAP DAST validates TLS configurations, cipher suites, and certificate validity across all endpoints, identifying weak encryption or misconfigured certificates. The Email Security Analyzer tests SPF, DKIM, and DMARC configurations for email encryption compliance. AC3 tests encryption implementation but does not implement encryption itself.",
     aceModules: [
       { name: "ZAP DAST", role: "Validates TLS configurations, cipher suites, and certificate validity across all endpoints" },
       { name: "Email Security Analyzer", role: "Tests SPF, DKIM, and DMARC configurations for email encryption compliance" },
@@ -373,7 +373,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-MAS", name: "Minimal Attack Surface", themeCode: "CNA",
     coverageLevel: "direct",
     requirement: "Organizations must continuously discover and minimize their external attack surface, identifying all exposed services, subdomains, and unnecessary endpoints.",
-    howAceC3Delivers: "Domain Intel discovers all external-facing assets, subdomains, and services using four integrated intelligence sources: Shodan for internet-wide scanning data, Censys for certificate and host discovery, SecurityTrails for DNS and domain intelligence, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions across the entire attack surface, enabling organizations to identify and remediate unnecessary exposure.",
+    howAC3Delivers: "Domain Intel discovers all external-facing assets, subdomains, and services using four integrated intelligence sources: Shodan for internet-wide scanning data, Censys for certificate and host discovery, SecurityTrails for DNS and domain intelligence, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions across the entire attack surface, enabling organizations to identify and remediate unnecessary exposure.",
     aceModules: [
       { name: "Domain Intel", role: "Discovers all external-facing assets and subdomains using Shodan, Censys, SecurityTrails, and URLScan" },
       { name: "Service Fingerprinting", role: "Identifies exposed services, technologies, and versions across the attack surface" },
@@ -389,7 +389,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-OFA", name: "Optimize for High Availability", themeCode: "CNA",
     coverageLevel: "planned",
     requirement: "Cloud architectures must be designed for high availability with redundancy, failover capabilities, and resilience against single points of failure.",
-    howAceC3Delivers: "The Config Baseline Engine can track high availability configurations against approved baselines. Active availability testing and failover validation is planned for future development. High availability optimization is primarily an infrastructure architecture concern that requires infrastructure-level testing capabilities.",
+    howAC3Delivers: "The Config Baseline Engine can track high availability configurations against approved baselines. Active availability testing and failover validation is planned for future development. High availability optimization is primarily an infrastructure architecture concern that requires infrastructure-level testing capabilities.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks HA configurations against approved baselines (planned expansion)" },
     ],
@@ -402,7 +402,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-RNT", name: "Restrict Network Traffic", themeCode: "CNA",
     coverageLevel: "supporting",
     requirement: "Network traffic must be restricted to authorized flows only, with firewall rules, security groups, and network ACLs properly configured and validated.",
-    howAceC3Delivers: "The DigitalOcean Firewall Audit (scanServer.doFirewallAudit) audits cloud firewall rules, port exposure, and droplet firewall coverage across the infrastructure. NGFW Validation tests next-generation firewall rules and network boundaries to verify that traffic restriction policies are actually enforced, not just configured.",
+    howAC3Delivers: "The DigitalOcean Firewall Audit (scanServer.doFirewallAudit) audits cloud firewall rules, port exposure, and droplet firewall coverage across the infrastructure. NGFW Validation tests next-generation firewall rules and network boundaries to verify that traffic restriction policies are actually enforced, not just configured.",
     aceModules: [
       { name: "DO Firewall Audit", role: "Audits cloud firewall rules, port exposure, and droplet firewall coverage" },
       { name: "NGFW Validation", role: "Tests next-generation firewall rules and network boundaries for enforcement effectiveness" },
@@ -416,7 +416,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-RVP", name: "Review DoS Protection Effectiveness", themeCode: "CNA",
     coverageLevel: "planned",
     requirement: "DoS protection mechanisms must be tested for effectiveness, including WAF rules, rate limiting, and DDoS mitigation services.",
-    howAceC3Delivers: "The Config Baseline Engine can track DoS protection configurations (WAF rules, rate limiting settings). Active DoS testing is out of scope for offensive security platforms due to the destructive nature of denial-of-service attacks. Configuration validation is available but active stress testing is not performed.",
+    howAC3Delivers: "The Config Baseline Engine can track DoS protection configurations (WAF rules, rate limiting settings). Active DoS testing is out of scope for offensive security platforms due to the destructive nature of denial-of-service attacks. Configuration validation is available but active stress testing is not performed.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks DoS protection configurations including WAF rules and rate limiting (planned expansion)" },
     ],
@@ -429,7 +429,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-SBD", name: "Secure By Design Architecture", themeCode: "CNA",
     coverageLevel: "supporting",
     requirement: "Cloud architectures must follow secure-by-design principles with defense-in-depth, zero trust, and security integrated into the architecture from inception.",
-    howAceC3Delivers: "Cloud Attack Paths identifies architectural security weaknesses by mapping permission chains, trust relationships, and lateral movement opportunities. SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture against industry-standard secure architecture requirements.",
+    howAC3Delivers: "Cloud Attack Paths identifies architectural security weaknesses by mapping permission chains, trust relationships, and lateral movement opportunities. SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture against industry-standard secure architecture requirements.",
     aceModules: [
       { name: "Cloud Attack Paths", role: "Identifies architectural security weaknesses through permission chain and trust relationship analysis" },
       { name: "SCAP Compliance Scanner", role: "Checks CIS benchmarks for infrastructure security posture against secure architecture standards" },
@@ -443,7 +443,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-ULN", name: "Use Logical Networking Controls", themeCode: "CNA",
     coverageLevel: "supporting",
     requirement: "Logical networking controls including VPCs, security groups, and network ACLs must be properly configured to segment and protect cloud resources.",
-    howAceC3Delivers: "NGFW Validation tests firewall rules and network segmentation to verify that logical networking controls are properly enforced. The DigitalOcean Firewall Audit validates cloud-native networking controls, security group configurations, and outbound egress rules across the infrastructure.",
+    howAC3Delivers: "NGFW Validation tests firewall rules and network segmentation to verify that logical networking controls are properly enforced. The DigitalOcean Firewall Audit validates cloud-native networking controls, security group configurations, and outbound egress rules across the infrastructure.",
     aceModules: [
       { name: "NGFW Validation", role: "Tests firewall rules and network segmentation for enforcement effectiveness" },
       { name: "DO Firewall Audit", role: "Validates cloud-native networking controls, security groups, and egress rules" },
@@ -457,7 +457,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-HCI", name: "Harden Cloud Infrastructure", themeCode: "CNA",
     coverageLevel: "direct",
     requirement: "Cloud infrastructure must be hardened against misconfigurations, with regular auditing of compute, network, database, and container resources.",
-    howAceC3Delivers: "The DigitalOcean Infrastructure Audit (scanServer.doInfraAudit) performs comprehensive checks across droplets, firewalls, load balancers, managed databases, DNS/domains, and Kubernetes clusters for security misconfigurations. Cloud Misconfiguration Detection via live KSI collectors identifies hardening gaps in real-time through continuous monitoring.",
+    howAC3Delivers: "The DigitalOcean Infrastructure Audit (scanServer.doInfraAudit) performs comprehensive checks across droplets, firewalls, load balancers, managed databases, DNS/domains, and Kubernetes clusters for security misconfigurations. Cloud Misconfiguration Detection via live KSI collectors identifies hardening gaps in real-time through continuous monitoring.",
     aceModules: [
       { name: "DO Infrastructure Audit", role: "Checks droplets, firewalls, load balancers, databases, DNS, and K8s clusters for misconfigurations" },
       { name: "Cloud Misconfiguration Detection", role: "Identifies hardening gaps in real-time through continuous monitoring via KSI collectors" },
@@ -471,7 +471,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CNA-NSD", name: "Network Segmentation & Defense", themeCode: "CNA",
     coverageLevel: "supporting",
     requirement: "Network segmentation must effectively isolate system components, with validation that segmentation boundaries prevent unauthorized lateral movement.",
-    howAceC3Delivers: "NGFW Validation tests network segmentation boundaries by attempting to traverse them, proving whether segmentation actually prevents unauthorized access. Service Fingerprinting identifies services that may cross segmentation boundaries, revealing potential segmentation violations. AC3 tests segmentation effectiveness but does not implement segmentation controls.",
+    howAC3Delivers: "NGFW Validation tests network segmentation boundaries by attempting to traverse them, proving whether segmentation actually prevents unauthorized access. Service Fingerprinting identifies services that may cross segmentation boundaries, revealing potential segmentation violations. AC3 tests segmentation effectiveness but does not implement segmentation controls.",
     aceModules: [
       { name: "NGFW Validation", role: "Tests network segmentation boundaries by attempting to traverse them" },
       { name: "Service Fingerprinting", role: "Identifies services that may cross segmentation boundaries, revealing violations" },
@@ -487,7 +487,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CED-RGT", name: "General Employee Training Effectiveness", themeCode: "CED",
     coverageLevel: "direct",
     requirement: "Security awareness training must be measurably effective, with phishing simulation results showing improvement over time and low click/credential-capture rates.",
-    howAceC3Delivers: "Phishing Ops executes realistic phishing campaigns with 17 exploit techniques including Adversary-in-the-Middle (AiTM) proxy, Browser-in-the-Browser (BITB), device code phishing, and HTML smuggling. Campaign Wizard configures targeted awareness exercises with customizable templates and delivery schedules. Results measure click rates, credential capture rates, reporting rates, and improvement trends across successive campaigns — providing quantifiable proof of training effectiveness.",
+    howAC3Delivers: "Phishing Ops executes realistic phishing campaigns with 17 exploit techniques including Adversary-in-the-Middle (AiTM) proxy, Browser-in-the-Browser (BITB), device code phishing, and HTML smuggling. Campaign Wizard configures targeted awareness exercises with customizable templates and delivery schedules. Results measure click rates, credential capture rates, reporting rates, and improvement trends across successive campaigns — providing quantifiable proof of training effectiveness.",
     aceModules: [
       { name: "Phishing Ops", role: "Executes realistic phishing campaigns with 17 exploit techniques including AiTM, BITB, and device code phishing" },
       { name: "Campaign Wizard", role: "Configures targeted awareness exercises with customizable templates and delivery schedules" },
@@ -502,7 +502,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CED-RRT", name: "IR/DR Staff Training Effectiveness", themeCode: "CED",
     coverageLevel: "supporting",
     requirement: "Incident response and disaster recovery staff must demonstrate training effectiveness through exercises that measure detection, containment, and communication capabilities.",
-    howAceC3Delivers: "Red Team Ops provides realistic attack scenarios for IR team training, creating real incidents that IR staff must detect and respond to. Purple Team exercises enable collaborative attack-defense training with measurable metrics. The SIEM Feedback Loop validates whether IR procedures detect real attacks during exercises, providing objective measurement of IR training effectiveness.",
+    howAC3Delivers: "Red Team Ops provides realistic attack scenarios for IR team training, creating real incidents that IR staff must detect and respond to. Purple Team exercises enable collaborative attack-defense training with measurable metrics. The SIEM Feedback Loop validates whether IR procedures detect real attacks during exercises, providing objective measurement of IR training effectiveness.",
     aceModules: [
       { name: "Red Team Ops", role: "Provides realistic attack scenarios for IR team training with real incidents to detect and respond to" },
       { name: "Purple Team", role: "Enables collaborative attack-defense training with measurable detection and response metrics" },
@@ -517,7 +517,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CED-RST", name: "High-Risk Role Training Effectiveness", themeCode: "CED",
     coverageLevel: "supporting",
     requirement: "Personnel in high-risk roles (administrators, developers, security staff) must receive targeted training validated through role-specific security exercises.",
-    howAceC3Delivers: "AD Attack Simulation targets privileged accounts with techniques like Kerberoasting, Pass-the-Hash, and Golden Ticket attacks, testing whether high-risk users can be compromised. Phishing Ops can target high-risk roles specifically with tailored social engineering campaigns that match the sophistication level appropriate for their role.",
+    howAC3Delivers: "AD Attack Simulation targets privileged accounts with techniques like Kerberoasting, Pass-the-Hash, and Golden Ticket attacks, testing whether high-risk users can be compromised. Phishing Ops can target high-risk roles specifically with tailored social engineering campaigns that match the sophistication level appropriate for their role.",
     aceModules: [
       { name: "AD Attack Simulation", role: "Targets privileged accounts with Kerberoasting, Pass-the-Hash, and Golden Ticket techniques" },
       { name: "Phishing Ops", role: "Targets high-risk roles with tailored social engineering campaigns matching role sophistication" },
@@ -531,7 +531,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-CED-DET", name: "Developer/Engineering Training Effectiveness", themeCode: "CED",
     coverageLevel: "planned",
     requirement: "Developer and engineering staff must demonstrate secure coding practices through reduced vulnerability rates in developed software.",
-    howAceC3Delivers: "DAST findings from ZAP can inform developer security training priorities by identifying common vulnerability classes (XSS, SQLi, IDOR) in developed applications. Vulnerability trend analysis over time shows whether developer training reduces common vulnerability classes. Dedicated developer training tracking and integration with secure coding platforms is planned.",
+    howAC3Delivers: "DAST findings from ZAP can inform developer security training priorities by identifying common vulnerability classes (XSS, SQLi, IDOR) in developed applications. Vulnerability trend analysis over time shows whether developer training reduces common vulnerability classes. Dedicated developer training tracking and integration with secure coding platforms is planned.",
     aceModules: [
       { name: "ZAP DAST", role: "Identifies common vulnerability classes in developed applications to inform training priorities" },
     ],
@@ -546,7 +546,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-MFA", name: "Phishing-Resistant MFA Enforcement", themeCode: "IAM",
     coverageLevel: "direct",
     requirement: "MFA must be enforced for all users with phishing-resistant methods (FIDO2, PIV) that cannot be bypassed by common social engineering techniques.",
-    howAceC3Delivers: "Phishing Ops executes real MFA bypass attacks including Adversary-in-the-Middle (AiTM) proxy that intercepts session tokens, Browser-in-the-Browser (BITB) that simulates fake login windows, device code phishing that exploits OAuth device flows, and HTML smuggling — 17 techniques total. Results prove whether MFA implementation actually resists real attack techniques, not just theoretical ones.",
+    howAC3Delivers: "Phishing Ops executes real MFA bypass attacks including Adversary-in-the-Middle (AiTM) proxy that intercepts session tokens, Browser-in-the-Browser (BITB) that simulates fake login windows, device code phishing that exploits OAuth device flows, and HTML smuggling — 17 techniques total. Results prove whether MFA implementation actually resists real attack techniques, not just theoretical ones.",
     aceModules: [
       { name: "Phishing Ops", role: "Executes 17 real MFA bypass techniques including AiTM proxy, BITB, device code phishing, and HTML smuggling" },
       { name: "Campaign Wizard", role: "Configures MFA bypass campaigns with technique selection and targeting parameters" },
@@ -560,7 +560,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-APM", name: "Authentication Policy Management", themeCode: "IAM",
     coverageLevel: "direct",
     requirement: "Authentication policies must enforce strong password requirements, account lockout thresholds, and session management controls.",
-    howAceC3Delivers: "Phishing Ops tests MFA bypass and credential harvesting to validate authentication policy enforcement. The Credential Attack Engine tests password policies by attempting dictionary attacks, brute force, and credential stuffing against authentication endpoints. Results validate lockout thresholds, password complexity enforcement, and authentication mechanism resilience.",
+    howAC3Delivers: "Phishing Ops tests MFA bypass and credential harvesting to validate authentication policy enforcement. The Credential Attack Engine tests password policies by attempting dictionary attacks, brute force, and credential stuffing against authentication endpoints. Results validate lockout thresholds, password complexity enforcement, and authentication mechanism resilience.",
     aceModules: [
       { name: "Phishing Ops", role: "Tests MFA bypass and credential harvesting to validate authentication policy enforcement" },
       { name: "Credential Attack Engine", role: "Tests password policies, lockout thresholds, and authentication mechanisms through active testing" },
@@ -574,7 +574,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-ELP", name: "Enforce Least Privilege", themeCode: "IAM",
     coverageLevel: "direct",
     requirement: "Access permissions must follow least privilege principles, with no users or services having more access than required for their function.",
-    howAceC3Delivers: "Cloud Attack Paths maps permission chains across cloud environments to identify over-privileged roles, unnecessary admin access, and excessive service permissions. AD Attack Simulation tests whether privilege boundaries are enforced by attempting escalation through discovered paths. The Privilege Escalation Engine automates discovery of escalation vectors across both cloud and on-premises environments.",
+    howAC3Delivers: "Cloud Attack Paths maps permission chains across cloud environments to identify over-privileged roles, unnecessary admin access, and excessive service permissions. AD Attack Simulation tests whether privilege boundaries are enforced by attempting escalation through discovered paths. The Privilege Escalation Engine automates discovery of escalation vectors across both cloud and on-premises environments.",
     aceModules: [
       { name: "Cloud Attack Paths", role: "Maps permission chains to identify over-privileged roles and excessive service permissions" },
       { name: "AD Attack Simulation", role: "Tests privilege boundary enforcement by attempting escalation through discovered paths" },
@@ -589,7 +589,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-PRA", name: "Privileged Access Reviews & Auditing", themeCode: "IAM",
     coverageLevel: "direct",
     requirement: "Privileged accounts must be regularly reviewed and audited, with evidence of access reviews, group membership validation, and privileged activity monitoring.",
-    howAceC3Delivers: "AD Domain Connector enumerates the complete domain structure including group memberships, privileged accounts, service accounts, and last-login timestamps. Cloud Attack Paths identifies excessive cloud permissions and dormant privileged access. The Audit Log records all privileged access events within the platform for comprehensive activity monitoring.",
+    howAC3Delivers: "AD Domain Connector enumerates the complete domain structure including group memberships, privileged accounts, service accounts, and last-login timestamps. Cloud Attack Paths identifies excessive cloud permissions and dormant privileged access. The Audit Log records all privileged access events within the platform for comprehensive activity monitoring.",
     aceModules: [
       { name: "AD Domain Connector", role: "Enumerates domain structure, group memberships, privileged accounts, and last-login timestamps" },
       { name: "Cloud Attack Paths", role: "Identifies excessive cloud permissions and dormant privileged access" },
@@ -604,7 +604,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-AAM", name: "Automated Account Lifecycle Management", themeCode: "IAM",
     coverageLevel: "supporting",
     requirement: "Account provisioning, modification, and deprovisioning must be automated with evidence of timely account lifecycle management.",
-    howAceC3Delivers: "AD Domain Connector enumerates accounts, group memberships, and last-login timestamps to identify stale or orphaned accounts that should have been deprovisioned. The Audit Log tracks account provisioning events within the platform. AC3 identifies lifecycle management issues but does not manage accounts directly.",
+    howAC3Delivers: "AD Domain Connector enumerates accounts, group memberships, and last-login timestamps to identify stale or orphaned accounts that should have been deprovisioned. The Audit Log tracks account provisioning events within the platform. AC3 identifies lifecycle management issues but does not manage accounts directly.",
     aceModules: [
       { name: "AD Domain Connector", role: "Identifies stale/orphaned accounts through enumeration of last-login timestamps and group memberships" },
       { name: "Audit Log", role: "Tracks account provisioning events within the platform" },
@@ -618,7 +618,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-JIT", name: "Just-In-Time Authorization", themeCode: "IAM",
     coverageLevel: "supporting",
     requirement: "Privileged access should be granted just-in-time rather than persistently, with evidence that standing admin access is minimized.",
-    howAceC3Delivers: "Cloud Attack Paths identifies persistent privileged access that should be JIT by mapping always-on admin permissions across cloud environments. The analysis reveals which accounts have standing admin access that could be converted to just-in-time authorization, reducing the attack surface.",
+    howAC3Delivers: "Cloud Attack Paths identifies persistent privileged access that should be JIT by mapping always-on admin permissions across cloud environments. The analysis reveals which accounts have standing admin access that could be converted to just-in-time authorization, reducing the attack surface.",
     aceModules: [
       { name: "Cloud Attack Paths", role: "Identifies persistent privileged access that should be converted to JIT authorization" },
     ],
@@ -631,7 +631,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-SNU", name: "Secure Non-User Authentication", themeCode: "IAM",
     coverageLevel: "supporting",
     requirement: "Service accounts, API keys, and machine-to-machine authentication must be secured with proper credential management and rotation.",
-    howAceC3Delivers: "Service Fingerprinting identifies exposed service accounts and API endpoints across the attack surface. API Security Testing validates service-to-service authentication mechanisms, testing for weak API keys, missing authentication, and insecure token handling. AC3 tests service authentication but does not implement credential management.",
+    howAC3Delivers: "Service Fingerprinting identifies exposed service accounts and API endpoints across the attack surface. API Security Testing validates service-to-service authentication mechanisms, testing for weak API keys, missing authentication, and insecure token handling. AC3 tests service authentication but does not implement credential management.",
     aceModules: [
       { name: "Service Fingerprinting", role: "Identifies exposed service accounts and API endpoints across the attack surface" },
       { name: "API Security Testing", role: "Validates service-to-service authentication mechanisms and API key security" },
@@ -645,7 +645,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-IAM-SUS", name: "Suspend Suspicious Privileged Accounts", themeCode: "IAM",
     coverageLevel: "supporting",
     requirement: "Organizations must detect and respond to suspicious privileged account activity, including automated suspension of compromised accounts.",
-    howAceC3Delivers: "AD Attack Simulation identifies compromisable privileged accounts through techniques like Kerberoasting and Pass-the-Hash, revealing which accounts are vulnerable to compromise. Session Alerter detects suspicious activity patterns during red team exercises, testing whether the organization's monitoring detects account compromise. AC3 identifies suspicious accounts but does not suspend them.",
+    howAC3Delivers: "AD Attack Simulation identifies compromisable privileged accounts through techniques like Kerberoasting and Pass-the-Hash, revealing which accounts are vulnerable to compromise. Session Alerter detects suspicious activity patterns during red team exercises, testing whether the organization's monitoring detects account compromise. AC3 identifies suspicious accounts but does not suspend them.",
     aceModules: [
       { name: "AD Attack Simulation", role: "Identifies compromisable privileged accounts through Kerberoasting and Pass-the-Hash techniques" },
       { name: "Session Alerter", role: "Detects suspicious activity patterns during red team exercises to test monitoring effectiveness" },
@@ -661,7 +661,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-AAR", name: "After-Action Reports and Lessons Learned", themeCode: "INR",
     coverageLevel: "direct",
     requirement: "Post-incident and post-exercise reports must document findings, root causes, lessons learned, and remediation recommendations with traceable evidence.",
-    howAceC3Delivers: "The Report Generator produces AI-powered post-engagement reports with a 13-section structure including executive summary, detailed findings, exploitation narrative, risk matrix, and remediation roadmap. Evidence Chain links all findings to proof artifacts with SHA-256 integrity verification. MITRE ATT&CK heatmaps visualize technique coverage and detection gaps.",
+    howAC3Delivers: "The Report Generator produces AI-powered post-engagement reports with a 13-section structure including executive summary, detailed findings, exploitation narrative, risk matrix, and remediation roadmap. Evidence Chain links all findings to proof artifacts with SHA-256 integrity verification. MITRE ATT&CK heatmaps visualize technique coverage and detection gaps.",
     aceModules: [
       { name: "Report Generator", role: "Produces AI-powered 13-section post-engagement reports with findings, risk matrix, and remediation roadmap" },
       { name: "Evidence Chain", role: "Links all findings to proof artifacts with SHA-256 integrity verification" },
@@ -676,7 +676,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-RIR", name: "Review IR Procedures Effectiveness", themeCode: "INR",
     coverageLevel: "direct",
     requirement: "IR procedures must be tested through exercises that measure detection time, containment effectiveness, and communication during simulated incidents.",
-    howAceC3Delivers: "Purple Team exercises test whether IR procedures detect and respond to real attacks with measurable metrics including time-to-detect, time-to-contain, and communication effectiveness. The SIEM Feedback Loop validates whether SIEM rules fire during red team exercises, providing objective measurement of detection coverage. The Detection Rule Generator creates new rules from executed TTPs to improve detection for future incidents.",
+    howAC3Delivers: "Purple Team exercises test whether IR procedures detect and respond to real attacks with measurable metrics including time-to-detect, time-to-contain, and communication effectiveness. The SIEM Feedback Loop validates whether SIEM rules fire during red team exercises, providing objective measurement of detection coverage. The Detection Rule Generator creates new rules from executed TTPs to improve detection for future incidents.",
     aceModules: [
       { name: "Purple Team", role: "Tests IR procedures with real attacks, measuring detection time, containment, and communication" },
       { name: "SIEM Feedback Loop", role: "Validates whether SIEM rules fire during red team exercises for objective detection measurement" },
@@ -691,7 +691,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-RPI", name: "Review Past Incidents for Patterns", themeCode: "INR",
     coverageLevel: "supporting",
     requirement: "Organizations must analyze past incidents to identify patterns, recurring vulnerabilities, and threat actor trends that inform security improvements.",
-    howAceC3Delivers: "Threat Intel Connectors aggregate incident data from multiple sources for pattern analysis. Threat Actor Crawler identifies relevant threat actor patterns and TTPs. Ransomware Intel tracks ransomware group activity, targets, and techniques. Together, these provide the threat intelligence context needed to identify patterns across incidents.",
+    howAC3Delivers: "Threat Intel Connectors aggregate incident data from multiple sources for pattern analysis. Threat Actor Crawler identifies relevant threat actor patterns and TTPs. Ransomware Intel tracks ransomware group activity, targets, and techniques. Together, these provide the threat intelligence context needed to identify patterns across incidents.",
     aceModules: [
       { name: "Threat Intel Connectors", role: "Aggregates incident data from multiple sources for pattern analysis" },
       { name: "Threat Actor Crawler", role: "Identifies relevant threat actor patterns, TTPs, and targeting preferences" },
@@ -706,7 +706,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-IRP", name: "Incident Response Planning", themeCode: "INR",
     coverageLevel: "supporting",
     requirement: "Organizations must maintain and test incident response plans with defined roles, communication procedures, and escalation paths.",
-    howAceC3Delivers: "Red Team Ops provides realistic attack scenarios for IR planning validation, creating incidents that test plan effectiveness. The RoE Builder documents IR scope and rules of engagement with version control. Emulation Playbooks define repeatable attack scenarios for IR exercises, enabling consistent plan testing.",
+    howAC3Delivers: "Red Team Ops provides realistic attack scenarios for IR planning validation, creating incidents that test plan effectiveness. The RoE Builder documents IR scope and rules of engagement with version control. Emulation Playbooks define repeatable attack scenarios for IR exercises, enabling consistent plan testing.",
     aceModules: [
       { name: "Red Team Ops", role: "Provides realistic attack scenarios for IR plan validation and testing" },
       { name: "RoE Builder", role: "Documents IR scope and rules of engagement with version control" },
@@ -721,7 +721,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-TIF", name: "Threat Intelligence Feeds", themeCode: "INR",
     coverageLevel: "direct",
     requirement: "Organizations must consume and integrate threat intelligence feeds from multiple sources to inform security operations and incident response.",
-    howAceC3Delivers: "AC3 integrates four real threat intelligence APIs: abuse.ch provides URLhaus malware URL feeds and ThreatFox IOC feeds; Shodan provides internet-wide scanning data and exposure intelligence; SecurityTrails provides DNS and domain intelligence with historical records; DeHashed provides credential breach data for exposure monitoring. All are live API integrations, not static data.",
+    howAC3Delivers: "AC3 integrates four real threat intelligence APIs: abuse.ch provides URLhaus malware URL feeds and ThreatFox IOC feeds; Shodan provides internet-wide scanning data and exposure intelligence; SecurityTrails provides DNS and domain intelligence with historical records; DeHashed provides credential breach data for exposure monitoring. All are live API integrations, not static data.",
     aceModules: [
       { name: "abuse.ch (URLhaus/ThreatFox)", role: "Provides malware URL feeds and IOC feeds from URLhaus and ThreatFox databases" },
       { name: "Shodan", role: "Provides internet-wide scanning data and exposure intelligence" },
@@ -737,7 +737,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-TIU", name: "Threat Intelligence Utilization", themeCode: "INR",
     coverageLevel: "direct",
     requirement: "Threat intelligence must be actively utilized to inform security operations, testing priorities, and defensive improvements — not just collected.",
-    howAceC3Delivers: "Threat Actor Matcher correlates discovered vulnerabilities with known threat actor TTPs, showing which real-world adversaries could exploit each finding. Threat Enrichment Engine adds context to raw indicators by cross-referencing multiple intelligence sources. IOC Feed integrates indicators into operational workflows, ensuring threat data drives testing and remediation priorities.",
+    howAC3Delivers: "Threat Actor Matcher correlates discovered vulnerabilities with known threat actor TTPs, showing which real-world adversaries could exploit each finding. Threat Enrichment Engine adds context to raw indicators by cross-referencing multiple intelligence sources. IOC Feed integrates indicators into operational workflows, ensuring threat data drives testing and remediation priorities.",
     aceModules: [
       { name: "Threat Actor Matcher", role: "Correlates vulnerabilities with known threat actor TTPs to show real-world exploitation risk" },
       { name: "Threat Enrichment Engine", role: "Adds context to raw indicators by cross-referencing multiple intelligence sources" },
@@ -752,7 +752,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-INR-IOC", name: "Indicator of Compromise Management", themeCode: "INR",
     coverageLevel: "direct",
     requirement: "IOCs must be collected, enriched, stored, and operationalized with evidence of active indicator management and lifecycle tracking.",
-    howAceC3Delivers: "IOC Feed manages indicators with automated enrichment from abuse.ch and other sources, maintaining a current indicator database. Darkweb Intel monitors dark web sources for relevant IOCs including leaked credentials, exploit discussions, and threat actor communications. Threat Intel Ingest normalizes and stores indicators from multiple formats for operational use.",
+    howAC3Delivers: "IOC Feed manages indicators with automated enrichment from abuse.ch and other sources, maintaining a current indicator database. Darkweb Intel monitors dark web sources for relevant IOCs including leaked credentials, exploit discussions, and threat actor communications. Threat Intel Ingest normalizes and stores indicators from multiple formats for operational use.",
     aceModules: [
       { name: "IOC Feed", role: "Manages indicators with automated enrichment from abuse.ch and other sources" },
       { name: "Darkweb Intel", role: "Monitors dark web sources for leaked credentials, exploit discussions, and threat actor communications" },
@@ -769,7 +769,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-OSM", name: "Operate SIEM for Centralized Logging", themeCode: "MLA",
     coverageLevel: "direct",
     requirement: "A SIEM must be operational for centralized log collection, correlation, and alerting with evidence that it processes security events effectively.",
-    howAceC3Delivers: "SIEM Connectors integration tests connectivity and event forwarding to centralized SIEM platforms, verifying that the SIEM receives events from all critical sources. The SIEM Feedback Loop validates whether the SIEM actually processes and alerts on security events during red team exercises — proving the SIEM works, not just that it exists.",
+    howAC3Delivers: "SIEM Connectors integration tests connectivity and event forwarding to centralized SIEM platforms, verifying that the SIEM receives events from all critical sources. The SIEM Feedback Loop validates whether the SIEM actually processes and alerts on security events during red team exercises — proving the SIEM works, not just that it exists.",
     aceModules: [
       { name: "SIEM Connectors", role: "Tests connectivity and event forwarding to centralized SIEM platforms" },
       { name: "SIEM Feedback Loop", role: "Validates whether SIEM processes and alerts on security events during red team exercises" },
@@ -783,7 +783,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-LET", name: "Log Event Types Catalog", themeCode: "MLA",
     coverageLevel: "direct",
     requirement: "Organizations must maintain a catalog of logged event types with evidence that critical security events are captured and categorized.",
-    howAceC3Delivers: "SIEM Connectors define event types for platform activities, creating a baseline event catalog. The Detection Rule Generator produces Sigma/YARA/Suricata rules covering specific event types from executed TTPs, creating a comprehensive catalog of events that should be logged and alerted on based on real attack techniques.",
+    howAC3Delivers: "SIEM Connectors define event types for platform activities, creating a baseline event catalog. The Detection Rule Generator produces Sigma/YARA/Suricata rules covering specific event types from executed TTPs, creating a comprehensive catalog of events that should be logged and alerted on based on real attack techniques.",
     aceModules: [
       { name: "SIEM Connectors", role: "Defines event types for platform activities, creating baseline event catalog" },
       { name: "Detection Rule Generator", role: "Produces detection rules covering specific event types from executed TTPs" },
@@ -797,7 +797,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-EVC", name: "Evaluate and Test Configuration", themeCode: "MLA",
     coverageLevel: "direct",
     requirement: "Security configurations must be evaluated against approved baselines with evidence of regular testing and drift detection.",
-    howAceC3Delivers: "The Config Baseline Engine defines and monitors security configuration baselines, detecting drift from approved states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture against industry-standard requirements. Results identify configuration drift and compliance gaps with actionable remediation guidance.",
+    howAC3Delivers: "The Config Baseline Engine defines and monitors security configuration baselines, detecting drift from approved states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture against industry-standard requirements. Results identify configuration drift and compliance gaps with actionable remediation guidance.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Defines and monitors security configuration baselines with drift detection" },
       { name: "SCAP Compliance Scanner", role: "Checks CIS benchmarks for infrastructure security posture against industry standards" },
@@ -811,7 +811,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-ALE", name: "Alert Engineering & Response", themeCode: "MLA",
     coverageLevel: "direct",
     requirement: "Detection rules must be engineered, tested, and optimized with evidence that alerts are accurate, timely, and actionable.",
-    howAceC3Delivers: "The Detection Rule Generator creates Sigma, YARA, and Suricata rules from executed TTPs, ensuring detection rules are grounded in real attack techniques. The SIEM Mutation Engine tests alert quality by mutating attack patterns to verify rules detect variations, not just exact matches. The Sigma Rule Engine validates and optimizes detection rules for performance and accuracy.",
+    howAC3Delivers: "The Detection Rule Generator creates Sigma, YARA, and Suricata rules from executed TTPs, ensuring detection rules are grounded in real attack techniques. The SIEM Mutation Engine tests alert quality by mutating attack patterns to verify rules detect variations, not just exact matches. The Sigma Rule Engine validates and optimizes detection rules for performance and accuracy.",
     aceModules: [
       { name: "Detection Rule Generator", role: "Creates Sigma/YARA/Suricata rules from executed TTPs grounded in real attack techniques" },
       { name: "SIEM Mutation Engine", role: "Tests alert quality by mutating attack patterns to verify rules detect variations" },
@@ -826,7 +826,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-ALA", name: "Access Controls for Log Data", themeCode: "MLA",
     coverageLevel: "supporting",
     requirement: "Log data must be protected with access controls that prevent unauthorized modification or deletion, with integrity verification.",
-    howAceC3Delivers: "The Evidence Chain provides tamper-resistant log storage with SHA-256 integrity verification, ensuring log data cannot be modified without detection. The Config Baseline Engine can track log access control configurations to verify proper access restrictions are in place.",
+    howAC3Delivers: "The Evidence Chain provides tamper-resistant log storage with SHA-256 integrity verification, ensuring log data cannot be modified without detection. The Config Baseline Engine can track log access control configurations to verify proper access restrictions are in place.",
     aceModules: [
       { name: "Evidence Chain", role: "Provides tamper-resistant log storage with SHA-256 integrity verification" },
       { name: "Config Baseline Engine", role: "Tracks log access control configurations to verify proper access restrictions" },
@@ -840,7 +840,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-MLA-RVL", name: "Review and Audit Logs", themeCode: "MLA",
     coverageLevel: "supporting",
     requirement: "Log data must be regularly reviewed and audited with evidence that security events are analyzed and acted upon.",
-    howAceC3Delivers: "The ATT&CK Coverage Matrix measures detection coverage against MITRE techniques, revealing which logs are being reviewed effectively and where gaps exist. The SIEM Feedback Loop validates log review processes during exercises by confirming whether logged events trigger appropriate review and response actions.",
+    howAC3Delivers: "The ATT&CK Coverage Matrix measures detection coverage against MITRE techniques, revealing which logs are being reviewed effectively and where gaps exist. The SIEM Feedback Loop validates log review processes during exercises by confirming whether logged events trigger appropriate review and response actions.",
     aceModules: [
       { name: "ATT&CK Coverage Matrix", role: "Measures detection coverage against MITRE techniques to reveal log review effectiveness" },
       { name: "SIEM Feedback Loop", role: "Validates log review processes during exercises by confirming events trigger appropriate response" },
@@ -856,7 +856,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PIY-GIV", name: "Generate Real-Time Inventories", themeCode: "PIY",
     coverageLevel: "direct",
     requirement: "Organizations must maintain real-time, accurate inventories of all hardware, software, and cloud assets with automated discovery capabilities.",
-    howAceC3Delivers: "Domain Intel discovers all external-facing assets using four integrated intelligence sources: Shodan for internet-wide scanning, Censys for certificate and host discovery, SecurityTrails for DNS and domain intelligence, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions. Web Crawler maps application structure and content. Together, these produce a continuously-updated asset inventory.",
+    howAC3Delivers: "Domain Intel discovers all external-facing assets using four integrated intelligence sources: Shodan for internet-wide scanning, Censys for certificate and host discovery, SecurityTrails for DNS and domain intelligence, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions. Web Crawler maps application structure and content. Together, these produce a continuously-updated asset inventory.",
     aceModules: [
       { name: "Domain Intel", role: "Discovers all external-facing assets using Shodan, Censys, SecurityTrails, and URLScan" },
       { name: "Service Fingerprinting", role: "Identifies exposed services, technologies, and versions across the asset inventory" },
@@ -871,7 +871,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PIY-RIS", name: "Review Security Investment Effectiveness", themeCode: "PIY",
     coverageLevel: "supporting",
     requirement: "Organizations must evaluate whether security investments are producing measurable improvements in security posture over time.",
-    howAceC3Delivers: "Risk Trending tracks historical risk trajectory, showing whether security investments reduce overall risk. The Scoring Engine (CARVER+Shock/CVSS) quantifies security posture with a composite score. Temporal Decay models score degradation over time, revealing whether investments maintain their value. These provide ROI metrics but don't evaluate investment decisions directly.",
+    howAC3Delivers: "Risk Trending tracks historical risk trajectory, showing whether security investments reduce overall risk. The Scoring Engine (CARVER+Shock/CVSS) quantifies security posture with a composite score. Temporal Decay models score degradation over time, revealing whether investments maintain their value. These provide ROI metrics but don't evaluate investment decisions directly.",
     aceModules: [
       { name: "Risk Trending", role: "Tracks historical risk trajectory showing whether investments reduce overall risk" },
       { name: "Scoring Engine", role: "Quantifies security posture with CARVER+Shock/CVSS composite scoring" },
@@ -886,7 +886,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PIY-RSD", name: "Review SDLC Security (CISA Secure By Design)", themeCode: "PIY",
     coverageLevel: "supporting",
     requirement: "Organizations must review SDLC security practices against CISA Secure By Design principles, with evidence that development processes produce secure outputs.",
-    howAceC3Delivers: "ZAP DAST and API Security Testing validate SDLC security outputs by testing deployed applications for common vulnerability classes. Nuclei Scanner checks for known vulnerabilities in deployed software. Results inform SDLC security assessment but don't audit the SDLC process itself.",
+    howAC3Delivers: "ZAP DAST and API Security Testing validate SDLC security outputs by testing deployed applications for common vulnerability classes. Nuclei Scanner checks for known vulnerabilities in deployed software. Results inform SDLC security assessment but don't audit the SDLC process itself.",
     aceModules: [
       { name: "ZAP DAST", role: "Validates SDLC security outputs by testing deployed applications for common vulnerabilities" },
       { name: "API Security Testing", role: "Tests API security including authentication, authorization, and injection vulnerabilities" },
@@ -901,7 +901,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PIY-RVD", name: "Review Vulnerability Disclosure Program", themeCode: "PIY",
     coverageLevel: "supporting",
     requirement: "Organizations must maintain and review vulnerability disclosure programs with evidence of program activity, submission handling, and resolution metrics.",
-    howAceC3Delivers: "Bug Bounty Intelligence integrates the HackerOne API to provide vulnerability disclosure program data including program activity, submission trends, severity distribution, and resolution metrics. This provides visibility into VDP effectiveness but doesn't manage the program itself.",
+    howAC3Delivers: "Bug Bounty Intelligence integrates the HackerOne API to provide vulnerability disclosure program data including program activity, submission trends, severity distribution, and resolution metrics. This provides visibility into VDP effectiveness but doesn't manage the program itself.",
     aceModules: [
       { name: "Bug Bounty Intelligence (HackerOne)", role: "Integrates HackerOne API for VDP activity, submission trends, and resolution metrics" },
     ],
@@ -914,7 +914,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PIY-RES", name: "Review Executive Support for Security", themeCode: "PIY",
     coverageLevel: "planned",
     requirement: "Organizations must demonstrate executive-level support for security programs through documented governance, resource allocation, and strategic alignment.",
-    howAceC3Delivers: "This is an organizational governance requirement outside the scope of an offensive security platform. Executive support review requires organizational processes, board-level documentation, and resource allocation evidence that cannot be generated through security testing tools.",
+    howAC3Delivers: "This is an organizational governance requirement outside the scope of an offensive security platform. Executive support review requires organizational processes, board-level documentation, and resource allocation evidence that cannot be generated through security testing tools.",
     aceModules: [],
     evidenceTypes: [],
     validationMethod: "n/a",
@@ -927,7 +927,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-RPL-ARP", name: "Align Recovery Plans with Objectives", themeCode: "RPL",
     coverageLevel: "supporting",
     requirement: "Recovery plans must align with business objectives, with evidence that recovery configurations match stated RTO/RPO requirements.",
-    howAceC3Delivers: "The Config Baseline Engine tracks whether recovery configurations align with stated objectives by monitoring backup configurations, replication settings, and failover parameters against approved baselines. The platform can verify configuration alignment but doesn't create recovery plans.",
+    howAC3Delivers: "The Config Baseline Engine tracks whether recovery configurations align with stated objectives by monitoring backup configurations, replication settings, and failover parameters against approved baselines. The platform can verify configuration alignment but doesn't create recovery plans.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks recovery configurations against stated objectives and approved baselines" },
     ],
@@ -940,7 +940,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-RPL-ABO", name: "Recovery Planning Alignment", themeCode: "RPL",
     coverageLevel: "planned",
     requirement: "Recovery planning must align with organizational objectives and be documented with clear roles, responsibilities, and communication procedures.",
-    howAceC3Delivers: "Recovery planning is an organizational process outside the scope of an offensive security platform. AC3 can validate recovery configurations through the Config Baseline Engine, but recovery plan development and organizational alignment require dedicated business continuity processes.",
+    howAC3Delivers: "Recovery planning is an organizational process outside the scope of an offensive security platform. AC3 can validate recovery configurations through the Config Baseline Engine, but recovery plan development and organizational alignment require dedicated business continuity processes.",
     aceModules: [],
     evidenceTypes: [],
     validationMethod: "n/a",
@@ -951,7 +951,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-RPL-RRO", name: "Review RTO and RPO Objectives", themeCode: "RPL",
     coverageLevel: "planned",
     requirement: "Recovery time and recovery point objectives must be defined, documented, and validated through testing.",
-    howAceC3Delivers: "RTO/RPO measurement requires infrastructure-level testing capabilities (failover testing, backup restoration timing) that are outside the platform's scope. AC3 focuses on offensive security testing rather than infrastructure resilience validation.",
+    howAC3Delivers: "RTO/RPO measurement requires infrastructure-level testing capabilities (failover testing, backup restoration timing) that are outside the platform's scope. AC3 focuses on offensive security testing rather than infrastructure resilience validation.",
     aceModules: [],
     evidenceTypes: [],
     validationMethod: "n/a",
@@ -962,7 +962,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-RPL-TRC", name: "Test Recovery Capabilities", themeCode: "RPL",
     coverageLevel: "planned",
     requirement: "Recovery capabilities must be tested through exercises that validate failover, backup restoration, and service continuity.",
-    howAceC3Delivers: "Automated failover and recovery testing requires infrastructure-level access outside the platform's scope. Recovery capability testing through disaster recovery exercises is planned for future development.",
+    howAC3Delivers: "Automated failover and recovery testing requires infrastructure-level access outside the platform's scope. Recovery capability testing through disaster recovery exercises is planned for future development.",
     aceModules: [],
     evidenceTypes: [],
     validationMethod: "n/a",
@@ -975,7 +975,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-ASM", name: "Attack Surface Management", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Organizations must continuously discover, inventory, and manage their external attack surface including all exposed services, subdomains, and cloud resources.",
-    howAceC3Delivers: "Domain Intel discovers all external-facing assets using four integrated intelligence sources: Shodan for internet-wide scanning and banner grabbing, Censys for certificate transparency and host discovery, SecurityTrails for DNS intelligence and historical records, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions. Continuous discovery tracks attack surface changes over time, alerting on new exposure.",
+    howAC3Delivers: "Domain Intel discovers all external-facing assets using four integrated intelligence sources: Shodan for internet-wide scanning and banner grabbing, Censys for certificate transparency and host discovery, SecurityTrails for DNS intelligence and historical records, and URLScan for web content analysis. Service Fingerprinting identifies exposed services, technologies, and versions. Continuous discovery tracks attack surface changes over time, alerting on new exposure.",
     aceModules: [
       { name: "Domain Intel", role: "Discovers all external-facing assets using Shodan, Censys, SecurityTrails, and URLScan" },
       { name: "Shodan", role: "Provides internet-wide scanning data, banner grabbing, and exposure intelligence" },
@@ -991,7 +991,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-VSR", name: "Vulnerability Scanning Results", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Regular vulnerability scanning must be performed across all system components with results tracked, prioritized, and remediated.",
-    howAceC3Delivers: "ZAP DAST performs active web application vulnerability scanning with authenticated and unauthenticated modes. Nuclei Scanner executes 9,000+ template-based vulnerability checks on remote scan servers via SSH. Vuln Scanner Import normalizes results from Nessus, Qualys, and Burp Suite into a unified format, enabling consolidated vulnerability management regardless of scanning tool.",
+    howAC3Delivers: "ZAP DAST performs active web application vulnerability scanning with authenticated and unauthenticated modes. Nuclei Scanner executes 9,000+ template-based vulnerability checks on remote scan servers via SSH. Vuln Scanner Import normalizes results from Nessus, Qualys, and Burp Suite into a unified format, enabling consolidated vulnerability management regardless of scanning tool.",
     aceModules: [
       { name: "ZAP DAST", role: "Performs active web application vulnerability scanning with authenticated and unauthenticated modes" },
       { name: "Nuclei Scanner", role: "Executes 9,000+ template-based vulnerability checks on remote scan servers via SSH" },
@@ -1006,7 +1006,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-VRI", name: "Vulnerability Risk Identification", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Vulnerabilities must be risk-ranked using a consistent methodology that considers exploitability, impact, and business context.",
-    howAceC3Delivers: "The Scoring Engine combines CARVER+Shock methodology with CVSS for multi-dimensional vulnerability prioritization that considers criticality, accessibility, recuperability, vulnerability, effect, and recognizability. Temporal Decay models score degradation over time, ensuring aging vulnerabilities are re-prioritized. Risk Trending tracks historical risk trajectory for trend analysis and remediation effectiveness measurement.",
+    howAC3Delivers: "The Scoring Engine combines CARVER+Shock methodology with CVSS for multi-dimensional vulnerability prioritization that considers criticality, accessibility, recuperability, vulnerability, effect, and recognizability. Temporal Decay models score degradation over time, ensuring aging vulnerabilities are re-prioritized. Risk Trending tracks historical risk trajectory for trend analysis and remediation effectiveness measurement.",
     aceModules: [
       { name: "Scoring Engine (CARVER+Shock/CVSS)", role: "Multi-dimensional vulnerability prioritization combining CARVER+Shock with CVSS" },
       { name: "Temporal Decay", role: "Models score degradation over time to re-prioritize aging vulnerabilities" },
@@ -1021,7 +1021,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-VCM", name: "Vulnerability/Configuration Management", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Vulnerability and configuration management must be integrated with evidence of continuous vulnerability intelligence, scan normalization, and remediation tracking.",
-    howAceC3Delivers: "Vuln Feeds aggregate NVD and CISA KEV data for continuous vulnerability intelligence, ensuring the platform tracks the latest known vulnerabilities. Vuln Scanner Import normalizes multi-vendor scan results into a unified format. Remediation Verification tracks and validates fix implementation through re-scanning, closing the vulnerability management loop.",
+    howAC3Delivers: "Vuln Feeds aggregate NVD and CISA KEV data for continuous vulnerability intelligence, ensuring the platform tracks the latest known vulnerabilities. Vuln Scanner Import normalizes multi-vendor scan results into a unified format. Remediation Verification tracks and validates fix implementation through re-scanning, closing the vulnerability management loop.",
     aceModules: [
       { name: "Vuln Feeds (NVD/KEV)", role: "Aggregates NVD and CISA KEV data for continuous vulnerability intelligence" },
       { name: "Vuln Scanner Import", role: "Normalizes multi-vendor scan results into a unified vulnerability format" },
@@ -1036,7 +1036,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-VRM", name: "Vulnerability Remediation Management", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Vulnerability remediation must be tracked with evidence of fix implementation, re-validation, and risk reduction over time.",
-    howAceC3Delivers: "Remediation Verification tracks remediation progress and validates fixes through re-scanning, confirming that vulnerabilities are actually resolved rather than just marked as fixed. Risk Trending shows whether remediation efforts reduce overall risk over time, providing evidence of remediation effectiveness.",
+    howAC3Delivers: "Remediation Verification tracks remediation progress and validates fixes through re-scanning, confirming that vulnerabilities are actually resolved rather than just marked as fixed. Risk Trending shows whether remediation efforts reduce overall risk over time, providing evidence of remediation effectiveness.",
     aceModules: [
       { name: "Remediation Verification", role: "Tracks remediation progress and validates fixes through re-scanning" },
       { name: "Risk Trending", role: "Shows whether remediation efforts reduce overall risk over time" },
@@ -1050,7 +1050,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-EIS", name: "Endpoint/Infrastructure Security", themeCode: "SVC",
     coverageLevel: "direct",
     requirement: "Endpoint and infrastructure security must be validated through scanning, configuration auditing, and vulnerability assessment.",
-    howAceC3Delivers: "Nuclei Scanner tests endpoint security with 9,000+ template-based vulnerability checks. Vuln Scanner Import processes endpoint scan results from multiple vendors. The DigitalOcean Infrastructure Audit validates cloud endpoint configurations across droplets, firewalls, load balancers, managed databases, and Kubernetes clusters.",
+    howAC3Delivers: "Nuclei Scanner tests endpoint security with 9,000+ template-based vulnerability checks. Vuln Scanner Import processes endpoint scan results from multiple vendors. The DigitalOcean Infrastructure Audit validates cloud endpoint configurations across droplets, firewalls, load balancers, managed databases, and Kubernetes clusters.",
     aceModules: [
       { name: "Nuclei Scanner", role: "Tests endpoint security with 9,000+ template-based vulnerability checks" },
       { name: "Vuln Scanner Import", role: "Processes endpoint scan results from Nessus, Qualys, and Burp Suite" },
@@ -1065,7 +1065,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-ACM", name: "Automated Configuration Management", themeCode: "SVC",
     coverageLevel: "supporting",
     requirement: "Configuration management must be automated with evidence of baseline enforcement, drift detection, and compliance monitoring.",
-    howAceC3Delivers: "The Config Baseline Engine tracks configurations against approved baselines and detects drift from expected states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture. The platform monitors configurations but doesn't manage them directly — it identifies drift and compliance gaps.",
+    howAC3Delivers: "The Config Baseline Engine tracks configurations against approved baselines and detects drift from expected states. The SCAP Compliance Scanner checks CIS benchmarks for infrastructure security posture. The platform monitors configurations but doesn't manage them directly — it identifies drift and compliance gaps.",
     aceModules: [
       { name: "Config Baseline Engine", role: "Tracks configurations against approved baselines and detects drift" },
       { name: "SCAP Compliance Scanner", role: "Checks CIS benchmarks for infrastructure security posture" },
@@ -1079,7 +1079,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-PRR", name: "Post-Change Residual Review", themeCode: "SVC",
     coverageLevel: "supporting",
     requirement: "After changes are deployed, residual security risks must be identified through post-change validation and re-testing.",
-    howAceC3Delivers: "The Validation Scheduler can trigger post-change re-validation to identify residual risks after changes, ensuring that security controls still function correctly. The platform tests for residual issues but doesn't manage the change process itself.",
+    howAC3Delivers: "The Validation Scheduler can trigger post-change re-validation to identify residual risks after changes, ensuring that security controls still function correctly. The platform tests for residual issues but doesn't manage the change process itself.",
     aceModules: [
       { name: "Validation Scheduler", role: "Triggers post-change re-validation to identify residual security risks" },
     ],
@@ -1092,7 +1092,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SVC-SNT", name: "Service Notification/Transparency", themeCode: "SVC",
     coverageLevel: "planned",
     requirement: "Organizations must maintain transparency about service status, incidents, and changes through notification mechanisms.",
-    howAceC3Delivers: "Service notification and transparency requires organizational communication processes outside the platform's scope. AC3's notification system provides operational alerting but dedicated service status communication is planned for future development.",
+    howAC3Delivers: "Service notification and transparency requires organizational communication processes outside the platform's scope. AC3's notification system provides operational alerting but dedicated service status communication is planned for future development.",
     aceModules: [],
     evidenceTypes: [],
     validationMethod: "n/a",
@@ -1105,7 +1105,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SCR-PEN", name: "Penetration Testing", themeCode: "SCR",
     coverageLevel: "direct",
     requirement: "CSPs must conduct comprehensive penetration testing across all 6 FedRAMP mandatory attack vectors: external, internal, web application, API, mobile, and social engineering.",
-    howAceC3Delivers: "The Engagement Pipeline orchestrates multi-phase penetration tests through four stages: passive reconnaissance, active scanning, exploitation, and reporting. The Exploit Arsenal provides access to 16,000+ Metasploit modules for comprehensive exploitation testing. ZAP DAST and Nuclei Scanner perform automated vulnerability discovery across web applications and infrastructure. Results are compiled into AI-powered reports with MITRE ATT&CK heatmaps and remediation recommendations.",
+    howAC3Delivers: "The Engagement Pipeline orchestrates multi-phase penetration tests through four stages: passive reconnaissance, active scanning, exploitation, and reporting. The Exploit Arsenal provides access to 16,000+ Metasploit modules for comprehensive exploitation testing. ZAP DAST and Nuclei Scanner perform automated vulnerability discovery across web applications and infrastructure. Results are compiled into AI-powered reports with MITRE ATT&CK heatmaps and remediation recommendations.",
     aceModules: [
       { name: "Engagement Pipeline", role: "Orchestrates multi-phase penetration tests (recon → scanning → exploitation → reporting)" },
       { name: "Exploit Arsenal", role: "Provides 16,000+ Metasploit modules for comprehensive exploitation testing" },
@@ -1121,7 +1121,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SCR-APT", name: "Advanced Persistent Threat Simulation", themeCode: "SCR",
     coverageLevel: "direct",
     requirement: "Organizations must simulate APT-level attacks to test detection and response capabilities against sophisticated, multi-stage threat actors.",
-    howAceC3Delivers: "AC3 Emulation provides full adversary emulation with MITRE ATT&CK technique execution across the kill chain — from initial access through lateral movement to data exfiltration. Emulation Playbooks define repeatable APT scenarios based on real threat actor TTPs. Threat Actor Matcher correlates findings with known threat actor capabilities, showing which real-world adversaries could exploit discovered weaknesses.",
+    howAC3Delivers: "AC3 Emulation provides full adversary emulation with MITRE ATT&CK technique execution across the kill chain — from initial access through lateral movement to data exfiltration. Emulation Playbooks define repeatable APT scenarios based on real threat actor TTPs. Threat Actor Matcher correlates findings with known threat actor capabilities, showing which real-world adversaries could exploit discovered weaknesses.",
     aceModules: [
       { name: "AC3 Emulation", role: "Provides full adversary emulation with MITRE ATT&CK technique execution across the kill chain" },
       { name: "Emulation Playbooks", role: "Defines repeatable APT scenarios based on real threat actor TTPs" },
@@ -1136,7 +1136,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SCR-SAT", name: "Security Awareness Testing", themeCode: "SCR",
     coverageLevel: "direct",
     requirement: "Security awareness must be tested through realistic social engineering campaigns that measure employee susceptibility and improvement over time.",
-    howAceC3Delivers: "Phishing Ops executes realistic social engineering campaigns via GoPhish integration with 17 exploit techniques including AiTM proxy, BITB, device code phishing, and HTML smuggling. Campaign Wizard configures multi-step campaigns with customizable templates and delivery schedules. Results measure click rates, credential capture rates, MFA bypass success, and improvement trends across successive campaigns.",
+    howAC3Delivers: "Phishing Ops executes realistic social engineering campaigns via GoPhish integration with 17 exploit techniques including AiTM proxy, BITB, device code phishing, and HTML smuggling. Campaign Wizard configures multi-step campaigns with customizable templates and delivery schedules. Results measure click rates, credential capture rates, MFA bypass success, and improvement trends across successive campaigns.",
     aceModules: [
       { name: "Phishing Ops", role: "Executes realistic social engineering campaigns with 17 exploit techniques via GoPhish" },
       { name: "Campaign Wizard", role: "Configures multi-step campaigns with customizable templates and delivery schedules" },
@@ -1151,7 +1151,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SCR-MON", name: "Monitor Third-Party Software Vulnerabilities", themeCode: "SCR",
     coverageLevel: "direct",
     requirement: "Third-party software vulnerabilities must be continuously monitored with evidence of NVD/KEV integration and dependency scanning.",
-    howAceC3Delivers: "Vuln Feeds aggregate NVD and CISA KEV data for continuous third-party vulnerability monitoring, ensuring the platform tracks all known vulnerabilities in third-party components. Container Registry Scanner checks container images for known vulnerabilities in dependencies, identifying vulnerable libraries and frameworks.",
+    howAC3Delivers: "Vuln Feeds aggregate NVD and CISA KEV data for continuous third-party vulnerability monitoring, ensuring the platform tracks all known vulnerabilities in third-party components. Container Registry Scanner checks container images for known vulnerabilities in dependencies, identifying vulnerable libraries and frameworks.",
     aceModules: [
       { name: "Vuln Feeds (NVD/KEV)", role: "Aggregates NVD and CISA KEV data for continuous third-party vulnerability monitoring" },
       { name: "Container Registry Scanner", role: "Checks container images for known vulnerabilities in dependencies" },
@@ -1165,7 +1165,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SCR-MIT", name: "Mitigate Supply Chain Risks", themeCode: "SCR",
     coverageLevel: "supporting",
     requirement: "Supply chain risks must be identified and mitigated with evidence of dependency analysis, vulnerability tracking, and risk reduction.",
-    howAceC3Delivers: "Container Registry Scanner identifies vulnerable dependencies in container images, revealing supply chain risks from third-party components. Nuclei Scanner tests for known supply chain vulnerabilities in deployed software. The platform identifies supply chain risks but doesn't implement supply chain controls like vendor management or procurement security.",
+    howAC3Delivers: "Container Registry Scanner identifies vulnerable dependencies in container images, revealing supply chain risks from third-party components. Nuclei Scanner tests for known supply chain vulnerabilities in deployed software. The platform identifies supply chain risks but doesn't implement supply chain controls like vendor management or procurement security.",
     aceModules: [
       { name: "Container Registry Scanner", role: "Identifies vulnerable dependencies in container images for supply chain risk" },
       { name: "Nuclei Scanner", role: "Tests for known supply chain vulnerabilities in deployed software" },
@@ -1181,7 +1181,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SDE-SST", name: "Secure Software Testing", themeCode: "SDE",
     coverageLevel: "direct",
     requirement: "Software must undergo automated security testing including DAST, API security testing, and template-based vulnerability scanning before and after deployment.",
-    howAceC3Delivers: "ZAP DAST performs active web application security testing with both authenticated and unauthenticated scanning modes, covering OWASP Top 10 and beyond. API Security Testing validates API security including authentication bypass, authorization flaws, injection vulnerabilities, and rate limiting. Nuclei Scanner executes template-based security checks against deployed applications. All produce real vulnerability data with evidence artifacts.",
+    howAC3Delivers: "ZAP DAST performs active web application security testing with both authenticated and unauthenticated scanning modes, covering OWASP Top 10 and beyond. API Security Testing validates API security including authentication bypass, authorization flaws, injection vulnerabilities, and rate limiting. Nuclei Scanner executes template-based security checks against deployed applications. All produce real vulnerability data with evidence artifacts.",
     aceModules: [
       { name: "ZAP DAST", role: "Performs active web application security testing covering OWASP Top 10 and beyond" },
       { name: "API Security Testing", role: "Validates API security: authentication, authorization, injection, and rate limiting" },
@@ -1196,7 +1196,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-SDE-SDP", name: "Secure Development Practices", themeCode: "SDE",
     coverageLevel: "supporting",
     requirement: "Development practices must produce secure software, with evidence that common vulnerability classes decrease over time as practices mature.",
-    howAceC3Delivers: "DAST findings from ZAP and Vuln Analysis Agents inform secure development priorities by identifying common vulnerability classes (XSS, SQLi, IDOR, SSRF) in deployed applications. Vulnerability trend analysis over time shows whether secure development practices are reducing common vulnerability classes. The platform tests development outputs but doesn't audit SDLC processes directly.",
+    howAC3Delivers: "DAST findings from ZAP and Vuln Analysis Agents inform secure development priorities by identifying common vulnerability classes (XSS, SQLi, IDOR, SSRF) in deployed applications. Vulnerability trend analysis over time shows whether secure development practices are reducing common vulnerability classes. The platform tests development outputs but doesn't audit SDLC processes directly.",
     aceModules: [
       { name: "ZAP DAST", role: "Identifies common vulnerability classes in deployed applications to measure development security" },
       { name: "Vuln Analysis Agents", role: "Analyzes vulnerability patterns to inform secure development priorities" },
@@ -1212,7 +1212,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PPM-PPR", name: "Policy & Procedure Review", themeCode: "PPM",
     coverageLevel: "supporting",
     requirement: "Security policies and procedures must be documented, version-controlled, and periodically reviewed for completeness and effectiveness.",
-    howAceC3Delivers: "The RoE Builder maintains version-controlled rules of engagement and policy documents with full revision history. The Evidence Chain stores policy documentation with SHA-256 integrity verification, ensuring documents cannot be altered without detection. LLM analysis can review policies for completeness against FedRAMP requirements.",
+    howAC3Delivers: "The RoE Builder maintains version-controlled rules of engagement and policy documents with full revision history. The Evidence Chain stores policy documentation with SHA-256 integrity verification, ensuring documents cannot be altered without detection. LLM analysis can review policies for completeness against FedRAMP requirements.",
     aceModules: [
       { name: "RoE Builder", role: "Maintains version-controlled rules of engagement and policy documents with revision history" },
       { name: "Evidence Chain", role: "Stores policy documentation with SHA-256 integrity verification" },
@@ -1226,7 +1226,7 @@ export const ALL_ENRICHED_KSIS: EnrichedKSI[] = [
     id: "KSI-PPM-PPI", name: "Policy & Procedure Implementation", themeCode: "PPM",
     coverageLevel: "supporting",
     requirement: "Policies and procedures must be implemented with evidence that operational practices align with documented policies.",
-    howAceC3Delivers: "Scope Enforcement Middleware enforces operational boundaries during testing, demonstrating that policies are implemented in practice — not just documented. The Scan Policy Engine defines and enforces scan policies including authorized techniques, timing restrictions, and escalation procedures. These demonstrate policy implementation within the platform's operational scope.",
+    howAC3Delivers: "Scope Enforcement Middleware enforces operational boundaries during testing, demonstrating that policies are implemented in practice — not just documented. The Scan Policy Engine defines and enforces scan policies including authorized techniques, timing restrictions, and escalation procedures. These demonstrate policy implementation within the platform's operational scope.",
     aceModules: [
       { name: "Scope Enforcement Middleware", role: "Enforces operational boundaries during testing, demonstrating policy implementation" },
       { name: "Scan Policy Engine", role: "Defines and enforces scan policies including techniques, timing, and escalation procedures" },

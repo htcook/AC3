@@ -254,7 +254,7 @@ export const socIntegrationHubRouter = router({
               headers: {
                 "Authorization": `Bearer ${input.apiKey || ""}`,
                 "Content-Type": "application/json",
-                "Log-Type": "AceC3HealthCheck",
+                "Log-Type": "AC3HealthCheck",
               },
               body: JSON.stringify({ healthCheck: true, timestamp: new Date().toISOString() }),
               signal: AbortSignal.timeout(10_000),

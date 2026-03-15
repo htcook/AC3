@@ -335,7 +335,7 @@ export async function executeProbe(
     const response = await fetch(url, {
       method: template.httpMethod || "GET",
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; AceC3-Probe/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; AC3-Probe/1.0)",
         ...template.httpHeaders,
       },
       body: template.httpBody || undefined,

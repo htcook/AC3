@@ -466,7 +466,7 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
 
   try {
     const response = await fetch(feed.url, {
-      headers: { "User-Agent": "AceC3-ThreatIntel/2.0 (Multi-Source RSS Aggregator)" },
+      headers: { "User-Agent": "AC3-ThreatIntel/2.0 (Multi-Source RSS Aggregator)" },
       signal: AbortSignal.timeout(20000),
     });
 

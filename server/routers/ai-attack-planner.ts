@@ -142,7 +142,7 @@ export const aiAttackPlannerRouter = router({
             if (abilityIds.length > 0) {
               // 3b. Create adversary profile from matched abilities
               const adversaryPayload = {
-                name: `AceC3-Plan-${plan.id}-${plan.name?.slice(0, 30) || "AutoGen"}`,
+                name: `AC3-Plan-${plan.id}-${plan.name?.slice(0, 30) || "AutoGen"}`,
                 description: `Auto-generated from AI Attack Plan #${plan.id}: ${generatedPlan.summary?.slice(0, 100) || ""}`,
                 atomic_ordering: abilityIds,
               };

@@ -235,7 +235,7 @@ export async function verifyBanner(hostname: string, timeoutMs = 8000): Promise<
         signal: controller.signal,
         redirect: "follow",
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; AceC3-Scanner/1.0; +https://aceofcloud.com)",
+          "User-Agent": "Mozilla/5.0 (compatible; AC3-Scanner/1.0; +https://aceofcloud.com)",
         },
       });
 
@@ -270,7 +270,7 @@ export async function verifyBanner(hostname: string, timeoutMs = 8000): Promise<
             signal: getController.signal,
             redirect: "follow",
             headers: {
-              "User-Agent": "Mozilla/5.0 (compatible; AceC3-Scanner/1.0; +https://aceofcloud.com)",
+              "User-Agent": "Mozilla/5.0 (compatible; AC3-Scanner/1.0; +https://aceofcloud.com)",
             },
           });
           clearTimeout(getTimer);

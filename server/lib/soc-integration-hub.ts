@@ -61,7 +61,7 @@ const SEVERITY_TO_LEEF: Record<string, number> = {
  */
 export function exportFindingAsCEF(finding: EngagementFinding): ExportedAlert {
   const severity = SEVERITY_TO_CEF[finding.severity] ?? 5;
-  const deviceVendor = "AceC3";
+  const deviceVendor = "AC3";
   const deviceProduct = "PentestPlatform";
   const deviceVersion = "1.0";
   const signatureId = finding.id;
@@ -570,7 +570,7 @@ export async function pushAlertsToSiem(
               headers: {
                 "Authorization": `Bearer ${config.authToken}`,
                 "Content-Type": "application/json",
-                "Log-Type": "AceC3Findings",
+                "Log-Type": "AC3Findings",
               },
               body,
               signal: AbortSignal.timeout(10_000),

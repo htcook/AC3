@@ -242,7 +242,7 @@ export default function KsiHeatmapGrid({ themeStats, definitions = [], onKsiClic
                                         <div className="font-semibold text-blue-400 mb-1 flex items-center gap-1">
                                           <Shield className="w-3 h-3" /> How AC3 {enriched.coverageLevel === "direct" ? "Meets" : enriched.coverageLevel === "supporting" ? "Supports" : "Plans to Address"} This
                                         </div>
-                                        <p className="text-foreground leading-relaxed">{enriched.howAceC3Delivers}</p>
+                                        <p className="text-foreground leading-relaxed">{enriched.howAC3Delivers}</p>
                                       </div>
 
                                       {/* AC3 Modules */}

@@ -51,13 +51,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   AceC3 Design System — Military-Grade Cyber Operations Theme
+   AC3 Design System — Military-Grade Cyber Operations Theme
    Color palette: #0A0E14 base, #00E5CC primary accent
    Typography: Inter (UI) + JetBrains Mono (code/technical)
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Core palette — derived from AceC3 Design Guide */
+  /* Core palette — derived from AC3 Design Guide */
   --background: oklch(0.12 0.02 240);       /* #0A0E14 */
   --foreground: oklch(1 0 0);               /* #FFFFFF */
   --card: oklch(0.16 0.02 240);             /* #111820 */
@@ -189,7 +189,7 @@
     cursor: not-allowed;
   }
 
-  /* AceC3 Typography Hierarchy */
+  /* AC3 Typography Hierarchy */
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     font-weight: 700;
@@ -206,14 +206,14 @@
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'Cascadia Code', monospace;
   }
 
-  /* Custom Selection — AceC3 Teal */
+  /* Custom Selection — AC3 Teal */
   ::selection {
     background: oklch(0.82 0.16 180);
     color: oklch(0.12 0.02 240);
   }
 }
 
-/* AceC3 Utilities */
+/* AC3 Utilities */
 @layer utilities {
   /* Display font — Inter Bold/Extra-Bold for headings and stats */
   .font-display {
@@ -286,7 +286,7 @@
     50% { opacity: 0.8; box-shadow: 0 0 0 6px oklch(0.72 0.20 155 / 0); }
   }
 
-  /* AceC3 accent gradient */
+  /* AC3 accent gradient */
   .aceofcloud-gradient {
     background: linear-gradient(135deg, oklch(0.12 0.02 240) 0%, oklch(0.20 0.04 200) 50%, oklch(0.82 0.16 180 / 0.15) 100%);
   }

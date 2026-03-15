@@ -268,7 +268,7 @@ export async function fetchAndIngestFeed(feedUrl: string, feedLabel: string): Pr
 
   try {
     const response = await fetch(feedUrl, {
-      headers: { "User-Agent": "AceC3-ThreatIntel/1.0 (Darkweb Feed Aggregator)" },
+      headers: { "User-Agent": "AC3-ThreatIntel/1.0 (Darkweb Feed Aggregator)" },
       signal: AbortSignal.timeout(15000),
     });
 

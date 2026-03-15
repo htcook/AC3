@@ -139,7 +139,7 @@ async function fetchProjectZero(): Promise<ProjectZeroEntry[]> {
 
   try {
     const res = await fetchWithRetry(PROJECT_ZERO_CSV_URL, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -208,7 +208,7 @@ async function fetchNvdRecent(days: number = 30): Promise<NvdCveItem[]> {
 
     const url = `${NVD_API_BASE}?pubStartDate=${fmt(startDate)}&pubEndDate=${fmt(endDate)}&resultsPerPage=200`;
     const res = await fetchWithRetry(url, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(45000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -279,7 +279,7 @@ async function enrichCveFromNvd(cveId: string): Promise<NvdCveItem | null> {
   try {
     const url = `${NVD_API_BASE}?cveId=${cveId}`;
     const res = await fetch(url, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
@@ -338,7 +338,7 @@ async function fetchCirclRecent(): Promise<CirclCve[]> {
 
   try {
     const res = await fetchWithRetry(`${CIRCL_API_BASE}/last/50`, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -359,7 +359,7 @@ async function fetchCirclRecent(): Promise<CirclCve[]> {
 async function lookupCveCircl(cveId: string): Promise<CirclCve | null> {
   try {
     const res = await fetch(`${CIRCL_API_BASE}/cve/${cveId}`, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
@@ -375,7 +375,7 @@ async function lookupCveCircl(cveId: string): Promise<CirclCve | null> {
 async function searchCirclByVendor(vendor: string): Promise<string[]> {
   try {
     const res = await fetch(`${CIRCL_API_BASE}/browse/${encodeURIComponent(vendor)}`, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
@@ -408,7 +408,7 @@ async function fetchExploitDb(): Promise<ExploitDbEntry[]> {
 
   try {
     const res = await fetch(EXPLOITDB_CSV_URL, {
-      headers: { "User-Agent": "AceC3-VulnFeed/1.0" },
+      headers: { "User-Agent": "AC3-VulnFeed/1.0" },
       signal: AbortSignal.timeout(120000), // 2 min — CSV is ~10MB
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

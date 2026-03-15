@@ -319,7 +319,7 @@ export default function KsiThreatMap() {
                     <p className="text-sm text-muted-foreground">{enriched.requirement}</p>
                     <div className="p-3 bg-accent/30 rounded-lg">
                       <div className="text-xs font-semibold text-blue-400 mb-1">How AC3 {enriched.coverageLevel === 'direct' ? 'Meets' : 'Supports'} This KSI</div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{enriched.howAceC3Delivers}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{enriched.howAC3Delivers}</p>
                       {enriched.aceModules.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {enriched.aceModules.map((m, i) => (

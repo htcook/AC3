@@ -3,7 +3,7 @@
  * ─────────────────────────────────
  * Integrates industry-specific asset tier baselines, risk modifiers,
  * auto-BIA inference, and enhanced hybrid scoring formula from the
- * AceC3_Industry_Asset_Baseline_Package and AceC3_Hybrid_CARVER_SHOCK_Package.
+ * AC3_Industry_Asset_Baseline_Package and AC3_Hybrid_CARVER_SHOCK_Package.
  *
  * Key capabilities:
  *   - 6 industry vertical profiles with Tier 1/2/3 asset classifications
@@ -18,8 +18,8 @@
  *   - Combined BIA + FIPS 199 weighting in the enhanced hybrid formula
  *
  * Data sources:
- *   - AceC3_Industry_Asset_Baseline_Package v1.0
- *   - AceC3_Hybrid_CARVER_SHOCK_Package v1.0
+ *   - AC3_Industry_Asset_Baseline_Package v1.0
+ *   - AC3_Hybrid_CARVER_SHOCK_Package v1.0
  *   - NIST FIPS PUB 199 (Standards for Security Categorization)
  */
 

@@ -108,6 +108,7 @@ import { nmapRouter } from "./routers/nmap";
 import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
+import { bugReportsRouter } from "./routers/bug-reports";
 import { llmTelemetryRouter } from "./routers/llm-telemetry";
 import { containerRegistryRouter } from "./routers/container-registry";
 import { exploitationBridgeRouter } from "./routers/exploitation-bridge";
@@ -369,6 +370,7 @@ export const appRouter = router({
   discoveryChain: discoveryChainRouter,
   crawlPhish: crawlPhishRouter,
   errorLog: errorLogRouter,
+  bugReports: bugReportsRouter,
   oemCreds: oemCredsRouter,
   aiChat: aiChatRouter,
   containerRegistry: containerRegistryRouter,

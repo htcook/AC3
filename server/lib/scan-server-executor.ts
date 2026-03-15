@@ -676,10 +676,16 @@ export async function suggestToolCommands(asset: {
         if (svc.port && !matchingPort) continue; // Port not open, skip
 
         // Map OEM protocol to hydra module
+        // NOTE: http/https/web_admin now use http-form-post instead of http-get
+        // because http-get tests HTTP Basic Auth which produces false positives
+        // against modern web apps that serve SPAs (always return HTTP 200).
+        // For actual HTTP Basic Auth targets, the OEM credential DB should
+        // specify protocol as 'http_basic' explicitly.
         const protocolToHydra: Record<string, string> = {
           ssh: "ssh", telnet: "telnet", ftp: "ftp", mysql: "mysql",
           postgres: "postgres", mssql: "mssql", rdp: "rdp",
-          http: "http-get", https: "https-get", web_admin: "http-get",
+          http: "http-form-post", https: "https-form-post", web_admin: "http-form-post",
+          http_basic: "http-get", https_basic: "https-get",
           snmp: "snmp", ldap: "ldap2", oracle: "oracle-listener",
         };
         const hydraModule = protocolToHydra[credPairs[0].protocol] || credPairs[0].protocol;
@@ -689,12 +695,32 @@ export async function suggestToolCommands(asset: {
         // Create a targeted credential file approach: test each vendor default pair
         for (const cred of credPairs) {
           const passArg = cred.password === "" ? `-e n` : `-p '${cred.password}'`;
-          commands.push({
-            tool: "hydra",
-            args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule}`,
-            purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} on port ${port}`,
-            priority: 3,
-          });
+
+          // For http-form-post/https-form-post, we need a form data string
+          // Use a common login form pattern with failure string detection
+          if (hydraModule === 'http-form-post' || hydraModule === 'https-form-post') {
+            // Try common login paths with standard form field names
+            const loginPaths = ['/login', '/admin/login', '/auth/login', '/api/auth/login', '/signin'];
+            const formVariants = [
+              { fields: 'username=^USER^&password=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
+              { fields: 'email=^USER^&password=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
+              { fields: 'user=^USER^&pass=^PASS^', failStr: 'invalid|incorrect|failed|error|denied|wrong' },
+            ];
+            // Use first login path + first form variant as primary, others as fallback
+            commands.push({
+              tool: 'hydra',
+              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule} '${loginPaths[0]}:${formVariants[0].fields}:F=${formVariants[0].failStr}'`,
+              purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} via HTTP form on port ${port}`,
+              priority: 3,
+            });
+          } else {
+            commands.push({
+              tool: "hydra",
+              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule}`,
+              purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} on port ${port}`,
+              priority: 3,
+            });
+          }
         }
       }
     } catch (e) {

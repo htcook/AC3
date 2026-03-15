@@ -183,7 +183,7 @@ async function queryNvdByCpe(
     // Use cpeName parameter for exact CPE matching
     const url = `${NVD_API_BASE}?cpeName=${encodeURIComponent(cpeUri)}&resultsPerPage=${maxResults}`;
     const res = await fetch(url, {
-      headers: { "User-Agent": "AceC3-DynamicCPE/1.0" },
+      headers: { "User-Agent": "AC3-DynamicCPE/1.0" },
       signal: AbortSignal.timeout(15000),
     });
     
@@ -262,7 +262,7 @@ async function queryNvdByKeyword(
   try {
     const url = `${NVD_API_BASE}?keywordSearch=${encodeURIComponent(keyword)}&resultsPerPage=${maxResults}`;
     const res = await fetch(url, {
-      headers: { "User-Agent": "AceC3-DynamicCPE/1.0" },
+      headers: { "User-Agent": "AC3-DynamicCPE/1.0" },
       signal: AbortSignal.timeout(15000),
     });
     

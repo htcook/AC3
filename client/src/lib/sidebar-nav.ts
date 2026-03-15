@@ -387,6 +387,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Review Queue", path: "/review-queue", icon: FileCheck2 },
       { label: "Job Queue", path: "/job-queue", roles: ["admin"] as UserRole[], icon: Cog },
       { label: "Error Dashboard", path: "/error-dashboard", roles: ["admin"] as UserRole[], icon: AlertTriangle },
+      { label: "Bug Reports", path: "/bug-reports", roles: ["admin", "team_lead"] as UserRole[], icon: Bug },
       { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
       { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
       { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },

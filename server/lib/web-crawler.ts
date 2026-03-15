@@ -38,7 +38,7 @@ export const DEFAULT_CRAWL_CONFIG: CrawlConfig = {
   maxDepth: 2,
   maxPages: 50,
   timeoutMs: 15000,
-  userAgent: "AceC3-WebScanner/1.0 (Security Assessment)",
+  userAgent: "AC3-WebScanner/1.0 (Security Assessment)",
   followRedirects: true,
   respectRobotsTxt: true,
   checkExposedPaths: true,
