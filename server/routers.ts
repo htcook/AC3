@@ -140,6 +140,8 @@ import { dataExfilSimulationRouter } from "./routers/data-exfil-simulation";
 import { operatorCockpitRouter } from "./routers/operator-cockpit";
 import { dastScannersRouter } from "./routers/dast-scanners";
 import { packetAnalysisRouter } from "./routers/packet-analysis";
+import { aiGovernanceRouter } from "./routers/ai-governance";
+import { executiveDashboardRouter } from "./routers/executive-dashboard";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -499,6 +501,9 @@ export const appRouter = router({
   dastScanners: dastScannersRouter,
   // ─── Packet Analysis & Manipulation (tcpdump, tshark, Scapy) ────────────────
   packetAnalysis: packetAnalysisRouter,
+  // ─── AI Governance & Guardrails (NIST AI RMF, OMB M-24-10, DoD RAI) ────────
+  aiGovernance: aiGovernanceRouter,
+  executiveDashboard: executiveDashboardRouter,
 });
 export type AppRouter = typeof appRouter;
 

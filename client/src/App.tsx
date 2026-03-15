@@ -231,6 +231,8 @@ const LlmLearning = lazy(() => import("./pages/LlmLearning"));
 const LearningDashboard = lazy(() => import("./pages/LearningDashboard"));
 const DastScanners = lazy(() => import("./pages/DastScanners"));
 const PacketAnalysis = lazy(() => import("./pages/PacketAnalysis"));
+const AIGovernance = lazy(() => import("./pages/AIGovernance"));
+const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -921,6 +923,12 @@ function Router() {
         </Route>
         <Route path="/packet-analysis">
           <ProtectedRoute component={PacketAnalysis} />
+        </Route>
+        <Route path="/ai-governance">
+          <ProtectedRoute component={AIGovernance} />
+        </Route>
+        <Route path="/executive-dashboard">
+          <ProtectedRoute component={ExecutiveDashboard} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

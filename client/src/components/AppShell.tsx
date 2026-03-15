@@ -96,6 +96,7 @@ import {
   Upload,
   HeartPulse,
   Building2,
+  PieChart,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -135,7 +136,8 @@ const NAV_GROUPS: NavGroup[] = [
         id: "cmd-ops",
         label: "Mission Operations",
         items: [
-          { href: "/dashboard", icon: Activity, label: "DASHBOARD" },
+          { href: "/executive-dashboard", icon: PieChart, label: "EXECUTIVE VIEW" },
+          { href: "/dashboard", icon: Activity, label: "OPERATOR VIEW" },
           { href: "/ksi-dashboard", icon: BadgeCheck, label: "KEY SECURITY INDICATORS" },
           { href: "/workflows", icon: Rocket, label: "MISSION WORKFLOWS" },
           { href: "/engagements", icon: Briefcase, label: "ENGAGEMENT MGR" },
@@ -411,6 +413,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/error-dashboard", icon: Bug, label: "ERROR DASHBOARD" },
           { href: "/llm-telemetry", icon: BarChart3, label: "LLM TELEMETRY" },
           { href: "/llm-reliability", icon: HeartPulse, label: "LLM RELIABILITY" },
+          { href: "/ai-governance", icon: ShieldCheck, label: "AI GOVERNANCE" },
           { href: "/oem-credentials", icon: Key, label: "DEFAULT CREDENTIALS" },
           { href: "/webhooks", icon: Webhook, label: "WEBHOOKS" },
           { href: "/vendor-integrations", icon: Layers, label: "VENDOR INTEGRATIONS" },

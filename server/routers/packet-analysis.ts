@@ -482,4 +482,44 @@ export const packetAnalysisRouter = router({
       },
     ];
   }),
+
+  // ─── One-Click Replay from Auto-Capture ──────────────────────────────
+  replayAutoCapture: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      engagementId: z.number(),
+      speed: z.enum(["original", "topspeed", "custom"]).default("original"),
+      speedMultiplier: z.number().optional(),
+      captureResponses: z.boolean().default(true),
+      label: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // Get the auto-capture session to find its PCAP path
+      const { getCaptureSessions } = await import("../lib/pcap-auto-capture");
+      const sessions = getCaptureSessions(input.engagementId);
+      const session = sessions.find(s => s.sessionId === input.sessionId);
+      if (!session) {
+        throw new TRPCError({ code: "NOT_FOUND", message: `Auto-capture session ${input.sessionId} not found` });
+      }
+      if (!session.pcapPath) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Session has no PCAP file (capture may still be in progress)" });
+      }
+      if (session.status !== "completed" && session.status !== "analyzed") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Session status is '${session.status}' — must be completed or analyzed` });
+      }
+
+      // Execute replay using the auto-capture's PCAP
+      const { executeReplay } = await import("../lib/pcap-replay");
+      const result = await executeReplay({
+        pcapPath: session.pcapPath,
+        speed: input.speed,
+        speedMultiplier: input.speedMultiplier,
+        interface: "eth0",
+        loopCount: 1,
+        captureResponses: input.captureResponses,
+        engagementId: input.engagementId,
+        label: input.label || `auto-replay-${session.target}-${Date.now()}`,
+      });
+      return result;
+    }),
 });

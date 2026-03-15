@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense, lazy } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -846,8 +846,11 @@ function PcapReplayTab() {
 // NETWORK TOPOLOGY TAB
 // ═══════════════════════════════════════════════════════════════
 
+const TopologyGraph = lazy(() => import("@/components/TopologyGraph"));
+
 function NetworkTopologyTab() {
   const [engagementId, setEngagementId] = useState("");
+  const [viewMode, setViewMode] = useState<"graph" | "table">("graph");
   const engId = engagementId ? parseInt(engagementId) : 0;
 
   const topology = trpc.packetAnalysis.getTopology.useQuery(
@@ -862,6 +865,12 @@ function NetworkTopologyTab() {
     { engagementId: engId },
     { enabled: engId > 0 }
   );
+  const replayAutoCapture = trpc.packetAnalysis.replayAutoCapture.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Replay complete — ${data.stats.packetsReplayed} packets replayed in ${data.stats.durationMs}ms`);
+    },
+    onError: (e) => toast.error(`Replay failed: ${e.message}`),
+  });
 
   const nodeTypeIcons: Record<string, string> = {
     scanner: "🔍", target: "🎯", router: "🔀", dns_server: "📡", external: "🌐", cdn: "🛡️", unknown: "❓",
@@ -881,6 +890,7 @@ function NetworkTopologyTab() {
           </CardTitle>
           <CardDescription>
             Build and view network topology from engagement scan data — nmap results, traceroute hops, PCAP conversations, and asset metadata.
+            Drag nodes to reposition, scroll to zoom, click nodes/edges for details.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -909,141 +919,183 @@ function NetworkTopologyTab() {
             <Button variant="outline" className="mt-6" onClick={() => topology.refetch()} disabled={!engId}>
               <RefreshCw className="h-4 w-4" />
             </Button>
+            {topology.data && (
+              <div className="flex items-center gap-1 mt-6 bg-muted/30 rounded-lg p-1">
+                <Button
+                  variant={viewMode === "graph" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("graph")}
+                  className="text-xs h-7"
+                >
+                  <Eye className="h-3 w-3 mr-1" /> Graph
+                </Button>
+                <Button
+                  variant={viewMode === "table" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("table")}
+                  className="text-xs h-7"
+                >
+                  <Activity className="h-3 w-3 mr-1" /> Tables
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Topology Graph */}
+      {/* Topology Visualization */}
       {topology.data && (
         <>
-          {/* Stats Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {[
-              { label: "Nodes", value: topology.data.stats.totalNodes, color: "text-blue-400" },
-              { label: "Edges", value: topology.data.stats.totalEdges, color: "text-violet-400" },
-              { label: "Hosts", value: topology.data.stats.totalHosts, color: "text-red-400" },
-              { label: "Routers", value: topology.data.stats.totalRouters, color: "text-purple-400" },
-              { label: "Findings", value: topology.data.stats.totalFindings, color: "text-amber-400" },
-              { label: "Protocols", value: topology.data.stats.protocols.length, color: "text-cyan-400" },
-              { label: "Max Hops", value: topology.data.stats.maxHopDistance, color: "text-emerald-400" },
-            ].map((s) => (
-              <div key={s.label} className="bg-card/50 border border-border/50 rounded-lg p-3 text-center">
-                <div className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-muted-foreground">{s.label}</div>
+          {viewMode === "graph" ? (
+            /* D3 Force-Directed Graph */
+            <Suspense fallback={
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+                <span className="ml-3 text-muted-foreground">Loading topology graph...</span>
               </div>
-            ))}
-          </div>
+            }>
+              <TopologyGraph
+                nodes={topology.data.nodes}
+                edges={topology.data.edges}
+                stats={topology.data.stats}
+              />
+            </Suspense>
+          ) : (
+            /* Table View */
+            <>
+              {/* Stats Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                {[
+                  { label: "Nodes", value: topology.data.stats.totalNodes, color: "text-blue-400" },
+                  { label: "Edges", value: topology.data.stats.totalEdges, color: "text-violet-400" },
+                  { label: "Hosts", value: topology.data.stats.totalHosts, color: "text-red-400" },
+                  { label: "Routers", value: topology.data.stats.totalRouters, color: "text-purple-400" },
+                  { label: "Findings", value: topology.data.stats.totalFindings, color: "text-amber-400" },
+                  { label: "Protocols", value: topology.data.stats.protocols.length, color: "text-cyan-400" },
+                  { label: "Max Hops", value: topology.data.stats.maxHopDistance, color: "text-emerald-400" },
+                ].map((s) => (
+                  <div key={s.label} className="bg-card/50 border border-border/50 rounded-lg p-3 text-center">
+                    <div className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</div>
+                    <div className="text-xs text-muted-foreground">{s.label}</div>
+                  </div>
+                ))}
+              </div>
 
-          {/* Node Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Discovered Nodes ({topology.data.nodes.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/30 text-muted-foreground text-xs">
-                      <th className="text-left py-2 px-3">Type</th>
-                      <th className="text-left py-2 px-3">IP</th>
-                      <th className="text-left py-2 px-3">Hostname</th>
-                      <th className="text-left py-2 px-3">OS</th>
-                      <th className="text-left py-2 px-3">Ports</th>
-                      <th className="text-left py-2 px-3">Services</th>
-                      <th className="text-left py-2 px-3">Findings</th>
-                      <th className="text-left py-2 px-3">Risk</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topology.data.nodes.map((node: any) => (
-                      <tr key={node.id} className="border-b border-border/10 hover:bg-muted/10">
-                        <td className="py-2 px-3">
-                          <span className="mr-1">{nodeTypeIcons[node.type] || "❓"}</span>
-                          <Badge variant="outline" className="text-xs">{node.type}</Badge>
-                        </td>
-                        <td className="py-2 px-3 font-mono text-xs">{node.ip}</td>
-                        <td className="py-2 px-3 text-xs">{node.hostname || "—"}</td>
-                        <td className="py-2 px-3 text-xs">{node.os || "—"}</td>
-                        <td className="py-2 px-3">
-                          <div className="flex flex-wrap gap-1">
-                            {node.ports.slice(0, 5).map((p: number) => (
-                              <Badge key={p} variant="outline" className="text-xs font-mono">{p}</Badge>
-                            ))}
-                            {node.ports.length > 5 && <Badge variant="secondary" className="text-xs">+{node.ports.length - 5}</Badge>}
-                          </div>
-                        </td>
-                        <td className="py-2 px-3">
-                          <div className="flex flex-wrap gap-1">
-                            {node.services.slice(0, 3).map((s: string, i: number) => (
-                              <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-2 px-3 font-mono text-xs">{node.findingCount}</td>
-                        <td className={`py-2 px-3 text-xs font-semibold ${severityColors[node.maxSeverity] || "text-gray-500"}`}>
-                          {node.maxSeverity}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Node Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Discovered Nodes ({topology.data.nodes.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/30 text-muted-foreground text-xs">
+                          <th className="text-left py-2 px-3">Type</th>
+                          <th className="text-left py-2 px-3">IP</th>
+                          <th className="text-left py-2 px-3">Hostname</th>
+                          <th className="text-left py-2 px-3">OS</th>
+                          <th className="text-left py-2 px-3">Ports</th>
+                          <th className="text-left py-2 px-3">Services</th>
+                          <th className="text-left py-2 px-3">Findings</th>
+                          <th className="text-left py-2 px-3">Risk</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topology.data.nodes.map((node: any) => (
+                          <tr key={node.id} className="border-b border-border/10 hover:bg-muted/10">
+                            <td className="py-2 px-3">
+                              <span className="mr-1">{nodeTypeIcons[node.type] || "❓"}</span>
+                              <Badge variant="outline" className="text-xs">{node.type}</Badge>
+                            </td>
+                            <td className="py-2 px-3 font-mono text-xs">{node.ip}</td>
+                            <td className="py-2 px-3 text-xs">{node.hostname || "—"}</td>
+                            <td className="py-2 px-3 text-xs">{node.os || "—"}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {node.ports.slice(0, 5).map((p: number) => (
+                                  <Badge key={p} variant="outline" className="text-xs font-mono">{p}</Badge>
+                                ))}
+                                {node.ports.length > 5 && <Badge variant="secondary" className="text-xs">+{node.ports.length - 5}</Badge>}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {node.services.slice(0, 3).map((s: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 font-mono text-xs">{node.findingCount}</td>
+                            <td className={`py-2 px-3 text-xs font-semibold ${severityColors[node.maxSeverity] || "text-gray-500"}`}>
+                              {node.maxSeverity}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Edge Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Network Edges ({topology.data.edges.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/30 text-muted-foreground text-xs">
-                      <th className="text-left py-2 px-3">Source</th>
-                      <th className="text-left py-2 px-3">Target</th>
-                      <th className="text-left py-2 px-3">Type</th>
-                      <th className="text-left py-2 px-3">Protocol</th>
-                      <th className="text-left py-2 px-3">Port</th>
-                      <th className="text-left py-2 px-3">Packets</th>
-                      <th className="text-left py-2 px-3">Bytes</th>
-                      <th className="text-left py-2 px-3">Findings</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topology.data.edges.map((edge: any) => (
-                      <tr key={edge.id} className="border-b border-border/10 hover:bg-muted/10">
-                        <td className="py-2 px-3 font-mono text-xs">{edge.source}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.target}</td>
-                        <td className="py-2 px-3">
-                          <Badge variant="outline" className="text-xs" style={{ borderColor: edge.color + "50", color: edge.color }}>
-                            {edge.type}
-                          </Badge>
-                        </td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.protocol}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.port || "—"}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.packets.toLocaleString()}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.bytes.toLocaleString()}</td>
-                        <td className="py-2 px-3 font-mono text-xs">{edge.findingCount}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Edge Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Network Edges ({topology.data.edges.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/30 text-muted-foreground text-xs">
+                          <th className="text-left py-2 px-3">Source</th>
+                          <th className="text-left py-2 px-3">Target</th>
+                          <th className="text-left py-2 px-3">Type</th>
+                          <th className="text-left py-2 px-3">Protocol</th>
+                          <th className="text-left py-2 px-3">Port</th>
+                          <th className="text-left py-2 px-3">Packets</th>
+                          <th className="text-left py-2 px-3">Bytes</th>
+                          <th className="text-left py-2 px-3">Findings</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topology.data.edges.map((edge: any) => (
+                          <tr key={edge.id} className="border-b border-border/10 hover:bg-muted/10">
+                            <td className="py-2 px-3 font-mono text-xs">{edge.source}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.target}</td>
+                            <td className="py-2 px-3">
+                              <Badge variant="outline" className="text-xs" style={{ borderColor: edge.color + "50", color: edge.color }}>
+                                {edge.type}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.protocol}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.port || "—"}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.packets.toLocaleString()}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.bytes.toLocaleString()}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{edge.findingCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </>
       )}
 
-      {/* Auto-Capture Sessions */}
+      {/* Auto-Capture Sessions with One-Click Replay */}
       {autoCaptures.data && autoCaptures.data.length > 0 && (
-        <Card>
+        <Card className="border-amber-500/20">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Activity className="h-4 w-4 text-amber-400" />
               Auto-Capture Sessions (nmap-triggered)
             </CardTitle>
+            <CardDescription>
+              PCAPs captured automatically during nmap scans. Click "Replay" to instantly replay the captured traffic against the original target.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -1058,10 +1110,50 @@ function NetworkTopologyTab() {
                     {s.pcapPath && <span className="text-xs text-muted-foreground font-mono">{s.pcapPath}</span>}
                     {s.packetsCaptured > 0 && <span className="text-xs text-muted-foreground">{s.packetsCaptured} pkts</span>}
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(s.startedAt).toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{new Date(s.startedAt).toLocaleString()}</span>
+                    {s.status === "completed" && s.pcapPath && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-violet-400 border-violet-500/30 hover:bg-violet-500/10 h-7 text-xs"
+                        onClick={() => replayAutoCapture.mutate({
+                          sessionId: s.sessionId,
+                          engagementId: engId,
+                          speed: "original",
+                          captureResponses: true,
+                          label: `auto-replay-${s.target}`,
+                        })}
+                        disabled={replayAutoCapture.isPending}
+                      >
+                        {replayAutoCapture.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Play className="h-3 w-3 mr-1" />
+                        )}
+                        Replay
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
+
+            {/* Replay Result Inline */}
+            {replayAutoCapture.data && (
+              <div className="mt-4 bg-card/50 border border-violet-500/20 rounded-lg p-4 space-y-2">
+                <div className="text-xs font-semibold text-violet-400">AUTO-CAPTURE REPLAY RESULT</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-muted-foreground">Packets: </span><span className="font-mono text-violet-400">{replayAutoCapture.data.stats.packetsReplayed}</span></div>
+                  <div><span className="text-muted-foreground">Duration: </span><span className="font-mono">{replayAutoCapture.data.stats.durationMs}ms</span></div>
+                  <div><span className="text-muted-foreground">Avg Rate: </span><span className="font-mono">{replayAutoCapture.data.stats.avgPacketsPerSec.toFixed(0)} pps</span></div>
+                  <div><span className="text-muted-foreground">Bytes: </span><span className="font-mono">{replayAutoCapture.data.stats.bytesSent.toLocaleString()}</span></div>
+                </div>
+                {replayAutoCapture.data.responseCapture && (
+                  <div className="text-xs text-muted-foreground">Response Capture: <span className="font-mono">{replayAutoCapture.data.responseCapture.pcapPath}</span></div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
