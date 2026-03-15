@@ -1052,7 +1052,7 @@ export function generatePostExploitPlaybook(params: {
   });
 
   // ── Step 3b: AD-specific attacks (if Windows + AD) ──
-  if (params.hasActiveDirectory && params.targetPlatform === "windows") {
+  if (params.hasActiveDirectory !== undefined && params.hasActiveDirectory && params.targetPlatform === "windows") {
     const adFw = params.availableFrameworks.includes("empire") ? "empire" : credFw;
     steps.push({
       order: stepOrder++,
@@ -1134,7 +1134,7 @@ export function generatePostExploitPlaybook(params: {
     `Current OPSEC posture: ${FRAMEWORK_PROFILES[discoveryFw].opsecProfile.detectionDifficulty} detection difficulty`,
   ];
 
-  if (params.targetDefenses.length > 0) {
+  if (params.targetDefenses && params.targetDefenses.length > 0) {
     opsecGuidelines.push(`Known defenses: ${params.targetDefenses.join(", ")} — adjust techniques accordingly`);
   }
 
