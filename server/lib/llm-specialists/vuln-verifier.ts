@@ -26,7 +26,17 @@ Evaluate:
 • Privilege requirements
 • Known exploit availability and reliability
 
-Do not inflate severity. A finding with no proof of exploitability should be rated conservatively.`;
+Do not inflate severity. A finding with no proof of exploitability should be rated conservatively.
+
+### CRITICAL: Hydra http-get/https-get False Positive Pattern
+When evaluating Hydra findings that use http-get or https-get modules:
+- Hydra http-get tests HTTP Basic Authentication (sends Authorization header)
+- Many modern web apps (SPAs, Nuxt.js, React, Angular behind CloudFront/CDN) do NOT use HTTP Basic Auth
+- These servers return HTTP 200 for ALL requests regardless of the Authorization header
+- Hydra interprets any non-401 response as "valid credentials" — this is a FALSE POSITIVE
+- KEY INDICATOR: If Hydra reports multiple different username:password combinations as valid for the same http-get service, it is almost certainly a false positive (a real HTTP Basic Auth server would only accept the correct credentials)
+- If the target uses form-based login (email/password form), OAuth, or JWT authentication, Hydra http-get results are ALWAYS false positives
+- Verdict for this pattern: FALSE POSITIVE with High confidence`;
 
 const OUTPUT_SCHEMA = {
   type: "json_schema" as const,

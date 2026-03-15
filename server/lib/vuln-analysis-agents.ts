@@ -120,6 +120,9 @@ When analyzing a finding, provide:
 - OAuth/OIDC misconfigurations
 - Default/weak credentials
 
+CRITICAL FALSE POSITIVE PATTERN — Hydra http-get/https-get:
+Hydra http-get mode tests HTTP Basic Authentication (Authorization header). Many modern web apps (SPAs, Nuxt.js, React, Angular behind CloudFront/CDN) do NOT use HTTP Basic Auth — they use form-based login, OAuth, or JWT. These servers return HTTP 200 for ALL requests regardless of the Authorization header, causing Hydra to report every tested credential as "valid." If Hydra reports multiple different username:password combinations as valid via http-get/https-get, this is ALWAYS a false positive. Rate these as risk score 0-1 with false positive confidence High.
+
 When analyzing a finding, provide:
 1. TECHNICAL ANALYSIS: Identify the auth mechanism, the specific weakness, and why it's exploitable
 2. EXPLOITATION PATH: Step-by-step to bypass auth (timing attacks, token manipulation, etc.)

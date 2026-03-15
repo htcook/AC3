@@ -1958,32 +1958,98 @@ function parseToolOutput(
     case "hydra": {
       // Hydra: successful login — extract username/password and store on asset
       // Hydra output format: [<port>][<service>] host: <host>   login: <user>   password: <pass>
+      //
+      // FALSE POSITIVE DETECTION (http-get/https-get):
+      // Hydra http-get mode tests HTTP Basic Auth. If the server does NOT use
+      // HTTP Basic Auth (e.g., SPA behind CloudFront, form-based login), the
+      // server returns HTTP 200 for ALL requests regardless of the Authorization
+      // header. Hydra interprets every response as "valid credentials."
+      //
+      // Detection: If Hydra reports 3+ different credential pairs as valid for
+      // the same http-get/https-get service, it's almost certainly a false positive
+      // (a real server would only accept the correct credentials).
+      const httpGetHits: Array<{ line: string; login: string; pass: string; svc: string; port: number }> = [];
+      const nonHttpGetHits: Array<{ line: string; login: string; pass: string; svc: string; port: number }> = [];
+
       for (const line of stdout.split("\n")) {
         if (line.includes("login:") && line.includes("password:")) {
-          findings.push({
-            severity: "critical",
-            title: `[Hydra] Valid credentials found: ${line.trim().slice(0, 100)}`,
-          });
-
-          // Extract structured credential data for ZAP auth handoff
           const loginMatch = line.match(/login:\s*(\S+)/);
           const passMatch = line.match(/password:\s*(\S*)/);
           const svcMatch = line.match(/\[\d+\]\[(\S+)\]/) || line.match(/\[(\S+)\]/);
           const portMatch = line.match(/\[(\d+)\]/);
+          const svc = svcMatch?.[1] || 'http';
+          const port = portMatch ? parseInt(portMatch[1], 10) : (asset.ports[0]?.port || 80);
 
-          if (loginMatch && passMatch && asset.confirmedCredentials) {
+          const hit = {
+            line: line.trim(),
+            login: loginMatch?.[1] || '',
+            pass: passMatch?.[1] || '',
+            svc,
+            port,
+          };
+
+          if (svc === 'http-get' || svc === 'https-get') {
+            httpGetHits.push(hit);
+          } else {
+            nonHttpGetHits.push(hit);
+          }
+        }
+      }
+
+      // FP Detection: If Hydra reports 3+ different user:pass combos via http-get/https-get,
+      // the server is NOT using HTTP Basic Auth — it returns 200 for everything.
+      // Also flag if 2+ hits have DIFFERENT passwords for the same username (impossible for real auth).
+      const isHttpGetFalsePositive = httpGetHits.length >= 3 ||
+        (httpGetHits.length >= 2 && new Set(httpGetHits.map(h => h.pass)).size >= 2);
+
+      if (isHttpGetFalsePositive && httpGetHits.length > 0) {
+        // Downgrade to info — server does not use HTTP Basic Auth
+        findings.push({
+          severity: "info",
+          title: `[Hydra] FALSE POSITIVE: Server returns HTTP 200 for all requests (no HTTP Basic Auth) — ${httpGetHits.length} credentials reported but server ignores Authorization header`,
+        });
+        // Do NOT add to confirmedCredentials — these are not real
+      } else {
+        // Genuine http-get/https-get hits (1-2 unique creds = plausible)
+        for (const hit of httpGetHits) {
+          findings.push({
+            severity: "critical",
+            title: `[Hydra] Valid credentials found: ${hit.line.slice(0, 100)}`,
+          });
+          if (asset.confirmedCredentials) {
             asset.confirmedCredentials.push({
-              username: loginMatch[1],
-              password: passMatch[1],
-              service: svcMatch?.[1] || 'http',
-              port: portMatch ? parseInt(portMatch[1], 10) : (asset.ports[0]?.port || 80),
-              protocol: svcMatch?.[1]?.includes('http') ? 'http' : (svcMatch?.[1] || 'unknown'),
+              username: hit.login,
+              password: hit.pass,
+              service: hit.svc,
+              port: hit.port,
+              protocol: hit.svc.includes('http') ? 'http' : 'unknown',
               accessLevel: 'authenticated',
               source: 'hydra',
-              responseSnippet: line.trim().slice(0, 200),
+              responseSnippet: hit.line.slice(0, 200),
               confirmedAt: Date.now(),
             });
           }
+        }
+      }
+
+      // Non-http-get hits (SSH, FTP, etc.) — always trust these
+      for (const hit of nonHttpGetHits) {
+        findings.push({
+          severity: "critical",
+          title: `[Hydra] Valid credentials found: ${hit.line.slice(0, 100)}`,
+        });
+        if (asset.confirmedCredentials) {
+          asset.confirmedCredentials.push({
+            username: hit.login,
+            password: hit.pass,
+            service: hit.svc,
+            port: hit.port,
+            protocol: hit.svc.includes('http') ? 'http' : (hit.svc || 'unknown'),
+            accessLevel: 'authenticated',
+            source: 'hydra',
+            responseSnippet: hit.line.slice(0, 200),
+            confirmedAt: Date.now(),
+          });
         }
       }
       break;
@@ -4132,6 +4198,80 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         } catch (e: any) {
           addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error`, detail: e.message });
         }
+      }
+    }
+
+    // ── Post-Hydra HTTP Credential Verification ──
+    // For any http-get/https-get credentials that passed the initial FP heuristic
+    // (1-2 hits), perform an active verification: fetch the target URL with and
+    // without the Authorization header and compare responses. If they're identical,
+    // the server doesn't use HTTP Basic Auth and the credentials are false positives.
+    const httpCreds = (asset.confirmedCredentials || []).filter(
+      c => c.source === 'hydra' && (c.service === 'http-get' || c.service === 'https-get')
+    );
+    if (httpCreds.length > 0) {
+      try {
+        const scheme = httpCreds[0].service === 'https-get' ? 'https' : 'http';
+        const verifyTarget = asset.hostname || asset.ip;
+        const verifyUrl = `${scheme}://${verifyTarget}:${httpCreds[0].port}/`;
+
+        // Use curl on the scan server to compare responses (with and without auth)
+        const baselineResult = await execToolCred({
+          tool: 'curl',
+          args: `-s -o /dev/null -w '%{http_code}:%{size_download}' --connect-timeout 5 --max-time 10 -L ${verifyUrl}`,
+          target: verifyTarget,
+          timeoutSeconds: 30,
+          engagementId: state.engagementId,
+        });
+        const authResult = await execToolCred({
+          tool: 'curl',
+          args: `-s -o /dev/null -w '%{http_code}:%{size_download}' --connect-timeout 5 --max-time 10 -L -u '${httpCreds[0].username}:${httpCreds[0].password}' ${verifyUrl}`,
+          target: verifyTarget,
+          timeoutSeconds: 30,
+          engagementId: state.engagementId,
+        });
+
+        const baselineResp = baselineResult.stdout.trim();
+        const authResp = authResult.stdout.trim();
+
+        if (baselineResp === authResp) {
+          // Responses identical — server ignores Authorization header → false positive
+          addLog(state, {
+            phase: 'vuln_detection',
+            type: 'llm_decision',
+            title: `⚠️ Hydra HTTP Credential Verification: FALSE POSITIVE`,
+            detail: `Server at ${verifyUrl} returns identical response (${baselineResp}) with and without credentials. HTTP Basic Auth is not in use. Removing ${httpCreds.length} false positive credential(s) from findings.`,
+          });
+
+          // Remove false positive credentials from confirmedCredentials
+          asset.confirmedCredentials = (asset.confirmedCredentials || []).filter(
+            c => !(c.source === 'hydra' && (c.service === 'http-get' || c.service === 'https-get'))
+          );
+
+          // Downgrade corresponding vulns from critical to info
+          for (const vuln of asset.vulns) {
+            if (vuln.title?.includes('[Hydra]') && vuln.title?.includes('http-get')) {
+              vuln.severity = 'info';
+              vuln.title = vuln.title.replace('[Hydra] Valid credentials found:', '[Hydra] FALSE POSITIVE (no HTTP Basic Auth):');
+              vuln.corroborationTier = 'unverified';
+              vuln.evidenceDetail = 'Downgraded: server returns identical response with and without credentials — HTTP Basic Auth not in use';
+            }
+          }
+        } else {
+          addLog(state, {
+            phase: 'vuln_detection',
+            type: 'llm_decision',
+            title: `✅ Hydra HTTP Credential Verification: CONFIRMED`,
+            detail: `Server at ${verifyUrl} returns different response with credentials (baseline: ${baselineResp}, auth: ${authResp}). Credentials are valid.`,
+          });
+        }
+      } catch (e: any) {
+        addLog(state, {
+          phase: 'vuln_detection',
+          type: 'info',
+          title: `Hydra HTTP Credential Verification: Skipped`,
+          detail: `Could not verify HTTP credentials: ${e.message}. Findings remain as-is.`,
+        });
       }
     }
   } catch (e: any) {
