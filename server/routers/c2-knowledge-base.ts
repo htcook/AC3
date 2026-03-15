@@ -8,12 +8,30 @@
  * 4. Adversary profile auto-generation
  * 5. Post-exploitation playbook generation
  * 6. Profile completeness scoring
+ * 7. Caldera server deployment (push profiles)
+ * 8. Post-exploitation auto-trigger on shell callback
+ * 9. Threat intel auto-enrich pipeline
  *
  * Author: Harrison Cook — AceofCloud
  */
 
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
+import {
+  pushProfileToCaldera,
+  batchPushProfilesToCaldera,
+  getDeploymentStatus,
+  verifyDeployedProfile,
+} from "../lib/caldera-profile-push";
+import {
+  triggerPostExploitPlaybook,
+  getPostExploitPlaybookForEngagement,
+} from "../lib/post-exploit-auto-trigger";
+import {
+  checkAndTriggerProfileGeneration,
+  getAutoGenerationHistory,
+  getAutoGenerationStats,
+} from "../lib/threat-intel-auto-enrich";
 import {
   FRAMEWORK_PROFILES,
   selectC2Framework,
@@ -355,6 +373,104 @@ export const c2KnowledgeBaseRouter = router({
         hasCalderaProfile: !!row.calderaProfile && row.calderaProfile !== "null",
       }));
     }),
+
+  // ─── Caldera Server Deployment ──────────────────────────────────────────
+
+  /**
+   * Push a generated adversary profile to the live Caldera C2 server
+   */
+  pushToCaldera: protectedProcedure
+    .input(z.object({ actorId: z.string() }))
+    .mutation(async ({ input }) => {
+      return pushProfileToCaldera(input.actorId);
+    }),
+
+  /**
+   * Batch push all eligible profiles to Caldera
+   */
+  batchPushToCaldera: protectedProcedure
+    .input(z.object({
+      minScore: z.number().default(60),
+      maxBatch: z.number().default(50),
+      dryRun: z.boolean().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      return batchPushProfilesToCaldera(input);
+    }),
+
+  /**
+   * Get deployment status for all actors with profiles
+   */
+  getDeploymentStatus: protectedProcedure.query(async () => {
+    return getDeploymentStatus();
+  }),
+
+  /**
+   * Verify a deployed profile still exists on the Caldera server
+   */
+  verifyDeployment: protectedProcedure
+    .input(z.object({ actorId: z.string() }))
+    .query(async ({ input }) => {
+      return verifyDeployedProfile(input.actorId);
+    }),
+
+  // ─── Post-Exploitation Auto-Trigger ────────────────────────────────────
+
+  /**
+   * Trigger post-exploitation playbook generation for a shell callback
+   */
+  triggerPostExploit: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      targetHost: z.string(),
+      targetPort: z.number().optional(),
+      shellPrivilege: z.enum(["user", "admin", "system", "root"]),
+      targetPlatform: z.enum(["windows", "linux", "macos"]),
+      shellSessionId: z.string().optional(),
+      shellType: z.string().optional(),
+      hasActiveDirectory: z.boolean().default(false),
+      objectives: z.array(z.string()).default(["Full compromise assessment"]),
+      threatActorToEmulate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return triggerPostExploitPlaybook(input);
+    }),
+
+  /**
+   * Get the post-exploitation playbook for an engagement
+   */
+  getEngagementPlaybook: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      return getPostExploitPlaybookForEngagement(input.engagementId);
+    }),
+
+  // ─── Threat Intel Auto-Enrich Pipeline ─────────────────────────────────
+
+  /**
+   * Manually trigger profile generation check for an actor
+   */
+  checkAutoGeneration: protectedProcedure
+    .input(z.object({ actorId: z.string() }))
+    .mutation(async ({ input }) => {
+      return checkAndTriggerProfileGeneration(input.actorId);
+    }),
+
+  /**
+   * Get auto-generation history
+   */
+  getAutoGenerationHistory: protectedProcedure
+    .input(z.object({ limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      return getAutoGenerationHistory(input.limit);
+    }),
+
+  /**
+   * Get auto-generation pipeline stats
+   */
+  getAutoGenerationStats: protectedProcedure.query(async () => {
+    return getAutoGenerationStats();
+  }),
 
   /**
    * Get summary stats for the knowledge base dashboard

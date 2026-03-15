@@ -16,6 +16,8 @@ import {
   Terminal, Radio, Cpu, Flame, Crown, Target, ChevronRight,
   BarChart3, Lock, Unlock, AlertTriangle, CheckCircle2,
   Play, Loader2, BookOpen, Layers, Swords, ArrowRight,
+  Upload, RefreshCw, Clock, Rocket, Activity, Settings2,
+  CloudUpload, Workflow, Sparkles, XCircle,
 } from "lucide-react";
 
 // ─── Framework Profiles Tab ─────────────────────────────────────────────────
@@ -716,6 +718,241 @@ function AdversaryProfileTab() {
   );
 }
 
+// ─── Caldera Deployment Tab ──────────────────────────────────────────────────
+
+function CalderaDeploymentTab() {
+  const { data: deploymentStatus, isLoading, refetch } = trpc.c2KnowledgeBase.getDeploymentStatus.useQuery();
+  const { data: autoGenStats } = trpc.c2KnowledgeBase.getAutoGenerationStats.useQuery();
+  const { data: autoGenHistory } = trpc.c2KnowledgeBase.getAutoGenerationHistory.useQuery({ limit: 15 });
+
+  const pushMutation = trpc.c2KnowledgeBase.pushToCaldera.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(`Deployed to Caldera: ${data.adversaryId}`);
+        refetch();
+      } else {
+        toast.error(data.error || "Push failed");
+      }
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const batchPushMutation = trpc.c2KnowledgeBase.batchPushToCaldera.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Batch push: ${data.pushed} deployed, ${data.skipped} skipped, ${data.failed} failed`);
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const checkAutoGenMutation = trpc.c2KnowledgeBase.checkAutoGeneration.useMutation({
+    onSuccess: (data) => {
+      if (data.profileGenerated) {
+        toast.success(`Auto-generated profile for ${data.actorName}${data.pushedToCaldera ? " and pushed to Caldera" : ""}`);
+      } else if (data.thresholdMet) {
+        toast.info(`Threshold met but generation skipped: ${data.error || "already exists"}`);
+      } else {
+        toast.info(`Score ${data.newScore}/100 — below threshold`);
+      }
+      refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const statusColors: Record<string, string> = {
+    deployed: "text-green-400 bg-green-500/10",
+    local_only: "text-blue-400 bg-blue-500/10",
+    pending: "text-yellow-400 bg-yellow-500/10",
+    failed: "text-red-400 bg-red-500/10",
+    updated: "text-cyan-400 bg-cyan-500/10",
+  };
+
+  const statusIcons: Record<string, React.ReactNode> = {
+    deployed: <CheckCircle2 className="h-3 w-3" />,
+    local_only: <CloudUpload className="h-3 w-3" />,
+    pending: <Loader2 className="h-3 w-3 animate-spin" />,
+    failed: <XCircle className="h-3 w-3" />,
+    updated: <RefreshCw className="h-3 w-3" />,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Pipeline Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {[
+          { label: "Total Checks", value: autoGenStats?.totalChecks ?? 0, icon: Activity },
+          { label: "Generated", value: autoGenStats?.totalGenerated ?? 0, icon: Sparkles },
+          { label: "Pushed", value: autoGenStats?.totalPushed ?? 0, icon: Upload },
+          { label: "Skipped", value: autoGenStats?.totalSkipped ?? 0, icon: ChevronRight },
+          { label: "Failed", value: autoGenStats?.totalFailed ?? 0, icon: XCircle },
+          { label: "Threshold", value: autoGenStats?.configuredThreshold ?? 60, icon: Settings2 },
+        ].map(stat => (
+          <Card key={stat.label} className="bg-card/50">
+            <CardContent className="p-3 text-center">
+              <stat.icon className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+              <div className="text-lg font-bold">{stat.value}</div>
+              <div className="text-[10px] text-muted-foreground">{stat.label}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Deployment Status + Actions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Rocket className="h-5 w-5 text-orange-400" /> Caldera Deployment Status
+              </CardTitle>
+              <CardDescription>
+                Push generated adversary profiles to the live Caldera C2 server for emulation campaigns
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetch()}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => batchPushMutation.mutate({ dryRun: false, minScore: 60 })}
+                disabled={batchPushMutation.isPending}
+              >
+                {batchPushMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Batch Push All
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading deployment status...</div>
+          ) : !deploymentStatus || deploymentStatus.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CloudUpload className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No adversary profiles generated yet.</p>
+              <p className="text-xs">Generate profiles from the Adversary Profiles tab first.</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-80">
+              <div className="space-y-2">
+                {deploymentStatus.map(item => (
+                  <div
+                    key={item.actorId}
+                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 hover:border-primary/30 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Badge className={`text-[10px] px-1.5 py-0.5 ${statusColors[item.status] || ""}`}>
+                        {statusIcons[item.status]} <span className="ml-1">{item.status.replace("_", " ")}</span>
+                      </Badge>
+                      <div>
+                        <div className="text-sm font-medium">{item.actorName}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.abilityCount} abilities
+                          {item.deployedAt && ` · Deployed ${new Date(item.deployedAt).toLocaleDateString()}`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {item.status !== "deployed" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => pushMutation.mutate({ actorId: item.actorId })}
+                          disabled={pushMutation.isPending}
+                        >
+                          {pushMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Upload className="h-3 w-3" />
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => checkAutoGenMutation.mutate({ actorId: item.actorId })}
+                        disabled={checkAutoGenMutation.isPending}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+          {deploymentStatus && deploymentStatus.length > 0 && (
+            <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500" /> Deployed: {deploymentStatus.filter(d => d.status === "deployed").length}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500" /> Local: {deploymentStatus.filter(d => d.status === "local_only").length}
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500" /> Failed: {deploymentStatus.filter(d => d.status === "failed").length}
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Auto-Generation History */}
+      {autoGenHistory && autoGenHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Workflow className="h-5 w-5 text-purple-400" /> Auto-Generation Pipeline History
+            </CardTitle>
+            <CardDescription>
+              Automatic profile generation triggered by threat intel enrichment
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-64">
+              <div className="space-y-2">
+                {autoGenHistory.map((event, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/20 text-xs">
+                    <div className="shrink-0 mt-0.5">
+                      {event.profileGenerated ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      ) : event.thresholdMet ? (
+                        <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">{event.actorName}</div>
+                      <div className="text-muted-foreground">
+                        Score: {event.newScore}/100 · Source: {event.triggerSource.replace("_", " ")}
+                        {event.pushedToCaldera && " · Pushed to Caldera"}
+                        {event.error && ` · ${event.error}`}
+                      </div>
+                    </div>
+                    <div className="text-muted-foreground shrink-0">
+                      {new Date(event.triggeredAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Post-Exploitation Playbook Tab ─────────────────────────────────────────
 
 function PlaybookTab() {
@@ -989,7 +1226,7 @@ const C2KnowledgeBase: React.FC = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="profiles" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="profiles" className="text-xs">
               <Server className="h-3.5 w-3.5 mr-1.5" /> Frameworks
             </TabsTrigger>
@@ -998,6 +1235,9 @@ const C2KnowledgeBase: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger value="adversary" className="text-xs">
               <Target className="h-3.5 w-3.5 mr-1.5" /> Adversary Profiles
+            </TabsTrigger>
+            <TabsTrigger value="deployment" className="text-xs">
+              <Rocket className="h-3.5 w-3.5 mr-1.5" /> Deploy & Pipeline
             </TabsTrigger>
             <TabsTrigger value="playbook" className="text-xs">
               <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Playbooks
@@ -1010,6 +1250,7 @@ const C2KnowledgeBase: React.FC = () => {
           <TabsContent value="profiles"><FrameworkProfilesTab /></TabsContent>
           <TabsContent value="recommend"><RecommendationTab /></TabsContent>
           <TabsContent value="adversary"><AdversaryProfileTab /></TabsContent>
+          <TabsContent value="deployment"><CalderaDeploymentTab /></TabsContent>
           <TabsContent value="playbook"><PlaybookTab /></TabsContent>
           <TabsContent value="matrix"><ComparisonMatrixTab /></TabsContent>
         </Tabs>
