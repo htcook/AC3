@@ -272,7 +272,7 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
 
 // ─── LLM System Prompt ──────────────────────────────────────────────────────
 
-const WORKFLOW_SYSTEM_PROMPT = `You are the Ace C3 Engagement Workflow Engine — an autonomous red team engagement orchestrator.
+const WORKFLOW_SYSTEM_PROMPT = `You are the AC3 Engagement Workflow Engine — an autonomous red team engagement orchestrator.
 
 You manage the full kill chain lifecycle for penetration tests and red team exercises. Your role is to:
 1. Analyze the current engagement state (findings, shells, credentials, phase progress)
@@ -575,7 +575,7 @@ export async function generatePhaseHandoff(
       messages: [
         {
           role: "system",
-          content: `You are the Ace C3 phase handoff briefer. Generate a concise operational briefing for the team transitioning from "${fromPhase}" to "${toPhase}". Include: key findings summary, prioritized targets, and recommended approach for the next phase.`,
+          content: `You are the AC3 phase handoff briefer. Generate a concise operational briefing for the team transitioning from "${fromPhase}" to "${toPhase}". Include: key findings summary, prioritized targets, and recommended approach for the next phase.`,
         },
         {
           role: "user",

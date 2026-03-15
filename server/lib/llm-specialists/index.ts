@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist Architecture — Module Index
+ * AC3 LLM Specialist Architecture — Module Index
  *
  * Specialist dispatch pattern:
  *   Orchestrator

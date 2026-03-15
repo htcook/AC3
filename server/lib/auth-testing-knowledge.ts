@@ -2,7 +2,7 @@
  * Authentication Testing Knowledge Base — Auth Pack v1.2 Integration
  *
  * Structured knowledge for authentication portal testing derived from the
- * Ace C3 Authentication Testing Knowledge Pack. Covers:
+ * AC3 Authentication Testing Knowledge Pack. Covers:
  * - 6-phase auth testing methodology
  * - 5 attack classes with signals and subtypes
  * - Auth-specific MITRE ATT&CK mappings

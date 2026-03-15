@@ -267,7 +267,7 @@ export class DefenderClient extends BaseVendorClient {
 
   // ─── Machine Actions ───────────────────────────────────────────────────────
 
-  async isolateMachine(machineId: string, comment: string = "Isolated via Ace C3"): Promise<void> {
+  async isolateMachine(machineId: string, comment: string = "Isolated via AC3"): Promise<void> {
     await this.request({
       method: "POST",
       url: `/machines/${machineId}/isolate`,
@@ -275,7 +275,7 @@ export class DefenderClient extends BaseVendorClient {
     });
   }
 
-  async unisolateMachine(machineId: string, comment: string = "Released via Ace C3"): Promise<void> {
+  async unisolateMachine(machineId: string, comment: string = "Released via AC3"): Promise<void> {
     await this.request({
       method: "POST",
       url: `/machines/${machineId}/unisolate`,

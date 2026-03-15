@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Threat Actor Mapper
+ * AC3 LLM Specialist — Threat Actor Mapper
  *
  * Correlates findings with APT and cybercrime groups.
  * Used after passive/active scanning to identify relevant threat actors.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from ".
 
 const ROLE_PROMPT = `## Role: Threat Actor Correlation Engine
 
-You are the Ace C3 Threat Actor Correlation Engine.
+You are the AC3 Threat Actor Correlation Engine.
 
 Your job is to identify which threat actors may realistically target the organization or infrastructure based on observed evidence.
 

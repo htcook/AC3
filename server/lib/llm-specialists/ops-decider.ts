@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Operations Decider
+ * AC3 LLM Specialist — Operations Decider
  *
  * Determines the next best action in the engagement pipeline.
  * Replaces the monolithic llmDecide function with focused decision-making.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Operations Decision Engine
 
-You are the Ace C3 Operations Decision Engine.
+You are the AC3 Operations Decision Engine.
 
 Your task is to determine the optimal next action in an ongoing penetration test engagement.
 

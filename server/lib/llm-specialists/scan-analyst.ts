@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Scan Analyst
+ * AC3 LLM Specialist — Scan Analyst
  *
  * Interprets reconnaissance and scan data like a senior penetration tester.
  * Used during passive recon analysis and active scan interpretation.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from ".
 
 const ROLE_PROMPT = `## Role: Scan Analyst
 
-You are the Ace C3 Scan Analysis Module.
+You are the AC3 Scan Analysis Module.
 
 Your job is to interpret reconnaissance and scan data like a senior penetration tester.
 

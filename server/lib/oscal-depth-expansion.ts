@@ -2,7 +2,7 @@
  * OSCAL Export Depth Expansion — P1 Gap Remediation
  * 
  * Adds missing OSCAL document generators:
- * - Component Definition: Maps ACE C3 capabilities to NIST 800-53 controls
+ * - Component Definition: Maps AC3 capabilities to NIST 800-53 controls
  * - Assessment Plan: Generates structured assessment plans with schedules
  * - Catalog: Generates custom control catalogs from KSI definitions
  * - Profile: Generates tailored control profiles for specific baselines
@@ -97,7 +97,7 @@ export function generateComponentDefinition(
         parties: [{
           uuid: generateUUID(),
           type: "organization",
-          name: "ACE C3 Platform — Cyber C2 Dashboard",
+          name: "AC3 Platform — Cyber C2 Dashboard",
         }],
         props: [
           { name: "fedramp-ready", value: "true" },
@@ -107,7 +107,7 @@ export function generateComponentDefinition(
       components: [{
         uuid: componentUuid,
         type: "software",
-        title: "ACE C3 Offensive Security Platform",
+        title: "AC3 Offensive Security Platform",
         description: "Comprehensive offensive security platform providing red team operations, vulnerability assessment, compliance validation, and continuous monitoring capabilities.",
         purpose: "Automate and manage offensive security assessments with full compliance traceability.",
         props: [
@@ -118,7 +118,7 @@ export function generateComponentDefinition(
         "control-implementations": [{
           uuid: generateUUID(),
           source: "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog.json",
-          description: "NIST SP 800-53 Rev 5 control implementations provided by ACE C3",
+          description: "NIST SP 800-53 Rev 5 control implementations provided by AC3",
           "implemented-requirements": capabilities.map(cap => ({
             uuid: generateUUID(),
             "control-id": cap.controlIds[0] || "AC-1",
@@ -234,13 +234,13 @@ export function generateAssessmentPlan(
       },
       "assessment-subjects": [{
         type: "component",
-        description: "ACE C3 Platform components under assessment",
+        description: "AC3 Platform components under assessment",
         "include-all": {},
       }],
       "assessment-assets": {
         "assessment-platforms": [{
           uuid: generateUUID(),
-          title: "ACE C3 Automated Assessment Engine",
+          title: "AC3 Automated Assessment Engine",
           props: [
             { name: "platform-type", value: "automated" },
             { name: "fips-compliant", value: "true" },
@@ -365,10 +365,10 @@ export function generateTailoredProfile(
   };
 }
 
-// ─── ACE C3 Capability Mapping ──────────────────────────────────────────────
+// ─── AC3 Capability Mapping ──────────────────────────────────────────────
 
 /**
- * Maps ACE C3 platform capabilities to NIST 800-53 controls.
+ * Maps AC3 platform capabilities to NIST 800-53 controls.
  * Used by the Component Definition generator.
  */
 export const ACE_C3_CAPABILITIES = [

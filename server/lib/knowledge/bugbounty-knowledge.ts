@@ -2,7 +2,7 @@
  * Bug Bounty Knowledge Module
  * 
  * Loads attack patterns, extraction rules, and triage prompts from the
- * Ace C3 Bug Bounty Knowledge Training Bundle. Provides context injection
+ * AC3 Bug Bounty Knowledge Training Bundle. Provides context injection
  * for the orchestrator's LLM prompts during vulnerability hypothesis
  * generation and scan triage phases.
  */

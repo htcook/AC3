@@ -1,7 +1,7 @@
 /**
  * STIX 2.1 Bundle Generator
  * 
- * Converts Ace C3 threat intelligence data into STIX 2.1 compliant bundles
+ * Converts AC3 threat intelligence data into STIX 2.1 compliant bundles
  * for sharing with ISACs, SOC teams, and partner organizations.
  * 
  * Supports: Intrusion Set, Indicator, Vulnerability, Campaign, Malware,
@@ -75,7 +75,7 @@ function safeArray(val: unknown): any[] {
   return [];
 }
 
-// ─── Ace C3 Identity (source of all intelligence) ─────────────────────────────
+// ─── AC3 Identity (source of all intelligence) ─────────────────────────────
 
 export function createAceC3Identity(): StixObject {
   return {
@@ -84,7 +84,7 @@ export function createAceC3Identity(): StixObject {
     id: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
     created: "2026-01-01T00:00:00.000Z",
     modified: isoNow(),
-    name: "Ace C3 - Cyber Campaign Command",
+    name: "AC3 - Cyber Campaign Command",
     description: "Unified red team operations, threat intelligence, and engagement management platform by AceofCloud",
     identity_class: "organization",
     sectors: ["technology"],
@@ -165,7 +165,7 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
     created,
     modified,
     name: actor.name,
-    description: actor.description || `Threat actor tracked by Ace C3: ${actor.name}`,
+    description: actor.description || `Threat actor tracked by AC3: ${actor.name}`,
     aliases: aliases.length > 0 ? aliases : undefined,
     first_seen: toIso(actor.firstSeen),
     last_seen: toIso(actor.lastActive),
@@ -179,9 +179,9 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
     created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
-        source_name: "Ace C3",
+        source_name: "AC3",
         external_id: actor.actorId,
-        description: `Ace C3 actor ID: ${actor.actorId}`,
+        description: `AC3 actor ID: ${actor.actorId}`,
       },
     ],
   };
@@ -336,7 +336,7 @@ export function iocToStix(ioc: IocInput): StixObject | null {
     created: toIso(ioc.firstSeen) || now,
     modified: now,
     name: `${ioc.type.toUpperCase()}: ${ioc.value}`,
-    description: ioc.description || `IOC indicator from Ace C3 (${ioc.source || "unknown source"})`,
+    description: ioc.description || `IOC indicator from AC3 (${ioc.source || "unknown source"})`,
     indicator_types: ["malicious-activity"],
     pattern,
     pattern_type: "stix",
@@ -346,8 +346,8 @@ export function iocToStix(ioc: IocInput): StixObject | null {
     created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
-        source_name: ioc.source || "Ace C3",
-        description: `IOC from ${ioc.source || "Ace C3 platform"}`,
+        source_name: ioc.source || "AC3",
+        description: `IOC from ${ioc.source || "AC3 platform"}`,
       },
     ],
     object_marking_refs: ["marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9"], // TLP:WHITE
@@ -469,9 +469,9 @@ export function engagementToStix(engagement: EngagementInput): StixObject {
     created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
-        source_name: "Ace C3",
+        source_name: "AC3",
         external_id: `engagement-${engagement.id}`,
-        description: `Ace C3 engagement: ${engagement.name}`,
+        description: `AC3 engagement: ${engagement.name}`,
       },
     ],
     object_marking_refs: ["marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9"],
@@ -587,7 +587,7 @@ export function createStixBundle(objects: StixObject[]): StixBundle {
   const seen = new Set<string>();
   const deduped: StixObject[] = [];
   
-  // Always include the Ace C3 identity and TLP marking
+  // Always include the AC3 identity and TLP marking
   const identity = createAceC3Identity();
   deduped.push(identity);
   seen.add(identity.id);
@@ -645,23 +645,23 @@ export interface TaxiiCollection {
 export const TAXII_COLLECTIONS: TaxiiCollection[] = [
   {
     id: "ace-c3-threat-actors",
-    title: "Ace C3 Threat Actors",
-    description: "Threat actor profiles (intrusion sets) from the Ace C3 threat catalog",
+    title: "AC3 Threat Actors",
+    description: "Threat actor profiles (intrusion sets) from the AC3 threat catalog",
     can_read: true,
     can_write: false,
     media_types: ["application/stix+json;version=2.1"],
   },
   {
     id: "ace-c3-indicators",
-    title: "Ace C3 Indicators",
-    description: "IOC indicators from Ace C3 feeds (Abuse.ch, ThreatFox, CISA KEV)",
+    title: "AC3 Indicators",
+    description: "IOC indicators from AC3 feeds (Abuse.ch, ThreatFox, CISA KEV)",
     can_read: true,
     can_write: false,
     media_types: ["application/stix+json;version=2.1"],
   },
   {
     id: "ace-c3-vulnerabilities",
-    title: "Ace C3 Vulnerabilities",
+    title: "AC3 Vulnerabilities",
     description: "Vulnerability data from KEV, NVD, and exploit catalog",
     can_read: true,
     can_write: false,
@@ -669,16 +669,16 @@ export const TAXII_COLLECTIONS: TaxiiCollection[] = [
   },
   {
     id: "ace-c3-campaigns",
-    title: "Ace C3 Campaigns",
-    description: "Red team engagement campaigns from Ace C3",
+    title: "AC3 Campaigns",
+    description: "Red team engagement campaigns from AC3",
     can_read: true,
     can_write: false,
     media_types: ["application/stix+json;version=2.1"],
   },
   {
     id: "ace-c3-all",
-    title: "Ace C3 Complete Intelligence",
-    description: "All threat intelligence from the Ace C3 platform",
+    title: "AC3 Complete Intelligence",
+    description: "All threat intelligence from the AC3 platform",
     can_read: true,
     can_write: false,
     media_types: ["application/stix+json;version=2.1"],

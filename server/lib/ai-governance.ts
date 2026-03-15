@@ -1,5 +1,5 @@
 /**
- * Ace C3 — Unified AI Governance & Guardrails Module
+ * AC3 — Unified AI Governance & Guardrails Module
  *
  * Consolidates all AI/LLM safety, compliance, and governance controls into
  * a single enforceable system aligned with U.S. government requirements:
@@ -110,7 +110,7 @@ export function deregisterModel(modelId: string): boolean {
 // Initialize default model registry with platform's known models
 registerModel({
   modelId: "ace-c3-primary",
-  modelName: "Ace C3 Security Reasoning Engine",
+  modelName: "AC3 Security Reasoning Engine",
   modelVersion: "1.0.0",
   provider: "OpenAI (via Manus Forge)",
   modelType: "llm",
@@ -932,7 +932,7 @@ export function generateComplianceAttestation(framework: ComplianceFramework): C
     framework,
     overallStatus: ratio >= 0.9 ? "compliant" : ratio >= 0.6 ? "partial" : "non_compliant",
     controlResults: controls,
-    attestedBy: "Ace C3 AI Governance Module v1.0",
+    attestedBy: "AC3 AI Governance Module v1.0",
     validUntil: Date.now() + 90 * 86_400_000, // 90-day validity
     evidence: [
       "server/lib/ai-governance.ts — Unified governance module",

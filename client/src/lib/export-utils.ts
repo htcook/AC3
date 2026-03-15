@@ -89,7 +89,7 @@ export async function exportToPdf(
   doc.setFontSize(8);
   doc.setTextColor(161, 161, 170); // zinc-400
   doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 25);
-  doc.text('ACE C3 Platform', pageWidth - 40, 25);
+  doc.text('AC3 Platform', pageWidth - 40, 25);
 
   yPos = 34;
 
@@ -411,7 +411,7 @@ export async function exportExecutiveSummary(
   doc.text(domain, 20, 35);
   doc.setFontSize(9);
   doc.setTextColor(161, 161, 170);
-  doc.text(`Generated: ${new Date().toLocaleString()} | ACE C3 Platform`, 20, 50);
+  doc.text(`Generated: ${new Date().toLocaleString()} | AC3 Platform`, 20, 50);
 
   let y = 70;
 
@@ -1009,7 +1009,7 @@ export async function exportExecutiveSummaryWithValidation(
   doc.text(domain, 20, 35);
   doc.setFontSize(9);
   doc.setTextColor(161, 161, 170);
-  doc.text(`Generated: ${new Date().toLocaleString()} | ACE C3 Platform`, 20, 50);
+  doc.text(`Generated: ${new Date().toLocaleString()} | AC3 Platform`, 20, 50);
 
   let y = 70;
 

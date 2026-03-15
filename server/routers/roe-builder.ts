@@ -215,7 +215,7 @@ export const roeBuilderRouter = router({
         title: input.title,
         engagementId: input.engagementId ?? null,
         organizationName: input.organizationName ?? null,
-        testingFirmName: input.testingFirmName ?? "ACE C3 — AceofCloud",
+        testingFirmName: input.testingFirmName ?? "AC3 — AceofCloud",
         fedrampCompliant: input.fedrampCompliant,
         fedrampImpactLevel: input.fedrampImpactLevel,
         serviceModel: input.serviceModel,

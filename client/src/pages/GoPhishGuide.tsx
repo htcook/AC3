@@ -76,7 +76,7 @@ export default function GoPhishGuide() {
             <h1 className="font-display text-3xl tracking-wider">PHISHING CAMPAIGN GUIDE</h1>
           </div>
           <p className="text-muted-foreground text-lg">Complete guide to designing and managing phishing test campaigns for your customers using phishing platform.</p>
-          <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
+          <p className="text-xs text-muted-foreground mt-2">AC3 — AceofCloud</p>
         </div>
 
         {/* Quick Reference */}

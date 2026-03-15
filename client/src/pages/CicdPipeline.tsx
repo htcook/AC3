@@ -219,7 +219,7 @@ export default function CicdPipelinePage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Pipelines</CardTitle>
-                        <CardDescription>CI/CD pipelines integrated with Ace C3.</CardDescription>
+                        <CardDescription>CI/CD pipelines integrated with AC3.</CardDescription>
                     </div>
                     <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
                         <DialogTrigger asChild>

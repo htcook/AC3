@@ -1,4 +1,4 @@
-Ace C3 Bug Bounty Knowledge Training Bundle
+AC3 Bug Bounty Knowledge Training Bundle
 Generated: 2026-03-06
 
 This bundle is designed to plug into your existing bug bounty module and produce:

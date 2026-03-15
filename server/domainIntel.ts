@@ -1493,7 +1493,7 @@ Key Findings:
 ${allFindings.slice(0, 10).map(f => `- ${f.title} (severity: ${f.severity}/10)`).join('\n')}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas, and a recommendation on whether to proceed with a full engagement (campaign design + threat actor profiling). Written for Ace C3 by AceofCloud.
+1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas, and a recommendation on whether to proceed with a full engagement (campaign design + threat actor profiling). Written for AC3 by AceofCloud.
 2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Note that campaign design and threat actor matching have not yet been performed — this is a pre-engagement scan.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
@@ -1566,7 +1566,7 @@ Campaigns Designed:
 ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written for Ace C3 by AceofCloud.
+1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written for AC3 by AceofCloud.
 2. "threatModelSummary": A technical threat model summary covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;

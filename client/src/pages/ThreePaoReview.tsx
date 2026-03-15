@@ -34,7 +34,7 @@ export default function ThreePaoReview() {
         k.ksiId.toLowerCase().includes(q) ||
         (k.title || "").toLowerCase().includes(q) ||
         (k.themeName || "").toLowerCase().includes(q) ||
-        (k.aceC3Module || "").toLowerCase().includes(q)
+        (k.ac3Module || "").toLowerCase().includes(q)
       );
     }
     return ksis;
@@ -283,8 +283,8 @@ export default function ThreePaoReview() {
                                 <Badge variant="outline">{ksi.coverageStatus}</Badge>
                               </div>
                               <div>
-                                <div className="text-muted-foreground mb-1">ACE C3 Module</div>
-                                <span className="font-medium">{ksi.aceC3Module || "N/A"}</span>
+                                <div className="text-muted-foreground mb-1">AC3 Module</div>
+                                <span className="font-medium">{ksi.ac3Module || "N/A"}</span>
                               </div>
                               <div>
                                 <div className="text-muted-foreground mb-1">Validation Type</div>

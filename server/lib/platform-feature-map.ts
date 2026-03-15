@@ -1,5 +1,5 @@
 /**
- * Platform Feature Map — Comprehensive guide to every module in the Ace C3 platform.
+ * Platform Feature Map — Comprehensive guide to every module in the AC3 platform.
  *
  * The AI chat bot injects the relevant section based on the user's current page,
  * so it can answer "what does this page do?" and guide users through features.
@@ -243,8 +243,8 @@ export function buildPlatformOverview(): string {
   }
 
   const parts: string[] = [
-    `\n--- ACE C3 PLATFORM OVERVIEW ---`,
-    `Ace C3 (Cyber Command & Control) is a comprehensive offensive security platform built by AceofCloud.`,
+    `\n--- AC3 PLATFORM OVERVIEW ---`,
+    `AC3 (Cyber Command & Control) is a comprehensive offensive security platform built by AceofCloud.`,
     `It provides end-to-end capabilities for penetration testing, red teaming, and security validation.`,
     `\nPlatform Modules:`,
   ];

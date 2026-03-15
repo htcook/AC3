@@ -166,7 +166,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
             <div className="relative w-72 bg-background border-r flex flex-col h-full animate-in slide-in-from-left duration-200">
               <div className="h-14 flex items-center justify-between px-3 border-b">
-                <span className="font-semibold text-sm tracking-tight">ACE C3</span>
+                <span className="font-semibold text-sm tracking-tight">AC3</span>
                 <button
                   onClick={() => setMobileOpen(false)}
                   className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent"
@@ -344,7 +344,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <div className="h-14 flex items-center justify-between px-3 border-b shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold tracking-tight text-sm">ACE C3</span>
+            <span className="font-semibold tracking-tight text-sm">AC3</span>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>

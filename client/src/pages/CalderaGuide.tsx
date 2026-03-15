@@ -75,7 +75,7 @@ export default function CalderaGuide() {
             <h1 className="font-display text-3xl tracking-wider">ADVERSARY EMULATION GUIDE</h1>
           </div>
           <p className="text-muted-foreground text-lg">Complete guide to adversary emulation, red team operations, and automated attack simulation using the adversary emulation framework.</p>
-          <p className="text-xs text-muted-foreground mt-2">Ace C3 — AceofCloud</p>
+          <p className="text-xs text-muted-foreground mt-2">AC3 — AceofCloud</p>
         </div>
 
         {/* Quick Reference */}

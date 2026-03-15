@@ -2,7 +2,7 @@ import * as db from "../db";
 /**
  * Phishing Operations Router
  *
- * Unified backend for the Ace C3 phishing automation pipeline.
+ * Unified backend for the AC3 phishing automation pipeline.
  * Connects domain intel scan results → APT matching → campaign materialization
  * → GoPhish deployment → Caldera post-exploitation triggering.
  */
@@ -212,7 +212,7 @@ export const phishingOpsRouter = router({
       // Use LLM to generate realistic phishing email template and landing page
       const { invokeLLM } = await import("../_core/llm");
 
-      const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (Ace C3 platform).
+      const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (AC3 platform).
 Given the following domain intelligence and campaign recommendation, generate a complete phishing campaign package.
 
 TARGET DOMAIN: ${scan.primaryDomain}
@@ -235,7 +235,7 @@ Generate a JSON object with these fields:
   "templateText": "Plain text version of the email",
   "landingPageHtml": "HTML for a credential capture landing page that mimics the target domain's login page. Include form fields for email and password. Use GoPhish action URL.",
   "landingPageRedirectUrl": "https://${scan.primaryDomain}",
-  "smtpProfileName": "Ace C3 - ${scan.primaryDomain} Profile"
+  "smtpProfileName": "AC3 - ${scan.primaryDomain} Profile"
 }
 
 Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization.`;
@@ -285,14 +285,14 @@ When generating content, adapt the templates above to the specific target contex
           templateText: `Dear {{.FirstName}},\n\nPlease review the attached document regarding your ${scan.primaryDomain} account.\n\nClick here to review: {{.URL}}\n\nBest regards,\nIT Security Team`,
           landingPageHtml: `<html><body><h2>${scan.primaryDomain} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
           landingPageRedirectUrl: `https://${scan.primaryDomain}`,
-          smtpProfileName: `Ace C3 - ${scan.primaryDomain} Profile`,
+          smtpProfileName: `AC3 - ${scan.primaryDomain} Profile`,
         };
       }
 
       const campaignName = input.campaignName || rec.name || `${scan.primaryDomain} - ${rec.type} Campaign`;
-      const templateName = `[Ace C3] ${campaignName} - Template`;
-      const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
-      const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+      const templateName = `[AC3] ${campaignName} - Template`;
+      const landingPageName = `[AC3] ${campaignName} - Landing Page`;
+      const targetGroupName = `[AC3] ${campaignName} - Targets`;
 
       // Dedup guard: check if a draft already exists for this scan + recommendation index
       const [existingDraft] = await db.select({ id: phishingDrafts.id })
@@ -685,7 +685,7 @@ When generating content, adapt the templates above to the specific target contex
       }
 
       const operationName = input.operationName ||
-        `[Ace C3] Post-Phish: ${draft.campaignName} - ${new Date().toISOString().split("T")[0]}`;
+        `[AC3] Post-Phish: ${draft.campaignName} - ${new Date().toISOString().split("T")[0]}`;
 
       const operationPayload: any = {
         name: operationName,
@@ -1198,7 +1198,7 @@ Be thorough and specific about compliance impact. Map the phishing campaign resu
         generatedBy: ctx.user?.name || "AceofCloud Operator",
         branding: {
           company: "AceofCloud",
-          platform: "Ace C3 — Command, Control, Conquer",
+          platform: "AC3 — Command, Control, Conquer",
           author: "Harrison Cook",
           website: "https://aceofcloud.com",
         },

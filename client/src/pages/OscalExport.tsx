@@ -129,7 +129,7 @@ export default function OscalExport() {
             disabled={generatingPackage}
             onClick={() => {
               setGeneratingPackage(true);
-              packageMutation.mutate({ title: "ACE C3 FedRAMP Assessment Package" });
+              packageMutation.mutate({ title: "AC3 FedRAMP Assessment Package" });
             }}
           >
             {generatingPackage ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Package className="h-4 w-4 mr-1" />}
@@ -175,7 +175,7 @@ export default function OscalExport() {
                   <Input
                     value={newExport.title}
                     onChange={(e) => setNewExport(p => ({ ...p, title: e.target.value }))}
-                    placeholder={`ACE C3 ${(newExport.documentType || '').toUpperCase()} — FedRAMP`}
+                    placeholder={`AC3 ${(newExport.documentType || '').toUpperCase()} — FedRAMP`}
                   />
                 </div>
                 <div>
@@ -235,7 +235,7 @@ export default function OscalExport() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {DOC_TYPES.map(dt => (
           <Card key={dt.id} className="hover:border-blue-500/30 transition-colors cursor-pointer" onClick={() => {
-            setNewExport(p => ({ ...p, documentType: dt.id, title: `ACE C3 ${(dt.id || '').toUpperCase()} — FedRAMP` }));
+            setNewExport(p => ({ ...p, documentType: dt.id, title: `AC3 ${(dt.id || '').toUpperCase()} — FedRAMP` }));
             setShowGenerateDialog(true);
           }}>
             <CardContent className="pt-5 pb-4">

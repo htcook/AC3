@@ -1,4 +1,4 @@
-# Ace C3 Platform — AI/LLM Guardrails & Compliance Documentation
+# AC3 Platform — AI/LLM Guardrails & Compliance Documentation
 
 **Document Classification:** CONTROLLED — Distribution Limited to Authorized Personnel  
 **Version:** 1.0  
@@ -10,15 +10,15 @@
 
 ## 1. Executive Summary
 
-The Ace C3 (Cyber Command & Control) platform integrates large language models (LLMs) and artificial intelligence throughout its offensive security pipeline — from vulnerability synthesis and exploit generation to campaign advisory and risk scoring. Recognizing that AI-augmented cybersecurity tools present unique risks including confabulation, prompt injection, uncontrolled autonomous action, and dual-use concerns, the platform implements a comprehensive, code-enforced AI governance framework.
+The AC3 (Cyber Command & Control) platform integrates large language models (LLMs) and artificial intelligence throughout its offensive security pipeline — from vulnerability synthesis and exploit generation to campaign advisory and risk scoring. Recognizing that AI-augmented cybersecurity tools present unique risks including confabulation, prompt injection, uncontrolled autonomous action, and dual-use concerns, the platform implements a comprehensive, code-enforced AI governance framework.
 
-This document maps every U.S. government AI compliance requirement to its specific implementation within the Ace C3 codebase. Each control is traceable to a source file, function, and test case. The platform's AI governance is not a policy document — it is an executable, auditable, and continuously monitored enforcement layer.
+This document maps every U.S. government AI compliance requirement to its specific implementation within the AC3 codebase. Each control is traceable to a source file, function, and test case. The platform's AI governance is not a policy document — it is an executable, auditable, and continuously monitored enforcement layer.
 
 ---
 
 ## 2. Regulatory Landscape
 
-The following table summarizes the applicable U.S. government AI regulations and their relevance to the Ace C3 platform.
+The following table summarizes the applicable U.S. government AI regulations and their relevance to the AC3 platform.
 
 | Framework | Authority | Key Requirements | Platform Relevance |
 |---|---|---|---|

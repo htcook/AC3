@@ -177,7 +177,7 @@ export async function exportExecutiveDashboardPdf(
         pageHeight - 6,
       );
       doc.text(
-        "CONFIDENTIAL — Ace C3 Platform | AceofCloud",
+        "CONFIDENTIAL — AC3 Platform | AceofCloud",
         14,
         pageHeight - 6,
       );
@@ -199,7 +199,7 @@ export async function exportExecutiveDashboardPdf(
   doc.text("Executive Security Dashboard", 14, 14);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("Ace C3 — Offensive Security Operations Platform", 14, 21);
+  doc.text("AC3 — Offensive Security Operations Platform", 14, 21);
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184); // slate-400
   doc.text(`Report Generated: ${dateStr} at ${timeStr}`, 14, 28);

@@ -2,7 +2,7 @@
  * Agent Installer Generator
  * ═══════════════════════════════════════════════════════════════
  * Generates downloadable agent installer scripts and packages for
- * deploying Ace C3 agents on internal networks. Supports:
+ * deploying AC3 agents on internal networks. Supports:
  *
  *   1. Platform-specific installers (Linux, Windows, macOS)
  *   2. One-liner deployment commands
@@ -136,7 +136,7 @@ function generateLinuxInstaller(config: AgentInstallerConfig): string {
 
   return `#!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Ace C3 Agent Installer — Linux
+# AC3 Agent Installer — Linux
 # Generated: ${new Date().toISOString()}
 # Profile: ${config.profile}
 # Platform: ${config.platform}
@@ -155,7 +155,7 @@ ${config.killDate ? `KILL_DATE="${config.killDate}"` : "# No kill date set"}
 ${config.proxyUrl ? `PROXY_URL="${config.proxyUrl}"` : "# No proxy configured"}
 ${config.stealthMode ? 'STEALTH_MODE="true"' : 'STEALTH_MODE="false"'}
 
-echo "[*] Ace C3 Agent Installer v1.0"
+echo "[*] AC3 Agent Installer v1.0"
 echo "[*] Profile: ${config.profile}"
 echo "[*] Target: $CALLBACK_URL"
 echo ""
@@ -258,7 +258,7 @@ install_service() {
   if [ "$(id -u)" -eq 0 ] && command -v systemctl &>/dev/null; then
     cat > /etc/systemd/system/ace-c3-agent.service << SERVICE
 [Unit]
-Description=Ace C3 Security Agent
+Description=AC3 Security Agent
 After=network.target
 
 [Service]
@@ -290,7 +290,7 @@ create_beacon_script
 install_service
 
 echo ""
-echo "[+] Ace C3 Agent deployed successfully!"
+echo "[+] AC3 Agent deployed successfully!"
 echo "[+] Agent will beacon to $CALLBACK_URL every ${config.beaconInterval}s (±${config.jitterPercent}% jitter)"
 ${config.killDate ? `echo "[*] Kill date: ${config.killDate}"` : ""}
 `;
@@ -300,7 +300,7 @@ function generateWindowsInstaller(config: AgentInstallerConfig): string {
   const capabilities = getCapabilitiesForProfile(config.profile);
 
   return `# ═══════════════════════════════════════════════════════════════
-# Ace C3 Agent Installer — Windows (PowerShell)
+# AC3 Agent Installer — Windows (PowerShell)
 # Generated: ${new Date().toISOString()}
 # Profile: ${config.profile}
 # ═══════════════════════════════════════════════════════════════
@@ -317,7 +317,7 @@ $WatchdogSeconds = ${config.watchdogSeconds || config.beaconInterval * 3}
 ${config.killDate ? `$KillDate = [DateTime]"${config.killDate}"` : "# No kill date set"}
 ${config.stealthMode ? '$StealthMode = $true' : '$StealthMode = $false'}
 
-Write-Host "[*] Ace C3 Agent Installer v1.0" -ForegroundColor Cyan
+Write-Host "[*] AC3 Agent Installer v1.0" -ForegroundColor Cyan
 Write-Host "[*] Profile: ${config.profile}" -ForegroundColor Cyan
 Write-Host "[*] Target: $CallbackUrl" -ForegroundColor Cyan
 Write-Host ""
@@ -395,7 +395,7 @@ try {
 }
 
 Write-Host ""
-Write-Host "[+] Ace C3 Agent deployed successfully!" -ForegroundColor Green
+Write-Host "[+] AC3 Agent deployed successfully!" -ForegroundColor Green
 Write-Host "[+] Agent will beacon to $CallbackUrl every ${config.beaconInterval}s" -ForegroundColor Green
 `;
 }
@@ -406,7 +406,7 @@ function generateMacOSInstaller(config: AgentInstallerConfig): string {
 
   return `#!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Ace C3 Agent Installer — macOS
+# AC3 Agent Installer — macOS
 # Generated: ${new Date().toISOString()}
 # Profile: ${config.profile}
 # ═══════════════════════════════════════════════════════════════
@@ -419,7 +419,7 @@ BEACON_INTERVAL=${config.beaconInterval}
 JITTER=${config.jitterPercent}
 AGENT_NAME="${config.agentName || "ace-c3-agent-$(hostname)"}"
 
-echo "[*] Ace C3 Agent Installer v1.0 — macOS"
+echo "[*] AC3 Agent Installer v1.0 — macOS"
 echo "[*] Profile: ${config.profile}"
 echo ""
 
@@ -532,7 +532,7 @@ chmod +x "$HOME/.ace-c3-agent/beacon.sh"
 install_launchagent
 
 echo ""
-echo "[+] Ace C3 Agent deployed successfully!"
+echo "[+] AC3 Agent deployed successfully!"
 echo "[+] Agent will beacon to $CALLBACK_URL every ${config.beaconInterval}s"
 `;
 }

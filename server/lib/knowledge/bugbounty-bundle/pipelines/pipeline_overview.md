@@ -1,4 +1,4 @@
-# Ace C3 Bug Bounty Knowledge Training Pipeline
+# AC3 Bug Bounty Knowledge Training Pipeline
 
 ## Goal
 Turn publicly disclosed bug bounty reports into structured reasoning data that trains an LLM to:

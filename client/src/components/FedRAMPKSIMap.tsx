@@ -50,7 +50,7 @@ const KSI_THEMES: KSITheme[] = [
     directCoverage: 3,
     supportingCoverage: 4,
     description: "FedRAMP authorization lifecycle — compliance monitoring, assessment scope, vulnerability assessment, security configuration guides, and data sharing.",
-    cspValue: "ACE C3 provides continuous compliance monitoring through the KSI Dashboard with automated validation scheduling, OSCAL-formatted evidence export for machine-readable data sharing, and full penetration testing across all 6 mandatory attack vectors to satisfy periodic vulnerability assessment requirements.",
+    cspValue: "AC3 provides continuous compliance monitoring through the KSI Dashboard with automated validation scheduling, OSCAL-formatted evidence export for machine-readable data sharing, and full penetration testing across all 6 mandatory attack vectors to satisfy periodic vulnerability assessment requirements.",
     agencyValue: "Agencies can review CSP-submitted OSCAL exports, KSI evidence chains, and assessment reports to verify continuous compliance posture. Periodic vulnerability assessment results and NIST control mapping evidence are available for passive monitoring without initiating any active testing.",
     ksis: [
       {
@@ -272,7 +272,7 @@ const KSI_THEMES: KSITheme[] = [
     directCoverage: 4,
     supportingCoverage: 4,
     description: "Phishing-resistant MFA, privileged access management, least privilege enforcement, account lifecycle, JIT authorization, and service authentication.",
-    cspValue: "ACE C3 tests MFA resilience through real phishing campaigns with 17 MFA bypass techniques. AD Attack Simulation validates privileged access controls. Cloud Attack Paths identifies excessive permissions. Credential attack engine tests password policies.",
+    cspValue: "AC3 tests MFA resilience through real phishing campaigns with 17 MFA bypass techniques. AD Attack Simulation validates privileged access controls. Cloud Attack Paths identifies excessive permissions. Credential attack engine tests password policies.",
     agencyValue: "Agencies review CSP-submitted MFA bypass test results, AD Attack Simulation reports, and Cloud Attack Paths analysis to verify identity and access management controls. All review is passive.",
     ksis: [
       {
@@ -596,7 +596,7 @@ const KSI_THEMES: KSITheme[] = [
     directCoverage: 4,
     supportingCoverage: 1,
     description: "Penetration testing, APT simulation, security awareness testing, third-party vulnerability monitoring, and supply chain risk mitigation.",
-    cspValue: "Full penetration testing pipeline across all 6 FedRAMP attack vectors. Ace C3 Emulation Engine + MITRE ATT&CK technique execution for APT simulation. Phishing Ops for security awareness testing. NVD/KEV integration for third-party vulnerability monitoring.",
+    cspValue: "Full penetration testing pipeline across all 6 FedRAMP attack vectors. AC3 Emulation Engine + MITRE ATT&CK technique execution for APT simulation. Phishing Ops for security awareness testing. NVD/KEV integration for third-party vulnerability monitoring.",
     agencyValue: "Agencies review CSP-submitted penetration test reports, APT simulation results, phishing campaign data, and third-party vulnerability monitoring evidence.",
     ksis: [
       {
@@ -607,8 +607,8 @@ const KSI_THEMES: KSITheme[] = [
       },
       {
         id: "KSI-SCR-APT", name: "Advanced Persistent Threat Simulation", status: "direct",
-        aceModules: ["Ace C3 Emulation", "Emulation Playbooks", "Threat Actor Matcher"],
-        cspDetail: "Ace C3 Emulation provides full adversary emulation with MITRE ATT&CK technique execution. Emulation Playbooks define repeatable APT scenarios. Threat Actor Matcher correlates findings with known threat actor TTPs.",
+        aceModules: ["AC3 Emulation", "Emulation Playbooks", "Threat Actor Matcher"],
+        cspDetail: "AC3 Emulation provides full adversary emulation with MITRE ATT&CK technique execution. Emulation Playbooks define repeatable APT scenarios. Threat Actor Matcher correlates findings with known threat actor TTPs.",
         agencyDetail: "Review CSP-submitted APT simulation results showing MITRE ATT&CK technique coverage, detection rates, and threat actor TTP correlation."
       },
       {
@@ -711,7 +711,7 @@ export default function FedRAMPKSIMap({ embedded = false }: { embedded?: boolean
           </div>
           <h2 className="text-4xl sm:text-5xl font-display mb-4">FEDRAMP 20x KSI MAP</h2>
           <p className="text-lg text-muted-foreground max-w-3xl">
-            How ACE C3 maps to {TOTAL_KSIS} FedRAMP 20x Key Security Indicators across {KSI_THEMES.length} compliance themes — 
+            How AC3 maps to {TOTAL_KSIS} FedRAMP 20x Key Security Indicators across {KSI_THEMES.length} compliance themes — 
             providing direct automated validation for {DIRECT} KSIs and supporting evidence for {SUPPORTING} more, grounded in real penetration testing, adversary emulation, and continuous security monitoring capabilities.
           </p>
         </div>
@@ -787,22 +787,22 @@ export default function FedRAMPKSIMap({ embedded = false }: { embedded?: boolean
           {activeView === "csp" ? (
             <div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                <span className="text-primary font-display tracking-wider">CSP VIEW</span> — ACE C3 supports cloud service providers in preparing for and maintaining FedRAMP 20x authorization by providing automated security validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and OSCAL-formatted export for submission. ACE C3 does not grant authorization — it equips CSPs with the tools, evidence, and continuous validation needed to satisfy FedRAMP requirements.
+                <span className="text-primary font-display tracking-wider">CSP VIEW</span> — AC3 supports cloud service providers in preparing for and maintaining FedRAMP 20x authorization by providing automated security validation, evidence generation, penetration testing across all 6 mandatory attack vectors, and OSCAL-formatted export for submission. AC3 does not grant authorization — it equips CSPs with the tools, evidence, and continuous validation needed to satisfy FedRAMP requirements.
               </p>
               <p className="text-xs text-muted-foreground/70 leading-relaxed">
-                Each KSI shows the specific ACE C3 modules that provide coverage, what they actually do, and whether coverage is direct (the module performs the KSI function and generates evidence), supporting (the module contributes telemetry or partial coverage), or planned (capability is on the roadmap).
+                Each KSI shows the specific AC3 modules that provide coverage, what they actually do, and whether coverage is direct (the module performs the KSI function and generates evidence), supporting (the module contributes telemetry or partial coverage), or planned (capability is on the roadmap).
               </p>
             </div>
           ) : (
             <div>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                <span className="text-primary font-display tracking-wider">AGENCY VIEW</span> — ACE C3 provides federal agencies with a passive monitoring and oversight capability for evaluating CSP security posture. Agencies do not run, trigger, or conduct their own penetration tests through the platform. Instead, agencies can monitor CSP status through passive discovery, ingest CSP-submitted assessment evidence, and track remediation status across all KSI themes.
+                <span className="text-primary font-display tracking-wider">AGENCY VIEW</span> — AC3 provides federal agencies with a passive monitoring and oversight capability for evaluating CSP security posture. Agencies do not run, trigger, or conduct their own penetration tests through the platform. Instead, agencies can monitor CSP status through passive discovery, ingest CSP-submitted assessment evidence, and track remediation status across all KSI themes.
               </p>
               <div className="mt-3 p-3 bg-primary/5 border border-primary/20">
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-muted-foreground leading-relaxed">
-                    <span className="text-primary font-display tracking-wider">AGENCY MONITORING MODEL</span> — Agencies consume evidence produced by CSPs using ACE C3 — they do not initiate scans or active tests. Each KSI below describes what CSP-submitted evidence agencies can review and how passive monitoring supports continuous oversight.
+                    <span className="text-primary font-display tracking-wider">AGENCY MONITORING MODEL</span> — Agencies consume evidence produced by CSPs using AC3 — they do not initiate scans or active tests. Each KSI below describes what CSP-submitted evidence agencies can review and how passive monitoring supports continuous oversight.
                   </div>
                 </div>
               </div>
@@ -871,7 +871,7 @@ export default function FedRAMPKSIMap({ embedded = false }: { embedded?: boolean
                           <Layers className="w-4 h-4 text-primary" />
                         )}
                         <span className="font-display text-xs tracking-wider text-primary">
-                          {activeView === "csp" ? "HOW ACE C3 HELPS CSPs" : "HOW ACE C3 HELPS AGENCIES"}
+                          {activeView === "csp" ? "HOW AC3 HELPS CSPs" : "HOW AC3 HELPS AGENCIES"}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -948,8 +948,8 @@ export default function FedRAMPKSIMap({ embedded = false }: { embedded?: boolean
             </h3>
             <p className="text-sm text-muted-foreground">
               {activeView === "csp"
-                ? `ACE C3 covers ${COVERAGE_PCT}% of all ${TOTAL_KSIS} KSIs today — ${DIRECT} with direct automated validation and ${SUPPORTING} with supporting evidence. Real penetration testing, adversary emulation, and OSCAL export for FedRAMP submission.`
-                : `ACE C3 provides evidence-based CSP evaluation across ${DIRECT + SUPPORTING} of ${TOTAL_KSIS} KSIs — with real penetration test evidence, detection coverage metrics, and configuration compliance data instead of self-attestation.`}
+                ? `AC3 covers ${COVERAGE_PCT}% of all ${TOTAL_KSIS} KSIs today — ${DIRECT} with direct automated validation and ${SUPPORTING} with supporting evidence. Real penetration testing, adversary emulation, and OSCAL export for FedRAMP submission.`
+                : `AC3 provides evidence-based CSP evaluation across ${DIRECT + SUPPORTING} of ${TOTAL_KSIS} KSIs — with real penetration test evidence, detection coverage metrics, and configuration compliance data instead of self-attestation.`}
             </p>
           </div>
           <a href="mailto:info@aceofcloud.com" className="flex-shrink-0">

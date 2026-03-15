@@ -340,7 +340,7 @@ export const accountAuthRouter = router({
         await notifyOwner({
           title: `New Team Member Invited: ${input.displayName}`,
           content: [
-            `A new team member has been invited to the Ace C3 platform.`,
+            `A new team member has been invited to the AC3 platform.`,
             ``,
             `**Email:** ${email}`,
             `**Display Name:** ${input.displayName}`,
@@ -597,7 +597,7 @@ export const accountAuthRouter = router({
     // Generate TOTP secret using FIPS-approved HMAC-SHA256
     const secret = new OTPAuth.Secret({ size: 20 });
     const totp = new OTPAuth.TOTP({
-      issuer: "Ace C3 Platform",
+      issuer: "AC3 Platform",
       label: account.email,
       algorithm: "SHA256",
       digits: 6,
@@ -646,7 +646,7 @@ export const accountAuthRouter = router({
       if (!account || !account.totpSecret) throw new TRPCError({ code: "BAD_REQUEST", message: "MFA setup not initiated" });
 
       const totp = new OTPAuth.TOTP({
-        issuer: "Ace C3 Platform",
+        issuer: "AC3 Platform",
         label: account.email,
         algorithm: "SHA256",
         digits: 6,
@@ -685,7 +685,7 @@ export const accountAuthRouter = router({
       let verified = false;
       if (input.code.length === 6 && account.totpSecret) {
         const totp = new OTPAuth.TOTP({
-          issuer: "Ace C3 Platform",
+          issuer: "AC3 Platform",
           label: account.email,
           algorithm: "SHA256",
           digits: 6,
@@ -754,7 +754,7 @@ export const accountAuthRouter = router({
         let verified = false;
         if (input.code.length === 6) {
           const totp = new OTPAuth.TOTP({
-            issuer: "Ace C3 Platform",
+            issuer: "AC3 Platform",
             label: account.email,
             algorithm: "SHA256",
             digits: 6,
@@ -978,7 +978,7 @@ export const accountAuthRouter = router({
 
       // Verify current TOTP code
       const totp = new OTPAuth.TOTP({
-        issuer: "Ace C3 Platform",
+        issuer: "AC3 Platform",
         label: account.email,
         algorithm: "SHA256",
         digits: 6,

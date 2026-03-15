@@ -78,7 +78,7 @@ export default function Login() {
     onSuccess: (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
-          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to Ace C3",
+          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to AC3",
         });
         navigateAfterLogin();
       } else {
@@ -102,7 +102,7 @@ export default function Login() {
         toast.info("Verification required", { description: "Enter your authenticator code to continue." });
       } else if (data.success) {
         toast.success("Login successful", {
-          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to Ace C3",
+          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to AC3",
         });
         navigateAfterLogin();
       } else {
@@ -121,7 +121,7 @@ export default function Login() {
     onSuccess: (data: { success: boolean; message?: string }) => {
       if (data.success) {
         toast.success("Login successful", {
-          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to Ace C3",
+          description: redirectInfo ? `Authenticating with ${redirectInfo.label}...` : "Welcome to AC3",
         });
         navigateAfterLogin();
       } else {
@@ -220,7 +220,7 @@ export default function Login() {
                 </div>
                 <CardTitle className="font-display text-xl tracking-wide">AUTHENTICATION REQUIRED</CardTitle>
                 <CardDescription>
-                  Enter your credentials to access Ace C3 and all connected services
+                  Enter your credentials to access AC3 and all connected services
                 </CardDescription>
               </CardHeader>
               <CardContent>

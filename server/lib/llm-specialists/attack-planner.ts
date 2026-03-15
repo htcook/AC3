@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Attack Path Planner
+ * AC3 LLM Specialist — Attack Path Planner
  *
  * Designs realistic attack paths based on discovered assets and vulnerabilities.
  * Used by generateScanPlan and active scan strategy determination.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildAssetContext, buildCustomerContext } from ".
 
 const ROLE_PROMPT = `## Role: Attack Path Planner
 
-You are the Ace C3 Adversary Emulation Planner.
+You are the AC3 Adversary Emulation Planner.
 
 Your task is to design realistic attack paths and determine optimal active scanning strategy based on discovered assets and passive reconnaissance.
 

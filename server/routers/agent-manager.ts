@@ -4,7 +4,7 @@ import * as db from "../db";
  *
  * tRPC router for multi-C2 agent lifecycle management, FIPS compliance monitoring,
  * and audit-logged agent operations. Supports CALDERA, Sliver, Metasploit, and
- * native Ace C3 agent protocols.
+ * native AC3 agent protocols.
  */
 
 import { z } from "zod";

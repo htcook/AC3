@@ -1,5 +1,5 @@
 /**
- * Branded PDF Report Generator for Ace C3 Patent Features
+ * Branded PDF Report Generator for AC3 Patent Features
  * Generates HTML-based reports that can be rendered as PDF on the client side.
  * Uses AceofCloud branding with Harrison Cook attribution.
  */
@@ -120,7 +120,7 @@ export function generateReportHtml(config: ReportConfig): string {
     <div class="report-meta">
       <div>Prepared by: Ace of Cloud LLC</div>
       <div>Report Date: ${dateStr}</div>
-      <div>Platform: Ace C3 (Cyber Campaign Command)</div>
+      <div>Platform: AC3 (Cyber Campaign Command)</div>
     </div>
     <div class="classification-line">${classification} \u2013 Security Assessment Report</div>
   </div>

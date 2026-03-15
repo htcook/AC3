@@ -1,7 +1,7 @@
 /**
  * Cloud Security Knowledge Module — loads cloud misconfiguration patterns,
  * cloud attack paths, detection rules, and training examples from the
- * Ace C3 Cloud Security Training Bundle v3.
+ * AC3 Cloud Security Training Bundle v3.
  *
  * Provides filtered retrieval by cloud provider, service, risk level,
  * MITRE technique, or keyword for injection into LLM prompts during
@@ -291,7 +291,7 @@ export function buildCloudSecurityContext(observations: string[]): string {
   }
 
   const sections: string[] = [];
-  sections.push("## CLOUD SECURITY KNOWLEDGE (Ace C3 Training Bundle v3)");
+  sections.push("## CLOUD SECURITY KNOWLEDGE (AC3 Training Bundle v3)");
 
   if (providers.length > 0) {
     sections.push(`Detected cloud providers: ${providers.join(", ")}`);
@@ -353,7 +353,7 @@ export function buildGeneralCloudContext(): string {
   const paths = loadAttackPaths();
 
   const sections: string[] = [];
-  sections.push("## CLOUD SECURITY AWARENESS (Ace C3 Training Bundle v3)");
+  sections.push("## CLOUD SECURITY AWARENESS (AC3 Training Bundle v3)");
   sections.push("During scanning, watch for cloud infrastructure indicators:");
   sections.push("");
 

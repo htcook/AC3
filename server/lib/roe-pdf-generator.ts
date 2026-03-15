@@ -313,14 +313,14 @@ export function generateRoePdfHtml(data: RoePdfData): string {
 <div class="cover-page">
   <div class="cover-classification">${classificationLabel}</div>
   <div style="margin-top: 3rem;">
-    <div style="font-size: 11pt; font-weight: 600; color: var(--brand-accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 0.5rem;">ACE C3 — AceofCloud</div>
+    <div style="font-size: 11pt; font-weight: 600; color: var(--brand-accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 0.5rem;">AC3 — AceofCloud</div>
     <div class="cover-title">Rules of Engagement</div>
     <div class="cover-subtitle">${esc(doc.title)}</div>
     ${fedrampBadge}
   </div>
   <dl class="cover-meta">
     <div><dt>Organization</dt><dd>${esc(doc.organizationName) || "TBD"}</dd></div>
-    <div><dt>Testing Firm</dt><dd>${esc(doc.testingFirmName) || "ACE C3 — AceofCloud"}</dd></div>
+    <div><dt>Testing Firm</dt><dd>${esc(doc.testingFirmName) || "AC3 — AceofCloud"}</dd></div>
     <div><dt>Document Version</dt><dd>${esc(doc.version)}</dd></div>
     <div><dt>Status</dt><dd>${esc(doc.status?.toUpperCase())}</dd></div>
     <div><dt>Test Period</dt><dd>${formatDate(doc.testScheduleStart)} — ${formatDate(doc.testScheduleEnd)}</dd></div>
@@ -413,7 +413,7 @@ export function generateRoePdfHtml(data: RoePdfData): string {
       </div>
       <div class="info-box">
         <div class="box-title">Testing Firm</div>
-        <p><strong>${esc(doc.testingFirmName) || "ACE C3 — AceofCloud"}</strong></p>
+        <p><strong>${esc(doc.testingFirmName) || "AC3 — AceofCloud"}</strong></p>
         ${doc.testingFirmAddress ? `<p class="text-sm text-muted">${esc(doc.testingFirmAddress)}</p>` : ""}
       </div>
     </div>
@@ -790,12 +790,12 @@ export function generateRoePdfHtml(data: RoePdfData): string {
     </div>
   </div>
   <div class="sig-block">
-    <div class="sig-role">Testing Lead — ACE C3</div>
+    <div class="sig-role">Testing Lead — AC3</div>
     <div class="sig-line"></div>
     <div class="sig-meta">
       <div class="sig-field"><div class="sig-field-label">Printed Name</div><div>________________________________</div></div>
       <div class="sig-field"><div class="sig-field-label">Title</div><div>________________________________</div></div>
-      <div class="sig-field"><div class="sig-field-label">Organization</div><div>ACE C3 — AceofCloud</div></div>
+      <div class="sig-field"><div class="sig-field-label">Organization</div><div>AC3 — AceofCloud</div></div>
       <div class="sig-field"><div class="sig-field-label">Date</div><div>________________</div></div>
     </div>
   </div>`}
@@ -826,7 +826,7 @@ export function generateRoePdfHtml(data: RoePdfData): string {
   <div class="info-box mt-2">
     <div class="box-title">Document Prepared By</div>
     <p class="text-sm">Harrison Cook — AceofCloud &bull; <a href="https://aceofcloud.com">https://aceofcloud.com</a></p>
-    <p class="text-xs text-muted">This document was generated using the ACE C3 Rules of Engagement Builder. All content is based on industry best practices and applicable compliance frameworks.</p>
+    <p class="text-xs text-muted">This document was generated using the AC3 Rules of Engagement Builder. All content is based on industry best practices and applicable compliance frameworks.</p>
   </div>
 </div>
 

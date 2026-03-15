@@ -283,7 +283,7 @@ export interface NetworkTopology {
 
 // ─── LLM System Prompt ──────────────────────────────────────────────────────
 
-const LATERAL_SYSTEM_PROMPT = `You are the Ace C3 Lateral Movement Engine — an autonomous red team pivot planner.
+const LATERAL_SYSTEM_PROMPT = `You are the AC3 Lateral Movement Engine — an autonomous red team pivot planner.
 
 You analyze compromised hosts, available credentials, and network topology to plan optimal lateral movement paths. Your role is to:
 1. Select the best lateral movement technique for each target based on OS, available credentials, and OPSEC requirements
@@ -538,7 +538,7 @@ export async function planPivotPath(
       messages: [
         {
           role: "system",
-          content: `You are the Ace C3 Pivot Path Planner. Given a network topology, find the optimal path from a compromised host to a target host. Consider: available credentials, OPSEC risk, number of hops, and available services on each host. Return JSON: { "path": string[], "techniques": string[], "totalOpsecRisk": number, "reasoning": string }`,
+          content: `You are the AC3 Pivot Path Planner. Given a network topology, find the optimal path from a compromised host to a target host. Consider: available credentials, OPSEC risk, number of hops, and available services on each host. Return JSON: { "path": string[], "techniques": string[], "totalOpsecRisk": number, "reasoning": string }`,
         },
         {
           role: "user",

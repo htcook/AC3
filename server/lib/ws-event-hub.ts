@@ -198,7 +198,7 @@ class EventHub extends EventEmitter {
       type: "system:notification",
       timestamp: Date.now(),
       data: {
-        message: "Connected to Ace C3 Event Stream",
+        message: "Connected to AC3 Event Stream",
         clientId,
         authenticated: userId !== null,
       },

@@ -57,7 +57,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 5. **Sleep/hibernate**: If the target machine went to sleep or hibernated, the agent will resume when the machine wakes up.
 
-6. **Redeploy**: If the agent is truly dead, you'll need to redeploy. Use the Agent Deploy page in Ace C3 for deployment scripts.
+6. **Redeploy**: If the agent is truly dead, you'll need to redeploy. Use the Agent Deploy page in AC3 for deployment scripts.
 
 7. **Trust level**: Check if the agent's trust level was changed to "untrusted" in the emulation framework. Untrusted agents are ignored.`,
     category: 'Agents',
@@ -69,7 +69,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'How do I deploy an agent that bypasses CrowdStrike Falcon?',
     answer: `Deploying agents past EDR requires careful evasion techniques:
 
-1. **Use the CrowdStrike Bypass scripts**: The Agent Deploy page in Ace C3 includes pre-built bypass scripts for PowerShell, Bash, and Python.
+1. **Use the CrowdStrike Bypass scripts**: The Agent Deploy page in AC3 includes pre-built bypass scripts for PowerShell, Bash, and Python.
 
 2. **AMSI bypass first**: Before downloading the agent, bypass AMSI (Antimalware Scan Interface):
    [Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiInitFailed','NonPublic,Static').SetValue($null,$true)
@@ -112,7 +112,7 @@ export const calderaFAQItems: FAQItem[] = [
 
 6. **Verify in operation**: When viewing an operation, abilities that can't run on the current agent platform will show as "skipped" or "failed".
 
-7. **Filter by platform**: In the Ace C3 dashboard, use the tactic/platform filters to find abilities compatible with your target OS.`,
+7. **Filter by platform**: In the AC3 dashboard, use the tactic/platform filters to find abilities compatible with your target OS.`,
     category: 'Abilities',
     tags: ['executor', 'not found', 'PowerShell', 'bash', 'platform'],
     severity: 'critical',
@@ -135,7 +135,7 @@ export const calderaFAQItems: FAQItem[] = [
 6. **Cleanup abilities**: Some abilities are cleanup commands that don't produce output by design.
 
 7. **Raw command test**: To verify, try running the ability's command manually on the target:
-   - Find the ability's command in the Ace C3 dashboard
+   - Find the ability's command in the AC3 dashboard
    - Execute it directly on the target machine
    - Compare the output`,
     category: 'Abilities',
@@ -223,7 +223,7 @@ export const calderaFAQItems: FAQItem[] = [
    - In Emulation UI: Stop the operation, then start a new one
    - Via API: DELETE /api/v2/operations/{id}, then POST /api/v2/operations
 
-7. **Operation persistence**: If the platform was restarted, operations may need to be recreated. The Ace C3 platform has a persistence service that handles this automatically.`,
+7. **Operation persistence**: If the platform was restarted, operations may need to be recreated. The AC3 platform has a persistence service that handles this automatically.`,
     category: 'Operations',
     tags: ['operation', 'not progressing', 'stuck', 'planner'],
     severity: 'critical',
@@ -233,7 +233,7 @@ export const calderaFAQItems: FAQItem[] = [
     question: 'Operations disappear after emulation server restart',
     answer: `adversary operations are stored in memory by default and may not survive restarts:
 
-1. **Operation persistence service**: The Ace C3 platform includes a systemd service (caldera-ops-persist.service) that automatically recreates operations on restart.
+1. **Operation persistence service**: The AC3 platform includes a systemd service (caldera-ops-persist.service) that automatically recreates operations on restart.
 
 2. **Check the service**:
    sudo systemctl status caldera-ops-persist
@@ -274,7 +274,7 @@ export const calderaFAQItems: FAQItem[] = [
 5. **API approach**: Use the Emulation API to create a custom operation:
    POST /api/v2/operations with a custom adversary containing only your selected abilities.
 
-6. **Ace C3 dashboard**: Use the Operation Detail page to view all abilities in an adversary profile and identify which ones you want to run.`,
+6. **AC3 dashboard**: Use the Operation Detail page to view all abilities in an adversary profile and identify which ones you want to run.`,
     category: 'Operations',
     tags: ['subset', 'custom', 'specific abilities', 'adversary'],
     severity: 'low',
@@ -329,12 +329,12 @@ export const calderaFAQItems: FAQItem[] = [
    curl -H "KEY: your-api-key" https://emulation.aceofcloud.io/api/v2/health
 
 3. **Key rotation**: If keys were recently rotated, update all references:
-   - Ace C3 dashboard configuration
+   - AC3 dashboard configuration
    - Bridge service configuration
    - Any scripts or automation tools
 
 4. **Current keys for this deployment**:
-   Check the Credentials page in the Ace C3 dashboard for the current API keys.
+   Check the Credentials page in the AC3 dashboard for the current API keys.
 
 5. **Test connectivity**:
    curl -v -H "KEY: YOUR_KEY" https://emulation.aceofcloud.io/api/v2/agents
@@ -394,11 +394,11 @@ export const calderaFAQItems: FAQItem[] = [
    - Color-codes by success/failure
    - Exportable as JSON for ATT&CK Navigator
 
-3. **Ace C3 dashboard**: The Operation Detail page shows all abilities grouped by MITRE ATT&CK tactic with technique IDs.
+3. **AC3 dashboard**: The Operation Detail page shows all abilities grouped by MITRE ATT&CK tactic with technique IDs.
 
 4. **ATT&CK Navigator**: Import the Compass output into https://mitre-attack.github.io/attack-navigator/ for a visual heatmap.
 
-5. **Report generation**: The Ace C3 Report Generator includes a MITRE ATT&CK coverage section that maps all attempted techniques.
+5. **Report generation**: The AC3 Report Generator includes a MITRE ATT&CK coverage section that maps all attempted techniques.
 
 6. **Coverage analysis**: Compare your operation's technique coverage against known threat actor TTPs to identify gaps in your testing.`,
     category: 'MITRE ATT&CK',
@@ -410,7 +410,7 @@ export const calderaFAQItems: FAQItem[] = [
   {
     id: 'cal-integration-1',
     question: 'How does the emulation-phishing bridge work?',
-    answer: `The Ace C3 platform includes a bridge service that connects the phishing platform and emulation framework:
+    answer: `The AC3 platform includes a bridge service that connects the phishing platform and emulation framework:
 
 1. **How it works**: When a target submits credentials on a phishing landing page, the bridge service automatically triggers a adversary operation against that target.
 
@@ -432,14 +432,14 @@ export const calderaFAQItems: FAQItem[] = [
 5. **Monitoring**: Check bridge logs:
    sudo journalctl -u caldera-gophish-bridge -f
 
-6. **Manual trigger**: You can also manually trigger operations from the Ace C3 dashboard after reviewing captured credentials.`,
+6. **Manual trigger**: You can also manually trigger operations from the AC3 dashboard after reviewing captured credentials.`,
     category: 'Integration',
     tags: ['bridge', 'phishing-platform', 'webhook', 'automation'],
     severity: 'medium',
   },
   {
     id: 'cal-integration-2',
-    question: 'SSL certificate warnings when accessing the Ace C3 dashboard',
+    question: 'SSL certificate warnings when accessing the AC3 dashboard',
     answer: `The current deployment uses self-signed SSL certificates:
 
 1. **Why warnings appear**: Self-signed certificates are not trusted by browsers. This is expected behavior and does not affect security of the encrypted connection.

@@ -77,7 +77,7 @@ export const RELEASE_ENTRIES: ReleaseEntry[] = [
 ];
 
 // ─── Storage Key ─────────────────────────────────────────────────────
-const STORAGE_KEY = "ace_c3_whats_new_dismissed";
+const STORAGE_KEY = "ac3_whats_new_dismissed";
 
 function isDismissed(): boolean {
   try {

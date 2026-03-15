@@ -1,5 +1,5 @@
 /**
- * Worker Entry Point — Ace C3 Background Job Processor
+ * Worker Entry Point — AC3 Background Job Processor
  * 
  * This module is designed to run as a SEPARATE process from the API server.
  * It connects to Redis via BullMQ and processes long-running jobs:
@@ -74,7 +74,7 @@ export interface ValidationJob {
 async function main() {
   const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-  console.log('[Worker] Ace C3 Background Job Processor starting...');
+  console.log('[Worker] AC3 Background Job Processor starting...');
   console.log(`[Worker] Redis: ${REDIS_URL.replace(/\/\/.*@/, '//<redacted>@')}`);
 
   // Lazy-import BullMQ so this file can be required for type exports

@@ -15,7 +15,7 @@ interface KsiDefinition {
   validationType: string;
   frequency: string;
   coverageStatus: string;
-  aceC3Module?: string;
+  ac3Module?: string;
 }
 
 interface ThemeStat {
@@ -87,7 +87,7 @@ export default function KsiHeatmapGrid({ themeStats, definitions = [], onKsiClic
               KSI Coverage Heatmap
             </CardTitle>
             <CardDescription>
-              Interactive grid showing coverage status for all 13 FedRAMP 20x security themes. Click a theme to see how Ace C3 addresses each indicator.
+              Interactive grid showing coverage status for all 13 FedRAMP 20x security themes. Click a theme to see how AC3 addresses each indicator.
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
@@ -195,9 +195,9 @@ export default function KsiHeatmapGrid({ themeStats, definitions = [], onKsiClic
                             <div className="pb-3 border-b">
                               <div className="text-xs font-semibold mb-1.5 flex items-center gap-1.5">
                                 <Shield className="w-3.5 h-3.5 text-blue-400" />
-                                How Ace C3 Addresses {theme.themeName}
+                                How AC3 Addresses {theme.themeName}
                               </div>
-                              <p className="text-xs text-muted-foreground leading-relaxed">{themeEnriched.aceC3Narrative}</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{themeEnriched.ac3Narrative}</p>
                             </div>
                           )}
 
@@ -237,19 +237,19 @@ export default function KsiHeatmapGrid({ themeStats, definitions = [], onKsiClic
                                         <p className="text-foreground leading-relaxed">{enriched.requirement}</p>
                                       </div>
 
-                                      {/* How Ace C3 Delivers */}
+                                      {/* How AC3 Delivers */}
                                       <div>
                                         <div className="font-semibold text-blue-400 mb-1 flex items-center gap-1">
-                                          <Shield className="w-3 h-3" /> How Ace C3 {enriched.coverageLevel === "direct" ? "Meets" : enriched.coverageLevel === "supporting" ? "Supports" : "Plans to Address"} This
+                                          <Shield className="w-3 h-3" /> How AC3 {enriched.coverageLevel === "direct" ? "Meets" : enriched.coverageLevel === "supporting" ? "Supports" : "Plans to Address"} This
                                         </div>
                                         <p className="text-foreground leading-relaxed">{enriched.howAceC3Delivers}</p>
                                       </div>
 
-                                      {/* Ace C3 Modules */}
+                                      {/* AC3 Modules */}
                                       {enriched.aceModules.length > 0 && (
                                         <div>
                                           <div className="font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
-                                            <Cpu className="w-3 h-3" /> Ace C3 Modules Involved
+                                            <Cpu className="w-3 h-3" /> AC3 Modules Involved
                                           </div>
                                           <div className="space-y-1.5">
                                             {enriched.aceModules.map((mod, i) => (

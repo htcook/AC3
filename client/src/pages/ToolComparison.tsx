@@ -119,7 +119,7 @@ const TOOLS = {
     versatility: 40,
   },
   builtin: {
-    name: "Ace C3 Built-in Engine",
+    name: "AC3 Built-in Engine",
     license: "Proprietary",
     icon: Shield,
     color: "text-cyan-400",
@@ -647,7 +647,7 @@ export default function ToolComparison() {
                   <div className="w-6 h-6 bg-cyan-500/20 rounded flex items-center justify-center text-[10px] font-bold text-cyan-400">4</div>
                   <div className="flex-1">
                     <p className="text-xs font-medium">OPSEC-sensitive? Need intelligent recommendations?</p>
-                    <p className="text-[10px] text-muted-foreground">If YES → <span className="text-cyan-400 font-medium">Ace C3 Built-in</span> (LLM scores risk, recommends safest approach)</p>
+                    <p className="text-[10px] text-muted-foreground">If YES → <span className="text-cyan-400 font-medium">AC3 Built-in</span> (LLM scores risk, recommends safest approach)</p>
                   </div>
                 </div>
               </div>

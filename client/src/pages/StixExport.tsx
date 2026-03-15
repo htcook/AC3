@@ -448,13 +448,13 @@ export default function StixExport() {
               <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border/50">
                 <h4 className="text-sm font-semibold mb-2">Integration Example</h4>
                 <pre className="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap">
-{`# Fetch STIX bundle from Ace C3 TAXII endpoint
+{`# Fetch STIX bundle from AC3 TAXII endpoint
 curl -H "Content-Type: application/taxii+json;version=2.1" \\
      -H "Authorization: Bearer <your-session-token>" \\
      "/api/trpc/stixExport.taxiiGetObjects?input={\\"collectionId\\":\\"ace-c3-all\\",\\"limit\\":100}"
 
 # Import into OpenCTI
-# Configure a TAXII connector pointing to the Ace C3 API root`}
+# Configure a TAXII connector pointing to the AC3 API root`}
                 </pre>
               </div>
             </CardContent>

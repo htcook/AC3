@@ -753,7 +753,7 @@ export default function DomainIntelResults() {
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
               <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />
-              <span className="text-[9px] text-muted-foreground mt-1">Ace C3 Hybrid</span>
+              <span className="text-[9px] text-muted-foreground mt-1">AC3 Hybrid</span>
             </div>
             {(() => {
               const assetList = (assets || []) as any[];
@@ -2473,7 +2473,7 @@ export default function DomainIntelResults() {
                   onClick={() => setExpandedAsset(isExpanded ? null : asset.id)}
                 >
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`} title="Ace C3 Hybrid Risk Score">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${RISK_COLORS[band]}`} title="AC3 Hybrid Risk Score">
                       <span className="text-sm font-bold">{asset.hybridRiskScore}</span>
                     </div>
                     <div className="flex flex-col items-center w-8" title="CVSS Estimate (0-10)">
@@ -2618,7 +2618,7 @@ export default function DomainIntelResults() {
                               <span className="text-[9px] text-cyan-400/70">/10</span>
                               <p className="text-[8px] text-cyan-400/60">CVSS</p>
                             </div>
-                            <div className={`rounded-md border px-3 py-1.5 text-center ${band === 'critical' ? 'border-red-500/30 bg-red-500/5' : band === 'high' ? 'border-orange-500/30 bg-orange-500/5' : band === 'medium' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`} title="Ace C3 Hybrid Risk Score — Proprietary score">
+                            <div className={`rounded-md border px-3 py-1.5 text-center ${band === 'critical' ? 'border-red-500/30 bg-red-500/5' : band === 'high' ? 'border-orange-500/30 bg-orange-500/5' : band === 'medium' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-emerald-500/30 bg-emerald-500/5'}`} title="AC3 Hybrid Risk Score — Proprietary score">
                               <span className={`text-base font-bold ${band === 'critical' ? 'text-red-400' : band === 'high' ? 'text-orange-400' : band === 'medium' ? 'text-yellow-400' : 'text-emerald-400'}`}>{asset.hybridRiskScore}</span>
                               <span className="text-[9px] text-muted-foreground">/100</span>
                               <p className={`text-[8px] ${band === 'critical' ? 'text-red-400/60' : band === 'high' ? 'text-orange-400/60' : band === 'medium' ? 'text-yellow-400/60' : 'text-emerald-400/60'}`}>Hybrid</p>

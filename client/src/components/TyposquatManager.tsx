@@ -425,7 +425,7 @@ export default function TyposquatManager({ engagementId }: { engagementId?: numb
                   />
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p className="flex items-center gap-1"><Settings className="w-3 h-3" /> <strong>Mail Server:</strong> 137.184.7.224 (Ace C3 mail server)</p>
+                  <p className="flex items-center gap-1"><Settings className="w-3 h-3" /> <strong>Mail Server:</strong> 137.184.7.224 (AC3 mail server)</p>
                   <p className="flex items-center gap-1"><Mail className="w-3 h-3" /> <strong>From Address:</strong> noreply@{selectedDomain?.domain}</p>
                   <p className="flex items-center gap-1"><Server className="w-3 h-3" /> <strong>Nameservers:</strong> ns1/ns2/ns3.digitalocean.com</p>
                 </div>

@@ -149,7 +149,7 @@ export async function pushProfileToCaldera(
   // Build the Caldera API payload
   const payload: CalderaAdversaryPayload = {
     name: profile.name || `${actor.name} Emulation Profile`,
-    description: `Auto-generated adversary emulation profile for ${actor.name}. Covers ${profile.killChainPhases?.length || 0} kill chain phases with ${profile.atomicOrdering.length} abilities. Deployed from Ace C3 threat intelligence platform.`,
+    description: `Auto-generated adversary emulation profile for ${actor.name}. Covers ${profile.killChainPhases?.length || 0} kill chain phases with ${profile.atomicOrdering.length} abilities. Deployed from AC3 threat intelligence platform.`,
     atomic_ordering: profile.atomicOrdering,
     objective: profile.objectives || undefined,
     tags: [

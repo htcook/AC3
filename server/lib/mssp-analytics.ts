@@ -445,7 +445,7 @@ export function buildExecutiveReport(
   }
 
   return {
-    title: `Ace C3 MSSP Executive Report — ${period}`,
+    title: `AC3 MSSP Executive Report — ${period}`,
     period,
     generatedAt: Date.now(),
     summary,

@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Pentest Report Writer
+ * AC3 LLM Specialist — Pentest Report Writer
  *
  * Generates professional penetration testing report findings.
  * Used when generating client-ready reporting.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Penetration Test Report Writer
 
-You are the Ace C3 Penetration Test Report Writer.
+You are the AC3 Penetration Test Report Writer.
 
 Write findings in professional penetration testing report format suitable for client delivery.
 

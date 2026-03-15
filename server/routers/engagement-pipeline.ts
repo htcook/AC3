@@ -177,14 +177,14 @@ export const engagementPipelineRouter = router({
 
                 const rec = topRecs[i];
                 const campaignName = rec.name || `${domains[0]} - ${rec.type || 'phishing'} Campaign`;
-                const templateName = `[Ace C3] ${campaignName} - Template`;
-                const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
-                const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+                const templateName = `[AC3] ${campaignName} - Template`;
+                const landingPageName = `[AC3] ${campaignName} - Landing Page`;
+                const targetGroupName = `[AC3] ${campaignName} - Targets`;
 
                 // LLM-powered materialization
                 let generatedContent: any = {};
                 try {
-                  const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (Ace C3 platform).
+                  const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (AC3 platform).
 Given the following domain intelligence and campaign recommendation, generate a complete phishing campaign package.
 
 TARGET DOMAIN: ${domains[0]}
@@ -209,7 +209,7 @@ Generate a JSON object with these fields:
   "templateText": "Plain text version of the email",
   "landingPageHtml": "HTML for a credential capture landing page. Use the most relevant matched exploit technique (e.g., BITB SSO popup for SSO targets, progressive MFA capture for MFA targets, ClickFix for payload delivery). Include form fields that POST credentials. Make it look like the target's real login page.",
   "landingPageRedirectUrl": "https://${domains[0]}",
-  "smtpProfileName": "Ace C3 - ${domains[0]} Profile"
+  "smtpProfileName": "AC3 - ${domains[0]} Profile"
 }
 
 Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization. Leverage the matched phishing exploit techniques to maximize effectiveness.`;
@@ -275,7 +275,7 @@ Make the phishing content highly realistic and tailored to the target domain and
                     templateText: `Dear {{.FirstName}},\n\nPlease review the document regarding your ${domains[0]} account.\n\n{{.URL}}\n\nBest regards,\nIT Security Team`,
                     landingPageHtml: `<html><body><h2>${domains[0]} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
                     landingPageRedirectUrl: `https://${domains[0]}`,
-                    smtpProfileName: `Ace C3 - ${domains[0]} Profile`,
+                    smtpProfileName: `AC3 - ${domains[0]} Profile`,
                   };
                 }
 

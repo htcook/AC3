@@ -423,8 +423,8 @@ export default function KsiEvidenceChain() {
                             ))}
                           </div>
                         )}
-                        {!enriched && def.aceC3Module && (
-                          <div className="text-xs text-blue-400 mt-0.5">Module: {def.aceC3Module}</div>
+                        {!enriched && def.ac3Module && (
+                          <div className="text-xs text-blue-400 mt-0.5">Module: {def.ac3Module}</div>
                         )}
                       </div>
                       <Badge className={enriched ? getCoverageBadgeClass(enriched.coverageLevel) : undefined} variant={

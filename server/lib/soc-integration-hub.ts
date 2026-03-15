@@ -120,7 +120,7 @@ export function exportFindingAsJSON(finding: EngagementFinding): ExportedAlert {
       category: ["vulnerability"],
       type: ["info"],
       severity: SEVERITY_TO_CEF[finding.severity] ?? 5,
-      module: "ace_c3",
+      module: "ac3",
       dataset: "pentest_finding",
     },
     rule: {
@@ -141,7 +141,7 @@ export function exportFindingAsJSON(finding: EngagementFinding): ExportedAlert {
       ip: finding.targetHost,
       port: finding.targetPort,
     },
-    ace_c3: {
+    ac3: {
       engagement_id: finding.engagementId,
       tool_used: finding.toolUsed,
       phase: finding.phase,
@@ -502,8 +502,8 @@ export async function pushAlertsToSiem(
           if (alert.findingId === "header") continue; // Skip CSV headers
           try {
             const payload = alert.format === "json"
-              ? { event: JSON.parse(alert.raw), sourcetype: "ace_c3:pentest", index: config.index || "main" }
-              : { event: alert.raw, sourcetype: `ace_c3:${alert.format}`, index: config.index || "main" };
+              ? { event: JSON.parse(alert.raw), sourcetype: "ac3:pentest", index: config.index || "main" }
+              : { event: alert.raw, sourcetype: `ac3:${alert.format}`, index: config.index || "main" };
 
             const resp = await fetch(config.endpoint, {
               method: "POST",

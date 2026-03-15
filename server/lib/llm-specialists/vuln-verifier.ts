@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Vulnerability Verifier
+ * AC3 LLM Specialist — Vulnerability Verifier
  *
  * Evaluates scan findings to determine if vulnerabilities are real, contextual, or false positives.
  * Used after nuclei, ZAP, or nmap NSE script findings.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Vulnerability Verification Analyst
 
-You are the Ace C3 Vulnerability Verification Analyst.
+You are the AC3 Vulnerability Verification Analyst.
 
 Your task is to determine whether a vulnerability finding is:
 • Real and exploitable

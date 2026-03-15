@@ -1,7 +1,7 @@
 /**
  * Auto-Industry CARVER Module (v1 + v2)
  * ──────────────────────────────────────
- * Integrates the Ace C3 Auto Industry + CARVER Hybrid Module packages:
+ * Integrates the AC3 Auto Industry + CARVER Hybrid Module packages:
  *
  * v1: Industry detection, CARVER+SHOCK presets, regulatory overlays,
  *     hybrid fusion formula, auto-BIA asset priority

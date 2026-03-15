@@ -2,7 +2,7 @@ import * as db from "../db";
 /**
  * STIX/TAXII Export Router
  * 
- * Provides tRPC endpoints for generating STIX 2.1 bundles from Ace C3 data,
+ * Provides tRPC endpoints for generating STIX 2.1 bundles from AC3 data,
  * plus TAXII 2.1 compatible collection endpoints for automated intel sharing.
  */
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
@@ -330,8 +330,8 @@ export const stixExportRouter = router({
   // ─── TAXII 2.1 Discovery ──────────────────────────────────────────────────
   taxiiDiscovery: publicProcedure.query(() => {
     return {
-      title: "Ace C3 TAXII Server",
-      description: "TAXII 2.1 compatible endpoint for Ace C3 threat intelligence",
+      title: "AC3 TAXII Server",
+      description: "TAXII 2.1 compatible endpoint for AC3 threat intelligence",
       contact: "https://aceofcloud.com",
       default: "/api/trpc/stixExport.taxiiApiRoot",
       api_roots: ["/api/trpc/stixExport.taxiiApiRoot"],
@@ -341,8 +341,8 @@ export const stixExportRouter = router({
   // ─── TAXII 2.1 API Root ───────────────────────────────────────────────────
   taxiiApiRoot: publicProcedure.query(() => {
     return {
-      title: "Ace C3 Intelligence",
-      description: "Ace C3 threat intelligence collections",
+      title: "AC3 Intelligence",
+      description: "AC3 threat intelligence collections",
       versions: ["application/taxii+json;version=2.1"],
       max_content_length: 10485760,
     };

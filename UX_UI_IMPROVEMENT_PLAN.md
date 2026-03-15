@@ -1,6 +1,6 @@
-# ACE C3 — UX/UI Improvement Plan
+# AC3 — UX/UI Improvement Plan
 
-**Objective:** Transform ACE C3 from a feature-rich platform that risks feeling "massive and confusing" into one that feels **intuitive, creative, and beautiful** — where the depth of capability is discovered progressively rather than presented all at once. The brutalist design aesthetic is preserved and refined throughout.
+**Objective:** Transform AC3 from a feature-rich platform that risks feeling "massive and confusing" into one that feels **intuitive, creative, and beautiful** — where the depth of capability is discovered progressively rather than presented all at once. The brutalist design aesthetic is preserved and refined throughout.
 
 **Source Document:** *Best Operator-Centric UX/UI for a Penetration Testing and Red Team Platform in 2026* (17-page research paper, 110 citations)
 
@@ -295,7 +295,7 @@ The existing Platform Advisor chat already implements some of this. Enhancements
 
 ## 7. Keyboard Shortcuts (Power User UX)
 
-The research document provides a recommended shortcut set. Mapped to ACE C3:
+The research document provides a recommended shortcut set. Mapped to AC3:
 
 | Shortcut | Action | Rationale |
 |---|---|---|
@@ -377,4 +377,4 @@ All shortcuts should be user-remappable via Account Settings.
 
 ---
 
-*Document prepared by Manus AI based on analysis of "Best Operator-Centric UX/UI for a Penetration Testing and Red Team Platform in 2026" and the current ACE C3 codebase (243 pages, 7 roles, ~148 nav items).*
+*Document prepared by Manus AI based on analysis of "Best Operator-Centric UX/UI for a Penetration Testing and Red Team Platform in 2026" and the current AC3 codebase (243 pages, 7 roles, ~148 nav items).*

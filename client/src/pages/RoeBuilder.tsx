@@ -342,7 +342,7 @@ function RoeListView({
 function RoeCreateWizard({ onBack, onCreated }: { onBack: () => void; onCreated: (id: number) => void }) {
   const [title, setTitle] = useState("");
   const [orgName, setOrgName] = useState("");
-  const [firmName, setFirmName] = useState("ACE C3 — AceofCloud");
+  const [firmName, setFirmName] = useState("AC3 — AceofCloud");
   const [fedramp, setFedramp] = useState(false);
   const [impactLevel, setImpactLevel] = useState("not_applicable");
   const [serviceModel, setServiceModel] = useState("not_applicable");

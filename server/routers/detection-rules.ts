@@ -12,7 +12,7 @@ id: auto-generated
 status: experimental
 level: high
 description: Auto-generated detection rule for MITRE ATT&CK technique ${technique}
-author: Ace C3 Detection Engine
+author: AC3 Detection Engine
 logsource:
   category: process_creation
   product: windows

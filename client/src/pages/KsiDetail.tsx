@@ -172,23 +172,23 @@ export default function KsiDetail() {
         {/* Tabbed Content */}
         <Tabs defaultValue="ace-c3" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="ace-c3">Ace C3 Mapping</TabsTrigger>
+            <TabsTrigger value="ace-c3">AC3 Mapping</TabsTrigger>
             <TabsTrigger value="definition">Definition</TabsTrigger>
             <TabsTrigger value="evidence">Evidence ({Array.isArray(evidence) ? evidence.length : 0})</TabsTrigger>
             <TabsTrigger value="validation">Validation ({Array.isArray(validationRuns) ? validationRuns.length : 0})</TabsTrigger>
             <TabsTrigger value="controls">NIST Controls ({enriched?.nistControls.length || controlMappings.length})</TabsTrigger>
           </TabsList>
 
-          {/* Ace C3 Mapping Tab - NEW */}
+          {/* AC3 Mapping Tab - NEW */}
           <TabsContent value="ace-c3">
             {enriched ? (
               <div className="space-y-4">
-                {/* How Ace C3 Delivers */}
+                {/* How AC3 Delivers */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Shield className="w-4 h-4 text-blue-400" />
-                      How Ace C3 {coverageLevel === "direct" ? "Meets" : coverageLevel === "supporting" ? "Supports" : "Plans to Address"} This KSI
+                      How AC3 {coverageLevel === "direct" ? "Meets" : coverageLevel === "supporting" ? "Supports" : "Plans to Address"} This KSI
                     </CardTitle>
                     <CardDescription>
                       Coverage Level: <Badge className={getCoverageBadgeClass(coverageLevel as any)}>{coverageLevel}</Badge>
@@ -199,13 +199,13 @@ export default function KsiDetail() {
                   </CardContent>
                 </Card>
 
-                {/* Ace C3 Modules */}
+                {/* AC3 Modules */}
                 {enriched.aceModules.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base flex items-center gap-2">
                         <Cpu className="w-4 h-4 text-purple-400" />
-                        Ace C3 Modules Involved ({enriched.aceModules.length})
+                        AC3 Modules Involved ({enriched.aceModules.length})
                       </CardTitle>
                       <CardDescription>
                         Each module contributes specific capabilities to satisfy this indicator
@@ -305,7 +305,7 @@ export default function KsiDetail() {
                           <div className="p-3 border rounded-lg">
                             <div className="text-xs text-muted-foreground mb-1">Parent Theme</div>
                             <div className="text-sm font-medium">{themeEnriched.name} ({themeEnriched.code})</div>
-                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{themeEnriched.aceC3Narrative}</p>
+                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{themeEnriched.ac3Narrative}</p>
                           </div>
                         )}
                       </div>
@@ -321,7 +321,7 @@ export default function KsiDetail() {
                         <Zap className="w-8 h-8 text-muted-foreground mx-auto" />
                         <p className="text-sm font-medium">Planned for Future Development</p>
                         <p className="text-xs text-muted-foreground max-w-lg mx-auto">
-                          This KSI is outside the current scope of Ace C3's offensive security capabilities. 
+                          This KSI is outside the current scope of AC3's offensive security capabilities. 
                           It requires organizational processes or infrastructure-level capabilities that are planned for future platform development.
                         </p>
                       </div>
@@ -334,7 +334,7 @@ export default function KsiDetail() {
                 <CardContent className="pt-6">
                   <div className="text-center py-8 text-muted-foreground">
                     <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>No enriched Ace C3 mapping data available for this KSI</p>
+                    <p>No enriched AC3 mapping data available for this KSI</p>
                   </div>
                 </CardContent>
               </Card>
@@ -354,7 +354,7 @@ export default function KsiDetail() {
                       <p className="text-sm leading-relaxed">{enriched?.requirement || def?.description || "No description available"}</p>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">ACE C3 Module(s)</div>
+                      <div className="text-xs text-muted-foreground mb-1">AC3 Module(s)</div>
                       {enriched && enriched.aceModules.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {enriched.aceModules.map((m, i) => (
@@ -362,7 +362,7 @@ export default function KsiDetail() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm font-medium">{def?.aceC3Module || "Not assigned"}</p>
+                        <p className="text-sm font-medium">{def?.ac3Module || "Not assigned"}</p>
                       )}
                     </div>
                     <div>

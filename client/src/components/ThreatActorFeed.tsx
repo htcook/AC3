@@ -270,7 +270,7 @@ function ActorDetailModal({ actorId, onClose }: { actorId: string; onClose: () =
         {/* Footer */}
         <div className="p-4 border-t border-border text-center">
           <p className="text-[10px] text-muted-foreground font-display tracking-wider">
-            THREAT INTELLIGENCE FROM ACE C3 — {(actor?.techniques as any[])?.length || 0} TECHNIQUES MAPPED
+            THREAT INTELLIGENCE FROM AC3 — {(actor?.techniques as any[])?.length || 0} TECHNIQUES MAPPED
           </p>
         </div>
       </div>

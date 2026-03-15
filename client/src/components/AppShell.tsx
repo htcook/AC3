@@ -1100,7 +1100,7 @@ export default function AppShell({
                 <Cloud className="w-7 h-7 sm:w-8 sm:h-8 text-primary shrink-0" />
                 <div className="flex flex-col min-w-0">
                   <span className="font-display text-lg sm:text-xl tracking-wider truncate">
-                    ACE C3
+                    AC3
                   </span>
                   <span className="text-[10px] sm:text-xs text-muted-foreground tracking-widest truncate">
                     <span className="text-primary/70">CYBER CAMPAIGN COMMAND</span>
@@ -1246,7 +1246,7 @@ export default function AppShell({
             <div className="flex items-center gap-2 min-w-0 flex-1 justify-center">
               <Cloud className="w-5 h-5 text-primary shrink-0" />
               <span className="font-display text-sm tracking-wider truncate">
-                ACE C3
+                AC3
               </span>
             </div>
             {headerActions ? (

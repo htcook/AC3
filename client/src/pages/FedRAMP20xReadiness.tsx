@@ -64,7 +64,7 @@ export default function FedRAMP20xReadiness() {
         </div>
         <h2 className="text-2xl font-display mb-2">FedRAMP 20x Framework &amp; KSI Coverage</h2>
         <p className="text-muted-foreground max-w-3xl">
-          Understand the FedRAMP 20x modernization, how Key Security Indicators (KSIs) work, and how Ace C3 maps to
+          Understand the FedRAMP 20x modernization, how Key Security Indicators (KSIs) work, and how AC3 maps to
           all 13 security themes with 75 KSIs — providing real-time security testing and evidence generation.
         </p>
       </div>
@@ -246,13 +246,13 @@ export default function FedRAMP20xReadiness() {
         </div>
       </CollapsibleSection>
 
-      {/* ─── Ace C3's Role ───────────────────────────────────── */}
-      <CollapsibleSection title="ACE C3'S ROLE IN FEDRAMP 20x" defaultOpen={true}>
+      {/* ─── AC3's Role ───────────────────────────────────── */}
+      <CollapsibleSection title="AC3'S ROLE IN FEDRAMP 20x" defaultOpen={true}>
         <div className="grid md:grid-cols-2 gap-6 mb-6">
           <div className="border-2 border-emerald-400/30 bg-emerald-400/5 p-5">
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <span className="font-display text-xs tracking-wider text-emerald-400">WHAT ACE C3 DOES</span>
+              <span className="font-display text-xs tracking-wider text-emerald-400">WHAT AC3 DOES</span>
             </div>
             <ul className="space-y-3 text-sm text-muted-foreground">
               {[
@@ -273,14 +273,14 @@ export default function FedRAMP20xReadiness() {
             <div className="border-2 border-amber-400/30 bg-amber-400/5 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <AlertTriangle className="w-5 h-5 text-amber-400" />
-                <span className="font-display text-xs tracking-wider text-amber-400">WHAT ACE C3 IS NOT</span>
+                <span className="font-display text-xs tracking-wider text-amber-400">WHAT AC3 IS NOT</span>
               </div>
               <ul className="space-y-3 text-sm text-muted-foreground">
                 {[
-                  { bold: "Not a compliance certifier", rest: " — Ace C3 does not grant FedRAMP authorization. Authorization is issued by the FedRAMP PMO after review by a 3PAO" },
-                  { bold: "Not a GRC platform", rest: " — Ace C3 focuses on technical security validation, not governance documentation management or policy authoring" },
-                  { bold: "Not a replacement for 3PAO assessment", rest: " — Ace C3 produces the evidence that 3PAOs review; it does not replace the independent assessment requirement" },
-                  { bold: "Not a checkbox tool", rest: " — Ace C3 runs real attacks and produces real evidence. If your controls fail, the platform reports failures honestly" },
+                  { bold: "Not a compliance certifier", rest: " — AC3 does not grant FedRAMP authorization. Authorization is issued by the FedRAMP PMO after review by a 3PAO" },
+                  { bold: "Not a GRC platform", rest: " — AC3 focuses on technical security validation, not governance documentation management or policy authoring" },
+                  { bold: "Not a replacement for 3PAO assessment", rest: " — AC3 produces the evidence that 3PAOs review; it does not replace the independent assessment requirement" },
+                  { bold: "Not a checkbox tool", rest: " — AC3 runs real attacks and produces real evidence. If your controls fail, the platform reports failures honestly" },
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <X className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -294,7 +294,7 @@ export default function FedRAMP20xReadiness() {
               <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  <strong className="text-foreground">In practice:</strong> Ace C3 is the technical engine that generates the evidence your 3PAO needs to see.
+                  <strong className="text-foreground">In practice:</strong> AC3 is the technical engine that generates the evidence your 3PAO needs to see.
                   It runs the penetration tests, validates the controls, monitors for drift, and packages the results.
                   Your 3PAO reviews this evidence as part of the FedRAMP authorization process.
                 </p>

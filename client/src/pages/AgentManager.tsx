@@ -537,7 +537,7 @@ function DeployAgentDialog() {
                   <SelectItem value="caldera">CALDERA</SelectItem>
                   <SelectItem value="sliver">Sliver</SelectItem>
                   <SelectItem value="metasploit">Metasploit</SelectItem>
-                  <SelectItem value="native">Native (Ace C3)</SelectItem>
+                  <SelectItem value="native">Native (AC3)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

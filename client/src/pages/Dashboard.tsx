@@ -378,7 +378,7 @@ function DashboardInner() {
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="px-4 sm:px-6 py-3 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl sm:text-3xl">ACE C3 COMMAND CENTER</h1>
+            <h1 className="font-display text-2xl sm:text-3xl">AC3 COMMAND CENTER</h1>
             <p className="text-xs text-muted-foreground">Offensive Security Execution Platform</p>
           </div>
           <div className="flex items-center gap-2">

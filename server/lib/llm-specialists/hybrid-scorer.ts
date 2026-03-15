@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Hybrid Scorer with Context Awareness
+ * AC3 LLM Specialist — Hybrid Scorer with Context Awareness
  *
  * Wraps the deterministic CARVER+SHOCK+CVSS scoring engine with LLM-enhanced
  * reasoning for dynamic score adjustments, business context inference, and
@@ -131,7 +131,7 @@ export function formatContextForLLM(ctx: EngagementContext): string {
 // HYBRID SCORER — LLM-enhanced scoring with context awareness
 // ═══════════════════════════════════════════════════════════════════════
 
-const HYBRID_SCORER_ROLE = `You are the Ace C3 Hybrid Risk Scorer.
+const HYBRID_SCORER_ROLE = `You are the AC3 Hybrid Risk Scorer.
 
 Your job is to review deterministic CARVER+SHOCK+CVSS scores for an asset and provide
 LLM-enhanced adjustments based on observed scan data and engagement context.

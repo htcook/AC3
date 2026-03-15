@@ -40,7 +40,7 @@ export interface TechniqueEntry {
   tools: string[];
   mitre_mappings: string[];
   automation_potential: string;
-  ace_c3_enhancements: string;
+  ac3_enhancements: string;
   source: string;
 }
 

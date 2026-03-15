@@ -838,7 +838,7 @@ export const abilityGraphRouter = router({
       const spec: ModuleSpec = {
         name: input.techniqueName,
         description: `Module for ${input.techniqueId}: ${input.techniqueName}`,
-        author: "Ace C3 Auto-Generator",
+        author: "AC3 Auto-Generator",
         category: "exploitation" as any,
         platforms: [input.platform as any],
         techniqueIds: [input.techniqueId],

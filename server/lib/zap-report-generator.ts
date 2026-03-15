@@ -1174,7 +1174,7 @@ function wrapInHtmlDocument(data: ReportData, bodyContent: string): string {
       <div class="brand">
         <div class="brand-logo"><img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/ace_of_cloud_logo_8934407a.jpeg" alt="Ace of Cloud" /></div>
         <div>
-          <div class="brand-name">ACE OF CLOUD — ACE C3</div>
+          <div class="brand-name">ACE OF CLOUD — AC3</div>
           <div class="brand-sub">Web Application Security Assessment</div>
         </div>
       </div>
@@ -1199,7 +1199,7 @@ function wrapInHtmlDocument(data: ReportData, bodyContent: string): string {
   ${bodyContent}
 
   <div class="report-footer">
-    ACE OF CLOUD LLC — ACE C3 PLATFORM &nbsp;|&nbsp; aceofcloud.com &nbsp;|&nbsp; ${dateStr}
+    ACE OF CLOUD LLC — AC3 PLATFORM &nbsp;|&nbsp; aceofcloud.com &nbsp;|&nbsp; ${dateStr}
     <br>
     This report is ${data.classification}. Distribution is restricted to authorized personnel only.
   </div>

@@ -247,7 +247,7 @@ async function startServer() {
         "# Detection Rules Pack: " + actor.name,
         "",
         "Generated: " + new Date().toISOString(),
-        "Author: Ace C3 / AceofCloud",
+        "Author: AC3 / AceofCloud",
         "",
         "## Contents",
         "",

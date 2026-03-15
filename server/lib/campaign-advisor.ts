@@ -47,7 +47,7 @@ export interface AdvisorRecommendation {
 
 // ─── System Prompt ───────────────────────────────────────────────────────────
 
-const CAMPAIGN_ADVISOR_SYSTEM_PROMPT = `You are the Campaign Advisor for Ace C3 — a professional red team and penetration testing platform. You are an expert red team operator with deep knowledge of:
+const CAMPAIGN_ADVISOR_SYSTEM_PROMPT = `You are the Campaign Advisor for AC3 — a professional red team and penetration testing platform. You are an expert red team operator with deep knowledge of:
 
 ## Your Capabilities
 You have access to five specialized engines that you can reason about:

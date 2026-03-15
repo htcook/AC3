@@ -440,7 +440,7 @@ export const typosquatRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const fromAddr = input.fromAddress || `noreply@${input.domain}`;
-        const profileName = `Ace C3 - ${input.domain}`;
+        const profileName = `AC3 - ${input.domain}`;
 
         // Create sending profile in GoPhish
         const profile = await fetchGophishAPI('/api/smtp/', 'POST', {
@@ -499,7 +499,7 @@ export const typosquatRouter = router({
         let profileResult: any = null;
         try {
           const fromAddr = `noreply@${input.domain}`;
-          const profileName = `Ace C3 - ${input.domain}`;
+          const profileName = `AC3 - ${input.domain}`;
           profileResult = await fetchGophishAPI('/api/smtp/', 'POST', {
             name: profileName,
             from_address: `${input.fromName} <${fromAddr}>`,

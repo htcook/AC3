@@ -363,8 +363,8 @@ export class SentinelClient extends BaseVendorClient {
           data: {
             kind: "indicator",
             properties: {
-              source: "Ace C3 Platform",
-              displayName: `[Ace C3] ${ioc.type}: ${ioc.value}`,
+              source: "AC3 Platform",
+              displayName: `[AC3] ${ioc.type}: ${ioc.value}`,
               description: ioc.description,
               confidence: ioc.confidence,
               pattern: patternMap[ioc.type] || `[artifact:payload_bin = '${ioc.value}']`,

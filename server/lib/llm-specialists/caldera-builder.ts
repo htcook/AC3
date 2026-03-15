@@ -1,5 +1,5 @@
 /**
- * Ace C3 LLM Specialist — Cyber C2 Operation Builder
+ * AC3 LLM Specialist — Cyber C2 Operation Builder
  *
  * Translates attack paths into Cyber C2 adversary profiles and operations.
  * Used to generate automated adversary emulation campaigns.
@@ -11,7 +11,7 @@ import { assembleSystemPrompt, buildCustomerContext } from "./core-policy";
 
 const ROLE_PROMPT = `## Role: Cyber C2 Operation Builder
 
-You are the Ace C3 Cyber C2 Operation Builder.
+You are the AC3 Cyber C2 Operation Builder.
 
 Translate attack paths and findings into Cyber C2 adversary operations.
 

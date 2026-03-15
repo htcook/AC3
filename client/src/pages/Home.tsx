@@ -50,7 +50,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 75 FedRAMP 20x KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
   { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of live scan evidence against the threat catalog. Auto-collection pipelines with 6 configurable sources feed KSI evidence chains. Scheduled collection with cron-based automation and source health monitoring." },
   { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded emulation abilities and Metasploit modules." },
-  { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how ACE C3 addresses 75 FedRAMP 20x Key Security Indicators across 13 compliance themes — 34 with direct automated validation and 32 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped ACE C3 modules and honest capability grounding." },
+  { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how AC3 addresses 75 FedRAMP 20x Key Security Indicators across 13 compliance themes — 34 with direct automated validation and 32 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped AC3 modules and honest capability grounding." },
   { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
   { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
   { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into DAST scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
@@ -96,7 +96,7 @@ function UpdatesPopup({ onClose }: { onClose: () => void }) {
         </div>
         <div className="p-4 border-t border-border">
           <Button onClick={onClose} className="w-full font-display tracking-wider bg-primary hover:bg-primary/90">
-            CONTINUE TO ACE C3
+            CONTINUE TO AC3
           </Button>
         </div>
       </div>
@@ -161,7 +161,7 @@ export default function Home() {
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <Cloud className="w-8 h-8 text-primary" />
-            <span className="font-display text-2xl tracking-wider">ACE C3</span>
+            <span className="font-display text-2xl tracking-wider">AC3</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-wider text-muted-foreground">
             <a href="#how-it-works" className="hover:text-primary transition-colors">HOW IT WORKS</a>
@@ -215,7 +215,7 @@ export default function Home() {
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
-              Stop switching between disconnected terminals. Ace C3 orchestrates your entire
+              Stop switching between disconnected terminals. AC3 orchestrates your entire
               exploit-to-report workflow: reconnaissance, DAST scanning, adversary emulation,
               social engineering, detection validation, threat intelligence enrichment, and compliance reporting — all correlated
               through MITRE ATT&CK.
@@ -316,7 +316,7 @@ export default function Home() {
                   step: "1",
                   icon: Radar,
                   title: "Discover Your Attack Surface",
-                  desc: "Point Ace C3 at your domain. Automated DAST crawls web applications while 16 OSINT connectors map exposed servers, services, and technologies. AI auto-tunes scan policies based on detected tech stacks. Import OpenAPI, GraphQL, or SOAP specs for full API coverage."
+                  desc: "Point AC3 at your domain. Automated DAST crawls web applications while 16 OSINT connectors map exposed servers, services, and technologies. AI auto-tunes scan policies based on detected tech stacks. Import OpenAPI, GraphQL, or SOAP specs for full API coverage."
                 },
                 {
                   step: "2",
@@ -843,7 +843,7 @@ export default function Home() {
           <h2 className="text-4xl sm:text-5xl font-display mb-6">FEDRAMP 20x READINESS</h2>
           <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-3xl">
             FedRAMP 20x replaces the traditional control-by-control audit with <strong className="text-foreground">outcome-based security validation</strong> across
-            75 Key Security Indicators in 13 themes. Ace C3 provides <strong className="text-foreground">88% KSI coverage</strong> — 34 with direct
+            75 Key Security Indicators in 13 themes. AC3 provides <strong className="text-foreground">88% KSI coverage</strong> — 34 with direct
             automated validation and 32 with supporting evidence — through real penetration testing, adversary emulation, and continuous monitoring.
           </p>
 
@@ -898,15 +898,15 @@ export default function Home() {
               <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
                 Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
                 CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                Ace C3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
+                AC3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
                 DAST scanning, ATT&CK validation, social engineering, and continuous threat intelligence enrichment through a single AI-powered command center.
                 With coverage across 75 FedRAMP 20x Key Security Indicators spanning 13 compliance themes and 142 NIST SP 800-53 control mappings,
-                Ace C3 provides automated evidence collection, validation, and continuous monitoring to support CSPs pursuing FedRAMP authorization.
+                AC3 provides automated evidence collection, validation, and continuous monitoring to support CSPs pursuing FedRAMP authorization.
               </p>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Created by Harrison Cook, Ace C3 aligns to Gartner's CTEM framework across all five stages:
+                Created by Harrison Cook, AC3 aligns to Gartner's CTEM framework across all five stages:
                 scoping, discovery, prioritization, validation, and mobilization. Where vulnerability scanners
-                stop at identification and BAS platforms stop at simulation, Ace C3 executes real exploits,
+                stop at identification and BAS platforms stop at simulation, AC3 executes real exploits,
                 runs adversary emulation, scans web applications, validates ATT&CK coverage, tests
                 human defenses, and continuously enriches security controls with threat intelligence — then captures evidence proving exploitability. Every finding is backed by proof, not theory.
               </p>
@@ -958,10 +958,10 @@ export default function Home() {
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Cloud className="w-5 h-5 text-primary" />
-            <span className="font-display tracking-wider">ACE C3</span>
+            <span className="font-display tracking-wider">AC3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            Ace C3 — Unified Offensive Platform with FedRAMP 20x KSI Coverage & Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
+            AC3 — Unified Offensive Platform with FedRAMP 20x KSI Coverage & Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">

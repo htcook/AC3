@@ -147,7 +147,7 @@ export const campaignMgmtRouter = router({
 
       const { invokeLLM } = await import("../../_core/llm");
 
-      const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (Ace C3 platform).
+      const materializePrompt = `You are a red team phishing campaign designer for AceofCloud (AC3 platform).
 Given the following domain intelligence and campaign recommendation, generate a complete phishing campaign package.
 
 TARGET DOMAIN: ${scan.primaryDomain}
@@ -170,7 +170,7 @@ Generate a JSON object with these fields:
   "templateText": "Plain text version of the email",
   "landingPageHtml": "HTML for a credential capture landing page that mimics the target domain's login page. Include form fields for email and password. Use GoPhish action URL.",
   "landingPageRedirectUrl": "https://${scan.primaryDomain}",
-  "smtpProfileName": "Ace C3 - ${scan.primaryDomain} Profile"
+  "smtpProfileName": "AC3 - ${scan.primaryDomain} Profile"
 }
 
 Make the phishing content highly realistic and tailored to the target domain and sector.`;
@@ -215,14 +215,14 @@ Make the phishing content highly realistic and tailored to the target domain and
           templateText: `Dear {{.FirstName}},\n\nPlease review the attached document regarding your ${scan.primaryDomain} account.\n\nClick here to review: {{.URL}}\n\nBest regards,\nIT Security Team`,
           landingPageHtml: `<html><body><h2>${scan.primaryDomain} - Login</h2><form method="POST"><input name="email" placeholder="Email" /><input name="password" type="password" placeholder="Password" /><button type="submit">Sign In</button></form></body></html>`,
           landingPageRedirectUrl: `https://${scan.primaryDomain}`,
-          smtpProfileName: `Ace C3 - ${scan.primaryDomain} Profile`,
+          smtpProfileName: `AC3 - ${scan.primaryDomain} Profile`,
         };
       }
 
       const campaignName = input.campaignName || rec.name || `${scan.primaryDomain} - ${rec.type} Campaign`;
-      const templateName = `[Ace C3] ${campaignName} - Template`;
-      const landingPageName = `[Ace C3] ${campaignName} - Landing Page`;
-      const targetGroupName = `[Ace C3] ${campaignName} - Targets`;
+      const templateName = `[AC3] ${campaignName} - Template`;
+      const landingPageName = `[AC3] ${campaignName} - Landing Page`;
+      const targetGroupName = `[AC3] ${campaignName} - Targets`;
 
       // Dedup guard: check if a draft already exists for this scan + recommendation index
       const [existingDraft] = await db.select({ id: phishingDrafts.id })
@@ -556,7 +556,7 @@ Make the phishing content highly realistic and tailored to the target domain and
         .where(eq(phishingDrafts.id, input.draftId));
       if (!draft) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found" });
 
-      const opName = input.operationName || `[Ace C3] ${draft.campaignName} - Post-Exploitation`;
+      const opName = input.operationName || `[AC3] ${draft.campaignName} - Post-Exploitation`;
       const adversary = input.adversaryId || draft.threatActorId || undefined;
 
       const opPayload: any = {

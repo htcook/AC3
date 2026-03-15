@@ -18,7 +18,7 @@
  *   9. Whitespace / delimiter mutations
  *  10. String concatenation / splitting
  *
- * Created for ACE C3 — no competitor offers automated rule
+ * Created for AC3 — no competitor offers automated rule
  * robustness testing.
  */
 
