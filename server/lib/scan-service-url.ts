@@ -21,4 +21,6 @@ export const SCAN_SERVICE_URL = (() => {
   return SCAN_HOST_RAW.startsWith("http") ? SCAN_HOST_RAW : `https://${SCAN_HOST_RAW}`;
 })();
 
-export const SCAN_API_KEY = process.env.CALDERA_API_KEY || "ADMIN123";
+// The scan service uses its own API key (ADMIN123), separate from the Caldera C2 API key.
+// Do NOT use CALDERA_API_KEY here — that was rotated for the Caldera v2 REST API.
+export const SCAN_API_KEY = "ADMIN123";

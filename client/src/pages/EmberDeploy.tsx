@@ -19,6 +19,8 @@ import {
   FileCode, Settings, Crosshair, Plus, Check, X
 } from "lucide-react";
 import { Link } from "wouter";
+import ListenerDiscovery from "@/components/ListenerDiscovery";
+import TrafficProfilePreview from "@/components/TrafficProfilePreview";
 
 const PROFILE_DESCRIPTIONS: Record<string, { title: string; desc: string; icon: React.ReactNode; color: string }> = {
   ghost: {
@@ -104,6 +106,7 @@ export default function EmberDeploy() {
   const [engagementId, setEngagementId] = useState("");
   const [generatedPayload, setGeneratedPayload] = useState<any>(null);
   const [c2UrlsPreloaded, setC2UrlsPreloaded] = useState(false);
+  const [trafficProfileId, setTrafficProfileId] = useState("");
 
   const metadataQuery = trpc.ember.getMetadata.useQuery();
   const c2UrlsQuery = trpc.ember.getC2CallbackUrls.useQuery();
@@ -371,6 +374,22 @@ export default function EmberDeploy() {
                   </div>
                 )}
               </div>
+
+              <Separator className="my-2" />
+
+              {/* Live Listener Discovery */}
+              <ListenerDiscovery
+                onAddUrl={toggleC2Url}
+                isUrlSelected={isUrlSelected}
+              />
+
+              <Separator className="my-2" />
+
+              {/* Traffic Profile Preview */}
+              <TrafficProfilePreview
+                selectedProfileId={trafficProfileId}
+                onProfileChange={setTrafficProfileId}
+              />
 
               <Separator className="my-2" />
 

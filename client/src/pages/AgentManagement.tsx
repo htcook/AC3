@@ -18,6 +18,7 @@ import {
   Brain, Shield, Eye, Zap, Clock, MoreHorizontal, Power, ExternalLink,
   ChevronRight, AlertTriangle, CheckCircle2, XCircle, Pause,
 } from "lucide-react";
+import HeartbeatMonitor from "@/components/HeartbeatMonitor";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface UnifiedAgent {
@@ -411,6 +412,9 @@ export default function AgentManagement() {
           </Button>
         </div>
       </div>
+
+      {/* Heartbeat Monitor */}
+      <HeartbeatMonitor />
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">

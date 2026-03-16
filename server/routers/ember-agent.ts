@@ -29,6 +29,7 @@ import {
 } from "../lib/ember-agent-core";
 import { getSafetyEngine } from "../lib/safety-engine";
 import { ENV } from "../_core/env";
+import { C2Registry } from "../lib/c2-abstraction";
 
 // ─── Shared Zod Schemas ─────────────────────────────────────────────────────
 
@@ -1250,4 +1251,306 @@ export const emberAgentRouter = router({
       });
       return { success: true, taskId, error: null, blocked: false };
     }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // C2 LISTENER AUTO-DISCOVERY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Discover active listeners/handlers across all configured C2 frameworks */
+  discoverListeners: protectedProcedure.query(async () => {
+    const registry = C2Registry.getInstance();
+    const listeners: Array<{
+      id: string;
+      framework: string;
+      name: string;
+      protocol: string;
+      host: string;
+      port: number;
+      callbackUrl: string;
+      status: "active" | "inactive" | "unknown";
+      details: Record<string, any>;
+    }> = [];
+
+    // Caldera contacts (listeners)
+    try {
+      if (ENV.calderaBaseUrl && ENV.calderaApiKey) {
+        const calderaHost = ENV.calderaBaseUrl.replace(/^https?:\/\//, "").replace(/[\/:].*$/, "");
+        const resp = await fetch(`${ENV.calderaBaseUrl}/api/v2/contacts`, {
+          headers: { KEY: ENV.calderaApiKey, "Content-Type": "application/json" },
+        }).catch(() => null);
+        if (resp?.ok) {
+          const contacts = await resp.json();
+          if (Array.isArray(contacts)) {
+            contacts.forEach((c: any, i: number) => {
+              listeners.push({
+                id: `caldera-contact-${i}`,
+                framework: "caldera",
+                name: c.name || c.contact || `Contact ${i}`,
+                protocol: c.name?.includes("tcp") ? "tcp" : c.name?.includes("udp") ? "udp" : "http",
+                host: calderaHost,
+                port: c.port || (c.name?.includes("tcp") ? 7010 : 8888),
+                callbackUrl: `${c.name?.includes("tcp") ? "tcp" : "http"}://${calderaHost}:${c.port || 8888}`,
+                status: "active",
+                details: c,
+              });
+            });
+          }
+        }
+        // Always add the default HTTP contact
+        if (listeners.filter(l => l.framework === "caldera").length === 0) {
+          listeners.push({
+            id: "caldera-http-default",
+            framework: "caldera",
+            name: "HTTP Contact (default)",
+            protocol: "http",
+            host: calderaHost,
+            port: 8888,
+            callbackUrl: `http://${calderaHost}:8888`,
+            status: "active",
+            details: { default: true },
+          });
+        }
+      }
+    } catch { /* Caldera not reachable */ }
+
+    // Empire listeners
+    try {
+      const empireAdapter = registry.get("empire") as any;
+      if (empireAdapter?.listListeners) {
+        const empListeners = await empireAdapter.listListeners();
+        empListeners.forEach((l: any, i: number) => {
+          listeners.push({
+            id: `empire-listener-${l.id || i}`,
+            framework: "empire",
+            name: l.name || `Listener ${i}`,
+            protocol: l.module?.includes("http") ? "http" : l.module || "http",
+            host: l.options?.Host || l.host || "",
+            port: parseInt(l.options?.Port || l.port || "443"),
+            callbackUrl: `${l.options?.Host ? "http" : "https"}://${l.options?.Host || l.host || ""}:${l.options?.Port || l.port || 443}`,
+            status: l.enabled !== false ? "active" : "inactive",
+            details: l,
+          });
+        });
+      }
+    } catch { /* Empire not reachable */ }
+
+    // Sliver jobs (listeners)
+    try {
+      const sliverAdapter = registry.get("sliver") as any;
+      if (sliverAdapter?.sliverFetch) {
+        const jobs = await sliverAdapter.sliverFetch("/jobs").catch(() => []);
+        if (Array.isArray(jobs)) {
+          jobs.forEach((j: any) => {
+            listeners.push({
+              id: `sliver-job-${j.id || j.ID}`,
+              framework: "sliver",
+              name: j.name || j.Name || `Job ${j.id || j.ID}`,
+              protocol: j.protocol || j.Protocol || "mtls",
+              host: j.host || j.Host || "",
+              port: j.port || j.Port || 31337,
+              callbackUrl: `${j.protocol || "mtls"}://${j.host || j.Host || ""}:${j.port || j.Port || 31337}`,
+              status: "active",
+              details: j,
+            });
+          });
+        }
+      }
+    } catch { /* Sliver not reachable */ }
+
+    // Manjusaka listeners
+    try {
+      const manjusakaAdapter = registry.get("manjusaka") as any;
+      if (manjusakaAdapter?.listListeners) {
+        const mjListeners = await manjusakaAdapter.listListeners();
+        mjListeners.forEach((l: any, i: number) => {
+          listeners.push({
+            id: `manjusaka-listener-${l.id || i}`,
+            framework: "manjusaka",
+            name: l.name || `Listener ${i}`,
+            protocol: l.protocol || "tcp",
+            host: l.host || "",
+            port: l.port || 11451,
+            callbackUrl: `${l.protocol || "tcp"}://${l.host || ""}:${l.port || 11451}`,
+            status: l.status === "running" ? "active" : "inactive",
+            details: l,
+          });
+        });
+      }
+    } catch { /* Manjusaka not reachable */ }
+
+    // Metasploit handlers
+    try {
+      if (ENV.MSF_RPC_HOST) {
+        const msfProto = ENV.MSF_RPC_SSL ? "https" : "http";
+        listeners.push({
+          id: "msf-handler-default",
+          framework: "metasploit",
+          name: "Metasploit RPC",
+          protocol: msfProto,
+          host: ENV.MSF_RPC_HOST,
+          port: ENV.MSF_RPC_PORT || 55553,
+          callbackUrl: `${msfProto}://${ENV.MSF_RPC_HOST}:${ENV.MSF_RPC_PORT || 55553}`,
+          status: "unknown",
+          details: { rpc: true },
+        });
+      }
+    } catch { /* MSF not reachable */ }
+
+    return listeners;
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRAFFIC PROFILE PREVIEW
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get full traffic profile details for preview */
+  getTrafficProfiles: protectedProcedure.query(() => {
+    return EMBER_TRAFFIC_PROFILES.map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      headers: p.headers,
+      urlPatterns: p.urlPatterns,
+      responseContentTypes: p.responseContentTypes,
+      timing: p.timing,
+      payloadEncoding: p.payloadEncoding,
+      // Computed preview fields
+      userAgent: p.headers["User-Agent"] || p.headers["user-agent"] || "N/A",
+      beaconRange: `${(p.timing.minIntervalMs / 1000).toFixed(0)}s – ${(p.timing.maxIntervalMs / 1000).toFixed(0)}s`,
+      burstInfo: p.timing.burstSize > 1
+        ? `${p.timing.burstSize} requests @ ${p.timing.burstIntervalMs}ms apart`
+        : "Single request per interval",
+    }));
+  }),
+
+  /** Get traffic profile preview for a specific profile ID */
+  getTrafficProfilePreview: protectedProcedure
+    .input(z.object({ profileId: z.string() }))
+    .query(({ input }) => {
+      const profile = EMBER_TRAFFIC_PROFILES.find(p => p.id === input.profileId);
+      if (!profile) return null;
+      return {
+        id: profile.id,
+        name: profile.name,
+        description: profile.description,
+        headers: profile.headers,
+        urlPatterns: profile.urlPatterns,
+        responseContentTypes: profile.responseContentTypes,
+        timing: profile.timing,
+        payloadEncoding: profile.payloadEncoding,
+        userAgent: profile.headers["User-Agent"] || profile.headers["user-agent"] || "N/A",
+        beaconRange: `${(profile.timing.minIntervalMs / 1000).toFixed(0)}s – ${(profile.timing.maxIntervalMs / 1000).toFixed(0)}s`,
+        burstInfo: profile.timing.burstSize > 1
+          ? `${profile.timing.burstSize} requests @ ${profile.timing.burstIntervalMs}ms apart`
+          : "Single request per interval",
+        // Sample HTTP request preview
+        sampleRequest: [
+          `GET ${profile.urlPatterns[0] || "/"} HTTP/1.1`,
+          ...Object.entries(profile.headers).map(([k, v]) => `${k}: ${v}`),
+          `Accept-Encoding: gzip, deflate`,
+          `Connection: keep-alive`,
+          ``,
+          `[${profile.payloadEncoding} encoded payload]`,
+        ].join("\n"),
+      };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AGENT HEARTBEAT STATUS (polled by WebSocket hub)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get real-time heartbeat status for all agents across all C2 frameworks */
+  getHeartbeatStatus: protectedProcedure.query(async () => {
+    const registry = C2Registry.getInstance();
+    const heartbeats: Array<{
+      agentId: string;
+      name: string;
+      framework: string;
+      host: string;
+      platform: string;
+      status: "alive" | "stale" | "dead" | "unknown";
+      lastSeen: number;
+      latencyMs: number | null;
+      beaconInterval: number | null;
+      jitter: number | null;
+      channel: string | null;
+    }> = [];
+
+    const now = Date.now();
+    const STALE_THRESHOLD = 5 * 60 * 1000;  // 5 minutes
+    const DEAD_THRESHOLD = 30 * 60 * 1000;  // 30 minutes
+
+    // Fetch all agents from all frameworks
+    try {
+      const allAgents = await registry.listAllAgents();
+      for (const agent of allAgents) {
+        const lastSeenMs = new Date(agent.lastSeen).getTime();
+        const timeSince = now - lastSeenMs;
+        let status: "alive" | "stale" | "dead" | "unknown" = "unknown";
+        if (timeSince < STALE_THRESHOLD) status = "alive";
+        else if (timeSince < DEAD_THRESHOLD) status = "stale";
+        else status = "dead";
+
+        heartbeats.push({
+          agentId: agent.id,
+          name: agent.name || agent.id,
+          framework: agent.framework,
+          host: agent.host || "unknown",
+          platform: agent.platform || "unknown",
+          status,
+          lastSeen: lastSeenMs,
+          latencyMs: timeSince < 120_000 ? Math.round(timeSince) : null,
+          beaconInterval: (agent as any).beaconInterval || null,
+          jitter: (agent as any).jitter || null,
+          channel: (agent as any).channel || (agent as any).transport || null,
+        });
+      }
+    } catch { /* Failed to fetch agents */ }
+
+    // Also include Ember agents from DB
+    try {
+      const db = await getDb();
+      const embers = await db.select().from(emberAgents)
+        .where(sql`${emberAgents.state} != 'dead'`)
+        .limit(200);
+      for (const e of embers) {
+        // Skip if already in heartbeats (from C2Registry)
+        if (heartbeats.some(h => h.agentId === e.agentId)) continue;
+        const lastSeenMs = e.lastBeacon || e.createdAt || now;
+        const timeSince = now - lastSeenMs;
+        let status: "alive" | "stale" | "dead" | "unknown" = "unknown";
+        if (timeSince < STALE_THRESHOLD) status = "alive";
+        else if (timeSince < DEAD_THRESHOLD) status = "stale";
+        else status = "dead";
+
+        const config = (e.configJson || {}) as any;
+        heartbeats.push({
+          agentId: e.agentId,
+          name: e.name || e.agentId,
+          framework: "ember",
+          host: e.hostname || "unknown",
+          platform: e.platform || "unknown",
+          status,
+          lastSeen: lastSeenMs,
+          latencyMs: timeSince < 120_000 ? Math.round(timeSince) : null,
+          beaconInterval: config?.beacon?.intervalSeconds || null,
+          jitter: config?.beacon?.jitterPercent || null,
+          channel: e.primaryChannel || null,
+        });
+      }
+    } catch { /* Ember DB query failed */ }
+
+    // Sort: alive first, then stale, then dead
+    const statusOrder = { alive: 0, stale: 1, dead: 2, unknown: 3 };
+    heartbeats.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+    return {
+      timestamp: now,
+      total: heartbeats.length,
+      alive: heartbeats.filter(h => h.status === "alive").length,
+      stale: heartbeats.filter(h => h.status === "stale").length,
+      dead: heartbeats.filter(h => h.status === "dead").length,
+      agents: heartbeats,
+    };
+  }),
 });
