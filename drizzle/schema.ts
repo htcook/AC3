@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, tinyint, boolean, decimal } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, tinyint, boolean, decimal, float } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
@@ -5449,3 +5449,106 @@ export const emberIntelligence = mysqlTable("ember_intelligence", {
 ]);
 export type EmberIntelligenceRow = typeof emberIntelligence.$inferSelect;
 export type InsertEmberIntelligence = typeof emberIntelligence.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test Lab Tables
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const testLabEnvironments = mysqlTable("test_lab_environments", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  name: varchar("tl_env_name", { length: 255 }).notNull(),
+  type: varchar("tl_env_type", { length: 32 }).notNull(),
+  status: varchar("tl_env_status", { length: 32 }).notNull().default("provisioning"),
+  platform: varchar("tl_env_platform", { length: 32 }).notNull(),
+  targetIp: varchar("tl_env_target_ip", { length: 64 }),
+  targetPort: int("tl_env_target_port"),
+  dropletId: varchar("tl_env_droplet_id", { length: 64 }),
+  snapshotId: varchar("tl_env_snapshot_id", { length: 64 }),
+  vulnerabilities: json("tl_env_vulnerabilities"),
+  services: json("tl_env_services"),
+  configJson: json("tl_env_config"),
+  createdAt: bigint("tl_env_created_at", { mode: "number" }).notNull(),
+  destroyedAt: bigint("tl_env_destroyed_at", { mode: "number" }),
+  costCents: int("tl_env_cost_cents").default(0),
+}, (table) => [
+  index("tl_env_type_idx").on(table.type),
+  index("tl_env_status_idx").on(table.status),
+]);
+export type TestLabEnvironmentRow = typeof testLabEnvironments.$inferSelect;
+export type InsertTestLabEnvironment = typeof testLabEnvironments.$inferInsert;
+
+export const testLabScenarioRuns = mysqlTable("test_lab_scenario_runs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  scenarioId: varchar("tl_sr_scenario_id", { length: 128 }).notNull(),
+  environmentId: varchar("tl_sr_environment_id", { length: 64 }),
+  specialistModel: varchar("tl_sr_specialist_model", { length: 64 }),
+  status: varchar("tl_sr_status", { length: 32 }).notNull().default("pending"),
+  score: int("tl_sr_score"),
+  maxScore: int("tl_sr_max_score"),
+  passed: tinyint("tl_sr_passed"),
+  stepsCompleted: int("tl_sr_steps_completed").default(0),
+  totalSteps: int("tl_sr_total_steps"),
+  resultsJson: json("tl_sr_results"),
+  trainingDataCollected: tinyint("tl_sr_training_data").default(0),
+  startedAt: bigint("tl_sr_started_at", { mode: "number" }),
+  completedAt: bigint("tl_sr_completed_at", { mode: "number" }),
+  createdAt: bigint("tl_sr_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("tl_sr_scenario_idx").on(table.scenarioId),
+  index("tl_sr_model_idx").on(table.specialistModel),
+  index("tl_sr_status_idx").on(table.status),
+]);
+export type TestLabScenarioRunRow = typeof testLabScenarioRuns.$inferSelect;
+export type InsertTestLabScenarioRun = typeof testLabScenarioRuns.$inferInsert;
+
+export const testLabTrainingRuns = mysqlTable("test_lab_training_runs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  specialistModel: varchar("tl_tr_specialist_model", { length: 64 }).notNull(),
+  datasetId: varchar("tl_tr_dataset_id", { length: 64 }),
+  fineTuneJobId: varchar("tl_tr_ft_job_id", { length: 64 }),
+  openaiJobId: varchar("tl_tr_openai_job_id", { length: 128 }),
+  status: varchar("tl_tr_status", { length: 32 }).notNull().default("pending"),
+  baseModel: varchar("tl_tr_base_model", { length: 128 }),
+  resultModelId: varchar("tl_tr_result_model_id", { length: 256 }),
+  exampleCount: int("tl_tr_example_count").default(0),
+  trainingLoss: double("tl_tr_training_loss"),
+  validationLoss: double("tl_tr_validation_loss"),
+  epochs: int("tl_tr_epochs").default(3),
+  benchmarkScore: double("tl_tr_benchmark_score"),
+  promoted: tinyint("tl_tr_promoted").default(0),
+  startedAt: bigint("tl_tr_started_at", { mode: "number" }),
+  completedAt: bigint("tl_tr_completed_at", { mode: "number" }),
+  createdAt: bigint("tl_tr_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("tl_tr_model_idx").on(table.specialistModel),
+  index("tl_tr_status_idx").on(table.status),
+]);
+export type TestLabTrainingRunRow = typeof testLabTrainingRuns.$inferSelect;
+export type InsertTestLabTrainingRun = typeof testLabTrainingRuns.$inferInsert;
+
+export const testLabImplantTests = mysqlTable("test_lab_implant_tests", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  environmentId: varchar("tl_it_environment_id", { length: 64 }),
+  agentId: varchar("tl_it_agent_id", { length: 64 }),
+  exploitVector: varchar("tl_it_exploit_vector", { length: 128 }),
+  payloadFormat: varchar("tl_it_payload_format", { length: 64 }),
+  deliveryMethod: varchar("tl_it_delivery_method", { length: 64 }),
+  status: varchar("tl_it_status", { length: 32 }).notNull().default("pending"),
+  deploymentSucceeded: tinyint("tl_it_deploy_ok"),
+  firstBeaconAt: bigint("tl_it_first_beacon_at", { mode: "number" }),
+  beaconCount: int("tl_it_beacon_count").default(0),
+  c2ChannelsTested: json("tl_it_c2_tested"),
+  c2ChannelsPassed: json("tl_it_c2_passed"),
+  taskExecutionResults: json("tl_it_task_results"),
+  opsecScore: int("tl_it_opsec_score"),
+  detectionEvents: json("tl_it_detection_events"),
+  createdAt: bigint("tl_it_created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("tl_it_completed_at", { mode: "number" }),
+}, (table) => [
+  index("tl_it_env_idx").on(table.environmentId),
+  index("tl_it_agent_idx").on(table.agentId),
+  index("tl_it_status_idx").on(table.status),
+]);
+export type TestLabImplantTestRow = typeof testLabImplantTests.$inferSelect;
+export type InsertTestLabImplantTest = typeof testLabImplantTests.$inferInsert;

@@ -311,6 +311,10 @@ async function startServer() {
     }
   });
 
+  // Ember Agent Beacon Routes (raw Express — outside tRPC for agent compatibility)
+  const { registerEmberBeaconRoutes } = await import("../lib/ember-beacon-routes");
+  registerEmberBeaconRoutes(app);
+
   // tRPC API
   app.use(
     "/api/trpc",

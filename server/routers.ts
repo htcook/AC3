@@ -180,6 +180,7 @@ import { jobQueueRouter } from "./routers/job-queue";
 import { learningEngineRouter } from "./routers/learning-engine";
 import { accuracyFeedbackRouter } from "./routers/accuracy-feedback";
 import { emberAgentRouter } from "./routers/ember-agent";
+import { testLabRouter } from "./routers/test-lab";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -531,6 +532,8 @@ export const appRouter = router({
   soc2Compliance: soc2ComplianceRouter,
   // ─── Ember Agent System (AC3 Proprietary Agent) ─────────────────────────────
   ember: emberAgentRouter,
+  // ─── Test Lab (Agent Testing, LLM Training, Graduation Bridge) ─────────────
+  testLab: testLabRouter,
 });
 export type AppRouter = typeof appRouter;
 

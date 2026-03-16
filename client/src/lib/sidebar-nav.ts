@@ -53,9 +53,9 @@ export interface NavGroup {
  */
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'ember-agent', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
+  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'ember-agent', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
   analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training'],
-  team_lead: ['command-control', 'campaign-ops', 'ember-agent', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
+  team_lead: ['command-control', 'campaign-ops', 'ember-agent', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
   soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
@@ -186,6 +186,22 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Intelligence Feed", path: "/ember/intelligence", icon: Brain },
       { label: "Capability Catalog", path: "/ember/capabilities", icon: CircuitBoard },
       { label: "Cognitive Engine", path: "/ember/cognitive", icon: Brain },
+    ],
+  },
+
+  // ─── Test Lab ───
+  {
+    id: "test-lab",
+    label: "Test Lab",
+    icon: FlaskConical,
+    color: "text-teal-400",
+    items: [
+      { label: "Lab Dashboard", path: "/test-lab", icon: LayoutDashboard },
+      { label: "Environments", path: "/test-lab/environments", icon: Server },
+      { label: "Scenarios", path: "/test-lab/scenarios", icon: Target },
+      { label: "Implant Testing", path: "/test-lab/implant", icon: Crosshair },
+      { label: "LLM Training", path: "/test-lab/training", icon: Brain },
+      { label: "Graduation", path: "/test-lab/graduation", icon: GraduationCap },
     ],
   },
 

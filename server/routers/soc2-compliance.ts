@@ -498,4 +498,91 @@ export const soc2ComplianceRouter = router({
 
       return { sourceControl: input.controlId, sourceFramework: input.sourceFramework, mappings };
     }),
+
+  // ─── Compliance Evidence Auto-Mapper Procedures ────────────────────────────
+
+  /** Get auto-collected evidence for a specific engagement */
+  getEngagementEvidence: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      const { engagements, nucleiFindings, scanResults } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [engagement] = await db.select().from(engagements).where(eq(engagements.id, input.engagementId)).limit(1);
+      if (!engagement) return { evidence: [], summaries: [], totalEvidenceItems: 0, frameworksCovered: [] as string[], gapCount: 0 };
+
+      const findings = await db.select().from(nucleiFindings).where(eq(nucleiFindings.engagementId, input.engagementId)).limit(500);
+      const scans = await db.select().from(scanResults).where(eq(scanResults.engagementId, input.engagementId)).limit(100);
+
+      const { mapEngagementToCompliance } = await import("../lib/compliance-evidence-mapper");
+
+      const assetMap = new Map<string, {
+        hostname: string; ip?: string;
+        vulns: { title: string; severity: string; description?: string; tool?: string; cve?: string; rawOutput?: string }[];
+        ports: { port: number; service?: string; protocol?: string }[];
+        toolResults: { tool: string; command?: string; exitCode?: number; findingCount: number; outputPreview?: string; findings: { title: string; severity: string }[] }[];
+        zapFindings: { alert: string; risk: string; description?: string; url?: string; evidence?: string }[];
+      }>();
+
+      for (const f of findings) {
+        const host = f.host || "unknown";
+        if (!assetMap.has(host)) assetMap.set(host, { hostname: host, vulns: [], ports: [], toolResults: [], zapFindings: [] });
+        assetMap.get(host)!.vulns.push({
+          title: f.templateName || f.templateId,
+          severity: f.severity,
+          description: f.description || undefined,
+          tool: "nuclei",
+          cve: f.cveId || undefined,
+          rawOutput: f.extractedResults || undefined,
+        });
+      }
+
+      for (const s of scans) {
+        const host = (s as any).target || "unknown";
+        if (!assetMap.has(host)) assetMap.set(host, { hostname: host, vulns: [], ports: [], toolResults: [], zapFindings: [] });
+        assetMap.get(host)!.toolResults.push({
+          tool: (s as any).scanType || "scanner",
+          findingCount: (s as any).findingCount || 0,
+          outputPreview: (s as any).output?.slice(0, 500),
+          findings: [],
+        });
+      }
+
+      if (assetMap.size === 0) return { evidence: [], summaries: [], totalEvidenceItems: 0, frameworksCovered: [] as string[], gapCount: 0 };
+
+      return mapEngagementToCompliance({ engagementId: input.engagementId, assets: Array.from(assetMap.values()) });
+    }),
+
+  /** Get compliance posture overview for an engagement */
+  getCompliancePosture: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      const { nucleiFindings } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const findings = await db.select().from(nucleiFindings).where(eq(nucleiFindings.engagementId, input.engagementId)).limit(1000);
+      const bySeverity: Record<string, number> = {};
+      for (const f of findings) bySeverity[f.severity] = (bySeverity[f.severity] || 0) + 1;
+
+      const { getSupportedFrameworks, getMappingRules } = await import("../lib/compliance-evidence-mapper");
+      return {
+        engagementId: input.engagementId,
+        totalFindings: findings.length,
+        findingsBySeverity: bySeverity,
+        frameworks: getSupportedFrameworks(),
+        mappingRules: getMappingRules(),
+        mappingRuleCount: getMappingRules().length,
+        totalControlsCovered: getMappingRules().reduce((sum, r) => sum + r.controlCount, 0),
+      };
+    }),
+
+  /** Get the mapping rules for transparency */
+  getMappingRules: protectedProcedure.query(async () => {
+    const { getMappingRules, getSupportedFrameworks } = await import("../lib/compliance-evidence-mapper");
+    return { rules: getMappingRules(), frameworks: getSupportedFrameworks() };
+  }),
 });

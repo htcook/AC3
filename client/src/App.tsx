@@ -252,6 +252,12 @@ const EmberSwarmControl = lazy(() => import("./pages/EmberSwarmControl"));
 const EmberIntelligence = lazy(() => import("./pages/EmberIntelligence"));
 const EmberCapabilities = lazy(() => import("./pages/EmberCapabilities"));
 const EmberCognitiveEngine = lazy(() => import("./pages/EmberCognitiveEngine"));
+const TestLabDashboard = lazy(() => import("./pages/TestLabDashboard"));
+const TestLabEnvironments = lazy(() => import("./pages/TestLabEnvironments"));
+const TestLabScenarios = lazy(() => import("./pages/TestLabScenarios"));
+const TestLabImplant = lazy(() => import("./pages/TestLabImplant"));
+const TestLabTraining = lazy(() => import("./pages/TestLabTraining"));
+const TestLabGraduation = lazy(() => import("./pages/TestLabGraduation"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1005,6 +1011,24 @@ function Router() {
         </Route>
         <Route path="/ember/cognitive">
           <ProtectedRoute component={EmberCognitiveEngine} />
+        </Route>
+        <Route path="/test-lab">
+          <ProtectedRoute component={TestLabDashboard} />
+        </Route>
+        <Route path="/test-lab/environments">
+          <ProtectedRoute component={TestLabEnvironments} />
+        </Route>
+        <Route path="/test-lab/scenarios">
+          <ProtectedRoute component={TestLabScenarios} />
+        </Route>
+        <Route path="/test-lab/implant">
+          <ProtectedRoute component={TestLabImplant} />
+        </Route>
+        <Route path="/test-lab/training">
+          <ProtectedRoute component={TestLabTraining} />
+        </Route>
+        <Route path="/test-lab/graduation">
+          <ProtectedRoute component={TestLabGraduation} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

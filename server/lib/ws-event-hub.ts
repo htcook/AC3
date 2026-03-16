@@ -99,7 +99,14 @@ export type WsEventType =
   | "automation:profile_pushed"
   | "automation:playbook_triggered"
   | "automation:pipeline_run"
-  | "automation:enrichment_complete";
+  | "automation:enrichment_complete"
+  // Ember agent events
+  | "ember:agent_registered"
+  | "ember:beacon"
+  | "ember:task_complete"
+  | "ember:burn_response"
+  | "ember:key_rotation"
+  | "ember:opsec_scored";
 
 export interface WsEvent {
   type: WsEventType;
@@ -1241,4 +1248,119 @@ export function emitOpsecUpdate(data: {
   };
   eventHub.broadcast(wsEvent, "cockpit:timeline");
   eventHub.broadcastGlobal(wsEvent);
+}
+
+// ─── Ember Agent Event Emitters ─────────────────────────────────────
+
+/** Emit when an Ember agent registers */
+export function emitEmberAgentRegistered(data: {
+  agentId: string;
+  hostname: string;
+  platform: string;
+  profile: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:agent_registered",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an Ember agent beacons in */
+export function emitEmberBeacon(data: {
+  agentId: string;
+  hostname: string;
+  state: string;
+  channel: string;
+  tasksDelivered: number;
+  resultsReceived: number;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "ember:beacon",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when an Ember task completes */
+export function emitEmberTaskComplete(data: {
+  agentId: string;
+  taskId: string;
+  taskType: string;
+  status: string;
+  engagementId?: number;
+  opsecRiskScore?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:task_complete",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when Ember detects a burn condition and takes evasive action */
+export function emitEmberBurnResponse(data: {
+  agentId: string;
+  burnIndicator: string;
+  severity: "medium" | "high" | "critical";
+  action: "jitter_increase" | "channel_hop" | "sleep_extend" | "go_dormant" | "self_destruct";
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:burn_response",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when Ember performs a key rotation */
+export function emitEmberKeyRotation(data: {
+  agentId: string;
+  oldKeyId: string;
+  newKeyId: string;
+  rotationCount: number;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "ember:key_rotation",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when an Ember action is OPSEC-scored */
+export function emitEmberOpsecScored(data: {
+  agentId: string;
+  taskType: string;
+  riskScore: number;
+  riskLevel: string;
+  detectionProbability: number;
+  burnRisk: boolean;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:opsec_scored",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
 }

@@ -736,10 +736,20 @@ export default function SOC2Compliance() {
 
         {/* Evidence Tab */}
         <TabsContent value="evidence" className="mt-4">
+          {/* Auto-Collected Evidence from Engagements */}
+          <Card className="bg-zinc-900/50 border-zinc-800 mb-4">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2"><Zap className="h-5 w-5 text-emerald-400" /> Auto-Collected Evidence from Engagements</CardTitle>
+              <CardDescription>Real evidence automatically mapped from pentest engagements, vulnerability scans, and tool outputs to compliance controls across all 7 frameworks.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AutoEvidencePanel />
+            </CardContent>
+          </Card>
           <Card className="bg-zinc-900/50 border-zinc-800">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-cyan-400" /> Evidence Collection</CardTitle>
-              <CardDescription>Automated and manual evidence mapped to compliance controls. {stats.data?.evidenceItems ?? 0} evidence items across {stats.data?.totalControls ?? 0} controls.</CardDescription>
+              <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-cyan-400" /> Static Evidence Collection</CardTitle>
+              <CardDescription>Framework-defined evidence mapped to compliance controls. {stats.data?.evidenceItems ?? 0} evidence items across {stats.data?.totalControls ?? 0} controls.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -767,6 +777,116 @@ export default function SOC2Compliance() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function AutoEvidencePanel() {
+  const [engagementId, setEngagementId] = useState("");
+  const posture = trpc.soc2Compliance.getCompliancePosture.useQuery(undefined, { retry: false });
+  const engagementEvidence = trpc.soc2Compliance.getEngagementEvidence.useQuery(
+    { engagementId },
+    { enabled: !!engagementId, retry: false }
+  );
+  const mappingRules = trpc.soc2Compliance.getMappingRules.useQuery(undefined, { retry: false });
+
+  const frameworkColors: Record<string, string> = {
+    SOC2: "text-blue-400", FedRAMP: "text-red-400", CMMC: "text-amber-400",
+    ISO27001: "text-green-400", HIPAA: "text-purple-400", "PCI DSS": "text-orange-400", "NIST CSF": "text-cyan-400"
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Compliance Posture Summary */}
+      {posture.data && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-emerald-400" /> Compliance Posture Across Frameworks
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {posture.data.frameworkPosture?.map((fp: any) => (
+              <div key={fp.framework} className="p-2 rounded bg-zinc-800/50 text-center">
+                <span className={`text-xs font-medium ${frameworkColors[fp.framework] || 'text-zinc-400'}`}>{fp.framework}</span>
+                <div className="text-lg font-bold mt-1">{fp.controlsCovered}/{fp.totalControls}</div>
+                <Progress value={(fp.controlsCovered / Math.max(fp.totalControls, 1)) * 100} className="h-1 mt-1" />
+                <span className="text-xs text-muted-foreground">{fp.coveragePercent}% covered</span>
+              </div>
+            ))}
+          </div>
+          {posture.data.totalFindings !== undefined && (
+            <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+              <span>Total findings mapped: <strong className="text-foreground">{posture.data.totalFindings}</strong></span>
+              <span>Engagements analyzed: <strong className="text-foreground">{posture.data.engagementsAnalyzed}</strong></span>
+              <span>Overall score: <strong className="text-emerald-400">{posture.data.overallScore}/100</strong></span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mapping Rules Summary */}
+      {mappingRules.data && (
+        <div>
+          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-cyan-400" /> Evidence Mapping Rules
+          </h4>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {Object.entries(mappingRules.data.rulesByCategory || {}).map(([cat, count]: [string, any]) => (
+              <div key={cat} className="p-2 rounded bg-zinc-800/50 text-center">
+                <span className="text-xs text-muted-foreground">{cat}</span>
+                <div className="text-sm font-bold mt-1">{count}</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">{mappingRules.data.totalRules} mapping rules across {mappingRules.data.frameworksCovered} frameworks</p>
+        </div>
+      )}
+
+      {/* Per-Engagement Evidence Lookup */}
+      <div>
+        <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+          <Target className="h-4 w-4 text-amber-400" /> Engagement Evidence Lookup
+        </h4>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Enter engagement ID to view mapped evidence..."
+            value={engagementId}
+            onChange={e => setEngagementId(e.target.value)}
+            className="flex-1 px-3 py-1.5 rounded bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          />
+          <Button size="sm" variant="outline" onClick={() => setEngagementId(engagementId)} disabled={!engagementId}>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+        {engagementEvidence.data && (
+          <div className="mt-3 space-y-2">
+            <div className="flex gap-4 text-xs text-muted-foreground mb-2">
+              <span>Controls mapped: <strong className="text-foreground">{engagementEvidence.data.controlsMapped}</strong></span>
+              <span>Evidence items: <strong className="text-foreground">{engagementEvidence.data.evidenceCount}</strong></span>
+              <span>Frameworks: <strong className="text-foreground">{engagementEvidence.data.frameworksCovered}</strong></span>
+            </div>
+            {engagementEvidence.data.evidence?.slice(0, 15).map((ev: any, i: number) => (
+              <div key={i} className="flex items-center gap-2 text-sm p-2 rounded bg-zinc-800/50">
+                <Zap className="h-3 w-3 text-emerald-400 shrink-0" />
+                <Badge variant="outline" className={`text-xs ${frameworkColors[ev.framework] || ''}`}>{ev.framework}</Badge>
+                <span className="font-mono text-xs text-muted-foreground">{ev.controlId}</span>
+                <span className="truncate">{ev.description}</span>
+                <Badge variant="outline" className="text-xs ml-auto">{ev.toolSource}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+        {engagementEvidence.isError && engagementId && (
+          <p className="text-xs text-muted-foreground mt-2">No evidence found for this engagement. Run an engagement first to auto-collect compliance evidence.</p>
+        )}
+      </div>
+
+      {!posture.data && !posture.isLoading && (
+        <div className="text-center py-6 text-muted-foreground">
+          <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No compliance evidence collected yet. Run engagements to auto-map findings to compliance controls.</p>
+        </div>
+      )}
     </div>
   );
 }
