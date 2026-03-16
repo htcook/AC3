@@ -28,6 +28,7 @@ import {
   type EmberAgentState,
 } from "../lib/ember-agent-core";
 import { getSafetyEngine } from "../lib/safety-engine";
+import { ENV } from "../_core/env";
 
 // ─── Shared Zod Schemas ─────────────────────────────────────────────────────
 
@@ -47,6 +48,113 @@ export const emberAgentRouter = router({
   // ═══════════════════════════════════════════════════════════════════════════
   // METADATA & CATALOG
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get platform C2 callback URLs from configured infrastructure */
+  getC2CallbackUrls: protectedProcedure.query(() => {
+    const urls: Array<{ label: string; url: string; protocol: string; framework: string; status: "configured" | "unconfigured" }> = [];
+
+    // Caldera (Cyber C2) — primary C2 framework
+    if (ENV.calderaBaseUrl) {
+      urls.push({
+        label: "Caldera HTTPS",
+        url: ENV.calderaBaseUrl,
+        protocol: "https",
+        framework: "caldera",
+        status: "configured",
+      });
+      // Caldera also exposes HTTP contact on port 8888
+      const calderaHost = ENV.calderaBaseUrl.replace(/^https?:\/\//, "").replace(/[\/:].*$/, "");
+      if (calderaHost) {
+        urls.push({
+          label: "Caldera HTTP (direct)",
+          url: `http://${calderaHost}:8888`,
+          protocol: "http",
+          framework: "caldera",
+          status: "configured",
+        });
+      }
+    }
+
+    // Cobalt Strike Team Server
+    if (ENV.CS_TEAM_SERVER_URL) {
+      urls.push({
+        label: "Cobalt Strike",
+        url: ENV.CS_TEAM_SERVER_URL,
+        protocol: "https",
+        framework: "cobaltstrike",
+        status: "configured",
+      });
+    } else {
+      urls.push({ label: "Cobalt Strike", url: "", protocol: "https", framework: "cobaltstrike", status: "unconfigured" });
+    }
+
+    // Empire C2
+    if (ENV.EMPIRE_BASE_URL) {
+      urls.push({
+        label: "Empire",
+        url: ENV.EMPIRE_BASE_URL,
+        protocol: "https",
+        framework: "empire",
+        status: "configured",
+      });
+    } else {
+      urls.push({ label: "Empire", url: "", protocol: "https", framework: "empire", status: "unconfigured" });
+    }
+
+    // Sliver C2
+    if (ENV.SLIVER_SERVER_URL) {
+      urls.push({
+        label: "Sliver",
+        url: ENV.SLIVER_SERVER_URL,
+        protocol: "mtls",
+        framework: "sliver",
+        status: "configured",
+      });
+    } else {
+      urls.push({ label: "Sliver", url: "", protocol: "mtls", framework: "sliver", status: "unconfigured" });
+    }
+
+    // Manjusaka C2
+    const manjusakaUrl = process.env.MANJUSAKA_API_URL || process.env.MANJUSAKA_BASE_URL || "";
+    if (manjusakaUrl) {
+      urls.push({
+        label: "Manjusaka",
+        url: manjusakaUrl,
+        protocol: "https",
+        framework: "manjusaka",
+        status: "configured",
+      });
+    } else {
+      urls.push({ label: "Manjusaka", url: "", protocol: "https", framework: "manjusaka", status: "unconfigured" });
+    }
+
+    // Metasploit handler
+    if (ENV.MSF_RPC_HOST) {
+      const msfProto = ENV.MSF_RPC_SSL ? "https" : "http";
+      urls.push({
+        label: "Metasploit",
+        url: `${msfProto}://${ENV.MSF_RPC_HOST}:${ENV.MSF_RPC_PORT}`,
+        protocol: msfProto,
+        framework: "metasploit",
+        status: "configured",
+      });
+    } else {
+      urls.push({ label: "Metasploit", url: "", protocol: "https", framework: "metasploit", status: "unconfigured" });
+    }
+
+    // Scan Server (can serve as a redirector/relay)
+    if (ENV.SCAN_SERVER_HOST) {
+      urls.push({
+        label: "Scan Server (Redirector)",
+        url: `https://${ENV.SCAN_SERVER_HOST}`,
+        protocol: "https",
+        framework: "redirector",
+        status: "configured",
+      });
+    }
+
+    return urls;
+  }),
 
   /** Get Ember system metadata */
   getMetadata: protectedProcedure.query(() => ({

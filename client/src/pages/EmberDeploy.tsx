@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
   Flame, Rocket, Shield, Eye, Terminal, Copy, Download,
   AlertTriangle, ChevronLeft, Cpu, Radio, Lock, Clock,
   Zap, Search, Boxes, Brain, Server, Globe, Binary,
-  FileCode, Settings, Crosshair
+  FileCode, Settings, Crosshair, Plus, Check, X
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -68,6 +68,24 @@ const FORMAT_OPTIONS = [
   { value: "iso_container", label: "ISO Container", platform: "windows", icon: <Crosshair className="w-4 h-4" /> },
 ];
 
+const FRAMEWORK_COLORS: Record<string, string> = {
+  caldera: "bg-red-500/15 text-red-400 border-red-500/30",
+  cobaltstrike: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  empire: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  sliver: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  manjusaka: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  metasploit: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  redirector: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  planning: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+  active: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  paused: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  completed: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  archived: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+};
+
 export default function EmberDeploy() {
   const [activeTab, setActiveTab] = useState("configure");
   const [profile, setProfile] = useState("scout");
@@ -85,8 +103,65 @@ export default function EmberDeploy() {
   const [obfuscationLevel, setObfuscationLevel] = useState([3]);
   const [engagementId, setEngagementId] = useState("");
   const [generatedPayload, setGeneratedPayload] = useState<any>(null);
+  const [c2UrlsPreloaded, setC2UrlsPreloaded] = useState(false);
 
   const metadataQuery = trpc.ember.getMetadata.useQuery();
+  const c2UrlsQuery = trpc.ember.getC2CallbackUrls.useQuery();
+  const engagementsQuery = trpc.engagements.list.useQuery();
+
+  // Preload C2 callback URLs into the textarea on first load
+  useEffect(() => {
+    if (c2UrlsQuery.data && !c2UrlsPreloaded && !callbackUrls) {
+      const configuredUrls = c2UrlsQuery.data
+        .filter((u) => u.status === "configured" && u.url)
+        .map((u) => u.url);
+      if (configuredUrls.length > 0) {
+        setCallbackUrls(configuredUrls.join("\n"));
+        setC2UrlsPreloaded(true);
+      }
+    }
+  }, [c2UrlsQuery.data, c2UrlsPreloaded, callbackUrls]);
+
+  const configuredC2s = useMemo(() => {
+    if (!c2UrlsQuery.data) return [];
+    return c2UrlsQuery.data.filter((u) => u.status === "configured" && u.url);
+  }, [c2UrlsQuery.data]);
+
+  const unconfiguredC2s = useMemo(() => {
+    if (!c2UrlsQuery.data) return [];
+    return c2UrlsQuery.data.filter((u) => u.status === "unconfigured");
+  }, [c2UrlsQuery.data]);
+
+  // Active engagements for the selector
+  const activeEngagements = useMemo(() => {
+    if (!engagementsQuery.data) return [];
+    return engagementsQuery.data.filter(
+      (e: any) => e.status === "active" || e.status === "planning"
+    );
+  }, [engagementsQuery.data]);
+
+  const allEngagements = useMemo(() => {
+    if (!engagementsQuery.data) return [];
+    return engagementsQuery.data;
+  }, [engagementsQuery.data]);
+
+  const selectedEngagement = useMemo(() => {
+    if (!engagementId || engagementId === "none" || !engagementsQuery.data) return null;
+    return engagementsQuery.data.find((e: any) => e.id === parseInt(engagementId));
+  }, [engagementId, engagementsQuery.data]);
+
+  const toggleC2Url = (url: string) => {
+    const currentUrls = callbackUrls.split("\n").map((u) => u.trim()).filter(Boolean);
+    if (currentUrls.includes(url)) {
+      setCallbackUrls(currentUrls.filter((u) => u !== url).join("\n"));
+    } else {
+      setCallbackUrls([...currentUrls, url].join("\n"));
+    }
+  };
+
+  const isUrlSelected = (url: string) => {
+    return callbackUrls.split("\n").map((u) => u.trim()).includes(url);
+  };
 
   const generatePayload = trpc.ember.generatePayload.useMutation({
     onSuccess: (data) => {
@@ -119,7 +194,7 @@ export default function EmberDeploy() {
         memoryEncryption,
         obfuscationLevel: obfuscationLevel[0],
       },
-      engagementId: engagementId ? parseInt(engagementId) : undefined,
+      engagementId: engagementId && engagementId !== "none" ? parseInt(engagementId) : undefined,
     });
   };
 
@@ -225,19 +300,94 @@ export default function EmberDeploy() {
           {/* C2 Configuration */}
           <Card className="bg-card/50 border-border/50">
             <CardHeader>
-              <CardTitle className="text-base">C2 Configuration</CardTitle>
-              <CardDescription>Callback URLs and beacon timing</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Radio className="w-4 h-4 text-amber-400" />
+                C2 Configuration
+              </CardTitle>
+              <CardDescription>Select callback URLs from your platform infrastructure and configure beacon timing</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Platform C2 Infrastructure Quick-Select */}
               <div className="space-y-2">
-                <Label>Callback URLs (one per line, first is primary)</Label>
+                <Label className="text-sm flex items-center gap-2">
+                  <Server className="w-3.5 h-3.5 text-muted-foreground" />
+                  Platform C2 Infrastructure
+                </Label>
+                <p className="text-xs text-muted-foreground mb-2">Click to toggle callback URLs from your configured C2 frameworks</p>
+
+                {c2UrlsQuery.isLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <div className="w-3 h-3 border border-muted-foreground/30 border-t-amber-400 rounded-full animate-spin" />
+                    Loading platform infrastructure...
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Configured C2s */}
+                    {configuredC2s.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {configuredC2s.map((c2) => {
+                          const selected = isUrlSelected(c2.url);
+                          return (
+                            <button
+                              key={`${c2.framework}-${c2.url}`}
+                              onClick={() => toggleC2Url(c2.url)}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono transition-all ${
+                                selected
+                                  ? `${FRAMEWORK_COLORS[c2.framework] || "bg-zinc-500/15 text-zinc-400 border-zinc-500/30"} ring-1 ring-amber-500/40`
+                                  : "bg-muted/30 text-muted-foreground border-border/50 hover:border-border"
+                              }`}
+                            >
+                              {selected ? (
+                                <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              ) : (
+                                <Plus className="w-3 h-3 shrink-0" />
+                              )}
+                              <span className="font-semibold text-[10px] uppercase tracking-wider shrink-0">
+                                {c2.label}
+                              </span>
+                              <span className="truncate max-w-[200px]">{c2.url}</span>
+                              <Badge variant="outline" className="text-[8px] shrink-0">{c2.protocol}</Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Unconfigured C2s */}
+                    {unconfiguredC2s.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {unconfiguredC2s.map((c2) => (
+                          <span
+                            key={c2.framework}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-muted-foreground/50 bg-muted/10 border border-dashed border-border/30"
+                            title={`${c2.label} — not configured. Set env vars to enable.`}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                            {c2.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Separator className="my-2" />
+
+              {/* Manual Callback URL Editor */}
+              <div className="space-y-2">
+                <Label className="text-sm">Callback URLs (one per line, first is primary)</Label>
                 <Textarea
                   placeholder={"https://c2.example.com\nhttps://fallback1.example.com\nhttps://fallback2.example.com"}
                   value={callbackUrls}
                   onChange={(e) => setCallbackUrls(e.target.value)}
-                  rows={3}
+                  rows={4}
                   className="font-mono text-sm"
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  {callbackUrls.split("\n").filter(u => u.trim()).length} URL(s) configured
+                  {callbackUrls.split("\n").filter(u => u.trim()).length > 1 && " — first URL is primary, rest are fallbacks"}
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -289,13 +439,99 @@ export default function EmberDeploy() {
                 </Select>
               </div>
 
+              {/* Engagement Selector */}
               <div className="space-y-2">
-                <Label>Engagement ID (optional)</Label>
-                <Input
-                  placeholder="Link to an existing engagement"
-                  value={engagementId}
-                  onChange={(e) => setEngagementId(e.target.value)}
-                />
+                <Label className="text-sm flex items-center gap-2">
+                  <Crosshair className="w-3.5 h-3.5 text-muted-foreground" />
+                  Link to Engagement
+                </Label>
+                {engagementsQuery.isLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                    <div className="w-3 h-3 border border-muted-foreground/30 border-t-amber-400 rounded-full animate-spin" />
+                    Loading engagements...
+                  </div>
+                ) : allEngagements.length === 0 ? (
+                  <div className="text-xs text-muted-foreground/60 py-2">
+                    No engagements found. <Link href="/engagement-ops" className="text-amber-400 hover:underline">Create one</Link> to link this deployment.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={engagementId} onValueChange={setEngagementId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an engagement (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No engagement</SelectItem>
+                        {activeEngagements.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Active / Planning
+                            </div>
+                            {activeEngagements.map((eng: any) => (
+                              <SelectItem key={eng.id} value={String(eng.id)}>
+                                <span className="flex items-center gap-2">
+                                  <Badge variant="outline" className={`text-[8px] ${STATUS_BADGE[eng.status] || ""}`}>
+                                    {eng.status}
+                                  </Badge>
+                                  <span className="font-medium">{eng.name}</span>
+                                  <span className="text-muted-foreground text-xs">— {eng.customerName}</span>
+                                  {eng.engagementType && (
+                                    <Badge variant="outline" className="text-[8px]">{eng.engagementType.replace(/_/g, " ")}</Badge>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        {allEngagements.filter((e: any) => e.status !== "active" && e.status !== "planning").length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Other
+                            </div>
+                            {allEngagements
+                              .filter((e: any) => e.status !== "active" && e.status !== "planning")
+                              .map((eng: any) => (
+                                <SelectItem key={eng.id} value={String(eng.id)}>
+                                  <span className="flex items-center gap-2">
+                                    <Badge variant="outline" className={`text-[8px] ${STATUS_BADGE[eng.status] || ""}`}>
+                                      {eng.status}
+                                    </Badge>
+                                    <span className="font-medium">{eng.name}</span>
+                                    <span className="text-muted-foreground text-xs">— {eng.customerName}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Selected engagement info card */}
+                    {selectedEngagement && (
+                      <Card className="bg-muted/20 border-border/30 mt-2">
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-foreground">{(selectedEngagement as any).name}</p>
+                              <p className="text-xs text-muted-foreground">{(selectedEngagement as any).customerName}</p>
+                              {(selectedEngagement as any).targetDomain && (
+                                <p className="text-xs font-mono text-amber-400/80">Target: {(selectedEngagement as any).targetDomain}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`text-[9px] ${STATUS_BADGE[(selectedEngagement as any).status] || ""}`}>
+                                {(selectedEngagement as any).status}
+                              </Badge>
+                              <Badge variant="outline" className="text-[9px]">
+                                {((selectedEngagement as any).engagementType || "").replace(/_/g, " ")}
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
