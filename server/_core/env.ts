@@ -76,7 +76,8 @@ export const ENV = {
   // Scan Server (DigitalOcean droplet with offensive tools)
   SCAN_SERVER_HOST: process.env.SCAN_SERVER_HOST ?? "",
   SCAN_SERVER_USER: process.env.SCAN_SERVER_USER ?? "root",
-  SCAN_SERVER_SSH_KEY: process.env.SCAN_SERVER_SSH_KEY ?? "",
+  // SCAN_SERVER_SSH_KEY removed — multi-line PEM breaks Docker build command
+  // SSH key is loaded at runtime via S3 fallback in scan-server-executor.ts
   // Metasploit MSGRPC
   MSF_RPC_HOST: process.env.MSF_RPC_HOST ?? "",
   MSF_RPC_PORT: parseInt(process.env.MSF_RPC_PORT ?? "55553", 10),

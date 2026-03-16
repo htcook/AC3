@@ -95,7 +95,9 @@ const SCAN_SERVER_KEY_URL = "https://files.manuscdn.com/user_upload_by_module/se
 export async function getScanServerConfig() {
   const host = ENV.SCAN_SERVER_HOST;
   const user = ENV.SCAN_SERVER_USER || "root";
-  const sshKey = ENV.SCAN_SERVER_SSH_KEY;
+  // Read SSH key directly from process.env (removed from ENV object to prevent
+  // deployment system from injecting multi-line PEM into Docker build command)
+  const sshKey = process.env.SCAN_SERVER_SSH_KEY ?? "";
 
   if (!host) throw new Error("SCAN_SERVER_HOST not configured");
 
