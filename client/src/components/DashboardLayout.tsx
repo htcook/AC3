@@ -183,7 +183,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               </div>
               <EngagementSwitcher isCollapsed={false} />
               <ScrollArea className="flex-1">
-                <MobileNavList location={location} setLocation={(p) => { setLocation(p); setMobileOpen(false); }} />
+                <MobileNavList location={location} setLocation={(p) => { setLocation(p); setMobileOpen(false); }} filteredNavGroups={filteredNavGroups} />
               </ScrollArea>
               <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
             </div>
@@ -375,7 +375,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Nav groups */}
         <ScrollArea className="flex-1 min-h-0 overflow-hidden">
-          <ExpandedNavList location={location} setLocation={setLocation} />
+          <ExpandedNavList location={location} setLocation={setLocation} filteredNavGroups={filteredNavGroups} />
         </ScrollArea>
 
         {/* Footer */}
@@ -397,9 +397,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 function ExpandedNavList({
   location,
   setLocation,
+  filteredNavGroups,
 }: {
   location: string;
   setLocation: (path: string) => void;
+  filteredNavGroups: NavGroup[];
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     try {
@@ -492,9 +494,11 @@ function ExpandedNavList({
 function MobileNavList({
   location,
   setLocation,
+  filteredNavGroups,
 }: {
   location: string;
   setLocation: (path: string) => void;
+  filteredNavGroups: NavGroup[];
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
