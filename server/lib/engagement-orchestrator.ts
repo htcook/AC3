@@ -107,6 +107,7 @@ import {
   buildSourceSecretsContext,
   buildCompactSourceSecretsContext,
 } from "./knowledge/zap-source-secrets-knowledge";
+import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -5241,6 +5242,30 @@ export async function executeEngagement(
   state.phase = startPhase;
   if (options?.scanProfile) state.scanProfile = options.scanProfile;
 
+  // ═══ SAFETY ENGINE INITIALIZATION ═══
+  // Initialize or retrieve the safety engine for this engagement.
+  // The safety level is derived from the engagement's scanMode:
+  //   strict_passive → passive_only, standard → standard, active → full_exploitation
+  const scanModeToSafety: Record<string, SafetyLevel> = {
+    strict_passive: "passive_only",
+    passive: "passive_only",
+    standard: "standard",
+    active: "full_exploitation",
+    aggressive: "full_exploitation",
+  };
+  const engagementSafetyLevel: SafetyLevel = scanModeToSafety[engagement.scanMode || "standard"] || "standard";
+  const safetyEngine = getSafetyEngine(engagementId, engagementSafetyLevel);
+  addLog(state, {
+    phase: state.phase, type: "info",
+    title: `🛡️ Safety Engine Active — Level: ${safetyEngine.getProfile().label}`,
+    detail: `Safety level '${engagementSafetyLevel}' initialized from scan mode '${engagement.scanMode || "standard"}'.\n` +
+      `Credential testing: ${safetyEngine.getProfile().allowCredentialTesting ? '✅' : '❌'}\n` +
+      `Exploitation: ${safetyEngine.getProfile().allowExploitation ? '✅' : '❌'}\n` +
+      `C2 deployment: ${safetyEngine.getProfile().allowC2Deployment ? '✅' : '❌'}\n` +
+      `Max blast radius: ${engagementSafetyLevel === 'passive_only' ? 5 : engagementSafetyLevel === 'low_impact' ? 30 : engagementSafetyLevel === 'standard' ? 60 : 100}`,
+  });
+  broadcastOpsUpdate(engagementId, { type: "safety_init", level: engagementSafetyLevel });
+
   // ═══ STATS RECALCULATION ═══
   // Ensure stats reflect actual asset data (fixes vulnsFound=0 after reset/resume)
   if (state.assets.length > 0) {
@@ -5348,25 +5373,39 @@ export async function executeEngagement(
   try {
     // Phase 1: Recon (skip if starting from a later phase)
     if (startPhase === 'recon') {
-      await executeRecon(state, engagement, operatorCtx);
-      await phaseCheckpoint('recon');
-      if (!state.isRunning) return;
+      const reconGate = safetyEngine.canEnterPhase('recon');
+      if (!reconGate.allowed) {
+        addLog(state, { phase: 'recon', type: 'warning', title: '🛡️ Safety: Recon Blocked', detail: reconGate.reason });
+      } else {
+        await executeRecon(state, engagement, operatorCtx);
+        await phaseCheckpoint('recon');
+        if (!state.isRunning) return;
+      }
     }
 
     // Phase 2+: Require RoE for active scanning (training lab mode bypasses RoE)
     if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || (state as any).trainingLabMode === true) {
       // Phase 2: Enumeration (nmap first — always)
       if (['recon', 'enumeration'].includes(startPhase)) {
-        await executeEnumeration(state, engagement, operatorCtx);
-        await phaseCheckpoint('enumeration');
-        if (!state.isRunning) return;
+        const enumGate = safetyEngine.canEnterPhase('enumeration');
+        if (!enumGate.allowed) {
+          addLog(state, { phase: 'enumeration', type: 'warning', title: '🛡️ Safety: Enumeration Blocked', detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
+        } else {
+          await executeEnumeration(state, engagement, operatorCtx);
+          await phaseCheckpoint('enumeration');
+          if (!state.isRunning) return;
+        }
       }
 
-      // Phase 3: Vulnerability Detection
+      // Phase 3: Vulnerability Detection (safety gated)
       if (['recon', 'enumeration', 'vuln_detection'].includes(startPhase)) {
-        await executeVulnDetection(state, engagement, operatorCtx);
-        await phaseCheckpoint('vuln_detection');
-        if (!state.isRunning) return;
+        const vulnGate = safetyEngine.canEnterPhase('vuln_detection');
+        if (!vulnGate.allowed) {
+          addLog(state, { phase: 'vuln_detection', type: 'warning', title: '🛡️ Safety: Vuln Detection Blocked', detail: `${vulnGate.reason}. Requires safety level '${vulnGate.requiredLevel}' or higher.` });
+        } else {
+          await executeVulnDetection(state, engagement, operatorCtx);
+          await phaseCheckpoint('vuln_detection');
+          if (!state.isRunning) return;
 
         // Phase 3.4: Coalition ESS CVE Enrichment
         // Enrich all CVE findings with CESS scores, EPSS, exploit availability, CISA KEV flags
@@ -5733,8 +5772,11 @@ export async function executeEngagement(
       state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
       state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
 
-      // Phase 4: Exploitation
-      if (state.stats.vulnsFound > 0) {
+      // Phase 4: Exploitation (safety gated)
+      const exploitGate = safetyEngine.canEnterPhase('exploitation');
+      if (!exploitGate.allowed) {
+        addLog(state, { phase: 'exploitation', type: 'warning', title: '🛡️ Safety: Exploitation Blocked', detail: `${exploitGate.reason}. Requires safety level '${exploitGate.requiredLevel}' or higher. ${state.stats.vulnsFound} vulns found but exploitation is not permitted at current safety level.` });
+      } else if (state.stats.vulnsFound > 0) {
         await executeExploitation(state, engagement, operatorCtx);
         await phaseCheckpoint('exploitation');
         if (!state.isRunning) return;
@@ -5742,8 +5784,11 @@ export async function executeEngagement(
         addLog(state, { phase: "exploitation", type: "info", title: "No Exploitable Vulns", detail: "No vulnerabilities found to exploit. Engagement complete." });
       }
 
-      // Phase 5: Post-Exploit
-      if (state.stats.exploitsSucceeded > 0) {
+      // Phase 5: Post-Exploit (safety gated)
+      const postExploitGate = safetyEngine.canEnterPhase('post_exploit');
+      if (!postExploitGate.allowed) {
+        addLog(state, { phase: 'post_exploit', type: 'warning', title: '🛡️ Safety: Post-Exploit Blocked', detail: `${postExploitGate.reason}. Requires safety level '${postExploitGate.requiredLevel}' or higher.` });
+      } else if (state.stats.exploitsSucceeded > 0) {
         await executePostExploit(state, engagement, operatorCtx);
         await phaseCheckpoint('post_exploit');
       }
@@ -5942,6 +5987,95 @@ export async function executeEngagement(
     } catch (accErr: any) {
       console.warn('[AccuracyFeedback] Auto-comparison failed:', accErr.message);
     }
+
+    // ── Compliance Evidence Auto-Mapping ──
+    try {
+      const { mapEngagementToCompliance } = await import('./compliance-evidence-mapper');
+      const mappingInput = {
+        engagementId,
+        assets: state.assets.map(a => ({
+          hostname: a.hostname,
+          ip: a.ip,
+          vulns: a.vulns.map(v => ({
+            title: v.title || v.name || 'Unknown',
+            severity: v.severity || 'info',
+            description: v.description,
+            tool: v.tool || v.source || 'unknown',
+            cve: v.cve,
+            rawOutput: v.rawOutput || v.evidence,
+          })),
+          ports: a.ports.map(p => ({
+            port: p.port,
+            service: p.service,
+            protocol: p.protocol,
+          })),
+          toolResults: (a.toolResults || []).map((tr: any) => ({
+            tool: tr.tool,
+            command: tr.command,
+            exitCode: tr.exitCode,
+            findingCount: tr.findingCount || 0,
+            outputPreview: tr.output?.slice(0, 500),
+            findings: (tr.findings || []).map((f: any) => ({
+              title: f.title || f.name || 'finding',
+              severity: f.severity || 'info',
+            })),
+          })),
+          zapFindings: (a.zapFindings || []).map((z: any) => ({
+            alert: z.alert || z.name || 'ZAP finding',
+            risk: z.risk || z.severity || 'info',
+            description: z.description,
+            url: z.url,
+            evidence: z.evidence,
+          })),
+        })),
+      };
+
+      const complianceResult = mapEngagementToCompliance(mappingInput);
+
+      // Store compliance mapping in state metadata for UI access
+      if (!state.metadata) state.metadata = {} as any;
+      (state.metadata as any).complianceMapping = {
+        totalEvidence: complianceResult.totalEvidenceItems,
+        frameworksCovered: complianceResult.frameworksCovered,
+        gapCount: complianceResult.gapCount,
+        summaries: complianceResult.summaries.map(s => ({
+          framework: s.framework,
+          totalControls: s.totalControls,
+          compliant: s.compliant,
+          nonCompliant: s.nonCompliant,
+          partial: s.partial,
+          noEvidence: s.noEvidence,
+          complianceScore: s.complianceScore,
+        })),
+        generatedAt: Date.now(),
+      };
+
+      // Log compliance summary
+      const topFrameworks = complianceResult.summaries
+        .sort((a, b) => b.complianceScore - a.complianceScore)
+        .slice(0, 3)
+        .map(s => `${s.framework}: ${s.complianceScore}%`)
+        .join(', ');
+
+      addLog(state, {
+        phase: 'completed',
+        type: 'info',
+        title: `📋 Compliance Evidence: ${complianceResult.totalEvidenceItems} items across ${complianceResult.frameworksCovered.length} frameworks`,
+        detail: `Scores: ${topFrameworks} | Gaps: ${complianceResult.gapCount} controls without evidence`,
+        data: { complianceMapping: (state.metadata as any).complianceMapping },
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (compErr: any) {
+      console.warn('[ComplianceMapper] Auto-mapping failed:', compErr.message);
+      addLog(state, {
+        phase: 'completed',
+        type: 'warning',
+        title: '⚠️ Compliance Mapping Failed',
+        detail: compErr.message,
+      });
+    }
+
+    } // end ROE-signed if block
 
     // Final checkpoint
     await phaseCheckpoint('completed');

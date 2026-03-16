@@ -244,6 +244,14 @@ const SOC2Compliance = lazy(() => import("./pages/SOC2Compliance"));
 const C2KnowledgeBase = lazy(() => import("./pages/C2KnowledgeBase"));
 const ServerAccess = lazy(() => import("./pages/ServerAccess"));
 const EmpirePage = lazy(() => import("./pages/EmpirePage"));
+const EmberFleetOverview = lazy(() => import("./pages/EmberFleetOverview"));
+const EmberDeploy = lazy(() => import("./pages/EmberDeploy"));
+const EmberTaskConsole = lazy(() => import("./pages/EmberTaskConsole"));
+const EmberPayloadArmory = lazy(() => import("./pages/EmberPayloadArmory"));
+const EmberSwarmControl = lazy(() => import("./pages/EmberSwarmControl"));
+const EmberIntelligence = lazy(() => import("./pages/EmberIntelligence"));
+const EmberCapabilities = lazy(() => import("./pages/EmberCapabilities"));
+const EmberCognitiveEngine = lazy(() => import("./pages/EmberCognitiveEngine"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -973,6 +981,30 @@ function Router() {
         </Route>
         <Route path="/soc2-compliance">
           <ProtectedRoute component={SOC2Compliance} />
+        </Route>
+        <Route path="/ember">
+          <ProtectedRoute component={EmberFleetOverview} />
+        </Route>
+        <Route path="/ember/deploy">
+          <ProtectedRoute component={EmberDeploy} />
+        </Route>
+        <Route path="/ember/tasks">
+          <ProtectedRoute component={EmberTaskConsole} />
+        </Route>
+        <Route path="/ember/payloads">
+          <ProtectedRoute component={EmberPayloadArmory} />
+        </Route>
+        <Route path="/ember/swarm">
+          <ProtectedRoute component={EmberSwarmControl} />
+        </Route>
+        <Route path="/ember/intelligence">
+          <ProtectedRoute component={EmberIntelligence} />
+        </Route>
+        <Route path="/ember/capabilities">
+          <ProtectedRoute component={EmberCapabilities} />
+        </Route>
+        <Route path="/ember/cognitive">
+          <ProtectedRoute component={EmberCognitiveEngine} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

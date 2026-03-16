@@ -53,9 +53,9 @@ export interface NavGroup {
  */
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
+  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'ember-agent', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
   analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training'],
-  team_lead: ['command-control', 'campaign-ops', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
+  team_lead: ['command-control', 'campaign-ops', 'ember-agent', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
   soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
@@ -168,6 +168,24 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "File Transfers", path: "/file-transfers", icon: HardDrive },
       { label: "Session Recordings", path: "/session-recordings", icon: Camera },
       { label: "Data Exfil Simulation", path: "/data-exfil-simulation", icon: Flame },
+    ],
+  },
+
+  // ─── Ember Agent (AC3 Proprietary) ───
+  {
+    id: "ember-agent",
+    label: "Ember Agent",
+    icon: Flame,
+    color: "text-amber-400",
+    items: [
+      { label: "Fleet Overview", path: "/ember", icon: LayoutDashboard },
+      { label: "Deploy Agent", path: "/ember/deploy", icon: Rocket },
+      { label: "Task Console", path: "/ember/tasks", icon: Terminal },
+      { label: "Payload Armory", path: "/ember/payloads", icon: Binary },
+      { label: "Swarm Control", path: "/ember/swarm", icon: Boxes },
+      { label: "Intelligence Feed", path: "/ember/intelligence", icon: Brain },
+      { label: "Capability Catalog", path: "/ember/capabilities", icon: CircuitBoard },
+      { label: "Cognitive Engine", path: "/ember/cognitive", icon: Brain },
     ],
   },
 

@@ -179,6 +179,7 @@ import { reviewQueueRouter } from "./routers/review-queue";
 import { jobQueueRouter } from "./routers/job-queue";
 import { learningEngineRouter } from "./routers/learning-engine";
 import { accuracyFeedbackRouter } from "./routers/accuracy-feedback";
+import { emberAgentRouter } from "./routers/ember-agent";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -528,6 +529,8 @@ export const appRouter = router({
   phishingImpact: phishingImpactRouter,
   // ─── SOC 2 / Enterprise Compliance ─────────────────────────────────────────
   soc2Compliance: soc2ComplianceRouter,
+  // ─── Ember Agent System (AC3 Proprietary Agent) ─────────────────────────────
+  ember: emberAgentRouter,
 });
 export type AppRouter = typeof appRouter;
 

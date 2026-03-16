@@ -28,6 +28,7 @@ import {
   type JobResult,
 } from "./job-queue";
 import { eventHub } from "./ws-event-hub";
+import { getSafetyEngine, type SafetyAssessment } from "./safety-engine";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -98,6 +99,53 @@ export async function executeToolViaQueue(
   const engagementId = options?.engagementId || config.engagementId || 0;
   const roeScope = options?.roeScope || [];
   const target = config.target || "unknown";
+
+  // ── Safety Engine Assessment ──────────────────────────────────────────
+  // Every tool execution is assessed by the safety engine before running.
+  // If the engagement has a safety engine configured, the tool/args/target
+  // are checked against the active safety level. Blocked commands return
+  // immediately with a descriptive error — no SSH/HTTP call is made.
+  if (engagementId > 0) {
+    try {
+      const safetyEngine = getSafetyEngine(engagementId);
+      const assessment: SafetyAssessment = safetyEngine.assess(
+        config.tool, config.args, target
+      );
+
+      // Broadcast safety assessment event for real-time dashboard
+      broadcastJobEvent(engagementId, {
+        type: "safety:assessed",
+        tool: config.tool,
+        target,
+        allowed: assessment.allowed,
+        safetyLevel: assessment.safetyLevel,
+        blastRadius: assessment.blastRadius.riskScore,
+        reason: assessment.reason,
+      });
+
+      if (!assessment.allowed) {
+        metrics.totalDispatched--; // Don't count blocked commands
+        console.warn(
+          `${LOG} [SAFETY BLOCKED] ${config.tool} on ${target} — ` +
+          `Level: ${assessment.safetyLevel}, Reason: ${assessment.reason}`
+        );
+        return {
+          tool: config.tool,
+          command: `${config.tool} ${config.args}`,
+          stdout: "",
+          stderr: `[SAFETY ENGINE] Command blocked at safety level '${assessment.safetyLevel}': ${assessment.reason}`,
+          exitCode: -2, // -2 = safety blocked (distinct from -1 = error)
+          durationMs: Date.now() - startTime,
+          timedOut: false,
+          error: `Safety blocked: ${assessment.reason}`,
+          executionMode: "local" as const,
+        };
+      }
+    } catch (safetyErr: any) {
+      // Safety engine failure should NOT block execution — log and continue
+      console.warn(`${LOG} Safety engine error (non-blocking): ${safetyErr.message}`);
+    }
+  }
 
   // ── Decision: queue vs local ──────────────────────────────────────────
   const useQueue = !options?.forceLocal && (options?.forceQueue || hasHealthyWorker("scan"));
@@ -224,6 +272,34 @@ export async function executeRawCommandViaQueue(
     forceLocal?: boolean;
   }
 ): Promise<ToolExecResult & { executionMode: "queue" | "local" }> {
+  // ── Safety Engine Assessment for raw commands ───────────────────────
+  const engagementId = options?.engagementId || 0;
+  if (engagementId > 0) {
+    try {
+      const safetyEngine = getSafetyEngine(engagementId);
+      // Extract tool name from raw command for assessment
+      const cmdParts = command.trim().split(/\s+/);
+      const rawTool = cmdParts[0]?.replace(/^sudo\s+/, "") || "raw";
+      const assessment = safetyEngine.assess(rawTool, command, "raw-command");
+      if (!assessment.allowed) {
+        console.warn(`${LOG} [SAFETY BLOCKED] Raw command: ${command.slice(0, 100)} — ${assessment.reason}`);
+        return {
+          tool: "raw",
+          command,
+          stdout: "",
+          stderr: `[SAFETY ENGINE] Raw command blocked at safety level '${assessment.safetyLevel}': ${assessment.reason}`,
+          exitCode: -2,
+          durationMs: 0,
+          timedOut: false,
+          error: `Safety blocked: ${assessment.reason}`,
+          executionMode: "local" as const,
+        };
+      }
+    } catch (safetyErr: any) {
+      console.warn(`${LOG} Safety engine error for raw command (non-blocking): ${safetyErr.message}`);
+    }
+  }
+
   // Primary: try DO HTTP API (no SSH overhead, no event loop blocking)
   if (!options?.forceLocal) {
     try {

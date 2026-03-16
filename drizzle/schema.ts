@@ -5276,3 +5276,176 @@ export const remediationTasks = mysqlTable("remediation_tasks", {
 ]);
 export type InsertRemediationTask = typeof remediationTasks.$inferInsert;
 export type RemediationTask = typeof remediationTasks.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMBER AGENT TABLES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const emberAgents = mysqlTable("ember_agents", {
+  id: int().autoincrement().notNull(),
+  agentId: varchar("agent_id", { length: 64 }).notNull(),
+  name: varchar("ember_name", { length: 255 }).notNull(),
+  engagementId: int("engagement_id"),
+  profile: mysqlEnum("ember_profile", ['ghost','scout','striker','sentinel','hydra']).notNull(),
+  platform: mysqlEnum("ember_platform", ['windows_x64','windows_x86','linux_x64','linux_arm64','macos_x64','macos_arm64']).notNull(),
+  autonomy: mysqlEnum("ember_autonomy", ['manual','guided','semi_auto','full_auto']).default('manual').notNull(),
+  state: mysqlEnum("ember_state", ['initializing','dormant','active','evading','pivoting','exfiltrating','self_destruct','dead']).default('initializing').notNull(),
+  hostname: varchar("ember_hostname", { length: 255 }),
+  username: varchar("ember_username", { length: 255 }),
+  domain: varchar("ember_domain", { length: 255 }),
+  osVersion: varchar("os_version", { length: 255 }),
+  architecture: varchar("ember_arch", { length: 32 }),
+  isElevated: tinyint("is_elevated").default(0),
+  integrity: mysqlEnum("ember_integrity", ['low','medium','high','system']).default('medium'),
+  pid: int("ember_pid"),
+  processName: varchar("process_name", { length: 255 }),
+  externalIp: varchar("external_ip", { length: 64 }),
+  internalIp: varchar("internal_ip", { length: 64 }),
+  primaryChannel: varchar("primary_channel", { length: 32 }).default('https_beacon'),
+  beaconInterval: int("beacon_interval").default(60),
+  jitterPercent: int("jitter_percent").default(20),
+  killDate: bigint("kill_date", { mode: "number" }),
+  lastBeaconAt: bigint("last_beacon_at", { mode: "number" }),
+  beaconCount: int("beacon_count").default(0),
+  missedBeacons: int("missed_beacons").default(0),
+  registrationToken: varchar("ember_reg_token", { length: 128 }),
+  configJson: json("ember_config_json"),
+  systemInfoJson: json("ember_system_info_json"),
+  securityProducts: json("ember_security_products"),
+  loadedModules: json("ember_loaded_modules"),
+  cognitiveEnabled: tinyint("cognitive_enabled").default(0),
+  cognitiveObjective: text("cognitive_objective"),
+  cognitiveActionsUsed: int("cognitive_actions_used").default(0),
+  cognitiveActionsMax: int("cognitive_actions_max").default(20),
+  swarmId: varchar("ember_swarm_id", { length: 64 }),
+  swarmRole: mysqlEnum("ember_swarm_role", ['coordinator','worker','relay','observer']),
+  evasionScore: int("evasion_score").default(0),
+  trafficProfile: varchar("ember_traffic_profile", { length: 64 }),
+  createdAt: bigint("ember_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("ember_updated_at", { mode: "number" }).notNull(),
+  terminatedAt: bigint("ember_terminated_at", { mode: "number" }),
+}, (table) => [
+  index("ember_agent_id_idx").on(table.agentId),
+  index("ember_engagement_idx").on(table.engagementId),
+  index("ember_state_idx").on(table.state),
+  index("ember_profile_idx").on(table.profile),
+  index("ember_swarm_idx").on(table.swarmId),
+]);
+export type EmberAgentRow = typeof emberAgents.$inferSelect;
+export type InsertEmberAgent = typeof emberAgents.$inferInsert;
+
+export const emberTasks = mysqlTable("ember_tasks", {
+  id: int().autoincrement().notNull(),
+  taskId: varchar("ember_task_id", { length: 64 }).notNull(),
+  agentId: varchar("ember_task_agent_id", { length: 64 }).notNull(),
+  engagementId: int("ember_task_engagement_id"),
+  type: varchar("ember_task_type", { length: 32 }).notNull(),
+  priority: int("ember_task_priority").default(5),
+  params: json("ember_task_params"),
+  attackTechnique: varchar("ember_attack_technique", { length: 32 }),
+  timeoutSeconds: int("ember_timeout_seconds").default(300),
+  requiresElevation: tinyint("ember_requires_elevation").default(0),
+  assignedBy: varchar("ember_assigned_by", { length: 64 }).default('operator'),
+  cognitiveReasoning: text("ember_cognitive_reasoning"),
+  safetyAllowed: tinyint("ember_safety_allowed").default(1),
+  safetyRiskScore: int("ember_safety_risk_score").default(0),
+  safetyReason: text("ember_safety_reason"),
+  status: mysqlEnum("ember_task_status", ['pending','sent','running','success','failed','timeout','blocked','partial']).default('pending').notNull(),
+  output: mediumtext("ember_task_output"),
+  error: text("ember_task_error"),
+  artifactsJson: json("ember_artifacts_json"),
+  durationMs: int("ember_duration_ms"),
+  sentAt: bigint("ember_sent_at", { mode: "number" }),
+  completedAt: bigint("ember_completed_at", { mode: "number" }),
+  createdAt: bigint("ember_task_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("et_agent_idx").on(table.agentId),
+  index("et_engagement_idx").on(table.engagementId),
+  index("et_status_idx").on(table.status),
+  index("et_task_id_idx").on(table.taskId),
+]);
+export type EmberTaskRow = typeof emberTasks.$inferSelect;
+export type InsertEmberTask = typeof emberTasks.$inferInsert;
+
+export const emberBeacons = mysqlTable("ember_beacons", {
+  id: int().autoincrement().notNull(),
+  agentId: varchar("ember_beacon_agent_id", { length: 64 }).notNull(),
+  sequence: int("ember_beacon_seq").notNull(),
+  state: varchar("ember_beacon_state", { length: 32 }),
+  channel: varchar("ember_beacon_channel", { length: 32 }),
+  systemInfoJson: json("ember_beacon_sysinfo"),
+  healthJson: json("ember_beacon_health"),
+  intelligenceJson: json("ember_beacon_intel"),
+  taskResultsJson: json("ember_beacon_results"),
+  receivedAt: bigint("ember_beacon_received_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("eb_agent_idx").on(table.agentId),
+  index("eb_received_idx").on(table.receivedAt),
+]);
+export type EmberBeaconRow = typeof emberBeacons.$inferSelect;
+export type InsertEmberBeacon = typeof emberBeacons.$inferInsert;
+
+export const emberPayloads = mysqlTable("ember_payloads", {
+  id: int().autoincrement().notNull(),
+  payloadId: varchar("ember_payload_id", { length: 64 }).notNull(),
+  engagementId: int("ember_payload_engagement_id"),
+  profile: varchar("ember_payload_profile", { length: 32 }).notNull(),
+  platform: varchar("ember_payload_platform", { length: 32 }).notNull(),
+  format: varchar("ember_payload_format", { length: 32 }).notNull(),
+  callbackUrls: json("ember_callback_urls"),
+  primaryChannel: varchar("ember_payload_channel", { length: 32 }),
+  evasionConfig: json("ember_evasion_config"),
+  beaconConfig: json("ember_payload_beacon_config"),
+  cognitiveConfig: json("ember_payload_cognitive_config"),
+  registrationToken: varchar("ember_payload_reg_token", { length: 128 }),
+  filename: varchar("ember_payload_filename", { length: 255 }),
+  hash: varchar("ember_payload_hash", { length: 64 }),
+  size: int("ember_payload_size"),
+  estimatedDetectionRate: int("ember_detection_rate"),
+  evasionTechniques: json("ember_payload_evasion_techniques"),
+  capabilities: json("ember_payload_capabilities"),
+  generatedBy: varchar("ember_generated_by", { length: 64 }),
+  createdAt: bigint("ember_payload_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ep_engagement_idx").on(table.engagementId),
+  index("ep_payload_id_idx").on(table.payloadId),
+  index("ep_token_idx").on(table.registrationToken),
+]);
+export type EmberPayloadRow = typeof emberPayloads.$inferSelect;
+export type InsertEmberPayload = typeof emberPayloads.$inferInsert;
+
+export const emberSwarms = mysqlTable("ember_swarms", {
+  id: int().autoincrement().notNull(),
+  swarmId: varchar("ember_swarm_sid", { length: 64 }).notNull(),
+  engagementId: int("ember_swarm_engagement_id"),
+  name: varchar("ember_swarm_name", { length: 255 }).notNull(),
+  coordinatorAgentId: varchar("ember_coordinator_id", { length: 64 }),
+  memberAgentIds: json("ember_member_ids"),
+  sharedIntelligenceJson: json("ember_shared_intel"),
+  evasionStateJson: json("ember_evasion_state"),
+  status: mysqlEnum("ember_swarm_status", ['forming','active','degraded','dissolved']).default('forming').notNull(),
+  createdAt: bigint("ember_swarm_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("ember_swarm_updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("es_swarm_id_idx").on(table.swarmId),
+  index("es_engagement_idx").on(table.engagementId),
+]);
+export type EmberSwarmRow = typeof emberSwarms.$inferSelect;
+export type InsertEmberSwarm = typeof emberSwarms.$inferInsert;
+
+export const emberIntelligence = mysqlTable("ember_intelligence", {
+  id: int().autoincrement().notNull(),
+  agentId: varchar("ember_intel_agent_id", { length: 64 }).notNull(),
+  engagementId: int("ember_intel_engagement_id"),
+  type: varchar("ember_intel_type", { length: 64 }).notNull(),
+  confidence: int("ember_intel_confidence").default(50),
+  dataJson: json("ember_intel_data"),
+  sharedWithSwarm: tinyint("ember_intel_shared").default(0),
+  discoveredAt: bigint("ember_intel_discovered_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ei_agent_idx").on(table.agentId),
+  index("ei_engagement_idx").on(table.engagementId),
+  index("ei_type_idx").on(table.type),
+]);
+export type EmberIntelligenceRow = typeof emberIntelligence.$inferSelect;
+export type InsertEmberIntelligence = typeof emberIntelligence.$inferInsert;

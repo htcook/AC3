@@ -329,7 +329,6 @@ Respond with a JSON object containing: executiveSummary, riskScore (1-10), riskR
         },
       },
     },
-    _caller: "continuous-training.iteration",
   });
 
   const content = result.choices?.[0]?.message?.content;
