@@ -148,6 +148,10 @@ import { graduationEngineRouter } from "./routers/graduation-engine";
 import { remediationRouter } from "./routers/remediation";
 import { c2KnowledgeBaseRouter } from "./routers/c2-knowledge-base";
 import { empireRouter } from "./routers/empire";
+import { safetyEngineRouter } from "./routers/safety-engine";
+import { agentInternalScanningRouter } from "./routers/agent-internal-scanning";
+import { phishingImpactRouter } from "./routers/phishing-impact";
+import { soc2ComplianceRouter } from "./routers/soc2-compliance";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -516,6 +520,14 @@ export const appRouter = router({
   remediation: remediationRouter,
   c2KnowledgeBase: c2KnowledgeBaseRouter,
   empire: empireRouter,
+  // ─── Production-Safe Autonomous Mode ─────────────────────────────────────
+  safetyEngine: safetyEngineRouter,
+  // ─── Agent-Based Internal Scanning ─────────────────────────────────────────
+  agentInternalScanning: agentInternalScanningRouter,
+  // ─── Phishing Impact Testing ───────────────────────────────────────────────
+  phishingImpact: phishingImpactRouter,
+  // ─── SOC 2 / Enterprise Compliance ─────────────────────────────────────────
+  soc2Compliance: soc2ComplianceRouter,
 });
 export type AppRouter = typeof appRouter;
 

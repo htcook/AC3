@@ -237,6 +237,10 @@ const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
 const ThreatGroupProfile = lazy(() => import("./pages/ThreatGroupProfile"));
 const GraduationEngine = lazy(() => import("./pages/GraduationEngine"));
 const RemediationTracking = lazy(() => import("./pages/RemediationTracking"));
+const SafetyDashboard = lazy(() => import("./pages/SafetyDashboard"));
+const AgentInternalScanning = lazy(() => import("./pages/AgentInternalScanning"));
+const PhishingImpactTesting = lazy(() => import("./pages/PhishingImpactTesting"));
+const SOC2Compliance = lazy(() => import("./pages/SOC2Compliance"));
 const C2KnowledgeBase = lazy(() => import("./pages/C2KnowledgeBase"));
 const ServerAccess = lazy(() => import("./pages/ServerAccess"));
 const EmpirePage = lazy(() => import("./pages/EmpirePage"));
@@ -957,6 +961,18 @@ function Router() {
         </Route>
         <Route path="/remediation-tracking">
           <ProtectedRoute component={RemediationTracking} />
+        </Route>
+        <Route path="/safety-dashboard">
+          <ProtectedRoute component={SafetyDashboard} />
+        </Route>
+        <Route path="/agent-internal-scanning">
+          <ProtectedRoute component={AgentInternalScanning} />
+        </Route>
+        <Route path="/phishing-impact-testing">
+          <ProtectedRoute component={PhishingImpactTesting} />
+        </Route>
+        <Route path="/soc2-compliance">
+          <ProtectedRoute component={SOC2Compliance} />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
