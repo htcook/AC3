@@ -16,6 +16,7 @@ import {
 import { FIPSIndicator } from "./FIPSIndicator";
 import { CommandPaletteTrigger } from "./CommandPalette";
 import { useEngagement } from "@/contexts/EngagementContext";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -104,6 +105,19 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   // Mobile drawer state
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
+
+  // Prevent body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [mobileOpen]);
+
   // Persist mode
   useEffect(() => {
     localStorage.setItem(SIDEBAR_MODE_KEY, mode);
@@ -122,7 +136,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       }
     }
     return null;
-  }, [location]);
+  }, [location, filteredNavGroups]);
 
   const activeLabel = useMemo(() => {
     for (const group of filteredNavGroups) {
@@ -130,7 +144,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       if (item) return item.label;
     }
     return "Home";
-  }, [location]);
+  }, [location, filteredNavGroups]);
 
   // Flyout handlers
   const openFlyout = useCallback((groupId: string) => {
@@ -146,6 +160,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     if (flyoutTimeout.current) clearTimeout(flyoutTimeout.current);
   }, []);
 
+  // Close flyout on route change
+  useEffect(() => {
+    setFlyoutGroupId(null);
+  }, [location]);
+
   // ─── Mobile Drawer ──────────────────────────────────────────────────────────
 
   if (isMobile) {
@@ -156,29 +175,34 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setMobileOpen(true)}
-              className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+              className="h-11 w-11 flex items-center justify-center rounded-lg hover:bg-accent transition-colors active:bg-accent/70"
+              aria-label="Open navigation"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-semibold text-sm tracking-tight">{activeLabel}</span>
+            <span className="font-semibold text-sm tracking-tight truncate">{activeLabel}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <CommandPaletteTrigger collapsed />
           </div>
         </div>
 
         {/* Mobile drawer overlay */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 flex">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-            <div className="relative w-72 bg-background border-r flex flex-col h-full animate-in slide-in-from-left duration-200">
-              <div className="h-14 flex items-center justify-between px-3 border-b">
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <div className="relative w-[85vw] max-w-[320px] bg-background border-r flex flex-col h-full animate-in slide-in-from-left duration-200 shadow-2xl">
+              <div className="h-14 flex items-center justify-between px-4 border-b shrink-0">
                 <span className="font-semibold text-sm tracking-tight">AC3</span>
                 <button
                   onClick={() => setMobileOpen(false)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-accent"
+                  className="h-10 w-10 flex items-center justify-center rounded-lg hover:bg-accent active:bg-accent/70"
+                  aria-label="Close navigation"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="px-3 py-2">
+              <div className="px-3 py-2 shrink-0">
                 <CommandPaletteTrigger />
               </div>
               <EngagementSwitcher isCollapsed={false} />
@@ -190,7 +214,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="flex-1 p-4 overflow-x-hidden max-w-full">{children}</main>
+        <main className="flex-1 overflow-x-hidden max-w-full">
+          <div className="p-3 sm:p-4">{children}</div>
+        </main>
       </div>
     );
   }
@@ -202,7 +228,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         {/* Icon Rail */}
         <div
-          className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-30"
+          className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-40"
           style={{ width: RAIL_WIDTH }}
         >
           {/* Logo / toggle */}
@@ -230,8 +256,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <EngagementSwitcher isCollapsed />
           </div>
 
-          {/* Nav group icons */}
-          <ScrollArea className="flex-1 min-h-0 overflow-hidden">
+          {/* Nav group icons — NO ScrollArea wrapping to prevent flyout clipping */}
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-thin scrollbar-thumb-border">
             <div className="flex flex-col items-center gap-0.5 py-1">
               {/* Home */}
               <Tooltip>
@@ -251,76 +277,28 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               </Tooltip>
 
               {/* Group icons */}
-              {filteredNavGroups.map(group => {
-                const isActive = activeGroupId === group.id;
-                const isFlyoutOpen = flyoutGroupId === group.id;
-                return (
-                  <div
-                    key={group.id}
-                    className="relative"
-                    onMouseEnter={() => openFlyout(group.id)}
-                    onMouseLeave={closeFlyout}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => {
-                            if (isFlyoutOpen) {
-                              setFlyoutGroupId(null);
-                            } else {
-                              setFlyoutGroupId(group.id);
-                            }
-                          }}
-                          className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
-                            isActive || isFlyoutOpen
-                              ? `bg-accent/70 ${group.color}`
-                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                          }`}
-                        >
-                          <group.icon className="h-4.5 w-4.5" />
-                        </button>
-                      </TooltipTrigger>
-                      {!isFlyoutOpen && (
-                        <TooltipContent side="right" sideOffset={8}>{group.label}</TooltipContent>
-                      )}
-                    </Tooltip>
-
-                    {/* Flyout panel */}
-                    {isFlyoutOpen && (
-                      <div
-                        className="absolute left-full top-0 ml-0 z-50"
-                        onMouseEnter={cancelCloseFlyout}
-                        onMouseLeave={closeFlyout}
-                      >
-                        <div className="w-56 bg-popover border rounded-lg shadow-xl py-1 max-h-[70vh] overflow-y-auto">
-                          <div className={`px-3 py-2 text-[10px] font-semibold tracking-widest uppercase ${group.color}`}>
-                            {group.label}
-                          </div>
-                          {group.items.map(item => {
-                            const isItemActive = location === item.path || location.startsWith(item.path + "/");
-                            return (
-                              <button
-                                key={item.path}
-                                onClick={() => { setLocation(item.path); setFlyoutGroupId(null); }}
-                                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
-                                  isItemActive
-                                    ? "bg-accent text-foreground font-medium"
-                                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                                }`}
-                              >
-                                <item.icon className={`h-3.5 w-3.5 shrink-0 ${isItemActive ? group.color : ""}`} />
-                                <span className="text-xs truncate">{item.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {filteredNavGroups.map(group => (
+                <RailGroupIcon
+                  key={group.id}
+                  group={group}
+                  isActive={activeGroupId === group.id}
+                  isFlyoutOpen={flyoutGroupId === group.id}
+                  location={location}
+                  onOpenFlyout={() => openFlyout(group.id)}
+                  onCloseFlyout={closeFlyout}
+                  onCancelCloseFlyout={cancelCloseFlyout}
+                  onToggleFlyout={() => {
+                    if (flyoutGroupId === group.id) {
+                      setFlyoutGroupId(null);
+                    } else {
+                      openFlyout(group.id);
+                    }
+                  }}
+                  onNavigate={(path) => { setLocation(path); setFlyoutGroupId(null); }}
+                />
+              ))}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Footer */}
           <div className="shrink-0">
@@ -342,7 +320,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen">
       {/* Expanded sidebar */}
       <div
-        className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-30"
+        className="fixed top-0 left-0 h-screen flex flex-col bg-background border-r z-40"
         style={{ width: EXPANDED_WIDTH }}
       >
         {/* Header */}
@@ -388,6 +366,109 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <main className="flex-1 p-4 overflow-x-hidden max-w-full" style={{ marginLeft: EXPANDED_WIDTH }}>
         {children}
       </main>
+    </div>
+  );
+}
+
+// ─── Rail Group Icon with Portal Flyout ─────────────────────────────────────
+
+function RailGroupIcon({
+  group,
+  isActive,
+  isFlyoutOpen,
+  location,
+  onOpenFlyout,
+  onCloseFlyout,
+  onCancelCloseFlyout,
+  onToggleFlyout,
+  onNavigate,
+}: {
+  group: NavGroup;
+  isActive: boolean;
+  isFlyoutOpen: boolean;
+  location: string;
+  onOpenFlyout: () => void;
+  onCloseFlyout: () => void;
+  onCancelCloseFlyout: () => void;
+  onToggleFlyout: () => void;
+  onNavigate: (path: string) => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
+
+  // Calculate flyout position based on button position
+  useEffect(() => {
+    if (isFlyoutOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setFlyoutPos({
+        top: rect.top,
+        left: rect.right + 4,
+      });
+    }
+  }, [isFlyoutOpen]);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={onOpenFlyout}
+      onMouseLeave={onCloseFlyout}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={buttonRef}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFlyout();
+            }}
+            className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors ${
+              isActive || isFlyoutOpen
+                ? `bg-accent/70 ${group.color}`
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            }`}
+          >
+            <group.icon className="h-4.5 w-4.5" />
+          </button>
+        </TooltipTrigger>
+        {!isFlyoutOpen && (
+          <TooltipContent side="right" sideOffset={8}>{group.label}</TooltipContent>
+        )}
+      </Tooltip>
+
+      {/* Flyout panel — rendered via portal to escape overflow clipping */}
+      {isFlyoutOpen && createPortal(
+        <div
+          className="fixed z-[60]"
+          style={{ top: flyoutPos.top, left: flyoutPos.left }}
+          onMouseEnter={onCancelCloseFlyout}
+          onMouseLeave={onCloseFlyout}
+        >
+          <div className="w-56 bg-popover border rounded-lg shadow-xl py-1 max-h-[70vh] overflow-y-auto">
+            <div className={`px-3 py-2 text-[10px] font-semibold tracking-widest uppercase ${group.color}`}>
+              {group.label}
+            </div>
+            {group.items.map(item => {
+              const isItemActive = location === item.path || location.startsWith(item.path + "/");
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => onNavigate(item.path)}
+                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${
+                    isItemActive
+                      ? "bg-accent text-foreground font-medium"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className={`h-3.5 w-3.5 shrink-0 ${isItemActive ? group.color : ""}`} />
+                  <span className="text-xs truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -514,7 +595,7 @@ function MobileNavList({
     <div className="py-1">
       <button
         onClick={() => setLocation("/home")}
-        className={`w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors ${
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
           location === "/" || location === "/home"
             ? "bg-accent text-foreground font-medium"
             : "text-muted-foreground hover:bg-accent/50"
@@ -532,7 +613,7 @@ function MobileNavList({
           <div key={group.id}>
             <button
               onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-              className={`w-full flex items-center gap-2 px-4 py-2.5 text-left ${
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left ${
                 hasActiveItem ? group.color : "text-muted-foreground"
               }`}
             >
@@ -546,12 +627,12 @@ function MobileNavList({
                 <button
                   key={item.path}
                   onClick={() => setLocation(item.path)}
-                  className={`w-full flex items-center gap-2 pl-10 pr-4 py-2 text-left ${
+                  className={`w-full flex items-center gap-3 pl-11 pr-4 py-2.5 text-left min-h-[44px] ${
                     isActive ? "text-foreground font-medium bg-accent/50" : "text-muted-foreground hover:bg-accent/30"
                   }`}
                 >
                   <item.icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? group.color : ""}`} />
-                  <span className="text-xs truncate">{item.label}</span>
+                  <span className="text-sm truncate">{item.label}</span>
                 </button>
               );
             })}

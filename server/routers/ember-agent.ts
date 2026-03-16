@@ -1014,4 +1014,132 @@ export const emberAgentRouter = router({
         .orderBy(desc(emberBeacons.receivedAt))
         .limit(input.limit);
     }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ALIASES — frontend pages reference these names
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Alias: getDashboard -> getFleetOverview (used by EmberFleetOverview) */
+  getDashboard: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const conditions = input?.engagementId
+        ? [eq(emberAgents.engagementId, input.engagementId)]
+        : [];
+      const agents = await db.select().from(emberAgents)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(emberAgents.updatedAt));
+      const byState: Record<string, number> = {};
+      const byProfile: Record<string, number> = {};
+      const byPlatform: Record<string, number> = {};
+      let activeCount = 0;
+      let cognitiveCount = 0;
+      let totalBeacons = 0;
+      for (const a of agents) {
+        byState[a.state] = (byState[a.state] || 0) + 1;
+        byProfile[a.profile] = (byProfile[a.profile] || 0) + 1;
+        byPlatform[a.platform] = (byPlatform[a.platform] || 0) + 1;
+        if (a.state === "active" || a.state === "evading" || a.state === "pivoting") activeCount++;
+        if (a.cognitiveEnabled) cognitiveCount++;
+        totalBeacons += a.beaconCount || 0;
+      }
+      const [taskStats] = await db.select({
+        total: count(),
+        pending: sql<number>`SUM(CASE WHEN ${emberTasks.status} = 'pending' THEN 1 ELSE 0 END)`,
+        running: sql<number>`SUM(CASE WHEN ${emberTasks.status} = 'running' THEN 1 ELSE 0 END)`,
+        success: sql<number>`SUM(CASE WHEN ${emberTasks.status} = 'success' THEN 1 ELSE 0 END)`,
+        failed: sql<number>`SUM(CASE WHEN ${emberTasks.status} = 'failed' THEN 1 ELSE 0 END)`,
+      }).from(emberTasks);
+      const [swarmStats] = await db.select({ total: count() }).from(emberSwarms);
+      const [intelStats] = await db.select({ total: count() }).from(emberIntelligence);
+      const [payloadStats] = await db.select({ total: count() }).from(emberPayloads);
+      return {
+        totalAgents: agents.length,
+        activeAgents: activeCount,
+        cognitiveAgents: cognitiveCount,
+        totalBeacons,
+        byState, byProfile, byPlatform,
+        tasks: {
+          total: taskStats?.total || 0,
+          pending: Number(taskStats?.pending) || 0,
+          running: Number(taskStats?.running) || 0,
+          success: Number(taskStats?.success) || 0,
+          failed: Number(taskStats?.failed) || 0,
+        },
+        swarms: swarmStats?.total || 0,
+        intelligence: intelStats?.total || 0,
+        payloadsGenerated: payloadStats?.total || 0,
+        agents,
+      };
+    }),
+
+  /** Alias: killAgent -> terminateAgent (used by EmberFleetOverview) */
+  killAgent: protectedProcedure
+    .input(z.object({ agentId: z.string(), cleanTraces: z.boolean().default(true) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [agent] = await db.select().from(emberAgents).where(eq(emberAgents.agentId, input.agentId)).limit(1);
+      if (!agent) throw new Error("Agent not found");
+      await db.update(emberAgents).set({
+        state: "dead",
+        updatedAt: Date.now(),
+      }).where(eq(emberAgents.agentId, input.agentId));
+      return { success: true, agentId: input.agentId };
+    }),
+
+  /** Alias: getAgentDetail -> getAgent (used by Ember detail pages) */
+  getAgentDetail: protectedProcedure
+    .input(z.object({ agentId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const [agent] = await db.select().from(emberAgents).where(eq(emberAgents.agentId, input.agentId)).limit(1);
+      if (!agent) throw new Error("Ember agent not found");
+      const tasks = await db.select().from(emberTasks)
+        .where(eq(emberTasks.agentId, input.agentId))
+        .orderBy(desc(emberTasks.createdAt))
+        .limit(20);
+      const beacons = await db.select().from(emberBeacons)
+        .where(eq(emberBeacons.agentId, input.agentId))
+        .orderBy(desc(emberBeacons.receivedAt))
+        .limit(20);
+      return { ...agent, recentTasks: tasks, recentBeacons: beacons };
+    }),
+
+  /** Alias: issueTask -> queueTask (used by Ember task pages) */
+  issueTask: protectedProcedure
+    .input(z.object({
+      agentId: z.string(),
+      type: z.string(),
+      params: z.record(z.any()).default({}),
+      priority: z.number().min(1).max(10).default(5),
+      attackTechnique: z.string().optional(),
+      timeoutSeconds: z.number().min(5).max(3600).default(300),
+      requiresElevation: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const now = Date.now();
+      const taskId = `et-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const [agent] = await db.select().from(emberAgents).where(eq(emberAgents.agentId, input.agentId)).limit(1);
+      if (!agent) throw new Error("Agent not found");
+      await db.insert(emberTasks).values({
+        taskId,
+        agentId: input.agentId,
+        engagementId: agent.engagementId || null,
+        type: input.type,
+        priority: input.priority,
+        params: input.params,
+        attackTechnique: input.attackTechnique || null,
+        timeoutSeconds: input.timeoutSeconds,
+        requiresElevation: input.requiresElevation ? 1 : 0,
+        assignedBy: "operator",
+        safetyAllowed: 1,
+        safetyRiskScore: 0,
+        safetyReason: "No safety check (alias)",
+        status: "pending" as any,
+        createdAt: now,
+      });
+      return { success: true, taskId, error: null, blocked: false };
+    }),
 });

@@ -65,7 +65,15 @@ import {
   Key,
   Network,
   Eye,
+  Flame,
+  Brain,
+  Radio,
+  Search,
+  Zap,
+  Boxes,
+  Globe,
 } from "lucide-react";
+import { Link } from "wouter";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -294,9 +302,9 @@ function AgentList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <Select value={statusFilter ?? "all"} onValueChange={(v) => setStatusFilter(v === "all" ? undefined : v)}>
-          <SelectTrigger className="w-48 bg-zinc-900 border-zinc-700">
+          <SelectTrigger className="w-36 sm:w-48 bg-zinc-900 border-zinc-700">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -837,17 +845,227 @@ function AuditLogTab() {
   );
 }
 
+// ─── Ember Implant Tab ───────────────────────────────────────────────────
+
+const EMBER_STATE_COLORS: Record<string, string> = {
+  initializing: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  dormant: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  active: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  evading: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  pivoting: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  exfiltrating: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  self_destruct: "bg-red-500/20 text-red-400 border-red-500/30",
+  dead: "bg-zinc-600/20 text-zinc-500 border-zinc-600/30",
+};
+
+const EMBER_PROFILE_ICONS: Record<string, React.ReactNode> = {
+  ghost: <Eye className="w-3 h-3" />,
+  scout: <Search className="w-3 h-3" />,
+  striker: <Zap className="w-3 h-3" />,
+  sentinel: <Shield className="w-3 h-3" />,
+  hydra: <Boxes className="w-3 h-3" />,
+};
+
+const EMBER_PROFILE_COLORS: Record<string, string> = {
+  ghost: "bg-zinc-500/20 text-zinc-300 border-zinc-500/30",
+  scout: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  striker: "bg-red-500/20 text-red-400 border-red-500/30",
+  sentinel: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  hydra: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+};
+
+function EmberImplantTab() {
+  const { data: agents, isLoading, refetch } = trpc.ember.listAgents.useQuery({ limit: 100 }, {
+    refetchInterval: 15000,
+  });
+  const killMut = trpc.ember.killAgent.useMutation({
+    onSuccess: () => { refetch(); toast.success("Ember implant terminated"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i} className="bg-zinc-900/50 border-zinc-800">
+            <CardContent className="p-4"><Skeleton className="h-6 w-48 mb-2" /><Skeleton className="h-4 w-32" /></CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const list = (agents as any[]) ?? [];
+  const activeCount = list.filter(a => ["active", "evading", "pivoting", "exfiltrating"].includes(a.state)).length;
+  const dormantCount = list.filter(a => a.state === "dormant" || a.state === "initializing").length;
+  const cognitiveCount = list.filter(a => a.cognitiveEnabled).length;
+
+  return (
+    <div className="space-y-4">
+      {/* Ember stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
+          <p className="text-2xl font-bold text-orange-400">{list.length}</p>
+          <p className="text-xs text-zinc-500">Total Implants</p>
+        </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
+          <p className="text-2xl font-bold text-emerald-400">{activeCount}</p>
+          <p className="text-xs text-zinc-500">Active</p>
+        </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
+          <p className="text-2xl font-bold text-zinc-400">{dormantCount}</p>
+          <p className="text-xs text-zinc-500">Dormant</p>
+        </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3">
+          <p className="text-2xl font-bold text-purple-400">{cognitiveCount}</p>
+          <p className="text-xs text-zinc-500">Cognitive</p>
+        </div>
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 flex items-center justify-center">
+          <Link href="/ember/deploy">
+            <Button size="sm" className="bg-orange-600 hover:bg-orange-700 gap-1">
+              <Flame className="h-3.5 w-3.5" /> Deploy Ember
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Ember agent cards */}
+      {list.length === 0 ? (
+        <Card className="bg-zinc-900/50 border-zinc-800">
+          <CardContent className="p-8 text-center">
+            <Flame className="h-12 w-12 text-orange-500/30 mx-auto mb-3" />
+            <p className="text-zinc-400">No Ember implants deployed</p>
+            <p className="text-xs text-zinc-600 mt-1">Deploy an Ember implant for advanced autonomous red team operations</p>
+            <Link href="/ember/deploy">
+              <Button size="sm" className="mt-4 bg-orange-600 hover:bg-orange-700 gap-1">
+                <Flame className="h-3.5 w-3.5" /> Deploy Ember Implant
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {list.map((agent: any) => {
+            const stateClass = EMBER_STATE_COLORS[agent.state] || EMBER_STATE_COLORS.dead;
+            const profileClass = EMBER_PROFILE_COLORS[agent.profile] || "";
+            const profileIcon = EMBER_PROFILE_ICONS[agent.profile] || <Flame className="w-3 h-3" />;
+            return (
+              <Card key={agent.agentId} className="bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 transition-colors border-l-2 border-l-orange-500/50">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 text-orange-500">
+                        <Flame className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-zinc-200">{agent.name || agent.hostname || agent.agentId}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${stateClass}`}>
+                            {agent.state}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${profileClass}`}>
+                            {profileIcon}
+                            <span className="capitalize">{agent.profile}</span>
+                          </span>
+                          {agent.cognitiveEnabled && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border bg-purple-500/10 text-purple-400 border-purple-500/20">
+                              <Brain className="w-3 h-3" /> Cognitive
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-zinc-500">
+                          <span className="flex items-center gap-1">
+                            {platformIcon(agent.platform?.includes("windows") ? "windows" : agent.platform?.includes("linux") ? "linux" : agent.platform?.includes("darwin") ? "darwin" : "other")}
+                            {agent.platform?.replace(/_/g, " ")}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Radio className="h-3 w-3" />
+                            {agent.primaryChannel?.replace(/_/g, " ") || "N/A"}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Activity className="h-3 w-3" />
+                            Beacons: {agent.beaconCount || 0}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {agent.lastBeaconAt ? formatRelativeTime(agent.lastBeaconAt) : "Never"}
+                          </span>
+                          {agent.hostname && <span>{agent.hostname}</span>}
+                        </div>
+                        {/* Evasion indicators */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {agent.memoryEncryption && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700"><Lock className="w-2.5 h-2.5 inline mr-0.5" />MemEnc</span>}
+                          {agent.sleepObfuscation && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700"><Eye className="w-2.5 h-2.5 inline mr-0.5" />SleepObf</span>}
+                          {agent.edrEvasion && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700"><Shield className="w-2.5 h-2.5 inline mr-0.5" />EDR</span>}
+                          {agent.trafficMimicry && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700"><Globe className="w-2.5 h-2.5 inline mr-0.5" />Mimicry</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link href="/ember/tasks">
+                        <Button size="sm" variant="outline" className="text-zinc-400 border-zinc-700 hover:bg-zinc-800">
+                          <Terminal className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                      {agent.state !== "dead" && agent.state !== "self_destruct" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="text-red-400 border-red-500/30 hover:bg-red-500/10">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-zinc-900 border-zinc-700">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Kill Ember Implant</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will send a termination signal to <strong>{agent.name || agent.agentId}</strong>. The implant will clean traces and self-destruct.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel className="bg-zinc-800 border-zinc-700">Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-600 hover:bg-red-700"
+                                onClick={() => killMut.mutate({ agentId: agent.agentId })}
+                              >
+                                Kill Implant
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Link to full Ember fleet */}
+      <div className="flex justify-center pt-2">
+        <Link href="/ember">
+          <Button variant="outline" size="sm" className="text-orange-400 border-orange-500/30 hover:bg-orange-500/10 gap-2">
+            <Flame className="h-3.5 w-3.5" />
+            Open Full Ember Fleet Overview
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 
 export default function AgentManager() {
   return (
     <AppShell>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-3">
-              <Fingerprint className="h-7 w-7 text-emerald-400" />
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-100 flex items-center gap-2 sm:gap-3">
+              <Fingerprint className="h-6 w-6 sm:h-7 sm:w-7 text-emerald-400" />
               Agent Manager
             </h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Monitor and manage all deployed agents across your infrastructure. View real-time agent status, heartbeat timing, and platform details. Use this page to check which agents are online, deploy new agents to target systems, or remove stale agents. Agents are the execution endpoints for adversary emulation operations.</p>
@@ -868,6 +1086,10 @@ export default function AgentManager() {
               <Cpu className="h-4 w-4 mr-2" />
               Agents
             </TabsTrigger>
+            <TabsTrigger value="ember" className="data-[state=active]:bg-zinc-800">
+              <Flame className="h-4 w-4 mr-2 text-orange-400" />
+              Ember Implants
+            </TabsTrigger>
             <TabsTrigger value="c2servers" className="data-[state=active]:bg-zinc-800">
               <Server className="h-4 w-4 mr-2" />
               C2 Servers
@@ -880,6 +1102,10 @@ export default function AgentManager() {
 
           <TabsContent value="agents" className="mt-4">
             <AgentList />
+          </TabsContent>
+
+          <TabsContent value="ember" className="mt-4">
+            <EmberImplantTab />
           </TabsContent>
 
           <TabsContent value="c2servers" className="mt-4">
