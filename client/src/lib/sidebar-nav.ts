@@ -67,9 +67,11 @@ const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
  * Admin sees everything. Other roles see only their assigned groups.
  * Within groups, individual items can further restrict by role.
  */
-export function getFilteredNavGroups(role: UserRole | undefined): NavGroup[] {
-  const effectiveRole = role || 'viewer';
-  const access = ROLE_GROUP_ACCESS[effectiveRole];
+export function getFilteredNavGroups(role: UserRole | string | undefined): NavGroup[] {
+  // Fall back to 'viewer' if role is undefined or not in ROLE_GROUP_ACCESS
+  // (e.g., default Manus auth returns 'user' which isn't a valid UserRole)
+  const effectiveRole = (role && role in ROLE_GROUP_ACCESS) ? role as UserRole : 'viewer';
+  const access = ROLE_GROUP_ACCESS[effectiveRole] ?? ROLE_GROUP_ACCESS['viewer'];
 
   return sidebarNavGroups
     .filter(group => {

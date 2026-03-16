@@ -85,7 +85,7 @@ export default function DashboardLayout({
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const filteredNavGroups = useMemo(
-    () => getFilteredNavGroups(user?.role as UserRole | undefined),
+    () => getFilteredNavGroups(user?.role),
     [user?.role]
   );
   const [location, setLocation] = useLocation();
