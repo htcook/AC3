@@ -2303,6 +2303,116 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
               addLog(state!, { phase: 'complete', type: 'warning' as any, title: '\u26a0\ufe0f Self-Learning Error', detail: selfLearnErr.message });
             }
 
+            // ─── Compliance Evidence Mapper: Auto-populate compliance controls from scan results ───
+            try {
+              const { mapEngagementToCompliance } = await import('../lib/compliance-evidence-mapper');
+              const mappingState = {
+                engagementId: input.engagementId,
+                assets: state!.assets.map(a => ({
+                  hostname: a.hostname || (a as any).ip || 'unknown',
+                  ip: a.ip,
+                  vulns: (a.vulns || []).map(v => ({
+                    title: v.title || 'Unknown',
+                    severity: v.severity || 'info',
+                    description: (v as any).description,
+                    tool: (v as any).tool,
+                    cve: v.cve,
+                    rawOutput: (v as any).rawOutput,
+                  })),
+                  ports: (a.ports || []).map(p => ({
+                    port: p.port,
+                    service: p.service,
+                    protocol: (p as any).protocol,
+                  })),
+                  toolResults: (a.toolResults || []).map(tr => ({
+                    tool: tr.tool,
+                    command: tr.command,
+                    exitCode: tr.exitCode,
+                    findingCount: tr.findingCount,
+                    outputPreview: tr.outputPreview,
+                    findings: (tr.findings || []).map(f => ({ title: f.title, severity: f.severity })),
+                  })),
+                  zapFindings: (a.zapFindings || []).map(z => ({
+                    alert: z.alert,
+                    risk: z.risk,
+                    description: (z as any).description,
+                    url: z.url,
+                    evidence: (z as any).evidence,
+                  })),
+                })),
+              };
+              const result = mapEngagementToCompliance(mappingState);
+              // Store evidence in the ops state for the UI to display
+              (state as any).complianceEvidence = {
+                totalEvidenceItems: result.totalEvidenceItems,
+                frameworksCovered: result.frameworksCovered,
+                gapCount: result.gapCount,
+                summaries: result.summaries.map(s => ({
+                  framework: s.framework,
+                  complianceScore: s.complianceScore,
+                  compliant: s.compliant,
+                  nonCompliant: s.nonCompliant,
+                  partial: s.partial,
+                  noEvidence: s.noEvidence,
+                  totalControls: s.totalControls,
+                })),
+                generatedAt: Date.now(),
+              };
+              // Persist evidence items to the compliance_mappings table
+              const { getDb } = await import('../db');
+              const { complianceMappings } = await import('../../drizzle/schema');
+              const dbConn = await getDb();
+              if (dbConn && result.evidence.length > 0) {
+                // Batch insert evidence as compliance mappings (max 50 per batch)
+                const batchSize = 50;
+                let insertedCount = 0;
+                for (let i = 0; i < result.evidence.length; i += batchSize) {
+                  const batch = result.evidence.slice(i, i + batchSize);
+                  try {
+                    await dbConn.insert(complianceMappings).values(
+                      batch.map(e => ({
+                        controlId: 0, // Will be resolved by framework control lookup
+                        engagementId: input.engagementId,
+                        findingType: e.evidenceType,
+                        findingSource: 'pentest' as const,
+                        mappingStatus: e.status === 'pass' ? 'covered' as const :
+                                       e.status === 'fail' ? 'gap' as const :
+                                       e.status === 'partial' ? 'partial' as const : 'gap' as const,
+                        evidenceNotes: `[Auto-mapped] ${e.framework} ${e.controlId}: ${e.description}`.slice(0, 2000),
+                        assessedBy: 'AC3 Compliance Engine',
+                        assessedAt: new Date(),
+                      }))
+                    );
+                    insertedCount += batch.length;
+                  } catch (batchErr: any) {
+                    console.error(`[ComplianceMapper] Batch insert failed:`, batchErr.message);
+                  }
+                }
+                addLog(state!, {
+                  phase: 'complete', type: 'evidence',
+                  title: '\ud83d\udee1\ufe0f Compliance Evidence Mapped',
+                  detail: `${result.totalEvidenceItems} evidence items across ${result.frameworksCovered.length} frameworks (${result.frameworksCovered.join(', ')}). ${result.gapCount} control gaps identified. ${insertedCount} mappings persisted to DB.`,
+                  data: {
+                    totalEvidence: result.totalEvidenceItems,
+                    frameworks: result.frameworksCovered,
+                    gaps: result.gapCount,
+                    scores: result.summaries.map(s => ({ framework: s.framework, score: s.complianceScore })),
+                  },
+                });
+              } else {
+                addLog(state!, {
+                  phase: 'complete', type: 'info',
+                  title: '\ud83d\udee1\ufe0f Compliance Mapping',
+                  detail: result.totalEvidenceItems > 0
+                    ? `${result.totalEvidenceItems} evidence items generated but DB unavailable for persistence`
+                    : 'No evidence items generated — no scan results to map',
+                });
+              }
+            } catch (complianceErr: any) {
+              console.error('[ComplianceMapper] Auto-mapping failed:', complianceErr.message);
+              addLog(state!, { phase: 'complete', type: 'warning' as any, title: '\u26a0\ufe0f Compliance Mapping Error', detail: complianceErr.message });
+            }
+
             await persistOpsStateNow(input.engagementId).catch(() => {});
           } catch (err: any) {
             state!.isRunning = false;

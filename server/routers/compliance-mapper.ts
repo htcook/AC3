@@ -12,6 +12,12 @@ import {
   autoMapFindings,
   calculateComplianceScore,
 } from "../lib/compliance-mapper";
+import {
+  mapEngagementToCompliance,
+  getSupportedFrameworks,
+  getMappingRules,
+  type EvidenceMapperResult,
+} from "../lib/compliance-evidence-mapper";
 
 const frameworkTypeEnum = z.enum(["soc2", "iso27001", "nist_csf", "pci_dss", "hipaa", "cis", "fedramp", "dod_stig", "cmmc", "custom"]);
 
@@ -204,6 +210,120 @@ export const complianceMapperRouter = router({
       });
       return { id: result.insertId, score, success: true };
     }),
+
+  /** Map an engagement's scan results to compliance evidence (manual trigger) */
+  mapFromEngagement: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new TRPCError({ code: "NOT_FOUND", message: "No ops state found for this engagement" });
+
+      const mappingState = {
+        engagementId: input.engagementId,
+        assets: state.assets.map(a => ({
+          hostname: a.hostname || (a as any).ip || 'unknown',
+          ip: a.ip,
+          vulns: (a.vulns || []).map(v => ({
+            title: v.title || 'Unknown',
+            severity: v.severity || 'info',
+            description: (v as any).description,
+            tool: (v as any).tool,
+            cve: v.cve,
+            rawOutput: (v as any).rawOutput,
+          })),
+          ports: (a.ports || []).map(p => ({
+            port: p.port,
+            service: p.service,
+            protocol: (p as any).protocol,
+          })),
+          toolResults: (a.toolResults || []).map(tr => ({
+            tool: tr.tool,
+            command: tr.command,
+            exitCode: tr.exitCode,
+            findingCount: tr.findingCount,
+            outputPreview: tr.outputPreview,
+            findings: (tr.findings || []).map(f => ({ title: f.title, severity: f.severity })),
+          })),
+          zapFindings: (a.zapFindings || []).map(z => ({
+            alert: z.alert,
+            risk: z.risk,
+            description: (z as any).description,
+            url: z.url,
+            evidence: (z as any).evidence,
+          })),
+        })),
+      };
+      const result = mapEngagementToCompliance(mappingState);
+
+      // Persist to DB
+      const { getDb } = await import('../db');
+      const { complianceMappings } = await import('../../drizzle/schema');
+      const dbConn = await getDb();
+      let insertedCount = 0;
+      if (dbConn && result.evidence.length > 0) {
+        const batchSize = 50;
+        for (let i = 0; i < result.evidence.length; i += batchSize) {
+          const batch = result.evidence.slice(i, i + batchSize);
+          try {
+            await dbConn.insert(complianceMappings).values(
+              batch.map(e => ({
+                controlId: 0,
+                engagementId: input.engagementId,
+                findingType: e.evidenceType,
+                findingSource: 'pentest' as const,
+                mappingStatus: e.status === 'pass' ? 'covered' as const :
+                               e.status === 'fail' ? 'gap' as const :
+                               e.status === 'partial' ? 'partial' as const : 'gap' as const,
+                evidenceNotes: `[Auto-mapped] ${e.framework} ${e.controlId}: ${e.description}`.slice(0, 2000),
+                assessedBy: ctx.user.name ?? 'AC3 Compliance Engine',
+                assessedAt: new Date(),
+              }))
+            );
+            insertedCount += batch.length;
+          } catch (batchErr: any) {
+            console.error(`[ComplianceMapper] Batch insert failed:`, batchErr.message);
+          }
+        }
+      }
+      return {
+        totalEvidenceItems: result.totalEvidenceItems,
+        frameworksCovered: result.frameworksCovered,
+        gapCount: result.gapCount,
+        insertedCount,
+        summaries: result.summaries.map(s => ({
+          framework: s.framework,
+          complianceScore: s.complianceScore,
+          compliant: s.compliant,
+          nonCompliant: s.nonCompliant,
+          partial: s.partial,
+          noEvidence: s.noEvidence,
+          totalControls: s.totalControls,
+        })),
+      };
+    }),
+
+  /** Get engagement compliance evidence from ops state */
+  getEngagementEvidence: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) return null;
+      return (state as any).complianceEvidence ?? null;
+    }),
+
+  /** Get supported frameworks from the evidence mapper */
+  getEvidenceMapperFrameworks: protectedProcedure.query(() => {
+    return getSupportedFrameworks();
+  }),
+
+  /** Get mapping rules for transparency */
+  getMappingRules: protectedProcedure.query(() => {
+    return getMappingRules();
+  }),
 
   /** Get compliance statistics */
   getStats: protectedProcedure.query(async () => {

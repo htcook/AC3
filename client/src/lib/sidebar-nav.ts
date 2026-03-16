@@ -71,22 +71,31 @@ export function getFilteredNavGroups(role: UserRole | string | undefined): NavGr
   // Fall back to 'viewer' if role is undefined or not in ROLE_GROUP_ACCESS
   // (e.g., default Manus auth returns 'user' which isn't a valid UserRole)
   const effectiveRole = (role && role in ROLE_GROUP_ACCESS) ? role as UserRole : 'viewer';
-  const access = ROLE_GROUP_ACCESS[effectiveRole] ?? ROLE_GROUP_ACCESS['viewer'];
+  const access = ROLE_GROUP_ACCESS[effectiveRole] ?? ROLE_GROUP_ACCESS['viewer'] ?? [];
+
+  // Safety: if access is somehow not 'all' and not an array, return all groups for admin-like fallback
+  if (access !== 'all' && !Array.isArray(access)) {
+    console.warn(`[sidebar-nav] Invalid access for role "${role}" (effective: "${effectiveRole}"), falling back to viewer`);
+    const viewerAccess = ROLE_GROUP_ACCESS['viewer'] ?? [];
+    return sidebarNavGroups
+      .filter(group => Array.isArray(viewerAccess) && viewerAccess.includes(group.id))
+      .filter(group => group.items.length > 0);
+  }
 
   return sidebarNavGroups
     .filter(group => {
       // Admin sees all
       if (access === 'all') return true;
       // Group-level role restriction
-      if (group.roles && !group.roles.includes(effectiveRole)) return false;
+      if (group.roles && Array.isArray(group.roles) && !group.roles.includes(effectiveRole)) return false;
       // Check if this group is in the role's access list
-      return access.includes(group.id);
+      return Array.isArray(access) && access.includes(group.id);
     })
     .map(group => ({
       ...group,
-      items: group.items.filter(item => {
+      items: (group.items || []).filter(item => {
         // If item has role restrictions, check them
-        if (item.roles && !item.roles.includes(effectiveRole)) return false;
+        if (item.roles && Array.isArray(item.roles) && !item.roles.includes(effectiveRole)) return false;
         return true;
       }),
     }))
