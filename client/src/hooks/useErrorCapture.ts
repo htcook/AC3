@@ -6,7 +6,7 @@
  */
 import { useEffect } from "react";
 
-const ENGAGEMENT_STORAGE_KEY = "ace-c3-active-engagement";
+const ENGAGEMENT_STORAGE_KEY = "ac3-active-engagement";
 
 /** Read the active engagement from localStorage (same key as EngagementContext) */
 function getEngagementContext(): { engagementId?: number; engagementName?: string; clientName?: string } | undefined {

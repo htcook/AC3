@@ -382,7 +382,7 @@ export const stixExportRouter = router({
       const stixObjects: StixObject[] = [];
 
       switch (input.collectionId) {
-        case "ace-c3-threat-actors": {
+        case "ac3-threat-actors": {
           const actors = await db.select().from(threatActors)
             .orderBy(desc(threatActors.confidence))
             .limit(input.limit);
@@ -391,7 +391,7 @@ export const stixExportRouter = router({
           }
           break;
         }
-        case "ace-c3-indicators": {
+        case "ac3-indicators": {
           const entries = await db.select().from(iocFeeds)
             .orderBy(desc(iocFeeds.createdAt))
             .limit(input.limit);
@@ -400,7 +400,7 @@ export const stixExportRouter = router({
           }
           break;
         }
-        case "ace-c3-vulnerabilities": {
+        case "ac3-vulnerabilities": {
           const exploits = await db.select().from(unifiedExploitCatalog)
             .where(sql`${unifiedExploitCatalog.exploitCveIds} IS NOT NULL`)
             .orderBy(desc(unifiedExploitCatalog.exploitCvssScore))
@@ -410,7 +410,7 @@ export const stixExportRouter = router({
           }
           break;
         }
-        case "ace-c3-campaigns": {
+        case "ac3-campaigns": {
           const engs = await db.select().from(engagements)
             .orderBy(desc(engagements.createdAt))
             .limit(input.limit);
@@ -419,7 +419,7 @@ export const stixExportRouter = router({
           }
           break;
         }
-        case "ace-c3-all": {
+        case "ac3-all": {
           const lim = Math.floor(input.limit / 4);
           const actors = await db.select().from(threatActors).orderBy(desc(threatActors.confidence)).limit(lim);
           for (const actor of actors) stixObjects.push(...threatActorToStix(actor as ThreatActorInput));

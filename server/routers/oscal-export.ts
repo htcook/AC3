@@ -16,7 +16,7 @@ import {
   generateAssessmentPlan,
   generateCustomCatalog,
   generateTailoredProfile,
-  ACE_C3_CAPABILITIES,
+  AC3_CAPABILITIES,
 } from "../lib/oscal-depth-expansion";
 
 async function getDbSafe() {
@@ -358,12 +358,12 @@ export const oscalExportRouter = router({
             oscalDocument = generatePOAM(input.title, scopedDefs, validationRuns);
             break;
           case "component_definition":
-            oscalDocument = generateComponentDefinition(input.title, ACE_C3_CAPABILITIES);
+            oscalDocument = generateComponentDefinition(input.title, AC3_CAPABILITIES);
             break;
           case "assessment_plan":
             oscalDocument = generateAssessmentPlan(
               input.title,
-              "ace-c3-system",
+              "ac3-system",
               scopedDefs.map(d => ({
                 controlId: d.ksiId,
                 assessmentMethod: "test" as const,
@@ -501,9 +501,9 @@ export const oscalExportRouter = router({
         { type: "ssp" as const, name: "System Security Plan", gen: () => generateSSP(`${input.title} — SSP`, ksiDefs, evidence, controlMappings, validationRuns) },
         { type: "sar" as const, name: "Security Assessment Report", gen: () => generateSAR(`${input.title} — SAR`, ksiDefs, evidence, validationRuns) },
         { type: "poam" as const, name: "Plan of Action & Milestones", gen: () => generatePOAM(`${input.title} — POA&M`, ksiDefs, validationRuns) },
-        { type: "component_definition" as const, name: "Component Definition", gen: () => generateComponentDefinition(`${input.title} — Components`, ACE_C3_CAPABILITIES) },
+        { type: "component_definition" as const, name: "Component Definition", gen: () => generateComponentDefinition(`${input.title} — Components`, AC3_CAPABILITIES) },
         { type: "assessment_plan" as const, name: "Assessment Plan", gen: () => generateAssessmentPlan(
-          `${input.title} — Assessment Plan`, "ace-c3-system",
+          `${input.title} — Assessment Plan`, "ac3-system",
           ksiDefs.map(d => ({ controlId: d.ksiId, assessmentMethod: "test" as const, objectives: [d.title || "Validate control"] })),
           [{ name: "AC3 Automated Assessor", role: "assessor" }]
         ) },

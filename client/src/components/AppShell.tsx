@@ -457,10 +457,10 @@ const ALL_NAV_ITEMS: (NavItemDef & { groupLabel: string; subLabel: string })[] =
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 
-const SIDEBAR_STATE_KEY = "ace-c3-sidebar-groups";
-const SIDEBAR_SUB_STATE_KEY = "ace-c3-sidebar-subs";
-const FAVORITES_KEY = "ace-c3-favorites";
-const RECENT_KEY = "ace-c3-recent";
+const SIDEBAR_STATE_KEY = "ac3-sidebar-groups";
+const SIDEBAR_SUB_STATE_KEY = "ac3-sidebar-subs";
+const FAVORITES_KEY = "ac3-favorites";
+const RECENT_KEY = "ac3-recent";
 
 function loadState<T>(key: string, fallback: T): T {
   try {
@@ -905,7 +905,7 @@ export default function AppShell({
   // Role-based view override (stored in localStorage for demo/admin switching)
   const [roleOverride, setRoleOverride] = useState<UserRole | null>(() => {
     try {
-      const stored = localStorage.getItem('ace-c3-role-override');
+      const stored = localStorage.getItem('ac3-role-override');
       return stored ? (stored as UserRole) : null;
     } catch { return null; }
   });
@@ -914,12 +914,12 @@ export default function AppShell({
 
   const handleRoleSwitch = useCallback((role: UserRole) => {
     setRoleOverride(role);
-    localStorage.setItem('ace-c3-role-override', role);
+    localStorage.setItem('ac3-role-override', role);
   }, []);
 
   const clearRoleOverride = useCallback(() => {
     setRoleOverride(null);
-    localStorage.removeItem('ace-c3-role-override');
+    localStorage.removeItem('ac3-role-override');
   }, []);
 
   // Filter nav groups based on effective role

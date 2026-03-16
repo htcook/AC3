@@ -170,9 +170,9 @@ export default function KsiDetail() {
         </div>
 
         {/* Tabbed Content */}
-        <Tabs defaultValue="ace-c3" className="space-y-4">
+        <Tabs defaultValue="ac3" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="ace-c3">AC3 Mapping</TabsTrigger>
+            <TabsTrigger value="ac3">AC3 Mapping</TabsTrigger>
             <TabsTrigger value="definition">Definition</TabsTrigger>
             <TabsTrigger value="evidence">Evidence ({Array.isArray(evidence) ? evidence.length : 0})</TabsTrigger>
             <TabsTrigger value="validation">Validation ({Array.isArray(validationRuns) ? validationRuns.length : 0})</TabsTrigger>
@@ -180,7 +180,7 @@ export default function KsiDetail() {
           </TabsList>
 
           {/* AC3 Mapping Tab - NEW */}
-          <TabsContent value="ace-c3">
+          <TabsContent value="ac3">
             {enriched ? (
               <div className="space-y-4">
                 {/* How AC3 Delivers */}

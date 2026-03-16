@@ -22,7 +22,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: 'more-tools', label: 'More Tools', icon: 'Grid3X3', visible: true, pinned: false, order: 9 },
 ];
 
-const STORAGE_KEY = 'ace-c3-dashboard-widgets';
+const STORAGE_KEY = 'ac3-dashboard-widgets';
 
 interface DashboardWidgetContextValue {
   widgets: WidgetConfig[];

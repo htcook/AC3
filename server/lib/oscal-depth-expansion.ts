@@ -371,7 +371,7 @@ export function generateTailoredProfile(
  * Maps AC3 platform capabilities to NIST 800-53 controls.
  * Used by the Component Definition generator.
  */
-export const ACE_C3_CAPABILITIES = [
+export const AC3_CAPABILITIES = [
   {
     name: "Discovery Automation",
     description: "33 passive reconnaissance connectors (Shodan, Censys, SecurityTrails, etc.) for automated asset discovery",

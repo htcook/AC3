@@ -155,7 +155,7 @@ export async function pushProfileToCaldera(
     tags: [
       `actor:${actorId}`,
       `auto-generated`,
-      `ace-c3`,
+      `ac3`,
       ...(actor.actorType ? [`type:${actor.actorType}`] : []),
     ],
   };

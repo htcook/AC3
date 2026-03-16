@@ -1458,7 +1458,7 @@ function probeHttp(hostname: string): Promise<{ statusCode: number; body: string
       timeout,
       rejectUnauthorized: false, // Accept self-signed certs
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; ACE-C3-TakeoverValidator/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; AC3-TakeoverValidator/1.0)",
         "Accept": "text/html,application/xhtml+xml,*/*",
       },
     }, (res) => {
@@ -1473,7 +1473,7 @@ function probeHttp(hostname: string): Promise<{ statusCode: number; body: string
       const httpReq = http.get(`http://${hostname}`, {
         timeout,
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; ACE-C3-TakeoverValidator/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; AC3-TakeoverValidator/1.0)",
           "Accept": "text/html,application/xhtml+xml,*/*",
         },
       }, (res) => {
@@ -1493,7 +1493,7 @@ function probeHttp(hostname: string): Promise<{ statusCode: number; body: string
       const httpReq = http.get(`http://${hostname}`, {
         timeout,
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; ACE-C3-TakeoverValidator/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; AC3-TakeoverValidator/1.0)",
           "Accept": "text/html,application/xhtml+xml,*/*",
         },
       }, (res) => {

@@ -103,7 +103,7 @@ export async function enumerateAWS(creds: AWSCredentials): Promise<CloudEnumerat
         const stsClient = new STSClient({ region, credentials });
         const assumeResult = await stsClient.send(new AssumeRoleCommand({
           RoleArn: creds.roleArn,
-          RoleSessionName: "ace-c3-enum",
+          RoleSessionName: "ac3-enum",
           ...(creds.externalId ? { ExternalId: creds.externalId } : {}),
           DurationSeconds: 3600,
         }));

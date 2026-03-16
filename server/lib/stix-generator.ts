@@ -81,7 +81,7 @@ export function createAC3Identity(): StixObject {
   return {
     type: "identity",
     spec_version: "2.1",
-    id: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+    id: "identity--ac3-00000000-0000-4000-a000-000000000001",
     created: "2026-01-01T00:00:00.000Z",
     modified: isoNow(),
     name: "AC3 - Cyber Campaign Command",
@@ -161,7 +161,7 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
   const intrusionSet: StixObject = {
     type: "intrusion-set",
     spec_version: "2.1",
-    id: actor.stixId || generateStixId("intrusion-set", `ace-c3:actor:${actor.actorId}`),
+    id: actor.stixId || generateStixId("intrusion-set", `ac3:actor:${actor.actorId}`),
     created,
     modified,
     name: actor.name,
@@ -176,7 +176,7 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
       : undefined,
     confidence: actor.confidence || 50,
     object_marking_refs: ["marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9"], // TLP:WHITE
-    created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+    created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
         source_name: "AC3",
@@ -237,13 +237,13 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
     const malwareObj: StixObject = {
       type: "malware",
       spec_version: "2.1",
-      id: generateStixId("malware", `ace-c3:malware:${malName.toLowerCase()}`),
+      id: generateStixId("malware", `ac3:malware:${malName.toLowerCase()}`),
       created,
       modified,
       name: malName,
       is_family: true,
       malware_types: ["unknown"],
-      created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+      created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     };
     objects.push(malwareObj);
 
@@ -265,12 +265,12 @@ export function threatActorToStix(actor: ThreatActorInput): StixObject[] {
     const toolObj: StixObject = {
       type: "tool",
       spec_version: "2.1",
-      id: generateStixId("tool", `ace-c3:tool:${toolName.toLowerCase()}`),
+      id: generateStixId("tool", `ac3:tool:${toolName.toLowerCase()}`),
       created,
       modified,
       name: toolName,
       tool_types: ["unknown"],
-      created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+      created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     };
     objects.push(toolObj);
 
@@ -332,7 +332,7 @@ export function iocToStix(ioc: IocInput): StixObject | null {
   const indicator: StixObject = {
     type: "indicator",
     spec_version: "2.1",
-    id: generateStixId("indicator", `ace-c3:ioc:${ioc.type}:${ioc.value}`),
+    id: generateStixId("indicator", `ac3:ioc:${ioc.type}:${ioc.value}`),
     created: toIso(ioc.firstSeen) || now,
     modified: now,
     name: `${ioc.type.toUpperCase()}: ${ioc.value}`,
@@ -343,7 +343,7 @@ export function iocToStix(ioc: IocInput): StixObject | null {
     valid_from: toIso(ioc.firstSeen) || now,
     valid_until: undefined, // IOCs don't expire by default
     confidence: confidenceMap[ioc.confidence || "medium"] || 50,
-    created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+    created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
         source_name: ioc.source || "AC3",
@@ -388,7 +388,7 @@ export function iocFeedToStix(entry: IocFeedInput): StixObject[] {
       const indicator: StixObject = {
         type: "indicator",
         spec_version: "2.1",
-        id: generateStixId("indicator", `ace-c3:feed:${entry.feedSource}:${entry.iocValue}`),
+        id: generateStixId("indicator", `ac3:feed:${entry.feedSource}:${entry.iocValue}`),
         created,
         modified: now,
         name: entry.title || `${entry.iocType}: ${entry.iocValue}`,
@@ -399,7 +399,7 @@ export function iocFeedToStix(entry: IocFeedInput): StixObject[] {
         valid_from: toIso(entry.dateAdded) || created,
         confidence: entry.severity === "critical" ? 90 : entry.severity === "high" ? 75 : entry.severity === "medium" ? 50 : 30,
         labels: safeArray(entry.tags),
-        created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+        created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
         external_references: [
           {
             source_name: entry.feedSource,
@@ -429,7 +429,7 @@ export function iocFeedToStix(entry: IocFeedInput): StixObject[] {
           url: `https://nvd.nist.gov/vuln/detail/${entry.cveId}`,
         },
       ],
-      created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+      created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     };
     objects.push(vuln);
   }
@@ -459,14 +459,14 @@ export function engagementToStix(engagement: EngagementInput): StixObject {
   return {
     type: "campaign",
     spec_version: "2.1",
-    id: generateStixId("campaign", `ace-c3:engagement:${engagement.id}`),
+    id: generateStixId("campaign", `ac3:engagement:${engagement.id}`),
     created,
     modified,
     name: engagement.name,
     description: engagement.description || `${engagement.engagementType} engagement for ${engagement.customerName}`,
     first_seen: created,
     objective: `${engagement.engagementType.replace("_", " ")} assessment`,
-    created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+    created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     external_references: [
       {
         source_name: "AC3",
@@ -525,7 +525,7 @@ export function exploitToStix(exploit: ExploitInput): StixObject[] {
         kill_chain_name: "mitre-attack",
         phase_name: exploit.mitreTactic.toLowerCase().replace(/\s+/g, "-"),
       }] : undefined,
-      created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+      created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     };
     objects.push(attackPattern);
   }
@@ -550,7 +550,7 @@ export function exploitToStix(exploit: ExploitInput): StixObject[] {
           url: `https://nvd.nist.gov/vuln/detail/${cveId}`,
         },
       ],
-      created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+      created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
     };
     objects.push(vuln);
   }
@@ -576,7 +576,7 @@ function createRelationship(
     relationship_type: relationshipType,
     source_ref: sourceRef,
     target_ref: targetRef,
-    created_by_ref: "identity--ace-c3-00000000-0000-4000-a000-000000000001",
+    created_by_ref: "identity--ac3-00000000-0000-4000-a000-000000000001",
   };
 }
 
@@ -626,7 +626,7 @@ export function createStixBundle(objects: StixObject[]): StixBundle {
 
   return {
     type: "bundle",
-    id: generateStixId("bundle", `ace-c3:bundle:${Date.now()}`),
+    id: generateStixId("bundle", `ac3:bundle:${Date.now()}`),
     objects: cleaned,
   };
 }
@@ -644,7 +644,7 @@ export interface TaxiiCollection {
 
 export const TAXII_COLLECTIONS: TaxiiCollection[] = [
   {
-    id: "ace-c3-threat-actors",
+    id: "ac3-threat-actors",
     title: "AC3 Threat Actors",
     description: "Threat actor profiles (intrusion sets) from the AC3 threat catalog",
     can_read: true,
@@ -652,7 +652,7 @@ export const TAXII_COLLECTIONS: TaxiiCollection[] = [
     media_types: ["application/stix+json;version=2.1"],
   },
   {
-    id: "ace-c3-indicators",
+    id: "ac3-indicators",
     title: "AC3 Indicators",
     description: "IOC indicators from AC3 feeds (Abuse.ch, ThreatFox, CISA KEV)",
     can_read: true,
@@ -660,7 +660,7 @@ export const TAXII_COLLECTIONS: TaxiiCollection[] = [
     media_types: ["application/stix+json;version=2.1"],
   },
   {
-    id: "ace-c3-vulnerabilities",
+    id: "ac3-vulnerabilities",
     title: "AC3 Vulnerabilities",
     description: "Vulnerability data from KEV, NVD, and exploit catalog",
     can_read: true,
@@ -668,7 +668,7 @@ export const TAXII_COLLECTIONS: TaxiiCollection[] = [
     media_types: ["application/stix+json;version=2.1"],
   },
   {
-    id: "ace-c3-campaigns",
+    id: "ac3-campaigns",
     title: "AC3 Campaigns",
     description: "Red team engagement campaigns from AC3",
     can_read: true,
@@ -676,7 +676,7 @@ export const TAXII_COLLECTIONS: TaxiiCollection[] = [
     media_types: ["application/stix+json;version=2.1"],
   },
   {
-    id: "ace-c3-all",
+    id: "ac3-all",
     title: "AC3 Complete Intelligence",
     description: "All threat intelligence from the AC3 platform",
     can_read: true,

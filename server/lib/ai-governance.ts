@@ -109,7 +109,7 @@ export function deregisterModel(modelId: string): boolean {
 
 // Initialize default model registry with platform's known models
 registerModel({
-  modelId: "ace-c3-primary",
+  modelId: "ac3-primary",
   modelName: "AC3 Security Reasoning Engine",
   modelVersion: "1.0.0",
   provider: "OpenAI (via Manus Forge)",

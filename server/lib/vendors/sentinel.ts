@@ -320,7 +320,7 @@ export class SentinelClient extends BaseVendorClient {
 
   async addWatchlistItems(watchlistAlias: string, items: Record<string, string>[]): Promise<void> {
     for (const item of items) {
-      const itemId = `ace-c3-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const itemId = `ac3-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       await this.request({
         method: "PUT",
         url: `${this.sentinelBasePath}/watchlists/${watchlistAlias}/watchlistItems/${itemId}?api-version=2023-11-01`,
@@ -348,7 +348,7 @@ export class SentinelClient extends BaseVendorClient {
 
     for (const ioc of indicators) {
       try {
-        const indicatorId = `ace-c3-ioc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const indicatorId = `ac3-ioc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const patternMap: Record<string, string> = {
           ipv4: `[ipv4-addr:value = '${ioc.value}']`,
           ipv6: `[ipv6-addr:value = '${ioc.value}']`,

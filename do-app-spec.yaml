@@ -94,7 +94,7 @@ services:
       - key: VITE_APP_ID
         value: "VmWWcXQYZJYuALRdNNvsC2"
       - key: VITE_APP_TITLE
-        value: "Ace C3"
+        value: "AC3"
       - key: VITE_APP_LOGO
         value: "https://files.manuscdn.com/user_upload_by_module/web_dev_logo/310419663028432609/ZplSosGboaDttvce.png"
       - key: VITE_OAUTH_PORTAL_URL

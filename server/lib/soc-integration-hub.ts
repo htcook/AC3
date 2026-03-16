@@ -158,7 +158,7 @@ export function exportFindingAsJSON(finding: EngagementFinding): ExportedAlert {
 export function exportFindingAsSyslog(finding: EngagementFinding): ExportedAlert {
   const pri = finding.severity === "critical" ? 2 : finding.severity === "high" ? 3 : finding.severity === "medium" ? 4 : 6;
   const ts = new Date(finding.timestamp).toISOString();
-  const msg = `<${pri}>1 ${ts} ace-c3 pentest ${finding.engagementId} ${finding.id} - [finding severity="${finding.severity}" target="${finding.targetHost || "unknown"}" tool="${finding.toolUsed || "unknown"}"] ${finding.title}: ${finding.description?.substring(0, 500)}`;
+  const msg = `<${pri}>1 ${ts} ac3 pentest ${finding.engagementId} ${finding.id} - [finding severity="${finding.severity}" target="${finding.targetHost || "unknown"}" tool="${finding.toolUsed || "unknown"}"] ${finding.title}: ${finding.description?.substring(0, 500)}`;
 
   return { format: "syslog", raw: msg, findingId: finding.id, timestamp: finding.timestamp };
 }
@@ -528,7 +528,7 @@ export async function pushAlertsToSiem(
         const bulkLines: string[] = [];
         for (const alert of alerts) {
           if (alert.findingId === "header") continue;
-          const indexName = config.index || "ace-c3-findings";
+          const indexName = config.index || "ac3-findings";
           bulkLines.push(JSON.stringify({ index: { _index: indexName } }));
           bulkLines.push(alert.format === "json" ? alert.raw : JSON.stringify({ message: alert.raw, format: alert.format }));
         }

@@ -709,7 +709,7 @@ function IncidentTab() {
                 severity: incSeverity as any,
                 title,
                 description,
-                affectedModels: ["ace-c3-primary"],
+                affectedModels: ["ac3-primary"],
               })}
               disabled={reportMutation.isPending || !title || !description}
             >

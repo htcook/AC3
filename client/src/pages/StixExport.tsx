@@ -103,7 +103,7 @@ export default function StixExport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ace-c3-stix-bundle-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `ac3-stix-bundle-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("STIX bundle saved as JSON");
@@ -435,12 +435,12 @@ export default function StixExport() {
                 />
                 <TaxiiEndpoint
                   method="GET"
-                  path={`/api/trpc/stixExport.taxiiGetCollection?input={"collectionId":"ace-c3-threat-actors"}`}
+                  path={`/api/trpc/stixExport.taxiiGetCollection?input={"collectionId":"ac3-threat-actors"}`}
                   description="Get Collection — returns metadata for a specific collection"
                 />
                 <TaxiiEndpoint
                   method="GET"
-                  path={`/api/trpc/stixExport.taxiiGetObjects?input={"collectionId":"ace-c3-all","limit":50}`}
+                  path={`/api/trpc/stixExport.taxiiGetObjects?input={"collectionId":"ac3-all","limit":50}`}
                   description="Get Objects — returns STIX objects from a collection (requires auth)"
                 />
               </div>
@@ -451,7 +451,7 @@ export default function StixExport() {
 {`# Fetch STIX bundle from AC3 TAXII endpoint
 curl -H "Content-Type: application/taxii+json;version=2.1" \\
      -H "Authorization: Bearer <your-session-token>" \\
-     "/api/trpc/stixExport.taxiiGetObjects?input={\\"collectionId\\":\\"ace-c3-all\\",\\"limit\\":100}"
+     "/api/trpc/stixExport.taxiiGetObjects?input={\\"collectionId\\":\\"ac3-all\\",\\"limit\\":100}"
 
 # Import into OpenCTI
 # Configure a TAXII connector pointing to the AC3 API root`}

@@ -46,7 +46,7 @@ export interface EngagementContextValue {
 
 const EngagementContext = createContext<EngagementContextValue | null>(null);
 
-const STORAGE_KEY = "ace-c3-active-engagement";
+const STORAGE_KEY = "ac3-active-engagement";
 
 function loadPersistedEngagement(): EngagementInfo | null {
   try {
