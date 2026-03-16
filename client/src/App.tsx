@@ -186,6 +186,7 @@ const Workflows = lazyWithRetry(() => import("./pages/Workflows"));
 const WebCrawler = lazyWithRetry(() => import("./pages/WebCrawler"));
 const VendorIntegrations = lazyWithRetry(() => import("./pages/VendorIntegrations"));
 const AgentManagerPage = lazyWithRetry(() => import("./pages/AgentManager"));
+const AgentManagement = lazyWithRetry(() => import("./pages/AgentManagement"));
 const FIPSCompliance = lazyWithRetry(() => import("./pages/FIPSCompliance"));
 const SSILDashboard = lazyWithRetry(() => import("./pages/SSILDashboard"));
 const SSILPolicies = lazyWithRetry(() => import("./pages/SSILPolicies"));
@@ -857,6 +858,9 @@ function Router() {
         </Route>
         <Route path="/live-infra">
           <ProtectedRoute component={InfrastructureHub} />
+        </Route>
+        <Route path="/agent-management">
+          <ProtectedRoute component={AgentManagement} />
         </Route>
         <Route path="/agent-manager">
           <ProtectedRoute component={AgentManagerPage} />
