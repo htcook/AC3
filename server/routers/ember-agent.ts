@@ -1741,4 +1741,41 @@ export const emberAgentRouter = router({
       agents: agentSummaries,
     };
   }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AGENT CLEANUP & SELF-DESTRUCT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get cleanup status and last result */
+  getCleanupStatus: protectedProcedure.query(async () => {
+    const { getLastCleanupResult } = await import("../lib/ember-agent-cleanup");
+    return {
+      lastResult: getLastCleanupResult(),
+      retentionHours: 168,
+    };
+  }),
+
+  /** Force cleanup sweep — purge dead agents past retention */
+  forceCleanup: protectedProcedure
+    .input(z.object({
+      retentionHours: z.number().min(0).max(8760).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { runEmberCleanup } = await import("../lib/ember-agent-cleanup");
+      return runEmberCleanup(input ? { retentionHours: input.retentionHours || 168 } : undefined);
+    }),
+
+  /** Purge a specific agent and all associated data */
+  purgeAgent: protectedProcedure
+    .input(z.object({ agentId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { purgeAgent } = await import("../lib/ember-agent-cleanup");
+      return purgeAgent(input.agentId);
+    }),
+
+  /** Purge all dead agents immediately (ignores retention) */
+  purgeAllDead: protectedProcedure.mutation(async () => {
+    const { purgeAllDead } = await import("../lib/ember-agent-cleanup");
+    return purgeAllDead();
+  }),
 });

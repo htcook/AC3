@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import HeartbeatMonitor from "@/components/HeartbeatMonitor";
 import EmberFleetHealth from "@/components/EmberFleetHealth";
+import { TaskQueueDialog, TaskResultsPanel } from "@/components/EmberTaskPanel";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface UnifiedAgent {
@@ -221,14 +222,22 @@ function AgentCard({ agent, onKill }: { agent: UnifiedAgent; onKill?: (id: strin
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-[11px] h-6 px-2"
-            onClick={(e) => { e.stopPropagation(); handleNavigate(); }}
-          >
-            <ExternalLink className="h-3 w-3 mr-1" /> Details
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[11px] h-6 px-2"
+              onClick={(e) => { e.stopPropagation(); handleNavigate(); }}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" /> Details
+            </Button>
+            {agent.framework === "ember" && agent.status === "active" && (
+              <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+                <TaskQueueDialog agentId={agent.id} agentName={agent.name} />
+                <TaskResultsPanel agentId={agent.id} agentName={agent.name} />
+              </span>
+            )}
+          </div>
           {onKill && agent.status === "active" && (
             <Button
               variant="ghost"

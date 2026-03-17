@@ -68,6 +68,16 @@ async function startServer() {
   // Without this, req.protocol returns 'http' and Secure cookies may not be set.
   app.set('trust proxy', 1);
 
+  // ─── Health Check Endpoint (before HTTPS redirect) ──────────────────
+  // Platform health checks may hit HTTP without X-Forwarded-Proto.
+  // This must be registered before HTTPS redirect to avoid redirect loops.
+  app.get('/healthz', (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: Date.now() });
+  });
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: Date.now() });
+  });
+
   // ─── HTTPS Enforcement ───────────────────────────────────────────────
   // Redirect all HTTP requests to HTTPS in production.
   // Behind a reverse proxy, X-Forwarded-Proto indicates the original protocol.
@@ -75,6 +85,8 @@ async function startServer() {
   app.use((req, res, next) => {
     const host = req.hostname || req.headers.host || '';
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    // Skip redirect for health check paths (platform may probe via HTTP)
+    if (req.path === '/healthz' || req.path === '/api/health') return next();
     const proto = req.protocol || (req.headers['x-forwarded-proto'] as string) || 'http';
     if (!isLocalhost && proto !== 'https') {
       const redirectUrl = `https://${req.headers.host}${req.originalUrl}`;
@@ -468,6 +480,14 @@ async function startServer() {
         console.log("[EmberHealth] Ember agent health monitor initialized (30s sweep)");
       }).catch((err) => {
         console.warn("[EmberHealth] Failed to initialize Ember health monitor:", err);
+      });
+
+      // Initialize Ember Agent Cleanup Scheduler (every 1 hour, 7-day retention)
+      import("../lib/ember-agent-cleanup").then(({ startEmberCleanupScheduler }) => {
+        startEmberCleanupScheduler({ intervalMs: 3_600_000, config: { retentionHours: 168 } });
+        console.log("[EmberCleanup] Agent cleanup scheduler initialized (1h interval, 7d retention)");
+      }).catch((err) => {
+        console.warn("[EmberCleanup] Failed to initialize cleanup scheduler:", err);
       });
 
       // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)

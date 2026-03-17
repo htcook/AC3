@@ -109,11 +109,7 @@ temp/
 # Deployment optimization - exclude from deploy
 docs/
 scan-pipeline-optimization-report.md
-drizzle/meta/0000_snapshot.json
-drizzle/meta/0001_snapshot.json
-drizzle/meta/0002_snapshot.json
-drizzle/meta/0003_snapshot.json
-drizzle/meta/0004_snapshot.json
+# drizzle snapshots handled by wildcard in Large knowledge files section
 drizzle/0000_chilly_toxin.sql
 drizzle/0001_kind_zuras.sql
 drizzle/0002_lumpy_paladin.sql
@@ -146,6 +142,17 @@ docker-compose.yml
 .dockerignore
 ecosystem.config.cjs
 deploy/
+do-app-spec.yaml
+.github/
+
+# Analysis/compliance docs (not needed for deployment)
+AC3-*.md
+AI_GUARDRAILS_*.md
+UX_UI_*.md
+
+# One-off scripts
+fix-*.py
+js_exploit_task.cjs
 
 # Scripts directory
 scripts/
@@ -158,9 +165,7 @@ fix-*.sh
 server/lib/knowledge/attack_chains_300.json
 server/lib/knowledge/asset_role_ontology.json
 server/threatActorSeed2.ts
-drizzle/meta/0005_snapshot.json
-drizzle/meta/0006_snapshot.json
-drizzle/meta/0007_snapshot.json
+drizzle/meta/*_snapshot.json
 drizzle/0006_amused_golden_guardian.sql
 
 # Test files (not needed for deployment)
