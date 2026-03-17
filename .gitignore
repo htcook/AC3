@@ -4,7 +4,7 @@
 
 # Build outputs
 build/
-*.dist
+# *.dist — REMOVED: was matching dist/ directory and causing deploy failures
 
 # Environment variables
 .env
@@ -136,10 +136,9 @@ roadmap-*.md
 gap-*.md
 knowledge-*.md
 
-# Docker/deploy (Manus hosting handles this)
-Dockerfile
+# Docker/deploy
+# Dockerfile and .dockerignore are NOT ignored - platform needs them
 docker-compose.yml
-.dockerignore
 ecosystem.config.cjs
 deploy/
 do-app-spec.yaml
@@ -191,3 +190,13 @@ engagement-data.txt
 threatActorSeed*.ts
 # Client dist (now in dist/public/)
 client/dist/
+
+# IMPORTANT: Ensure dist/ is NEVER excluded from deploy
+# The platform uses gitignore-like rules to package the deploy artifact
+!dist/
+!dist/**
+!dist/index.js
+!dist/_server.js
+!dist/public/**
+!.client-assets/
+!.client-assets/**
