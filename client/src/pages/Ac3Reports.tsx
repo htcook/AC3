@@ -1488,7 +1488,167 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
           )}
         </CardContent>
       </Card>
+      {/* Scope Exclusions */}
+      <ScopeExclusionsCard reportId={reportId} />
     </div>
+  );
+}
+
+// ─── Scope Exclusions Card ─────────────────────────────────────────────────
+
+const PTES_PHASES = [
+  'Reconnaissance',
+  'Discovery & Scanning',
+  'Initial Access',
+  'Execution',
+  'Persistence',
+  'Privilege Escalation',
+  'Credential Access',
+  'Lateral Movement',
+  'Collection & Exfiltration',
+  'Defense Evasion',
+];
+
+function ScopeExclusionsCard({ reportId }: { reportId: string }) {
+  const utils = trpc.useUtils();
+  const { data: exclusions, isLoading } = trpc.ac3Reports.getScopeExclusions.useQuery({ reportId });
+  const [editing, setEditing] = useState(false);
+  const [localExclusions, setLocalExclusions] = useState<Array<{ phase: string; justification: string; approvedBy: string }>>([]);
+
+  const updateMutation = trpc.ac3Reports.updateScopeExclusions.useMutation({
+    onSuccess: () => {
+      utils.ac3Reports.getScopeExclusions.invalidate({ reportId });
+      utils.ac3Reports.validateCoverage.invalidate({ reportId });
+      setEditing(false);
+      toast.success("Scope exclusions updated");
+    },
+    onError: (err) => {
+      toast.error("Error", { description: err.message });
+    },
+  });
+
+  const startEditing = () => {
+    setLocalExclusions(
+      (exclusions || []).map(e => ({ phase: e.phase, justification: e.justification, approvedBy: e.approvedBy }))
+    );
+    setEditing(true);
+  };
+
+  const addExclusion = () => {
+    const available = PTES_PHASES.filter(p => !localExclusions.some(e => e.phase === p));
+    if (available.length === 0) {
+      toast.info("All phases already excluded or added");
+      return;
+    }
+    setLocalExclusions([...localExclusions, { phase: available[0], justification: '', approvedBy: '' }]);
+  };
+
+  const removeExclusion = (index: number) => {
+    setLocalExclusions(localExclusions.filter((_, i) => i !== index));
+  };
+
+  const updateExclusion = (index: number, field: string, value: string) => {
+    setLocalExclusions(localExclusions.map((e, i) => i === index ? { ...e, [field]: value } : e));
+  };
+
+  const handleSave = () => {
+    const valid = localExclusions.every(e => e.justification.length >= 20 && e.approvedBy.length >= 1);
+    if (!valid) {
+      toast.error("Each exclusion needs a justification (20+ chars) and an approver name");
+      return;
+    }
+    updateMutation.mutate({ reportId, exclusions: localExclusions });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-sm">PTES Phase Scope Exclusions</CardTitle>
+            <CardDescription className="text-xs">
+              Document why certain methodology phases are intentionally out of scope. Excluded phases are marked as N/A in the coverage validator instead of penalizing the score.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={editing ? () => setEditing(false) : startEditing}>
+            {editing ? "Cancel" : "Edit"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : editing ? (
+          <div className="space-y-3">
+            {localExclusions.map((excl, i) => (
+              <div key={i} className="border border-blue-500/20 rounded-lg p-3 space-y-2 bg-blue-500/5">
+                <div className="flex items-center justify-between">
+                  <Select
+                    value={excl.phase}
+                    onValueChange={(val) => updateExclusion(i, 'phase', val)}
+                  >
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PTES_PHASES.filter(p => p === excl.phase || !localExclusions.some(e => e.phase === p)).map(p => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="sm" onClick={() => removeExclusion(i)}>
+                    <Trash2 className="h-4 w-4 text-red-400" />
+                  </Button>
+                </div>
+                <div>
+                  <Label className="text-xs">Justification (why this phase is out of scope)</Label>
+                  <Textarea
+                    value={excl.justification}
+                    onChange={(e) => updateExclusion(i, 'justification', e.target.value)}
+                    rows={2}
+                    placeholder="e.g., Persistence testing was excluded per the Rules of Engagement due to production environment constraints..."
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Approved By</Label>
+                  <Input
+                    value={excl.approvedBy}
+                    onChange={(e) => updateExclusion(i, 'approvedBy', e.target.value)}
+                    placeholder="e.g., John Smith, CISO"
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={addExclusion} className="gap-1">
+                <Plus className="h-3.5 w-3.5" />
+                Add Exclusion
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending} className="gap-1">
+                {updateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save Exclusions
+              </Button>
+            </div>
+          </div>
+        ) : exclusions && exclusions.length > 0 ? (
+          <div className="space-y-2">
+            {exclusions.map((excl: any) => (
+              <div key={excl.phase} className="border border-blue-500/20 rounded-md p-3 bg-blue-500/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">{excl.phase}</Badge>
+                  <span className="text-xs text-blue-400/60">Approved by {excl.approvedBy}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{excl.justification}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No scope exclusions defined. All PTES phases are expected to be covered.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1934,7 +2094,7 @@ function CoverageTab({ reportId }: { reportId: string }) {
           { label: "Tactics", value: coverage.summary.uniqueTactics },
           { label: "Techniques", value: coverage.summary.uniqueTechniques },
           { label: "Tools", value: coverage.summary.toolsIdentified },
-          { label: "Phases", value: `${coverage.summary.phasesRepresented}/10` },
+          { label: "Phases", value: `${coverage.summary.phasesRepresented}/${coverage.summary.totalApplicablePhases ?? 10}${coverage.summary.phasesExcluded ? ` (${coverage.summary.phasesExcluded} excl.)` : ''}` },
         ].map((stat) => (
           <Card key={stat.label} className="border-border/50">
             <CardContent className="pt-4 pb-3 text-center">
@@ -1996,20 +2156,44 @@ function CoverageTab({ reportId }: { reportId: string }) {
                 className={`rounded-lg border p-3 text-center ${
                   phase.status === "pass"
                     ? "border-green-500/30 bg-green-500/5"
+                    : phase.status === "excluded"
+                    ? "border-blue-500/30 bg-blue-500/5"
                     : "border-red-500/30 bg-red-500/5"
                 }`}
+                title={phase.status === 'excluded' ? `Excluded: ${phase.exclusionJustification || 'No justification'}` : phase.details}
               >
                 <div className="text-xs font-medium">{phase.phase}</div>
                 <div className="mt-1">
                   {phase.status === "pass" ? (
                     <CheckCircle2 className="h-4 w-4 text-green-400 mx-auto" />
+                  ) : phase.status === "excluded" ? (
+                    <span className="text-xs text-blue-400 font-medium">N/A</span>
                   ) : (
                     <XCircle className="h-4 w-4 text-red-400 mx-auto" />
                   )}
                 </div>
+                {phase.status === "excluded" && (
+                  <div className="text-[10px] text-blue-400/70 mt-0.5 truncate" title={phase.exclusionJustification}>
+                    Scope excluded
+                  </div>
+                )}
               </div>
             ))}
           </div>
+
+          {/* Scope Exclusion Details */}
+          {coverage.scopeExclusions?.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs font-medium text-blue-400">Scope Exclusions:</p>
+              {coverage.scopeExclusions.map((excl: any) => (
+                <div key={excl.phase} className="text-xs bg-blue-500/5 border border-blue-500/20 rounded-md p-2">
+                  <span className="font-medium">{excl.phase}:</span>{" "}
+                  <span className="text-muted-foreground">{excl.justification}</span>
+                  <span className="text-blue-400/60 ml-2">— {excl.approvedBy}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

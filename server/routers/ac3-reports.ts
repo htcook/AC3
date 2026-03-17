@@ -9,6 +9,24 @@ import { storagePut } from "../storage";
 import { ENV } from "../_core/env";
 import * as docx from "docx";
 
+// ─── JSON Parsing Helper ─────────────────────────────────────────────────────
+
+/** Safely parse JSON fields that may be arrays, JSON strings, or double-encoded */
+function parseJsonField(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+      if (typeof parsed === 'string') {
+        // Double-encoded: parse again
+        try { const p2 = JSON.parse(parsed); if (Array.isArray(p2)) return p2; } catch {}
+      }
+    } catch {}
+  }
+  return [];
+}
+
 // ─── Deduplication Helper ────────────────────────────────────────────────────
 
 /** Find existing findings in a report that match by ATT&CK technique ID */
@@ -620,6 +638,7 @@ export const ac3ReportsRouter = {
       const prompt = buildFindingNarrativePrompt(findingData, report);
 
       const response = await invokeLLM({
+        _caller: "ac3-reports.generateFindingNarrative",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
@@ -643,7 +662,6 @@ export const ac3ReportsRouter = {
             },
           },
         },
-        _caller: "ac3-reports.generateFindingNarrative",
       });
 
       const content = response.choices?.[0]?.message?.content;
@@ -685,6 +703,7 @@ export const ac3ReportsRouter = {
       const prompt = buildExecSummaryPrompt(report, findings);
 
       const response = await invokeLLM({
+        _caller: "ac3-reports.generateExecSummary",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
@@ -708,7 +727,6 @@ export const ac3ReportsRouter = {
             },
           },
         },
-        _caller: "ac3-reports.generateExecSummary",
       });
 
       const content = response.choices?.[0]?.message?.content;
@@ -752,6 +770,7 @@ export const ac3ReportsRouter = {
       const prompt = buildQaReviewPrompt(report, findings);
 
       const response = await invokeLLM({
+        _caller: "ac3-reports.runQaReview",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
@@ -785,7 +804,6 @@ export const ac3ReportsRouter = {
             },
           },
         },
-        _caller: "ac3-reports.runQaReview",
       });
 
       const content = response.choices?.[0]?.message?.content;
@@ -836,6 +854,7 @@ export const ac3ReportsRouter = {
           const prompt = buildFindingNarrativePrompt(finding, report);
 
           const response = await invokeLLM({
+            _caller: "ac3-reports.generateAllNarratives",
             messages: [
               { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
               { role: "user", content: prompt },
@@ -859,7 +878,6 @@ export const ac3ReportsRouter = {
                 },
               },
             },
-            _caller: "ac3-reports.generateAllNarratives",
           });
 
           const content = response.choices?.[0]?.message?.content;
@@ -1971,12 +1989,126 @@ export const ac3ReportsRouter = {
         }
       }
 
+      // ── Auto-extract artifacts from evidence and approval gates ──
+      let artifactsCreated = 0;
+
+      // Get all findings we just created/merged to extract artifacts from
+      const allFindings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId));
+
+      for (const finding of allFindings) {
+        // Parse evidence array
+        const evidenceArr = parseJsonField(finding.evidence);
+        let artifactIndex = 1;
+
+        for (const ev of evidenceArr) {
+          if (!ev || typeof ev !== 'object') continue;
+          const desc = ev.description || ev.reference || '';
+          if (!desc || desc.length < 20) continue;
+
+          // Determine artifact type from evidence
+          let artifactType = 'evidence';
+          let label = '';
+          if (ev.type === 'poc' || desc.toLowerCase().includes('poc') || desc.toLowerCase().includes('proof of concept')) {
+            artifactType = 'poc';
+            label = `PoC-${finding.findingId}-${artifactIndex}`;
+          } else if (desc.toLowerCase().includes('exploit') || desc.toLowerCase().includes('payload')) {
+            artifactType = 'exploit_output';
+            label = `Exploit-${finding.findingId}-${artifactIndex}`;
+          } else if (desc.toLowerCase().includes('curl') || desc.toLowerCase().includes('nmap') || desc.toLowerCase().includes('nikto') || desc.toLowerCase().includes('hydra')) {
+            artifactType = 'tool_output';
+            label = `ToolOutput-${finding.findingId}-${artifactIndex}`;
+          } else if (desc.toLowerCase().includes('screenshot') || desc.toLowerCase().includes('image')) {
+            artifactType = 'screenshot';
+            label = `Screenshot-${finding.findingId}-${artifactIndex}`;
+          } else {
+            artifactType = 'evidence';
+            label = `Evidence-${finding.findingId}-${artifactIndex}`;
+          }
+
+          // Check if artifact already exists for this finding with same label prefix
+          const existingArtifacts = await db.select().from(ac3ReportArtifacts)
+            .where(and(
+              eq(ac3ReportArtifacts.findingId, finding.findingId),
+              eq(ac3ReportArtifacts.reportId, input.reportId)
+            ));
+          const labelPrefix = label.split('-').slice(0, 2).join('-');
+          const alreadyExists = existingArtifacts.some((a: any) => a.label?.startsWith(labelPrefix));
+          if (alreadyExists) continue;
+
+          const artifactId = `ART-${randomUUID().slice(0, 8).toUpperCase()}`;
+          const now = Date.now();
+          await db.insert(ac3ReportArtifacts).values({
+            artifactId,
+            reportId: input.reportId,
+            findingId: finding.findingId,
+            artifactType,
+            label,
+            description: desc.length > 500 ? desc.slice(0, 497) + '...' : desc,
+            capturedAt: now,
+            createdAt: now,
+          });
+          artifactsCreated++;
+          artifactIndex++;
+        }
+      }
+
+      // Extract artifacts from approval gates (tool execution records)
+      const approvedGates = approvalGates.filter((g: any) => g.status === 'approved' && g.detail);
+      // Group gates by target to create per-target tool execution artifacts
+      const gatesByTarget = new Map<string, any[]>();
+      for (const gate of approvedGates) {
+        const target = gate.target || 'unknown';
+        if (!gatesByTarget.has(target)) gatesByTarget.set(target, []);
+        gatesByTarget.get(target)!.push(gate);
+      }
+
+      for (const [target, gates] of gatesByTarget) {
+        // Group by tool
+        const toolGroups = new Map<string, any[]>();
+        for (const g of gates) {
+          const tool = g.detail?.tool || g.module || 'unknown';
+          if (!toolGroups.has(tool)) toolGroups.set(tool, []);
+          toolGroups.get(tool)!.push(g);
+        }
+
+        for (const [tool, toolGates] of toolGroups) {
+          // Find the finding most related to this target
+          const relatedFinding = allFindings.find((f: any) => {
+            const assets = parseJsonField(f.assets);
+            return assets.some((a: any) => {
+              const assetStr = typeof a === 'string' ? a : (a.hostname || a.ip || '');
+              return assetStr.includes(target) || target.includes(assetStr);
+            });
+          });
+
+          const artifactId = `ART-${randomUUID().slice(0, 8).toUpperCase()}`;
+          const label = `ApprovalGate-${tool}-${target.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, 30)}`;
+          const description = `${toolGates.length} approved ${tool} execution(s) against ${target}. ` +
+            `Risk tier: ${toolGates[0].riskTier || 'unknown'}. ` +
+            `Sample: ${toolGates[0].title || toolGates[0].description || ''}`.slice(0, 500);
+
+          await db.insert(ac3ReportArtifacts).values({
+            artifactId,
+            reportId: input.reportId,
+            findingId: relatedFinding?.findingId || null,
+            artifactType: 'tool_output',
+            label,
+            description,
+            capturedAt: toolGates[0].resolvedAt || Date.now(),
+            createdAt: Date.now(),
+          });
+          artifactsCreated++;
+        }
+      }
+
       return {
         imported,
         merged,
         skipped,
         total: vulnAnalysis.length,
         engagementName: eng.name,
+        artifactsCreated,
         dataSourceSummary: {
           vulnAnalysisCount: vulnAnalysis.length,
           attackChainCount: attackChains.length,
@@ -2466,6 +2598,50 @@ export const ac3ReportsRouter = {
       return { linked: true };
     }),
 
+  // ─── Scope Exclusions ──────────────────────────────────────────────────────
+
+  /** Get scope exclusions for a report */
+  getScopeExclusions: protectedProcedure
+    .input(z.object({ reportId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error('Report not found');
+      return parseJsonField(report.scopeExclusions) as Array<{
+        phase: string;
+        justification: string;
+        approvedBy: string;
+        excludedAt: number;
+      }>;
+    }),
+
+  /** Update scope exclusions for a report */
+  updateScopeExclusions: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      exclusions: z.array(z.object({
+        phase: z.string(),
+        justification: z.string().min(20, 'Justification must be at least 20 characters'),
+        approvedBy: z.string().min(1, 'Approver name required'),
+        excludedAt: z.number().optional(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const exclusionsWithTimestamp = input.exclusions.map(e => ({
+        ...e,
+        excludedAt: e.excludedAt || Date.now(),
+      }));
+      await db.update(ac3Reports)
+        .set({
+          scopeExclusions: exclusionsWithTimestamp,
+          updatedAt: Date.now(),
+        })
+        .where(eq(ac3Reports.reportId, input.reportId));
+      return { updated: true, count: exclusionsWithTimestamp.length };
+    }),
+
   // ─── Pentest Coverage Validator ──────────────────────────────────────────
 
   /** Validate that the report's findings meet pentest depth/breadth requirements */
@@ -2527,22 +2703,6 @@ export const ac3ReportsRouter = {
         },
       };
 
-      // Robust JSON field parser: handles arrays, JSON strings, and double-encoded strings
-      const parseJsonField = (val: any): any[] => {
-        if (Array.isArray(val)) return val;
-        if (typeof val === 'string') {
-          try {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed)) return parsed;
-            if (typeof parsed === 'string') {
-              // Double-encoded: parse again
-              try { const p2 = JSON.parse(parsed); if (Array.isArray(p2)) return p2; } catch {}
-            }
-          } catch {}
-        }
-        return [];
-      };
-
       // Extract all ATT&CK tactic IDs from findings
       const allTactics = new Set<string>();
       const allTechniques = new Set<string>();
@@ -2584,9 +2744,27 @@ export const ac3ReportsRouter = {
         if (tactic) allTactics.add(tactic);
       }
 
-      const phaseResults: Array<{ phase: string; status: 'pass' | 'fail' | 'warning'; description: string; details: string }> = [];
+      // Load scope exclusions
+      const scopeExclusions = parseJsonField(report.scopeExclusions) as Array<{ phase: string; justification: string; approvedBy: string; excludedAt: number }>;
+      const excludedPhases = new Set(scopeExclusions.map(e => e.phase));
+
+      const phaseResults: Array<{ phase: string; status: 'pass' | 'fail' | 'warning' | 'excluded'; description: string; details: string; exclusionJustification?: string; excludedBy?: string }> = [];
       let phasesPresent = 0;
+      let phasesExcluded = 0;
       for (const [phase, config] of Object.entries(REQUIRED_PHASES)) {
+        if (excludedPhases.has(phase)) {
+          phasesExcluded++;
+          const exclusion = scopeExclusions.find(e => e.phase === phase)!;
+          phaseResults.push({
+            phase,
+            status: 'excluded',
+            description: config.description,
+            details: `Excluded from scope`,
+            exclusionJustification: exclusion.justification,
+            excludedBy: exclusion.approvedBy,
+          });
+          continue;
+        }
         const covered = config.tactics.some(t => allTactics.has(t));
         if (covered) {
           phasesPresent++;
@@ -2595,6 +2773,7 @@ export const ac3ReportsRouter = {
           phaseResults.push({ phase, status: 'fail', description: config.description, details: `No findings map to tactics: ${config.tactics.join(', ')}` });
         }
       }
+      const totalApplicablePhases = Object.keys(REQUIRED_PHASES).length - phasesExcluded;
 
       // ── 2. ATT&CK Breadth ──
       const tacticBreadth = allTactics.size;
@@ -2637,7 +2816,7 @@ export const ac3ReportsRouter = {
 
       // ── Overall Score ──
       const checks = [
-        { category: 'Methodology Coverage', status: phasesPresent >= 7 ? 'pass' : phasesPresent >= 5 ? 'warning' : 'fail' as const, score: Math.round((phasesPresent / 10) * 100), details: `${phasesPresent}/10 PTES phases represented` },
+        { category: 'Methodology Coverage', status: totalApplicablePhases === 0 ? 'pass' as const : (phasesPresent / totalApplicablePhases >= 0.7 ? 'pass' : phasesPresent / totalApplicablePhases >= 0.5 ? 'warning' : 'fail') as any, score: totalApplicablePhases === 0 ? 100 : Math.round((phasesPresent / totalApplicablePhases) * 100), details: `${phasesPresent}/${totalApplicablePhases} applicable PTES phases represented${phasesExcluded > 0 ? ` (${phasesExcluded} excluded by scope)` : ''}` },
         { category: 'ATT&CK Tactic Breadth', status: tacticStatus as any, score: Math.min(100, Math.round((tacticBreadth / 8) * 100)), details: `${tacticBreadth} unique tactics across ${techniqueBreadth} techniques` },
         { category: 'Evidence Quality', status: evidenceStatus as any, score: Math.round(evidenceRatio * 100), details: `${findingsWithEvidence}/${findings.length} findings have evidence, ${findingsWithPoC} have PoC/exploit output` },
         { category: 'Tool Diversity', status: toolStatus as any, score: Math.min(100, Math.round((toolCount / 5) * 100)), details: `${toolCount} distinct tools/sources identified` },
@@ -2663,9 +2842,12 @@ export const ac3ReportsRouter = {
           uniqueTechniques: techniqueBreadth,
           toolsIdentified: toolCount,
           phasesRepresented: phasesPresent,
+          phasesExcluded,
+          totalApplicablePhases,
         },
+        scopeExclusions,
         recommendations: [
-          ...phaseResults.filter(p => p.status === 'fail').map(p => `Add findings for ${p.phase} phase (${p.description})`),
+          ...phaseResults.filter(p => p.status === 'fail').map(p => `Add findings for ${p.phase} phase (${p.description}) — or document a scope exclusion if this phase was intentionally omitted`),
           ...(pocStatus === 'fail' ? ['Increase PoC/exploit output evidence — too many findings rely on scanner output alone'] : []),
           ...(toolStatus === 'fail' ? ['Diversify tooling — a proper pentest requires multiple tools beyond a single scanner'] : []),
           ...(artifactStatus === 'fail' ? ['Attach supporting artifacts (screenshots, logs, captures) to findings'] : []),

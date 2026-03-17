@@ -5694,6 +5694,7 @@ export const ac3Reports = mysqlTable("ac3_reports", {
   outputUrl: text("rpt_output_url"),
   outputFormat: varchar("rpt_output_format", { length: 16 }),
   docxUrl: text("rpt_docx_url"),
+  scopeExclusions: json("rpt_scope_exclusions"),
   complianceFramework: varchar("compliance_framework", { length: 32 }).default('nist_800_53_r5').notNull(),
   createdBy: varchar("rpt_created_by", { length: 255 }),
   createdAt: bigint("rpt_created_at", { mode: "number" }).notNull(),

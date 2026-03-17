@@ -738,3 +738,240 @@ describe("AC3 Reports Deduplication: UI Feedback", () => {
     expect(pageSource).toContain("filtered");
   });
 });
+
+// ─── Auto-Artifact Extraction Tests ─────────────────────────────────────────
+
+describe("AC3 Auto-Artifact Extraction", () => {
+  it("importFromOpsSnapshot procedure creates artifacts from evidence", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Should contain artifact extraction logic
+    expect(routerSource).toContain("Auto-extract artifacts from evidence and approval gates");
+    expect(routerSource).toContain("artifactsCreated");
+  });
+
+  it("classifies evidence into artifact types (poc, exploit_output, tool_output, screenshot, evidence)", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("artifactType = 'poc'");
+    expect(routerSource).toContain("artifactType = 'exploit_output'");
+    expect(routerSource).toContain("artifactType = 'tool_output'");
+    expect(routerSource).toContain("artifactType = 'screenshot'");
+    expect(routerSource).toContain("artifactType = 'evidence'");
+  });
+
+  it("deduplicates artifacts by label prefix to avoid re-creating on re-import", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("labelPrefix");
+    expect(routerSource).toContain("alreadyExists");
+  });
+
+  it("extracts artifacts from approval gates grouped by tool and target", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("approvedGates");
+    expect(routerSource).toContain("gatesByTarget");
+    expect(routerSource).toContain("toolGroups");
+    expect(routerSource).toContain("ApprovalGate-");
+  });
+
+  it("returns artifactsCreated count in import response", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // The return object should include artifactsCreated
+    const returnSection = routerSource.slice(
+      routerSource.indexOf("artifactsCreated++"),
+      routerSource.indexOf("artifactsCreated,") + 50
+    );
+    expect(returnSection).toContain("artifactsCreated");
+  });
+});
+
+// ─── Scope Exclusion Tests ──────────────────────────────────────────────────
+
+describe("AC3 Scope Exclusion System", () => {
+  it("router exports getScopeExclusions and updateScopeExclusions procedures", async () => {
+    const mod = await import("./routers/ac3-reports");
+    const router = mod.ac3ReportsRouter;
+    const procedureNames = Object.keys(router);
+    expect(procedureNames).toContain("getScopeExclusions");
+    expect(procedureNames).toContain("updateScopeExclusions");
+  });
+
+  it("schema includes scopeExclusions JSON column on ac3_reports", () => {
+    const schemaSource = fs.readFileSync(
+      path.join(__dirname, "../drizzle/schema.ts"),
+      "utf-8"
+    );
+    expect(schemaSource).toContain("scopeExclusions");
+    expect(schemaSource).toContain("rpt_scope_exclusions");
+  });
+
+  it("coverage validator loads scope exclusions and marks excluded phases", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("excludedPhases");
+    expect(routerSource).toContain("phasesExcluded");
+    expect(routerSource).toContain("status: 'excluded'");
+    expect(routerSource).toContain("totalApplicablePhases");
+  });
+
+  it("excluded phases show justification and approver in phase results", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("exclusionJustification");
+    expect(routerSource).toContain("excludedBy");
+  });
+
+  it("methodology coverage score uses totalApplicablePhases denominator", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Score should divide by totalApplicablePhases, not hardcoded 10
+    expect(routerSource).toContain("phasesPresent / totalApplicablePhases");
+  });
+
+  it("coverage validator returns scopeExclusions in response", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // The validateCoverage return object should include scopeExclusions
+    const validatorSection = routerSource.slice(
+      routerSource.indexOf("validateCoverage"),
+      routerSource.lastIndexOf("scopeExclusions,") + 30
+    );
+    expect(validatorSection).toContain("scopeExclusions,");
+  });
+
+  it("updateScopeExclusions requires justification of at least 20 characters", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("min(20");
+    expect(routerSource).toContain("Justification must be at least 20 characters");
+  });
+
+  it("recommendations suggest scope exclusion for failing phases", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("document a scope exclusion if this phase was intentionally omitted");
+  });
+});
+
+// ─── Scope Exclusion UI Tests ───────────────────────────────────────────────
+
+describe("AC3 Scope Exclusion UI", () => {
+  it("CoverageTab shows excluded phases with N/A status", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain('status === "excluded"');
+    expect(pageSource).toContain("Scope excluded");
+    expect(pageSource).toContain("border-blue-500/30 bg-blue-500/5");
+  });
+
+  it("CoverageTab displays scope exclusion details with justification", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("scopeExclusions");
+    expect(pageSource).toContain("excl.justification");
+    expect(pageSource).toContain("excl.approvedBy");
+  });
+
+  it("MetadataTab includes ScopeExclusionsCard component", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("ScopeExclusionsCard");
+    expect(pageSource).toContain("PTES Phase Scope Exclusions");
+  });
+
+  it("ScopeExclusionsCard has edit form with phase selector and justification fields", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("addExclusion");
+    expect(pageSource).toContain("removeExclusion");
+    expect(pageSource).toContain("updateScopeExclusions");
+    expect(pageSource).toContain("Approved By");
+    expect(pageSource).toContain("justification");
+  });
+
+  it("PTES_PHASES constant lists all 10 methodology phases", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("PTES_PHASES");
+    expect(pageSource).toContain("Reconnaissance");
+    expect(pageSource).toContain("Discovery & Scanning");
+    expect(pageSource).toContain("Initial Access");
+    expect(pageSource).toContain("Execution");
+    expect(pageSource).toContain("Persistence");
+    expect(pageSource).toContain("Privilege Escalation");
+    expect(pageSource).toContain("Credential Access");
+    expect(pageSource).toContain("Lateral Movement");
+    expect(pageSource).toContain("Collection & Exfiltration");
+    expect(pageSource).toContain("Defense Evasion");
+  });
+
+  it("phases stat shows applicable count and exclusion count", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("totalApplicablePhases");
+    expect(pageSource).toContain("phasesExcluded");
+    expect(pageSource).toContain("excl.)");
+  });
+});
+
+// ─── parseJsonField Helper Tests ────────────────────────────────────────────
+
+describe("AC3 parseJsonField Top-Level Helper", () => {
+  it("parseJsonField is defined as a top-level function (not inside a procedure)", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Should be defined before the router export
+    const helperIndex = routerSource.indexOf("function parseJsonField");
+    const routerIndex = routerSource.indexOf("export const ac3ReportsRouter");
+    expect(helperIndex).toBeGreaterThan(-1);
+    expect(helperIndex).toBeLessThan(routerIndex);
+  });
+
+  it("parseJsonField handles arrays, JSON strings, and double-encoded strings", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("Double-encoded: parse again");
+    expect(routerSource).toContain("Array.isArray(val)");
+  });
+});
