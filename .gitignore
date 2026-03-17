@@ -167,11 +167,9 @@ server/threatActorSeed2.ts
 drizzle/meta/*_snapshot.json
 drizzle/0006_amused_golden_guardian.sql
 
-# Test files (not needed for deployment)
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
+# Test files (not needed for deployment, but harmless to include)
+# NOTE: *.test.ts pattern was removed because it also blocks
+# git-tracking of test files needed for CI and debugging
 
 # Todo tracking (not needed for deployment)
 todo.md
@@ -181,9 +179,10 @@ DO-ARCHITECTURE-PLAN.md
 scan-pipeline-optimization-report.md
 training-targets-reachability.md
 
-# Debug/test scripts
-test-*.ts
-test-*.cjs
+# Debug/test scripts (only specific files, not patterns)
+# NOTE: test-*.ts pattern was removed because it blocks
+# server/routers/test-lab.ts and server/lib/test-lab-*.ts
+test-caldera-key.cjs
 query-scan-debug.ts
 engagement-progress.txt
 engagement-data.txt
