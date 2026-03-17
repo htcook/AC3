@@ -1516,7 +1516,7 @@ export const emberAgentRouter = router({
       for (const e of embers) {
         // Skip if already in heartbeats (from C2Registry)
         if (heartbeats.some(h => h.agentId === e.agentId)) continue;
-        const lastSeenMs = e.lastBeacon || e.createdAt || now;
+        const lastSeenMs = e.lastBeaconAt || e.createdAt || now;
         const timeSince = now - lastSeenMs;
         let status: "alive" | "stale" | "dead" | "unknown" = "unknown";
         if (timeSince < STALE_THRESHOLD) status = "alive";

