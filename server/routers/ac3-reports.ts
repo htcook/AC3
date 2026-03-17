@@ -9,6 +9,80 @@ import { storagePut } from "../storage";
 import { ENV } from "../_core/env";
 import * as docx from "docx";
 
+// ─── Deduplication Helper ────────────────────────────────────────────────────
+
+/** Find existing findings in a report that match by ATT&CK technique ID */
+async function findDuplicatesByTechnique(
+  db: any,
+  reportId: string,
+  techniqueIds: string[]
+): Promise<Map<string, any>> {
+  if (techniqueIds.length === 0) return new Map();
+  const existing = await db.select().from(ac3ReportFindings)
+    .where(eq(ac3ReportFindings.reportId, reportId));
+  const dupeMap = new Map<string, any>();
+  for (const f of existing) {
+    const techniques = (typeof f.attackTechniques === 'string'
+      ? JSON.parse(f.attackTechniques)
+      : f.attackTechniques) as any[] || [];
+    for (const t of techniques) {
+      if (t.id && techniqueIds.includes(t.id)) {
+        dupeMap.set(t.id, f);
+      }
+    }
+  }
+  return dupeMap;
+}
+
+/** Merge new evidence and assets into an existing finding, keeping highest severity */
+async function mergeFinding(
+  db: any,
+  existingFinding: any,
+  newEvidence: any[],
+  newAssets: string[],
+  newSeverity: string,
+  newControls: any[],
+): Promise<void> {
+  const severityRank: Record<string, number> = {
+    critical: 5, high: 4, moderate: 3, low: 2, informational: 1,
+  };
+
+  // Parse existing JSON fields
+  const existingEvidence = (typeof existingFinding.evidence === 'string'
+    ? JSON.parse(existingFinding.evidence)
+    : existingFinding.evidence) as any[] || [];
+  const existingAssets = (typeof existingFinding.assets === 'string'
+    ? JSON.parse(existingFinding.assets)
+    : existingFinding.assets) as string[] || [];
+  const existingControls = (typeof existingFinding.controls === 'string'
+    ? JSON.parse(existingFinding.controls)
+    : existingFinding.controls) as any[] || [];
+
+  // Merge evidence (append new, avoid exact duplicates by reference)
+  const existingRefs = new Set(existingEvidence.map((e: any) => e.reference));
+  const mergedEvidence = [...existingEvidence, ...newEvidence.filter(e => !existingRefs.has(e.reference))];
+
+  // Merge assets (union)
+  const mergedAssets = [...new Set([...existingAssets, ...newAssets])];
+
+  // Merge controls (union by id)
+  const existingControlIds = new Set(existingControls.map((c: any) => c.id));
+  const mergedControls = [...existingControls, ...newControls.filter(c => !existingControlIds.has(c.id))];
+
+  // Keep highest severity
+  const currentRank = severityRank[existingFinding.severity] || 1;
+  const newRank = severityRank[newSeverity] || 1;
+  const finalSeverity = newRank > currentRank ? newSeverity : existingFinding.severity;
+
+  await db.update(ac3ReportFindings).set({
+    evidence: JSON.stringify(mergedEvidence),
+    assets: JSON.stringify(mergedAssets),
+    controls: JSON.stringify(mergedControls),
+    severity: finalSeverity,
+    updatedAt: Date.now(),
+  }).where(eq(ac3ReportFindings.findingId, existingFinding.findingId));
+}
+
 // ─── FedRAMP Control Families Reference ─────────────────────────────────────
 
 const NIST_CONTROL_FAMILIES: Record<string, string> = {
@@ -920,6 +994,12 @@ export const ac3ReportsRouter = {
         return (controlMap[eventType] || ['RA-5']).map(id => ({ id }));
       };
 
+      // Collect all technique IDs from events for dedup lookup
+      const allTechniqueIds = events
+        .map(e => e.attackTechnique)
+        .filter(Boolean) as string[];
+      const dupeMap = await findDuplicatesByTechnique(db, input.reportId, allTechniqueIds);
+
       // Get existing finding count for sort order
       const existingFindings = await db.select({ id: ac3ReportFindings.id })
         .from(ac3ReportFindings)
@@ -927,11 +1007,15 @@ export const ac3ReportsRouter = {
       let sortOrder = existingFindings.length;
 
       let imported = 0;
+      let merged = 0;
+      let skipped = 0;
       for (const event of events) {
         const severity = mapSeverity(event.severity);
-        if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
+        if (input.severityFilter && !input.severityFilter.includes(severity)) {
+          skipped++;
+          continue;
+        }
 
-        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const attackTechniques = event.attackTechnique
           ? [{ id: event.attackTechnique }]
           : [];
@@ -946,7 +1030,17 @@ export const ac3ReportsRouter = {
 
         const assets = event.targetHost ? [event.targetHost] : [];
         if (event.targetPort) assets.push(`${event.targetHost}:${event.targetPort}`);
+        const controls = mapEventToControls(event.eventType);
 
+        // Check for duplicate by ATT&CK technique ID
+        if (event.attackTechnique && dupeMap.has(event.attackTechnique)) {
+          const existingFinding = dupeMap.get(event.attackTechnique);
+          await mergeFinding(db, existingFinding, evidence, assets, severity, controls);
+          merged++;
+          continue;
+        }
+
+        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const now = Date.now();
         await db.insert(ac3ReportFindings).values({
           findingId,
@@ -954,7 +1048,7 @@ export const ac3ReportsRouter = {
           title: event.title,
           severity,
           attackTechniques: JSON.stringify(attackTechniques),
-          controls: JSON.stringify(mapEventToControls(event.eventType)),
+          controls: JSON.stringify(controls),
           evidence: JSON.stringify(evidence),
           assets: JSON.stringify(assets),
           narrativeStatus: 'pending',
@@ -965,9 +1059,22 @@ export const ac3ReportsRouter = {
           sourceEventId: String(event.id),
         });
         imported++;
+
+        // Track newly created finding for subsequent dedup within this batch
+        if (event.attackTechnique) {
+          dupeMap.set(event.attackTechnique, {
+            findingId,
+            reportId: input.reportId,
+            severity,
+            evidence: JSON.stringify(evidence),
+            assets: JSON.stringify(assets),
+            controls: JSON.stringify(controls),
+            attackTechniques: JSON.stringify(attackTechniques),
+          });
+        }
       }
 
-      return { imported, total: events.length, engagementName: eng.name };
+      return { imported, merged, skipped, total: events.length, engagementName: eng.name };
     }),
 
   // ─── Caldera Operation Bulk Import ──────────────────────────────────────────
@@ -1049,6 +1156,15 @@ export const ac3ReportsRouter = {
         abilityGroups.get(key)!.push(link);
       }
 
+      // Collect all technique IDs from ability groups for dedup lookup
+      const calderaTechniqueIds: string[] = [];
+      for (const [abilityId] of abilityGroups) {
+        const ability = abilityMap.get(abilityId) || {};
+        const tid = ability.technique_id || ability.technique?.attack_id || '';
+        if (tid) calderaTechniqueIds.push(tid);
+      }
+      const dupeMap = await findDuplicatesByTechnique(db, input.reportId, calderaTechniqueIds);
+
       // Get existing finding count for sort order
       const existingFindings = await db.select({ id: ac3ReportFindings.id })
         .from(ac3ReportFindings)
@@ -1056,6 +1172,7 @@ export const ac3ReportsRouter = {
       let sortOrder = existingFindings.length;
 
       let imported = 0;
+      let merged = 0;
       for (const [abilityId, links] of abilityGroups) {
         const ability = abilityMap.get(abilityId) || links[0]?.ability || {};
         const techniqueId = ability.technique_id || ability.technique?.attack_id || '';
@@ -1113,6 +1230,14 @@ export const ac3ReportsRouter = {
         // Build affected assets from agent paws
         const assets = [...new Set(links.map((l: any) => l.host || l.paw).filter(Boolean))];
 
+        // Check for duplicate by ATT&CK technique ID
+        if (techniqueId && dupeMap.has(techniqueId)) {
+          const existingFinding = dupeMap.get(techniqueId);
+          await mergeFinding(db, existingFinding, evidence, assets, severity, controls);
+          merged++;
+          continue;
+        }
+
         const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const now = Date.now();
 
@@ -1133,6 +1258,19 @@ export const ac3ReportsRouter = {
           sourceEventId: abilityId,
         });
         imported++;
+
+        // Track newly created finding for subsequent dedup within this batch
+        if (techniqueId) {
+          dupeMap.set(techniqueId, {
+            findingId,
+            reportId: input.reportId,
+            severity,
+            evidence: JSON.stringify(evidence),
+            assets: JSON.stringify(assets),
+            controls: JSON.stringify(controls),
+            attackTechniques: JSON.stringify(attackTechniques),
+          });
+        }
       }
 
       // Also try to import from local atomic test executions linked to this operation
@@ -1142,6 +1280,22 @@ export const ac3ReportsRouter = {
       for (const exec of localExecs) {
         // Skip if we already imported this technique from the Caldera chain
         if (abilityGroups.has(exec.techniqueId)) continue;
+
+        // Check dedup for atomic tests too
+        if (dupeMap.has(exec.techniqueId)) {
+          const existingFinding = dupeMap.get(exec.techniqueId);
+          const atomicEvidence = [{
+            type: 'command_output',
+            reference: `Atomic Test ${exec.guid}`,
+            description: `Test: ${exec.testName}. Status: ${exec.status}. ` +
+              (exec.stdout ? `Output: ${exec.stdout.slice(0, 200)}` : '') +
+              (exec.detectionTriggered ? ' [DETECTION TRIGGERED]' : ''),
+          }];
+          const atomicAssets = exec.targetHost ? [exec.targetHost] : [];
+          await mergeFinding(db, existingFinding, atomicEvidence, atomicAssets, 'moderate', [{ id: 'RA-5' }]);
+          merged++;
+          continue;
+        }
 
         const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const severity = exec.status === 'success' ? 'high' : exec.status === 'blocked' ? 'informational' : 'moderate';
@@ -1172,10 +1326,24 @@ export const ac3ReportsRouter = {
           sourceEventId: exec.guid,
         });
         imported++;
+
+        // Track for intra-batch dedup
+        if (exec.techniqueId) {
+          dupeMap.set(exec.techniqueId, {
+            findingId,
+            reportId: input.reportId,
+            severity,
+            evidence: JSON.stringify(evidence),
+            assets: JSON.stringify(exec.targetHost ? [exec.targetHost] : []),
+            controls: JSON.stringify([{ id: 'RA-5' }]),
+            attackTechniques: JSON.stringify([{ id: exec.techniqueId }]),
+          });
+        }
       }
 
       return {
         imported,
+        merged,
         operationName: operation.name,
         totalLinks: chain.length,
         adversaryName: operation.adversary?.name || 'Unknown',

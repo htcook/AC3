@@ -1580,11 +1580,14 @@ function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; on
   const [selectedEngId, setSelectedEngId] = useState<number | null>(null);
 
   const importMutation = trpc.ac3Reports.importEngagementFindings.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       utils.ac3Reports.getReport.invalidate({ reportId });
+      const parts = [`${data.imported} new`];
+      if (data.merged) parts.push(`${data.merged} merged`);
+      if (data.skipped) parts.push(`${data.skipped} filtered`);
       toast({
         title: "Engagement Imported",
-        description: `Imported ${data.imported} findings from "${data.engagementName}".`,
+        description: `${parts.join(", ")} findings from "${data.engagementName}" (${data.total} events processed).`,
       });
       onClose();
       setSelectedEngId(null);
@@ -1691,11 +1694,13 @@ function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClo
   const [includeFailedLinks, setIncludeFailedLinks] = useState(false);
 
   const importMutation = trpc.ac3Reports.importCalderaOperation.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       utils.ac3Reports.getReport.invalidate({ reportId });
+      const parts = [`${data.imported} new`];
+      if (data.merged) parts.push(`${data.merged} merged into existing`);
       toast({
         title: "Caldera Operation Imported",
-        description: `Imported ${data.imported} findings from "${data.operationName}" (${data.totalLinks} total links, adversary: ${data.adversaryName}).`,
+        description: `${parts.join(", ")} findings from "${data.operationName}" (${data.totalLinks} links, adversary: ${data.adversaryName}).`,
       });
       onClose();
       setSelectedOpId(null);

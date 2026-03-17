@@ -569,3 +569,170 @@ describe("AC3 Reports Enhancements: Schema Updates", () => {
     expect(schemaSource).toContain("rf_source_event_id");
   });
 });
+
+// ─── Deduplication Tests ────────────────────────────────────────────────────
+
+describe("AC3 Reports Deduplication: Server Logic", () => {
+  it("router source contains findDuplicatesByTechnique helper", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("findDuplicatesByTechnique");
+  });
+
+  it("router source contains mergeFinding helper", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("mergeFinding");
+  });
+
+  it("mergeFinding keeps highest severity between existing and new", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("severityRank");
+    expect(routerSource).toContain("critical: 5");
+    expect(routerSource).toContain("newRank > currentRank");
+  });
+
+  it("mergeFinding appends evidence without duplicates (by reference)", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("existingRefs");
+    expect(routerSource).toContain("!existingRefs.has(e.reference)");
+  });
+
+  it("mergeFinding unions assets (deduped)", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("mergedAssets");
+    expect(routerSource).toContain("new Set([...existingAssets, ...newAssets])");
+  });
+
+  it("mergeFinding unions controls by id", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("existingControlIds");
+    expect(routerSource).toContain("mergedControls");
+  });
+
+  it("engagement import calls findDuplicatesByTechnique before inserting", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // The engagement import section should have dedup lookup
+    const engImportSection = routerSource.slice(
+      routerSource.indexOf("importEngagementFindings"),
+      routerSource.indexOf("importCalderaOperation")
+    );
+    expect(engImportSection).toContain("findDuplicatesByTechnique");
+    expect(engImportSection).toContain("dupeMap");
+    expect(engImportSection).toContain("mergeFinding");
+  });
+
+  it("engagement import returns merged and skipped counts", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    const engImportSection = routerSource.slice(
+      routerSource.indexOf("importEngagementFindings"),
+      routerSource.indexOf("importCalderaOperation")
+    );
+    expect(engImportSection).toContain("let merged = 0");
+    expect(engImportSection).toContain("let skipped = 0");
+    expect(engImportSection).toContain("imported, merged, skipped");
+  });
+
+  it("engagement import tracks newly created findings for intra-batch dedup", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    const engImportSection = routerSource.slice(
+      routerSource.indexOf("importEngagementFindings"),
+      routerSource.indexOf("importCalderaOperation")
+    );
+    expect(engImportSection).toContain("dupeMap.set(event.attackTechnique");
+  });
+
+  it("Caldera import calls findDuplicatesByTechnique before inserting", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    const calderaImportSection = routerSource.slice(
+      routerSource.indexOf("importCalderaOperation"),
+      routerSource.indexOf("exportDocx")
+    );
+    expect(calderaImportSection).toContain("findDuplicatesByTechnique");
+    expect(calderaImportSection).toContain("dupeMap");
+    expect(calderaImportSection).toContain("mergeFinding");
+  });
+
+  it("Caldera import returns merged count", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    const calderaImportSection = routerSource.slice(
+      routerSource.indexOf("importCalderaOperation"),
+      routerSource.indexOf("exportDocx")
+    );
+    expect(calderaImportSection).toContain("let merged = 0");
+    expect(calderaImportSection).toContain("imported,");
+    expect(calderaImportSection).toContain("merged,");
+  });
+
+  it("Caldera import deduplicates atomic test executions too", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    const calderaImportSection = routerSource.slice(
+      routerSource.indexOf("importCalderaOperation"),
+      routerSource.indexOf("exportDocx")
+    );
+    // Should check dupeMap for atomic tests
+    expect(calderaImportSection).toContain("dupeMap.has(exec.techniqueId)");
+  });
+});
+
+describe("AC3 Reports Deduplication: UI Feedback", () => {
+  it("engagement import toast shows merged count when present", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("data.merged");
+    expect(pageSource).toContain("merged");
+  });
+
+  it("Caldera import toast shows merged count when present", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("merged into existing");
+  });
+
+  it("engagement import toast shows filtered count when present", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("data.skipped");
+    expect(pageSource).toContain("filtered");
+  });
+});
