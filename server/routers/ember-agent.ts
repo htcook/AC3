@@ -179,9 +179,6 @@ export const emberAgentRouter = router({
       return catalog;
     }),
 
-  /** Get traffic profile details */
-  getTrafficProfiles: protectedProcedure.query(() => EMBER_TRAFFIC_PROFILES),
-
   // ═══════════════════════════════════════════════════════════════════════════
   // FLEET MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1551,6 +1548,197 @@ export const emberAgentRouter = router({
       stale: heartbeats.filter(h => h.status === "stale").length,
       dead: heartbeats.filter(h => h.status === "dead").length,
       agents: heartbeats,
+    };
+  }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HEALTH MONITORING & AUTO-DISCOVERY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get the latest health sweep result (cached, near-instant) */
+  getHealthStatus: protectedProcedure.query(async () => {
+    const { getLastSweepResult, forceEmberHealthSweep } = await import("../lib/ember-health-monitor");
+    // Return cached result if available and fresh (< 60s old)
+    const cached = getLastSweepResult();
+    if (cached && Date.now() - cached.timestamp < 60_000) {
+      return cached;
+    }
+    // Otherwise force a fresh sweep
+    return forceEmberHealthSweep();
+  }),
+
+  /** Force an immediate health sweep (bypasses cache) */
+  forceHealthSweep: protectedProcedure
+    .input(z.object({
+      deadThresholdMultiplier: z.number().min(1).max(20).optional(),
+      staleThresholdMultiplier: z.number().min(0.5).max(10).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { forceEmberHealthSweep } = await import("../lib/ember-health-monitor");
+      return forceEmberHealthSweep(input || {});
+    }),
+
+  /** Get health history for a specific agent (beacon timeline) */
+  getAgentHealthHistory: protectedProcedure
+    .input(z.object({
+      agentId: z.string(),
+      hours: z.number().min(1).max(168).default(24),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const cutoff = Date.now() - input.hours * 3600_000;
+
+      // Get beacon history
+      const beacons = await db.select({
+        sequence: emberBeacons.sequence,
+        state: emberBeacons.state,
+        channel: emberBeacons.channel,
+        receivedAt: emberBeacons.receivedAt,
+      })
+        .from(emberBeacons)
+        .where(and(
+          eq(emberBeacons.agentId, input.agentId),
+          gte(emberBeacons.receivedAt, cutoff),
+        ))
+        .orderBy(desc(emberBeacons.receivedAt))
+        .limit(500);
+
+      // Get agent info
+      const [agent] = await db.select({
+        agentId: emberAgents.agentId,
+        name: emberAgents.name,
+        state: emberAgents.state,
+        beaconInterval: emberAgents.beaconInterval,
+        beaconCount: emberAgents.beaconCount,
+        missedBeacons: emberAgents.missedBeacons,
+        lastBeaconAt: emberAgents.lastBeaconAt,
+      })
+        .from(emberAgents)
+        .where(eq(emberAgents.agentId, input.agentId))
+        .limit(1);
+
+      if (!agent) return null;
+
+      // Calculate beacon gaps (time between consecutive beacons)
+      const gaps: Array<{ from: number; to: number; gapMs: number }> = [];
+      for (let i = 0; i < beacons.length - 1; i++) {
+        const current = Number(beacons[i].receivedAt);
+        const previous = Number(beacons[i + 1].receivedAt);
+        const gapMs = current - previous;
+        if (gapMs > (agent.beaconInterval || 60) * 1000 * 1.5) {
+          gaps.push({ from: previous, to: current, gapMs });
+        }
+      }
+
+      // Calculate uptime percentage
+      const totalPeriodMs = Date.now() - cutoff;
+      const totalGapMs = gaps.reduce((sum, g) => sum + g.gapMs, 0);
+      const uptimePercent = Math.max(0, Math.min(100,
+        Math.round((1 - totalGapMs / totalPeriodMs) * 100),
+      ));
+
+      return {
+        agent,
+        beacons: beacons.map(b => ({
+          ...b,
+          receivedAt: Number(b.receivedAt),
+        })),
+        gaps,
+        uptimePercent,
+        totalBeaconsInPeriod: beacons.length,
+        averageIntervalMs: beacons.length > 1
+          ? Math.round(
+              (Number(beacons[0].receivedAt) - Number(beacons[beacons.length - 1].receivedAt)) /
+              (beacons.length - 1),
+            )
+          : null,
+      };
+    }),
+
+  /** Get fleet-wide health summary for dashboard widget */
+  getFleetHealth: protectedProcedure.query(async () => {
+    const db = await getDb();
+    const now = Date.now();
+
+    // Get all agents with their health-relevant fields
+    const agents = await db.select({
+      agentId: emberAgents.agentId,
+      name: emberAgents.name,
+      state: emberAgents.state,
+      profile: emberAgents.profile,
+      platform: emberAgents.platform,
+      hostname: emberAgents.hostname,
+      beaconInterval: emberAgents.beaconInterval,
+      beaconCount: emberAgents.beaconCount,
+      missedBeacons: emberAgents.missedBeacons,
+      lastBeaconAt: emberAgents.lastBeaconAt,
+      createdAt: emberAgents.createdAt,
+    })
+      .from(emberAgents)
+      .orderBy(desc(emberAgents.lastBeaconAt));
+
+    // Compute per-agent health
+    const healthyAgents: string[] = [];
+    const staleAgents: string[] = [];
+    const deadAgents: string[] = [];
+    let totalScore = 0;
+    let scoredCount = 0;
+
+    const agentSummaries = agents.map(a => {
+      const interval = a.beaconInterval || 60;
+      const lastBeacon = a.lastBeaconAt ? Number(a.lastBeaconAt) : null;
+      const silentMs = lastBeacon ? now - lastBeacon : Infinity;
+      const expectedMs = interval * 1000;
+
+      let status: "healthy" | "stale" | "dead" | "unknown" = "unknown";
+      if (a.state === "self_destruct" || a.state === "dead") {
+        status = "dead";
+      } else if (!lastBeacon) {
+        status = a.state === "initializing" ? "unknown" : "dead";
+      } else if (silentMs <= expectedMs * 1.5) {
+        status = "healthy";
+      } else if (silentMs <= expectedMs * 3) {
+        status = "stale";
+      } else {
+        status = "dead";
+      }
+
+      const score = lastBeacon ? Math.max(0, Math.min(100,
+        Math.round(100 - (silentMs / expectedMs - 1) * 33.3),
+      )) : 0;
+
+      if (status === "healthy") healthyAgents.push(a.agentId);
+      else if (status === "stale") staleAgents.push(a.agentId);
+      else if (status === "dead") deadAgents.push(a.agentId);
+
+      if (a.state !== "initializing" && a.state !== "self_destruct") {
+        totalScore += score;
+        scoredCount++;
+      }
+
+      return {
+        agentId: a.agentId,
+        name: a.name,
+        hostname: a.hostname,
+        profile: a.profile,
+        state: a.state,
+        status,
+        healthScore: score,
+        lastBeaconAt: lastBeacon,
+        silentForSeconds: Math.round(silentMs / 1000),
+        beaconCount: a.beaconCount || 0,
+        missedBeacons: a.missedBeacons || 0,
+      };
+    });
+
+    return {
+      timestamp: now,
+      totalAgents: agents.length,
+      healthy: healthyAgents.length,
+      stale: staleAgents.length,
+      dead: deadAgents.length,
+      fleetHealthScore: scoredCount > 0 ? Math.round(totalScore / scoredCount) : 0,
+      agents: agentSummaries,
     };
   }),
 });

@@ -19,6 +19,7 @@ import {
   ChevronRight, AlertTriangle, CheckCircle2, XCircle, Pause,
 } from "lucide-react";
 import HeartbeatMonitor from "@/components/HeartbeatMonitor";
+import EmberFleetHealth from "@/components/EmberFleetHealth";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface UnifiedAgent {
@@ -425,8 +426,11 @@ export default function AgentManagement() {
         </div>
       </div>
 
-      {/* Heartbeat Monitor */}
-      <HeartbeatMonitor />
+      {/* Heartbeat Monitor + Fleet Health */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <HeartbeatMonitor />
+        <EmberFleetHealth />
+      </div>
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">

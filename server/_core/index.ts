@@ -462,6 +462,14 @@ async function startServer() {
         console.warn("[AgentWatchdog] Failed to initialize watchdog scheduler:", err);
       });
 
+      // Initialize Ember Agent Health Monitor (every 30 seconds)
+      import("../lib/ember-health-monitor").then(({ startEmberHealthMonitor }) => {
+        startEmberHealthMonitor({ sweepIntervalMs: 30_000 });
+        console.log("[EmberHealth] Ember agent health monitor initialized (30s sweep)");
+      }).catch((err) => {
+        console.warn("[EmberHealth] Failed to initialize Ember health monitor:", err);
+      });
+
       // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
       import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
         initAutoGenerationSchedule();
