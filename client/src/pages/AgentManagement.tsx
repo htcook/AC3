@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import HeartbeatMonitor from "@/components/HeartbeatMonitor";
 import EmberFleetHealth from "@/components/EmberFleetHealth";
+import EmberCleanupControls from "@/components/EmberCleanupControls";
 import { TaskQueueDialog, TaskResultsPanel } from "@/components/EmberTaskPanel";
+import EmberTaskTemplates from "@/components/EmberTaskTemplates";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 interface UnifiedAgent {
@@ -435,10 +437,11 @@ export default function AgentManagement() {
         </div>
       </div>
 
-      {/* Heartbeat Monitor + Fleet Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Heartbeat Monitor + Fleet Health + Cleanup Controls */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <HeartbeatMonitor />
         <EmberFleetHealth />
+        <EmberCleanupControls />
       </div>
 
       {/* Stats cards */}
@@ -541,6 +544,13 @@ export default function AgentManagement() {
           )}
         </div>
       </Tabs>
+
+      {/* Task Templates Library */}
+      <EmberTaskTemplates
+        agents={allAgents
+          .filter((a) => a.framework === "ember" && a.status === "active")
+          .map((a) => ({ id: a.id, name: a.name }))}
+      />
     </div>
   );
 }
