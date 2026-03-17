@@ -5552,3 +5552,187 @@ export const testLabImplantTests = mysqlTable("test_lab_implant_tests", {
 ]);
 export type TestLabImplantTestRow = typeof testLabImplantTests.$inferSelect;
 export type InsertTestLabImplantTest = typeof testLabImplantTests.$inferInsert;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Custom Ember Templates & Campaign Orchestrator
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const emberCustomTemplates = mysqlTable("ember_custom_templates", {
+  id: int().autoincrement().notNull(),
+  templateId: varchar("ect_template_id", { length: 64 }).notNull(),
+  name: varchar("ect_name", { length: 255 }).notNull(),
+  description: text("ect_description"),
+  category: mysqlEnum("ect_category", ['recon','credential','persistence','lateral','exfil','custom']).default('custom').notNull(),
+  risk: mysqlEnum("ect_risk", ['low','medium','high','critical']).default('medium').notNull(),
+  estimatedDuration: varchar("ect_est_duration", { length: 64 }),
+  tags: json("ect_tags"),
+  steps: json("ect_steps").notNull(),
+  clonedFrom: varchar("ect_cloned_from", { length: 64 }),
+  createdBy: varchar("ect_created_by", { length: 255 }),
+  isShared: tinyint("ect_is_shared").default(0),
+  usageCount: int("ect_usage_count").default(0),
+  lastUsedAt: bigint("ect_last_used_at", { mode: "number" }),
+  createdAt: bigint("ect_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("ect_updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ect_template_id_idx").on(table.templateId),
+  index("ect_category_idx").on(table.category),
+  index("ect_created_by_idx").on(table.createdBy),
+]);
+export type EmberCustomTemplateRow = typeof emberCustomTemplates.$inferSelect;
+export type InsertEmberCustomTemplate = typeof emberCustomTemplates.$inferInsert;
+
+export const emberCampaigns = mysqlTable("ember_campaigns", {
+  id: int().autoincrement().notNull(),
+  campaignId: varchar("ecmp_campaign_id", { length: 64 }).notNull(),
+  name: varchar("ecmp_name", { length: 255 }).notNull(),
+  description: text("ecmp_description"),
+  objective: text("ecmp_objective"),
+  status: mysqlEnum("ecmp_status", ['draft','ready','running','paused','completed','failed','aborted']).default('draft').notNull(),
+  targetInfo: json("ecmp_target_info"),
+  phaseCount: int("ecmp_phase_count").default(0),
+  currentPhaseIndex: int("ecmp_current_phase").default(0),
+  phasesCompleted: int("ecmp_phases_completed").default(0),
+  phasesFailed: int("ecmp_phases_failed").default(0),
+  phasesSkipped: int("ecmp_phases_skipped").default(0),
+  agentIds: json("ecmp_agent_ids"),
+  createdBy: varchar("ecmp_created_by", { length: 255 }),
+  startedAt: bigint("ecmp_started_at", { mode: "number" }),
+  completedAt: bigint("ecmp_completed_at", { mode: "number" }),
+  createdAt: bigint("ecmp_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("ecmp_updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ecmp_campaign_id_idx").on(table.campaignId),
+  index("ecmp_status_idx").on(table.status),
+  index("ecmp_created_by_idx").on(table.createdBy),
+]);
+export type EmberCampaignRow = typeof emberCampaigns.$inferSelect;
+export type InsertEmberCampaign = typeof emberCampaigns.$inferInsert;
+
+export const emberCampaignPhases = mysqlTable("ember_campaign_phases", {
+  id: int().autoincrement().notNull(),
+  phaseId: varchar("ecph_phase_id", { length: 64 }).notNull(),
+  campaignId: varchar("ecph_campaign_id", { length: 64 }).notNull(),
+  phaseIndex: int("ecph_phase_index").notNull(),
+  name: varchar("ecph_name", { length: 255 }).notNull(),
+  description: text("ecph_description"),
+  templateId: varchar("ecph_template_id", { length: 64 }),
+  templateName: varchar("ecph_template_name", { length: 255 }),
+  taskSteps: json("ecph_task_steps").notNull(),
+  agentId: varchar("ecph_agent_id", { length: 64 }),
+  targetIp: varchar("ecph_target_ip", { length: 64 }),
+  customParams: json("ecph_custom_params"),
+  status: mysqlEnum("ecph_status", ['pending','running','success','failed','skipped','timeout','aborted']).default('pending').notNull(),
+  onSuccess: mysqlEnum("ecph_on_success", ['continue','skip_next','jump_to','complete']).default('continue').notNull(),
+  onFailure: mysqlEnum("ecph_on_failure", ['abort','skip','retry','continue']).default('abort').notNull(),
+  onTimeout: mysqlEnum("ecph_on_timeout", ['abort','skip','retry','continue']).default('abort').notNull(),
+  jumpToPhaseIndex: int("ecph_jump_to"),
+  maxRetries: int("ecph_max_retries").default(1),
+  retriesUsed: int("ecph_retries_used").default(0),
+  timeoutSeconds: int("ecph_timeout_seconds").default(600),
+  delayBeforeMs: int("ecph_delay_before_ms").default(0),
+  conditionExpression: text("ecph_condition_expr"),
+  startedAt: bigint("ecph_started_at", { mode: "number" }),
+  completedAt: bigint("ecph_completed_at", { mode: "number" }),
+  output: mediumtext("ecph_output"),
+  error: text("ecph_error"),
+  createdAt: bigint("ecph_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ecph_phase_id_idx").on(table.phaseId),
+  index("ecph_campaign_id_idx").on(table.campaignId),
+  index("ecph_status_idx").on(table.status),
+]);
+export type EmberCampaignPhaseRow = typeof emberCampaignPhases.$inferSelect;
+export type InsertEmberCampaignPhase = typeof emberCampaignPhases.$inferInsert;
+
+export const emberCampaignLogs = mysqlTable("ember_campaign_logs", {
+  id: int().autoincrement().notNull(),
+  campaignId: varchar("ecl_campaign_id", { length: 64 }).notNull(),
+  phaseId: varchar("ecl_phase_id", { length: 64 }),
+  level: mysqlEnum("ecl_level", ['info','warn','error','success']).default('info').notNull(),
+  message: text("ecl_message").notNull(),
+  metadata: json("ecl_metadata"),
+  createdAt: bigint("ecl_created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("ecl_campaign_id_idx").on(table.campaignId),
+  index("ecl_level_idx").on(table.level),
+]);
+export type EmberCampaignLogRow = typeof emberCampaignLogs.$inferSelect;
+export type InsertEmberCampaignLog = typeof emberCampaignLogs.$inferInsert;
+
+
+// ─── AC3 Report Generator (FedRAMP-Compliant Pentest/Red Team Reports) ──────
+
+export const ac3Reports = mysqlTable("ac3_reports", {
+  id: int().autoincrement().primaryKey(),
+  reportId: varchar("rpt_report_id", { length: 64 }).notNull().unique(),
+  name: varchar("rpt_name", { length: 255 }).notNull(),
+  status: mysqlEnum("rpt_status", ['draft','generating','review','approved','final']).default('draft').notNull(),
+  clientName: varchar("rpt_client_name", { length: 255 }),
+  systemName: varchar("rpt_system_name", { length: 255 }),
+  assessmentType: mysqlEnum("rpt_assessment_type", ['penetration_test','red_team','purple_team','vulnerability_assessment','hybrid']).default('penetration_test'),
+  fedrampImpactLevel: mysqlEnum("rpt_fedramp_level", ['low','moderate','high','li-saas']),
+  cloudProvider: varchar("rpt_cloud_provider", { length: 255 }),
+  serviceModel: varchar("rpt_service_model", { length: 128 }),
+  assessmentWindowStart: bigint("rpt_window_start", { mode: "number" }),
+  assessmentWindowEnd: bigint("rpt_window_end", { mode: "number" }),
+  reportVersion: varchar("rpt_version", { length: 32 }).default("1.0"),
+  scopeDomains: json("rpt_scope_domains"),
+  scopeAssets: json("rpt_scope_assets"),
+  approvedVectors: json("rpt_approved_vectors"),
+  outOfScope: json("rpt_out_of_scope"),
+  execRiskStatement: text("rpt_exec_risk_statement"),
+  execOverallRating: mysqlEnum("rpt_exec_rating", ['critical','high','moderate','low','informational']),
+  execKeyStrengths: json("rpt_exec_strengths"),
+  execKeyGaps: json("rpt_exec_gaps"),
+  execNarrative: mediumtext("rpt_exec_narrative"),
+  qaStatus: mysqlEnum("rpt_qa_status", ['pending','pass','revise']).default('pending'),
+  qaIssues: json("rpt_qa_issues"),
+  qaReviewedAt: bigint("rpt_qa_reviewed_at", { mode: "number" }),
+  campaignId: varchar("rpt_campaign_id", { length: 64 }),
+  outputUrl: text("rpt_output_url"),
+  outputFormat: varchar("rpt_output_format", { length: 16 }),
+  createdBy: varchar("rpt_created_by", { length: 255 }),
+  createdAt: bigint("rpt_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("rpt_updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("rpt_report_id_idx").on(table.reportId),
+  index("rpt_status_idx").on(table.status),
+  index("rpt_campaign_idx").on(table.campaignId),
+]);
+export type Ac3ReportRow = typeof ac3Reports.$inferSelect;
+export type InsertAc3Report = typeof ac3Reports.$inferInsert;
+
+export const ac3ReportFindings = mysqlTable("ac3_report_findings", {
+  id: int().autoincrement().primaryKey(),
+  findingId: varchar("rf_finding_id", { length: 64 }).notNull().unique(),
+  reportId: varchar("rf_report_id", { length: 64 }).notNull(),
+  sortOrder: int("rf_sort_order").default(0),
+  severity: mysqlEnum("rf_severity", ['critical','high','moderate','low','informational']).notNull(),
+  evidence: json("rf_evidence"),
+  attackTechniques: json("rf_attack_techniques"),
+  controls: json("rf_controls"),
+  assets: json("rf_assets"),
+  cvssScore: varchar("rf_cvss_score", { length: 8 }),
+  cvssVector: varchar("rf_cvss_vector", { length: 128 }),
+  title: varchar("rf_title", { length: 512 }).notNull(),
+  summary: text("rf_summary"),
+  businessImpact: text("rf_business_impact"),
+  technicalDetails: mediumtext("rf_technical_details"),
+  remediation: text("rf_remediation"),
+  sourceTaskId: varchar("rf_source_task_id", { length: 64 }),
+  sourceCampaignId: varchar("rf_source_campaign_id", { length: 64 }),
+  sourceAgentId: varchar("rf_source_agent_id", { length: 64 }),
+  narrativeStatus: mysqlEnum("rf_narrative_status", ['pending','drafted','reviewed','approved']).default('pending'),
+  reviewedBy: varchar("rf_reviewed_by", { length: 255 }),
+  reviewedAt: bigint("rf_reviewed_at", { mode: "number" }),
+  createdAt: bigint("rf_created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("rf_updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("rf_report_id_idx").on(table.reportId),
+  index("rf_finding_id_idx").on(table.findingId),
+  index("rf_severity_idx").on(table.severity),
+]);
+export type Ac3ReportFindingRow = typeof ac3ReportFindings.$inferSelect;
+export type InsertAc3ReportFinding = typeof ac3ReportFindings.$inferInsert;
