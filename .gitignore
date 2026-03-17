@@ -184,3 +184,5 @@ query-scan-debug.ts
 engagement-progress.txt
 engagement-data.txt
 threatActorSeed*.ts
+# Client dist (now in dist/public/)
+client/dist/
