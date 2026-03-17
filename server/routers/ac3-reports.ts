@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { protectedProcedure } from "../_core/trpc";
 import { getDbRequired } from "../db";
-import { ac3Reports, ac3ReportFindings } from "../../drizzle/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { ac3Reports, ac3ReportFindings, engagements, engagementTimelineEvents, atomicTestExecutions, atomicTests } from "../../drizzle/schema";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
+import { storagePut } from "../storage";
+import { ENV } from "../_core/env";
+import * as docx from "docx";
 
 // ─── FedRAMP Control Families Reference ─────────────────────────────────────
 
@@ -836,5 +839,629 @@ export const ac3ReportsRouter = {
           cvss_vector: f.cvssVector || undefined,
         })),
       };
+    }),
+
+  // ─── Engagement Findings Auto-Population ─────────────────────────────────
+
+  /** List engagements available for import */
+  listEngagements: protectedProcedure.query(async () => {
+    const db = await getDbRequired();
+    const rows = await db.select({
+      id: engagements.id,
+      name: engagements.name,
+      customerName: engagements.customerName,
+      engagementType: engagements.engagementType,
+      status: engagements.status,
+      calderaOperationId: engagements.calderaOperationId,
+      startDate: engagements.startDate,
+      endDate: engagements.endDate,
+      targetDomain: engagements.targetDomain,
+    }).from(engagements).orderBy(desc(engagements.createdAt));
+    return rows;
+  }),
+
+  /** Import findings from an engagement's timeline events into an AC3 report */
+  importEngagementFindings: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      engagementId: z.number(),
+      severityFilter: z.array(z.string()).optional(),
+      eventTypeFilter: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+
+      // Verify report exists
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error("Report not found");
+
+      // Get engagement details
+      const [eng] = await db.select().from(engagements)
+        .where(eq(engagements.id, input.engagementId));
+      if (!eng) throw new Error("Engagement not found");
+
+      // Fetch security-relevant timeline events
+      const securityEventTypes = input.eventTypeFilter || [
+        'finding_discovered', 'exploit_attempted', 'exploit_succeeded',
+        'shell_obtained', 'credential_found', 'pivot_established',
+        'data_exfiltrated', 'opsec_alert',
+      ];
+
+      const events = await db.select().from(engagementTimelineEvents)
+        .where(and(
+          eq(engagementTimelineEvents.engagementId, input.engagementId),
+          inArray(engagementTimelineEvents.eventType, securityEventTypes as any),
+        ))
+        .orderBy(engagementTimelineEvents.timestamp);
+
+      if (events.length === 0) return { imported: 0, message: "No matching events found" };
+
+      // Map engagement severity to AC3 severity
+      const mapSeverity = (sev: string | null): string => {
+        const m: Record<string, string> = {
+          critical: 'critical', high: 'high', medium: 'moderate', low: 'low', info: 'informational',
+        };
+        return m[sev || 'info'] || 'informational';
+      };
+
+      // Map event types to ATT&CK-relevant categories
+      const mapEventToControls = (eventType: string): { id: string }[] => {
+        const controlMap: Record<string, string[]> = {
+          exploit_succeeded: ['AC-3', 'SI-3', 'SC-7'],
+          shell_obtained: ['AC-3', 'AC-6', 'SI-4'],
+          credential_found: ['IA-2', 'IA-5', 'AC-7'],
+          pivot_established: ['AC-4', 'SC-7', 'SI-4'],
+          data_exfiltrated: ['SC-8', 'SC-28', 'AC-4'],
+          opsec_alert: ['SI-4', 'AU-6', 'IR-4'],
+          finding_discovered: ['RA-5', 'CA-7'],
+          exploit_attempted: ['SI-3', 'SC-7'],
+        };
+        return (controlMap[eventType] || ['RA-5']).map(id => ({ id }));
+      };
+
+      // Get existing finding count for sort order
+      const existingFindings = await db.select({ id: ac3ReportFindings.id })
+        .from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId));
+      let sortOrder = existingFindings.length;
+
+      let imported = 0;
+      for (const event of events) {
+        const severity = mapSeverity(event.severity);
+        if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
+
+        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const attackTechniques = event.attackTechnique
+          ? [{ id: event.attackTechnique }]
+          : [];
+
+        const evidence = [{
+          type: event.eventType === 'shell_obtained' ? 'command_output' :
+                event.eventType === 'credential_found' ? 'log' :
+                event.eventType === 'data_exfiltrated' ? 'network_capture' : 'log',
+          reference: `Engagement ${eng.name} - ${event.eventType}`,
+          description: event.description || event.title,
+        }];
+
+        const assets = event.targetHost ? [event.targetHost] : [];
+        if (event.targetPort) assets.push(`${event.targetHost}:${event.targetPort}`);
+
+        const now = Date.now();
+        await db.insert(ac3ReportFindings).values({
+          findingId,
+          reportId: input.reportId,
+          title: event.title,
+          severity,
+          attackTechniques: JSON.stringify(attackTechniques),
+          controls: JSON.stringify(mapEventToControls(event.eventType)),
+          evidence: JSON.stringify(evidence),
+          assets: JSON.stringify(assets),
+          narrativeStatus: 'pending',
+          sortOrder: sortOrder++,
+          createdAt: now,
+          updatedAt: now,
+          sourceModule: `engagement:${input.engagementId}`,
+          sourceEventId: String(event.id),
+        });
+        imported++;
+      }
+
+      return { imported, total: events.length, engagementName: eng.name };
+    }),
+
+  // ─── Caldera Operation Bulk Import ──────────────────────────────────────────
+
+  /** List Caldera operations from the Caldera API for import */
+  listCalderaOperations: protectedProcedure
+    .input(z.object({ serverId: z.number().optional() }).optional())
+    .query(async () => {
+      const baseUrl = ENV.CALDERA_BASE_URL;
+      const apiKey = ENV.CALDERA_API_KEY;
+      if (!baseUrl || !apiKey) return [];
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/v2/operations`, {
+          headers: { 'KEY': apiKey, 'Accept': 'application/json' },
+        });
+        if (!resp.ok) return [];
+        const ops = await resp.json();
+        return Array.isArray(ops) ? ops.map((op: any) => ({
+          id: op.id,
+          name: op.name,
+          state: op.state,
+          adversaryId: op.adversary?.adversary_id || op.adversary_id,
+          adversaryName: op.adversary?.name || 'Unknown',
+          startedAt: op.start || op.created,
+          agentCount: op.host_group?.length || 0,
+          linkCount: op.chain?.length || 0,
+        })) : [];
+      } catch {
+        return [];
+      }
+    }),
+
+  /** Import findings from a Caldera operation's chain links */
+  importCalderaOperation: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      operationId: z.string(),
+      includeFailedLinks: z.boolean().optional().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const baseUrl = ENV.CALDERA_BASE_URL;
+      const apiKey = ENV.CALDERA_API_KEY;
+      if (!baseUrl || !apiKey) throw new Error("Caldera not configured");
+
+      // Verify report exists
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error("Report not found");
+
+      // Fetch operation with full chain
+      const resp = await fetch(`${baseUrl}/api/v2/operations/${input.operationId}`, {
+        headers: { 'KEY': apiKey, 'Accept': 'application/json' },
+      });
+      if (!resp.ok) throw new Error(`Caldera API error: ${resp.status}`);
+      const operation = await resp.json();
+
+      // Fetch abilities for technique mapping
+      const abilitiesResp = await fetch(`${baseUrl}/api/v2/abilities`, {
+        headers: { 'KEY': apiKey, 'Accept': 'application/json' },
+      });
+      const abilities = abilitiesResp.ok ? await abilitiesResp.json() : [];
+      const abilityMap = new Map<string, any>();
+      if (Array.isArray(abilities)) {
+        abilities.forEach((a: any) => abilityMap.set(a.ability_id, a));
+      }
+
+      const chain = operation.chain || [];
+      if (chain.length === 0) return { imported: 0, message: "Operation has no links" };
+
+      // Group links by ability (technique) to consolidate findings
+      const abilityGroups = new Map<string, any[]>();
+      for (const link of chain) {
+        // Status: 0=success, -2=discarded, -1=failed, 1=queued, 124=timeout
+        if (!input.includeFailedLinks && link.status !== 0) continue;
+        const key = link.ability?.ability_id || link.ability_id || 'unknown';
+        if (!abilityGroups.has(key)) abilityGroups.set(key, []);
+        abilityGroups.get(key)!.push(link);
+      }
+
+      // Get existing finding count for sort order
+      const existingFindings = await db.select({ id: ac3ReportFindings.id })
+        .from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId));
+      let sortOrder = existingFindings.length;
+
+      let imported = 0;
+      for (const [abilityId, links] of abilityGroups) {
+        const ability = abilityMap.get(abilityId) || links[0]?.ability || {};
+        const techniqueId = ability.technique_id || ability.technique?.attack_id || '';
+        const techniqueName = ability.technique_name || ability.technique?.name || '';
+        const tactic = ability.tactic || '';
+
+        // Determine severity based on tactic
+        const tacticSeverity: Record<string, string> = {
+          'initial-access': 'high',
+          'execution': 'high',
+          'persistence': 'high',
+          'privilege-escalation': 'critical',
+          'defense-evasion': 'moderate',
+          'credential-access': 'critical',
+          'discovery': 'low',
+          'lateral-movement': 'high',
+          'collection': 'moderate',
+          'command-and-control': 'high',
+          'exfiltration': 'critical',
+          'impact': 'critical',
+          'reconnaissance': 'informational',
+          'resource-development': 'informational',
+        };
+        const severity = tacticSeverity[tactic] || 'moderate';
+
+        // Map tactic to NIST controls
+        const tacticControls: Record<string, string[]> = {
+          'initial-access': ['AC-3', 'SC-7', 'SI-3'],
+          'execution': ['CM-7', 'SI-3', 'SI-7'],
+          'persistence': ['CM-7', 'SI-3', 'SI-7'],
+          'privilege-escalation': ['AC-6', 'CM-6', 'AC-3'],
+          'defense-evasion': ['SI-4', 'AU-6', 'CM-7'],
+          'credential-access': ['IA-2', 'IA-5', 'AC-7'],
+          'discovery': ['AC-4', 'SI-4', 'CM-8'],
+          'lateral-movement': ['AC-4', 'SC-7', 'AC-3'],
+          'collection': ['SC-28', 'AC-3', 'MP-5'],
+          'command-and-control': ['SC-7', 'SI-4', 'SC-8'],
+          'exfiltration': ['SC-7', 'SC-8', 'AC-4'],
+          'impact': ['CP-9', 'CP-10', 'SI-7'],
+        };
+        const controls = (tacticControls[tactic] || ['RA-5']).map(id => ({ id }));
+
+        // Build ATT&CK techniques
+        const attackTechniques = techniqueId ? [{ id: techniqueId, name: techniqueName }] : [];
+
+        // Build evidence from link outputs
+        const evidence = links.slice(0, 5).map((link: any, i: number) => ({
+          type: 'command_output',
+          reference: `Caldera Op ${operation.name} - Link ${link.id || i + 1}`,
+          description: `Ability: ${ability.name || abilityId}. Agent: ${link.paw || 'N/A'}. ` +
+            `Status: ${link.status === 0 ? 'Success' : 'Failed'}. ` +
+            (link.output ? `Output sample: ${String(link.output).slice(0, 200)}` : 'No output captured.'),
+        }));
+
+        // Build affected assets from agent paws
+        const assets = [...new Set(links.map((l: any) => l.host || l.paw).filter(Boolean))];
+
+        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const now = Date.now();
+
+        await db.insert(ac3ReportFindings).values({
+          findingId,
+          reportId: input.reportId,
+          title: `${ability.name || abilityId}${tactic ? ` (${tactic})` : ''}`,
+          severity,
+          attackTechniques: JSON.stringify(attackTechniques),
+          controls: JSON.stringify(controls),
+          evidence: JSON.stringify(evidence),
+          assets: JSON.stringify(assets),
+          narrativeStatus: 'pending',
+          sortOrder: sortOrder++,
+          createdAt: now,
+          updatedAt: now,
+          sourceModule: `caldera:${input.operationId}`,
+          sourceEventId: abilityId,
+        });
+        imported++;
+      }
+
+      // Also try to import from local atomic test executions linked to this operation
+      const localExecs = await db.select().from(atomicTestExecutions)
+        .where(eq(atomicTestExecutions.calderaOperationId, input.operationId));
+
+      for (const exec of localExecs) {
+        // Skip if we already imported this technique from the Caldera chain
+        if (abilityGroups.has(exec.techniqueId)) continue;
+
+        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const severity = exec.status === 'success' ? 'high' : exec.status === 'blocked' ? 'informational' : 'moderate';
+
+        const evidence = [{
+          type: 'command_output',
+          reference: `Atomic Test ${exec.guid}`,
+          description: `Test: ${exec.testName}. Status: ${exec.status}. ` +
+            (exec.stdout ? `Output: ${exec.stdout.slice(0, 200)}` : '') +
+            (exec.detectionTriggered ? ' [DETECTION TRIGGERED]' : ''),
+        }];
+
+        const now = Date.now();
+        await db.insert(ac3ReportFindings).values({
+          findingId,
+          reportId: input.reportId,
+          title: exec.testName,
+          severity,
+          attackTechniques: JSON.stringify([{ id: exec.techniqueId }]),
+          controls: JSON.stringify([{ id: 'RA-5' }]),
+          evidence: JSON.stringify(evidence),
+          assets: JSON.stringify(exec.targetHost ? [exec.targetHost] : []),
+          narrativeStatus: 'pending',
+          sortOrder: sortOrder++,
+          createdAt: now,
+          updatedAt: now,
+          sourceModule: `atomic:${exec.calderaOperationId}`,
+          sourceEventId: exec.guid,
+        });
+        imported++;
+      }
+
+      return {
+        imported,
+        operationName: operation.name,
+        totalLinks: chain.length,
+        adversaryName: operation.adversary?.name || 'Unknown',
+      };
+    }),
+
+  // ─── DOCX Export ────────────────────────────────────────────────────────────
+
+  /** Generate and return a FedRAMP-style DOCX report */
+  exportDocx: protectedProcedure
+    .input(z.object({ reportId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error("Report not found");
+
+      const findings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId))
+        .orderBy(ac3ReportFindings.sortOrder);
+
+      // ── Build DOCX ──
+      const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+        WidthType, AlignmentType, HeadingLevel, BorderStyle, ShadingType, PageBreak } = docx;
+
+      const severityColor: Record<string, string> = {
+        critical: 'FF0000', high: 'FF6600', moderate: 'FFAA00', low: '3399FF', informational: '999999',
+      };
+
+      // Title page
+      const titleSection = [
+        new Paragraph({ spacing: { before: 4000 }, alignment: AlignmentType.CENTER, children: [] }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: report.name || 'AC3 Assessment Report', bold: true, size: 56, color: '1a1a2e' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+          children: [new TextRun({ text: `${report.assessmentType?.replace(/_/g, ' ').toUpperCase() || 'PENETRATION TEST'} REPORT`, size: 28, color: '666666' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+          children: [new TextRun({ text: `FedRAMP ${(report.fedrampImpactLevel || 'moderate').toUpperCase()} Impact Level`, size: 24, color: '888888' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Prepared for: ${report.clientName || 'Client'}`, size: 22, color: '444444' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `System: ${report.systemName || 'N/A'}`, size: 22, color: '444444' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+          children: [new TextRun({ text: `Report ID: ${report.reportId}`, size: 20, color: '888888' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Assessment Window: ${report.assessmentWindowStart ? new Date(report.assessmentWindowStart).toLocaleDateString() : 'N/A'} — ${report.assessmentWindowEnd ? new Date(report.assessmentWindowEnd).toLocaleDateString() : 'N/A'}`, size: 20, color: '888888' })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 600 },
+          children: [new TextRun({ text: `Prepared by: Harrison Cook — AceofCloud`, size: 22, color: '444444', italics: true })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Generated: ${new Date().toLocaleDateString()}`, size: 20, color: '888888' })],
+        }),
+        new Paragraph({ children: [new PageBreak()] }),
+      ];
+
+      // Executive Summary section
+      const execSection: docx.Paragraph[] = [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '1. Executive Summary', bold: true })] }),
+      ];
+      if (report.execNarrative) {
+        if (report.execRiskStatement) {
+          execSection.push(new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: 'Overall Risk: ', bold: true }), new TextRun({ text: report.execRiskStatement })],
+          }));
+        }
+        if (report.execNarrative) {
+          execSection.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: report.execNarrative })] }));
+        }
+        const strengths = (report.execKeyStrengths as string[] || []);
+        if (strengths.length > 0) {
+          execSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Key Strengths:', bold: true })] }));
+          strengths.forEach(s => execSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: s })] })));
+        }
+        const gaps = (report.execKeyGaps as string[] || []);
+        if (gaps.length > 0) {
+          execSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Key Gaps:', bold: true })] }));
+          gaps.forEach(g => execSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: g })] })));
+        }
+      } else {
+        execSection.push(new Paragraph({ children: [new TextRun({ text: 'Executive summary has not been generated yet.', italics: true, color: '888888' })] }));
+      }
+      execSection.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // Scope section
+      const scopeSection: docx.Paragraph[] = [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '2. Scope & Methodology', bold: true })] }),
+      ];
+      const scopeDomains = (report.scopeDomains as string[] || []);
+      const scopeAssets = (report.scopeAssets as string[] || []);
+      const approvedVectors = (report.approvedVectors as string[] || []);
+      const outOfScope = (report.outOfScope as string[] || []);
+
+      if (scopeDomains.length) {
+        scopeSection.push(new Paragraph({ children: [new TextRun({ text: 'In-Scope Domains:', bold: true })] }));
+        scopeDomains.forEach(d => scopeSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: d })] })));
+      }
+      if (scopeAssets.length) {
+        scopeSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'In-Scope Assets:', bold: true })] }));
+        scopeAssets.forEach(a => scopeSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: a })] })));
+      }
+      if (approvedVectors.length) {
+        scopeSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Approved Attack Vectors:', bold: true })] }));
+        approvedVectors.forEach(v => scopeSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: v })] })));
+      }
+      if (outOfScope.length) {
+        scopeSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Out of Scope:', bold: true })] }));
+        outOfScope.forEach(o => scopeSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: o })] })));
+      }
+      scopeSection.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // Findings Summary Table
+      const summarySection: docx.Paragraph[] = [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '3. Findings Summary', bold: true })] }),
+      ];
+
+      const severityCounts: Record<string, number> = { critical: 0, high: 0, moderate: 0, low: 0, informational: 0 };
+      findings.forEach(f => { severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1; });
+
+      const summaryTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            tableHeader: true,
+            children: ['Severity', 'Count'].map(text => new TableCell({
+              shading: { type: ShadingType.SOLID, color: '1a1a2e' },
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 20 })] })],
+            })),
+          }),
+          ...Object.entries(severityCounts).map(([sev, count]) => new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: sev.charAt(0).toUpperCase() + sev.slice(1), bold: true, color: severityColor[sev] || '000000' })] })],
+              }),
+              new TableCell({
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(count) })] })],
+              }),
+            ],
+          })),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Total', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(findings.length), bold: true })] })] }),
+            ],
+          }),
+        ],
+      });
+      summarySection.push(summaryTable);
+      summarySection.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // Detailed Findings
+      const findingsSection: docx.Paragraph[] = [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '4. Detailed Findings', bold: true })] }),
+      ];
+
+      findings.forEach((f, idx) => {
+        const sColor = severityColor[f.severity] || '000000';
+        findingsSection.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 400 },
+            children: [
+              new TextRun({ text: `${idx + 1}. `, bold: true }),
+              new TextRun({ text: f.title, bold: true }),
+              new TextRun({ text: `  [${f.severity.toUpperCase()}]`, bold: true, color: sColor }),
+            ],
+          }),
+        );
+
+        // Finding metadata table
+        const metaRows: [string, string][] = [
+          ['Finding ID', f.findingId],
+          ['Severity', f.severity.toUpperCase()],
+        ];
+        if (f.cvssScore) metaRows.push(['CVSS Score', `${f.cvssScore}${f.cvssVector ? ` (${f.cvssVector})` : ''}`]);
+        const techniques = (f.attackTechniques as any[] || []);
+        if (techniques.length) metaRows.push(['ATT&CK Techniques', techniques.map((t: any) => `${t.id}${t.name ? ': ' + t.name : ''}`).join(', ')]);
+        const controls = (f.controls as any[] || []);
+        if (controls.length) metaRows.push(['NIST 800-53 Controls', controls.map((c: any) => c.id).join(', ')]);
+        const assets = (f.assets as string[] || []);
+        if (assets.length) metaRows.push(['Affected Assets', assets.join(', ')]);
+
+        findingsSection.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: metaRows.map(([label, value]) => new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 30, type: WidthType.PERCENTAGE },
+                shading: { type: ShadingType.SOLID, color: 'F0F0F0' },
+                children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 18 })] })],
+              }),
+              new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: value, size: 18 })] })],
+              }),
+            ],
+          })),
+        }));
+
+        // Narrative sections
+        if (f.summary) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Summary', bold: true })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.summary })] }));
+        }
+        if (f.businessImpact) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Business Impact', bold: true })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.businessImpact })] }));
+        }
+        if (f.technicalDetails) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Technical Details', bold: true })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.technicalDetails })] }));
+        }
+        if (f.remediation) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Remediation', bold: true })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.remediation })] }));
+        }
+
+        // Evidence
+        const evidence = (f.evidence as any[] || []);
+        if (evidence.length) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Evidence', bold: true })] }));
+          evidence.forEach((e: any) => {
+            findingsSection.push(new Paragraph({
+              bullet: { level: 0 },
+              children: [
+                new TextRun({ text: `[${e.type}] `, bold: true }),
+                new TextRun({ text: e.description || e.reference }),
+              ],
+            }));
+          });
+        }
+      });
+
+      // Assemble document
+      const doc = new Document({
+        creator: 'Harrison Cook — AceofCloud',
+        title: report.name || 'AC3 Assessment Report',
+        description: `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`,
+        sections: [{
+          properties: {
+            page: {
+              margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+            },
+          },
+          children: [
+            ...titleSection,
+            ...execSection,
+            ...scopeSection,
+            ...summarySection,
+            ...findingsSection,
+          ],
+        }],
+      });
+
+      // Generate buffer and upload to S3
+      const buffer = await Packer.toBuffer(doc);
+      const fileName = `ac3-reports/${input.reportId}-${Date.now()}.docx`;
+      const { url } = await storagePut(fileName, Buffer.from(buffer), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+      // Store the URL on the report
+      await db.update(ac3Reports).set({
+        docxUrl: url,
+        updatedAt: Date.now(),
+      }).where(eq(ac3Reports.reportId, input.reportId));
+
+      return { url, fileName };
     }),
 };

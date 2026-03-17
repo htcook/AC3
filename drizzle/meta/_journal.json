@@ -120,6 +120,13 @@
       "when": 1773778427110,
       "tag": "0016_violet_exodus",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1773782082607,
+      "tag": "0017_lonely_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

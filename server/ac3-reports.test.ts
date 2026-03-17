@@ -325,8 +325,8 @@ describe("AC3 Reports UI Features", () => {
       path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
       "utf-8"
     );
-    expect(pageSource).toContain("Export Report");
-    expect(pageSource).toContain("report_input.schema.json");
+    expect(pageSource).toContain("DOCX Report Export");
+    expect(pageSource).toContain("JSON Export");
     expect(pageSource).toContain("Download JSON");
     expect(pageSource).toContain("Copy JSON");
   });
@@ -360,5 +360,212 @@ describe("AC3 Reports UI Features", () => {
     );
     expect(pageSource).toContain("FedRAMP Impact Level");
     expect(pageSource).toContain("LI-SaaS");
+  });
+});
+
+// ─── Enhancement Tests: Engagement Import, Caldera Import, DOCX Export ─────
+
+describe("AC3 Reports Enhancements: Router Procedures", () => {
+  it("router includes engagement import procedures", async () => {
+    const mod = await import("./routers/ac3-reports");
+    const procedureNames = Object.keys(mod.ac3ReportsRouter);
+    expect(procedureNames).toContain("listEngagements");
+    expect(procedureNames).toContain("importEngagementFindings");
+  });
+
+  it("router includes Caldera operation import procedures", async () => {
+    const mod = await import("./routers/ac3-reports");
+    const procedureNames = Object.keys(mod.ac3ReportsRouter);
+    expect(procedureNames).toContain("listCalderaOperations");
+    expect(procedureNames).toContain("importCalderaOperation");
+  });
+
+  it("router includes DOCX export procedure", async () => {
+    const mod = await import("./routers/ac3-reports");
+    const procedureNames = Object.keys(mod.ac3ReportsRouter);
+    expect(procedureNames).toContain("exportDocx");
+  });
+
+  it("has at least 20 procedures after enhancements", async () => {
+    const mod = await import("./routers/ac3-reports");
+    const procedureNames = Object.keys(mod.ac3ReportsRouter);
+    expect(procedureNames.length).toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe("AC3 Reports Enhancements: DOCX Generation", () => {
+  it("router source code imports docx package", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain('from "docx"');
+  });
+
+  it("DOCX generation includes title page, executive summary, scope, and findings sections", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Title page section
+    expect(routerSource).toContain("titleSection");
+    // Executive summary section
+    expect(routerSource).toContain("1. Executive Summary");
+    // Scope section
+    expect(routerSource).toContain("2. Scope & Methodology");
+    // Findings section
+    expect(routerSource).toContain("4. Detailed Findings");
+  });
+
+  it("DOCX generation includes Harrison Cook / AceofCloud branding", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("Harrison Cook");
+    expect(routerSource).toContain("AceofCloud");
+  });
+
+  it("DOCX generation includes ATT&CK techniques and NIST controls per finding", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("ATT&CK Techniques");
+    expect(routerSource).toContain("NIST 800-53 Controls");
+  });
+
+  it("DOCX generation uploads to S3 via storagePut", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("storagePut");
+    expect(routerSource).toContain("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  });
+});
+
+describe("AC3 Reports Enhancements: Engagement Import", () => {
+  it("engagement import maps timeline events to findings", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Should reference engagement timeline events
+    expect(routerSource).toContain("engagementTimelineEvents");
+    // Should map event types to severity
+    expect(routerSource).toContain("sourceModule");
+  });
+
+  it("engagement import preserves source traceability", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("sourceEventId");
+    expect(routerSource).toContain("sourceModule");
+  });
+});
+
+describe("AC3 Reports Enhancements: Caldera Import", () => {
+  it("Caldera import fetches operations from Caldera API", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("CALDERA_BASE_URL");
+    expect(routerSource).toContain("CALDERA_API_KEY");
+    expect(routerSource).toContain("/api/v2/operations");
+  });
+
+  it("Caldera import maps abilities to findings with ATT&CK IDs", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    // Should map technique_id from Caldera links
+    expect(routerSource).toContain("technique_id");
+    expect(routerSource).toContain("ability");
+  });
+
+  it("Caldera import includes option to include failed links", () => {
+    const routerSource = fs.readFileSync(
+      path.join(__dirname, "routers/ac3-reports.ts"),
+      "utf-8"
+    );
+    expect(routerSource).toContain("includeFailedLinks");
+  });
+});
+
+describe("AC3 Reports Enhancements: UI Components", () => {
+  it("page includes Import Engagement button and dialog", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("Import Engagement");
+    expect(pageSource).toContain("EngagementImportDialog");
+    expect(pageSource).toContain("importEngagementFindings");
+  });
+
+  it("page includes Import Caldera Op button and dialog", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("Import Caldera Op");
+    expect(pageSource).toContain("CalderaImportDialog");
+    expect(pageSource).toContain("importCalderaOperation");
+  });
+
+  it("page includes DOCX export button", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("DOCX Report Export");
+    expect(pageSource).toContain("Generate & Download DOCX");
+    expect(pageSource).toContain("exportDocx");
+  });
+
+  it("Caldera import dialog includes failed links toggle", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("includeFailedLinks");
+    expect(pageSource).toContain("Include failed/blocked links as findings");
+  });
+
+  it("engagement import dialog shows engagement list with status and type", () => {
+    const pageSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
+      "utf-8"
+    );
+    expect(pageSource).toContain("listEngagements");
+    expect(pageSource).toContain("engagementType");
+    expect(pageSource).toContain("Caldera Linked");
+  });
+});
+
+describe("AC3 Reports Enhancements: Schema Updates", () => {
+  it("ac3Reports table has docxUrl column", async () => {
+    const schema = await import("../drizzle/schema");
+    const columns = Object.keys((schema.ac3Reports as any));
+    // Check the column exists in the schema definition
+    const schemaSource = fs.readFileSync(
+      path.join(__dirname, "../drizzle/schema.ts"),
+      "utf-8"
+    );
+    expect(schemaSource).toContain("rpt_docx_url");
+  });
+
+  it("ac3ReportFindings table has sourceModule and sourceEventId columns", () => {
+    const schemaSource = fs.readFileSync(
+      path.join(__dirname, "../drizzle/schema.ts"),
+      "utf-8"
+    );
+    expect(schemaSource).toContain("rf_source_module");
+    expect(schemaSource).toContain("rf_source_event_id");
   });
 });

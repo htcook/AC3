@@ -48,6 +48,11 @@ import {
   Edit3,
   Save,
   XCircle,
+  Upload,
+  Zap,
+  FileDown,
+  Server,
+  Target,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -367,6 +372,8 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
   const [activeTab, setActiveTab] = useState("findings");
   const [showAddFinding, setShowAddFinding] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState(false);
+  const [showEngagementImport, setShowEngagementImport] = useState(false);
+  const [showCalderaImport, setShowCalderaImport] = useState(false);
 
   const generateAllMutation = trpc.ac3Reports.generateAllNarratives.useMutation({
     onSuccess: (data) => {
@@ -498,6 +505,24 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
               variant="outline"
               size="sm"
               className="gap-2"
+              onClick={() => setShowEngagementImport(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Import Engagement
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowCalderaImport(true)}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Import Caldera Op
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
               onClick={() => generateAllMutation.mutate({ reportId })}
               disabled={generateAllMutation.isPending || pendingNarratives === 0}
             >
@@ -606,6 +631,20 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
       <AddFindingDialog
         open={showAddFinding}
         onClose={() => setShowAddFinding(false)}
+        reportId={reportId}
+      />
+
+      {/* Engagement Import Dialog */}
+      <EngagementImportDialog
+        open={showEngagementImport}
+        onClose={() => setShowEngagementImport(false)}
+        reportId={reportId}
+      />
+
+      {/* Caldera Import Dialog */}
+      <CalderaImportDialog
+        open={showCalderaImport}
+        onClose={() => setShowCalderaImport(false)}
         reportId={reportId}
       />
     </div>
@@ -1418,8 +1457,20 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
 // ─── Export Tab ──────────────────────────────────────────────────────────────
 
 function ExportTab({ reportId }: { reportId: string }) {
+  const { toast } = useToast();
   const { data: exportData, isLoading } = trpc.ac3Reports.exportReportJson.useQuery({ reportId });
+  const { data: reportData } = trpc.ac3Reports.getReport.useQuery({ reportId });
   const [copied, setCopied] = useState(false);
+
+  const exportDocxMutation = trpc.ac3Reports.exportDocx.useMutation({
+    onSuccess: (data) => {
+      toast({ title: "DOCX Generated", description: "Your report document is ready for download." });
+      window.open(data.url, "_blank");
+    },
+    onError: (err) => {
+      toast({ title: "DOCX Export Failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const handleCopy = () => {
     if (exportData) {
@@ -1443,15 +1494,55 @@ function ExportTab({ reportId }: { reportId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* DOCX Export */}
+      <Card className="border-blue-500/20">
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileDown className="h-4 w-4 text-blue-400" />
+            DOCX Report Export
+          </CardTitle>
+          <CardDescription>
+            Generate a professional FedRAMP-compliant Word document with title page, executive summary,
+            scope, findings summary table, and detailed findings with ATT&CK mappings and NIST controls.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => exportDocxMutation.mutate({ reportId })}
+              disabled={exportDocxMutation.isPending}
+              className="gap-2"
+            >
+              {exportDocxMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              {exportDocxMutation.isPending ? "Generating DOCX..." : "Generate & Download DOCX"}
+            </Button>
+            {(reportData as any)?.docxUrl && (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open((reportData as any).docxUrl, "_blank")}>
+                <Download className="h-3.5 w-3.5" />
+                Download Previous DOCX
+              </Button>
+            )}
+          </div>
+          <div className="mt-3 text-xs text-muted-foreground">
+            <p>The DOCX includes: Title Page, Executive Summary, Scope & Methodology, Findings Summary Table, and Detailed Findings.</p>
+            <p className="mt-1">Author: Harrison Cook — AceofCloud</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* JSON Export */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Download className="h-4 w-4" />
-            Export Report
+            JSON Export
           </CardTitle>
           <CardDescription>
             Export the report as structured JSON compatible with the AC3 report_input.schema.json format.
-            This can be used for downstream DOCX rendering or integration with other tools.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1477,5 +1568,235 @@ function ExportTab({ reportId }: { reportId: string }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ─── Engagement Import Dialog ────────────────────────────────────────────────
+
+function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; onClose: () => void; reportId: string }) {
+  const { toast } = useToast();
+  const utils = trpc.useUtils();
+  const { data: engagements, isLoading } = trpc.ac3Reports.listEngagements.useQuery(undefined, { enabled: open });
+  const [selectedEngId, setSelectedEngId] = useState<number | null>(null);
+
+  const importMutation = trpc.ac3Reports.importEngagementFindings.useMutation({
+    onSuccess: (data) => {
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast({
+        title: "Engagement Imported",
+        description: `Imported ${data.imported} findings from "${data.engagementName}".`,
+      });
+      onClose();
+      setSelectedEngId(null);
+    },
+    onError: (err) => {
+      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImport = () => {
+    if (!selectedEngId) return;
+    importMutation.mutate({ reportId, engagementId: selectedEngId });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Import from Engagement
+          </DialogTitle>
+          <DialogDescription>
+            Select an engagement to auto-populate findings from its timeline events.
+            Security events (exploits, shells, credentials, pivots, exfiltration) will be mapped
+            to findings with ATT&CK IDs and NIST 800-53 controls.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !engagements?.length ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Target className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No engagements found.</p>
+          </div>
+        ) : (
+          <div className="max-h-[400px] overflow-y-auto space-y-2">
+            {engagements.map((eng: any) => (
+              <Card
+                key={eng.id}
+                className={`cursor-pointer transition-colors ${
+                  selectedEngId === eng.id
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-primary/30"
+                }`}
+                onClick={() => setSelectedEngId(eng.id)}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm">{eng.name}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                        <span>{eng.customerName}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {eng.engagementType?.replace(/_/g, " ")}
+                        </Badge>
+                        <Badge variant="outline" className={`text-xs ${
+                          eng.status === "completed" ? "text-green-400" :
+                          eng.status === "active" ? "text-blue-400" : "text-gray-400"
+                        }`}>
+                          {eng.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    {eng.calderaOperationId && (
+                      <Badge variant="outline" className="text-xs text-amber-400">
+                        <Zap className="h-3 w-3 mr-1" />
+                        Caldera Linked
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={handleImport}
+            disabled={!selectedEngId || importMutation.isPending}
+            className="gap-2"
+          >
+            {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            Import Findings
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Caldera Import Dialog ───────────────────────────────────────────────────
+
+function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClose: () => void; reportId: string }) {
+  const { toast } = useToast();
+  const utils = trpc.useUtils();
+  const { data: operations, isLoading } = trpc.ac3Reports.listCalderaOperations.useQuery(undefined, { enabled: open });
+  const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
+  const [includeFailedLinks, setIncludeFailedLinks] = useState(false);
+
+  const importMutation = trpc.ac3Reports.importCalderaOperation.useMutation({
+    onSuccess: (data) => {
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast({
+        title: "Caldera Operation Imported",
+        description: `Imported ${data.imported} findings from "${data.operationName}" (${data.totalLinks} total links, adversary: ${data.adversaryName}).`,
+      });
+      onClose();
+      setSelectedOpId(null);
+    },
+    onError: (err) => {
+      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImport = () => {
+    if (!selectedOpId) return;
+    importMutation.mutate({ reportId, operationId: selectedOpId, includeFailedLinks });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-amber-400" />
+            Import from Caldera Operation
+          </DialogTitle>
+          <DialogDescription>
+            Select a Caldera operation to bulk-import findings. Each ability executed in the operation
+            chain will be mapped to a finding with pre-filled ATT&CK technique IDs, NIST controls,
+            severity ratings, and evidence from command outputs.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !operations?.length ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Server className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No Caldera operations found.</p>
+            <p className="text-xs mt-1">Ensure Caldera is configured and has completed operations.</p>
+          </div>
+        ) : (
+          <div className="max-h-[400px] overflow-y-auto space-y-2">
+            {operations.map((op: any) => (
+              <Card
+                key={op.id}
+                className={`cursor-pointer transition-colors ${
+                  selectedOpId === String(op.id)
+                    ? "border-amber-500 bg-amber-500/5"
+                    : "hover:border-amber-500/30"
+                }`}
+                onClick={() => setSelectedOpId(String(op.id))}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm">{op.name}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                        <span>Adversary: {op.adversaryName}</span>
+                        <Badge variant="outline" className={`text-xs ${
+                          op.state === "finished" ? "text-green-400" :
+                          op.state === "running" ? "text-blue-400" : "text-gray-400"
+                        }`}>
+                          {op.state}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <div>{op.linkCount} links</div>
+                      <div>{op.agentCount} agents</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 px-1">
+          <input
+            type="checkbox"
+            id="includeFailedLinks"
+            checked={includeFailedLinks}
+            onChange={(e) => setIncludeFailedLinks(e.target.checked)}
+            className="rounded border-gray-600"
+          />
+          <Label htmlFor="includeFailedLinks" className="text-sm cursor-pointer">
+            Include failed/blocked links as findings
+          </Label>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={handleImport}
+            disabled={!selectedOpId || importMutation.isPending}
+            className="gap-2"
+          >
+            {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+            Import Operation
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
