@@ -381,7 +381,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Reports & Guides",
         items: [
           { href: "/reports/generate", icon: BarChart3, label: "REPORTS" },
-          { href: "/ac3-reports", icon: Shield, label: "AC3 FEDRAMP REPORTS" },
+          { href: "/ac3-reports", icon: Shield, label: "AC3 REPORTS" },
           { href: "/pentest-report", icon: FileText, label: "PENTEST REPORT" },
           { href: "/guide/gophish", icon: BookOpen, label: "GUIDES" },
           { href: "/ttp-knowledge", icon: Brain, label: "TTP KNOWLEDGE" },

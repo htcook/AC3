@@ -217,7 +217,7 @@ describe("AC3 Reports UI Integration", () => {
       "utf-8"
     );
     expect(shellSource).toContain("/ac3-reports");
-    expect(shellSource).toContain("AC3 FEDRAMP REPORTS");
+    expect(shellSource).toContain("AC3 REPORTS");
   });
 });
 
