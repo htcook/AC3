@@ -377,7 +377,9 @@ export default function AgentManagement() {
     return { total, active, byFramework };
   }, [allAgents]);
 
-  const isLoading = calderaAgents.isLoading || emberFleet.isLoading || sliverImplants.isLoading || msfSessions.isLoading;
+  // Only show loading spinner on initial fetch, not on refetch or error states
+  const isLoading = calderaAgents.isLoading && emberFleet.isLoading && sliverImplants.isLoading && msfSessions.isLoading;
+  const isAnyLoading = calderaAgents.isFetching || emberFleet.isFetching || sliverImplants.isFetching || msfSessions.isFetching;
 
   function handleKill(id: string, framework: string) {
     if (framework === "ember") {
@@ -408,7 +410,7 @@ export default function AgentManagement() {
         <div className="flex items-center gap-2">
           <EmberDeployDialog />
           <Button variant="outline" size="sm" className="text-xs" onClick={handleRefreshAll}>
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh All
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isAnyLoading ? "animate-spin" : ""}`} /> Refresh All
           </Button>
         </div>
       </div>

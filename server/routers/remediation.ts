@@ -36,7 +36,7 @@ export const remediationRouter = router({
       }).optional()
     )
     .query(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const filters: any[] = [];
 
       if (input?.engagementId) filters.push(eq(remediationTasks.engagementId, input.engagementId));
@@ -80,7 +80,7 @@ export const remediationRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const [task] = await db
         .select()
         .from(remediationTasks)
@@ -111,7 +111,7 @@ export const remediationRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const slaHours = input.slaHours ?? SLA_DEFAULTS[input.severity] ?? 168;
       const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000);
 
@@ -153,7 +153,7 @@ export const remediationRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const updates: any = {};
 
       if (input.status) {
@@ -193,7 +193,7 @@ export const remediationRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       await db
         .update(remediationTasks)
         .set({
@@ -212,7 +212,7 @@ export const remediationRouter = router({
   getStats: protectedProcedure
     .input(z.object({ engagementId: z.number().optional() }).optional())
     .query(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const filter = input?.engagementId
         ? eq(remediationTasks.engagementId, input.engagementId)
         : undefined;
@@ -286,7 +286,7 @@ export const remediationRouter = router({
   getSlaTimeline: protectedProcedure
     .input(z.object({ engagementId: z.number().optional(), daysAhead: z.number().default(7) }).optional())
     .query(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const filters: any[] = [
         isNotNull(remediationTasks.slaDeadline),
         sql`${remediationTasks.status} NOT IN ('fixed','verified','wont_fix')`,
@@ -318,7 +318,7 @@ export const remediationRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       await db.delete(remediationTasks).where(eq(remediationTasks.id, input.id));
       return { success: true };
     }),
@@ -327,7 +327,7 @@ export const remediationRouter = router({
    * Get unique teams for filter dropdowns
    */
   getTeams: protectedProcedure.query(async () => {
-    const db = getDbRequired();
+    const db = await getDbRequired();
     const teams = await db
       .selectDistinct({ team: remediationTasks.assignedTeam })
       .from(remediationTasks)

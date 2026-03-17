@@ -132,23 +132,36 @@ export function registerEmberBeaconRoutes(app: Express): void {
       // Store agent in database
       const db = await getDb();
       const now = Date.now();
+      // Map incoming platform string to schema enum
+      const PLATFORM_MAP: Record<string, string> = {
+        linux: "linux_x64", "linux_x64": "linux_x64", "linux_arm64": "linux_arm64",
+        windows: "windows_x64", "windows_x64": "windows_x64", "windows_x86": "windows_x86",
+        macos: "macos_x64", darwin: "macos_x64", "macos_x64": "macos_x64", "macos_arm64": "macos_arm64",
+      };
+      const PROFILE_MAP: Record<string, string> = {
+        shadow: "ghost", ghost: "ghost", scout: "scout", striker: "striker",
+        sentinel: "sentinel", hydra: "hydra", recon: "scout", stealth: "ghost",
+      };
+      const resolvedPlatform = PLATFORM_MAP[(platform || "linux").toLowerCase()] || "linux_x64";
+      const resolvedProfile = PROFILE_MAP[(profile || "ghost").toLowerCase()] || "ghost";
       await db.insert(emberAgents).values({
         agentId,
+        name: `ember-${hostname || "unknown"}`,
         hostname: hostname || "unknown",
-        platform: platform || "unknown",
-        arch: arch || "x64",
+        platform: resolvedPlatform as any,
+        architecture: arch || "x64",
         pid: pid || 0,
         username: username || "unknown",
-        profile: profile || "shadow",
+        profile: resolvedProfile as any,
         state: "active",
         primaryChannel: "https",
-        beaconIntervalMs: 30000,
+        beaconInterval: 30,
         jitterPercent: 25,
         lastBeaconAt: now,
         missedBeacons: 0,
         registrationToken,
         engagementId: engagementId || null,
-        configJson: JSON.stringify({ profile, keyId: keyExchange.keyId }),
+        configJson: JSON.stringify({ profile: resolvedProfile, keyId: keyExchange.keyId }),
         systemInfoJson: systemInfo ? JSON.stringify(systemInfo) : null,
         evasionScore: 50,
         trafficProfile: "chrome_browsing",
@@ -159,15 +172,11 @@ export function registerEmberBeaconRoutes(app: Express): void {
       // Record initial beacon
       await db.insert(emberBeacons).values({
         agentId,
-        beaconType: "registration",
+        sequence: 0,
+        state: "active",
         channel: "https",
-        sourceIp: req.ip || req.socket.remoteAddress || "unknown",
-        encrypted: 0,
-        payloadSize: JSON.stringify(req.body).length,
-        tasksDelivered: 0,
-        resultsReceived: 0,
-        processingTimeMs: 0,
-        timestamp: now,
+        systemInfoJson: systemInfo ? JSON.stringify(systemInfo) : null,
+        receivedAt: now,
       });
 
       // Emit real-time event
@@ -210,7 +219,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
           : [],
       });
     } catch (err: any) {
-      console.error("[Ember Register] Error:", err.message);
+      console.error("[Ember Register] Error:", err.message, err.stack);
       // Return generic error to avoid leaking info
       return res.status(500).json({ error: "Registration failed" });
     }

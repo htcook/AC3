@@ -53,9 +53,9 @@ export interface NavGroup {
  */
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
-  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training'],
-  team_lead: ['command-control', 'campaign-ops', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
+  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training', 'llm-ai'],
+  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'llm-ai'],
+  team_lead: ['command-control', 'campaign-ops', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'llm-ai', 'admin'],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
   soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
@@ -212,8 +212,6 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Environments", path: "/test-lab/environments", icon: Server },
       { label: "Scenarios", path: "/test-lab/scenarios", icon: Target },
       { label: "Implant Testing", path: "/test-lab/implant", icon: Crosshair },
-      { label: "LLM Training", path: "/test-lab/training", icon: Brain },
-      { label: "Graduation", path: "/test-lab/graduation", icon: GraduationCap },
     ],
   },
 
@@ -281,7 +279,6 @@ export const sidebarNavGroups: NavGroup[] = [
     items: [
       { label: "Detection Coverage", path: "/detection-coverage", icon: Shield },
       { label: "Attack Coverage", path: "/attack-coverage", icon: Target },
-      { label: "AI Security Validation", path: "/ai-security-validation", icon: Brain },
       { label: "Agentless BAS", path: "/agentless-bas", icon: FlaskConical },
       { label: "Continuous Validation", path: "/continuous-validation", icon: Rocket },
       { label: "Validation Engine", path: "/validation-engine", icon: Gauge },
@@ -414,10 +411,27 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
       { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
       { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
-      { label: "LLM Learning", path: "/llm-learning", icon: Brain },
       { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
       { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
       { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
+    ],
+  },
+
+  // ─── LLM & AI ───
+  {
+    id: "llm-ai",
+    label: "LLM & AI",
+    icon: Brain,
+    color: "text-purple-400",
+    items: [
+      { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
+      { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
+      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
+      { label: "LLM Training", path: "/test-lab/training", icon: FlaskConical },
+      { label: "LLM Learning", path: "/llm-learning", icon: BookOpen },
+      { label: "Graduation Lab", path: "/test-lab/graduation", icon: GraduationCap },
+      { label: "AI Security Validation", path: "/ai-security-validation", icon: ShieldCheck },
+      { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
     ],
   },
 
@@ -437,9 +451,6 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Job Queue", path: "/job-queue", roles: ["admin"] as UserRole[], icon: Cog },
       { label: "Error Dashboard", path: "/error-dashboard", roles: ["admin"] as UserRole[], icon: AlertTriangle },
       { label: "Bug Reports", path: "/bug-reports", roles: ["admin", "team_lead"] as UserRole[], icon: Bug },
-      { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
-      { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
-      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
       { label: "Safety Engine", path: "/safety-dashboard", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: ShieldCheck },
       { label: "OpSec Dashboard", path: "/opsec-dashboard", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: Shield },
       { label: "MSSP Analytics", path: "/mssp-analytics", roles: ["admin", "executive", "team_lead"] as UserRole[], icon: BarChart3 },
@@ -447,7 +458,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Preflight Checks", path: "/preflight-checks", icon: ShieldCheck },
       { label: "Workflows", path: "/workflows", icon: Workflow },
       { label: "ROE Builder", path: "/roe-builder", icon: ScrollText },
-      { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
+
       { label: "Attack Vector Engine", path: "/attack-vector-engine", icon: Target },
       { label: "Unified Pipeline", path: "/unified-pipeline", roles: ["admin"] as UserRole[], icon: Workflow },
     ],

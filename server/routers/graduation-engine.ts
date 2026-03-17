@@ -138,7 +138,7 @@ export const graduationEngineRouter = router({
     )
     .query(async ({ input }) => {
       const days = input?.windowDays ?? 30;
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
       const rows = await db
@@ -247,7 +247,7 @@ export const graduationEngineRouter = router({
     .input(z.object({ weeks: z.number().min(1).max(12).default(8) }).optional())
     .query(async ({ input }) => {
       const weeks = input?.weeks ?? 8;
-      const db = getDbRequired();
+      const db = await getDbRequired();
 
       // Build weekly snapshots
       const trend: Array<{
@@ -317,7 +317,7 @@ export const graduationEngineRouter = router({
   getCallerDetail: protectedProcedure
     .input(z.object({ caller: z.string(), windowDays: z.number().min(1).max(90).default(30) }))
     .query(async ({ input }) => {
-      const db = getDbRequired();
+      const db = await getDbRequired();
       const cutoff = new Date(Date.now() - input.windowDays * 24 * 60 * 60 * 1000);
 
       // Get daily aggregation
