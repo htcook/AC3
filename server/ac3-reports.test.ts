@@ -88,18 +88,20 @@ describe("AC3 Reports Database Schema", () => {
 
 // ─── FedRAMP Compliance: Field Separation Tests ─────────────────────────────
 
-describe("FedRAMP Compliance: Platform vs LLM Field Separation", () => {
-  it("router source code contains SYSTEM_PROMPT with FedRAMP rules", () => {
+describe("Compliance: Platform vs LLM Field Separation", () => {
+  it("router source code contains buildSystemPrompt with compliance rules", () => {
     const routerSource = fs.readFileSync(
       path.join(__dirname, "routers/ac3-reports.ts"),
       "utf-8"
     );
 
-    // The system prompt must enforce FedRAMP-aware writing
-    expect(routerSource).toContain("FedRAMP");
-    expect(routerSource).toContain("SYSTEM_PROMPT");
+    // The system prompt must enforce compliance-aware writing (FedRAMP or NIST 800-53r5)
+    expect(routerSource).toContain("buildSystemPrompt");
     expect(routerSource).toContain("source of truth");
     expect(routerSource).toContain("DO NOT modify");
+    // Must support both FedRAMP and NIST 800-53r5 frameworks
+    expect(routerSource).toContain("nist_800_53_r5");
+    expect(routerSource).toContain("fedramp");
   });
 
   it("finding narrative prompt separates platform-controlled from LLM-drafted fields", () => {
@@ -281,12 +283,12 @@ describe("report_input.schema.json Compatibility", () => {
 // ─── UI Component Feature Tests ─────────────────────────────────────────────
 
 describe("AC3 Reports UI Features", () => {
-  it("page includes FedRAMP info banner explaining source of truth", () => {
+  it("page includes info banner explaining source of truth", () => {
     const pageSource = fs.readFileSync(
       path.join(__dirname, "../client/src/pages/Ac3Reports.tsx"),
       "utf-8"
     );
-    expect(pageSource).toContain("FedRAMP Assessment Report Generator");
+    expect(pageSource).toContain("Assessment Report Generator");
     expect(pageSource).toContain("source of truth");
     expect(pageSource).toContain("bounded narrative fields");
   });

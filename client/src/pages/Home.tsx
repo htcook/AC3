@@ -42,6 +42,16 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Mar 2026", title: "AC3 Report Generator", desc: "World-class penetration test and red team report generation with LLM-bounded narrative drafting. Platform remains source of truth for severity, evidence, ATT&CK IDs, and NIST 800-53 control mappings. LLM only drafts bounded narrative fields (summary, business impact, technical details, remediation) subject to human approval. Includes executive summary generation, QA review pipeline, and JSON export." },
+  { date: "Mar 2026", title: "DOCX Report Export", desc: "Professional Word document generation with title page, executive summary, scope definition, findings summary table, and detailed findings sections. Documents uploaded to S3 for instant download. Fully branded with AceofCloud identity and engagement metadata." },
+  { date: "Mar 2026", title: "Findings Deduplication Engine", desc: "Intelligent deduplication during engagement and Caldera imports. Detects existing findings by ATT&CK technique ID and merges duplicates — appending evidence without duplicate references, unioning assets, combining NIST controls by ID, and keeping the highest severity. Intra-batch dedup prevents duplicates within a single import." },
+  { date: "Mar 2026", title: "Engagement Findings Auto-Population", desc: "One-click import from completed engagements. Timeline events (exploits, shells, credentials, pivots, exfiltration) are automatically mapped to report findings with pre-filled ATT&CK technique IDs, NIST 800-53 controls, severity ratings, and evidence from engagement artifacts." },
+  { date: "Mar 2026", title: "Caldera Operation Bulk Import", desc: "Import findings directly from Caldera operations. Each executed ability in the operation chain is mapped to a finding with technique IDs, severity based on tactic phase, command output evidence, and affected assets. Includes option to import failed/blocked links as findings." },
+  { date: "Mar 2026", title: "Cloud Workload Testing", desc: "Dedicated cloud workload security testing module for validating container, serverless, and cloud-native application security posture across AWS, Azure, and GCP environments." },
+  { date: "Mar 2026", title: "Forest Mapper", desc: "Active Directory forest visualization and attack path mapping. Enumerate trust relationships, identify cross-forest attack vectors, and map privilege escalation paths across multi-domain environments." },
+  { date: "Mar 2026", title: "BloodHound Import", desc: "Direct BloodHound data import for AD attack path analysis. Import SharpHound collection data to visualize domain relationships, identify high-value targets, and plan lateral movement paths." },
+  { date: "Mar 2026", title: "Credential Auto-Rotation", desc: "Automated credential rotation for compromised accounts discovered during engagements. Tracks credential lifecycle, rotation schedules, and compliance with password policies." },
+  { date: "Mar 2026", title: "SOAR Connectors & SOC Integration Hub", desc: "Bi-directional integration with SOAR platforms and SOC tooling. Export findings, IOCs, and detection rules directly to security operations workflows. Centralized integration hub for SIEM, EDR, and ticketing systems." },
   { date: "Feb 2026", title: "Discovery Chain Orchestrator", desc: "Automated 4-stage discovery pipeline: Amass subdomain enumeration → Nmap port scanning → Service Fingerprinting → Nuclei vulnerability scanning. Each stage auto-extracts targets from the previous stage's output with scope enforcement at every boundary. Configurable skip stages, timeouts, and parallel execution. Full chain run history with DB persistence." },
   { date: "Feb 2026", title: "Nmap Integration Engine", desc: "14 tRPC procedures exposing the full Nmap orchestrator: 8 scan profiles (quick/standard/deep/stealth/service/UDP/vuln/custom), 7 NSE script categories with 80+ scripts, admin port scanning with categorized results, CVE extraction from vuln scans, and SSIL observation conversion. All scan mutations enforce scope via the unified scope guard." },
   { date: "Feb 2026", title: "Unified Pipeline Enhancement", desc: "Nmap, Amass, and Service Fingerprinter now wired into the TOOL_PHASE_MATRIX enumeration phase with priority boost logic. Three new finding converters translate tool-specific results into unified PipelineFinding format. Extended discovery source weights and coverage tags for cross-tool correlation." },
@@ -211,14 +221,14 @@ export default function Home() {
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
               Exploit execution, adversary emulation, DAST scanning, ATT&CK validation,
-              social engineering, and continuous threat intelligence enrichment — unified under one AI-powered command center with evidence-backed reporting.
+              social engineering, AD & cloud attack paths, and continuous threat intelligence enrichment — unified under one AI-powered command center with evidence-backed reporting.
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
               Stop switching between disconnected terminals. AC3 orchestrates your entire
               exploit-to-report workflow: reconnaissance, DAST scanning, adversary emulation,
-              social engineering, detection validation, threat intelligence enrichment, and compliance reporting — all correlated
-              through MITRE ATT&CK.
+              social engineering, AD & cloud attack path discovery, detection validation, threat intelligence enrichment,
+              and compliance-ready report generation — all correlated through MITRE ATT&CK.
             </p>
 
             <div className="flex flex-wrap justify-center gap-4 mb-12">
@@ -288,8 +298,8 @@ export default function Home() {
               <p className="text-muted-foreground leading-relaxed">
                 Continuous threat intelligence enrichment correlates 1,698+ threat actors against your security controls.
                 Every exploitable finding is backed by captured proof — console output, session data,
-                and HTML evidence reports. Auto-generate detection rules from executed TTPs, measure
-                SIEM coverage gaps, and deliver compliance-ready reports with evidence artifacts.
+                and HTML evidence reports. The AC3 Report Generator produces professional DOCX deliverables
+                with LLM-bounded narratives while the platform remains source of truth for severity, evidence, and ATT&CK mappings.
               </p>
             </div>
 
@@ -334,7 +344,7 @@ export default function Home() {
                   step: "4",
                   icon: BarChart3,
                   title: "Enrich, Validate & Report",
-                  desc: "Threat intelligence enrichment continuously correlates threat actors, TTPs, and IOCs against your security controls. Autonomous validation confirms which CVEs are actually exploitable. Evidence capture stores console output, session data, and HTML proof reports. Deliver compliance-ready reports with enrichment-driven priorities and clickable evidence artifacts."
+                  desc: "Threat intelligence enrichment continuously correlates threat actors, TTPs, and IOCs against your security controls. Autonomous validation confirms which CVEs are actually exploitable. The AC3 Report Generator produces professional DOCX deliverables with LLM-bounded narratives, one-click engagement and Caldera imports with deduplication, and a QA review pipeline — while the platform remains source of truth for severity, evidence, ATT&CK IDs, and NIST controls."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -468,7 +478,7 @@ export default function Home() {
           </div>
           <CollapsibleSection
             title="PLATFORM CAPABILITIES"
-            subtitle="Seven integrated pillars covering the full offensive execution lifecycle — from reconnaissance through continuous threat enrichment."
+            subtitle="Eight integrated pillars covering the full offensive execution lifecycle — from reconnaissance through continuous threat enrichment."
           >
           <div className="grid lg:grid-cols-3 gap-6">
             <PillarCard
@@ -559,18 +569,18 @@ export default function Home() {
             <PillarCard
               icon={<BarChart3 className="w-7 h-7" />}
               number="06"
-              title="REPORTING & AUTOMATION"
-              description="Professional reports with proof-of-exploit evidence artifacts, validation coverage metrics, and remediation steps. Executive summaries include color-coded coverage bars and clickable S3 evidence links."
+              title="REPORTING & COMPLIANCE"
+              description="AC3 Report Generator produces penetration test and red team assessment documents with LLM-bounded narrative drafting. The platform is the source of truth for severity, evidence, ATT&CK IDs, and NIST 800-53 control mappings — the LLM only drafts narrative fields subject to human approval."
               features={[
+                "AC3 Report Generator with DOCX export and QA review pipeline",
+                "LLM-bounded narratives: summary, impact, technical details, remediation only",
+                "One-click engagement import and Caldera bulk import with deduplication",
+                "Findings dedup by ATT&CK technique ID — merges evidence, keeps highest severity",
                 "PDF reports with embedded S3 evidence artifact links",
-                "Validation Coverage bar in executive summary exports",
-                "Evidence Details page with artifact types and file sizes",
                 "Kill chain timeline with real-time event streaming",
-                "Unified Engagement Manager: OSINT → Exploit → Validate → Report",
-                "Scan comparison reports for risk trending",
               ]}
-              link="/post-engagement-report"
-              linkLabel="GENERATE REPORTS"
+              link="/ac3-reports"
+              linkLabel="AC3 REPORTS"
             />
 
             <PillarCard
@@ -589,6 +599,23 @@ export default function Home() {
               link="/engagement-automation"
               linkLabel="ENGAGEMENT AUTOMATION"
             />
+
+            <PillarCard
+              icon={<Network className="w-7 h-7" />}
+              number="08"
+              title="AD & CLOUD ATTACK PATHS"
+              description="Active Directory security testing with forest mapping, BloodHound import, and domain trust enumeration. Cloud attack path discovery across AWS, Azure, and GCP with workload security validation and container testing."
+              features={[
+                "AD attack simulation with privilege escalation path discovery",
+                "BloodHound data import for domain relationship visualization",
+                "Forest Mapper: cross-forest trust and attack vector enumeration",
+                "Cloud attack path discovery across AWS, Azure, and GCP",
+                "Cloud workload testing for containers and serverless",
+                "AD domain connector with automated collection",
+              ]}
+              link="/attack-paths"
+              linkLabel="ATTACK PATHS"
+            />
           </div>
           </CollapsibleSection>
         </div>
@@ -601,7 +628,7 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="OPERATIONS CENTER"
-            subtitle="32+ integrated modules organized across seven operational domains."
+            subtitle="40+ integrated modules organized across eight operational domains."
           >
           <div className="space-y-12">
             <ModuleSection
@@ -653,6 +680,8 @@ export default function Home() {
                 { icon: Radar, name: "Domain Recon", desc: "DNS deep, email security, HTTP headers, cloud assets, subdomains" },
                 { icon: Eye, name: "Scan Comparison", desc: "Side-by-side diff: new/removed assets, CVE changes, risk deltas" },
                 { icon: Radio, name: "IOC Feed", desc: "Aggregated feeds from multiple authoritative threat intelligence sources" },
+                { icon: Network, name: "AD Attack Paths", desc: "Active Directory attack simulation, forest mapping, BloodHound import, and domain trust enumeration" },
+                { icon: Cloud, name: "Cloud Attack Paths", desc: "Cloud attack path discovery and workload testing across AWS, Azure, and GCP" },
               ]}
             />
 
@@ -686,9 +715,12 @@ export default function Home() {
               title="REPORTING & COMPLIANCE"
               color="text-violet-400"
               modules={[
+                { icon: Shield, name: "AC3 Reports", desc: "Penetration test and red team report generator with LLM-bounded narratives, DOCX export, QA review, and findings deduplication" },
                 { icon: FileText, name: "Engagement Report", desc: "Branded HTML reports with MITRE heatmaps, evidence artifacts, and validation coverage" },
                 { icon: BarChart3, name: "Report Generator", desc: "Executive summaries with proof-of-exploit evidence links and coverage bars" },
-                { icon: Globe, name: "Compliance", desc: "NIST CSF, CMMC, and FedRAMP 20x framework mapping with 142 SP 800-53 control mappings" },
+                { icon: Globe, name: "Compliance Center", desc: "NIST CSF, CMMC, and FedRAMP 20x framework mapping with 142 SP 800-53 control mappings" },
+                { icon: Layers, name: "Compliance Mapper", desc: "Cross-framework control mapping between NIST, CMMC, FedRAMP, and custom frameworks" },
+                { icon: FileCheck2, name: "Evidence Vault", desc: "Centralized evidence repository with artifact types, file sizes, and S3 storage links" },
               ]}
             />
           </div>
@@ -714,7 +746,7 @@ export default function Home() {
               { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and autonomous exploit validation with evidence capture", icon: FlaskConical },
               { step: "06", title: "DETECT", desc: "Auto-generate Sigma/YARA/Suricata rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
               { step: "07", title: "ENRICH", desc: "Continuous threat intelligence enrichment correlates findings against threat actors, updates priorities across 75 FedRAMP 20x KSIs, and feeds IOCs to all modules", icon: Brain },
-              { step: "08", title: "REPORT", desc: "Deliver reports with enrichment-driven priorities, validation coverage metrics, evidence artifacts, and remediation steps", icon: FileText },
+              { step: "08", title: "REPORT", desc: "AC3 Report Generator produces DOCX deliverables with LLM-bounded narratives, one-click imports from engagements and Caldera operations, findings deduplication, and QA review", icon: FileText },
             ].map((item) => (
               <div key={item.step} className="text-center p-4 border border-border/50 bg-card/30 hover:border-primary/50 transition-colors">
                 <item.icon className="w-6 h-6 text-primary mx-auto mb-3" />
@@ -813,6 +845,17 @@ export default function Home() {
                 "Cross-module IOC feeds and priority scoring",
                 "Engagement automation with 5 templates",
                 "Scheduled auto-collection with source health monitoring",
+              ]}
+            />
+            <ArchCard
+              icon={<FileText className="w-6 h-6" />}
+              title="REPORTING ENGINE"
+              items={[
+                "AC3 Report Generator with LLM-bounded narrative drafting",
+                "DOCX export with professional formatting and S3 upload",
+                "Engagement import and Caldera bulk import with deduplication",
+                "QA review pipeline checking prohibited content and audit readiness",
+                "Platform-controlled severity, evidence, ATT&CK IDs, and NIST controls",
               ]}
             />
             <ArchCard

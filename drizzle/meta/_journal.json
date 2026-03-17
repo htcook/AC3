@@ -127,6 +127,13 @@
       "when": 1773782082607,
       "tag": "0017_lonely_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1773788577516,
+      "tag": "0018_pale_misty_knight",
+      "breakpoints": true
     }
   ]
 }

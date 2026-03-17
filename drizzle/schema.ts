@@ -5694,6 +5694,7 @@ export const ac3Reports = mysqlTable("ac3_reports", {
   outputUrl: text("rpt_output_url"),
   outputFormat: varchar("rpt_output_format", { length: 16 }),
   docxUrl: text("rpt_docx_url"),
+  complianceFramework: varchar("compliance_framework", { length: 32 }).default('nist_800_53_r5').notNull(),
   createdBy: varchar("rpt_created_by", { length: 255 }),
   createdAt: bigint("rpt_created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("rpt_updated_at", { mode: "number" }).notNull(),
@@ -5739,3 +5740,25 @@ export const ac3ReportFindings = mysqlTable("ac3_report_findings", {
 ]);
 export type Ac3ReportFindingRow = typeof ac3ReportFindings.$inferSelect;
 export type InsertAc3ReportFinding = typeof ac3ReportFindings.$inferInsert;
+
+export const ac3ReportArtifacts = mysqlTable("ac3_report_artifacts", {
+  id: int().autoincrement().primaryKey(),
+  artifactId: varchar("artifact_id", { length: 64 }).notNull().unique(),
+  reportId: varchar("report_id", { length: 64 }).notNull(),
+  findingId: varchar("finding_id", { length: 64 }),
+  artifactType: varchar("artifact_type", { length: 32 }).default('screenshot').notNull(),
+  label: varchar("label", { length: 32 }).notNull(),
+  filename: varchar("filename", { length: 255 }),
+  url: text("url"),
+  description: text("description"),
+  mimeType: varchar("mime_type", { length: 128 }),
+  fileSize: int("file_size"),
+  capturedAt: bigint("captured_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+  index("art_report_idx").on(table.reportId),
+  index("art_finding_idx").on(table.findingId),
+  index("art_label_idx").on(table.label),
+]);
+export type Ac3ReportArtifactRow = typeof ac3ReportArtifacts.$inferSelect;
+export type InsertAc3ReportArtifact = typeof ac3ReportArtifacts.$inferInsert;

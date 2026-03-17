@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure } from "../_core/trpc";
 import { getDbRequired } from "../db";
-import { ac3Reports, ac3ReportFindings, engagements, engagementTimelineEvents, atomicTestExecutions, atomicTests } from "../../drizzle/schema";
+import { ac3Reports, ac3ReportFindings, ac3ReportArtifacts, engagements, engagementTimelineEvents, engagementOpsSnapshots, atomicTestExecutions, atomicTests } from "../../drizzle/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
@@ -75,9 +75,9 @@ async function mergeFinding(
   const finalSeverity = newRank > currentRank ? newSeverity : existingFinding.severity;
 
   await db.update(ac3ReportFindings).set({
-    evidence: JSON.stringify(mergedEvidence),
-    assets: JSON.stringify(mergedAssets),
-    controls: JSON.stringify(mergedControls),
+    evidence: mergedEvidence,
+    assets: mergedAssets,
+    controls: mergedControls,
     severity: finalSeverity,
     updatedAt: Date.now(),
   }).where(eq(ac3ReportFindings.findingId, existingFinding.findingId));
@@ -120,7 +120,30 @@ const SEVERITY_RUBRIC = {
 
 // ─── LLM Prompt Templates ───────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are the AC3 security report writer. Your job is to convert structured assessment data into professional, audit-defensible penetration test and red team reporting.
+// Framework-aware system prompt builder
+function buildSystemPrompt(framework: string): string {
+  const isFedRAMP = framework === 'fedramp';
+  const frameworkLabel = isFedRAMP
+    ? 'FedRAMP (cloud service provider within a FedRAMP authorization boundary)'
+    : 'NIST SP 800-53 Revision 5 (applicable to all federal information systems)';
+  const frameworkGuidance = isFedRAMP
+    ? `## FedRAMP-specific style rules
+- This report targets a Cloud Service Provider (CSP) operating within a FedRAMP authorization boundary.
+- Use FedRAMP-specific language: "cloud service offering (CSO)", "authorization boundary", "FedRAMP impact level", "3PAO", "POA&M".
+- Reference FedRAMP baselines (Low, Moderate, High, LI-SaaS) when discussing control applicability.
+- Frame findings in terms of the CSP's shared responsibility model and inherited vs. customer-responsible controls.
+- Reference FedRAMP continuous monitoring (ConMon) requirements where remediation timelines are discussed.`
+    : `## NIST 800-53 Rev 5 style rules
+- This report uses the NIST SP 800-53 Revision 5 control catalog as the compliance framework.
+- 800-53 Rev 5 applies to all federal information systems regardless of hosting model (on-premises, cloud, hybrid).
+- Do NOT use FedRAMP-specific language ("CSO", "3PAO", "FedRAMP baseline", "authorization boundary") unless the system is explicitly scoped into a FedRAMP boundary.
+- Frame findings in terms of the organization's security posture and the applicable 800-53 control baselines (Low, Moderate, High).
+- Reference NIST SP 800-53A for assessment procedures and NIST SP 800-115 for penetration testing methodology where appropriate.`;
+
+  return `You are the AC3 security report writer. Your job is to convert structured assessment data into professional, audit-defensible penetration test and red team reporting.
+
+## Compliance Framework
+This report is governed by: ${frameworkLabel}
 
 ## Operating rules
 - Write in a calm, precise, professional consulting tone.
@@ -131,7 +154,9 @@ const SYSTEM_PROMPT = `You are the AC3 security report writer. Your job is to co
 - Every finding must include: title, severity, summary, business impact, technical details, evidence references, ATT&CK mapping, control mapping, remediation.
 - When facts are missing, state that additional evidence is required rather than guessing.
 
-## FedRAMP-aware style rules
+${frameworkGuidance}
+
+## General style rules
 - Prefer control-family language such as CA, RA, AC, IA, AU, SI, SC, IR, and CM when supported by the input.
 - Use wording that fits formal security assessment reports: "observed", "validated", "identified", "demonstrated", "simulated", "within approved rules of engagement".
 - Separate "business impact" from "technical details".
@@ -143,15 +168,20 @@ const SYSTEM_PROMPT = `You are the AC3 security report writer. Your job is to co
 - Keep paragraphs short.
 - Use bullets for evidence and remediation steps where helpful.
 - Preserve exact control IDs and ATT&CK IDs from the input.`;
+}
 
 function buildFindingNarrativePrompt(finding: any, metadata: any): string {
+  const isFedRAMP = metadata.complianceFramework === 'fedramp';
+  const frameworkLine = isFedRAMP
+    ? `- Compliance Framework: FedRAMP (${(metadata.fedrampImpactLevel || 'moderate').toUpperCase()} impact level, cloud CSP boundary)`
+    : `- Compliance Framework: NIST SP 800-53 Rev 5${metadata.fedrampImpactLevel ? ` (${metadata.fedrampImpactLevel.toUpperCase()} baseline)` : ''}`;
   return `Generate professional narrative fields for this security finding. The platform provides the severity, evidence, ATT&CK IDs, and control mappings as source of truth. You are drafting ONLY the narrative text fields.
 
 ## Assessment Context
 - Client: ${metadata.clientName || "Not specified"}
 - System: ${metadata.systemName || "Not specified"}
 - Assessment Type: ${metadata.assessmentType || "penetration_test"}
-- FedRAMP Impact Level: ${metadata.fedrampImpactLevel || "moderate"}
+${frameworkLine}
 
 ## Finding Data (Platform Source of Truth - DO NOT modify these)
 - Finding ID: ${finding.findingId}
@@ -162,19 +192,22 @@ function buildFindingNarrativePrompt(finding: any, metadata: any): string {
 - Affected Assets: ${JSON.stringify(finding.assets || [])}
 ${finding.cvssScore ? `- CVSS Score: ${finding.cvssScore}` : ""}
 ${finding.cvssVector ? `- CVSS Vector: ${finding.cvssVector}` : ""}
+${finding.artifactLabels ? `- Supporting Artifacts: ${finding.artifactLabels}` : ''}
 
 ## Source Context
 ${finding.sourceContext || "No additional context provided."}
 
 ## Task
-Draft the following narrative fields. Be precise, evidence-backed, and FedRAMP-appropriate:
+Draft the following narrative fields. Be precise, evidence-backed, and ${isFedRAMP ? 'FedRAMP' : 'NIST 800-53 Rev 5'}-appropriate.
+
+IMPORTANT: Where supporting artifacts are listed above, reference them by label in the narrative (e.g., "as demonstrated in Artifact A-1" or "see Artifact A-3 for the scan output"). This creates a traceable chain of evidence between the narrative and the appendix.
 
 Return strict JSON:
 {
   "title": "A concise, descriptive finding title",
   "summary": "2-3 sentence finding summary for the findings table",
   "business_impact": "Business impact paragraph explaining organizational risk",
-  "technical_details": "Technical details paragraph with high-level reproduction steps (no exploit code)",
+  "technical_details": "Technical details paragraph with high-level reproduction steps (no exploit code). Reference supporting artifacts by label where applicable.",
   "remediation": "Specific, actionable remediation recommendations"
 }`;
 }
@@ -184,6 +217,10 @@ function buildExecSummaryPrompt(reportData: any, findings: any[]): string {
     acc[f.severity] = (acc[f.severity] || 0) + 1;
     return acc;
   }, {});
+  const isFedRAMP = reportData.complianceFramework === 'fedramp';
+  const frameworkLine = isFedRAMP
+    ? `- Compliance Framework: FedRAMP (${(reportData.fedrampImpactLevel || 'moderate').toUpperCase()} impact level, cloud CSP boundary)`
+    : `- Compliance Framework: NIST SP 800-53 Rev 5${reportData.fedrampImpactLevel ? ` (${reportData.fedrampImpactLevel.toUpperCase()} baseline)` : ''}`;
 
   return `Generate a one-page executive summary for this security assessment report.
 
@@ -191,7 +228,7 @@ function buildExecSummaryPrompt(reportData: any, findings: any[]): string {
 - Client: ${reportData.clientName || "Not specified"}
 - System: ${reportData.systemName || "Not specified"}
 - Assessment Type: ${reportData.assessmentType || "penetration_test"}
-- FedRAMP Impact Level: ${reportData.fedrampImpactLevel || "moderate"}
+${frameworkLine}
 - Assessment Window: ${reportData.assessmentWindowStart ? new Date(reportData.assessmentWindowStart).toISOString().split("T")[0] : "N/A"} to ${reportData.assessmentWindowEnd ? new Date(reportData.assessmentWindowEnd).toISOString().split("T")[0] : "N/A"}
 
 ## Scope
@@ -311,7 +348,10 @@ export const ac3ReportsRouter = {
         .where(eq(ac3ReportFindings.reportId, input.reportId))
         .orderBy(ac3ReportFindings.sortOrder);
 
-      return { ...report, findings };
+      const artifacts = await db.select().from(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.reportId, input.reportId));
+
+      return { ...report, findings, artifacts };
     }),
 
   // Create a new report
@@ -331,6 +371,7 @@ export const ac3ReportsRouter = {
       approvedVectors: z.array(z.string()).optional(),
       outOfScope: z.array(z.string()).optional(),
       campaignId: z.string().optional(),
+      complianceFramework: z.enum(['fedramp', 'nist_800_53_r5']).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDbRequired();
@@ -341,6 +382,7 @@ export const ac3ReportsRouter = {
         reportId,
         name: input.name,
         status: "draft",
+        complianceFramework: input.complianceFramework ?? 'nist_800_53_r5',
         clientName: input.clientName ?? null,
         systemName: input.systemName ?? null,
         assessmentType: input.assessmentType ?? "penetration_test",
@@ -381,6 +423,7 @@ export const ac3ReportsRouter = {
       approvedVectors: z.array(z.string()).optional(),
       outOfScope: z.array(z.string()).optional(),
       status: z.enum(["draft", "generating", "review", "approved", "final"]).optional(),
+      complianceFramework: z.enum(['fedramp', 'nist_800_53_r5']).optional(),
     }))
     .mutation(async ({ input }) => {
       const db = await getDbRequired();
@@ -401,6 +444,7 @@ export const ac3ReportsRouter = {
       if (input.approvedVectors !== undefined) updates.approvedVectors = input.approvedVectors;
       if (input.outOfScope !== undefined) updates.outOfScope = input.outOfScope;
       if (input.status !== undefined) updates.status = input.status;
+      if (input.complianceFramework !== undefined) updates.complianceFramework = input.complianceFramework;
 
       await db.update(ac3Reports).set(updates)
         .where(eq(ac3Reports.reportId, input.reportId));
@@ -557,16 +601,27 @@ export const ac3ReportsRouter = {
         .where(eq(ac3Reports.reportId, finding.reportId));
       if (!report) throw new Error("Report not found");
 
+      // Load artifacts linked to this finding for cross-reference in narrative
+      const findingArtifacts = await db.select().from(ac3ReportArtifacts)
+        .where(and(
+          eq(ac3ReportArtifacts.reportId, finding.reportId),
+          eq(ac3ReportArtifacts.findingId, input.findingId)
+        ));
+      const artifactLabels = findingArtifacts.length > 0
+        ? findingArtifacts.map(a => `${a.label} (${a.artifactType.replace(/_/g, ' ')}${a.description ? ': ' + a.description : ''})`).join('; ')
+        : '';
+
       const findingData = {
         ...finding,
         sourceContext: input.sourceContext || "",
+        artifactLabels,
       };
 
       const prompt = buildFindingNarrativePrompt(findingData, report);
 
       const response = await invokeLLM({
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
         ],
         response_format: {
@@ -631,7 +686,7 @@ export const ac3ReportsRouter = {
 
       const response = await invokeLLM({
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
         ],
         response_format: {
@@ -698,7 +753,7 @@ export const ac3ReportsRouter = {
 
       const response = await invokeLLM({
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
           { role: "user", content: prompt },
         ],
         response_format: {
@@ -782,7 +837,7 @@ export const ac3ReportsRouter = {
 
           const response = await invokeLLM({
             messages: [
-              { role: "system", content: SYSTEM_PROMPT },
+              { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
               { role: "user", content: prompt },
             ],
             response_format: {
@@ -1047,10 +1102,10 @@ export const ac3ReportsRouter = {
           reportId: input.reportId,
           title: event.title,
           severity,
-          attackTechniques: JSON.stringify(attackTechniques),
-          controls: JSON.stringify(controls),
-          evidence: JSON.stringify(evidence),
-          assets: JSON.stringify(assets),
+          attackTechniques: attackTechniques,
+          controls: controls,
+          evidence: evidence,
+          assets: assets,
           narrativeStatus: 'pending',
           sortOrder: sortOrder++,
           createdAt: now,
@@ -1066,10 +1121,10 @@ export const ac3ReportsRouter = {
             findingId,
             reportId: input.reportId,
             severity,
-            evidence: JSON.stringify(evidence),
-            assets: JSON.stringify(assets),
-            controls: JSON.stringify(controls),
-            attackTechniques: JSON.stringify(attackTechniques),
+            evidence: evidence,
+            assets: assets,
+            controls: controls,
+            attackTechniques: attackTechniques,
           });
         }
       }
@@ -1246,10 +1301,10 @@ export const ac3ReportsRouter = {
           reportId: input.reportId,
           title: `${ability.name || abilityId}${tactic ? ` (${tactic})` : ''}`,
           severity,
-          attackTechniques: JSON.stringify(attackTechniques),
-          controls: JSON.stringify(controls),
-          evidence: JSON.stringify(evidence),
-          assets: JSON.stringify(assets),
+          attackTechniques: attackTechniques,
+          controls: controls,
+          evidence: evidence,
+          assets: assets,
           narrativeStatus: 'pending',
           sortOrder: sortOrder++,
           createdAt: now,
@@ -1265,10 +1320,10 @@ export const ac3ReportsRouter = {
             findingId,
             reportId: input.reportId,
             severity,
-            evidence: JSON.stringify(evidence),
-            assets: JSON.stringify(assets),
-            controls: JSON.stringify(controls),
-            attackTechniques: JSON.stringify(attackTechniques),
+            evidence: evidence,
+            assets: assets,
+            controls: controls,
+            attackTechniques: attackTechniques,
           });
         }
       }
@@ -1314,10 +1369,10 @@ export const ac3ReportsRouter = {
           reportId: input.reportId,
           title: exec.testName,
           severity,
-          attackTechniques: JSON.stringify([{ id: exec.techniqueId }]),
-          controls: JSON.stringify([{ id: 'RA-5' }]),
-          evidence: JSON.stringify(evidence),
-          assets: JSON.stringify(exec.targetHost ? [exec.targetHost] : []),
+          attackTechniques: [{ id: exec.techniqueId }],
+          controls: [{ id: 'RA-5' }],
+          evidence: evidence,
+          assets: exec.targetHost ? [exec.targetHost] : [],
           narrativeStatus: 'pending',
           sortOrder: sortOrder++,
           createdAt: now,
@@ -1333,10 +1388,10 @@ export const ac3ReportsRouter = {
             findingId,
             reportId: input.reportId,
             severity,
-            evidence: JSON.stringify(evidence),
-            assets: JSON.stringify(exec.targetHost ? [exec.targetHost] : []),
-            controls: JSON.stringify([{ id: 'RA-5' }]),
-            attackTechniques: JSON.stringify([{ id: exec.techniqueId }]),
+            evidence: evidence,
+            assets: exec.targetHost ? [exec.targetHost] : [],
+            controls: [{ id: 'RA-5' }],
+            attackTechniques: [{ id: exec.techniqueId }],
           });
         }
       }
@@ -1347,6 +1402,590 @@ export const ac3ReportsRouter = {
         operationName: operation.name,
         totalLinks: chain.length,
         adversaryName: operation.adversary?.name || 'Unknown',
+      };
+    }),
+
+  // ─── ATT&CK → NIST 800-53 Control Mapping ────────────────────────────────
+
+  // Static mapping from MITRE ATT&CK technique IDs to NIST 800-53 controls
+  // Used to auto-populate FedRAMP-required control mappings during import
+
+  // ─── Import from Ops Snapshot (Primary Pipeline for Completed Engagements) ──
+
+  /** Import findings from engagement_ops_snapshots.state_json — the primary data source
+   *  for completed engagements. Extracts vulnAnalysis, attackChains, essIntelligence,
+   *  and auto-populates scope, evidence, ATT&CK IDs, and NIST controls. */
+  importFromOpsSnapshot: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      engagementId: z.number(),
+      severityFilter: z.array(z.string()).optional(),
+      autoPopulateScope: z.boolean().optional().default(true),
+      autoPopulateExecSummary: z.boolean().optional().default(true),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+
+      // Verify report exists
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error("Report not found");
+
+      // Get engagement details
+      const [eng] = await db.select().from(engagements)
+        .where(eq(engagements.id, input.engagementId));
+      if (!eng) throw new Error("Engagement not found");
+
+      // Get the ops snapshot
+      const snapshots = await db.select().from(engagementOpsSnapshots)
+        .where(eq(engagementOpsSnapshots.engagementId, input.engagementId))
+        .orderBy(desc(engagementOpsSnapshots.createdAt));
+      if (snapshots.length === 0) throw new Error("No ops snapshot found for this engagement. Run the engagement first.");
+
+      const snapshot = snapshots[0];
+      const state = typeof snapshot.stateJson === 'string'
+        ? JSON.parse(snapshot.stateJson)
+        : snapshot.stateJson;
+
+      // ── ATT&CK → NIST 800-53 Control Mapping Table ──
+      const attackToNist: Record<string, string[]> = {
+        'T1190': ['SC-7', 'SI-4', 'RA-5', 'CA-8'],
+        'T1133': ['AC-17', 'SC-7', 'IA-2'],
+        'T1078': ['AC-2', 'AC-6', 'IA-2', 'IA-5'],
+        'T1078.004': ['AC-2', 'AC-6', 'IA-5', 'CA-8'],
+        'T1098': ['AC-2', 'AC-6', 'CM-5'],
+        'T1098.003': ['AC-2', 'AC-6', 'IA-5', 'CA-8'],
+        'T1530': ['AC-3', 'SC-28', 'AC-6', 'AU-6'],
+        'T1059': ['CM-7', 'SI-3', 'SI-7'],
+        'T1059.001': ['CM-7', 'SI-3', 'SI-7'],
+        'T1059.003': ['CM-7', 'SI-3', 'SI-7'],
+        'T1059.004': ['CM-7', 'SI-3', 'SI-7'],
+        'T1068': ['AC-6', 'CM-6', 'SI-2'],
+        'T1548': ['AC-6', 'CM-6', 'CM-7'],
+        'T1110': ['AC-7', 'IA-2', 'IA-5'],
+        'T1110.001': ['AC-7', 'IA-2', 'IA-5'],
+        'T1003': ['AC-6', 'IA-5', 'SI-4'],
+        'T1021': ['AC-3', 'AC-17', 'SC-7'],
+        'T1021.001': ['AC-3', 'AC-17', 'SC-7'],
+        'T1021.002': ['AC-3', 'AC-17', 'SC-7'],
+        'T1021.004': ['AC-3', 'AC-17', 'SC-7'],
+        'T1046': ['CM-8', 'SC-7', 'SI-4'],
+        'T1018': ['AC-4', 'CM-8', 'SI-4'],
+        'T1082': ['CM-8', 'SI-4'],
+        'T1087': ['AC-2', 'AC-6', 'SI-4'],
+        'T1071': ['SC-7', 'SI-4', 'SC-8'],
+        'T1071.001': ['SC-7', 'SI-4', 'SC-8'],
+        'T1105': ['SC-7', 'SI-3', 'SI-4'],
+        'T1041': ['SC-7', 'SC-8', 'AC-4', 'SI-4'],
+        'T1486': ['CP-9', 'CP-10', 'SI-7'],
+        'T1489': ['CP-9', 'CP-10', 'CM-7'],
+        'T1566': ['AT-2', 'SI-3', 'SI-8'],
+        'T1566.001': ['AT-2', 'SI-3', 'SI-8'],
+        'T1027': ['SI-3', 'SI-4'],
+        'T1070': ['AU-6', 'AU-9', 'SI-4'],
+        'T1562': ['AU-6', 'SI-4', 'CM-7'],
+        'T1136': ['AC-2', 'AC-6', 'CM-5'],
+        'T1505': ['CM-7', 'SI-3', 'SI-7'],
+        'T1505.003': ['CM-7', 'SI-3', 'SI-7'],
+        'T1595': ['SC-7', 'SI-4'],
+        'T1592': ['SC-7', 'SI-4'],
+        'T1589': ['AT-2', 'SC-7'],
+        'T1583': ['SC-7', 'SI-4'],
+        'T1557': ['SC-8', 'SC-23', 'SI-4'],
+        'T1040': ['SC-8', 'SI-4', 'AC-3'],
+        'T1219': ['SC-7', 'SI-4', 'CM-7'],
+        'T1574': ['CM-7', 'SI-7', 'AC-6'],
+        'T1053': ['CM-7', 'AC-6', 'AU-6'],
+        'T1543': ['CM-7', 'AC-6', 'SI-4'],
+      };
+
+      // Fallback: derive controls from vulnerability category
+      const categoryToNist: Record<string, string[]> = {
+        'config': ['CM-6', 'CM-7', 'SC-7'],
+        'web': ['SC-7', 'SI-10', 'SI-4'],
+        'crypto': ['SC-8', 'SC-12', 'SC-13'],
+        'auth': ['IA-2', 'IA-5', 'AC-7'],
+        'access': ['AC-3', 'AC-6', 'AC-2'],
+        'injection': ['SI-10', 'SI-3', 'SC-7'],
+        'disclosure': ['SC-28', 'AC-3', 'SI-4'],
+        'default': ['RA-5', 'CA-7', 'CA-8'],
+      };
+
+      function getControlsForTechniques(techniqueIds: string[], agentClass?: string): { id: string }[] {
+        const controlSet = new Set<string>();
+        for (const tid of techniqueIds) {
+          const controls = attackToNist[tid];
+          if (controls) controls.forEach(c => controlSet.add(c));
+        }
+        // If no ATT&CK mapping found, use category-based fallback
+        if (controlSet.size === 0 && agentClass) {
+          const fallback = categoryToNist[agentClass] || categoryToNist['default'];
+          fallback.forEach(c => controlSet.add(c));
+        }
+        if (controlSet.size === 0) {
+          categoryToNist['default'].forEach(c => controlSet.add(c));
+        }
+        // Always include CA-8 (Penetration Testing) for pentest reports
+        controlSet.add('CA-8');
+        return Array.from(controlSet).map(id => ({ id }));
+      }
+
+      // ── Extract data from state_json ──
+      const vulnAnalysis: any[] = state.vulnAnalysis || [];
+      const attackChains: any[] = state.attackChains || [];
+      const assets: any[] = state.assets || [];
+      const approvalGates: any[] = state.approvalGates || [];
+      const essIntelligence: any = state.essIntelligence || {};
+      const engagementContext: any = state.engagementContext || {};
+      const roeScopeGuard: any = state.roeScopeGuard || {};
+      const passiveReconResults: any[] = state.passiveReconResults || [];
+
+      // ── Build ATT&CK technique index from attack chains ──
+      // Maps asset+CVE to technique IDs for cross-referencing with vulnAnalysis
+      const assetTechniqueMap = new Map<string, Set<string>>();
+      const allChainTechniques = new Set<string>();
+      for (const chain of attackChains) {
+        const phases = chain.killChainPhases || [];
+        for (const phase of phases) {
+          for (const step of (phase.steps || [])) {
+            if (step.techniqueId) {
+              allChainTechniques.add(step.techniqueId);
+              const target = step.target || '';
+              if (target) {
+                if (!assetTechniqueMap.has(target)) assetTechniqueMap.set(target, new Set());
+                assetTechniqueMap.get(target)!.add(step.techniqueId);
+              }
+            }
+          }
+        }
+        // Also extract from cloudExploitPaths
+        for (const path of (chain.cloudExploitPaths || [])) {
+          for (const tid of (path.mitreTechniques || [])) {
+            allChainTechniques.add(tid);
+          }
+        }
+      }
+
+      // ── Build CVE → CVSS score index from essIntelligence ──
+      const cveScoreMap = new Map<string, { score: string; tier: string; summary: string }>();
+      for (const threat of (essIntelligence.topThreats || [])) {
+        const cvssMatch = threat.riskSummary?.match(/CVSS\s+([\d.]+)\/10/);
+        cveScoreMap.set(threat.cveId, {
+          score: cvssMatch ? cvssMatch[1] : '',
+          tier: threat.riskTier || '',
+          summary: threat.riskSummary || '',
+        });
+      }
+
+      // ── Build exploit attempt index from assets ──
+      const assetExploitMap = new Map<string, any[]>();
+      for (const asset of assets) {
+        const hostname = asset.hostname || asset.ip || '';
+        if (hostname && asset.exploitAttempts) {
+          assetExploitMap.set(hostname, asset.exploitAttempts);
+        }
+      }
+
+      // ── Map severity from vuln analysis ──
+      const mapVulnSeverity = (sev: string | null, riskScore?: number): string => {
+        if (sev) {
+          const m: Record<string, string> = {
+            critical: 'critical', high: 'high', medium: 'moderate', low: 'low', info: 'informational',
+          };
+          return m[sev] || 'moderate';
+        }
+        if (riskScore !== undefined) {
+          if (riskScore >= 9) return 'critical';
+          if (riskScore >= 7) return 'high';
+          if (riskScore >= 4) return 'moderate';
+          if (riskScore >= 2) return 'low';
+          return 'informational';
+        }
+        return 'moderate';
+      };
+
+      // ── Process vulnAnalysis entries into findings ──
+      const allTechniqueIds: string[] = [];
+      const findingsToCreate: any[] = [];
+
+      for (const vuln of vulnAnalysis) {
+        const finding = vuln.finding || {};
+        const analysis = vuln.analysis || {};
+        const agentClass = vuln.agentClass || 'default';
+
+        const severity = mapVulnSeverity(finding.severity, analysis.riskScore);
+        if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
+
+        // Extract ATT&CK techniques: from attack chains matching this asset, plus CVE-based
+        const techniqueIds: string[] = [];
+        const assetName = finding.asset || '';
+        if (assetName && assetTechniqueMap.has(assetName)) {
+          assetTechniqueMap.get(assetName)!.forEach(t => techniqueIds.push(t));
+        }
+        // Also check CVEs from analysis
+        for (const cve of (analysis.relatedCves || [])) {
+          // Look up if any attack chain step references this CVE
+          for (const chain of attackChains) {
+            for (const phase of (chain.killChainPhases || [])) {
+              for (const step of (phase.steps || [])) {
+                if (step.exploitDetails?.includes(cve) && step.techniqueId) {
+                  if (!techniqueIds.includes(step.techniqueId)) techniqueIds.push(step.techniqueId);
+                }
+              }
+            }
+          }
+        }
+        // ── Infer ATT&CK techniques from vulnerability type/title ──
+        const titleLower = (finding.title || '').toLowerCase();
+        const descLower = (analysis.technicalAnalysis || '').toLowerCase();
+        const combined = titleLower + ' ' + descLower;
+
+        const VULN_TECHNIQUE_MAP: Array<{ patterns: RegExp[]; techniques: string[] }> = [
+          // Reconnaissance
+          { patterns: [/information disclosure/i, /version disclosure/i, /server header/i, /banner grab/i, /directory listing/i],
+            techniques: ['T1592', 'T1595'] },
+          { patterns: [/nikto/i, /scanner/i, /enumerat/i],
+            techniques: ['T1595.002', 'T1046'] },
+          // Discovery & Scanning
+          { patterns: [/port scan/i, /service detect/i, /nmap/i, /open port/i],
+            techniques: ['T1046'] },
+          { patterns: [/dns zone transfer/i, /subdomain/i],
+            techniques: ['T1018'] },
+          { patterns: [/directory travers/i, /path travers/i, /lfi/i, /local file inclu/i],
+            techniques: ['T1083'] },
+          // Initial Access
+          { patterns: [/sql inject/i, /sqli/i],
+            techniques: ['T1190'] },
+          { patterns: [/remote code exec/i, /rce/i, /code injection/i, /command inject/i, /os command/i],
+            techniques: ['T1190', 'T1059'] },
+          { patterns: [/deserialization/i, /unserialize/i],
+            techniques: ['T1190'] },
+          { patterns: [/ssrf/i, /server.side request/i],
+            techniques: ['T1090', 'T1190'] },
+          { patterns: [/phishing/i, /social engineer/i],
+            techniques: ['T1566'] },
+          { patterns: [/default cred/i, /weak password/i, /brute.?force/i],
+            techniques: ['T1078', 'T1110'] },
+          // Execution
+          { patterns: [/xss/i, /cross.site script/i],
+            techniques: ['T1059.007'] },
+          { patterns: [/spring cloud/i, /spel inject/i],
+            techniques: ['T1059', 'T1190'] },
+          // Credential Access
+          { patterns: [/credential/i, /password.*expos/i, /api.?key.*expos/i, /token.*leak/i, /secret.*expos/i],
+            techniques: ['T1552'] },
+          { patterns: [/session.*hijack/i, /cookie.*steal/i],
+            techniques: ['T1539'] },
+          // Persistence
+          { patterns: [/backdoor/i, /web.?shell/i, /implant/i],
+            techniques: ['T1505.003'] },
+          // Privilege Escalation
+          { patterns: [/privilege.*escalat/i, /privesc/i, /improper.*authoriz/i, /access control/i, /idor/i, /broken.*access/i],
+            techniques: ['T1068'] },
+          // Defense Evasion
+          { patterns: [/clickjack/i, /x-frame/i, /csp.*bypass/i, /security header/i, /hsts/i, /cors.*misconfig/i],
+            techniques: ['T1036'] },
+          // Collection
+          { patterns: [/data.*expos/i, /sensitive.*data/i, /pii.*leak/i, /cloud.*storage.*public/i, /s3.*bucket/i, /storage.*bucket/i],
+            techniques: ['T1530'] },
+          // Lateral Movement
+          { patterns: [/lateral.*move/i, /pivot/i, /rdp/i, /smb.*relay/i],
+            techniques: ['T1021'] },
+          // Impact
+          { patterns: [/denial.*service/i, /dos/i, /ddos/i],
+            techniques: ['T1499'] },
+        ];
+
+        for (const mapping of VULN_TECHNIQUE_MAP) {
+          if (mapping.patterns.some(p => p.test(combined))) {
+            for (const t of mapping.techniques) {
+              if (!techniqueIds.includes(t)) techniqueIds.push(t);
+            }
+          }
+        }
+
+        // If still no techniques, assign T1190 (Exploit Public-Facing Application) for any CVE-based finding
+        if (techniqueIds.length === 0 && (analysis.relatedCves?.length || finding.cve)) {
+          techniqueIds.push('T1190');
+        }
+
+        // Deduplicate
+        const uniqueTechniques = [...new Set(techniqueIds)];
+        allTechniqueIds.push(...uniqueTechniques);
+
+        // Get NIST controls from ATT&CK mapping
+        const controls = getControlsForTechniques(uniqueTechniques, agentClass);
+
+        // Build evidence array
+        const evidence: any[] = [];
+        // From PoC
+        if (analysis.poc) {
+          evidence.push({
+            type: 'poc',
+            reference: `PoC for ${finding.title || finding.id}`,
+            description: typeof analysis.poc === 'string' ? analysis.poc.slice(0, 500) : JSON.stringify(analysis.poc).slice(0, 500),
+          });
+        }
+        // From exploit attempts on this asset
+        if (assetName && assetExploitMap.has(assetName)) {
+          const exploits = assetExploitMap.get(assetName)!;
+          for (const exploit of exploits.slice(0, 3)) {
+            evidence.push({
+              type: 'exploit_attempt',
+              reference: `Exploit: ${exploit.cve || exploit.module || 'unknown'} on ${assetName}`,
+              description: `Module: ${exploit.module}. CVE: ${exploit.cve || 'N/A'}. ` +
+                `Confidence: ${exploit.confidence}%. Success: ${exploit.success}. ` +
+                `Output: ${(exploit.exploitOutput || '').slice(0, 200)}`,
+            });
+          }
+        }
+        // From relevant approval gates
+        const relevantGates = approvalGates.filter(g =>
+          g.target === assetName && g.status === 'approved'
+        ).slice(0, 2);
+        for (const gate of relevantGates) {
+          evidence.push({
+            type: 'approval_gate',
+            reference: `Approved: ${gate.title || gate.module}`,
+            description: gate.description || `Tool: ${gate.detail?.tool}, Args: ${gate.detail?.args?.slice(0, 150)}`,
+          });
+        }
+
+        // Get CVSS score from ESS intelligence
+        let cvssScore = '';
+        for (const cve of (analysis.relatedCves || [])) {
+          const cveData = cveScoreMap.get(cve);
+          if (cveData?.score) {
+            cvssScore = cveData.score;
+            break;
+          }
+        }
+
+        // Build assets array
+        const findingAssets = [assetName].filter(Boolean);
+        if (finding.port) findingAssets.push(`${assetName}:${finding.port}`);
+
+        findingsToCreate.push({
+          title: finding.title || `Vulnerability on ${assetName}`,
+          severity,
+          attackTechniques: uniqueTechniques.map(id => ({ id })),
+          controls,
+          evidence,
+          assets: findingAssets,
+          cvssScore: cvssScore || (analysis.riskScore ? String(analysis.riskScore) : ''),
+          agentClass,
+          sourceContext: [
+            analysis.technicalAnalysis ? `Technical Analysis: ${analysis.technicalAnalysis}` : '',
+            analysis.impactAssessment ? `Impact Assessment: ${analysis.impactAssessment}` : '',
+            analysis.exploitationPath ? `Exploitation Path: ${JSON.stringify(analysis.exploitationPath)}` : '',
+            analysis.remediation ? `Remediation Steps: ${JSON.stringify(analysis.remediation)}` : '',
+          ].filter(Boolean).join('\n\n'),
+          // Pre-populate remediation from analysis (platform data)
+          remediation: Array.isArray(analysis.remediation)
+            ? analysis.remediation.join('\n')
+            : (analysis.remediation || ''),
+        });
+      }
+
+      // ── Deduplication check ──
+      // Primary dedup key: finding TITLE (each vulnAnalysis entry has a unique title)
+      // Secondary: ATT&CK technique ID (only for truly duplicate entries with same title)
+      // This prevents collapsing distinct vulnerabilities that happen to share techniques
+      // because they target the same asset.
+      const existingFindings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId));
+      let sortOrder = existingFindings.length;
+
+      // Build title-based dedup map from existing findings
+      const titleDupeMap = new Map<string, any>();
+      for (const f of existingFindings) {
+        const normalizedTitle = (f.title || '').toLowerCase().trim();
+        if (normalizedTitle) titleDupeMap.set(normalizedTitle, f);
+      }
+
+      let imported = 0;
+      let merged = 0;
+      let skipped = 0;
+
+      for (const f of findingsToCreate) {
+        const normalizedTitle = (f.title || '').toLowerCase().trim();
+
+        // Check for duplicate by TITLE first (primary dedup key)
+        if (normalizedTitle && titleDupeMap.has(normalizedTitle)) {
+          const existingFinding = titleDupeMap.get(normalizedTitle);
+          await mergeFinding(db, existingFinding, f.evidence, f.assets, f.severity, f.controls);
+          merged++;
+          continue;
+        }
+
+        const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const now = Date.now();
+        await db.insert(ac3ReportFindings).values({
+          findingId,
+          reportId: input.reportId,
+          title: f.title,
+          severity: f.severity,
+          attackTechniques: f.attackTechniques,
+          controls: f.controls,
+          evidence: f.evidence,
+          assets: f.assets,
+          cvssScore: f.cvssScore || null,
+          remediation: f.remediation || null,
+          narrativeStatus: 'pending',
+          sortOrder: sortOrder++,
+          createdAt: now,
+          updatedAt: now,
+          sourceModule: `ops-snapshot:${input.engagementId}`,
+          sourceEventId: `vuln-${sortOrder}`,
+        });
+        imported++;
+
+        // Track for intra-batch dedup by title
+        titleDupeMap.set(normalizedTitle, {
+          findingId,
+          reportId: input.reportId,
+          severity: f.severity,
+          evidence: f.evidence,
+          assets: f.assets,
+          controls: f.controls,
+          attackTechniques: f.attackTechniques,
+        });
+      }
+
+      // ── Auto-populate scope from engagement data ──
+      if (input.autoPopulateScope) {
+        const scopeUpdates: any = {};
+
+        // Domains from ROE scope guard
+        if (roeScopeGuard.authorizedDomains?.length) {
+          scopeUpdates.scopeDomains = roeScopeGuard.authorizedDomains;
+        }
+
+        // Assets from crown jewels + asset hostnames
+        const scopeAssets = [
+          ...(engagementContext.crownJewels || []),
+          ...assets.map((a: any) => a.hostname || a.ip).filter(Boolean),
+        ];
+        if (scopeAssets.length) {
+          scopeUpdates.scopeAssets = [...new Set(scopeAssets)];
+        }
+
+        // Cloud provider from assets
+        const cloudServices = assets.flatMap((a: any) => a.cloudServices || []);
+        if (cloudServices.length) {
+          const providers = [...new Set(cloudServices.map((s: string) => s.split(':')[0].toUpperCase()))];
+          scopeUpdates.cloudProvider = providers.join(' + ');
+        }
+
+        // Service model from sector
+        if (engagementContext.inferredSector) {
+          const sectorToModel: Record<string, string> = {
+            saas_tech: 'SaaS', paas: 'PaaS', iaas: 'IaaS', healthcare: 'SaaS',
+            finance: 'SaaS', government: 'SaaS / IaaS', education: 'SaaS',
+          };
+          scopeUpdates.serviceModel = sectorToModel[engagementContext.inferredSector] || 'SaaS';
+        }
+
+        // Approved vectors from approval gates
+        const vectorTypes = new Set<string>();
+        for (const gate of approvalGates) {
+          if (gate.status === 'approved') {
+            if (gate.module === 'hydra' || gate.module === 'credential_test') vectorTypes.add('Credential testing');
+            else if (gate.module === 'exploit' || gate.riskTier === 'red') vectorTypes.add('Exploitation of public-facing applications');
+            else if (gate.module === 'nmap' || gate.module === 'scan') vectorTypes.add('Network scanning and enumeration');
+            else if (gate.module === 'zap' || gate.module === 'web_scan') vectorTypes.add('Web application testing');
+            else vectorTypes.add(`${gate.module || 'Tool'}-based testing`);
+          }
+        }
+        if (vectorTypes.size) {
+          scopeUpdates.approvedVectors = [...vectorTypes];
+        }
+
+        // Assessment window from engagement dates
+        if (eng.startDate) {
+          scopeUpdates.assessmentWindowStart = new Date(eng.startDate).getTime();
+        }
+        if (state.completedAt) {
+          scopeUpdates.assessmentWindowEnd = state.completedAt;
+        } else if (eng.endDate) {
+          scopeUpdates.assessmentWindowEnd = new Date(eng.endDate).getTime();
+        }
+
+        // Client name
+        scopeUpdates.clientName = eng.customerName;
+        scopeUpdates.systemName = eng.name;
+
+        if (Object.keys(scopeUpdates).length) {
+          scopeUpdates.updatedAt = Date.now();
+          await db.update(ac3Reports).set(scopeUpdates)
+            .where(eq(ac3Reports.reportId, input.reportId));
+        }
+      }
+
+      // ── Auto-populate executive summary seed data ──
+      if (input.autoPopulateExecSummary) {
+        const execUpdates: any = {};
+
+        // Key strengths from detection opportunities
+        const strengths: string[] = [];
+        for (const chain of attackChains) {
+          for (const opp of (chain.detectionOpportunities || [])) {
+            if (!strengths.includes(opp)) strengths.push(opp);
+          }
+        }
+        if (strengths.length) {
+          execUpdates.execKeyStrengths = strengths.slice(0, 5);
+        }
+
+        // Key gaps from high/critical vuln impact assessments
+        const gaps: string[] = [];
+        for (const vuln of vulnAnalysis) {
+          const sev = vuln.finding?.severity;
+          if ((sev === 'high' || sev === 'critical' || sev === 'medium') && vuln.analysis?.impactAssessment) {
+            const impact = vuln.analysis.impactAssessment;
+            // Truncate to first sentence
+            const firstSentence = impact.split('.')[0] + '.';
+            if (!gaps.includes(firstSentence) && firstSentence.length > 10) {
+              gaps.push(firstSentence);
+            }
+          }
+        }
+        if (gaps.length) {
+          execUpdates.execKeyGaps = gaps.slice(0, 5);
+        }
+
+        // Auto-derive overall rating from finding severity distribution
+        const sevCounts: Record<string, number> = {};
+        for (const f of findingsToCreate) {
+          sevCounts[f.severity] = (sevCounts[f.severity] || 0) + 1;
+        }
+        if (sevCounts.critical && sevCounts.critical >= 3) execUpdates.execOverallRating = 'critical';
+        else if (sevCounts.critical || (sevCounts.high && sevCounts.high >= 5)) execUpdates.execOverallRating = 'high';
+        else if (sevCounts.high || (sevCounts.moderate && sevCounts.moderate >= 5)) execUpdates.execOverallRating = 'moderate';
+        else execUpdates.execOverallRating = 'low';
+
+        if (Object.keys(execUpdates).length) {
+          execUpdates.updatedAt = Date.now();
+          await db.update(ac3Reports).set(execUpdates)
+            .where(eq(ac3Reports.reportId, input.reportId));
+        }
+      }
+
+      return {
+        imported,
+        merged,
+        skipped,
+        total: vulnAnalysis.length,
+        engagementName: eng.name,
+        dataSourceSummary: {
+          vulnAnalysisCount: vulnAnalysis.length,
+          attackChainCount: attackChains.length,
+          assetCount: assets.length,
+          approvalGateCount: approvalGates.length,
+          essTopThreats: essIntelligence.topThreats?.length || 0,
+          scopeAutoPopulated: input.autoPopulateScope,
+          execSummarySeeded: input.autoPopulateExecSummary,
+        },
       };
     }),
 
@@ -1365,6 +2004,19 @@ export const ac3ReportsRouter = {
       const findings = await db.select().from(ac3ReportFindings)
         .where(eq(ac3ReportFindings.reportId, input.reportId))
         .orderBy(ac3ReportFindings.sortOrder);
+
+      const artifacts = await db.select().from(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.reportId, input.reportId));
+
+      // Build artifact lookup by findingId
+      const artifactsByFinding = new Map<string, typeof artifacts>();
+      for (const art of artifacts) {
+        const fid = art.findingId || '__report__';
+        if (!artifactsByFinding.has(fid)) artifactsByFinding.set(fid, []);
+        artifactsByFinding.get(fid)!.push(art);
+      }
+
+      const isFedRAMP = report.complianceFramework === 'fedramp';
 
       // ── Build DOCX ──
       const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
@@ -1390,7 +2042,9 @@ export const ac3ReportsRouter = {
         new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 400 },
-          children: [new TextRun({ text: `FedRAMP ${(report.fedrampImpactLevel || 'moderate').toUpperCase()} Impact Level`, size: 24, color: '888888' })],
+          children: [new TextRun({ text: isFedRAMP
+          ? `FedRAMP ${(report.fedrampImpactLevel || 'moderate').toUpperCase()} Impact Level`
+          : `NIST SP 800-53 Rev 5${report.fedrampImpactLevel ? ` — ${report.fedrampImpactLevel.toUpperCase()} Baseline` : ''}`, size: 24, color: '888888' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
@@ -1596,13 +2250,111 @@ export const ac3ReportsRouter = {
             }));
           });
         }
+
+        // Supporting Artifacts (cross-references)
+        const findingArtifacts = artifactsByFinding.get(f.findingId) || [];
+        if (findingArtifacts.length) {
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Supporting Artifacts', bold: true })] }));
+          findingArtifacts.forEach((art) => {
+            findingsSection.push(new Paragraph({
+              bullet: { level: 0 },
+              children: [
+                new TextRun({ text: `[${art.label}] `, bold: true, color: '0066CC' }),
+                new TextRun({ text: `${art.artifactType.replace(/_/g, ' ')}`, italics: true }),
+                new TextRun({ text: art.description ? ` — ${art.description}` : '' }),
+                new TextRun({ text: ` (See Appendix ${art.label})`, color: '666666', size: 18 }),
+              ],
+            }));
+          });
+        }
       });
 
+      // Appendix: Supporting Artifacts
+      const appendixSection: docx.Paragraph[] = [];
+      if (artifacts.length > 0) {
+        appendixSection.push(new Paragraph({ children: [new PageBreak()] }));
+        appendixSection.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun({ text: '5. Appendix — Supporting Artifacts', bold: true })],
+        }));
+        appendixSection.push(new Paragraph({
+          spacing: { after: 200 },
+          children: [new TextRun({ text: `This appendix catalogs ${artifacts.length} supporting artifact(s) referenced throughout this report. Each artifact is labeled for cross-reference from the findings section.`, size: 20 })],
+        }));
+
+        // Artifact index table
+        appendixSection.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              tableHeader: true,
+              children: ['Label', 'Type', 'Finding', 'Description', 'Filename'].map(text => new TableCell({
+                shading: { type: ShadingType.SOLID, color: '1a1a2e' },
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18 })] })],
+              })),
+            }),
+            ...artifacts.map(art => {
+              const linkedFinding = findings.find(f => f.findingId === art.findingId);
+              return new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: art.label, bold: true, color: '0066CC', size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: art.artifactType.replace(/_/g, ' '), size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: linkedFinding ? linkedFinding.title : 'Report-level', size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: art.description || '—', size: 18 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: art.filename || '—', size: 18 })] })] }),
+                ],
+              });
+            }),
+          ],
+        }));
+
+        // Individual artifact detail blocks
+        artifacts.forEach(art => {
+          appendixSection.push(new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300 },
+            children: [new TextRun({ text: `Artifact ${art.label}: ${art.artifactType.replace(/_/g, ' ')}`, bold: true })],
+          }));
+          if (art.description) {
+            appendixSection.push(new Paragraph({ children: [new TextRun({ text: art.description })] }));
+          }
+          if (art.url) {
+            appendixSection.push(new Paragraph({
+              spacing: { before: 100 },
+              children: [
+                new TextRun({ text: 'Source: ', bold: true, size: 18 }),
+                new TextRun({ text: art.url, color: '0066CC', size: 18 }),
+              ],
+            }));
+          }
+          if (art.capturedAt) {
+            appendixSection.push(new Paragraph({
+              children: [
+                new TextRun({ text: 'Captured: ', bold: true, size: 18 }),
+                new TextRun({ text: new Date(art.capturedAt).toISOString(), size: 18 }),
+              ],
+            }));
+          }
+          const linkedFinding = findings.find(f => f.findingId === art.findingId);
+          if (linkedFinding) {
+            appendixSection.push(new Paragraph({
+              children: [
+                new TextRun({ text: 'Referenced by: ', bold: true, size: 18 }),
+                new TextRun({ text: `${linkedFinding.title} (${linkedFinding.findingId})`, size: 18 }),
+              ],
+            }));
+          }
+        });
+      }
+
       // Assemble document
+      const frameworkDesc = isFedRAMP
+        ? `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`
+        : `NIST SP 800-53 Rev 5 Assessment Report`;
       const doc = new Document({
         creator: 'Harrison Cook — AceofCloud',
         title: report.name || 'AC3 Assessment Report',
-        description: `FedRAMP ${report.fedrampImpactLevel || 'Moderate'} Assessment Report`,
+        description: frameworkDesc,
         sections: [{
           properties: {
             page: {
@@ -1615,6 +2367,7 @@ export const ac3ReportsRouter = {
             ...scopeSection,
             ...summarySection,
             ...findingsSection,
+            ...appendixSection,
           ],
         }],
       });
@@ -1631,5 +2384,295 @@ export const ac3ReportsRouter = {
       }).where(eq(ac3Reports.reportId, input.reportId));
 
       return { url, fileName };
+    }),
+
+  // ─── Artifact Management ─────────────────────────────────────────────────
+
+  /** Add an artifact to a report (optionally linked to a finding) */
+  addArtifact: protectedProcedure
+    .input(z.object({
+      reportId: z.string(),
+      findingId: z.string().optional(),
+      artifactType: z.enum(['screenshot', 'scan_output', 'packet_capture', 'tool_log', 'configuration', 'code_snippet', 'network_diagram', 'credential_dump', 'command_output', 'other']),
+      label: z.string().optional(),
+      filename: z.string().optional(),
+      url: z.string(),
+      description: z.string().optional(),
+      mimeType: z.string().optional(),
+      fileSize: z.number().optional(),
+      capturedAt: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      // Auto-generate sequential label (A-1, A-2, etc.)
+      const existing = await db.select().from(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.reportId, input.reportId));
+      const nextNum = existing.length + 1;
+      const label = input.label || `A-${nextNum}`;
+      const artifactId = `art-${randomUUID().slice(0, 12)}`;
+
+      await db.insert(ac3ReportArtifacts).values({
+        artifactId,
+        reportId: input.reportId,
+        findingId: input.findingId ?? null,
+        artifactType: input.artifactType,
+        label,
+        filename: input.filename ?? null,
+        url: input.url,
+        description: input.description ?? null,
+        mimeType: input.mimeType ?? null,
+        fileSize: input.fileSize ?? null,
+        capturedAt: input.capturedAt ?? null,
+        createdAt: Date.now(),
+      });
+
+      return { artifactId, label };
+    }),
+
+  /** List artifacts for a report */
+  listArtifacts: protectedProcedure
+    .input(z.object({ reportId: z.string(), findingId: z.string().optional() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      if (input.findingId) {
+        return db.select().from(ac3ReportArtifacts)
+          .where(and(
+            eq(ac3ReportArtifacts.reportId, input.reportId),
+            eq(ac3ReportArtifacts.findingId, input.findingId)
+          ));
+      }
+      return db.select().from(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.reportId, input.reportId));
+    }),
+
+  /** Delete an artifact */
+  deleteArtifact: protectedProcedure
+    .input(z.object({ artifactId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.delete(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.artifactId, input.artifactId));
+      return { deleted: true };
+    }),
+
+  /** Link an existing artifact to a finding */
+  linkArtifactToFinding: protectedProcedure
+    .input(z.object({ artifactId: z.string(), findingId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.update(ac3ReportArtifacts)
+        .set({ findingId: input.findingId })
+        .where(eq(ac3ReportArtifacts.artifactId, input.artifactId));
+      return { linked: true };
+    }),
+
+  // ─── Pentest Coverage Validator ──────────────────────────────────────────
+
+  /** Validate that the report's findings meet pentest depth/breadth requirements */
+  validateCoverage: protectedProcedure
+    .input(z.object({ reportId: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const [report] = await db.select().from(ac3Reports)
+        .where(eq(ac3Reports.reportId, input.reportId));
+      if (!report) throw new Error("Report not found");
+
+      const findings = await db.select().from(ac3ReportFindings)
+        .where(eq(ac3ReportFindings.reportId, input.reportId));
+
+      const artifacts = await db.select().from(ac3ReportArtifacts)
+        .where(eq(ac3ReportArtifacts.reportId, input.reportId));
+
+      // ── 1. PTES / NIST SP 800-115 Methodology Phase Coverage ──
+      const REQUIRED_PHASES: Record<string, { tactics: string[]; description: string }> = {
+        'Reconnaissance': {
+          tactics: ['TA0043'],
+          description: 'Pre-engagement reconnaissance and OSINT gathering',
+        },
+        'Discovery & Scanning': {
+          tactics: ['TA0007'],
+          description: 'Network/service discovery, vulnerability scanning, enumeration',
+        },
+        'Initial Access': {
+          tactics: ['TA0001'],
+          description: 'Exploitation of vulnerabilities to gain initial foothold',
+        },
+        'Execution': {
+          tactics: ['TA0002'],
+          description: 'Code execution on target systems',
+        },
+        'Persistence': {
+          tactics: ['TA0003'],
+          description: 'Maintaining access across reboots/credential changes',
+        },
+        'Privilege Escalation': {
+          tactics: ['TA0004'],
+          description: 'Escalating from limited to elevated privileges',
+        },
+        'Credential Access': {
+          tactics: ['TA0006'],
+          description: 'Credential harvesting, dumping, or cracking',
+        },
+        'Lateral Movement': {
+          tactics: ['TA0008'],
+          description: 'Moving between systems within the network',
+        },
+        'Collection & Exfiltration': {
+          tactics: ['TA0009', 'TA0010'],
+          description: 'Data collection and exfiltration demonstration',
+        },
+        'Defense Evasion': {
+          tactics: ['TA0005'],
+          description: 'Bypassing security controls and detection mechanisms',
+        },
+      };
+
+      // Robust JSON field parser: handles arrays, JSON strings, and double-encoded strings
+      const parseJsonField = (val: any): any[] => {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') {
+          try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) return parsed;
+            if (typeof parsed === 'string') {
+              // Double-encoded: parse again
+              try { const p2 = JSON.parse(parsed); if (Array.isArray(p2)) return p2; } catch {}
+            }
+          } catch {}
+        }
+        return [];
+      };
+
+      // Extract all ATT&CK tactic IDs from findings
+      const allTactics = new Set<string>();
+      const allTechniques = new Set<string>();
+      const toolsUsed = new Set<string>();
+      const evidenceTypes = new Set<string>();
+
+      for (const f of findings) {
+        const techniques = parseJsonField(f.attackTechniques);
+        for (const t of techniques) {
+          if (t.id) allTechniques.add(t.id);
+          if (t.tactic) allTactics.add(t.tactic);
+        }
+        const evidence = parseJsonField(f.evidence);
+        for (const e of evidence) {
+          if (e.type) evidenceTypes.add(e.type);
+          if (e.reference) toolsUsed.add(e.reference.split(':')[0]?.trim() || e.reference);
+        }
+      }
+
+      // Map technique IDs to tactics for coverage check
+      // ATT&CK technique prefix mapping (T1595.* → TA0043, T1190 → TA0001, etc.)
+      const TECHNIQUE_TO_TACTIC: Record<string, string> = {
+        'T1595': 'TA0043', 'T1592': 'TA0043', 'T1589': 'TA0043', 'T1590': 'TA0043', 'T1591': 'TA0043', 'T1598': 'TA0043',
+        'T1190': 'TA0001', 'T1133': 'TA0001', 'T1566': 'TA0001', 'T1078': 'TA0001', 'T1189': 'TA0001', 'T1200': 'TA0001',
+        'T1059': 'TA0002', 'T1203': 'TA0002', 'T1047': 'TA0002', 'T1053': 'TA0002', 'T1569': 'TA0002',
+        'T1098': 'TA0003', 'T1136': 'TA0003', 'T1543': 'TA0003', 'T1547': 'TA0003', 'T1053': 'TA0003',
+        'T1548': 'TA0004', 'T1068': 'TA0004', 'T1055': 'TA0004', 'T1134': 'TA0004',
+        'T1562': 'TA0005', 'T1070': 'TA0005', 'T1036': 'TA0005', 'T1027': 'TA0005', 'T1218': 'TA0005',
+        'T1110': 'TA0006', 'T1003': 'TA0006', 'T1555': 'TA0006', 'T1552': 'TA0006', 'T1558': 'TA0006',
+        'T1046': 'TA0007', 'T1135': 'TA0007', 'T1087': 'TA0007', 'T1482': 'TA0007', 'T1018': 'TA0007',
+        'T1021': 'TA0008', 'T1570': 'TA0008', 'T1563': 'TA0008', 'T1080': 'TA0008',
+        'T1560': 'TA0009', 'T1119': 'TA0009', 'T1005': 'TA0009',
+        'T1041': 'TA0010', 'T1048': 'TA0010', 'T1567': 'TA0010', 'T1020': 'TA0010',
+      };
+
+      for (const tid of allTechniques) {
+        const baseId = tid.split('.')[0];
+        const tactic = TECHNIQUE_TO_TACTIC[baseId];
+        if (tactic) allTactics.add(tactic);
+      }
+
+      const phaseResults: Array<{ phase: string; status: 'pass' | 'fail' | 'warning'; description: string; details: string }> = [];
+      let phasesPresent = 0;
+      for (const [phase, config] of Object.entries(REQUIRED_PHASES)) {
+        const covered = config.tactics.some(t => allTactics.has(t));
+        if (covered) {
+          phasesPresent++;
+          phaseResults.push({ phase, status: 'pass', description: config.description, details: `Covered by ${config.tactics.filter(t => allTactics.has(t)).join(', ')}` });
+        } else {
+          phaseResults.push({ phase, status: 'fail', description: config.description, details: `No findings map to tactics: ${config.tactics.join(', ')}` });
+        }
+      }
+
+      // ── 2. ATT&CK Breadth ──
+      const tacticBreadth = allTactics.size;
+      const techniqueBreadth = allTechniques.size;
+      const tacticStatus = tacticBreadth >= 6 ? 'pass' : tacticBreadth >= 4 ? 'warning' : 'fail';
+      const techniqueStatus = techniqueBreadth >= 10 ? 'pass' : techniqueBreadth >= 5 ? 'warning' : 'fail';
+
+      // ── 3. Evidence Quality ──
+      const findingsWithEvidence = findings.filter(f => parseJsonField(f.evidence).length > 0).length;
+      const findingsWithPoC = findings.filter(f => {
+        const ev = parseJsonField(f.evidence);
+        return ev.some(e => ['poc', 'exploit_output', 'command_output', 'screenshot'].includes(e.type));
+      }).length;
+      const evidenceRatio = findings.length > 0 ? findingsWithEvidence / findings.length : 0;
+      const pocRatio = findings.length > 0 ? findingsWithPoC / findings.length : 0;
+      const evidenceStatus = evidenceRatio >= 0.9 ? 'pass' : evidenceRatio >= 0.7 ? 'warning' : 'fail';
+      const pocStatus = pocRatio >= 0.5 ? 'pass' : pocRatio >= 0.25 ? 'warning' : 'fail';
+
+      // ── 4. Tool Diversity ──
+      const toolCount = toolsUsed.size;
+      const toolStatus = toolCount >= 5 ? 'pass' : toolCount >= 3 ? 'warning' : 'fail';
+
+      // ── 5. Artifact Coverage ──
+      const findingsWithArtifacts = new Set(artifacts.filter(a => a.findingId).map(a => a.findingId)).size;
+      const artifactRatio = findings.length > 0 ? findingsWithArtifacts / findings.length : 0;
+      const artifactStatus = artifactRatio >= 0.7 ? 'pass' : artifactRatio >= 0.4 ? 'warning' : 'fail';
+      const artifactTypes = new Set(artifacts.map(a => a.artifactType));
+
+      // ── 6. Severity Distribution ──
+      const severityCounts: Record<string, number> = {};
+      for (const f of findings) severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1;
+      const hasCritOrHigh = (severityCounts['critical'] || 0) + (severityCounts['high'] || 0) > 0;
+      const hasMultipleSeverities = Object.keys(severityCounts).length >= 3;
+
+      // ── 7. Report Completeness ──
+      const hasExecSummary = !!report.execNarrative;
+      const hasScope = parseJsonField(report.scopeDomains).length > 0 || parseJsonField(report.scopeAssets).length > 0;
+      const hasAssessmentWindow = !!report.assessmentWindowStart && !!report.assessmentWindowEnd;
+      const hasClient = !!report.clientName;
+
+      // ── Overall Score ──
+      const checks = [
+        { category: 'Methodology Coverage', status: phasesPresent >= 7 ? 'pass' : phasesPresent >= 5 ? 'warning' : 'fail' as const, score: Math.round((phasesPresent / 10) * 100), details: `${phasesPresent}/10 PTES phases represented` },
+        { category: 'ATT&CK Tactic Breadth', status: tacticStatus as any, score: Math.min(100, Math.round((tacticBreadth / 8) * 100)), details: `${tacticBreadth} unique tactics across ${techniqueBreadth} techniques` },
+        { category: 'Evidence Quality', status: evidenceStatus as any, score: Math.round(evidenceRatio * 100), details: `${findingsWithEvidence}/${findings.length} findings have evidence, ${findingsWithPoC} have PoC/exploit output` },
+        { category: 'Tool Diversity', status: toolStatus as any, score: Math.min(100, Math.round((toolCount / 5) * 100)), details: `${toolCount} distinct tools/sources identified` },
+        { category: 'Artifact Coverage', status: artifactStatus as any, score: Math.round(artifactRatio * 100), details: `${findingsWithArtifacts}/${findings.length} findings have linked artifacts (${artifacts.length} total, ${artifactTypes.size} types)` },
+        { category: 'Severity Distribution', status: (hasCritOrHigh && hasMultipleSeverities ? 'pass' : !hasCritOrHigh ? 'warning' : 'warning') as any, score: hasMultipleSeverities ? 100 : 50, details: Object.entries(severityCounts).map(([k, v]) => `${k}: ${v}`).join(', ') },
+        { category: 'Report Completeness', status: (hasExecSummary && hasScope && hasAssessmentWindow && hasClient ? 'pass' : 'warning') as any, score: [hasExecSummary, hasScope, hasAssessmentWindow, hasClient].filter(Boolean).length * 25, details: [!hasExecSummary && 'Missing exec summary', !hasScope && 'Missing scope', !hasAssessmentWindow && 'Missing assessment window', !hasClient && 'Missing client name'].filter(Boolean).join(', ') || 'All fields present' },
+      ];
+
+      const overallScore = Math.round(checks.reduce((sum, c) => sum + c.score, 0) / checks.length);
+      const overallStatus = overallScore >= 80 ? 'pass' : overallScore >= 60 ? 'warning' : 'fail';
+      const isReportReady = overallStatus === 'pass';
+
+      return {
+        overallScore,
+        overallStatus,
+        isReportReady,
+        checks,
+        phaseResults,
+        summary: {
+          totalFindings: findings.length,
+          totalArtifacts: artifacts.length,
+          uniqueTactics: tacticBreadth,
+          uniqueTechniques: techniqueBreadth,
+          toolsIdentified: toolCount,
+          phasesRepresented: phasesPresent,
+        },
+        recommendations: [
+          ...phaseResults.filter(p => p.status === 'fail').map(p => `Add findings for ${p.phase} phase (${p.description})`),
+          ...(pocStatus === 'fail' ? ['Increase PoC/exploit output evidence — too many findings rely on scanner output alone'] : []),
+          ...(toolStatus === 'fail' ? ['Diversify tooling — a proper pentest requires multiple tools beyond a single scanner'] : []),
+          ...(artifactStatus === 'fail' ? ['Attach supporting artifacts (screenshots, logs, captures) to findings'] : []),
+          ...(!hasExecSummary ? ['Generate executive summary before finalizing'] : []),
+          ...(!hasScope ? ['Define scope (domains and/or assets) in report metadata'] : []),
+          ...(!hasAssessmentWindow ? ['Set assessment window start and end dates'] : []),
+        ],
+      };
     }),
 };

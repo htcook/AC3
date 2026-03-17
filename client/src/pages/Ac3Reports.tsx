@@ -54,7 +54,7 @@ import {
   Server,
   Target,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // ─── Severity Config ────────────────────────────────────────────────────────
 
@@ -127,9 +127,9 @@ function ReportList({ onSelect, onCreateNew }: { onSelect: (id: string) => void;
             <Shield className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">AC3 FedRAMP Reports</h1>
+            <h1 className="text-2xl font-bold tracking-tight">AC3 Reports</h1>
             <p className="text-sm text-muted-foreground">
-              FedRAMP-compliant penetration test and red team assessment reports
+              Penetration test and red team assessment reports
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ function ReportList({ onSelect, onCreateNew }: { onSelect: (id: string) => void;
           <div className="flex items-start gap-3">
             <ShieldCheck className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
             <div className="text-sm text-blue-300/80">
-              <p className="font-medium text-blue-300 mb-1">FedRAMP Assessment Report Generator</p>
+              <p className="font-medium text-blue-300 mb-1">Assessment Report Generator</p>
               <p>
                 Platform-controlled severity, evidence, ATT&CK IDs, and NIST 800-53 control mappings serve as the
                 source of truth. The LLM drafts only bounded narrative fields (title, summary, business impact,
@@ -202,8 +202,8 @@ function ReportList({ onSelect, onCreateNew }: { onSelect: (id: string) => void;
                         <span>{report.clientName || "No client"}</span>
                         <span>{report.assessmentType?.replace(/_/g, " ") || "Pentest"}</span>
                         {report.fedrampImpactLevel && (
-                          <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-400">
-                            FedRAMP {report.fedrampImpactLevel.toUpperCase()}
+                          <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-300">
+                            {report.complianceFramework === 'fedramp' ? 'FedRAMP' : 'NIST 800-53r5'} {report.fedrampImpactLevel.toUpperCase()}
                           </Badge>
                         )}
                         <span className="ml-auto">{report.reportId}</span>
@@ -224,16 +224,15 @@ function ReportList({ onSelect, onCreateNew }: { onSelect: (id: string) => void;
 // ─── Create Report Dialog ───────────────────────────────────────────────────
 
 function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const createMutation = trpc.ac3Reports.createReport.useMutation({
     onSuccess: (data) => {
       utils.ac3Reports.listReports.invalidate();
       onCreated(data.reportId);
-      toast({ title: "Report created", description: `Report ${data.reportId} created successfully.` });
+      toast.success("Report created", { description: `Report ${data.reportId} created successfully.` });
     },
     onError: (err) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast.error("Error", { description: err.message });
     },
   });
 
@@ -242,6 +241,7 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
     clientName: "",
     systemName: "",
     assessmentType: "penetration_test" as const,
+    complianceFramework: "nist_800_53_r5" as const,
     fedrampImpactLevel: "moderate" as const,
     cloudProvider: "",
     serviceModel: "",
@@ -249,7 +249,7 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
 
   const handleCreate = () => {
     if (!form.name.trim()) {
-      toast({ title: "Name required", variant: "destructive" });
+      toast.error("Name required");
       return;
     }
     createMutation.mutate({
@@ -257,6 +257,7 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
       clientName: form.clientName || undefined,
       systemName: form.systemName || undefined,
       assessmentType: form.assessmentType,
+      complianceFramework: form.complianceFramework,
       fedrampImpactLevel: form.fedrampImpactLevel,
       cloudProvider: form.cloudProvider || undefined,
       serviceModel: form.serviceModel || undefined,
@@ -317,7 +318,22 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
               </Select>
             </div>
             <div>
-              <Label>FedRAMP Impact Level</Label>
+              <Label>Compliance Framework</Label>
+              <Select
+                value={form.complianceFramework}
+                onValueChange={(v) => setForm(f => ({ ...f, complianceFramework: v as any }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nist_800_53_r5">NIST 800-53 Rev 5</SelectItem>
+                  <SelectItem value="fedramp">FedRAMP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>{form.complianceFramework === 'fedramp' ? 'FedRAMP Impact Level' : 'Baseline'}</Label>
               <Select
                 value={form.fedrampImpactLevel}
                 onValueChange={(v) => setForm(f => ({ ...f, fedrampImpactLevel: v as any }))}
@@ -327,20 +343,20 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="moderate">Moderate</SelectItem>
                   <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="li-saas">LI-SaaS</SelectItem>
+                  {form.complianceFramework === 'fedramp' && <SelectItem value="li-saas">LI-SaaS</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Cloud Provider</Label>
+              <Label>Cloud Provider {form.complianceFramework === 'fedramp' ? '*' : '(optional)'}</Label>
               <Input
                 value={form.cloudProvider}
                 onChange={(e) => setForm(f => ({ ...f, cloudProvider: e.target.value }))}
-                placeholder="AWS GovCloud"
+                placeholder={form.complianceFramework === 'fedramp' ? 'AWS GovCloud' : 'N/A if non-cloud'}
               />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Service Model</Label>
               <Input
@@ -366,7 +382,6 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
 // ─── Report Detail ──────────────────────────────────────────────────────────
 
 function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => void }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const { data: reportData, isLoading } = trpc.ac3Reports.getReport.useQuery({ reportId });
   const [activeTab, setActiveTab] = useState("findings");
@@ -378,36 +393,31 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
   const generateAllMutation = trpc.ac3Reports.generateAllNarratives.useMutation({
     onSuccess: (data) => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Narratives generated", description: `Processed ${data.totalProcessed} findings.` });
+      toast.success("Narratives generated", { description: `Processed ${data.totalProcessed} findings.` });
     },
-    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Error", { description: err.message }),
   });
 
   const generateExecMutation = trpc.ac3Reports.generateExecSummary.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Executive summary generated" });
+      toast("Executive summary generated");
     },
-    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Error", { description: err.message }),
   });
 
   const qaReviewMutation = trpc.ac3Reports.runQaReview.useMutation({
     onSuccess: (data) => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({
-        title: `QA Review: ${data.qaStatus.toUpperCase()}`,
-        description: data.review.issues.length > 0
-          ? `${data.review.issues.length} issue(s) found`
-          : "No issues found",
-      });
+      toast("Notification");
     },
-    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Error", { description: err.message }),
   });
 
   const updateStatusMutation = trpc.ac3Reports.updateReport.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Status updated" });
+      toast("Status updated");
     },
   });
 
@@ -415,7 +425,7 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
     onSuccess: () => {
       utils.ac3Reports.listReports.invalidate();
       onBack();
-      toast({ title: "Report deleted" });
+      toast("Report deleted");
     },
   });
 
@@ -455,7 +465,9 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
             </div>
             <p className="text-sm text-muted-foreground">
               {report.reportId} · {report.clientName || "No client"} · {report.assessmentType?.replace(/_/g, " ")}
-              {report.fedrampImpactLevel && ` · FedRAMP ${report.fedrampImpactLevel.toUpperCase()}`}
+              {report.complianceFramework === "fedramp"
+                ? ` · FedRAMP ${report.fedrampImpactLevel?.toUpperCase() || ''}`
+                : ` · NIST 800-53r5 ${report.fedrampImpactLevel?.toUpperCase() || ''}`}
             </p>
           </div>
         </div>
@@ -600,6 +612,14 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
             <Shield className="h-3.5 w-3.5" />
             Metadata & Scope
           </TabsTrigger>
+          <TabsTrigger value="coverage" className="gap-2">
+            <Target className="h-3.5 w-3.5" />
+            Coverage
+          </TabsTrigger>
+          <TabsTrigger value="artifacts" className="gap-2">
+            <Upload className="h-3.5 w-3.5" />
+            Artifacts
+          </TabsTrigger>
           <TabsTrigger value="export" className="gap-2">
             <Download className="h-3.5 w-3.5" />
             Export
@@ -620,6 +640,14 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
 
         <TabsContent value="metadata" className="space-y-4 mt-4">
           <MetadataTab report={report} reportId={reportId} />
+        </TabsContent>
+
+        <TabsContent value="coverage" className="space-y-4 mt-4">
+          <CoverageTab reportId={reportId} />
+        </TabsContent>
+
+        <TabsContent value="artifacts" className="space-y-4 mt-4">
+          <ArtifactsTab reportId={reportId} findings={findings} />
         </TabsContent>
 
         <TabsContent value="export" className="space-y-4 mt-4">
@@ -654,29 +682,28 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
 // ─── Findings Tab ───────────────────────────────────────────────────────────
 
 function FindingsTab({ reportId, findings }: { reportId: string; findings: any[] }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const generateNarrative = trpc.ac3Reports.generateFindingNarrative.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Narrative generated" });
+      toast("Narrative generated");
     },
-    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Error", { description: err.message }),
   });
 
   const deleteFinding = trpc.ac3Reports.deleteFinding.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Finding deleted" });
+      toast("Finding deleted");
     },
   });
 
   const updateFinding = trpc.ac3Reports.updateFinding.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
-      toast({ title: "Finding updated" });
+      toast("Finding updated");
     },
   });
 
@@ -922,17 +949,16 @@ function FindingsTab({ reportId, findings }: { reportId: string; findings: any[]
 // ─── Add Finding Dialog ─────────────────────────────────────────────────────
 
 function AddFindingDialog({ open, onClose, reportId }: { open: boolean; onClose: () => void; reportId: string }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
 
   const addMutation = trpc.ac3Reports.addFinding.useMutation({
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
       onClose();
-      toast({ title: "Finding added" });
+      toast("Finding added");
       setForm(defaultForm);
     },
-    onError: (err) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Error", { description: err.message }),
   });
 
   const defaultForm = {
@@ -952,7 +978,7 @@ function AddFindingDialog({ open, onClose, reportId }: { open: boolean; onClose:
 
   const handleAdd = () => {
     if (!form.title.trim()) {
-      toast({ title: "Title required", variant: "destructive" });
+      toast.error("Title required");
       return;
     }
 
@@ -1269,14 +1295,18 @@ function QaReviewTab({ report }: { report: any }) {
 // ─── Metadata Tab ───────────────────────────────────────────────────────────
 
 function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const [editing, setEditing] = useState(false);
+  const parseJsonArray = (val: any): string[] => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') { try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; } }
+    return [];
+  };
   const [form, setForm] = useState({
-    scopeDomains: (report.scopeDomains as string[] || []).join(", "),
-    scopeAssets: (report.scopeAssets as string[] || []).join(", "),
-    approvedVectors: (report.approvedVectors as string[] || []).join(", "),
-    outOfScope: (report.outOfScope as string[] || []).join(", "),
+    scopeDomains: parseJsonArray(report.scopeDomains).join(", "),
+    scopeAssets: parseJsonArray(report.scopeAssets).join(", "),
+    approvedVectors: parseJsonArray(report.approvedVectors).join(", "),
+    outOfScope: parseJsonArray(report.outOfScope).join(", "),
     assessmentWindowStart: report.assessmentWindowStart ? new Date(report.assessmentWindowStart).toISOString().split("T")[0] : "",
     assessmentWindowEnd: report.assessmentWindowEnd ? new Date(report.assessmentWindowEnd).toISOString().split("T")[0] : "",
   });
@@ -1285,7 +1315,7 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
     onSuccess: () => {
       utils.ac3Reports.getReport.invalidate({ reportId });
       setEditing(false);
-      toast({ title: "Metadata updated" });
+      toast("Metadata updated");
     },
   });
 
@@ -1327,7 +1357,15 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
               <p className="text-sm">{report.assessmentType?.replace(/_/g, " ") || "—"}</p>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground">FedRAMP Level</Label>
+              <Label className="text-xs text-muted-foreground">Compliance Framework</Label>
+              <p className="text-sm">
+                {report.complianceFramework === "fedramp" ? "FedRAMP" : "NIST 800-53 Rev 5"}
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                {report.complianceFramework === "fedramp" ? "FedRAMP Impact Level" : "Baseline"}
+              </Label>
               <p className="text-sm">{report.fedrampImpactLevel?.toUpperCase() || "—"}</p>
             </div>
             <div>
@@ -1417,32 +1455,32 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
               <div>
                 <Label className="text-xs text-muted-foreground">In-Scope Domains</Label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(report.scopeDomains as string[] || []).length > 0
-                    ? (report.scopeDomains as string[]).map((d, i) => <Badge key={i} variant="outline" className="text-xs">{d}</Badge>)
+                  {parseJsonArray(report.scopeDomains).length > 0
+                    ? parseJsonArray(report.scopeDomains).map((d: string, i: number) => <Badge key={i} variant="outline" className="text-xs">{d}</Badge>)
                     : <span className="text-sm text-muted-foreground">None specified</span>}
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">In-Scope Assets</Label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(report.scopeAssets as string[] || []).length > 0
-                    ? (report.scopeAssets as string[]).map((a, i) => <Badge key={i} variant="outline" className="text-xs">{a}</Badge>)
+                  {parseJsonArray(report.scopeAssets).length > 0
+                    ? parseJsonArray(report.scopeAssets).map((a: string, i: number) => <Badge key={i} variant="outline" className="text-xs">{a}</Badge>)
                     : <span className="text-sm text-muted-foreground">None specified</span>}
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Approved Attack Vectors</Label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(report.approvedVectors as string[] || []).length > 0
-                    ? (report.approvedVectors as string[]).map((v, i) => <Badge key={i} variant="outline" className="text-xs">{v}</Badge>)
+                  {parseJsonArray(report.approvedVectors).length > 0
+                    ? parseJsonArray(report.approvedVectors).map((v: string, i: number) => <Badge key={i} variant="outline" className="text-xs">{v}</Badge>)
                     : <span className="text-sm text-muted-foreground">None specified</span>}
                 </div>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Out of Scope</Label>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(report.outOfScope as string[] || []).length > 0
-                    ? (report.outOfScope as string[]).map((o, i) => <Badge key={i} variant="outline" className="text-xs">{o}</Badge>)
+                  {parseJsonArray(report.outOfScope).length > 0
+                    ? parseJsonArray(report.outOfScope).map((o: string, i: number) => <Badge key={i} variant="outline" className="text-xs">{o}</Badge>)
                     : <span className="text-sm text-muted-foreground">None specified</span>}
                 </div>
               </div>
@@ -1457,18 +1495,17 @@ function MetadataTab({ report, reportId }: { report: any; reportId: string }) {
 // ─── Export Tab ──────────────────────────────────────────────────────────────
 
 function ExportTab({ reportId }: { reportId: string }) {
-  const { toast } = useToast();
   const { data: exportData, isLoading } = trpc.ac3Reports.exportReportJson.useQuery({ reportId });
   const { data: reportData } = trpc.ac3Reports.getReport.useQuery({ reportId });
   const [copied, setCopied] = useState(false);
 
   const exportDocxMutation = trpc.ac3Reports.exportDocx.useMutation({
     onSuccess: (data) => {
-      toast({ title: "DOCX Generated", description: "Your report document is ready for download." });
+      toast.success("DOCX Generated", { description: "Your report document is ready for download." });
       window.open(data.url, "_blank");
     },
     onError: (err) => {
-      toast({ title: "DOCX Export Failed", description: err.message, variant: "destructive" });
+      toast.error("DOCX Export Failed", { description: err.message });
     },
   });
 
@@ -1502,7 +1539,7 @@ function ExportTab({ reportId }: { reportId: string }) {
             DOCX Report Export
           </CardTitle>
           <CardDescription>
-            Generate a professional FedRAMP-compliant Word document with title page, executive summary,
+            Generate a professional compliance-ready Word document with title page, executive summary,
             scope, findings summary table, and detailed findings with ATT&CK mappings and NIST controls.
           </CardDescription>
         </CardHeader>
@@ -1574,10 +1611,10 @@ function ExportTab({ reportId }: { reportId: string }) {
 // ─── Engagement Import Dialog ────────────────────────────────────────────────
 
 function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; onClose: () => void; reportId: string }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const { data: engagements, isLoading } = trpc.ac3Reports.listEngagements.useQuery(undefined, { enabled: open });
   const [selectedEngId, setSelectedEngId] = useState<number | null>(null);
+  const [importSource, setImportSource] = useState<"ops_snapshot" | "timeline">("ops_snapshot");
 
   const importMutation = trpc.ac3Reports.importEngagementFindings.useMutation({
     onSuccess: (data: any) => {
@@ -1585,22 +1622,40 @@ function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; on
       const parts = [`${data.imported} new`];
       if (data.merged) parts.push(`${data.merged} merged`);
       if (data.skipped) parts.push(`${data.skipped} filtered`);
-      toast({
-        title: "Engagement Imported",
-        description: `${parts.join(", ")} findings from "${data.engagementName}" (${data.total} events processed).`,
-      });
+      toast.success("Engagement Imported", { description: `${parts.join(", ")} findings from "${data.engagementName}" (${data.total} events processed).` });
       onClose();
       setSelectedEngId(null);
     },
     onError: (err) => {
-      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+      toast.error("Import Failed", { description: err.message });
+    },
+  });
+
+  const opsSnapshotMutation = trpc.ac3Reports.importFromOpsSnapshot.useMutation({
+    onSuccess: (data: any) => {
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      const parts = [`${data.imported} findings`];
+      if (data.attackChainsMapped) parts.push(`${data.attackChainsMapped} attack chains mapped`);
+      if (data.merged) parts.push(`${data.merged} merged`);
+      toast.success("Ops Snapshot Imported", { description: `${parts.join(", ")} from "${data.engagementName}". Scope and methodology auto-populated.` });
+      onClose();
+      setSelectedEngId(null);
+    },
+    onError: (err) => {
+      toast.error("Import Failed", { description: err.message });
     },
   });
 
   const handleImport = () => {
     if (!selectedEngId) return;
-    importMutation.mutate({ reportId, engagementId: selectedEngId });
+    if (importSource === "ops_snapshot") {
+      opsSnapshotMutation.mutate({ reportId, engagementId: selectedEngId });
+    } else {
+      importMutation.mutate({ reportId, engagementId: selectedEngId });
+    }
   };
+
+  const isPending = importMutation.isPending || opsSnapshotMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -1611,11 +1666,36 @@ function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; on
             Import from Engagement
           </DialogTitle>
           <DialogDescription>
-            Select an engagement to auto-populate findings from its timeline events.
-            Security events (exploits, shells, credentials, pivots, exfiltration) will be mapped
-            to findings with ATT&CK IDs and NIST 800-53 controls.
+            Select an engagement and import source to auto-populate findings.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Import Source Selector */}
+        <div className="flex gap-2 mb-2">
+          <Button
+            variant={importSource === "ops_snapshot" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setImportSource("ops_snapshot")}
+            className="gap-2 flex-1"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            Ops Snapshot (Recommended)
+          </Button>
+          <Button
+            variant={importSource === "timeline" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setImportSource("timeline")}
+            className="gap-2 flex-1"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Timeline Events
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground px-1 -mt-1">
+          {importSource === "ops_snapshot"
+            ? "Imports from vulnAnalysis, attack chains, and ESS intelligence. Auto-populates scope, methodology, and CVSS scores."
+            : "Imports from timeline events (exploits, shells, credentials, pivots). Use when ops snapshot is unavailable."}
+        </p>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -1672,11 +1752,11 @@ function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; on
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={handleImport}
-            disabled={!selectedEngId || importMutation.isPending}
+            disabled={!selectedEngId || isPending}
             className="gap-2"
           >
-            {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Import Findings
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {importSource === "ops_snapshot" ? "Import from Snapshot" : "Import from Timeline"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1687,7 +1767,6 @@ function EngagementImportDialog({ open, onClose, reportId }: { open: boolean; on
 // ─── Caldera Import Dialog ───────────────────────────────────────────────────
 
 function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClose: () => void; reportId: string }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const { data: operations, isLoading } = trpc.ac3Reports.listCalderaOperations.useQuery(undefined, { enabled: open });
   const [selectedOpId, setSelectedOpId] = useState<string | null>(null);
@@ -1698,15 +1777,12 @@ function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClo
       utils.ac3Reports.getReport.invalidate({ reportId });
       const parts = [`${data.imported} new`];
       if (data.merged) parts.push(`${data.merged} merged into existing`);
-      toast({
-        title: "Caldera Operation Imported",
-        description: `${parts.join(", ")} findings from "${data.operationName}" (${data.totalLinks} links, adversary: ${data.adversaryName}).`,
-      });
+      toast.success("Caldera Operation Imported", { description: `${parts.join(", ")} findings from "${data.operationName}" (${data.totalLinks} links, adversary: ${data.adversaryName}).` });
       onClose();
       setSelectedOpId(null);
     },
     onError: (err) => {
-      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+      toast.error("Import Failed", { description: err.message });
     },
   });
 
@@ -1803,5 +1879,374 @@ function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClo
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+// ─── Coverage Tab ────────────────────────────────────────────────────────────
+
+function CoverageTab({ reportId }: { reportId: string }) {
+  const { data: coverage, isLoading } = trpc.ac3Reports.validateCoverage.useQuery({ reportId });
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">Analyzing coverage...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!coverage) return null;
+
+  const scoreColor = coverage.overallScore >= 80 ? "text-green-400" : coverage.overallScore >= 60 ? "text-yellow-400" : "text-red-400";
+  const scoreBg = coverage.overallScore >= 80 ? "bg-green-500/10 border-green-500/30" : coverage.overallScore >= 60 ? "bg-yellow-500/10 border-yellow-500/30" : "bg-red-500/10 border-red-500/30";
+
+  return (
+    <div className="space-y-4">
+      {/* Overall Score */}
+      <Card className={`border ${scoreBg}`}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Pentest Coverage Assessment</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Validates that findings meet depth/breadth requirements for a proper penetration test per PTES and NIST SP 800-115 methodology.
+              </p>
+            </div>
+            <div className="text-right">
+              <div className={`text-4xl font-bold ${scoreColor}`}>{coverage.overallScore}%</div>
+              <Badge variant="outline" className={`mt-1 ${scoreColor}`}>
+                {coverage.isReportReady ? "Report Ready" : coverage.overallScore >= 60 ? "Needs Improvement" : "Not Ready"}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+        {[
+          { label: "Findings", value: coverage.summary.totalFindings },
+          { label: "Artifacts", value: coverage.summary.totalArtifacts },
+          { label: "Tactics", value: coverage.summary.uniqueTactics },
+          { label: "Techniques", value: coverage.summary.uniqueTechniques },
+          { label: "Tools", value: coverage.summary.toolsIdentified },
+          { label: "Phases", value: `${coverage.summary.phasesRepresented}/10` },
+        ].map((stat) => (
+          <Card key={stat.label} className="border-border/50">
+            <CardContent className="pt-4 pb-3 text-center">
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Category Checks */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Assessment Categories</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {coverage.checks.map((check: any) => (
+            <div key={check.category} className="flex items-center gap-3">
+              <div className="w-6 flex-shrink-0">
+                {check.status === "pass" ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-400" />
+                ) : check.status === "warning" ? (
+                  <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-400" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{check.category}</span>
+                  <span className="text-xs text-muted-foreground">{check.score}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                  <div
+                    className={`h-1.5 rounded-full ${
+                      check.status === "pass" ? "bg-green-500" : check.status === "warning" ? "bg-yellow-500" : "bg-red-500"
+                    }`}
+                    style={{ width: `${check.score}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">{check.details}</p>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* PTES Phase Coverage */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">PTES / NIST 800-115 Methodology Phases</CardTitle>
+          <CardDescription>Each phase of a proper penetration test should be represented in the findings.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {coverage.phaseResults.map((phase: any) => (
+              <div
+                key={phase.phase}
+                className={`rounded-lg border p-3 text-center ${
+                  phase.status === "pass"
+                    ? "border-green-500/30 bg-green-500/5"
+                    : "border-red-500/30 bg-red-500/5"
+                }`}
+              >
+                <div className="text-xs font-medium">{phase.phase}</div>
+                <div className="mt-1">
+                  {phase.status === "pass" ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-400 mx-auto" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-400 mx-auto" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recommendations */}
+      {coverage.recommendations.length > 0 && (
+        <Card className="border-yellow-500/30 bg-yellow-500/5">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-400" />
+              Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {coverage.recommendations.map((rec: string, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <ChevronRight className="h-4 w-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                <span>{rec}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Artifacts Tab ───────────────────────────────────────────────────────────
+
+function ArtifactsTab({ reportId, findings }: { reportId: string; findings: any[] }) {
+  const utils = trpc.useUtils();
+  const { data: artifacts, isLoading } = trpc.ac3Reports.listArtifacts.useQuery({ reportId });
+
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addForm, setAddForm] = useState({
+    findingId: "",
+    artifactType: "screenshot" as string,
+    url: "",
+    description: "",
+    filename: "",
+  });
+
+  const addMutation = trpc.ac3Reports.addArtifact.useMutation({
+    onSuccess: (data) => {
+      utils.ac3Reports.listArtifacts.invalidate({ reportId });
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast.success("Artifact added", { description: `Artifact ${data.label} created.` });
+      setShowAddDialog(false);
+      setAddForm({ findingId: "", artifactType: "screenshot", url: "", description: "", filename: "" });
+    },
+    onError: (err) => toast.error("Error", { description: err.message }),
+  });
+
+  const deleteMutation = trpc.ac3Reports.deleteArtifact.useMutation({
+    onSuccess: () => {
+      utils.ac3Reports.listArtifacts.invalidate({ reportId });
+      utils.ac3Reports.getReport.invalidate({ reportId });
+      toast("Artifact deleted");
+    },
+  });
+
+  const ARTIFACT_TYPES = [
+    "screenshot", "scan_output", "packet_capture", "tool_log",
+    "configuration", "code_snippet", "network_diagram", "credential_dump",
+    "command_output", "other",
+  ];
+
+  if (isLoading) {
+    return (
+      <Card className="border-border/50">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Supporting Artifacts</h3>
+          <p className="text-sm text-muted-foreground">
+            Attach screenshots, scan outputs, packet captures, and other evidence. Artifacts are cross-referenced in the DOCX report and appendix.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setShowAddDialog(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add Artifact
+        </Button>
+      </div>
+
+      {(!artifacts || artifacts.length === 0) ? (
+        <Card className="border-border/50 border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Upload className="h-8 w-8 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No artifacts attached yet.</p>
+            <p className="text-xs text-muted-foreground mt-1">Add screenshots, scan outputs, and other evidence to support your findings.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {artifacts.map((art: any) => {
+            const linkedFinding = findings.find((f: any) => f.findingId === art.findingId);
+            return (
+              <Card key={art.artifactId} className="border-border/50">
+                <CardContent className="flex items-center gap-4 py-3">
+                  <Badge variant="outline" className="text-blue-400 border-blue-500/30 font-mono text-xs">
+                    {art.label}
+                  </Badge>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{art.artifactType.replace(/_/g, " ")}</span>
+                      {art.filename && <span className="text-xs text-muted-foreground">({art.filename})</span>}
+                    </div>
+                    {art.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{art.description}</p>}
+                    {linkedFinding && (
+                      <p className="text-xs text-blue-400 mt-0.5">
+                        Linked to: {linkedFinding.title}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {art.url && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={art.url} target="_blank" rel="noopener noreferrer">
+                          <Eye className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate({ artifactId: art.artifactId })}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add Artifact Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Supporting Artifact</DialogTitle>
+            <DialogDescription>
+              Attach evidence to support a finding. Artifacts are auto-labeled (A-1, A-2, etc.) and cross-referenced in the report.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Artifact Type</Label>
+              <Select
+                value={addForm.artifactType}
+                onValueChange={(v) => setAddForm(f => ({ ...f, artifactType: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ARTIFACT_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Link to Finding (optional)</Label>
+              <Select
+                value={addForm.findingId || "none"}
+                onValueChange={(v) => setAddForm(f => ({ ...f, findingId: v === "none" ? "" : v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Report-level (no specific finding)</SelectItem>
+                  {findings.map((f: any) => (
+                    <SelectItem key={f.findingId} value={f.findingId}>
+                      {f.title || f.findingId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>URL *</Label>
+              <Input
+                value={addForm.url}
+                onChange={(e) => setAddForm(f => ({ ...f, url: e.target.value }))}
+                placeholder="https://storage.example.com/evidence/screenshot.png"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={addForm.description}
+                onChange={(e) => setAddForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Nmap scan output showing open ports on target host"
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label>Filename</Label>
+              <Input
+                value={addForm.filename}
+                onChange={(e) => setAddForm(f => ({ ...f, filename: e.target.value }))}
+                placeholder="nmap-scan-192.168.1.0.txt"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!addForm.url.trim()) {
+                  toast.error("URL required");
+                  return;
+                }
+                addMutation.mutate({
+                  reportId,
+                  findingId: addForm.findingId || undefined,
+                  artifactType: addForm.artifactType as any,
+                  url: addForm.url,
+                  description: addForm.description || undefined,
+                  filename: addForm.filename || undefined,
+                });
+              }}
+              disabled={addMutation.isPending}
+            >
+              {addMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Add Artifact
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
