@@ -13,7 +13,7 @@ RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 WORKDIR /usr/src/app
 
 # Copy package files for dependency caching
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml postinstall.cjs ./
 COPY patches/ ./patches/
 
 # Install ALL dependencies (including devDependencies for esbuild)
