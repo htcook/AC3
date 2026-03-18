@@ -1,3 +1,48 @@
-git clone https://github.com/htcook/caldera-dashboard.git
-cd caldera-dashboard
-mkdir -p .github/workflows
+name: Build & Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REGISTRY: registry.digitalocean.com
+  REGISTRY_NAME: ace-c3-registry
+  IMAGE_NAME: ace-c3
+  APP_ID: 30f972fa-3c51-4a8d-baed-92a696303a50
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:latest \
+            -t ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            .
+
+      - name: Push Docker image to DOCR
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Trigger DO App Platform deployment
+        run: |
+          doctl apps create-deployment ${{ env.APP_ID }} --wait --force-rebuild
+
+      - name: Verify deployment
+        run: |
+          echo "Deployment triggered for app ${{ env.APP_ID }}"
+          doctl apps list --format ID,Spec.Name,ActiveDeployment.Phase,LiveURL
