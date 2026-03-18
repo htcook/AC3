@@ -30,6 +30,12 @@ export type WsEventType =
   | "operation:started"
   | "operation:step_complete"
   | "operation:finished"
+  // C2 callback poller events
+  | "c2:agent_checkin"
+  | "c2:ability_executed"
+  | "c2:operation_update"
+  | "c2:agent_lost"
+  | "c2:operation_complete"
   // Recon events
   | "recon:started"
   | "recon:complete"

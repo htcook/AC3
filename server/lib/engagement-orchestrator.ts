@@ -5286,6 +5286,68 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
         riskTier: "red",
       });
     }
+
+    // ── C2 Callback Poller: Start real-time monitoring ──
+    // If a Caldera operation was launched, start polling for live C2 events
+    try {
+      const { startPolling, getPollerSnapshot } = await import('./caldera-c2-callback-poller');
+      const { listOperations } = await import('./caldera-operation-launcher');
+      const opsResult = await listOperations();
+      if (opsResult.success && opsResult.operations.length > 0) {
+        // Find the most recent running operation
+        const activeOp = opsResult.operations.find(op => op.state === 'running') || opsResult.operations[0];
+        addLog(state, {
+          phase: 'post_exploit', type: 'info',
+          title: '📡 C2 Callback Poller Started',
+          detail: `Monitoring Caldera operation "${activeOp.name}" (ID: ${activeOp.id}) for real-time agent check-ins and ability executions. Polling every 10s.`,
+          riskTier: 'red',
+        });
+        startPolling(state.engagementId, String(activeOp.id), 10000);
+
+        // Wait for operation to complete or timeout (max 10 minutes)
+        const pollerTimeout = 10 * 60 * 1000;
+        const pollerStart = Date.now();
+        while (Date.now() - pollerStart < pollerTimeout) {
+          await new Promise(r => setTimeout(r, 15000));
+          const snapshot = getPollerSnapshot(state.engagementId);
+          if (!snapshot || !snapshot.isPolling) break;
+          if (snapshot.operationSnapshot?.state === 'finished') break;
+          // Update engagement state with live C2 data
+          state.currentAction = `C2 monitoring: ${snapshot.agents.length} agents, ${snapshot.processedLinkCount} abilities executed`;
+          broadcastOpsUpdate(state.engagementId, {
+            type: 'c2_status',
+            agents: snapshot.agents.length,
+            links: snapshot.processedLinkCount,
+            opState: snapshot.operationSnapshot?.state,
+          });
+        }
+
+        // Collect final poller state
+        const finalSnapshot = getPollerSnapshot(state.engagementId);
+        if (finalSnapshot) {
+          addLog(state, {
+            phase: 'post_exploit', type: 'phase_complete',
+            title: `📡 C2 Monitoring Complete — ${finalSnapshot.agents.length} agents, ${finalSnapshot.processedLinkCount} abilities`,
+            detail: `Operation: ${finalSnapshot.operationSnapshot?.state || 'unknown'}\n` +
+              `Agents: ${finalSnapshot.agents.map((a: any) => `${a.paw}@${a.host}`).join(', ')}\n` +
+              `Polls: ${finalSnapshot.pollCount} | Events: ${finalSnapshot.recentEvents.length}`,
+            data: { c2Summary: finalSnapshot },
+          });
+        }
+      } else {
+        addLog(state, {
+          phase: 'post_exploit', type: 'info',
+          title: '📡 No Active Caldera Operations',
+          detail: 'No running Caldera operations found. C2 callback polling skipped.',
+        });
+      }
+    } catch (pollerErr: any) {
+      addLog(state, {
+        phase: 'post_exploit', type: 'warning',
+        title: '⚠️ C2 Callback Poller Failed',
+        detail: `Could not start C2 monitoring: ${pollerErr.message}`,
+      });
+    }
   } else {
     // ── Pentest: Evidence Collection ──
     state.currentAction = "Collecting evidence of unauthorized access...";
@@ -5332,21 +5394,31 @@ export async function executeEngagement(
       const recovered = await getOpsStateWithRecovery(engagementId);
       if (recovered && recovered.phase !== 'completed' && recovered.phase !== 'error' && recovered.phase !== 'idle') {
         state = recovered;
-        // Determine the next phase to run based on what was completed
+        // Use explicit startPhase from options if provided (caller already computed next phase)
+        // Otherwise advance to the next phase after the recovered one
         const phaseOrder: OpsPhase[] = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
-        const lastPhaseIdx = phaseOrder.indexOf(recovered.phase);
-        if (lastPhaseIdx >= 0 && lastPhaseIdx < phaseOrder.length - 1) {
-          // Resume from the phase that was interrupted (re-run it)
-          startPhase = recovered.phase as any;
+        if (options?.startPhase) {
+          startPhase = options.startPhase;
         } else {
-          startPhase = recovered.phase as any;
+          const lastPhaseIdx = phaseOrder.indexOf(recovered.phase);
+          if (lastPhaseIdx >= 0 && lastPhaseIdx < phaseOrder.length - 1) {
+            // Advance to the NEXT phase (the interrupted phase's data is already saved)
+            startPhase = phaseOrder[lastPhaseIdx + 1] as any;
+          } else {
+            startPhase = recovered.phase as any;
+          }
         }
+        const recoveredPhaseLabel = recovered.phase.replace(/_/g, ' ');
+        const startPhaseLabel = (startPhase as string).replace(/_/g, ' ');
         addLog(state, {
           phase: state.phase, type: 'info',
-          title: '🔄 Resuming from checkpoint',
-          detail: `Recovered state from DB snapshot. Resuming from phase: ${startPhase}. Assets: ${state.assets.length}, Vulns: ${state.stats.vulnsFound}, Progress: ${state.progress}%`,
+          title: '🔄 Resumed from Checkpoint',
+          detail: `State recovered from DB snapshot.\n` +
+            `Last completed phase: ${recoveredPhaseLabel}\n` +
+            `Continuing from: ${startPhaseLabel}\n` +
+            `Preserved: ${state.assets.length} assets, ${state.stats.vulnsFound} vulns, ${state.stats.portsFound} ports, ${state.logs.length} log entries`,
         });
-        console.log(`[OpsState] Resuming engagement #${engagementId} from phase ${startPhase} (${state.assets.length} assets, ${state.stats.vulnsFound} vulns)`);
+        console.log(`[OpsState] Resuming engagement #${engagementId}: ${recoveredPhaseLabel} → ${startPhaseLabel} (${state.assets.length} assets, ${state.stats.vulnsFound} vulns)`);
       }
     } catch (e: any) {
       console.error(`[OpsState] Resume failed for #${engagementId}:`, e.message);

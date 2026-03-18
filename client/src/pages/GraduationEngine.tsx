@@ -49,6 +49,7 @@ import {
   XCircle,
   RefreshCw,
   Shield,
+  ShieldCheck,
   Network,
   Crosshair,
   Eye,
@@ -59,6 +60,10 @@ import {
   Play,
   Star,
   Info,
+  ClipboardCheck,
+  CircleDot,
+  AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
@@ -943,6 +948,250 @@ function EngagementTrackingTab() {
   );
 }
 
+// ─── Quality Gates Tab ─────────────────────────────────────────────────────
+
+const VERDICT_CONFIG = {
+  pass: { label: "PASS", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", badge: "bg-emerald-500/20 text-emerald-300", icon: CheckCircle2 },
+  warn: { label: "WARN", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", badge: "bg-yellow-500/20 text-yellow-300", icon: AlertTriangle },
+  fail: { label: "FAIL", color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", badge: "bg-red-500/20 text-red-300", icon: XCircle },
+  insufficient: { label: "INSUFFICIENT", color: "text-zinc-400", bg: "bg-zinc-500/10 border-zinc-500/20", badge: "bg-zinc-500/20 text-zinc-300", icon: HelpCircle },
+} as const;
+
+function QualityGatesTab() {
+  const { data, isLoading, refetch } = trpc.graduationEngine.getTrainingQualityGates.useQuery();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="animate-pulse border-border/50">
+            <CardContent className="p-6"><div className="h-24 bg-muted rounded" /></CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const gates = data?.gates || [];
+  const summary = data?.summary;
+  const thresholds = data?.thresholds;
+
+  return (
+    <div className="space-y-6">
+      {/* Description */}
+      <div className="p-4 rounded-lg border border-border/30 bg-muted/10">
+        <p className="text-sm text-muted-foreground">
+          Training data quality gates evaluate whether each model's training examples meet the approval
+          and quality thresholds required for graduation. Models must pass these gates before they can
+          be replaced with deterministic code.
+        </p>
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Total Models", value: summary.totalModels, icon: Brain, color: "text-blue-400" },
+            { label: "Passing", value: summary.passCount, icon: CheckCircle2, color: "text-emerald-400" },
+            { label: "Warning", value: summary.warnCount, icon: AlertTriangle, color: "text-yellow-400" },
+            { label: "Failing", value: summary.failCount, icon: XCircle, color: "text-red-400" },
+            { label: "Insufficient Data", value: summary.insufficientCount, icon: HelpCircle, color: "text-zinc-400" },
+            { label: "Overall Readiness", value: `${summary.overallReadiness}%`, icon: ShieldCheck, color: summary.overallReadiness >= 60 ? "text-emerald-400" : "text-yellow-400" },
+          ].map((c) => (
+            <Card key={c.label} className="border-border/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <c.icon className={`h-4 w-4 ${c.color}`} />
+                  <span className="text-xs text-muted-foreground">{c.label}</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{c.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Overall Readiness Bar */}
+      {summary && (
+        <Card className="border-border/50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-foreground">Overall Graduation Readiness</span>
+              <span className={`text-sm font-bold ${
+                summary.overallReadiness >= 60 ? "text-emerald-400" :
+                summary.overallReadiness >= 30 ? "text-yellow-400" : "text-red-400"
+              }`}>{summary.overallReadiness}%</span>
+            </div>
+            <div className="h-3 bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  summary.overallReadiness >= 60 ? "bg-emerald-500" :
+                  summary.overallReadiness >= 30 ? "bg-yellow-500" : "bg-red-500"
+                }`}
+                style={{ width: `${Math.max(summary.overallReadiness, 2)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+              <span>{summary.totalApproved} approved / {summary.totalRejected} rejected examples</span>
+              <span>{summary.totalExamples} total training examples</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Per-Model Quality Gate Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {gates.map((gate: any) => {
+          const verdictCfg = VERDICT_CONFIG[gate.verdict as keyof typeof VERDICT_CONFIG];
+          const VerdictIcon = verdictCfg.icon;
+          return (
+            <Card key={gate.model} className={`border ${verdictCfg.bg}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className={`h-5 w-5 ${verdictCfg.color}`} />
+                    <CardTitle className="text-sm font-mono">{gate.model}</CardTitle>
+                  </div>
+                  <Badge className={`${verdictCfg.badge} border-0 text-[10px] gap-1`}>
+                    <VerdictIcon className="h-3 w-3" />
+                    {verdictCfg.label}
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs mt-1">{gate.verdictReason}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Key Metrics Grid */}
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-foreground">{gate.total}</p>
+                    <p className="text-[10px] text-muted-foreground">Total</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-emerald-400">{gate.approved}</p>
+                    <p className="text-[10px] text-muted-foreground">Approved</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-red-400">{gate.rejected}</p>
+                    <p className="text-[10px] text-muted-foreground">Rejected</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-zinc-400">{gate.pending}</p>
+                    <p className="text-[10px] text-muted-foreground">Pending</p>
+                  </div>
+                </div>
+
+                {/* Approval Rate Bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Approval Rate</span>
+                    <span className={gate.approvalRate >= 80 ? "text-emerald-400" : gate.approvalRate >= 60 ? "text-yellow-400" : "text-red-400"}>
+                      {gate.approvalRate}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        gate.approvalRate >= 80 ? "bg-emerald-500" :
+                        gate.approvalRate >= 60 ? "bg-yellow-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.max(gate.approvalRate, 2)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Review Progress Bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Review Progress</span>
+                    <span className="text-muted-foreground">{gate.reviewProgress}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.max(gate.reviewProgress, 2)}%` }} />
+                  </div>
+                </div>
+
+                {/* Quality Scores */}
+                <div className="flex justify-between text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Avg Quality Score: </span>
+                    <span className={gate.avgQualityScore >= 0.75 ? "text-emerald-400" : gate.avgQualityScore >= 0.5 ? "text-yellow-400" : "text-red-400"}>
+                      {gate.avgQualityScore.toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Approved Avg: </span>
+                    <span className={gate.avgApprovedScore >= 0.75 ? "text-emerald-400" : gate.avgApprovedScore >= 0.5 ? "text-yellow-400" : "text-zinc-400"}>
+                      {gate.avgApprovedScore.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quality Distribution */}
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">
+                    High: {gate.qualityDistribution.high}
+                  </Badge>
+                  <Badge variant="outline" className="text-[9px] border-yellow-500/30 text-yellow-400">
+                    Medium: {gate.qualityDistribution.medium}
+                  </Badge>
+                  <Badge variant="outline" className="text-[9px] border-red-500/30 text-red-400">
+                    Low: {gate.qualityDistribution.low}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Empty State */}
+      {gates.length === 0 && (
+        <Card className="border-border/50">
+          <CardContent className="py-12 text-center">
+            <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">No training data found. Run lab scenarios or live engagements to generate training examples.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Threshold Reference */}
+      {thresholds && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Info className="h-4 w-4 text-blue-400" /> Quality Gate Thresholds
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`rounded-lg border p-3 ${VERDICT_CONFIG.pass.bg}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className={`${VERDICT_CONFIG.pass.badge} border-0 text-[10px]`}>PASS</Badge>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Approval Rate</span><span className="text-emerald-400">{thresholds.pass.minApprovalRate}%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Reviewed</span><span className="text-emerald-400">{thresholds.pass.minReviewed}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Avg Score</span><span className="text-emerald-400">{thresholds.pass.minAvgScore}</span></div>
+                </div>
+              </div>
+              <div className={`rounded-lg border p-3 ${VERDICT_CONFIG.warn.bg}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className={`${VERDICT_CONFIG.warn.badge} border-0 text-[10px]`}>WARN</Badge>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Approval Rate</span><span className="text-yellow-400">{thresholds.warn.minApprovalRate}%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Reviewed</span><span className="text-yellow-400">{thresholds.warn.minReviewed}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Avg Score</span><span className="text-yellow-400">{thresholds.warn.minAvgScore}</span></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function GraduationEnginePage() {
@@ -1009,6 +1258,9 @@ export default function GraduationEnginePage() {
           <TabsList className="bg-muted/30">
             <TabsTrigger value="candidates" className="gap-2">
               <Brain className="h-3.5 w-3.5" /> Graduation Candidates
+            </TabsTrigger>
+            <TabsTrigger value="quality-gates" className="gap-2">
+              <ShieldCheck className="h-3.5 w-3.5" /> Quality Gates
             </TabsTrigger>
             <TabsTrigger value="model-states" className="gap-2">
               <Cpu className="h-3.5 w-3.5" /> Model States
@@ -1167,6 +1419,11 @@ export default function GraduationEnginePage() {
                 </Card>
               </>
             )}
+          </TabsContent>
+
+          {/* Quality Gates Tab */}
+          <TabsContent value="quality-gates" className="mt-4">
+            <QualityGatesTab />
           </TabsContent>
 
           {/* Model States Tab */}
