@@ -18,6 +18,7 @@ import { KnowledgeIndex, getRagSources, buildAttributionNotice, autoTagDocument 
 import { getRoleActions, actionsToLLMTools } from "../lib/role-quick-actions";
 import { executeQuickAction, setActionUserContext } from "../lib/quick-action-executor";
 import { buildPageContextForChat, buildPlatformOverview } from "../lib/platform-feature-map";
+import { enhanceChatPrompt } from "../lib/agent-chat-enhancer";
 import { chatSessions, chatMessages } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { eq, desc, and, count as drizzleCount } from "drizzle-orm";
@@ -477,6 +478,27 @@ export const aiChatRouter = router({
       if (input.engagementId) {
         systemParts.push(`\nActive engagement ID: ${input.engagementId}`);
       }
+
+      // ── Inject Agency-Agents Architecture Enhancements ──
+      try {
+        const { additionalPromptParts, delegatedAgent } = enhanceChatPrompt(
+          userRole,
+          input.message,
+          {
+            enableReasoning: true,
+            enableDelegation: true,
+            enableConfidence: true,
+            enableGuardrails: true,
+            enableTemplates: true,
+          }
+        );
+        for (const part of additionalPromptParts) {
+          systemParts.push(part);
+        }
+        if (delegatedAgent) {
+          systemParts.push(`\n[Agent Delegation Active: ${delegatedAgent.name}]`);
+        }
+      } catch { /* graceful degradation — chat works without enhancements */ }
 
       systemParts.push(`\nRespond concisely. Use markdown formatting. Stay in character as ${roleConfig.assistantName}.`);
       systemParts.push(`When you use a tool/function, briefly explain what you're doing and present the results clearly.`);

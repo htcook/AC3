@@ -420,6 +420,9 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Observations", path: "/ssil/observations", icon: Eye },
       { label: "Alert Rules", path: "/ssil/alerts", icon: AlertTriangle },
       { label: "SSIL Correlation", path: "/ssil/correlation", icon: Link2 },
+      // Agent Registry & Pipeline
+      { label: "Agent Registry", path: "/agent-registry", roles: ["admin", "team_lead"] as UserRole[], icon: Bot },
+      { label: "NEXUS Pipeline", path: "/nexus-pipeline", roles: ["admin", "team_lead"] as UserRole[], icon: Workflow },
       // AI Tools
       { label: "AI Security Validation", path: "/ai-security-validation", icon: ShieldCheck },
       { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },

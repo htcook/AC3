@@ -6085,3 +6085,114 @@ export const customerSharedReports = mysqlTable("customer_shared_reports", {
 ]);
 export type CustomerSharedReportRow = typeof customerSharedReports.$inferSelect;
 export type InsertCustomerSharedReport = typeof customerSharedReports.$inferInsert;
+
+
+// ─── Agent Definitions (Offensive Security Agent Registry) ───────────────────
+export const agentDefinitions = mysqlTable("agent_definitions", {
+  id: int().autoincrement().primaryKey(),
+  agentId: varchar("ad_agent_id", { length: 64 }).notNull(),
+  name: varchar("ad_name", { length: 255 }).notNull(),
+  category: mysqlEnum("ad_category", [
+    'osint_analyst', 'pentester', 'social_engineer', 'red_team_operator', 'report_writer',
+    'recon_analyst', 'exploit_selector', 'evasion_optimizer', 'lateral_planner', 'persistence_engineer',
+    'scan_analyst', 'attack_planner', 'vuln_verifier', 'threat_mapper', 'ops_decider',
+    'caldera_builder', 'custom'
+  ]).notNull(),
+  persona: text("ad_persona").notNull(),
+  mission: text("ad_mission").notNull(),
+  coreRules: json("ad_core_rules").$type<string[]>().notNull(),
+  evidenceTags: json("ad_evidence_tags").$type<string[]>(),
+  deliverableTemplates: json("ad_deliverable_templates").$type<Array<{ name: string; format: string; schema?: Record<string, unknown> }>>(),
+  workflowSteps: json("ad_workflow_steps").$type<Array<{ step: number; name: string; description: string; requiredInputs: string[]; outputs: string[]; qualityGate?: string }>>(),
+  toolAccess: json("ad_tool_access").$type<string[]>(),
+  mitreTactics: json("ad_mitre_tactics").$type<string[]>(),
+  llmCallerPrefix: varchar("ad_llm_caller_prefix", { length: 128 }),
+  priority: mysqlEnum("ad_priority", ['essential', 'standard', 'bulk']).default('standard'),
+  status: mysqlEnum("ad_status", ['active', 'draft', 'deprecated', 'testing']).default('draft'),
+  version: int("ad_version").default(1).notNull(),
+  createdAt: timestamp("ad_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("ad_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ad_agent_id_idx").on(table.agentId),
+  index("ad_category_idx").on(table.category),
+  index("ad_status_idx").on(table.status),
+]);
+export type AgentDefinitionRow = typeof agentDefinitions.$inferSelect;
+export type InsertAgentDefinition = typeof agentDefinitions.$inferInsert;
+
+// ─── NEXUS Pipeline Executions (Code Generation Pipeline) ────────────────────
+export const nexusPipelineExecutions = mysqlTable("nexus_pipeline_executions", {
+  id: int().autoincrement().primaryKey(),
+  executionId: varchar("npe_execution_id", { length: 64 }).notNull(),
+  callerName: varchar("npe_caller_name", { length: 255 }).notNull(),
+  graduationTier: int("npe_graduation_tier").notNull(),
+  triggerType: mysqlEnum("npe_trigger_type", ['auto', 'manual', 'scheduled']).default('auto'),
+  currentStage: mysqlEnum("npe_current_stage", [
+    'requirement_analysis', 'architecture', 'code_generation', 'qa_validation',
+    'security_review', 'integration_test', 'completed', 'failed', 'rolled_back'
+  ]).default('requirement_analysis'),
+  stageHistory: json("npe_stage_history").$type<Array<{
+    stage: string;
+    startedAt: number;
+    completedAt?: number;
+    status: 'passed' | 'failed' | 'skipped';
+    retries: number;
+    evidence: string;
+    score?: number;
+    agentUsed?: string;
+  }>>(),
+  requirementSpec: json("npe_requirement_spec").$type<{
+    inputSchema: Record<string, unknown>;
+    outputSchema: Record<string, unknown>;
+    sampleInputs: unknown[];
+    sampleOutputs: unknown[];
+    constraints: string[];
+    performanceTargets: { maxLatencyMs: number; minAccuracy: number };
+  }>(),
+  generatedCode: text("npe_generated_code"),
+  generatedTests: text("npe_generated_tests"),
+  qaScore: int("npe_qa_score"),
+  securityScore: int("npe_security_score"),
+  integrationScore: int("npe_integration_score"),
+  overallScore: int("npe_overall_score"),
+  costSaved: decimal("npe_cost_saved", { precision: 10, scale: 4 }),
+  tokensConsumed: int("npe_tokens_consumed").default(0),
+  llmCallsCount: int("npe_llm_calls_count").default(0),
+  status: mysqlEnum("npe_status", ['running', 'completed', 'failed', 'rolled_back', 'paused']).default('running'),
+  errorMessage: text("npe_error_message"),
+  startedAt: timestamp("npe_started_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("npe_completed_at", { mode: 'string' }),
+}, (table) => [
+  index("npe_execution_id_idx").on(table.executionId),
+  index("npe_caller_name_idx").on(table.callerName),
+  index("npe_status_idx").on(table.status),
+  index("npe_tier_idx").on(table.graduationTier),
+]);
+export type NexusPipelineExecutionRow = typeof nexusPipelineExecutions.$inferSelect;
+export type InsertNexusPipelineExecution = typeof nexusPipelineExecutions.$inferInsert;
+
+// ─── NEXUS Quality Gate Results ──────────────────────────────────────────────
+export const nexusQualityGates = mysqlTable("nexus_quality_gates", {
+  id: int().autoincrement().primaryKey(),
+  executionId: varchar("nqg_execution_id", { length: 64 }).notNull(),
+  gateName: varchar("nqg_gate_name", { length: 128 }).notNull(),
+  gateType: mysqlEnum("nqg_gate_type", [
+    'llm_judge', 'unit_test', 'type_check', 'security_scan', 'performance_bench', 'integration_test'
+  ]).notNull(),
+  passed: tinyint("nqg_passed").notNull(),
+  score: int("nqg_score"),
+  maxScore: int("nqg_max_score").default(100),
+  evidence: json("nqg_evidence").$type<{
+    judgeReasoning?: string;
+    testResults?: { passed: number; failed: number; skipped: number };
+    securityFindings?: Array<{ severity: string; description: string }>;
+    performanceMetrics?: { latencyMs: number; memoryMb: number; throughputRps: number };
+  }>(),
+  retryAttempt: int("nqg_retry_attempt").default(0),
+  evaluatedAt: timestamp("nqg_evaluated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("nqg_execution_id_idx").on(table.executionId),
+  index("nqg_gate_type_idx").on(table.gateType),
+]);
+export type NexusQualityGateRow = typeof nexusQualityGates.$inferSelect;
+export type InsertNexusQualityGate = typeof nexusQualityGates.$inferInsert;

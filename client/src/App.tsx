@@ -302,6 +302,8 @@ const TestLabImplant = lazyWithRetry(() => import("./pages/TestLabImplant"));
 const TestLabTraining = lazyWithRetry(() => import("./pages/TestLabTraining"));
 const TestLabGraduation = lazyWithRetry(() => import("./pages/TestLabGraduation"));
 const DfirLibrary = lazyWithRetry(() => import("./pages/DfirLibrary"));
+const AgentRegistryPage = lazyWithRetry(() => import("./pages/AgentRegistry"));
+const NexusPipelinePage = lazyWithRetry(() => import("./pages/NexusPipeline"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1039,6 +1041,12 @@ function Router() {
         </Route>
         <Route path="/graduation-engine">
           <ProtectedRoute component={GraduationEngine} />
+        </Route>
+        <Route path="/agent-registry">
+          <ProtectedRoute component={AgentRegistryPage} />
+        </Route>
+        <Route path="/nexus-pipeline">
+          <ProtectedRoute component={NexusPipelinePage} />
         </Route>
         <Route path="/remediation-tracking">
           <ProtectedRoute component={RemediationTracking} />

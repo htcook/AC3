@@ -187,6 +187,7 @@ import { ac3ReportsRouter } from "./routers/ac3-reports";
 import { engagementScanImportsRouter } from "./routers/engagement-scan-imports";
 import { dfirLibraryRouter } from "./routers/dfir-library";
 import { scanSchedulesRouter } from "./routers/scan-schedules";
+import { agentRegistryRouter } from "./routers/agent-registry";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -548,6 +549,8 @@ export const appRouter = router({
   engagementScanImports: engagementScanImportsRouter,
   dfirLibrary: dfirLibraryRouter,
   scanSchedules: scanSchedulesRouter,
+  // ─── Agent Registry & NEXUS Pipeline (Offensive Agent Definitions + Code Gen) ──
+  agentRegistry: agentRegistryRouter,
 });
 export type AppRouter = typeof appRouter;
 

@@ -88,6 +88,13 @@ export type InvokeParams = {
    * - "bulk": Always Forge for commodity tasks
    */
   _priority?: LLMPriority;
+  /**
+   * Custom timeout in milliseconds for this LLM call.
+   * Default: 90_000 (90s). Use higher values for enrichment-class calls
+   * that process large context (BIA, report generation, etc.).
+   * Max: 300_000 (5 minutes).
+   */
+  _timeoutMs?: number;
 };
 
 export type ToolCall = {
@@ -422,8 +429,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    // 90-second timeout to prevent hanging on slow/unresponsive LLM API
-    const LLM_TIMEOUT_MS = 90_000;
+    // Configurable timeout — default 90s, max 5 minutes
+    const LLM_TIMEOUT_MS = Math.min(params._timeoutMs || 90_000, 300_000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 

@@ -14,12 +14,14 @@ import { invokeLLM } from "./_core/llm";
 // ─── LLM Timeout Wrapper (Tier 1 Optimization #3.1) ────────────────────
 // Wraps every LLM call in Promise.race with a hard timeout to prevent
 // pipeline hangs when the LLM API stalls or doesn't respond.
-const LLM_TIMEOUT_MS = 60_000; // 60 seconds
+const LLM_TIMEOUT_MS = 180_000; // 180 seconds — enrichment-class calls need more time for large context
 async function invokeLLMWithTimeout(params: Parameters<typeof invokeLLM>[0], timeoutMs = LLM_TIMEOUT_MS): Promise<ReturnType<typeof invokeLLM>> {
+  // Wire the _timeoutMs into the invokeLLM params for fetch-level timeout
+  const paramsWithTimeout = { ...params, _timeoutMs: timeoutMs };
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs)
+    setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs + 5_000) // 5s grace over fetch timeout
   );
-  return Promise.race([invokeLLM(params), timeoutPromise]) as ReturnType<typeof invokeLLM>;
+  return Promise.race([invokeLLM(paramsWithTimeout), timeoutPromise]) as ReturnType<typeof invokeLLM>;
 }
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
