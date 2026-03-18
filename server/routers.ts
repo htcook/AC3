@@ -193,6 +193,7 @@ import { labEngagementSeedRouter } from "./routers/lab-engagement-seed";
 import { labEngagementSeedWave2Router } from "./routers/lab-engagement-seed-wave2";
 import { agentLeaderboardRouter } from "./routers/agent-leaderboard";
 import { realtimeMonitorRouter } from "./routers/realtime-monitor";
+import { trainingDataReviewRouter } from "./routers/training-data-review";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -565,6 +566,8 @@ export const appRouter = router({
   agentLeaderboard: agentLeaderboardRouter,
   // ─── Real-Time Engagement Monitoring ──
   realtimeMonitor: realtimeMonitorRouter,
+  // ─── Training Data Quality Review & JSONL Export ──
+  trainingReview: trainingDataReviewRouter,
 });
 export type AppRouter = typeof appRouter;
 

@@ -190,6 +190,13 @@
       "when": 1773850205475,
       "tag": "0026_naive_colleen_wing",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1773868613050,
+      "tag": "0027_clumsy_the_initiative",
+      "breakpoints": true
     }
   ]
 }

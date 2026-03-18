@@ -5776,12 +5776,17 @@ export const llmTrainingExamples = mysqlTable("llm_training_examples", {
   qualityScore: double("quality_score").notNull(),
   messages: json("te_messages").notNull(),
   metadata: json("te_metadata"),
+  reviewStatus: mysqlEnum("te_review_status", ['pending_review', 'approved', 'rejected', 'flagged']).default('pending_review').notNull(),
+  reviewedBy: varchar("te_reviewed_by", { length: 128 }),
+  reviewedAt: timestamp("te_reviewed_at", { mode: 'string' }),
+  reviewNotes: text("te_review_notes"),
   createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
   index("lte_model_idx").on(table.model),
   index("lte_source_idx").on(table.source),
   index("lte_quality_idx").on(table.quality),
   index("lte_example_id_idx").on(table.exampleId),
+  index("lte_review_status_idx").on(table.reviewStatus),
 ]);
 export type LlmTrainingExampleRow = typeof llmTrainingExamples.$inferSelect;
 export type InsertLlmTrainingExample = typeof llmTrainingExamples.$inferInsert;

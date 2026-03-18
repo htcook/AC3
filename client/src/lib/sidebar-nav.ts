@@ -476,6 +476,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "LLM Reliability", path: "/llm-reliability", icon: Gauge, roles: ["admin", "team_lead"] },
       { label: "LLM Learning", path: "/llm-learning", icon: BookOpen },
       { label: "Training Data", path: "/training-data-dashboard", icon: Database },
+      { label: "Data Review & Export", path: "/training-data-review", icon: FileCheck2 },
       { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
       { label: "Batch Training", path: "/batch-training", icon: Zap, roles: ["admin", "team_lead"] },
       { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
