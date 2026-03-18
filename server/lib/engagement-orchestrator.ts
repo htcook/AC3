@@ -180,6 +180,8 @@ export interface AssetStatus {
   type: "web_app" | "server" | "network_device" | "database" | "api" | "unknown";
   ports: Array<{ port: number; service: string; version?: string }>;
   vulns: Array<{ id: string; severity: string; title: string; cve?: string }>;
+  /** Passive recon findings deferred until vuln_detection phase — NOT counted as confirmed vulns */
+  pendingVulns: Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
   exploitAttempts: Array<{
     module: string;
@@ -434,6 +436,7 @@ export function normalizeOpsState(state: any): EngagementOpsState {
   // Ensure each asset has required arrays
   for (const asset of state.assets) {
     if (!Array.isArray(asset.vulns)) asset.vulns = [];
+    if (!Array.isArray(asset.pendingVulns)) asset.pendingVulns = [];
     if (!Array.isArray(asset.toolResults)) asset.toolResults = [];
     if (!Array.isArray(asset.ports)) asset.ports = [];
     if (!Array.isArray(asset.zapFindings)) asset.zapFindings = [];
@@ -1572,6 +1575,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         type: "unknown",
         ports: [],
         vulns: [],
+        pendingVulns: [],
         zapFindings: [],
         exploitAttempts: [],
         confirmedCredentials: [],
@@ -1588,6 +1592,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
         type: "unknown",
         ports: [],
         vulns: [],
+        pendingVulns: [],
         zapFindings: [],
         exploitAttempts: [],
         confirmedCredentials: [],
@@ -1737,14 +1742,18 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
               });
             }
           }
-          // Add vulns from posture findings (deduplicated by title and CVE)
+          // Defer passive vulns to pendingVulns — they will be promoted to vulns at vuln_detection phase start
           for (const v of passiveVulns) {
-            pushVulnDeduped(existing, v as any);
+            const isDupe = existing.pendingVulns.some((pv: any) => {
+              if (v.cve && pv.cve && v.cve === pv.cve) return true;
+              if (pv.title === v.title) return true;
+              return false;
+            });
+            if (!isDupe) existing.pendingVulns.push(v as any);
           }
           existing.status = 'discovered';
-          // Update stats
+          // Update port stats only — vulns are deferred
           state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
-          state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
         } else if (isInRoeScope(state, assetHostname, asset.asset?.ip || asset.ip)) {
           // Asset is in RoE scope — add for active scanning
           state.assets.push({
@@ -1756,7 +1765,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
               service: svc.service || 'unknown',
               version: svc.version || '',
             })),
-            vulns: passiveVulns,
+            vulns: [],
+            pendingVulns: passiveVulns,
             zapFindings: [],
             exploitAttempts: [],
             confirmedCredentials: [],
@@ -1765,7 +1775,6 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             passiveRecon,
           });
           state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
-          state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
         } else {
           // Asset discovered but OUT OF RoE SCOPE — log but do NOT add for active scanning
           outOfScopeCount++;
@@ -1797,13 +1806,13 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
 
       const findingsCount = (result as any).totalFindings || 0;
       const portsFound = state.stats.portsFound;
-      const vulnsFound = state.stats.vulnsFound;
+      const pendingVulnCount = state.assets.reduce((sum, a) => sum + (a.pendingVulns?.length || 0), 0);
       addLog(state, {
         phase: "recon",
         type: "scan_result",
         title: `Recon Complete: ${domain}`,
-        detail: `Discovered ${discoveredAssets.length} assets, ${findingsCount} findings, ${portsFound} ports, ${vulnsFound} vulns from passive recon`,
-        data: { domain, assets: discoveredAssets.length, findings: findingsCount, ports: portsFound, vulns: vulnsFound },
+        detail: `Discovered ${discoveredAssets.length} assets, ${findingsCount} findings, ${portsFound} ports, ${pendingVulnCount} risk signals deferred to scanning phase`,
+        data: { domain, assets: discoveredAssets.length, findings: findingsCount, ports: portsFound, pendingVulns: pendingVulnCount },
       });
 
       emitReconComplete({ scanId: 0, domain, findings: findingsCount });
@@ -3749,6 +3758,27 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 3: Vulnerability Detection", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
+  // ── Promote pendingVulns from passive recon into confirmed vulns ──
+  let promotedCount = 0;
+  for (const asset of state.assets) {
+    if (asset.pendingVulns && asset.pendingVulns.length > 0) {
+      for (const pv of asset.pendingVulns) {
+        if (pushVulnDeduped(asset, pv as any)) {
+          state.stats.vulnsFound++;
+          promotedCount++;
+        }
+      }
+      asset.pendingVulns = [];
+    }
+  }
+  if (promotedCount > 0) {
+    addLog(state, {
+      phase: "vuln_detection", type: "info",
+      title: `📋 Promoted ${promotedCount} passive recon findings to confirmed vulns`,
+      detail: `${promotedCount} risk signals from passive recon (Shodan, Censys, posture analysis) are now included in the vulnerability count for correlation with active scan results.`,
+    });
+  }
+
   // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
@@ -5287,15 +5317,153 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       });
     }
 
+    // ── Caldera Operation Auto-Launch ──
+    // If compromised hosts exist and agents are deployed, auto-push adversary profile
+    // and launch a Caldera operation to execute the adversary emulation plan.
+    let autoLaunchedOpId: string | null = null;
+    const compromisedForC2 = state.assets.filter(a => a.status === 'compromised');
+    if (compromisedForC2.length > 0) {
+      try {
+        addLog(state, {
+          phase: 'post_exploit', type: 'info',
+          title: '🚀 Auto-Launch: Selecting Adversary Profile',
+          detail: `${compromisedForC2.length} compromised host(s) detected. Searching for deployable adversary profiles...`,
+          riskTier: 'red',
+        });
+
+        // Find a suitable adversary profile to push
+        const { getDb } = await import('../db');
+        const { threatActors: threatActorsTable } = await import('../../drizzle/schema');
+        const { isNotNull } = await import('drizzle-orm');
+        const dbConn = await getDb();
+        const actors = await dbConn
+          .select({ actorId: threatActorsTable.actorId, name: threatActorsTable.name, calderaProfile: threatActorsTable.calderaProfile })
+          .from(threatActorsTable)
+          .where(isNotNull(threatActorsTable.calderaProfile))
+          .limit(10);
+
+        // Prefer already-deployed profiles, then any with abilities
+        let selectedActor: { actorId: string; name: string; calderaProfile: any } | null = null;
+        let selectedAdversaryId: string | null = null;
+
+        for (const actor of actors) {
+          try {
+            const profile = typeof actor.calderaProfile === 'string' ? JSON.parse(actor.calderaProfile) : actor.calderaProfile;
+            if (profile?.deploymentStatus === 'deployed' && profile?.calderaServerId) {
+              selectedActor = actor;
+              selectedAdversaryId = profile.calderaServerId;
+              break;
+            }
+            if (!selectedActor && profile?.atomicOrdering?.length > 0) {
+              selectedActor = actor;
+            }
+          } catch { /* skip malformed profiles */ }
+        }
+
+        if (selectedActor) {
+          // Push profile if not already deployed
+          if (!selectedAdversaryId) {
+            addLog(state, {
+              phase: 'post_exploit', type: 'info',
+              title: `📤 Auto-Push: ${selectedActor.name}`,
+              detail: `Pushing adversary profile to Caldera server...`,
+              riskTier: 'red',
+            });
+            const { pushProfileToCaldera } = await import('./caldera-profile-push');
+            const pushResult = await pushProfileToCaldera(selectedActor.actorId);
+            if (pushResult.success && pushResult.adversaryId) {
+              selectedAdversaryId = pushResult.adversaryId;
+              addLog(state, {
+                phase: 'post_exploit', type: 'info',
+                title: `✅ Profile Pushed: ${selectedActor.name}`,
+                detail: `Adversary ID: ${selectedAdversaryId}`,
+                riskTier: 'red',
+              });
+            } else {
+              addLog(state, {
+                phase: 'post_exploit', type: 'warning',
+                title: `⚠️ Profile Push Failed: ${selectedActor.name}`,
+                detail: pushResult.error || 'Unknown error',
+              });
+            }
+          }
+
+          // Launch the operation
+          if (selectedAdversaryId) {
+            addLog(state, {
+              phase: 'post_exploit', type: 'info',
+              title: `🎯 Auto-Launch: Caldera Operation`,
+              detail: `Launching operation with adversary "${selectedActor.name}" (${selectedAdversaryId}) targeting ${compromisedForC2.length} compromised host(s)`,
+              riskTier: 'red',
+            });
+
+            const { launchOperation } = await import('./caldera-operation-launcher');
+            const opName = `AC3-AutoLaunch-Eng${state.engagementId}-${Date.now()}`;
+            const launchResult = await launchOperation(
+              {
+                name: opName,
+                adversaryId: selectedAdversaryId,
+                group: '',
+                planner: 'batch',
+                autonomous: true,
+                autoClose: true,
+                jitter: '2/8',
+              },
+              `engagement-orchestrator-eng${state.engagementId}`,
+              selectedActor.name,
+            );
+
+            if (launchResult.success && launchResult.operationId) {
+              autoLaunchedOpId = String(launchResult.operationId);
+              addLog(state, {
+                phase: 'post_exploit', type: 'info',
+                title: `✅ Operation Launched: ${opName}`,
+                detail: `Operation ID: ${autoLaunchedOpId}. Adversary: ${selectedActor.name}. Auto-starting C2 callback poller.`,
+                riskTier: 'red',
+                data: { operationId: autoLaunchedOpId, adversaryId: selectedAdversaryId, adversaryName: selectedActor.name },
+              });
+            } else {
+              addLog(state, {
+                phase: 'post_exploit', type: 'warning',
+                title: `⚠️ Operation Launch Failed`,
+                detail: launchResult.error || 'Unknown error',
+              });
+            }
+          }
+        } else {
+          addLog(state, {
+            phase: 'post_exploit', type: 'info',
+            title: '📋 No Adversary Profiles Available',
+            detail: 'No threat actor profiles found for auto-launch. Create and push a profile from the Threat Actors page to enable auto-launch.',
+          });
+        }
+      } catch (autoLaunchErr: any) {
+        addLog(state, {
+          phase: 'post_exploit', type: 'warning',
+          title: '⚠️ Auto-Launch Error',
+          detail: `Could not auto-launch Caldera operation: ${autoLaunchErr.message}`,
+        });
+      }
+    }
+
     // ── C2 Callback Poller: Start real-time monitoring ──
-    // If a Caldera operation was launched, start polling for live C2 events
+    // If a Caldera operation was launched (auto or existing), start polling for live C2 events
     try {
       const { startPolling, getPollerSnapshot } = await import('./caldera-c2-callback-poller');
       const { listOperations } = await import('./caldera-operation-launcher');
-      const opsResult = await listOperations();
-      if (opsResult.success && opsResult.operations.length > 0) {
-        // Find the most recent running operation
-        const activeOp = opsResult.operations.find(op => op.state === 'running') || opsResult.operations[0];
+
+      // Prefer the auto-launched operation, otherwise find any running operation
+      let targetOpId = autoLaunchedOpId;
+      if (!targetOpId) {
+        const opsResult = await listOperations();
+        if (opsResult.success && opsResult.operations.length > 0) {
+          const activeOp = opsResult.operations.find(op => op.state === 'running') || opsResult.operations[0];
+          targetOpId = String(activeOp.id);
+        }
+      }
+
+      if (targetOpId) {
+        const activeOp = { id: targetOpId, name: autoLaunchedOpId ? `AC3-AutoLaunch-Eng${state.engagementId}` : 'Existing Operation' };
         addLog(state, {
           phase: 'post_exploit', type: 'info',
           title: '📡 C2 Callback Poller Started',
