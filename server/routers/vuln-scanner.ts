@@ -14,7 +14,7 @@ export const vulnScannerRouter = router({
   }),
 
   importScan: protectedProcedure
-    .input(z.object({ scannerType: z.enum(["nessus", "qualys", "rapid7", "openvas", "custom"]), fileContent: z.string(), fileName: z.string() }))
+    .input(z.object({ scannerType: z.enum(["nessus", "qualys", "rapid7", "openvas", "burp", "zap", "custom"]), fileContent: z.string(), fileName: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const { getDb } = await import("../db");
       const { vulnScanImports, vulnScanFindings } = await import("../../drizzle/schema");
@@ -35,7 +35,7 @@ export const vulnScannerRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: `Scan file "${input.fileName}" from ${input.scannerType} was already imported (import #${existingImport.id}). Delete the existing import first to re-import.` });
       }
 
-      const result = await parseVulnScan(input.scannerType, input.fileContent);
+      const result = await parseVulnScan(input.scannerType, input.fileContent, input.fileName);
 
       const importResult = await db.insert(vulnScanImports).values({
         vsiScannerType: input.scannerType,

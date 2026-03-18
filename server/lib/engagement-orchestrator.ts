@@ -24,6 +24,7 @@ import {
   eventHub,
 } from "./ws-event-hub";
 import { onShellObtained } from "./post-exploit-auto-trigger";
+import { captureDecision, captureExploitOutcome, updateDecisionOutcome } from "./engagement-training-bridge";
 import {
   getChainsByVulnDescriptions,
   formatChainsForPrompt,
@@ -4306,6 +4307,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       }
     }
 
+    const _corrDecStart = Date.now();
     const correlationDecision = await llmDecide({
       phase: "vuln_detection",
       engagementType: state.engagementType,
@@ -4373,6 +4375,17 @@ ${(() => {
       detail: correlationDecision.decision,
       data: { reasoning: correlationDecision.reasoning, actions: correlationDecision.actions },
     });
+    // ── Training Bridge: capture vuln correlation decision ──
+    captureDecision({
+      engagementId: state.engagementId,
+      phase: 'vuln_detection',
+      caller: 'engagement-orchestrator.vulnCorrelation',
+      decision: correlationDecision.decision,
+      reasoning: correlationDecision.reasoning,
+      actions: correlationDecision.actions,
+      contextSummary: `${state.assets.length} assets, ${state.assets.reduce((s, a) => s + a.vulns.length, 0)} vulns`,
+      latencyMs: Date.now() - _corrDecStart,
+    }).catch(() => {});
   }
 
   state.progress = 55;
@@ -4623,6 +4636,7 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "exploitation" });
 
   // Get LLM to prioritize targets
+  const _exploitDecStart = Date.now();
   const decision = await llmDecide({
     phase: "exploitation",
     engagementType: state.engagementType,
@@ -4677,6 +4691,17 @@ ${(() => {
     detail: decision.decision,
     data: { reasoning: decision.reasoning },
   });
+  // ── Training Bridge: capture exploitation decision ──
+  captureDecision({
+    engagementId: state.engagementId,
+    phase: 'exploitation',
+    caller: 'engagement-orchestrator.exploitPlan',
+    decision: decision.decision,
+    reasoning: decision.reasoning,
+    actions: decision.actions,
+    contextSummary: `${state.assets.flatMap(a => a.vulns).length} vulns across ${state.assets.length} assets`,
+    latencyMs: Date.now() - _exploitDecStart,
+  }).catch(() => {});
 
   // ── Pre-Exploitation Approval Gate ──
   // Pause and show the full exploit plan to the operator before firing any exploits.
@@ -5035,6 +5060,20 @@ ${(() => {
           },
         });
 
+        // ── Training Bridge: capture exploit outcome ──
+        captureExploitOutcome({
+          engagementId: state.engagementId,
+          target,
+          port: Number(port),
+          cve: cve || undefined,
+          service: service || undefined,
+          module: module || undefined,
+          success,
+          exploitOutput: exploitOutput.slice(0, 1000),
+          shellType: shellType || undefined,
+          planConfidence: plan?.confidence,
+          planReasoning: plan?.reasoning?.slice(0, 500),
+        }).catch(() => {});
         // Auto-trigger post-exploitation playbook when a shell is obtained
         if (success) {
           onShellObtained({

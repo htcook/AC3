@@ -295,6 +295,7 @@ const TestLabScenarios = lazyWithRetry(() => import("./pages/TestLabScenarios"))
 const TestLabImplant = lazyWithRetry(() => import("./pages/TestLabImplant"));
 const TestLabTraining = lazyWithRetry(() => import("./pages/TestLabTraining"));
 const TestLabGraduation = lazyWithRetry(() => import("./pages/TestLabGraduation"));
+const DfirLibrary = lazyWithRetry(() => import("./pages/DfirLibrary"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -703,6 +704,9 @@ function Router() {
         </Route>
         <Route path="/credential-alerts">
           <ProtectedRoute component={CredentialAlerts} />
+        </Route>
+        <Route path="/dfir-library">
+          <ProtectedRoute component={DfirLibrary} />
         </Route>
         <Route path="/ad-attack-path-graph">
           <ProtectedRoute component={ADAttackPathGraph} />

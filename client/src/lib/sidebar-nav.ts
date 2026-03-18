@@ -242,6 +242,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "NVD CVE Matcher", path: "/nvd-cve-matcher", icon: Bug },
       { label: "Vuln Intel", path: "/vuln-intel", icon: Scan },
       { label: "Credential Alerts", path: "/credential-alerts", icon: Key },
+      { label: "DFIR Library", path: "/dfir-library", icon: Newspaper },
     ],
   },
 

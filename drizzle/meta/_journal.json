@@ -141,6 +141,27 @@
       "when": 1773788982003,
       "tag": "0019_sweet_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1773792401833,
+      "tag": "0020_magical_joseph",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1773793797709,
+      "tag": "0021_right_molecule_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1773795193012,
+      "tag": "0022_supreme_lyja",
+      "breakpoints": true
     }
   ]
 }

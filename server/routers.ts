@@ -183,6 +183,8 @@ import { emberAgentRouter } from "./routers/ember-agent";
 import { emberTemplatesRouter } from "./routers/ember-templates";
 import { testLabRouter } from "./routers/test-lab";
 import { ac3ReportsRouter } from "./routers/ac3-reports";
+import { engagementScanImportsRouter } from "./routers/engagement-scan-imports";
+import { dfirLibraryRouter } from "./routers/dfir-library";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -539,6 +541,9 @@ export const appRouter = router({
   testLab: testLabRouter,
   // ─── AC3 Report Generator (FedRAMP-Compliant Pentest/Red Team Reports) ──────
   ac3Reports: ac3ReportsRouter,
+  // ─── Engagement Scan Report Ingestion (Nessus, Qualys, Burp, ZAP, OpenVAS) ──
+  engagementScanImports: engagementScanImportsRouter,
+  dfirLibrary: dfirLibraryRouter,
 });
 export type AppRouter = typeof appRouter;
 

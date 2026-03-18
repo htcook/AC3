@@ -44,6 +44,7 @@ import {
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
+  FileUp, Upload,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -1858,6 +1859,7 @@ export default function EngagementOps() {
                   { value: 'discovery', label: 'Tool Results', icon: <Radar className="h-3 w-3" />, count: toolCount },
                   { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credTests.length },
                   { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
+                  { value: 'scanimports', label: 'Scan Reports', icon: <FileUp className="h-3 w-3" /> },
                 ],
               },
               {
@@ -4026,6 +4028,13 @@ export default function EngagementOps() {
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            {/* ── Scan Report Imports Tab ── */}
+            <TabsContent value="scanimports" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <ScanReportImportPanel engagementId={engagementId} />
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -5185,5 +5194,465 @@ function FeedbackScanCard({ scan, index }: { scan: any; index: number }) {
         </CollapsibleContent>
       </Collapsible>
     </Card>
+  );
+}
+
+
+/**
+ * ScanReportImportPanel — Upload and import vulnerability scan reports
+ * from commercial scanners (Nessus, Qualys, Burp Suite, ZAP, OpenVAS, Rapid7)
+ * into the engagement ops state with LLM validation.
+ */
+function ScanReportImportPanel({ engagementId }: { engagementId: number }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const [scannerType, setScannerType] = useState<string>("custom");
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [importResult, setImportResult] = useState<any>(null);
+  const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Queries
+  const importsQ = trpc.engagementScanImports.listImports.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0 }
+  );
+  const formatsQ = trpc.engagementScanImports.getSupportedFormats.useQuery();
+
+  // Mutations
+  const parseMut = trpc.engagementScanImports.parsePreview.useMutation();
+  const importMut = trpc.engagementScanImports.importFindings.useMutation();
+  const llmValidateMut = trpc.engagementScanImports.runLlmValidation.useMutation();
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    const text = await f.text();
+    setFileContent(text);
+
+    // Auto-detect format from first 500 chars
+    const snippet = text.substring(0, 500);
+    if (snippet.includes("<NessusClientData") || snippet.includes("<NessusClientData_v2")) {
+      setScannerType("nessus");
+    } else if (snippet.includes("<OWASPZAPReport") || snippet.includes('"@generated"')) {
+      setScannerType("zap");
+    } else if (snippet.includes("<issues") && snippet.includes("burpVersion")) {
+      setScannerType("burp");
+    } else if (snippet.includes("<report") && (snippet.includes("openvas") || snippet.includes("OpenVAS"))) {
+      setScannerType("openvas");
+    } else if (f.name.endsWith(".csv")) {
+      // Check for Qualys vs Rapid7 patterns
+      if (snippet.includes("QID") || snippet.includes("Qualys")) {
+        setScannerType("qualys");
+      } else {
+        setScannerType("rapid7");
+      }
+    }
+  }, []);
+
+  const handleParse = useCallback(async () => {
+    if (!fileContent || !file) return;
+    try {
+      const result = await parseMut.mutateAsync({
+        engagementId,
+        scannerType: scannerType as any,
+        fileContent,
+        fileName: file.name,
+      });
+      setPreviewData(result);
+      // Select all non-duplicate findings by default
+      const indices = new Set<number>();
+      result.findings.forEach((f: any) => {
+        if (!f.isDuplicate) indices.add(f.index);
+      });
+      setSelectedIndices(indices);
+      setStep("preview");
+    } catch (err: any) {
+      toast.error(`Parse failed: ${err.message}`);
+    }
+  }, [fileContent, file, scannerType, engagementId, parseMut]);
+
+  const handleImport = useCallback(async () => {
+    if (!fileContent || !file) return;
+    try {
+      const result = await importMut.mutateAsync({
+        engagementId,
+        scannerType: scannerType as any,
+        fileContent,
+        fileName: file.name,
+        selectedIndices: Array.from(selectedIndices),
+        runLlmValidation: true,
+      });
+      setImportResult(result);
+      setStep("result");
+      importsQ.refetch();
+      toast.success(`Imported ${result.added} findings (${result.skipped} duplicates skipped)`);
+    } catch (err: any) {
+      toast.error(`Import failed: ${err.message}`);
+    }
+  }, [fileContent, file, scannerType, selectedIndices, engagementId, importMut, importsQ]);
+
+  const handleReset = useCallback(() => {
+    setFile(null);
+    setFileContent("");
+    setScannerType("custom");
+    setPreviewData(null);
+    setSelectedIndices(new Set());
+    setImportResult(null);
+    setStep("upload");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const toggleFinding = useCallback((idx: number) => {
+    setSelectedIndices(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    if (!previewData) return;
+    const all = new Set<number>();
+    previewData.findings.forEach((f: any) => all.add(f.index));
+    setSelectedIndices(all);
+  }, [previewData]);
+
+  const selectNew = useCallback(() => {
+    if (!previewData) return;
+    const newOnes = new Set<number>();
+    previewData.findings.forEach((f: any) => {
+      if (!f.isDuplicate) newOnes.add(f.index);
+    });
+    setSelectedIndices(newOnes);
+  }, [previewData]);
+
+  const sevColor: Record<string, string> = {
+    critical: "text-red-400 bg-red-500/10 border-red-500/30",
+    high: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+    medium: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+    low: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    info: "text-gray-400 bg-gray-500/10 border-gray-500/30",
+  };
+
+  const verdictColor: Record<string, string> = {
+    confirmed: "text-green-400 bg-green-500/10",
+    likely: "text-emerald-400 bg-emerald-500/10",
+    unverified: "text-yellow-400 bg-yellow-500/10",
+    likely_false_positive: "text-red-400 bg-red-500/10",
+  };
+
+  return (
+    <div className="space-y-4 py-2">
+      {/* ── Upload Step ── */}
+      {step === "upload" && (
+        <div className="space-y-4">
+          <Card className="border-dashed border-2 border-border/50 bg-card/30">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 rounded-full bg-purple-500/10 border border-purple-500/20">
+                  <Upload className="h-8 w-8 text-purple-400" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-sm font-semibold text-foreground">Upload Scan Report</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Import vulnerability findings from Nessus, Qualys, Burp Suite, OWASP ZAP, OpenVAS, or Rapid7
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xml,.csv,.json,.nessus"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <FileUp className="h-4 w-4" />
+                  Choose File
+                </Button>
+                {file && (
+                  <div className="w-full space-y-3">
+                    <div className="flex items-center gap-2 text-xs bg-muted/30 rounded-lg px-3 py-2">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-foreground font-medium truncate">{file.name}</span>
+                      <span className="text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground whitespace-nowrap">Scanner:</label>
+                      <select
+                        value={scannerType}
+                        onChange={e => setScannerType(e.target.value)}
+                        className="flex-1 text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground"
+                      >
+                        {(formatsQ.data || []).map(f => (
+                          <option key={f.value} value={f.value}>{f.label} ({f.formats})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button
+                      onClick={handleParse}
+                      disabled={parseMut.isPending}
+                      className="w-full gap-2"
+                      size="sm"
+                    >
+                      {parseMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                      Parse & Preview
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Previous imports */}
+          {(importsQ.data?.length || 0) > 0 && (
+            <Card className="bg-card/30 border-border/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Previous Imports
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {importsQ.data!.map((imp: any) => (
+                  <div key={imp.id} className="flex items-center justify-between text-xs bg-muted/20 rounded-lg px-3 py-2 border border-border/20">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="text-[10px] shrink-0">{imp.vsiScannerType}</Badge>
+                      <span className="text-foreground truncate">{imp.vsiFileName.replace(`[eng-${engagementId}] `, "")}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-muted-foreground">{imp.vsiTotalVulns} vulns</span>
+                      <span className="text-muted-foreground">{new Date(imp.vsiImportedAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Preview Step ── */}
+      {step === "preview" && previewData && (
+        <div className="space-y-4">
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Card className="bg-card/30 border-border/30 p-3">
+              <div className="text-[10px] text-muted-foreground uppercase">Scanner</div>
+              <div className="text-sm font-semibold text-foreground">{previewData.scannerLabel}</div>
+            </Card>
+            <Card className="bg-card/30 border-border/30 p-3">
+              <div className="text-[10px] text-muted-foreground uppercase">Total Findings</div>
+              <div className="text-sm font-semibold text-foreground">{previewData.totalFindings}</div>
+            </Card>
+            <Card className="bg-card/30 border-border/30 p-3">
+              <div className="text-[10px] text-muted-foreground uppercase">New</div>
+              <div className="text-sm font-semibold text-green-400">{previewData.newFindings}</div>
+            </Card>
+            <Card className="bg-card/30 border-border/30 p-3">
+              <div className="text-[10px] text-muted-foreground uppercase">Duplicates</div>
+              <div className="text-sm font-semibold text-yellow-400">{previewData.duplicateFindings}</div>
+            </Card>
+          </div>
+
+          {/* Severity breakdown */}
+          <div className="flex gap-2 flex-wrap">
+            {previewData.criticalCount > 0 && <Badge className={sevColor.critical}>{previewData.criticalCount} Critical</Badge>}
+            {previewData.highCount > 0 && <Badge className={sevColor.high}>{previewData.highCount} High</Badge>}
+            {previewData.mediumCount > 0 && <Badge className={sevColor.medium}>{previewData.mediumCount} Medium</Badge>}
+            {previewData.lowCount > 0 && <Badge className={sevColor.low}>{previewData.lowCount} Low</Badge>}
+          </div>
+
+          {/* Selection controls */}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={selectAll} className="text-xs h-7">Select All</Button>
+            <Button variant="outline" size="sm" onClick={selectNew} className="text-xs h-7">Select New Only</Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedIndices(new Set())} className="text-xs h-7">Deselect All</Button>
+            <span className="text-xs text-muted-foreground ml-auto">{selectedIndices.size} selected</span>
+          </div>
+
+          {/* Findings list */}
+          <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1">
+            {previewData.findings.map((f: any) => (
+              <div
+                key={f.index}
+                className={`flex items-start gap-2 text-xs rounded-lg px-3 py-2 border cursor-pointer transition-colors ${
+                  f.isDuplicate
+                    ? "bg-yellow-500/5 border-yellow-500/10 opacity-60"
+                    : selectedIndices.has(f.index)
+                    ? "bg-purple-500/10 border-purple-500/30"
+                    : "bg-muted/10 border-border/20 hover:bg-muted/20"
+                }`}
+                onClick={() => toggleFinding(f.index)}
+              >
+                <Checkbox
+                  checked={selectedIndices.has(f.index)}
+                  onCheckedChange={() => toggleFinding(f.index)}
+                  className="mt-0.5 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge className={`text-[9px] px-1 py-0 ${sevColor[f.severity] || sevColor.info}`}>
+                      {f.severity}
+                    </Badge>
+                    <span className="font-medium text-foreground truncate">{f.title}</span>
+                    {f.isDuplicate && (
+                      <Badge variant="outline" className="text-[9px] text-yellow-400 border-yellow-500/30">DUP</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+                    {f.cveId && <span className="font-mono text-cyan-400">{f.cveId}</span>}
+                    {f.hostIp && <span>{f.hostIp}</span>}
+                    {f.port && <span>:{f.port}</span>}
+                    {f.cvssScore != null && <span>CVSS {f.cvssScore}</span>}
+                    {f.exploitAvailable && <Badge className="text-[8px] bg-red-500/10 text-red-400 px-1 py-0">Exploit</Badge>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleReset} className="gap-1">
+              <RotateCcw className="h-3 w-3" /> Back
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleImport}
+              disabled={importMut.isPending || selectedIndices.size === 0}
+              className="flex-1 gap-1"
+            >
+              {importMut.isPending ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Importing & Validating...</>
+              ) : (
+                <><ArrowRight className="h-3.5 w-3.5" /> Import {selectedIndices.size} Findings</>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Result Step ── */}
+      {step === "result" && importResult && (
+        <div className="space-y-4">
+          <Card className="bg-emerald-500/5 border-emerald-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-sm font-semibold text-emerald-400">Import Complete</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Added</div>
+                  <div className="text-lg font-bold text-green-400">{importResult.added}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Skipped (Dup)</div>
+                  <div className="text-lg font-bold text-yellow-400">{importResult.skipped}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">New Assets</div>
+                  <div className="text-lg font-bold text-purple-400">{importResult.newAssetsCreated}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Assets Matched</div>
+                  <div className="text-lg font-bold text-cyan-400">{importResult.assetsMatched}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Corroboration results */}
+          {importResult.corroboration && (
+            <Card className="bg-card/30 border-border/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5" /> Cross-Source Corroboration
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-muted/20 rounded-lg p-2 text-center">
+                    <div className="text-muted-foreground">Analyzed</div>
+                    <div className="text-sm font-semibold">{importResult.corroboration.totalAnalyzed}</div>
+                  </div>
+                  <div className="bg-green-500/10 rounded-lg p-2 text-center">
+                    <div className="text-green-400">Corroborated</div>
+                    <div className="text-sm font-semibold text-green-400">{importResult.corroboration.corroborated}</div>
+                  </div>
+                  <div className="bg-orange-500/10 rounded-lg p-2 text-center">
+                    <div className="text-orange-400">Suppressed</div>
+                    <div className="text-sm font-semibold text-orange-400">{importResult.corroboration.suppressed}</div>
+                  </div>
+                </div>
+                {importResult.corroboration.estimatedFPReduction > 0 && (
+                  <div className="text-xs text-emerald-400 bg-emerald-500/5 rounded-lg px-3 py-1.5 border border-emerald-500/10">
+                    Estimated false positive reduction: {importResult.corroboration.estimatedFPReduction}%
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* LLM Validation results */}
+          {importResult.llmValidation && (
+            <Card className="bg-card/30 border-border/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Brain className="h-3.5 w-3.5" /> LLM Validation
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="bg-green-500/10 rounded-lg p-2 text-center">
+                    <div className="text-green-400">Confirmed</div>
+                    <div className="text-sm font-semibold text-green-400">{importResult.llmValidation.summary.confirmed}</div>
+                  </div>
+                  <div className="bg-emerald-500/10 rounded-lg p-2 text-center">
+                    <div className="text-emerald-400">Likely</div>
+                    <div className="text-sm font-semibold text-emerald-400">{importResult.llmValidation.summary.likely}</div>
+                  </div>
+                  <div className="bg-yellow-500/10 rounded-lg p-2 text-center">
+                    <div className="text-yellow-400">Unverified</div>
+                    <div className="text-sm font-semibold text-yellow-400">{importResult.llmValidation.summary.unverified}</div>
+                  </div>
+                  <div className="bg-red-500/10 rounded-lg p-2 text-center">
+                    <div className="text-red-400">Likely FP</div>
+                    <div className="text-sm font-semibold text-red-400">{importResult.llmValidation.summary.likelyFalsePositive}</div>
+                  </div>
+                </div>
+
+                {/* Individual validations */}
+                <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                  {importResult.llmValidation.validations.map((v: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs bg-muted/10 rounded-lg px-3 py-2 border border-border/20">
+                      <Badge className={`text-[9px] px-1.5 py-0 shrink-0 ${verdictColor[v.verdict] || ""}`}>
+                        {v.verdict.replace("_", " ")}
+                      </Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground truncate">{v.title}</div>
+                        <div className="text-muted-foreground mt-0.5">{v.reasoning}</div>
+                      </div>
+                      <span className="text-muted-foreground shrink-0">{v.confidence}%</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Button variant="outline" size="sm" onClick={handleReset} className="gap-1 w-full">
+            <Plus className="h-3 w-3" /> Import Another Report
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

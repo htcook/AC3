@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, tinyint, boolean, decimal, float } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, mysqlEnum, double, foreignKey, bigint, mediumtext, longtext, tinyint, boolean, decimal, float } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
@@ -4708,7 +4708,7 @@ export const vulnScanFindings = mysqlTable("vuln_scan_findings", {
 export const vulnScanImports = mysqlTable("vuln_scan_imports", {
 	id: int().autoincrement().notNull(),
 	vsiTenantId: int("vsi_tenant_id"),
-	vsiScannerType: mysqlEnum("vsi_scanner_type", ['nessus','qualys','rapid7','openvas','custom']).notNull(),
+	vsiScannerType: mysqlEnum("vsi_scanner_type", ['nessus','qualys','rapid7','openvas','burp','zap','custom']).notNull(),
 	vsiFileName: varchar("vsi_file_name", { length: 512 }).notNull(),
 	vsiImportedAt: timestamp("vsi_imported_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	vsiTotalHosts: int("vsi_total_hosts").default(0).notNull(),
@@ -5763,3 +5763,119 @@ export const ac3ReportArtifacts = mysqlTable("ac3_report_artifacts", {
 ]);
 export type Ac3ReportArtifactRow = typeof ac3ReportArtifacts.$inferSelect;
 export type InsertAc3ReportArtifact = typeof ac3ReportArtifacts.$inferInsert;
+
+
+// ─── LLM Training Data Persistence ─────────────────────────────────────────
+export const llmTrainingExamples = mysqlTable("llm_training_examples", {
+  id: int().autoincrement().primaryKey(),
+  exampleId: varchar("example_id", { length: 64 }).notNull(),
+  model: varchar("te_model", { length: 64 }).notNull(),
+  source: mysqlEnum("te_source", ['lab_scenario', 'live_engagement', 'manual', 'synthetic']).notNull(),
+  sourceId: varchar("source_id", { length: 128 }),
+  quality: mysqlEnum("te_quality", ['high', 'medium', 'low', 'rejected']).notNull(),
+  qualityScore: double("quality_score").notNull(),
+  messages: json("te_messages").notNull(),
+  metadata: json("te_metadata"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("lte_model_idx").on(table.model),
+  index("lte_source_idx").on(table.source),
+  index("lte_quality_idx").on(table.quality),
+  index("lte_example_id_idx").on(table.exampleId),
+]);
+export type LlmTrainingExampleRow = typeof llmTrainingExamples.$inferSelect;
+export type InsertLlmTrainingExample = typeof llmTrainingExamples.$inferInsert;
+
+// ─── Engagement LLM Decision Log ────────────────────────────────────────────
+export const llmDecisionLog = mysqlTable("llm_decision_log", {
+  id: int().autoincrement().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  phase: varchar("dl_phase", { length: 64 }).notNull(),
+  caller: varchar("dl_caller", { length: 128 }).notNull(),
+  decision: text("dl_decision").notNull(),
+  reasoning: text("dl_reasoning"),
+  actions: json("dl_actions"),
+  outcome: mysqlEnum("dl_outcome", ['success', 'failure', 'partial', 'pending']).default('pending'),
+  outcomeDetail: text("outcome_detail"),
+  stealthScore: double("stealth_score"),
+  latencyMs: int("dl_latency_ms"),
+  tokensUsed: int("tokens_used"),
+  contextSummary: text("context_summary"),
+  createdAt: timestamp("dl_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ldl_engagement_idx").on(table.engagementId),
+  index("ldl_phase_idx").on(table.phase),
+  index("ldl_caller_idx").on(table.caller),
+  index("ldl_outcome_idx").on(table.outcome),
+]);
+export type LlmDecisionLogRow = typeof llmDecisionLog.$inferSelect;
+export type InsertLlmDecisionLog = typeof llmDecisionLog.$inferInsert;
+
+// ─── C2 Execution History Persistence ───────────────────────────────────────
+export const c2ExecutionLog = mysqlTable("c2_execution_log", {
+  id: int().autoincrement().primaryKey(),
+  techniqueId: varchar("technique_id", { length: 64 }).notNull(),
+  framework: varchar("cel_framework", { length: 64 }).notNull(),
+  success: tinyint("cel_success").notNull(),
+  confidenceAdjustment: double("confidence_adjustment"),
+  targetPlatform: varchar("target_platform", { length: 64 }),
+  targetArch: varchar("target_arch", { length: 32 }),
+  exitCode: int("exit_code"),
+  lessonsLearned: json("lessons_learned"),
+  extractedArtifacts: json("cel_extracted_artifacts"),
+  observedTelemetry: json("observed_telemetry"),
+  constraints: json("cel_constraints"),
+  engagementId: int("cel_engagement_id"),
+  createdAt: timestamp("cel_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("cel_technique_idx").on(table.techniqueId),
+  index("cel_framework_idx").on(table.framework),
+  index("cel_engagement_idx").on(table.engagementId),
+]);
+export type C2ExecutionLogRow = typeof c2ExecutionLog.$inferSelect;
+export type InsertC2ExecutionLog = typeof c2ExecutionLog.$inferInsert;
+
+// ─── DFIR Report Library ────────────────────────────────────────────────────
+export const dfirReports = mysqlTable("dfir_reports", {
+  id: int().autoincrement().primaryKey(),
+  externalId: varchar("external_id", { length: 128 }).notNull(),
+  source: mysqlEnum("dfir_source", ['dfir_report', 'cisa', 'otx', 'mandiant', 'unit42', 'recorded_future', 'manual']).notNull(),
+  title: varchar("dfir_title", { length: 512 }).notNull(),
+  url: varchar("dfir_url", { length: 1024 }),
+  publishedAt: timestamp("published_at", { mode: 'string' }),
+  summary: text("dfir_summary"),
+  threatActors: json("threat_actors").$type<string[]>(),
+  malwareFamilies: json("malware_families").$type<string[]>(),
+  mitreAttackTechniques: json("mitre_attack_techniques").$type<{ techniqueId: string; name: string; tactic: string }[]>(),
+  diamondModel: json("diamond_model").$type<{ adversary?: string; capability?: string; infrastructure?: string; victim?: string }>(),
+  timeline: json("dfir_timeline").$type<{ timestamp?: string; event: string; detail?: string }[]>(),
+  detections: json("dfir_detections").$type<{ sigma?: string[]; suricata?: string[]; yara?: string[] }>(),
+  killChainPhases: json("kill_chain_phases").$type<string[]>(),
+  tags: json("dfir_tags").$type<string[]>(),
+  rawContent: longtext("raw_content"),
+  status: mysqlEnum("dfir_status", ['pending', 'parsed', 'enriched', 'training_ready']).default('pending').notNull(),
+  createdAt: timestamp("dfir_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("dfir_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("dfir_source_idx").on(table.source),
+  index("dfir_status_idx").on(table.status),
+  index("dfir_external_id_idx").on(table.externalId),
+]);
+export type DfirReportRow = typeof dfirReports.$inferSelect;
+export type InsertDfirReport = typeof dfirReports.$inferInsert;
+
+// ─── DFIR Report IOCs (normalized for fast lookup) ──────────────────────────
+export const dfirReportIocs = mysqlTable("dfir_report_iocs", {
+  id: int().autoincrement().primaryKey(),
+  reportId: int("report_id").notNull(),
+  iocType: mysqlEnum("ioc_type", ['ip', 'domain', 'hash_md5', 'hash_sha1', 'hash_sha256', 'url', 'email', 'cve', 'filename', 'registry_key', 'mutex']).notNull(),
+  value: varchar("ioc_value", { length: 1024 }).notNull(),
+  context: text("ioc_context"),
+  createdAt: timestamp("ioc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ioc_report_idx").on(table.reportId),
+  index("ioc_type_idx").on(table.iocType),
+  index("ioc_value_idx").on(table.value),
+]);
+export type DfirReportIocRow = typeof dfirReportIocs.$inferSelect;
+export type InsertDfirReportIoc = typeof dfirReportIocs.$inferInsert;
