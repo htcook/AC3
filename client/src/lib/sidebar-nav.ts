@@ -12,6 +12,7 @@ import {
   Network, Siren, FlaskConical, Camera, FileCheck2, Atom, BookOpen,
   Mail, Cloud, Rocket, ShieldCheck, AlertTriangle, TrendingUp, Unplug,
   Factory, BarChart3, Terminal, MapPin, Phone, Info, Clock, Landmark,
+  CalendarClock,
   type LucideIcon, ChevronRight, Settings, Users, Database, Wrench,
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
   Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
@@ -53,12 +54,12 @@ export interface NavGroup {
  */
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training', 'llm-ai'],
-  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'llm-ai'],
-  team_lead: ['command-control', 'campaign-ops', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'llm-ai', 'admin'],
+  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'llm-ai'],
+  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'llm-ai'],
+  team_lead: ['command-control', 'campaign-ops', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'llm-ai', 'admin'],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
-  soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
+  soc: ['command-control', 'intel-recon', 'detection-validation', 'llm-ai', 'integrations', 'compliance-reporting'],
   viewer: ['command-control', 'compliance-reporting'],
 };
 
@@ -268,6 +269,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Naabu", path: "/tools/naabu", icon: Wifi },
       { label: "Scan Server Health", path: "/scan-server", icon: Server },
       { label: "Active Verification", path: "/active-verification", icon: ShieldCheck },
+      { label: "Scan Schedules", path: "/scan-schedules", icon: CalendarClock },
     ],
   },
 
@@ -361,21 +363,7 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── SSIL (Security Signals Intelligence Layer) ───
-  {
-    id: "ssil",
-    label: "SSIL",
-    icon: Siren,
-    color: "text-rose-400",
-    items: [
-      { label: "SSIL Overview", path: "/ssil", icon: Siren },
-      { label: "Policies", path: "/ssil/policies", icon: ScrollText },
-      { label: "Guardrails", path: "/ssil/guardrails", icon: Shield },
-      { label: "Observations", path: "/ssil/observations", icon: Eye },
-      { label: "Alert Rules", path: "/ssil/alerts", icon: AlertTriangle },
-      { label: "Correlation", path: "/ssil/correlation", icon: Link2 },
-    ],
-  },
+
 
   // ─── Integrations & Infrastructure ───
   {
@@ -402,37 +390,43 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Training & Learning ───
-  {
-    id: "training",
-    label: "Training & Learning",
-    icon: GraduationCap,
-    color: "text-lime-400",
-    items: [
-      { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
-      { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
-      { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
-      { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
-      { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
-      { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
-    ],
-  },
 
-  // ─── LLM & AI ───
+
+  // ─── LLM & AI Management ───
   {
     id: "llm-ai",
-    label: "LLM & AI",
+    label: "LLM & AI Management",
     icon: Brain,
     color: "text-purple-400",
     items: [
+      // Core LLM
       { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
       { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
-      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
-      { label: "LLM Training", path: "/test-lab/training", icon: FlaskConical },
       { label: "LLM Learning", path: "/llm-learning", icon: BookOpen },
+      { label: "Training Data", path: "/training-data-dashboard", icon: Database },
+      // Graduation
+      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
       { label: "Graduation Lab", path: "/test-lab/graduation", icon: GraduationCap },
+      // Training & Learning
+      { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
+      { label: "LLM Training", path: "/test-lab/training", icon: FlaskConical },
+      { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
+      { label: "Batch Training", path: "/batch-training", icon: Zap },
+      { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
+      // SSIL (Guardrails & Signals)
+      { label: "SSIL Overview", path: "/ssil", icon: Siren },
+      { label: "SSIL Policies", path: "/ssil/policies", icon: ScrollText },
+      { label: "Guardrails", path: "/ssil/guardrails", icon: Shield },
+      { label: "Observations", path: "/ssil/observations", icon: Eye },
+      { label: "Alert Rules", path: "/ssil/alerts", icon: AlertTriangle },
+      { label: "SSIL Correlation", path: "/ssil/correlation", icon: Link2 },
+      // AI Tools
       { label: "AI Security Validation", path: "/ai-security-validation", icon: ShieldCheck },
       { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
+      // Knowledge
+      { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
+      { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
+      { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
     ],
   },
 

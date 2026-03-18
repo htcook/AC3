@@ -20,7 +20,7 @@ import {
   unifiedExploitCatalog,
   ttpKnowledge,
 } from "../../drizzle/schema";
-import { eq, desc, sql, and, inArray, count, like } from "drizzle-orm";
+import { eq, desc, sql, and, inArray, count, like, gte } from "drizzle-orm";
 import { createEngagement, createEngagementPipeline, updateEngagementPipeline } from "../db";
 
 async function getDbSafe() {
@@ -830,6 +830,341 @@ export const engagementAutomationRouter = router({
         labProfile: labProfile.name,
         scanMode: input.scanMode,
         message: `Training lab engagement launched for ${labProfile.name}. Full pipeline running in ${input.scanMode} mode with all approval gates auto-approved.`,
+      };
+    }),
+
+  /**
+   * Batch Training Run — creates multiple lab engagements and auto-executes the full pipeline.
+   * Each engagement runs recon → scan → vuln analysis → exploitation → post-exploit.
+   * Injects DFIR knowledge context so the LLM can demonstrate learned intelligence.
+   * After all engagements complete, triggers graduation engine evaluation.
+   */
+  batchTrainingRun: protectedProcedure
+    .input(z.object({
+      targets: z.array(z.object({
+        domain: z.string(),
+        name: z.string().optional(),
+        engagementType: z.enum(['pentest', 'red_team']).default('pentest'),
+        scanProfile: z.enum(['quick', 'standard', 'deep', 'stealth']).default('standard'),
+      })).min(1).max(20),
+      scanMode: z.enum(['strict_passive', 'standard', 'active']).default('active'),
+      injectDfirKnowledge: z.boolean().default(true),
+      autoExecute: z.boolean().default(true),
+      runGraduationAfter: z.boolean().default(true),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const dbConn = await getDbSafe();
+      const TRAINING_LABS: Record<string, { name: string; description: string; expectedVulns: string[] }> = {
+        'demo.testfire.net': {
+          name: 'Altoro Mutual (IBM AppScan)',
+          description: 'Intentionally vulnerable banking application with SQL injection, XSS, authentication bypass, and session management flaws.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'Authentication Bypass', 'Session Fixation', 'Insecure Direct Object Reference', 'Path Traversal'],
+        },
+        'zero.webappsecurity.com': {
+          name: 'Zero Bank (Micro Focus)',
+          description: 'Intentionally vulnerable banking application with SQL injection, XSS, CSRF, and broken authentication.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'CSRF', 'Broken Authentication', 'Insecure Direct Object Reference'],
+        },
+        'testphp.vulnweb.com': {
+          name: 'Acunetix Test PHP',
+          description: 'PHP-based vulnerable web application with SQL injection, XSS, file inclusion, and command injection.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'File Inclusion', 'Command Injection', 'Directory Traversal', 'File Upload'],
+        },
+        'dvwa.co.uk': {
+          name: 'DVWA (Damn Vulnerable Web Application)',
+          description: 'Classic training lab with 14 vulnerability exercises.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'Command Injection', 'CSRF', 'File Upload', 'File Inclusion', 'Brute Force'],
+        },
+        'ginandjuice.shop': {
+          name: 'Gin & Juice Shop (PortSwigger)',
+          description: 'PortSwigger\'s intentionally vulnerable e-commerce application.',
+          expectedVulns: ['XSS', 'SQL Injection', 'SSRF', 'XXE', 'OS Command Injection', 'Path Traversal', 'Access Control'],
+        },
+        'brokencrystals.com': {
+          name: 'Broken Crystals (NeuraLegion)',
+          description: 'Modern vulnerable web application with OWASP Top 10 vulnerabilities.',
+          expectedVulns: ['SQL Injection', 'XSS', 'SSRF', 'XXE', 'JWT Vulnerabilities', 'Insecure Deserialization'],
+        },
+        'hackazon.webscantest.com': {
+          name: 'Hackazon (Rapid7)',
+          description: 'Modern vulnerable web application mimicking an e-commerce site.',
+          expectedVulns: ['SQL Injection', 'XSS', 'CSRF', 'Command Injection', 'File Upload', 'Authentication Bypass'],
+        },
+        'dvwa.aceofcloud.io': {
+          name: 'DVWA (AceOfCloud Lab)',
+          description: 'Self-hosted DVWA instance for internal training.',
+          expectedVulns: ['SQL Injection', 'XSS', 'Command Injection', 'CSRF', 'File Upload', 'File Inclusion'],
+        },
+      };
+
+      // ─── Gather DFIR knowledge for LLM context injection ───
+      let dfirKnowledgeContext: any[] = [];
+      if (input.injectDfirKnowledge) {
+        try {
+          const { dfirReports: dfirTable } = await import('../../drizzle/schema');
+          const reports = await dbConn.select({
+            title: dfirTable.title,
+            threatActors: dfirTable.threatActors,
+            malwareFamilies: dfirTable.malwareFamilies,
+            mitreAttackTechniques: dfirTable.mitreAttackTechniques,
+            killChainPhases: dfirTable.killChainPhases,
+            summary: dfirTable.summary,
+          }).from(dfirTable)
+            .where(eq(dfirTable.status, 'enriched'))
+            .limit(20);
+          dfirKnowledgeContext = reports.map(r => ({
+            title: r.title,
+            threatActors: r.threatActors || [],
+            malware: r.malwareFamilies || [],
+            techniques: (r.mitreAttackTechniques || []).map((t: any) => `${t.techniqueId}: ${t.name}`),
+            killChain: r.killChainPhases || [],
+            summary: (r.summary || '').slice(0, 500),
+          }));
+        } catch { /* DFIR table may be empty */ }
+      }
+
+      const results: Array<{
+        engagementId: number;
+        pipelineId: number;
+        target: string;
+        labName: string;
+        status: string;
+      }> = [];
+
+      for (const target of input.targets) {
+        const labProfile = TRAINING_LABS[target.domain.toLowerCase()] || {
+          name: `Training Lab: ${target.domain}`,
+          description: `Custom training lab target: ${target.domain}`,
+          expectedVulns: [],
+        };
+        const engagementName = target.name || `${labProfile.name} - Batch Training ${new Date().toISOString().slice(0, 10)}`;
+
+        try {
+          // 1. Create engagement
+          const engagementId = await createEngagement({
+            name: engagementName,
+            customerName: 'Training Lab (Authorized)',
+            engagementType: target.engagementType,
+            status: 'active',
+            targetDomain: target.domain,
+            targetIpRange: null,
+            createdBy: ctx.user.id,
+            notes: JSON.stringify({
+              trainingLab: true,
+              batchRun: true,
+              labProfile: labProfile.name,
+              expectedVulns: labProfile.expectedVulns,
+              description: labProfile.description,
+              scanMode: input.scanMode,
+              scanProfile: target.scanProfile,
+              autoApproveAll: true,
+              dfirKnowledgeInjected: dfirKnowledgeContext.length > 0,
+              dfirReportsCount: dfirKnowledgeContext.length,
+              launchedAt: new Date().toISOString(),
+            }),
+          });
+
+          // 2. Create pipeline
+          const pipelineId = await createEngagementPipeline({
+            userId: ctx.user.id,
+            name: `${engagementName} - Auto Pipeline`,
+            status: 'intel_scan',
+            targetDomains: [target.domain],
+            clientType: target.engagementType,
+            orgProfile: {
+              riskLevel: 'high',
+              trainingLab: true,
+              expectedVulns: labProfile.expectedVulns,
+              dfirKnowledge: dfirKnowledgeContext.slice(0, 5),
+            },
+            recommendedActors: [],
+            engagementId,
+            currentStep: 1,
+            totalSteps: 6,
+            stepLog: [{
+              step: 1,
+              status: 'completed',
+              message: `Batch training engagement created for ${labProfile.name}. Auto-execute: ${input.autoExecute}.`,
+              timestamp: new Date().toISOString(),
+            }],
+          });
+
+          // 3. Initialize ops state with training lab mode
+          const { initOpsState, getOpsState, addLog, persistOpsStateNow, executeEngagement } = await import('../lib/engagement-orchestrator');
+          let state = getOpsState(engagementId);
+          if (!state) state = initOpsState(engagementId, target.engagementType);
+          (state as any).trainingLabMode = true;
+          (state as any).dfirKnowledgeContext = dfirKnowledgeContext;
+          state.roeScopeGuard = {
+            authorizedDomains: [target.domain],
+            authorizedIps: [],
+            roeStatus: 'signed',
+            signedBy: ctx.user.name || 'Batch Training Runner',
+            signedAt: Date.now(),
+          };
+          state.assets.push({
+            hostname: target.domain,
+            type: 'web_server',
+            ports: [],
+            vulns: [],
+            zapFindings: [],
+            exploitAttempts: [],
+            toolResults: [],
+            status: 'pending',
+            technologies: [],
+          });
+
+          addLog(state, {
+            phase: 'recon', type: 'info',
+            title: `\uD83C\uDFAF Batch Training: ${labProfile.name}`,
+            detail: `Target: ${target.domain} | Profile: ${target.scanProfile} | DFIR knowledge: ${dfirKnowledgeContext.length} reports injected | Expected vulns: ${labProfile.expectedVulns.length}`,
+          });
+
+          if (dfirKnowledgeContext.length > 0) {
+            const techniques = dfirKnowledgeContext.flatMap(d => d.techniques || []).slice(0, 10);
+            addLog(state, {
+              phase: 'recon', type: 'info',
+              title: '\uD83D\uDCDA DFIR Knowledge Injected',
+              detail: `${dfirKnowledgeContext.length} DFIR reports loaded. Techniques to watch: ${techniques.join(', ') || 'none'}. Threat actors: ${dfirKnowledgeContext.flatMap(d => d.threatActors || []).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i).join(', ') || 'none'}.`,
+            });
+          }
+
+          await persistOpsStateNow(engagementId);
+
+          // 4. Auto-execute if requested
+          if (input.autoExecute) {
+            executeEngagement(engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, {
+              scanProfile: target.scanProfile,
+            }).catch(async (err: any) => {
+              console.error(`[BatchTraining] Engagement #${engagementId} crashed:`, err.message);
+              const { addLog: addOpsLog, persistOpsStateNow: persist } = await import('../lib/engagement-orchestrator');
+              const s = getOpsState(engagementId);
+              if (s) {
+                s.isRunning = false;
+                s.phase = 'error' as any;
+                s.error = err.message;
+                addOpsLog(s, { phase: 'recon', type: 'error', title: '\u274c Batch Training Failed', detail: err.message });
+                await persist(engagementId).catch(() => {});
+              }
+            });
+          }
+
+          results.push({
+            engagementId,
+            pipelineId,
+            target: target.domain,
+            labName: labProfile.name,
+            status: input.autoExecute ? 'executing' : 'ready',
+          });
+        } catch (err: any) {
+          results.push({
+            engagementId: 0,
+            pipelineId: 0,
+            target: target.domain,
+            labName: labProfile.name,
+            status: `error: ${err.message}`,
+          });
+        }
+      }
+
+      // Log the batch run
+      await db.logActivity({
+        userId: ctx.user.id,
+        action: 'batch_training_run',
+        details: `Launched ${results.filter(r => r.status !== 'error').length}/${input.targets.length} training engagements. Auto-execute: ${input.autoExecute}. DFIR knowledge: ${dfirKnowledgeContext.length} reports.`,
+      });
+
+      return {
+        launched: results.filter(r => r.engagementId > 0).length,
+        failed: results.filter(r => r.engagementId === 0).length,
+        engagements: results,
+        dfirKnowledgeInjected: dfirKnowledgeContext.length,
+        runGraduationAfter: input.runGraduationAfter,
+        message: `Batch training run: ${results.filter(r => r.engagementId > 0).length} engagements launched across ${input.targets.length} targets.`,
+      };
+    }),
+
+  /**
+   * Get batch training run status — checks all active training lab engagements
+   */
+  getBatchTrainingStatus: protectedProcedure
+    .query(async () => {
+      const dbConn = await getDbSafe();
+      // Find all training lab engagements
+      const trainingEngagements = await dbConn.select({
+        id: engagements.id,
+        name: engagements.name,
+        targetDomain: engagements.targetDomain,
+        status: engagements.status,
+        createdAt: engagements.createdAt,
+      }).from(engagements)
+        .where(and(
+          eq(engagements.customerName, 'Training Lab (Authorized)'),
+        ))
+        .orderBy(desc(engagements.id))
+        .limit(50);
+
+      // Get ops state for each
+      const { getOpsState } = await import('../lib/engagement-orchestrator');
+      const statuses = trainingEngagements.map(eng => {
+        const state = getOpsState(eng.id);
+        return {
+          engagementId: eng.id,
+          name: eng.name,
+          target: eng.targetDomain,
+          dbStatus: eng.status,
+          opsPhase: state?.phase || 'unknown',
+          isRunning: state?.isRunning || false,
+          progress: state?.progress || 0,
+          vulnsFound: state?.stats?.vulnsFound || 0,
+          exploitsRun: state?.stats?.exploitsRun || 0,
+          exploitsSucceeded: state?.stats?.exploitsSucceeded || 0,
+          assetsDiscovered: state?.assets?.length || 0,
+          error: state?.error,
+          createdAt: eng.createdAt,
+        };
+      });
+
+      // Get training data stats
+      let trainingStats = { totalExamples: 0, totalDecisions: 0, callerBreakdown: {} as Record<string, number> };
+      try {
+        const { getTrainingStats } = await import('../lib/engagement-training-bridge');
+        trainingStats = await getTrainingStats();
+      } catch { /* bridge may not have data */ }
+
+      // Get graduation summary
+      let graduationSummary = { totalCallers: 0, tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0 };
+      try {
+        const { llmTelemetry } = await import('../../drizzle/schema');
+        const cutoff = new Date(Date.now() - 30 * 86400000);
+        const rows = await dbConn.select({
+          caller: llmTelemetry.caller,
+          totalCalls: sql<number>`COUNT(*)`,
+          successCount: sql<number>`SUM(CASE WHEN ${llmTelemetry.success} = 1 THEN 1 ELSE 0 END)`,
+        }).from(llmTelemetry)
+          .where(gte(llmTelemetry.calledAt, cutoff.toISOString().slice(0, 19).replace('T', ' ')))
+          .groupBy(llmTelemetry.caller);
+        graduationSummary.totalCallers = rows.length;
+        for (const row of rows) {
+          const rate = Number(row.totalCalls) > 0 ? (Number(row.successCount) / Number(row.totalCalls)) * 100 : 0;
+          const calls = Number(row.totalCalls);
+          if (rate >= 97 && calls >= 500) graduationSummary.tier1++;
+          else if (rate >= 90 && calls >= 200) graduationSummary.tier2++;
+          else if (rate >= 80 && calls >= 50) graduationSummary.tier3++;
+          else graduationSummary.tier4++;
+        }
+      } catch { /* telemetry may be empty */ }
+
+      return {
+        engagements: statuses,
+        activeCount: statuses.filter(s => s.isRunning).length,
+        completedCount: statuses.filter(s => s.opsPhase === 'completed').length,
+        errorCount: statuses.filter(s => s.opsPhase === 'error' || s.error).length,
+        totalVulns: statuses.reduce((s, e) => s + e.vulnsFound, 0),
+        totalExploits: statuses.reduce((s, e) => s + e.exploitsRun, 0),
+        totalExploitSuccesses: statuses.reduce((s, e) => s + e.exploitsSucceeded, 0),
+        trainingStats,
+        graduationSummary,
       };
     }),
 });

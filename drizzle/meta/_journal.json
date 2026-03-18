@@ -162,6 +162,13 @@
       "when": 1773795193012,
       "tag": "0022_supreme_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1773796547830,
+      "tag": "0023_handy_multiple_man",
+      "breakpoints": true
     }
   ]
 }

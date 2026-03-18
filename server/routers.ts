@@ -185,6 +185,7 @@ import { testLabRouter } from "./routers/test-lab";
 import { ac3ReportsRouter } from "./routers/ac3-reports";
 import { engagementScanImportsRouter } from "./routers/engagement-scan-imports";
 import { dfirLibraryRouter } from "./routers/dfir-library";
+import { scanSchedulesRouter } from "./routers/scan-schedules";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -544,6 +545,7 @@ export const appRouter = router({
   // ─── Engagement Scan Report Ingestion (Nessus, Qualys, Burp, ZAP, OpenVAS) ──
   engagementScanImports: engagementScanImportsRouter,
   dfirLibrary: dfirLibraryRouter,
+  scanSchedules: scanSchedulesRouter,
 });
 export type AppRouter = typeof appRouter;
 

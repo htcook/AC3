@@ -124,6 +124,9 @@ const EvasionEngine = lazyWithRetry(() => import("./pages/EvasionEngine"));
 const SiemConnectors = lazyWithRetry(() => import("./pages/SiemConnectors"));
 const ScanHistory = lazyWithRetry(() => import("./pages/ScanHistory"));
 const TrainingDashboard = lazyWithRetry(() => import("./pages/TrainingDashboard"));
+const BatchTraining = lazyWithRetry(() => import("./pages/BatchTraining"));
+const TrainingDataDashboard = lazyWithRetry(() => import("./pages/TrainingDataDashboard"));
+const ScanSchedules = lazyWithRetry(() => import("./pages/ScanSchedules"));
 const AuditLog = lazyWithRetry(() => import("./pages/AuditLog"));
 const ValidationScheduler = lazyWithRetry(() => import("./pages/ValidationScheduler"));
 const CloudAttackPaths = lazyWithRetry(() => import("./pages/CloudAttackPaths"));
@@ -652,6 +655,15 @@ function Router() {
         </Route>
         <Route path="/training-dashboard">
           <ProtectedRoute component={TrainingDashboard} />
+        </Route>
+        <Route path="/batch-training">
+          <ProtectedRoute component={BatchTraining} />
+        </Route>
+        <Route path="/training-data-dashboard">
+          <ProtectedRoute component={TrainingDataDashboard} />
+        </Route>
+        <Route path="/scan-schedules">
+          <ProtectedRoute component={ScanSchedules} />
         </Route>
         <Route path="/audit-log">
           <ProtectedRoute component={AuditLog} />

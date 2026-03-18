@@ -597,6 +597,119 @@ export const dfirLibraryRouter = router({
     };
   }),
 
+  // ─── Seed Library (Multi-Source) ────────────────────────────────────────
+  seedLibrary: protectedProcedure
+    .input(z.object({
+      sources: z.array(z.enum(['dfir_report', 'cisa'])).default(['dfir_report', 'cisa']),
+      maxPerSource: z.number().min(1).max(30).default(15),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const sources = input?.sources || ['dfir_report', 'cisa'];
+      const maxPerSource = input?.maxPerSource || 15;
+      const allResults: { source: string; url: string; title: string; status: string; techniquesFound?: number; iocsFound?: number }[] = [];
+
+      // ── DFIR Report ──
+      if (sources.includes('dfir_report')) {
+        try {
+          const resp = await fetch('https://thedfirreport.com/blog/', {
+            headers: { 'User-Agent': 'Caldera-DFIR-Ingest/1.0' },
+          });
+          if (resp.ok) {
+            const html = await resp.text();
+            const urlPattern = /href="(https:\/\/thedfirreport\.com\/\d{4}\/\d{2}\/\d{2}\/[^"]+)"/g;
+            const urls: string[] = [];
+            const seen = new Set<string>();
+            for (const m of html.matchAll(urlPattern)) {
+              const url = m[1].replace(/\/$/, '');
+              if (!seen.has(url)) { seen.add(url); urls.push(url); }
+              if (urls.length >= maxPerSource) break;
+            }
+            for (const url of urls) {
+              const externalId = url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 120);
+              const [existing] = await (await getDb()).select({ id: dfirReports.id }).from(dfirReports).where(eq(dfirReports.externalId, externalId)).limit(1);
+              if (existing) { allResults.push({ source: 'dfir_report', url, title: '(already imported)', status: 'skipped' }); continue; }
+              try {
+                const r = await fetch(url, { headers: { 'User-Agent': 'Caldera-DFIR-Ingest/1.0' } });
+                if (!r.ok) { allResults.push({ source: 'dfir_report', url, title: '', status: `fetch_error_${r.status}` }); continue; }
+                const reportHtml = await r.text();
+                const parsed = parseDfirReportHtml(reportHtml, url);
+                const [result] = await (await getDb()).insert(dfirReports).values({
+                  externalId: parsed.externalId, source: 'dfir_report', title: parsed.title, url: parsed.url,
+                  publishedAt: parsed.publishedAt, summary: parsed.summary, threatActors: parsed.threatActors,
+                  malwareFamilies: parsed.malwareFamilies, mitreAttackTechniques: parsed.mitreAttackTechniques,
+                  diamondModel: parsed.diamondModel, timeline: parsed.timeline, killChainPhases: parsed.killChainPhases,
+                  tags: parsed.tags, rawContent: parsed.rawContent, status: 'parsed',
+                });
+                if (parsed.iocs.length > 0) {
+                  const iocBatch = parsed.iocs.slice(0, 500).map(ioc => ({ reportId: result.insertId, iocType: ioc.type, value: ioc.value, context: ioc.context }));
+                  for (let i = 0; i < iocBatch.length; i += 50) { await (await getDb()).insert(dfirReportIocs).values(iocBatch.slice(i, i + 50)); }
+                }
+                allResults.push({ source: 'dfir_report', url, title: parsed.title, status: 'imported', techniquesFound: parsed.mitreAttackTechniques.length, iocsFound: parsed.iocs.length });
+                await new Promise(r => setTimeout(r, 2000));
+              } catch (e: any) { allResults.push({ source: 'dfir_report', url, title: '', status: `error: ${e.message?.slice(0, 100)}` }); }
+            }
+          }
+        } catch (e: any) { allResults.push({ source: 'dfir_report', url: 'index', title: '', status: `index_error: ${e.message?.slice(0, 100)}` }); }
+      }
+
+      // ── CISA Advisories ──
+      if (sources.includes('cisa')) {
+        try {
+          const cisaResp = await fetch('https://www.cisa.gov/news-events/cybersecurity-advisories?f%5B0%5D=advisory_type%3A94', {
+            headers: { 'User-Agent': 'Caldera-DFIR-Ingest/1.0' },
+          });
+          if (cisaResp.ok) {
+            const cisaHtml = await cisaResp.text();
+            const cisaPattern = /href="(\/news-events\/cybersecurity-advisories\/[^"]+)"/g;
+            const cisaUrls: string[] = [];
+            const cisaSeen = new Set<string>();
+            for (const m of cisaHtml.matchAll(cisaPattern)) {
+              const path = m[1];
+              if (!cisaSeen.has(path) && !path.includes('?')) {
+                cisaSeen.add(path);
+                cisaUrls.push(`https://www.cisa.gov${path}`);
+              }
+              if (cisaUrls.length >= maxPerSource) break;
+            }
+            for (const url of cisaUrls) {
+              const externalId = url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9]/g, '-').slice(0, 120);
+              const [existing] = await (await getDb()).select({ id: dfirReports.id }).from(dfirReports).where(eq(dfirReports.externalId, externalId)).limit(1);
+              if (existing) { allResults.push({ source: 'cisa', url, title: '(already imported)', status: 'skipped' }); continue; }
+              try {
+                const r = await fetch(url, { headers: { 'User-Agent': 'Caldera-DFIR-Ingest/1.0' } });
+                if (!r.ok) { allResults.push({ source: 'cisa', url, title: '', status: `fetch_error_${r.status}` }); continue; }
+                const advisoryHtml = await r.text();
+                const titleMatch = advisoryHtml.match(/<h1[^>]*>([^<]+)<\/h1>/) || advisoryHtml.match(/<title>([^<]+)<\/title>/);
+                const title = titleMatch ? titleMatch[1].trim().replace(/\s*\|.*$/, '') : url.split('/').pop() || 'CISA Advisory';
+                const bodyMatch = advisoryHtml.match(/<article[^>]*>([\s\S]*?)<\/article>/) || advisoryHtml.match(/<main[^>]*>([\s\S]*?)<\/main>/);
+                const bodyText = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '';
+                const parsed = parseManualReport(bodyText.slice(0, 50000), title);
+                const [result] = await (await getDb()).insert(dfirReports).values({
+                  externalId, source: 'cisa', title, url, summary: bodyText.slice(0, 1000),
+                  threatActors: parsed.threatActors, malwareFamilies: parsed.malwareFamilies,
+                  mitreAttackTechniques: parsed.mitreAttackTechniques, killChainPhases: parsed.killChainPhases,
+                  tags: ['cisa', 'advisory'], rawContent: bodyText.slice(0, 50000), status: 'parsed',
+                });
+                if (parsed.iocs.length > 0) {
+                  const iocBatch = parsed.iocs.slice(0, 500).map(ioc => ({ reportId: result.insertId, iocType: ioc.type, value: ioc.value, context: ioc.context }));
+                  for (let i = 0; i < iocBatch.length; i += 50) { await (await getDb()).insert(dfirReportIocs).values(iocBatch.slice(i, i + 50)); }
+                }
+                allResults.push({ source: 'cisa', url, title, status: 'imported', techniquesFound: parsed.mitreAttackTechniques.length, iocsFound: parsed.iocs.length });
+                await new Promise(r => setTimeout(r, 2000));
+              } catch (e: any) { allResults.push({ source: 'cisa', url, title: '', status: `error: ${e.message?.slice(0, 100)}` }); }
+            }
+          }
+        } catch (e: any) { allResults.push({ source: 'cisa', url: 'index', title: '', status: `index_error: ${e.message?.slice(0, 100)}` }); }
+      }
+
+      return {
+        totalImported: allResults.filter(r => r.status === 'imported').length,
+        totalSkipped: allResults.filter(r => r.status === 'skipped').length,
+        totalFailed: allResults.filter(r => r.status.startsWith('error') || r.status.startsWith('fetch')).length,
+        results: allResults,
+      };
+    }),
+
   // ─── Delete Report ──────────────────────────────────────────────────────
   deleteReport: protectedProcedure
     .input(z.object({ id: z.number() }))

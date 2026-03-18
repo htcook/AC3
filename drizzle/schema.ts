@@ -5879,3 +5879,40 @@ export const dfirReportIocs = mysqlTable("dfir_report_iocs", {
 ]);
 export type DfirReportIocRow = typeof dfirReportIocs.$inferSelect;
 export type InsertDfirReportIoc = typeof dfirReportIocs.$inferInsert;
+
+// ─── Scan Import Schedules (recurring scanner API imports) ─────────────────
+export const scanSchedules = mysqlTable("scan_schedules", {
+  id: int().autoincrement().primaryKey(),
+  name: varchar({ length: 255 }).notNull(),
+  engagementId: int("engagement_id"),
+  scannerType: mysqlEnum("ss_scanner_type", ['nessus', 'qualys', 'rapid7', 'openvas', 'burp', 'zap']).notNull(),
+  connectionConfig: json("connection_config").$type<{
+    apiUrl: string;
+    apiKey?: string;
+    username?: string;
+    password?: string;
+    scanId?: string;
+    reportId?: string;
+    headers?: Record<string, string>;
+  }>().notNull(),
+  cronExpression: varchar("cron_expression", { length: 100 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastRunAt: timestamp("last_run_at", { mode: 'string' }),
+  lastRunStatus: mysqlEnum("last_run_status", ['success', 'failed', 'running', 'never']).default('never').notNull(),
+  lastRunStats: json("last_run_stats").$type<{
+    totalParsed?: number;
+    imported?: number;
+    skipped?: number;
+    failed?: number;
+    error?: string;
+  }>(),
+  totalRuns: int("total_runs").default(0).notNull(),
+  totalFindings: int("total_findings").default(0).notNull(),
+  createdAt: timestamp("ss_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("ss_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ss_engagement_idx").on(table.engagementId),
+  index("ss_active_idx").on(table.isActive),
+]);
+export type ScanScheduleRow = typeof scanSchedules.$inferSelect;
+export type InsertScanSchedule = typeof scanSchedules.$inferInsert;

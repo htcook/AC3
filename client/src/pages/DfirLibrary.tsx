@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Newspaper, Upload, Globe, Search, Sparkles, Download, Trash2,
   ExternalLink, Shield, Bug, Hash, Eye, ChevronLeft, ChevronRight,
@@ -44,7 +44,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 export default function DfirLibrary() {
-  const { toast } = useToast();
+
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string | undefined>();
@@ -77,43 +77,43 @@ export default function DfirLibrary() {
   // Mutations
   const scrapeUrlMutation = trpc.dfirLibrary.scrapeUrl.useMutation({
     onSuccess: (data) => {
-      toast({ title: "Report Scraped", description: `"${data.title}" — ${data.techniquesFound} techniques, ${data.iocsFound} IOCs` });
+      toast.success("Report Scraped", { description: `"${data.title}" — ${data.techniquesFound} techniques, ${data.iocsFound} IOCs` });
       reportsQuery.refetch();
       statsQuery.refetch();
     },
-    onError: (err) => toast({ title: "Scrape Failed", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Scrape Failed", { description: err.message }),
   });
 
   const scrapeIndexMutation = trpc.dfirLibrary.scrapeIndex.useMutation({
     onSuccess: (data) => {
-      toast({ title: "Batch Scrape Complete", description: `Imported ${data.imported}, skipped ${data.skipped}, failed ${data.failed}` });
+      toast.success("Batch Scrape Complete", { description: `Imported ${data.imported}, skipped ${data.skipped}, failed ${data.failed}` });
       reportsQuery.refetch();
       statsQuery.refetch();
     },
-    onError: (err) => toast({ title: "Batch Scrape Failed", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Batch Scrape Failed", { description: err.message }),
   });
 
   const importReportMutation = trpc.dfirLibrary.importReport.useMutation({
     onSuccess: (data) => {
-      toast({ title: "Report Imported", description: `"${data.title}" — ${data.techniquesFound} techniques, ${data.iocsFound} IOCs` });
+      toast.success("Report Imported", { description: `"${data.title}" — ${data.techniquesFound} techniques, ${data.iocsFound} IOCs` });
       reportsQuery.refetch();
       statsQuery.refetch();
     },
-    onError: (err) => toast({ title: "Import Failed", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Import Failed", { description: err.message }),
   });
 
   const enrichMutation = trpc.dfirLibrary.enrichReport.useMutation({
     onSuccess: (data) => {
-      toast({ title: "Report Enriched", description: `Added ${data.enrichedFields.techniquesAdded} techniques` });
+      toast.success("Report Enriched", { description: `Added ${data.enrichedFields.techniquesAdded} techniques` });
       reportDetailQuery.refetch();
       reportsQuery.refetch();
     },
-    onError: (err) => toast({ title: "Enrichment Failed", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error("Enrichment Failed", { description: err.message }),
   });
 
   const deleteMutation = trpc.dfirLibrary.deleteReport.useMutation({
     onSuccess: () => {
-      toast({ title: "Report Deleted" });
+      toast.success("Report Deleted");
       setSelectedReportId(null);
       reportsQuery.refetch();
       statsQuery.refetch();
@@ -121,6 +121,17 @@ export default function DfirLibrary() {
   });
 
   const exportMutation = trpc.dfirLibrary.exportTrainingData.useQuery(undefined, { enabled: false });
+
+  const seedLibraryMutation = trpc.dfirLibrary.seedLibrary.useMutation({
+    onSuccess: (data) => {
+      toast.success("Library Seeded", { description: `Imported ${data.totalImported}, skipped ${data.totalSkipped}, failed ${data.totalFailed}` });
+      reportsQuery.refetch();
+      statsQuery.refetch();
+    },
+    onError: (err) => toast.error("Seed Failed", { description: err.message }),
+  });
+  const [seedSources, setSeedSources] = useState<string[]>(['dfir_report', 'cisa']);
+  const [seedMaxPerSource, setSeedMaxPerSource] = useState(15);
 
   // Upload handler
   const [uploadContent, setUploadContent] = useState("");
@@ -403,6 +414,63 @@ export default function DfirLibrary() {
                     {" "}{scrapeIndexMutation.data.imported} imported,
                     {" "}{scrapeIndexMutation.data.skipped} skipped,
                     {" "}{scrapeIndexMutation.data.failed} failed
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Seed Library (Multi-Source) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4 text-cyan-400" />
+                  Seed Library
+                </CardTitle>
+                <CardDescription>Bulk import from multiple sources (DFIR Report + CISA)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input type="checkbox" checked={seedSources.includes('dfir_report')} onChange={(e) => {
+                      setSeedSources(prev => e.target.checked ? [...prev, 'dfir_report'] : prev.filter(s => s !== 'dfir_report'));
+                    }} className="rounded" />
+                    DFIR Report
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input type="checkbox" checked={seedSources.includes('cisa')} onChange={(e) => {
+                      setSeedSources(prev => e.target.checked ? [...prev, 'cisa'] : prev.filter(s => s !== 'cisa'));
+                    }} className="rounded" />
+                    CISA
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Max per source:</span>
+                  <Input type="number" min={1} max={30} value={seedMaxPerSource} onChange={(e) => setSeedMaxPerSource(Number(e.target.value))} className="w-20" />
+                </div>
+                <Button
+                  onClick={() => seedLibraryMutation.mutate({ sources: seedSources as any, maxPerSource: seedMaxPerSource })}
+                  disabled={seedLibraryMutation.isPending || seedSources.length === 0}
+                  className="w-full"
+                >
+                  {seedLibraryMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Seeding Library...</>
+                  ) : (
+                    <><Database className="h-4 w-4 mr-2" /> Seed Library ({seedSources.length} sources)</>
+                  )}
+                </Button>
+                {seedLibraryMutation.data && (
+                  <div className="text-sm space-y-1">
+                    <div className="text-muted-foreground">
+                      Imported {seedLibraryMutation.data.totalImported}, skipped {seedLibraryMutation.data.totalSkipped}, failed {seedLibraryMutation.data.totalFailed}
+                    </div>
+                    <div className="max-h-32 overflow-y-auto text-xs space-y-0.5">
+                      {seedLibraryMutation.data.results.map((r: any, i: number) => (
+                        <div key={i} className={`flex items-center gap-1 ${r.status === 'imported' ? 'text-green-400' : r.status === 'skipped' ? 'text-yellow-400' : 'text-red-400'}`}>
+                          {r.status === 'imported' ? <CheckCircle2 className="h-3 w-3" /> : r.status === 'skipped' ? <Clock className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                          <span className="truncate">{r.title || r.url}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
