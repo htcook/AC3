@@ -16,8 +16,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDbRequired } from "../db";
-import { llmTelemetry } from "../../drizzle/schema";
-import { sql, desc, and, gte } from "drizzle-orm";
+import { llmTelemetry, llmTrainingExamples } from "../../drizzle/schema";
+import { sql, desc, and, gte, like, eq } from "drizzle-orm";
 
 // ─── Graduation Criteria ────────────────────────────────────────────────────
 
@@ -309,6 +309,141 @@ export const graduationEngineRouter = router({
       }
 
       return { trend };
+    }),
+
+  /**
+   * Training Data Quality Gate — uses approved/rejected ratios from the
+   * training data review pipeline as quality signals for graduation decisions.
+   *
+   * For each LLM caller (model), computes:
+   *   - Total training examples and review completion rate
+   *   - Approval rate (approved / (approved + rejected))
+   *   - Average quality score of approved examples
+   *   - Quality gate verdict: PASS / WARN / FAIL / INSUFFICIENT
+   *
+   * Quality Gate Thresholds:
+   *   PASS:         ≥80% approval rate, ≥50 reviewed examples, avg score ≥0.75
+   *   WARN:         ≥60% approval rate, ≥20 reviewed examples, avg score ≥0.5
+   *   FAIL:         <60% approval rate or avg score <0.5
+   *   INSUFFICIENT: <20 reviewed examples
+   */
+  getTrainingQualityGates: protectedProcedure
+    .input(
+      z.object({
+        callerFilter: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+
+      // Get per-model review stats from training examples
+      const conditions: any[] = [];
+      if (input?.callerFilter) {
+        conditions.push(like(llmTrainingExamples.model, `%${input.callerFilter}%`));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const modelStats = await db
+        .select({
+          model: llmTrainingExamples.model,
+          total: sql<number>`COUNT(*)`,
+          approved: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.reviewStatus} = 'approved' THEN 1 ELSE 0 END)`,
+          rejected: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.reviewStatus} = 'rejected' THEN 1 ELSE 0 END)`,
+          flagged: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.reviewStatus} = 'flagged' THEN 1 ELSE 0 END)`,
+          pending: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.reviewStatus} = 'pending_review' THEN 1 ELSE 0 END)`,
+          avgQualityScore: sql<number>`AVG(${llmTrainingExamples.qualityScore})`,
+          avgApprovedScore: sql<number>`AVG(CASE WHEN ${llmTrainingExamples.reviewStatus} = 'approved' THEN ${llmTrainingExamples.qualityScore} ELSE NULL END)`,
+          highQuality: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.quality} = 'high' THEN 1 ELSE 0 END)`,
+          mediumQuality: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.quality} = 'medium' THEN 1 ELSE 0 END)`,
+          lowQuality: sql<number>`SUM(CASE WHEN ${llmTrainingExamples.quality} = 'low' THEN 1 ELSE 0 END)`,
+        })
+        .from(llmTrainingExamples)
+        .where(whereClause)
+        .groupBy(llmTrainingExamples.model)
+        .orderBy(desc(sql`COUNT(*)`));
+
+      const gates = modelStats.map((row) => {
+        const total = Number(row.total) || 0;
+        const approved = Number(row.approved) || 0;
+        const rejected = Number(row.rejected) || 0;
+        const flagged = Number(row.flagged) || 0;
+        const pending = Number(row.pending) || 0;
+        const reviewed = approved + rejected;
+        const approvalRate = reviewed > 0 ? (approved / reviewed) * 100 : 0;
+        const reviewProgress = total > 0 ? ((reviewed + flagged) / total) * 100 : 0;
+        const avgQualityScore = Number(row.avgQualityScore) || 0;
+        const avgApprovedScore = Number(row.avgApprovedScore) || 0;
+
+        // Compute quality gate verdict
+        let verdict: 'pass' | 'warn' | 'fail' | 'insufficient';
+        let verdictReason: string;
+
+        if (reviewed < 20) {
+          verdict = 'insufficient';
+          verdictReason = `Only ${reviewed} examples reviewed (need ≥20 for assessment)`;
+        } else if (approvalRate >= 80 && reviewed >= 50 && avgApprovedScore >= 0.75) {
+          verdict = 'pass';
+          verdictReason = `${approvalRate.toFixed(1)}% approval rate with ${reviewed} reviewed examples (avg score: ${avgApprovedScore.toFixed(2)})`;
+        } else if (approvalRate >= 60 && reviewed >= 20 && avgQualityScore >= 0.5) {
+          verdict = 'warn';
+          verdictReason = `Approval rate ${approvalRate.toFixed(1)}% — needs improvement for graduation (target: ≥80%)`;
+        } else {
+          verdict = 'fail';
+          verdictReason = approvalRate < 60
+            ? `Low approval rate: ${approvalRate.toFixed(1)}% (need ≥60% to pass)`
+            : `Low quality score: ${avgQualityScore.toFixed(2)} (need ≥0.5 to pass)`;
+        }
+
+        return {
+          model: row.model,
+          total,
+          approved,
+          rejected,
+          flagged,
+          pending,
+          reviewed,
+          approvalRate: Math.round(approvalRate * 10) / 10,
+          reviewProgress: Math.round(reviewProgress * 10) / 10,
+          avgQualityScore: Math.round(avgQualityScore * 100) / 100,
+          avgApprovedScore: Math.round(avgApprovedScore * 100) / 100,
+          qualityDistribution: {
+            high: Number(row.highQuality) || 0,
+            medium: Number(row.mediumQuality) || 0,
+            low: Number(row.lowQuality) || 0,
+          },
+          verdict,
+          verdictReason,
+        };
+      });
+
+      // Overall summary
+      const totalModels = gates.length;
+      const passCount = gates.filter((g) => g.verdict === 'pass').length;
+      const warnCount = gates.filter((g) => g.verdict === 'warn').length;
+      const failCount = gates.filter((g) => g.verdict === 'fail').length;
+      const insufficientCount = gates.filter((g) => g.verdict === 'insufficient').length;
+
+      return {
+        gates,
+        summary: {
+          totalModels,
+          passCount,
+          warnCount,
+          failCount,
+          insufficientCount,
+          overallReadiness: totalModels > 0
+            ? Math.round((passCount / totalModels) * 100)
+            : 0,
+          totalExamples: gates.reduce((s, g) => s + g.total, 0),
+          totalApproved: gates.reduce((s, g) => s + g.approved, 0),
+          totalRejected: gates.reduce((s, g) => s + g.rejected, 0),
+        },
+        thresholds: {
+          pass: { minApprovalRate: 80, minReviewed: 50, minAvgScore: 0.75 },
+          warn: { minApprovalRate: 60, minReviewed: 20, minAvgScore: 0.5 },
+        },
+      };
     }),
 
   /**

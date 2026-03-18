@@ -1,6 +1,9 @@
 /**
  * TEMPORARY: Public trigger for live engagement test.
  * This will be removed after the test is complete.
+ *
+ * Uses getOpsStateWithRecovery() for automatic DB snapshot fallback
+ * when in-memory state is lost (e.g., after server restart).
  */
 import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
@@ -18,8 +21,8 @@ export const liveTriggerTempRouter = router({
         throw new Error('No targets defined');
       }
 
-      const { executeEngagement, initOpsState, getOpsState } = await import('../lib/engagement-orchestrator');
-      let state = getOpsState(input.engagementId);
+      const { executeEngagement, initOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = await getOpsStateWithRecovery(input.engagementId);
       if (!state) {
         state = initOpsState(input.engagementId, engagement.engagementType);
       }
@@ -49,24 +52,46 @@ export const liveTriggerTempRouter = router({
   listPendingGates: publicProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
-      const { getOpsState } = await import('../lib/engagement-orchestrator');
-      const state = getOpsState(input.engagementId);
+      const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      const state = await getOpsStateWithRecovery(input.engagementId);
       if (!state) return [];
       return (state.approvalGates || []).filter((g: any) => g.status === 'pending').map((g: any) => ({
         id: g.id, title: g.title, phase: g.phase, riskTier: g.riskTier, description: g.description
       }));
     }),
 
-  /** Get current ops state (TEMP - no auth) */
+  /** Get current ops state with automatic DB recovery (TEMP - no auth) */
   getState: publicProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
-      const { getOpsState, normalizeOpsState } = await import('../lib/engagement-orchestrator');
-      let state = getOpsState(input.engagementId);
-      if (state) state = normalizeOpsState(state);
-      if (state && state.skippedDomains instanceof Set) {
+      const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      const state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) return null;
+      // Serialize Set to array for JSON transport
+      if (state.skippedDomains instanceof Set) {
         return { ...state, skippedDomains: [...state.skippedDomains] };
       }
       return state;
+    }),
+
+  /** Get summary of all active/recent engagement snapshots from DB */
+  listSnapshots: publicProcedure
+    .query(async () => {
+      const { getDb } = await import('../db');
+      const { engagementOpsSnapshots } = await import('../../drizzle/schema');
+      const { desc } = await import('drizzle-orm');
+      const dbConn = await getDb();
+      const rows = await dbConn.select({
+        id: engagementOpsSnapshots.id,
+        engagementId: engagementOpsSnapshots.engagementId,
+        phase: engagementOpsSnapshots.phase,
+        isRunning: engagementOpsSnapshots.isRunning,
+        assetCount: engagementOpsSnapshots.assetCount,
+        updatedAt: engagementOpsSnapshots.updatedAt,
+      })
+        .from(engagementOpsSnapshots)
+        .orderBy(desc(engagementOpsSnapshots.updatedAt))
+        .limit(20);
+      return rows;
     }),
 });
