@@ -43,6 +43,20 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "github_recon",        // GitHub org/repo/CI-CD exposure (queries GitHub API)
   "cloud_assets",        // Cloud storage enumeration (queries cloud provider APIs, not target)
   // NOTE: binaryedge removed — API shut down March 31, 2025
+  // --- OSINT Pipeline Expansion (Gap Analysis v2) ---
+  "intelx_search",       // Intelligence X — queries IntelX database (never touches target)
+  "hudson_rock",         // Hudson Rock — queries stealer log database (never touches target)
+  "leakcheck",           // LeakCheck — queries credential leak database (never touches target)
+  "company_intel",       // Company Intelligence — web scraping + LLM (queries public web, not target infra)
+  "threatminer",         // ThreatMiner — queries ThreatMiner database (passive)
+  "ip_api",              // ip-api.com — queries IP geolocation database (passive)
+  "bgpview",             // BGPView — queries ASN/BGP database (passive)
+  "ransomware_live",     // Ransomware.live — queries ransomware victim database (passive)
+  "threatfox",           // ThreatFox — queries IOC database (passive)
+  "builtwith",           // BuiltWith — queries tech stack database (passive)
+  "circl_pdns",          // CIRCL Passive DNS — queries historical DNS database (passive)
+  "commoncrawl",         // CommonCrawl — queries historical web crawl database (passive)
+  "reverse_whois",       // Reverse WHOIS — queries crt.sh for related domains (passive)
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
@@ -52,6 +66,7 @@ const DNS_RESOLUTION_CONNECTORS = new Set([
   "greynoise",         // Resolves domain to IP before querying GreyNoise
   "email_security",    // DNS resolution for SPF/DKIM/DMARC records
   "dns_deep",          // Comprehensive DNS record resolution (A/AAAA/MX/NS/TXT/SOA/CAA)
+  "typosquat",         // Typosquat Generator — performs DNS resolution to check domain availability
 ]);
 
 // Connectors that query registration databases or make direct contact
