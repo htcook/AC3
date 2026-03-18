@@ -25,6 +25,7 @@ import {
 } from "./ws-event-hub";
 import { onShellObtained } from "./post-exploit-auto-trigger";
 import { captureDecision, captureExploitOutcome, updateDecisionOutcome } from "./engagement-training-bridge";
+import { emitLLMDecision, emitLLMDelegation, emitLLMEngagementProgress } from "./ws-event-hub";
 import {
   getChainsByVulnDescriptions,
   formatChainsForPrompt,
@@ -571,7 +572,110 @@ export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" 
   broadcastOpsUpdate(state.engagementId, { type: "log", entry: logEntry });
   // Trigger debounced persistence on every log entry
   persistOpsStateDebounced(state.engagementId);
+
+  // ── Auto-persist LLM decisions to llm_decision_log ──
+  if (entry.type === 'llm_decision') {
+    captureDecision({
+      engagementId: state.engagementId,
+      phase: entry.phase,
+      caller: `engagement-orchestrator.${entry.phase}`,
+      decision: entry.title,
+      reasoning: entry.detail || '',
+      actions: entry.data ? [{ type: 'llm_analysis', params: entry.data }] : [],
+      contextSummary: entry.detail?.slice(0, 2000),
+    }).catch(() => {}); // fire-and-forget
+
+    // Emit WebSocket event for real-time monitor
+    emitLLMDecision({
+      engagementId: state.engagementId,
+      agent: `engagement-orchestrator.${entry.phase}`,
+      decisionType: 'analysis',
+      action: entry.title,
+      confidence: typeof entry.data?.confidence === 'number' ? entry.data.confidence : 0.7,
+      stealthScore: entry.data?.stealthScore,
+      reasoning: entry.detail?.slice(0, 500) || '',
+    });
+  }
+
+  // ── Auto-persist timeline events to engagement_timeline_events ──
+  const persistableTypes = ['phase_complete', 'scan_result', 'finding', 'exploit_attempt',
+    'exploit_success', 'exploit_fail', 'c2_deploy', 'pivot', 'evidence', 'llm_decision',
+    'zap_scan', 'waf_detected', 'warning'];
+  if (persistableTypes.includes(entry.type)) {
+    persistTimelineEvent(state.engagementId, logEntry).catch(() => {});
+  }
+
+  // ── Emit engagement progress for phase completions ──
+  if (entry.type === 'phase_complete') {
+    emitLLMEngagementProgress({
+      engagementId: state.engagementId,
+      engagementName: `Engagement #${state.engagementId}`,
+      target: state.assets?.[0]?.hostname || 'unknown',
+      phase: entry.phase,
+      progress: entry.phase === 'completed' ? 100 : 50,
+      findingsCount: state.stats?.vulnsFound || 0,
+      activeAgents: [],
+      llmCallsTotal: 0,
+    });
+  }
+
   return logEntry;
+}
+
+// Map ops log types to timeline event types
+const OPS_TO_TIMELINE_TYPE: Record<string, string> = {
+  phase_complete: 'phase_completed',
+  scan_result: 'scan_completed',
+  finding: 'finding_discovered',
+  exploit_attempt: 'exploit_attempted',
+  exploit_success: 'exploit_succeeded',
+  exploit_fail: 'exploit_attempted',
+  c2_deploy: 'shell_obtained',
+  pivot: 'pivot_established',
+  evidence: 'data_collected',
+  llm_decision: 'tool_executed',
+  zap_scan: 'scan_completed',
+  waf_detected: 'opsec_alert',
+  warning: 'opsec_alert',
+};
+
+const OPS_TO_SEVERITY: Record<string, string> = {
+  phase_complete: 'info',
+  scan_result: 'info',
+  finding: 'medium',
+  exploit_attempt: 'high',
+  exploit_success: 'critical',
+  exploit_fail: 'medium',
+  c2_deploy: 'critical',
+  pivot: 'critical',
+  evidence: 'high',
+  llm_decision: 'info',
+  zap_scan: 'low',
+  waf_detected: 'high',
+  warning: 'medium',
+};
+
+async function persistTimelineEvent(engagementId: number, logEntry: OpsLogEntry) {
+  try {
+    const { getDb } = await import('../db');
+    const { engagementTimelineEvents } = await import('../../drizzle/schema');
+    const db = await getDb();
+    const eventType = OPS_TO_TIMELINE_TYPE[logEntry.type] || 'note_added';
+    const severity = OPS_TO_SEVERITY[logEntry.type] || 'info';
+    await db.insert(engagementTimelineEvents).values({
+      engagementId,
+      phase: logEntry.phase || 'unknown',
+      eventType: eventType as any,
+      severity: severity as any,
+      title: logEntry.title.slice(0, 512),
+      description: logEntry.detail?.slice(0, 5000),
+      metadata: logEntry.data || null,
+      sourceModule: 'engagement-orchestrator',
+      timestamp: logEntry.timestamp,
+    });
+  } catch (err: any) {
+    console.error(`[TimelinePersist] Failed to persist timeline event:`, err.message);
+  }
 }
 
 // ─── Scan Result Persistence ───────────────────────────────────────────────
