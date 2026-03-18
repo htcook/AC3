@@ -190,6 +190,7 @@ import { scanSchedulesRouter } from "./routers/scan-schedules";
 import { agentRegistryRouter } from "./routers/agent-registry";
 import { trainingDataDashboardRouter } from "./routers/training-data-dashboard";
 import { labEngagementSeedRouter } from "./routers/lab-engagement-seed";
+import { labEngagementSeedWave2Router } from "./routers/lab-engagement-seed-wave2";
 import { agentLeaderboardRouter } from "./routers/agent-leaderboard";
 import { realtimeMonitorRouter } from "./routers/realtime-monitor";
 
@@ -559,6 +560,7 @@ export const appRouter = router({
   trainingData: trainingDataDashboardRouter,
   // ─── Lab Engagement Seed (Populate all LLM tables with realistic lab data) ──
   labSeed: labEngagementSeedRouter,
+  labSeedWave2: labEngagementSeedWave2Router,
   // ─── Agent Performance Leaderboard ──
   agentLeaderboard: agentLeaderboardRouter,
   // ─── Real-Time Engagement Monitoring ──
