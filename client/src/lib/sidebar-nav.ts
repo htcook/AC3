@@ -442,6 +442,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Tenants", path: "/tenants", roles: ["admin"] as UserRole[], icon: Building2 },
       { label: "Account Settings", path: "/account-settings", icon: Settings },
       { label: "Onboarding", path: "/onboarding", icon: Rocket },
+      { label: "Customer Accounts", path: "/customer-accounts", icon: Users, roles: ["admin", "team_lead"] as UserRole[] },
       { label: "Review Queue", path: "/review-queue", icon: FileCheck2 },
       { label: "Job Queue", path: "/job-queue", roles: ["admin"] as UserRole[], icon: Cog },
       { label: "Error Dashboard", path: "/error-dashboard", roles: ["admin"] as UserRole[], icon: AlertTriangle },

@@ -113,6 +113,7 @@ const StixExport = lazyWithRetry(() => import("./pages/StixExport"));
 const ClientPortal = lazyWithRetry(() => import("./pages/ClientPortal"));
 const CustomerPortalLogin = lazyWithRetry(() => import("./pages/CustomerPortalLogin"));
 const CustomerPortalDashboard = lazyWithRetry(() => import("./pages/CustomerPortalDashboard"));
+const CustomerAccounts = lazyWithRetry(() => import("./pages/CustomerAccounts"));
 const EmulationPlaybooks = lazyWithRetry(() => import("./pages/EmulationPlaybooks"));
 const EvidenceCollection = lazyWithRetry(() => import("./pages/EvidenceCollection"));
 const AttackPaths = lazyWithRetry(() => import("./pages/AttackPaths"));
@@ -411,6 +412,9 @@ function Router() {
         </Route>
         <Route path="/onboarding">
           <ProtectedRoute component={TenantOnboarding} />
+        </Route>
+        <Route path="/customer-accounts">
+          <ProtectedRoute component={CustomerAccounts} />
         </Route>
         <Route path="/compliance-dashboard">
           <ProtectedRoute component={ComplianceDashboard} />

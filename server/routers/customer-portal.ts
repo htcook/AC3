@@ -244,11 +244,13 @@ export const customerPortalRouter = router({
 
       const database = getDbRequired();
 
-      // Upsert company intel profile
+      // NIST 800-53 AC: Verify tenant ownership before modification
       const [existing] = await database
         .select()
         .from(companyIntelProfiles)
-        .where(eq(companyIntelProfiles.tenantId, customer.tenantId))
+        .where(and(
+          eq(companyIntelProfiles.tenantId, customer.tenantId),
+        ))
         .limit(1);
 
       const profileData = {
@@ -272,10 +274,14 @@ export const customerPortalRouter = router({
       };
 
       if (existing) {
+        // NIST 800-53 AC: Double-check tenant ownership on update
         await database
           .update(companyIntelProfiles)
           .set(profileData)
-          .where(eq(companyIntelProfiles.id, existing.id));
+          .where(and(
+            eq(companyIntelProfiles.id, existing.id),
+            eq(companyIntelProfiles.tenantId, customer.tenantId),
+          ));
       } else {
         await database.insert(companyIntelProfiles).values({
           id: crypto.randomUUID(),
@@ -337,10 +343,12 @@ export const customerPortalRouter = router({
 
       const database = getDbRequired();
 
-      // Delete existing and re-insert
+      // NIST 800-53 AC: Delete only this tenant's frameworks (tenant-scoped)
       await database
         .delete(regulatoryFrameworks)
-        .where(eq(regulatoryFrameworks.tenantId, customer.tenantId));
+        .where(and(
+          eq(regulatoryFrameworks.tenantId, customer.tenantId),
+        ));
 
       if (input.frameworks.length > 0) {
         await database.insert(regulatoryFrameworks).values(
@@ -430,7 +438,7 @@ export const customerPortalRouter = router({
 
       const database = getDbRequired();
 
-      // Verify the RoE belongs to this tenant's engagement
+      // NIST 800-53 AC: Verify the RoE belongs to this tenant's engagement
       const [roe] = await database
         .select()
         .from(roeDocuments)
@@ -438,6 +446,18 @@ export const customerPortalRouter = router({
         .limit(1);
 
       if (!roe) throw new TRPCError({ code: "NOT_FOUND", message: "RoE document not found" });
+
+      // Verify engagement belongs to this customer's tenant
+      if (roe.engagementId) {
+        const [eng] = await database
+          .select({ tenantId: engagements.tenantId })
+          .from(engagements)
+          .where(eq(engagements.id, roe.engagementId))
+          .limit(1);
+        if (!eng || eng.tenantId !== customer.tenantId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Access denied: RoE does not belong to your organization" });
+        }
+      }
 
       // Update the scope items in the RoE document
       const existingScope = roe.scopeDefinition ? JSON.parse(roe.scopeDefinition as string) : {};
@@ -478,7 +498,8 @@ export const customerPortalRouter = router({
 
       const database = getDbRequired();
 
-      const shared = await database
+      // NIST 800-53 AC: Tenant-scoped query with expiration filtering
+      const allShared = await database
         .select({
           id: customerSharedReports.id,
           reportId: customerSharedReports.reportId,
@@ -491,6 +512,13 @@ export const customerPortalRouter = router({
         .from(customerSharedReports)
         .where(eq(customerSharedReports.tenantId, customer.tenantId))
         .orderBy(desc(customerSharedReports.sharedAt));
+
+      // Filter out expired reports
+      const now = new Date();
+      const shared = allShared.filter(s => {
+        if (!s.expiresAt) return true; // No expiration = always visible
+        return new Date(s.expiresAt) > now;
+      });
 
       // Enrich with report details
       const enriched = await Promise.all(shared.map(async (s) => {
@@ -527,6 +555,16 @@ export const customerPortalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const database = getDbRequired();
 
+      // NIST 800-53 AC: Verify tenant exists before sharing
+      const [tenant] = await database
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, parseInt(input.tenantId) || 0))
+        .limit(1);
+      if (!tenant) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Tenant not found" });
+      }
+
       const expiresAt = input.expiresInDays
         ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
         : null;
@@ -557,10 +595,14 @@ export const customerPortalRouter = router({
       if (!customer) throw new TRPCError({ code: "UNAUTHORIZED" });
 
       const database = getDbRequired();
+      // NIST 800-53 AC: Strictly scoped to customer's tenant
       const logs = await database
         .select()
         .from(customerAuditLog)
-        .where(eq(customerAuditLog.tenantId, customer.tenantId))
+        .where(and(
+          eq(customerAuditLog.tenantId, customer.tenantId),
+          eq(customerAuditLog.customerId, customer.customerId),
+        ))
         .orderBy(desc(customerAuditLog.timestamp))
         .limit(input.limit);
 
