@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import ThreatActorFeed from "@/components/ThreatActorFeed";
 import {
   Key, Terminal, Activity, Users, ExternalLink, ChevronRight, Zap, Cloud,
-  Mail, Phone, MapPin, Target, Shield, Radar, Globe, Crosshair, FileText,
+  Target, Shield, Radar, Globe, Crosshair, FileText,
   Briefcase, BarChart3, Sparkles, Network, Lock, Fingerprint, Scan,
   BookOpen, Server, Cpu, Eye, X, Brain, Layers, Radio, Workflow, Rocket,
   ShieldCheck, Palette, AlertTriangle, CheckCircle2, ArrowRight, Siren,
@@ -42,39 +42,38 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
-  { date: "Mar 2026", title: "AC3 Report Generator", desc: "World-class penetration test and red team report generation with LLM-bounded narrative drafting. Platform remains source of truth for severity, evidence, ATT&CK IDs, and NIST 800-53 control mappings. LLM only drafts bounded narrative fields (summary, business impact, technical details, remediation) subject to human approval. Includes executive summary generation, QA review pipeline, and JSON export." },
-  { date: "Mar 2026", title: "DOCX Report Export", desc: "Professional Word document generation with title page, executive summary, scope definition, findings summary table, and detailed findings sections. Documents uploaded to S3 for instant download. Fully branded with AceofCloud identity and engagement metadata." },
-  { date: "Mar 2026", title: "Findings Deduplication Engine", desc: "Intelligent deduplication during engagement and Caldera imports. Detects existing findings by ATT&CK technique ID and merges duplicates — appending evidence without duplicate references, unioning assets, combining NIST controls by ID, and keeping the highest severity. Intra-batch dedup prevents duplicates within a single import." },
-  { date: "Mar 2026", title: "Engagement Findings Auto-Population", desc: "One-click import from completed engagements. Timeline events (exploits, shells, credentials, pivots, exfiltration) are automatically mapped to report findings with pre-filled ATT&CK technique IDs, NIST 800-53 controls, severity ratings, and evidence from engagement artifacts." },
-  { date: "Mar 2026", title: "Caldera Operation Bulk Import", desc: "Import findings directly from Caldera operations. Each executed ability in the operation chain is mapped to a finding with technique IDs, severity based on tactic phase, command output evidence, and affected assets. Includes option to import failed/blocked links as findings." },
-  { date: "Mar 2026", title: "Cloud Workload Testing", desc: "Dedicated cloud workload security testing module for validating container, serverless, and cloud-native application security posture across AWS, Azure, and GCP environments." },
-  { date: "Mar 2026", title: "Forest Mapper", desc: "Active Directory forest visualization and attack path mapping. Enumerate trust relationships, identify cross-forest attack vectors, and map privilege escalation paths across multi-domain environments." },
-  { date: "Mar 2026", title: "BloodHound Import", desc: "Direct BloodHound data import for AD attack path analysis. Import SharpHound collection data to visualize domain relationships, identify high-value targets, and plan lateral movement paths." },
-  { date: "Mar 2026", title: "Credential Auto-Rotation", desc: "Automated credential rotation for compromised accounts discovered during engagements. Tracks credential lifecycle, rotation schedules, and compliance with password policies." },
-  { date: "Mar 2026", title: "SOAR Connectors & SOC Integration Hub", desc: "Bi-directional integration with SOAR platforms and SOC tooling. Export findings, IOCs, and detection rules directly to security operations workflows. Centralized integration hub for SIEM, EDR, and ticketing systems." },
-  { date: "Feb 2026", title: "Discovery Chain Orchestrator", desc: "Automated 4-stage discovery pipeline: Amass subdomain enumeration → Nmap port scanning → Service Fingerprinting → Nuclei vulnerability scanning. Each stage auto-extracts targets from the previous stage's output with scope enforcement at every boundary. Configurable skip stages, timeouts, and parallel execution. Full chain run history with DB persistence." },
-  { date: "Feb 2026", title: "Nmap Integration Engine", desc: "14 tRPC procedures exposing the full Nmap orchestrator: 8 scan profiles (quick/standard/deep/stealth/service/UDP/vuln/custom), 7 NSE script categories with 80+ scripts, admin port scanning with categorized results, CVE extraction from vuln scans, and SSIL observation conversion. All scan mutations enforce scope via the unified scope guard." },
-  { date: "Feb 2026", title: "Unified Pipeline Enhancement", desc: "Nmap, Amass, and Service Fingerprinter now wired into the TOOL_PHASE_MATRIX enumeration phase with priority boost logic. Three new finding converters translate tool-specific results into unified PipelineFinding format. Extended discovery source weights and coverage tags for cross-tool correlation." },
-  { date: "Feb 2026", title: "Passive Scan Clarity", desc: "Domain intel results now display a clear disclaimer distinguishing passive OSINT findings from active scanning. Scan completion prompts users to create a formal engagement with Rules of Engagement (ROE) for authorized active scanning and vulnerability enumeration." },
-  { date: "Feb 2026", title: "CVE & Threat Actor Sorting", desc: "CVE lists now default to most-recent-first ordering by published date, with sort options for date, priority, CVSS, and actor count. Threat actor catalog defaults to most-recently-active sorting for faster triage of current threats." },
-  { date: "Feb 2026", title: "Threat Intelligence Enrichment Engine", desc: "Continuously learns threat actor TTPs and IOCs to enhance KSI analysis, monitoring, evaluation, and validation across all platform modules. Full enrichment cycle correlates 1,698+ threat actors against all 75 FedRAMP 20x KSIs with risk scoring, coverage matrix, IOC feeds per module, and cross-module priority updates for validation, attack vectors, and config baselines." },
-  { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of live scan evidence against the threat catalog. Auto-collection pipelines with 6 configurable sources feed KSI evidence chains. Scheduled collection with cron-based automation and source health monitoring." },
-  { date: "Feb 2026", title: "Engagement Automation Engine", desc: "Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates (full pentest, red team, purple team, phishing assessment, cloud security) with kill chain phase mapping, recommended techniques, and pre-loaded emulation abilities and Metasploit modules." },
-  { date: "Feb 2026", title: "FedRAMP KSI Coverage Map", desc: "Interactive map showing how AC3 addresses 75 FedRAMP 20x Key Security Indicators across 13 compliance themes — 34 with direct automated validation and 32 with supporting evidence. Dual-view for Cloud Service Providers seeking authorization and Federal Agencies monitoring their CSP portfolio. Expandable theme cards show individual KSI coverage with mapped AC3 modules and honest capability grounding." },
-  { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped atomic tests synced and ready to execute. Browse by technique, tactic, or platform. Run tests against target systems with full audit trails. Cross-module integration links validation tests to Attack Planner, Emulation Playbooks, Purple Team exercises, adversary operations, DAST findings, and detection rule validation." },
-  { date: "Feb 2026", title: "DAST Server Deployed", desc: "Dedicated DAST scanning server deployed with auto-restart. Dual-mode scanning: passive recon for safe crawling and active DAST for coordinated attack testing. AI-powered scan configuration auto-tunes spider depth, authentication handlers, and scan policies based on target tech stack detection." },
-  { date: "Feb 2026", title: "OpenAPI / GraphQL / SOAP Import", desc: "Import API specifications directly into DAST scans for targeted API security testing. Supports OpenAPI/Swagger, GraphQL introspection endpoints, and WSDL definitions. Auto-discovers API endpoints and parameters for comprehensive coverage beyond traditional web crawling." },
-  { date: "Feb 2026", title: "Unified Offensive Stack", desc: "Full exploit, C2, and DAST stack unified under one command center — 2,600+ exploit modules, 1,900+ emulation abilities, DAST scanning, 1,400+ ATT&CK validation tests, and social engineering campaigns. All orchestrated with cross-tool correlation and ATT&CK mapping." },
-  { date: "Feb 2026", title: "AI-Powered DAST Orchestrator", desc: "LLM trained on all 12 scanner API categories for full coverage. Auto-configures scan policies, authentication handlers (form-based, token-based, OAuth), and technology-specific rules. AI triage reduces false positives and maps findings to ATT&CK techniques with exploit correlation." },
-  { date: "Feb 2026", title: "SIEM/EDR Evasion Engine", desc: "Three-tier evasion architecture: SIEM Rule Mutation Engine generates 9+ evasive variants per command. Payload Transformation Pipeline chains multiple obfuscation tools with configurable stealth profiles. Evasion Scorecard produces Campaign Stealth Scores with per-technique detection gaps and purple team remediation actions." },
-  { date: "Feb 2026", title: "Red Team Discovery Coverage", desc: "Maps all 10 red team discovery priorities to pipeline connectors with weighted scoring. Coverage tab shows per-priority status, quality assessment, contributing sources, and MITRE ATT&CK technique alignment." },
-  { date: "Feb 2026", title: "Confirmed-Only Vulnerability Counting", desc: "Vulnerability counts show only confirmed findings by default — KEV-listed, 0-day, or version-matched with exploit evidence. Tier toggle reveals probable and potential matches." },
-  { date: "Feb 2026", title: "4 New OSINT Connectors", desc: "Email Security (DMARC/SPF/DKIM/MX spoofability scoring), HTTP Security Headers (WAF, CSP, HSTS), Cloud Asset Discovery (S3/Azure/GCP buckets), and DNS Deep Analysis (A/AAAA/CNAME/NS/SOA/TXT/SRV/CAA with CDN detection)." },
-  { date: "Feb 2026", title: "Autonomous Validation Engine", desc: "LLM-driven exploit validation runs real checks against confirmed CVEs using exploit modules from multiple sources. Evidence capture stores console output, session data, and HTML proof reports." },
-  { date: "Feb 2026", title: "Kill Chain Timeline & Event Streaming", desc: "Unified engagement timeline with WebSocket-powered live updates. Exploit results, agent deployments, scan progress, and atomic test executions appear instantly across all pages." },
-  { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques (BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing) auto-injected into campaign templates based on target intelligence." },
-  { date: "Feb 2026", title: "Crawl-to-Phish Pipeline", desc: "Generates GoPhish-ready phishing templates from crawled web pages. Login portal cloning extracts form structure, CSS, branding, and vendor detection (Microsoft 365, Okta, Google Workspace, Salesforce). Supply chain email generator creates vendor-matched phishing messages. All templates are RoE-gated within active engagements." },
-  { date: "Feb 2026", title: "Public Threat Actor Feed", desc: "Live threat actor intelligence feed on the homepage. Browse 1,700+ threat actor profiles with ATT&CK techniques, tools, malware, and target sectors. Filterable by type (APT, ransomware, cybercrime, hacktivist) with clickable detail modals — no authentication required." },
+  { date: "Mar 2026", title: "AC3 Report Generator", desc: "Generate professional pentest and red team reports. AI drafts narrative sections while the platform controls severity, evidence, and technique mappings. Includes executive summaries, QA review, and DOCX export." },
+  { date: "Mar 2026", title: "DOCX Report Export", desc: "One-click Word document generation with title page, executive summary, findings table, and detailed sections. Branded and ready to deliver." },
+  { date: "Mar 2026", title: "Findings Deduplication", desc: "Automatically detects and merges duplicate findings during imports. Combines evidence, keeps the highest severity, and prevents duplicates within a single batch." },
+  { date: "Mar 2026", title: "Engagement Findings Import", desc: "One-click import from completed engagements. Timeline events are automatically mapped to report findings with technique IDs, severity, and evidence." },
+  { date: "Mar 2026", title: "Caldera Operation Import", desc: "Import findings directly from Caldera operations. Each executed ability is mapped to a finding with technique IDs, severity, and command output evidence." },
+  { date: "Mar 2026", title: "Cloud Workload Testing", desc: "Test container, serverless, and cloud-native security across AWS, Azure, and GCP." },
+  { date: "Mar 2026", title: "Forest Mapper", desc: "Visualize Active Directory forests, map trust relationships, and identify cross-forest attack paths." },
+  { date: "Mar 2026", title: "BloodHound Import", desc: "Import BloodHound data to visualize domain relationships and plan lateral movement paths." },
+  { date: "Mar 2026", title: "Credential Auto-Rotation", desc: "Automated rotation for compromised credentials discovered during engagements." },
+  { date: "Mar 2026", title: "SOAR & SOC Integration", desc: "Export findings, IOCs, and detection rules to SIEM, EDR, SOAR, and ticketing systems." },
+  { date: "Feb 2026", title: "Discovery Chain", desc: "Automated 4-stage pipeline: subdomain enumeration, port scanning, service fingerprinting, and vulnerability scanning — all chained together." },
+  { date: "Feb 2026", title: "Nmap Integration", desc: "8 scan profiles, 80+ NSE scripts, admin port scanning, and CVE extraction — all scope-enforced." },
+  { date: "Feb 2026", title: "Unified Pipeline", desc: "All scanning tools feed into a single pipeline with cross-tool correlation and coverage tracking." },
+  { date: "Feb 2026", title: "Passive Scan Clarity", desc: "Clear distinction between passive OSINT and active scanning, with prompts to create formal engagements." },
+  { date: "Feb 2026", title: "Smarter Sorting", desc: "CVEs sorted by most recent. Threat actors sorted by most recently active. Faster triage." },
+  { date: "Feb 2026", title: "Threat Enrichment Engine", desc: "Continuously correlates threat actor TTPs and IOCs across all platform modules with risk scoring and priority updates." },
+  { date: "Feb 2026", title: "Live Scanner Integration", desc: "Real-time cross-referencing of scan results against the threat catalog with automated evidence collection." },
+  { date: "Feb 2026", title: "Engagement Automation", desc: "5 engagement templates (pentest, red team, purple team, phishing, cloud) with pre-loaded techniques and abilities." },
+  { date: "Feb 2026", title: "ATT&CK Validation Tests", desc: "1,400+ ATT&CK-mapped tests you can browse, execute, and track with full audit trails." },
+  { date: "Feb 2026", title: "DAST Scanner", desc: "Dual-mode web app scanning: passive crawling for safe recon, active DAST for coordinated testing. AI auto-tunes scan policies." },
+  { date: "Feb 2026", title: "API Spec Import", desc: "Import OpenAPI, GraphQL, and SOAP specs for targeted API security testing beyond traditional crawling." },
+  { date: "Feb 2026", title: "Unified Offensive Stack", desc: "2,600+ exploits, 1,900+ emulation abilities, DAST scanning, 1,400+ ATT&CK tests, and social engineering — all in one place." },
+  { date: "Feb 2026", title: "AI DAST Orchestrator", desc: "AI auto-configures scan policies, authentication handlers, and technology-specific rules. Reduces false positives." },
+  { date: "Feb 2026", title: "Evasion Engine", desc: "Generate evasive command variants, chain obfuscation tools, and score campaign stealth with detection gap analysis." },
+  { date: "Feb 2026", title: "Discovery Coverage", desc: "Track red team discovery priorities with weighted scoring and MITRE ATT&CK alignment." },
+  { date: "Feb 2026", title: "Confirmed-Only Counting", desc: "Vulnerability counts show only confirmed findings by default. Toggle to see probable and potential matches." },
+  { date: "Feb 2026", title: "4 New OSINT Connectors", desc: "Email security scoring, HTTP security headers, cloud asset discovery, and DNS deep analysis." },
+  { date: "Feb 2026", title: "Autonomous Validation", desc: "AI-driven exploit validation runs real checks against confirmed CVEs and captures proof artifacts." },
+  { date: "Feb 2026", title: "Kill Chain Timeline", desc: "Live engagement timeline with real-time updates for exploits, agents, scans, and tests." },
+  { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques auto-injected into campaigns based on target intelligence." },
+  { date: "Feb 2026", title: "Crawl-to-Phish Pipeline", desc: "Clone login portals, detect vendors, and generate phishing templates from crawled pages." },
+  { date: "Feb 2026", title: "Public Threat Actor Feed", desc: "Browse 1,700+ threat actor profiles with techniques, tools, and target sectors — no login required." },
 ];
 
 function UpdatesPopup({ onClose }: { onClose: () => void }) {
@@ -177,9 +176,7 @@ export default function Home() {
             <a href="#how-it-works" className="hover:text-primary transition-colors">HOW IT WORKS</a>
             <a href="#who-its-for" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
             <a href="#capabilities" className="hover:text-primary transition-colors">CAPABILITIES</a>
-            <a href="#fedramp-explainer" className="hover:text-primary transition-colors">FEDRAMP 20x</a>
             <a href="#threat-feed" className="hover:text-primary transition-colors">THREAT FEED</a>
-            <a href="#about" className="hover:text-primary transition-colors">ABOUT</a>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login">
@@ -220,15 +217,14 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
-              Exploit execution, adversary emulation, DAST scanning, ATT&CK validation,
-              social engineering, AD & cloud attack paths, and continuous threat intelligence enrichment — unified under one AI-powered command center with evidence-backed reporting.
+              One platform for offensive security testing — from scanning and exploitation
+              to phishing, detection validation, and professional reporting.
             </p>
 
             <p className="text-sm text-muted-foreground max-w-xl mx-auto mb-10">
-              Stop switching between disconnected terminals. AC3 orchestrates your entire
-              exploit-to-report workflow: reconnaissance, DAST scanning, adversary emulation,
-              social engineering, AD & cloud attack path discovery, detection validation, threat intelligence enrichment,
-              and compliance-ready report generation — all correlated through MITRE ATT&CK.
+              Stop switching between disconnected tools. AC3 brings reconnaissance, exploit execution,
+              adversary emulation, social engineering, and compliance reporting into a single
+              AI-powered command center.
             </p>
 
             <div className="flex flex-wrap justify-center gap-4 mb-12">
@@ -272,9 +268,8 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl tracking-wider mb-4">SCAN & DISCOVER</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Automated DAST scans web applications for OWASP Top 10 vulnerabilities while 16 OSINT
-                connectors map your external attack surface. AI auto-configures scan policies based
-                on detected tech stacks — including API specs, authentication flows, and SPAs.
+                Automated web app scanning finds vulnerabilities while OSINT connectors map
+                your external attack surface. AI auto-configures scan policies based on your tech stack.
               </p>
             </div>
 
@@ -284,9 +279,8 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl tracking-wider mb-4">EXPLOIT & EMULATE</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Real exploit execution with 2,600+ modules. Adversary emulation with 1,900+
-                abilities. 1,400+ ATT&CK validation tests. Social engineering campaigns with
-                17 phishing techniques. All coordinated through one kill chain.
+                Run real exploits, simulate adversary behavior, launch phishing campaigns,
+                and validate ATT&CK coverage — all coordinated through one kill chain.
               </p>
             </div>
 
@@ -296,10 +290,9 @@ export default function Home() {
               </div>
               <h3 className="font-display text-xl tracking-wider mb-4">ENRICH, VALIDATE & REPORT</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Continuous threat intelligence enrichment correlates 1,698+ threat actors against your security controls.
-                Every exploitable finding is backed by captured proof — console output, session data,
-                and HTML evidence reports. The AC3 Report Generator produces professional DOCX deliverables
-                with LLM-bounded narratives while the platform remains source of truth for severity, evidence, and ATT&CK mappings.
+                Threat intelligence keeps your findings current. Every exploitable weakness
+                is backed by captured proof. Generate professional reports with AI-assisted
+                narratives and evidence-backed findings.
               </p>
             </div>
 
@@ -315,7 +308,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center mb-16">
             <h2 className="text-4xl sm:text-5xl font-display mb-4">HOW IT WORKS</h2>
             <p className="text-lg text-muted-foreground">
-              Four steps from "I don't know what's vulnerable" to "here's proof of what needs fixing."
+              Four steps from discovery to proof.
             </p>
           </div>
 
@@ -326,25 +319,25 @@ export default function Home() {
                   step: "1",
                   icon: Radar,
                   title: "Discover Your Attack Surface",
-                  desc: "Point AC3 at your domain. Automated DAST crawls web applications while 16 OSINT connectors map exposed servers, services, and technologies. AI auto-tunes scan policies based on detected tech stacks. Import OpenAPI, GraphQL, or SOAP specs for full API coverage."
+                  desc: "Point AC3 at your domain. It automatically scans web apps, maps exposed services, and identifies technologies. Import API specs for deeper coverage."
                 },
                 {
                   step: "2",
                   icon: Bug,
                   title: "Match Vulnerabilities to Exploits",
-                  desc: "DAST findings and confirmed CVEs are automatically matched to exploit modules and public exploit databases. 1,400+ ATT&CK techniques mapped to executable validation tests. You see exactly which weaknesses have working attacks."
+                  desc: "Confirmed vulnerabilities are automatically matched to real exploit modules. You see exactly which weaknesses have working attacks — not just theoretical risk."
                 },
                 {
                   step: "3",
                   icon: Crosshair,
                   title: "Execute Real Attacks",
-                  desc: "Real exploit execution against confirmed vulnerabilities. Adversary emulation with APT-based profiles and 1,900+ abilities. Social engineering campaigns with 17 phishing techniques. ATT&CK validation tests confirm detection coverage — all controlled and audited."
+                  desc: "Execute real exploits, run adversary emulation with APT profiles, and launch phishing campaigns. Every action is controlled, audited, and mapped to ATT&CK."
                 },
                 {
                   step: "4",
                   icon: BarChart3,
                   title: "Enrich, Validate & Report",
-                  desc: "Threat intelligence enrichment continuously correlates threat actors, TTPs, and IOCs against your security controls. Autonomous validation confirms which CVEs are actually exploitable. The AC3 Report Generator produces professional DOCX deliverables with LLM-bounded narratives, one-click engagement and Caldera imports with deduplication, and a QA review pipeline — while the platform remains source of truth for severity, evidence, ATT&CK IDs, and NIST controls."
+                  desc: "Threat intelligence keeps findings current. Autonomous validation confirms which CVEs are actually exploitable. Generate professional reports with AI-assisted narratives and evidence-backed findings."
                 },
               ].map((item) => (
                 <div key={item.step} className="flex gap-5 p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/50">
@@ -399,12 +392,12 @@ export default function Home() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
-              { icon: Crosshair, title: "Red Teams", desc: "Orchestrate exploits, emulation, DAST, and ATT&CK validation from one command center. Run full adversary emulation with real exploits, DAST scanning, and ATT&CK-mapped validation." },
-              { icon: Shield, title: "Penetration Testers", desc: "Scope engagements, run DAST scans, execute exploits, launch phishing campaigns, and deliver evidence-backed reports — all in one workflow." },
-              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute ATT&CK validation tests and adversary operations, then immediately measure what your defenses catch. Auto-generate detection rules from executed TTPs." },
-              { icon: Server, title: "Managed Service Providers", desc: "Scale offensive assessments across multiple clients with per-engagement tracking, automated pipelines, and branded reporting." },
-              { icon: Building2, title: "Enterprise Security", desc: "Test employee awareness and infrastructure resilience with controlled attack simulations mapped to your industry's threat landscape." },
-              { icon: Landmark, title: "Government & Defense", desc: "Support compliance with FedRAMP, CMMC, and NIST frameworks through evidence-based security testing and audit-ready reports." },
+              { icon: Crosshair, title: "Red Teams", desc: "Run exploits, adversary emulation, and ATT&CK validation from one command center." },
+              { icon: Shield, title: "Penetration Testers", desc: "Scope engagements, execute exploits, launch phishing, and deliver evidence-backed reports in one workflow." },
+              { icon: ShieldCheck, title: "Purple Teams", desc: "Execute attacks and immediately measure what your defenses catch. Auto-generate detection rules." },
+              { icon: Server, title: "Managed Service Providers", desc: "Scale offensive assessments across clients with per-engagement tracking and branded reporting." },
+              { icon: Building2, title: "Enterprise Security", desc: "Test employee awareness and infrastructure resilience with controlled attack simulations." },
+              { icon: Landmark, title: "Government & Defense", desc: "Support compliance with CMMC and NIST frameworks through evidence-based testing and audit-ready reports." },
             ].map((item) => (
               <div key={item.title} className="p-6 border-2 border-border hover:border-primary/40 transition-colors bg-card/30">
                 <item.icon className="w-7 h-7 text-primary mb-4" />
@@ -445,7 +438,7 @@ export default function Home() {
         <div className="container text-center">
           <h2 className="text-3xl sm:text-4xl font-display mb-4">READY TO TEST YOUR DEFENSES?</h2>
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-            Enter the Command Center to orchestrate your full offensive stack — exploits, emulation, DAST, validation, social engineering, and continuous threat intelligence enrichment from one interface.
+            Enter the Command Center to run your full offensive testing workflow from one interface.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/login?returnTo=%2Fdashboard">
@@ -485,14 +478,14 @@ export default function Home() {
               icon={<Target className="w-7 h-7" />}
               number="01"
               title="ADVERSARY EMULATION"
-              description={`${stats.exploitModules.toLocaleString()}+ exploit modules execute real attacks. ${stats.calderaAbilities.toLocaleString()} adversary abilities run emulation campaigns. 1,400+ ATT&CK validation tests confirm detection coverage. All correlated through MITRE ATT&CK mapping.`}
+              description={`${stats.exploitModules.toLocaleString()}+ exploit modules, ${stats.calderaAbilities.toLocaleString()} emulation abilities, and 1,400+ ATT&CK validation tests — all correlated through MITRE ATT&CK.`}
               features={[
                 "Real exploit execution with session management",
                 "Adversary emulation with APT-based profiles",
                 "1,400+ ATT&CK-mapped validation tests",
-                "Cross-tool correlation: exploits → abilities → validation tests",
-                "Cloud-provisioned exploit infrastructure with agent stagers",
-                "Real-time operation monitoring with ATT&CK visualization",
+                "Cross-tool correlation across all modules",
+                "Cloud-provisioned exploit infrastructure",
+                "Real-time operation monitoring",
               ]}
               link="/agents"
               linkLabel="DEPLOY AGENTS"
@@ -502,7 +495,7 @@ export default function Home() {
               icon={<Zap className="w-7 h-7" />}
               number="02"
               title="SOCIAL ENGINEERING"
-              description="Social engineering with 17 phishing exploit techniques — BITB, AiTM, HTML smuggling, MFA bypass, OAuth abuse, ClickFix, quishing — auto-injected into campaigns based on target intelligence."
+              description="17 phishing techniques including browser-in-the-browser, MFA bypass, and HTML smuggling — automatically matched to targets based on intelligence."
               features={[
                 "17 phishing exploit techniques auto-matched to targets",
                 "BITB fake SSO, AiTM proxy, HTML smuggling, MFA bypass",
@@ -519,7 +512,7 @@ export default function Home() {
               icon={<Radar className="w-7 h-7" />}
               number="03"
               title="OSINT & RECONNAISSANCE"
-              description="DAST scanning with AI-powered configuration plus 16 passive recon connectors. Dual-mode: passive crawling for safe recon, active DAST for coordinated attack testing. Import OpenAPI, GraphQL, and SOAP specs for full API security coverage."
+              description="Web app scanning with AI-powered configuration plus passive recon connectors. Import API specs for full coverage. Compare scans to track changes over time."
               features={[
                 "DAST scanning with LLM-tuned scan policies",
                 "OpenAPI / GraphQL / SOAP spec import for API testing",
@@ -536,14 +529,14 @@ export default function Home() {
               icon={<Brain className="w-7 h-7" />}
               number="04"
               title="THREAT INTELLIGENCE & ENRICHMENT"
-              description={`${stats.threatActors.toLocaleString()} threat actor profiles with continuous enrichment engine that correlates TTPs and IOCs against all KSIs, attack vectors, validation schedules, and config baselines. Five aggregated vulnerability feeds with live verification.`}
+              description={`${stats.threatActors.toLocaleString()} threat actor profiles with a continuous enrichment engine that correlates techniques and indicators across your security stack. Five aggregated vulnerability feeds with live verification.`}
               features={[
                 "Continuous enrichment engine with full-cycle automation",
-                "KSI-to-MITRE technique coverage matrix across 13 FedRAMP 20x themes",
-                "IOC feeds per module: 75 KSIs, attack vectors, config, validation",
+                "Technique-to-threat-actor coverage matrix",
+                "IOC feeds correlated across all platform modules",
                 "Threat-informed validation priority scoring",
                 "Attack vector enrichment with actor correlation",
-                "Config baseline prioritization from threat landscape",
+                "Vulnerability feed aggregation with live verification",
               ]}
               link="/threat-enrichment"
               linkLabel="ENRICHMENT ENGINE"
@@ -553,7 +546,7 @@ export default function Home() {
               icon={<ShieldCheck className="w-7 h-7" />}
               number="05"
               title="VALIDATION & DETECTION"
-              description="Autonomous exploit validation confirms which CVEs are actually exploitable using LLM-built modules from multiple exploit sources. Evidence capture stores proof artifacts. Detection engineering auto-generates rules from executed TTPs."
+              description="Confirm which vulnerabilities are actually exploitable with automated validation. Capture proof artifacts. Auto-generate detection rules from executed techniques."
               features={[
                 "Autonomous Validation Engine with KEV/CVSS prioritization",
                 "Evidence capture: console output, session info, HTML reports",
@@ -570,14 +563,14 @@ export default function Home() {
               icon={<BarChart3 className="w-7 h-7" />}
               number="06"
               title="REPORTING & COMPLIANCE"
-              description="AC3 Report Generator produces penetration test and red team assessment documents with LLM-bounded narrative drafting. The platform is the source of truth for severity, evidence, ATT&CK IDs, and NIST 800-53 control mappings — the LLM only drafts narrative fields subject to human approval."
+              description="Generate professional pentest and red team reports. AI drafts narrative sections while the platform controls severity, evidence, and technique mappings — all subject to human review."
               features={[
-                "AC3 Report Generator with DOCX export and QA review pipeline",
-                "LLM-bounded narratives: summary, impact, technical details, remediation only",
-                "One-click engagement import and Caldera bulk import with deduplication",
-                "Findings dedup by ATT&CK technique ID — merges evidence, keeps highest severity",
-                "PDF reports with embedded S3 evidence artifact links",
-                "Kill chain timeline with real-time event streaming",
+                "DOCX export with QA review pipeline",
+                "AI-assisted narrative drafting with human approval",
+                "One-click import from engagements and Caldera operations",
+                "Automatic findings deduplication",
+                "Evidence artifact links in every report",
+                "Kill chain timeline with real-time updates",
               ]}
               link="/ac3-reports"
               linkLabel="AC3 REPORTS"
@@ -587,7 +580,7 @@ export default function Home() {
               icon={<Rocket className="w-7 h-7" />}
               number="07"
               title="ENGAGEMENT AUTOMATION"
-              description="Automated adversary emulation engagements driven by threat intelligence. 5 engagement templates with kill chain phase mapping, recommended techniques, and pre-loaded emulation abilities and Metasploit modules."
+              description="Launch automated engagements driven by threat intelligence. 5 templates with pre-loaded techniques, abilities, and kill chain phase mapping."
               features={[
                 "5 templates: pentest, red team, purple team, phishing, cloud",
                 "Kill chain phase mapping per engagement type",
@@ -604,7 +597,7 @@ export default function Home() {
               icon={<Network className="w-7 h-7" />}
               number="08"
               title="AD & CLOUD ATTACK PATHS"
-              description="Active Directory security testing with forest mapping, BloodHound import, and domain trust enumeration. Cloud attack path discovery across AWS, Azure, and GCP with workload security validation and container testing."
+              description="Map Active Directory attack paths, import BloodHound data, and discover cloud attack paths across AWS, Azure, and GCP."
               features={[
                 "AD attack simulation with privilege escalation path discovery",
                 "BloodHound data import for domain relationship visualization",
@@ -702,12 +695,12 @@ export default function Home() {
               title="THREAT ENRICHMENT & AUTOMATION"
               color="text-purple-400"
               modules={[
-                { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs against 75 KSIs across 13 FedRAMP 20x themes" },
-                { icon: TrendingUp, name: "Coverage Matrix", desc: "KSI-to-MITRE technique coverage across 13 FedRAMP 20x themes with actor density and risk scoring" },
+                { icon: Brain, name: "Enrichment Engine", desc: "Continuous threat intelligence enrichment correlating TTPs and IOCs across all platform modules" },
+                { icon: TrendingUp, name: "Coverage Matrix", desc: "Technique-to-threat-actor coverage with density and risk scoring" },
                 { icon: Zap, name: "Engagement Automation", desc: "5 engagement templates with kill chain mapping, pre-loaded emulation abilities and Metasploit modules" },
                 { icon: Scan, name: "Live Scanner", desc: "Real-time cross-referencing of scan evidence against threat catalog with auto-collection pipelines" },
                 { icon: Clock, name: "Scheduled Collection", desc: "Cron-based automated evidence collection with source health monitoring" },
-                { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for 75 KSIs, attack vectors, config, and validation" },
+                { icon: Radio, name: "IOC Feeds", desc: "Per-module IOC feeds from correlated threat actors for attack vectors, config, and validation" },
               ]}
             />
 
@@ -715,11 +708,11 @@ export default function Home() {
               title="REPORTING & COMPLIANCE"
               color="text-violet-400"
               modules={[
-                { icon: Shield, name: "AC3 Reports", desc: "Penetration test and red team report generator with LLM-bounded narratives, DOCX export, QA review, and findings deduplication" },
+                { icon: Shield, name: "AC3 Reports", desc: "Professional pentest and red team reports with AI-assisted narratives, DOCX export, and QA review" },
                 { icon: FileText, name: "Engagement Report", desc: "Branded HTML reports with MITRE heatmaps, evidence artifacts, and validation coverage" },
                 { icon: BarChart3, name: "Report Generator", desc: "Executive summaries with proof-of-exploit evidence links and coverage bars" },
-                { icon: Globe, name: "Compliance Center", desc: "NIST CSF, CMMC, and FedRAMP 20x framework mapping with 142 SP 800-53 control mappings" },
-                { icon: Layers, name: "Compliance Mapper", desc: "Cross-framework control mapping between NIST, CMMC, FedRAMP, and custom frameworks" },
+                { icon: Globe, name: "Compliance Center", desc: "NIST CSF, CMMC, and framework mapping with SP 800-53 control mappings" },
+                { icon: Layers, name: "Compliance Mapper", desc: "Cross-framework control mapping between NIST, CMMC, and custom frameworks" },
                 { icon: FileCheck2, name: "Evidence Vault", desc: "Centralized evidence repository with artifact types, file sizes, and S3 storage links" },
               ]}
             />
@@ -735,18 +728,18 @@ export default function Home() {
         <div className="container">
           <CollapsibleSection
             title="ENGAGEMENT WORKFLOW"
-            subtitle="Eight phases from OSINT through continuous threat enrichment and post-engagement reporting."
+            subtitle="Eight phases from reconnaissance through reporting."
           >
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {[
-              { step: "01", title: "RECON", desc: "DAST crawls web apps while 16 OSINT connectors map your attack surface with evidence-based risk scoring", icon: Radar },
-              { step: "02", title: "EXPLOIT", desc: "Match DAST findings and confirmed CVEs to exploit modules and deploy with agent stagers", icon: Target },
-              { step: "03", title: "OPERATE", desc: "Run adversary emulation operations with 1,900+ abilities and APT-based profiles", icon: Crosshair },
-              { step: "04", title: "PHISH", desc: "Launch social engineering campaigns with 17 exploit-enhanced phishing techniques and typosquat domains", icon: Zap },
-              { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and autonomous exploit validation with evidence capture", icon: FlaskConical },
-              { step: "06", title: "DETECT", desc: "Auto-generate Sigma/YARA/Suricata rules from executed TTPs and measure SIEM coverage gaps", icon: ShieldCheck },
-              { step: "07", title: "ENRICH", desc: "Continuous threat intelligence enrichment correlates findings against threat actors, updates priorities across 75 FedRAMP 20x KSIs, and feeds IOCs to all modules", icon: Brain },
-              { step: "08", title: "REPORT", desc: "AC3 Report Generator produces DOCX deliverables with LLM-bounded narratives, one-click imports from engagements and Caldera operations, findings deduplication, and QA review", icon: FileText },
+              { step: "01", title: "RECON", desc: "Scan web apps and map your attack surface with evidence-based risk scoring", icon: Radar },
+              { step: "02", title: "EXPLOIT", desc: "Match confirmed vulnerabilities to exploit modules and deploy with agent stagers", icon: Target },
+              { step: "03", title: "OPERATE", desc: "Run adversary emulation with APT-based profiles and thousands of abilities", icon: Crosshair },
+              { step: "04", title: "PHISH", desc: "Launch social engineering campaigns with advanced phishing techniques", icon: Zap },
+              { step: "05", title: "VALIDATE", desc: "Run ATT&CK validation tests and confirm exploitability with evidence capture", icon: FlaskConical },
+              { step: "06", title: "DETECT", desc: "Auto-generate detection rules from executed techniques and measure coverage gaps", icon: ShieldCheck },
+              { step: "07", title: "ENRICH", desc: "Continuous threat intelligence correlates findings against threat actors and feeds IOCs to all modules", icon: Brain },
+              { step: "08", title: "REPORT", desc: "Generate professional reports with AI-assisted narratives, one-click imports, and QA review", icon: FileText },
             ].map((item) => (
               <div key={item.step} className="text-center p-4 border border-border/50 bg-card/30 hover:border-primary/50 transition-colors">
                 <item.icon className="w-6 h-6 text-primary mx-auto mb-3" />
@@ -840,8 +833,8 @@ export default function Home() {
               icon={<Brain className="w-6 h-6" />}
               title="THREAT ENRICHMENT ENGINE"
               items={[
-                "Continuous TTP/IOC correlation against all 75 FedRAMP 20x KSIs",
-                "Coverage matrix across 13 FedRAMP 20x themes",
+                "Continuous TTP/IOC correlation across all platform modules",
+                "Technique-to-threat-actor coverage matrix",
                 "Cross-module IOC feeds and priority scoring",
                 "Engagement automation with 5 templates",
                 "Scheduled auto-collection with source health monitoring",
@@ -876,125 +869,10 @@ export default function Home() {
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── FedRAMP 20x Summary (full content moved to KSI Dashboard) ── */}
-      <section id="fedramp-explainer" className="py-20">
-        <div className="container">
-          <div className="flex items-center gap-3 mb-4">
-            <Landmark className="w-8 h-8 text-primary" />
-            <span className="font-display text-xs tracking-[0.3em] text-primary">COMPLIANCE ENABLEMENT</span>
-          </div>
-          <h2 className="text-4xl sm:text-5xl font-display mb-6">FEDRAMP 20x READINESS</h2>
-          <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-3xl">
-            FedRAMP 20x replaces the traditional control-by-control audit with <strong className="text-foreground">outcome-based security validation</strong> across
-            75 Key Security Indicators in 13 themes. AC3 provides <strong className="text-foreground">88% KSI coverage</strong> — 34 with direct
-            automated validation and 32 with supporting evidence — through real penetration testing, adversary emulation, and continuous monitoring.
-          </p>
-
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
-            <div className="border-2 border-primary/30 bg-primary/5 p-5 text-center">
-              <div className="font-display text-4xl text-primary mb-1">75</div>
-              <div className="text-xs text-muted-foreground font-display tracking-wider">KEY SECURITY INDICATORS</div>
-            </div>
-            <div className="border-2 border-emerald-400/30 bg-emerald-400/5 p-5 text-center">
-              <div className="font-display text-4xl text-emerald-400 mb-1">88%</div>
-              <div className="text-xs text-muted-foreground font-display tracking-wider">KSI COVERAGE</div>
-            </div>
-            <div className="border-2 border-amber-400/30 bg-amber-400/5 p-5 text-center">
-              <div className="font-display text-4xl text-amber-400 mb-1">13</div>
-              <div className="text-xs text-muted-foreground font-display tracking-wider">SECURITY THEMES</div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link href="/login?returnTo=%2Fksi-dashboard">
-              <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                <Lock className="w-4 h-4 mr-2" />
-                SIGN IN TO VIEW KSI DASHBOARD
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-            <a href="https://d2xsxph8kpxj0f.cloudfront.net/310419663028432609/VmWWcXQYZJYuALRdNNvsC2/public/FedRAMP_20x_Readiness_Guide_AceC3.pdf" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
-                <FileText className="w-4 h-4 mr-2" />
-                DOWNLOAD READINESS GUIDE
-              </Button>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <div className="w-full h-px bg-primary" />
-
       {/* ─── Threat Actor Feed ──────────────────────────────────── */}
       <div id="threat-feed">
         <ThreatActorFeed />
       </div>
-
-      <div className="w-full h-px bg-primary" />
-
-      {/* ─── About Ace of Cloud ─────────────────────────────────── */}
-      <section id="about" className="py-20">
-        <div className="container">
-          <h2 className="text-4xl sm:text-5xl font-display mb-8">ABOUT ACE OF CLOUD</h2>
-          <div className="grid md:grid-cols-2 gap-12">
-            <div>
-              <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                Ace of Cloud provides cutting-edge cybersecurity solutions including FedRAMP Compliance,
-                CMMC Preparation, Security Advisory, Secure Cloud Architecture, and Incident Response.
-                AC3 is our unified offensive platform — orchestrating exploit execution, adversary emulation,
-                DAST scanning, ATT&CK validation, social engineering, and continuous threat intelligence enrichment through a single AI-powered command center.
-                With coverage across 75 FedRAMP 20x Key Security Indicators spanning 13 compliance themes and 142 NIST SP 800-53 control mappings,
-                AC3 provides automated evidence collection, validation, and continuous monitoring to support CSPs pursuing FedRAMP authorization.
-              </p>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Created by Harrison Cook, AC3 aligns to Gartner's CTEM framework across all five stages:
-                scoping, discovery, prioritization, validation, and mobilization. Where vulnerability scanners
-                stop at identification and BAS platforms stop at simulation, AC3 executes real exploits,
-                runs adversary emulation, scans web applications, validates ATT&CK coverage, tests
-                human defenses, and continuously enriches security controls with threat intelligence — then captures evidence proving exploitability. Every finding is backed by proof, not theory.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white">
-                    VISIT ACEOFCLOUD.COM
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                  </Button>
-                </a>
-                <Link href="/login?returnTo=%2Fdashboard">
-                  <Button className="font-display tracking-wider bg-primary hover:bg-primary/90">
-                    <Lock className="w-4 h-4 mr-2" />
-                    SIGN IN TO COMMAND CENTER
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <MapPin className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
-                <div>
-                  <h4 className="font-display text-lg mb-1">HERNDON OFFICE</h4>
-                  <p className="text-muted-foreground">13873 Park Center Rd, Suite 374<br />Herndon, Virginia 20171</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <Mail className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
-                <div>
-                  <h4 className="font-display text-lg mb-1">EMAIL</h4>
-                  <a href="mailto:info@aceofcloud.com" className="text-primary hover:underline">info@aceofcloud.com</a>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <Phone className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
-                <div>
-                  <h4 className="font-display text-lg mb-1">PHONE</h4>
-                  <a href="tel:703-488-8889" className="text-primary hover:underline">703-488-8889</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* ─── Footer ─────────────────────────────────────────────── */}
       <footer className="py-6 border-t border-border bg-card">
@@ -1004,7 +882,7 @@ export default function Home() {
             <span className="font-display tracking-wider">AC3</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
-            AC3 — Unified Offensive Platform with FedRAMP 20x KSI Coverage & Continuous Threat Intelligence Enrichment | Powered by Ace of Cloud
+            AC3 — Unified Offensive Security Platform | Powered by Ace of Cloud
           </p>
           <div className="flex items-center gap-4">
             <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
