@@ -189,6 +189,9 @@ import { dfirLibraryRouter } from "./routers/dfir-library";
 import { scanSchedulesRouter } from "./routers/scan-schedules";
 import { agentRegistryRouter } from "./routers/agent-registry";
 import { trainingDataDashboardRouter } from "./routers/training-data-dashboard";
+import { labEngagementSeedRouter } from "./routers/lab-engagement-seed";
+import { agentLeaderboardRouter } from "./routers/agent-leaderboard";
+import { realtimeMonitorRouter } from "./routers/realtime-monitor";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -554,6 +557,12 @@ export const appRouter = router({
   agentRegistry: agentRegistryRouter,
   // ─── Training Data Dashboard (Decision Logs, Training Examples, Telemetry Analytics) ──
   trainingData: trainingDataDashboardRouter,
+  // ─── Lab Engagement Seed (Populate all LLM tables with realistic lab data) ──
+  labSeed: labEngagementSeedRouter,
+  // ─── Agent Performance Leaderboard ──
+  agentLeaderboard: agentLeaderboardRouter,
+  // ─── Real-Time Engagement Monitoring ──
+  realtimeMonitor: realtimeMonitorRouter,
 });
 export type AppRouter = typeof appRouter;
 

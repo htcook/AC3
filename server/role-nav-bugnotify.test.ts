@@ -3,6 +3,11 @@ import { describe, it, expect, vi } from 'vitest';
 /**
  * Tests for role-based navigation filtering and bug report notification.
  * These test the core logic without requiring React rendering.
+ * 
+ * UPDATED: Reflects the reorganized sidebar navigation with new group IDs:
+ * - agent-management → c2-agents
+ * - integrations → infrastructure
+ * - ssil/training merged into llm-ai
  */
 
 // ---- Role-based navigation tests ----
@@ -12,20 +17,34 @@ type UserRole = 'admin' | 'operator' | 'analyst' | 'team_lead' | 'executive' | '
 
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'training'],
-  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training'],
-  team_lead: ['command-control', 'campaign-ops', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'ssil', 'training', 'admin'],
+  operator: [
+    'command-control', 'campaign-ops', 'exploit-emulation', 'c2-agents',
+    'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud',
+    'infrastructure', 'llm-ai',
+  ],
+  team_lead: [
+    'command-control', 'campaign-ops', 'exploit-emulation', 'c2-agents',
+    'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud',
+    'infrastructure', 'compliance-reporting', 'ksi-fedramp', 'llm-ai', 'admin',
+  ],
+  analyst: [
+    'command-control', 'intel-recon', 'scanning', 'detection-validation',
+    'compliance-reporting', 'ksi-fedramp', 'llm-ai',
+  ],
+  soc: [
+    'command-control', 'intel-recon', 'detection-validation', 'infrastructure',
+    'llm-ai', 'compliance-reporting',
+  ],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
-  soc: ['command-control', 'intel-recon', 'detection-validation', 'ssil', 'integrations', 'compliance-reporting'],
   viewer: ['command-control', 'compliance-reporting'],
 };
 
-// All group IDs from the sidebar nav
+// All group IDs from the reorganized sidebar nav
 const ALL_GROUP_IDS = [
-  'command-control', 'campaign-ops', 'exploit-emulation', 'intel-recon',
-  'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp',
-  'ssil', 'integrations', 'ad-cloud', 'training', 'admin', 'dev-tools',
+  'command-control', 'campaign-ops', 'exploit-emulation', 'c2-agents',
+  'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud',
+  'infrastructure', 'compliance-reporting', 'ksi-fedramp', 'llm-ai', 'admin',
 ];
 
 function getAccessibleGroups(role: UserRole): string[] {
@@ -60,51 +79,59 @@ describe('Role-Based Navigation Access', () => {
     expect(groups.length).toBe(2);
   });
 
-  it('operator should have offensive operations groups but not admin', () => {
+  it('operator should have full pentest/red team toolkit but not admin or compliance', () => {
     const groups = getAccessibleGroups('operator');
     expect(groups).toContain('campaign-ops');
     expect(groups).toContain('exploit-emulation');
+    expect(groups).toContain('c2-agents');
     expect(groups).toContain('scanning');
+    expect(groups).toContain('test-lab');
+    expect(groups).toContain('infrastructure');
+    expect(groups).toContain('llm-ai');
     expect(groups).not.toContain('admin');
     expect(groups).not.toContain('compliance-reporting');
   });
 
-  it('analyst should have intel and compliance groups but not exploit-emulation', () => {
+  it('analyst should have intel and compliance groups but not offensive tools', () => {
     const groups = getAccessibleGroups('analyst');
     expect(groups).toContain('intel-recon');
     expect(groups).toContain('compliance-reporting');
     expect(groups).toContain('ksi-fedramp');
-    expect(groups).toContain('ssil');
+    expect(groups).toContain('llm-ai');
     expect(groups).not.toContain('exploit-emulation');
     expect(groups).not.toContain('campaign-ops');
+    expect(groups).not.toContain('c2-agents');
   });
 
-  it('team_lead should have broad access including admin', () => {
+  it('team_lead should have broad access including admin and all operator tools', () => {
     const groups = getAccessibleGroups('team_lead');
     expect(groups).toContain('admin');
     expect(groups).toContain('campaign-ops');
     expect(groups).toContain('compliance-reporting');
     expect(groups).toContain('ksi-fedramp');
-    expect(groups).not.toContain('dev-tools');
+    expect(groups).toContain('c2-agents');
+    expect(groups).toContain('exploit-emulation');
+    expect(groups).toContain('infrastructure');
   });
 
-  it('soc should have detection, SSIL, and integrations', () => {
+  it('soc should have detection, infrastructure (SIEM/SOAR), and intel', () => {
     const groups = getAccessibleGroups('soc');
     expect(groups).toContain('detection-validation');
-    expect(groups).toContain('ssil');
-    expect(groups).toContain('integrations');
+    expect(groups).toContain('infrastructure');
+    expect(groups).toContain('intel-recon');
+    expect(groups).toContain('llm-ai');
     expect(groups).not.toContain('exploit-emulation');
     expect(groups).not.toContain('admin');
   });
 
-  it('executive should never see exploit-emulation or campaign-ops', () => {
+  it('executive should never see offensive or technical groups', () => {
     const groups = getAccessibleGroups('executive');
     expect(groups).not.toContain('exploit-emulation');
     expect(groups).not.toContain('campaign-ops');
     expect(groups).not.toContain('scanning');
     expect(groups).not.toContain('admin');
-    expect(groups).not.toContain('dev-tools');
-    expect(groups).not.toContain('training');
+    expect(groups).not.toContain('c2-agents');
+    expect(groups).not.toContain('llm-ai');
   });
 
   it('all roles should have access to command-control (dashboard)', () => {
@@ -115,11 +142,11 @@ describe('Role-Based Navigation Access', () => {
     }
   });
 
-  it('no non-admin role should have access to dev-tools', () => {
-    const nonAdminRoles: UserRole[] = ['operator', 'analyst', 'team_lead', 'executive', 'client', 'soc', 'viewer'];
+  it('only admin and team_lead should have access to admin group', () => {
+    const nonAdminRoles: UserRole[] = ['operator', 'analyst', 'executive', 'client', 'soc', 'viewer'];
     for (const role of nonAdminRoles) {
       const groups = getAccessibleGroups(role);
-      expect(groups).not.toContain('dev-tools');
+      expect(groups).not.toContain('admin');
     }
   });
 });

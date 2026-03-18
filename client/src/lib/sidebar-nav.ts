@@ -3,6 +3,18 @@
  * 
  * Organized into collapsible groups matching the platform's operational domains.
  * Each group contains items with route paths, labels, and Lucide icon names.
+ * 
+ * Role-Based Access Design:
+ * ─────────────────────────
+ * admin:     Full access to all groups and items
+ * operator:  Full pentest/red team toolkit — offensive ops, scanning, exploitation,
+ *            C2/agents, campaigns, intel/recon, AD/cloud, test lab, infrastructure, AI tools
+ * team_lead: Everything operator sees + compliance/reporting + KSI/FedRAMP + admin/team mgmt + full LLM/AI
+ * analyst:   Intel, detection/validation, compliance, reporting, KSI, SSIL, LLM observability
+ * soc:       Detection, SSIL, integrations, intel, compliance reporting, monitoring
+ * executive: High-level dashboards, compliance, reporting, KSI
+ * client:    Read-only compliance and reporting view
+ * viewer:    Dashboard and reporting only
  */
 import {
   LayoutDashboard, Activity, Briefcase, Workflow, Key, Target, Cpu, FileText,
@@ -12,7 +24,7 @@ import {
   Network, Siren, FlaskConical, Camera, FileCheck2, Atom, BookOpen,
   Mail, Cloud, Rocket, ShieldCheck, AlertTriangle, TrendingUp, Unplug,
   Factory, BarChart3, Terminal, MapPin, Phone, Info, Clock, Landmark,
-  CalendarClock,
+  CalendarClock, Trophy,
   type LucideIcon, ChevronRight, Settings, Users, Database, Wrench,
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
   Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
@@ -25,7 +37,7 @@ export interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
-  /** Roles that can see this item. If omitted, visible to all roles. */
+  /** Roles that can see this item. If omitted, visible to all roles that can see the parent group. */
   roles?: UserRole[];
 }
 
@@ -43,23 +55,37 @@ export interface NavGroup {
 /**
  * Role-based navigation access matrix.
  *
- * - admin: Full access to all groups
- * - operator: Offensive operations, scanning, exploit, C2, campaigns
- * - analyst: Intel, detection, compliance, reporting, SSIL
- * - team_lead: Command & control, compliance, reporting, team management
- * - executive: Dashboard, compliance, reporting only
- * - client: Dashboard, compliance, reporting (read-only view)
- * - soc: Detection, SSIL, integrations, intel
- * - viewer: Dashboard and reporting only
+ * Each role maps to the group IDs it can access.
+ * 'all' means unrestricted access (admin only).
+ *
+ * Operator gets the FULL pentest/red team toolkit:
+ *   command-control, campaign-ops, exploit-emulation, c2-agents, test-lab,
+ *   intel-recon, scanning, detection-validation, ad-cloud, infrastructure, llm-ai
+ *
+ * Team Lead gets everything operator sees PLUS compliance, KSI, admin, and full LLM/AI.
  */
 const ROLE_GROUP_ACCESS: Record<UserRole, string[] | 'all'> = {
   admin: 'all',
-  operator: ['command-control', 'campaign-ops', 'exploit-emulation', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud', 'llm-ai'],
-  analyst: ['command-control', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'llm-ai'],
-  team_lead: ['command-control', 'campaign-ops', 'agent-management', 'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'compliance-reporting', 'ksi-fedramp', 'llm-ai', 'admin'],
+  operator: [
+    'command-control', 'campaign-ops', 'exploit-emulation', 'c2-agents',
+    'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud',
+    'infrastructure', 'llm-ai',
+  ],
+  team_lead: [
+    'command-control', 'campaign-ops', 'exploit-emulation', 'c2-agents',
+    'test-lab', 'intel-recon', 'scanning', 'detection-validation', 'ad-cloud',
+    'infrastructure', 'compliance-reporting', 'ksi-fedramp', 'llm-ai', 'admin',
+  ],
+  analyst: [
+    'command-control', 'intel-recon', 'scanning', 'detection-validation',
+    'compliance-reporting', 'ksi-fedramp', 'llm-ai',
+  ],
+  soc: [
+    'command-control', 'intel-recon', 'detection-validation', 'infrastructure',
+    'llm-ai', 'compliance-reporting',
+  ],
   executive: ['command-control', 'compliance-reporting', 'ksi-fedramp'],
   client: ['command-control', 'compliance-reporting'],
-  soc: ['command-control', 'intel-recon', 'detection-validation', 'llm-ai', 'integrations', 'compliance-reporting'],
   viewer: ['command-control', 'compliance-reporting'],
 };
 
@@ -104,7 +130,11 @@ export function getFilteredNavGroups(role: UserRole | string | undefined): NavGr
 }
 
 export const sidebarNavGroups: NavGroup[] = [
-  // ─── Command & Control ───
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMMAND & CONTROL — Core engagement management, dashboards, activity
+  // Visible to: ALL roles (filtered by item-level roles)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "command-control",
     label: "Command & Control",
@@ -115,36 +145,37 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
       { label: "Home", path: "/home", icon: Activity },
       { label: "Engagements", path: "/engagements", icon: Briefcase },
-      { label: "Engagement Ops", path: "/engagement-ops", icon: Crosshair },
-      { label: "Engagement Pipeline", path: "/engagement-pipeline", icon: Workflow },
-      { label: "Engagement Automation", path: "/engagement-automation", icon: Rocket },
-      { label: "Kill Chain", path: "/kill-chain", icon: Workflow },
+      { label: "Engagement Ops", path: "/engagement-ops", icon: Crosshair, roles: ["admin", "operator", "team_lead"] },
+      { label: "Engagement Pipeline", path: "/engagement-pipeline", icon: Workflow, roles: ["admin", "operator", "team_lead"] },
+      { label: "Engagement Automation", path: "/engagement-automation", icon: Rocket, roles: ["admin", "operator", "team_lead"] },
+      { label: "Kill Chain", path: "/kill-chain", icon: Workflow, roles: ["admin", "operator", "team_lead", "analyst"] },
       { label: "Engagement Timeline", path: "/engagement-timeline", icon: Clock },
-      { label: "Credentials", path: "/credentials", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: Key },
-      { label: "OEM Credentials", path: "/oem-credentials", roles: ["admin", "operator"] as UserRole[], icon: Key },
-      { label: "Adversaries", path: "/adversaries", icon: Target },
-      { label: "Agent Management", path: "/agent-management", icon: Cpu },
-      { label: "Internal Scanning", path: "/agent-internal-scanning", icon: Network },
+      { label: "Credentials", path: "/credentials", icon: Key, roles: ["admin", "operator", "team_lead"] },
+      { label: "OEM Credentials", path: "/oem-credentials", icon: Key, roles: ["admin", "operator"] },
+      { label: "Adversaries", path: "/adversaries", icon: Target, roles: ["admin", "operator", "team_lead", "analyst"] },
       { label: "Activity Log", path: "/activity", icon: FileText },
-      { label: "Audit Log", path: "/audit-log", roles: ["admin", "team_lead", "executive"] as UserRole[], icon: ScrollText },
+      { label: "Audit Log", path: "/audit-log", icon: ScrollText, roles: ["admin", "team_lead", "executive"] },
     ],
   },
 
-  // ─── Campaign Operations ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAMPAIGN OPERATIONS — Phishing, social engineering, campaign management
+  // Visible to: admin, operator, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "campaign-ops",
     label: "Campaign Operations",
     icon: Megaphone,
     color: "text-red-400",
     items: [
-      { label: "Phishing Ops", path: "/phishing-ops", icon: Zap },
-      { label: "Phishing Impact", path: "/phishing-impact-testing", icon: Mail },
-      { label: "GoPhish", path: "/gophish", icon: Globe },
-      { label: "Campaign Wizard", path: "/campaign-wizard", icon: Crosshair },
       { label: "Campaigns", path: "/campaigns", icon: Briefcase },
+      { label: "Campaign Wizard", path: "/campaign-wizard", icon: Crosshair },
       { label: "Campaign Execution", path: "/campaign-execution", icon: Rocket },
       { label: "Campaign Archetypes", path: "/campaign-archetypes", icon: Layers },
       { label: "Campaign Advisor", path: "/campaign-advisor", icon: Brain },
+      { label: "Phishing Ops", path: "/phishing-ops", icon: Zap },
+      { label: "Phishing Impact", path: "/phishing-impact-testing", icon: Mail },
+      { label: "GoPhish", path: "/gophish", icon: Globe },
       { label: "Page Builder", path: "/landing-page-builder", icon: Palette },
       { label: "Template Generator", path: "/template-generator", icon: Sparkles },
       { label: "Templates", path: "/templates", icon: FileCode },
@@ -153,7 +184,10 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Exploit & Emulation ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXPLOIT & EMULATION — Offensive tooling, payloads, post-exploitation
+  // Visible to: admin, operator, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "exploit-emulation",
     label: "Exploit & Emulation",
@@ -163,7 +197,6 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Exploit Arsenal", path: "/exploit-arsenal", icon: Bug },
       { label: "Exploit Catalog", path: "/exploit-catalog", icon: Package },
       { label: "Exploitation Bridge", path: "/exploitation-bridge", icon: Link2 },
-
       { label: "Abilities Library", path: "/abilities-library", icon: Layers },
       { label: "Ability Graph", path: "/ability-graph", icon: GitBranch },
       { label: "Atomic Red Team", path: "/atomic-red-team", icon: Atom },
@@ -179,14 +212,17 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Agent Management (Unified C2) ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // C2 & AGENTS — Command-and-control frameworks, implant management
+  // Visible to: admin, operator, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
-    id: "agent-management",
-    label: "Agent Management",
+    id: "c2-agents",
+    label: "C2 & Agents",
     icon: Cpu,
     color: "text-amber-400",
     items: [
-      { label: "All Agents", path: "/agent-management", icon: Cpu },
+      { label: "Agent Management", path: "/agent-management", icon: Cpu },
       { label: "C2 Command Center", path: "/c2-command-center", icon: Radio },
       { label: "Ember Fleet", path: "/ember", icon: Flame },
       { label: "Ember Deploy", path: "/ember/deploy", icon: Rocket },
@@ -199,10 +235,14 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Sliver C2", path: "/sliver-c2", icon: Skull },
       { label: "MSF Servers", path: "/msf-servers", icon: Server },
       { label: "MSF Sessions", path: "/msf-sessions", icon: Terminal },
+      { label: "Internal Scanning", path: "/agent-internal-scanning", icon: Network },
     ],
   },
 
-  // ─── Test Lab ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TEST LAB — Safe training environments, attack scenarios, graduation
+  // Visible to: admin, operator, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "test-lab",
     label: "Test Lab",
@@ -213,16 +253,23 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Environments", path: "/test-lab/environments", icon: Server },
       { label: "Scenarios", path: "/test-lab/scenarios", icon: Target },
       { label: "Implant Testing", path: "/test-lab/implant", icon: Crosshair },
+      { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
+      { label: "Graduation Lab", path: "/test-lab/graduation", icon: GraduationCap },
+      { label: "LLM Training", path: "/test-lab/training", icon: FlaskConical },
     ],
   },
 
-  // ─── Intelligence & Recon ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INTELLIGENCE & RECON — Threat intel, OSINT, domain recon, vulnerability intel
+  // Visible to: admin, operator, team_lead, analyst, soc
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "intel-recon",
     label: "Intelligence & Recon",
     icon: Telescope,
     color: "text-cyan-400",
     items: [
+      { label: "Threat Intel Hub", path: "/threat-intel-hub", icon: Radar },
       { label: "Domain Intel", path: "/domain-intel", icon: Globe },
       { label: "Domain Recon", path: "/domain-recon", icon: Search },
       { label: "OSINT Monitor", path: "/osint-monitor", icon: Eye },
@@ -230,10 +277,9 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Threat Actors", path: "/threat-actors", icon: Shield },
       { label: "Threat Catalog", path: "/threat-catalog", icon: BookOpen },
       { label: "Threat Group Browser", path: "/threat-group-browser", icon: Users },
-      { label: "Threat Actor Crawler", path: "/threat-actor-crawler", icon: Search },
+      { label: "Threat Actor Crawler", path: "/threat-actor-crawler", icon: Search, roles: ["admin", "operator", "team_lead"] },
       { label: "APT Library", path: "/apt-library", icon: Skull },
       { label: "TTP Knowledge", path: "/ttp-knowledge", icon: Brain },
-      { label: "Threat Intel Hub", path: "/threat-intel-hub", icon: Radar },
       { label: "Threat Enrichment", path: "/threat-enrichment", icon: Sparkles },
       { label: "Darkweb Intel", path: "/darkweb-intel", icon: Eye },
       { label: "Breach Events", path: "/breach-events", icon: AlertTriangle },
@@ -247,7 +293,10 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Scanning & Assessment ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCANNING & ASSESSMENT — Vulnerability scanning, web app testing, recon tools
+  // Visible to: admin, operator, team_lead, analyst, soc (analyst/soc can view results)
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "scanning",
     label: "Scanning & Assessment",
@@ -264,16 +313,19 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Web Crawler", path: "/web-crawler", icon: Search },
       { label: "Scan Scheduler", path: "/scan-scheduler", icon: Clock },
       { label: "Scan Compare", path: "/scan-compare", icon: BarChart3 },
-      { label: "Subfinder", path: "/tools/subfinder", icon: Search },
-      { label: "Httpx", path: "/tools/httpx", icon: Globe },
-      { label: "Naabu", path: "/tools/naabu", icon: Wifi },
-      { label: "Scan Server Health", path: "/scan-server", icon: Server },
+      { label: "Subfinder", path: "/tools/subfinder", icon: Search, roles: ["admin", "operator", "team_lead"] },
+      { label: "Httpx", path: "/tools/httpx", icon: Globe, roles: ["admin", "operator", "team_lead"] },
+      { label: "Naabu", path: "/tools/naabu", icon: Wifi, roles: ["admin", "operator", "team_lead"] },
+      { label: "Scan Server Health", path: "/scan-server", icon: Server, roles: ["admin", "operator", "team_lead"] },
       { label: "Active Verification", path: "/active-verification", icon: ShieldCheck },
       { label: "Scan Schedules", path: "/scan-schedules", icon: CalendarClock },
     ],
   },
 
-  // ─── Detection & Validation ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DETECTION & VALIDATION — Blue team validation, BAS, purple team, rules
+  // Visible to: admin, operator, team_lead, analyst, soc
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "detection-validation",
     label: "Detection & Validation",
@@ -297,7 +349,10 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Active Directory & Cloud ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AD & CLOUD — Active Directory, cloud attack paths, ICS/OT
+  // Visible to: admin, operator, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "ad-cloud",
     label: "AD & Cloud",
@@ -317,7 +372,38 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── Compliance & Reporting ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INFRASTRUCTURE — Integrations, SIEM/SOAR, SSH, CI/CD, infra management
+  // Visible to: admin, operator, team_lead, soc
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    id: "infrastructure",
+    label: "Infrastructure & Integrations",
+    icon: Unplug,
+    color: "text-teal-400",
+    items: [
+      { label: "SOC Integration Hub", path: "/soc-integration-hub", icon: Boxes, roles: ["admin", "team_lead", "soc"] },
+      { label: "SIEM Connectors", path: "/siem-connectors", icon: Unplug, roles: ["admin", "team_lead", "soc"] },
+      { label: "SIEM Feedback", path: "/siem-feedback", icon: BarChart3, roles: ["admin", "team_lead", "soc"] },
+      { label: "SOAR Connectors", path: "/soar-connectors", icon: Unplug, roles: ["admin", "team_lead", "soc"] },
+      { label: "Vendor Integrations", path: "/vendor-integrations", icon: Package },
+      { label: "Webhooks", path: "/webhooks", icon: Webhook, roles: ["admin", "operator", "team_lead"] },
+      { label: "Scan Webhooks", path: "/scan-webhooks", icon: Webhook, roles: ["admin", "operator", "team_lead"] },
+      { label: "Infrastructure", path: "/infrastructure", icon: Server },
+      { label: "Live Infra", path: "/live-infra", icon: Wifi },
+      { label: "Infra Wiki", path: "/infra-wiki", icon: BookOpen },
+      { label: "SSH Keys", path: "/ssh-keys", icon: Key, roles: ["admin", "operator"] },
+      { label: "Agent Installer", path: "/agent-installer", icon: Laptop, roles: ["admin", "operator", "team_lead"] },
+      { label: "CI/CD Pipeline", path: "/cicd-pipeline", icon: GitBranch, roles: ["admin", "team_lead"] },
+      { label: "Auth Pipeline", path: "/auth-pipeline", icon: Lock, roles: ["admin", "team_lead"] },
+      { label: "SAML Config", path: "/saml-config", icon: Settings, roles: ["admin"] },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPLIANCE & REPORTING — Reports, compliance frameworks, evidence, risk
+  // Visible to: admin, team_lead, analyst, executive, client, soc, viewer
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "compliance-reporting",
     label: "Compliance & Reporting",
@@ -345,7 +431,10 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-  // ─── KSI & FedRAMP ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // KSI & FEDRAMP — FedRAMP-specific KSI tracking and evidence collection
+  // Visible to: admin, team_lead, analyst, executive
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "ksi-fedramp",
     label: "KSI & FedRAMP",
@@ -363,77 +452,54 @@ export const sidebarNavGroups: NavGroup[] = [
     ],
   },
 
-
-
-  // ─── Integrations & Infrastructure ───
-  {
-    id: "integrations",
-    label: "Integrations & Infra",
-    icon: Unplug,
-    color: "text-teal-400",
-    items: [
-      { label: "SOC Integration Hub", path: "/soc-integration-hub", icon: Boxes },
-      { label: "SIEM Connectors", path: "/siem-connectors", icon: Unplug },
-      { label: "SIEM Feedback", path: "/siem-feedback", icon: BarChart3 },
-      { label: "SOAR Connectors", path: "/soar-connectors", icon: Unplug },
-      { label: "Vendor Integrations", path: "/vendor-integrations", icon: Package },
-      { label: "Webhooks", path: "/webhooks", icon: Webhook },
-      { label: "Scan Webhooks", path: "/scan-webhooks", icon: Webhook },
-      { label: "Infrastructure", path: "/infrastructure", icon: Server },
-      { label: "Live Infra", path: "/live-infra", icon: Wifi },
-      { label: "Infra Wiki", path: "/infra-wiki", icon: BookOpen },
-      { label: "SSH Keys", path: "/ssh-keys", roles: ["admin", "operator"] as UserRole[], icon: Key },
-      { label: "Agent Installer", path: "/agent-installer", icon: Laptop },
-      { label: "CI/CD Pipeline", path: "/cicd-pipeline", icon: GitBranch },
-      { label: "Auth Pipeline", path: "/auth-pipeline", icon: Lock },
-      { label: "SAML Config", path: "/saml-config", roles: ["admin"] as UserRole[], icon: Settings },
-    ],
-  },
-
-
-
-  // ─── LLM & AI Management ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LLM & AI MANAGEMENT — Telemetry, training, graduation, SSIL, AI tools
+  // Visible to: admin, operator, team_lead, analyst, soc
+  // Operator sees: AI Attack Planner, Knowledge Base, Real-Time Monitor, Agent Leaderboard
+  // Analyst/SOC sees: Telemetry, SSIL, Training Data, Learning
+  // Admin/Team Lead sees: Everything including Graduation, Agent Registry, NEXUS
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "llm-ai",
     label: "LLM & AI Management",
     icon: Brain,
     color: "text-purple-400",
     items: [
-      // Core LLM
-      { label: "LLM Telemetry", path: "/llm-telemetry", roles: ["admin"] as UserRole[], icon: BarChart3 },
-      { label: "LLM Reliability", path: "/llm-reliability", roles: ["admin"] as UserRole[], icon: Gauge },
+      // ── Operational AI Tools (operator, team_lead, admin) ──
+      { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
+      { label: "AI Security Validation", path: "/ai-security-validation", icon: ShieldCheck },
+      { label: "Real-Time Monitor", path: "/realtime-monitor", icon: Radio },
+      { label: "Agent Leaderboard", path: "/agent-leaderboard", icon: Trophy },
+      { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
+      // ── LLM Observability (admin, team_lead, analyst, soc) ──
+      { label: "LLM Telemetry", path: "/llm-telemetry", icon: BarChart3, roles: ["admin", "team_lead", "analyst"] },
+      { label: "LLM Reliability", path: "/llm-reliability", icon: Gauge, roles: ["admin", "team_lead"] },
       { label: "LLM Learning", path: "/llm-learning", icon: BookOpen },
       { label: "Training Data", path: "/training-data-dashboard", icon: Database },
-      // Graduation
-      { label: "Graduation Engine", path: "/graduation-engine", roles: ["admin"] as UserRole[], icon: GraduationCap },
-      { label: "Graduation Lab", path: "/test-lab/graduation", icon: GraduationCap },
-      // Training & Learning
-      { label: "Training Lab", path: "/training-lab", icon: FlaskConical },
-      { label: "LLM Training", path: "/test-lab/training", icon: FlaskConical },
       { label: "Training Dashboard", path: "/training-dashboard", icon: BarChart3 },
-      { label: "Batch Training", path: "/batch-training", icon: Zap },
+      { label: "Batch Training", path: "/batch-training", icon: Zap, roles: ["admin", "team_lead"] },
       { label: "Learning Dashboard", path: "/learning-dashboard", icon: GraduationCap },
-      // SSIL (Guardrails & Signals)
+      // ── SSIL Guardrails (admin, team_lead, analyst, soc) ──
       { label: "SSIL Overview", path: "/ssil", icon: Siren },
-      { label: "SSIL Policies", path: "/ssil/policies", icon: ScrollText },
+      { label: "SSIL Policies", path: "/ssil/policies", icon: ScrollText, roles: ["admin", "team_lead"] },
       { label: "Guardrails", path: "/ssil/guardrails", icon: Shield },
       { label: "Observations", path: "/ssil/observations", icon: Eye },
       { label: "Alert Rules", path: "/ssil/alerts", icon: AlertTriangle },
       { label: "SSIL Correlation", path: "/ssil/correlation", icon: Link2 },
-      // Agent Registry & Pipeline
-      { label: "Agent Registry", path: "/agent-registry", roles: ["admin", "team_lead"] as UserRole[], icon: Bot },
-      { label: "NEXUS Pipeline", path: "/nexus-pipeline", roles: ["admin", "team_lead"] as UserRole[], icon: Workflow },
-      // AI Tools
-      { label: "AI Security Validation", path: "/ai-security-validation", icon: ShieldCheck },
-      { label: "AI Attack Planner", path: "/ai-attack-planner", icon: Brain },
-      // Knowledge
-      { label: "Knowledge Base", path: "/knowledge-base", icon: BookOpen },
+      // ── Agent Registry & Pipeline (admin, team_lead only) ──
+      { label: "Agent Registry", path: "/agent-registry", icon: Bot, roles: ["admin", "team_lead"] },
+      { label: "NEXUS Pipeline", path: "/nexus-pipeline", icon: Workflow, roles: ["admin", "team_lead"] },
+      { label: "Graduation Engine", path: "/graduation-engine", icon: GraduationCap, roles: ["admin", "team_lead"] },
+      // ── Guides ──
       { label: "Emulation Guide", path: "/guide/caldera", icon: BookOpen },
       { label: "GoPhish Guide", path: "/guide/gophish", icon: BookOpen },
     ],
   },
 
-  // ─── Admin & System ───
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADMIN & SYSTEM — Team management, tenants, system health, workflows
+  // Visible to: admin, team_lead
+  // ═══════════════════════════════════════════════════════════════════════════
   {
     id: "admin",
     label: "Admin & System",
@@ -442,24 +508,23 @@ export const sidebarNavGroups: NavGroup[] = [
     items: [
       { label: "Team", path: "/team", icon: Users },
       { label: "Invitations", path: "/invitations", icon: Mail },
-      { label: "Tenants", path: "/tenants", roles: ["admin"] as UserRole[], icon: Building2 },
+      { label: "Tenants", path: "/tenants", icon: Building2, roles: ["admin"] },
       { label: "Account Settings", path: "/account-settings", icon: Settings },
       { label: "Onboarding", path: "/onboarding", icon: Rocket },
-      { label: "Customer Accounts", path: "/customer-accounts", icon: Users, roles: ["admin", "team_lead"] as UserRole[] },
+      { label: "Customer Accounts", path: "/customer-accounts", icon: Users, roles: ["admin", "team_lead"] },
       { label: "Review Queue", path: "/review-queue", icon: FileCheck2 },
-      { label: "Job Queue", path: "/job-queue", roles: ["admin"] as UserRole[], icon: Cog },
-      { label: "Error Dashboard", path: "/error-dashboard", roles: ["admin"] as UserRole[], icon: AlertTriangle },
-      { label: "Bug Reports", path: "/bug-reports", roles: ["admin", "team_lead"] as UserRole[], icon: Bug },
-      { label: "Safety Engine", path: "/safety-dashboard", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: ShieldCheck },
-      { label: "OpSec Dashboard", path: "/opsec-dashboard", roles: ["admin", "operator", "team_lead"] as UserRole[], icon: Shield },
-      { label: "MSSP Analytics", path: "/mssp-analytics", roles: ["admin", "executive", "team_lead"] as UserRole[], icon: BarChart3 },
+      { label: "Job Queue", path: "/job-queue", icon: Cog, roles: ["admin"] },
+      { label: "Error Dashboard", path: "/error-dashboard", icon: AlertTriangle, roles: ["admin"] },
+      { label: "Bug Reports", path: "/bug-reports", icon: Bug, roles: ["admin", "team_lead"] },
+      { label: "Safety Engine", path: "/safety-dashboard", icon: ShieldCheck, roles: ["admin", "operator", "team_lead"] },
+      { label: "OpSec Dashboard", path: "/opsec-dashboard", icon: Shield, roles: ["admin", "operator", "team_lead"] },
+      { label: "MSSP Analytics", path: "/mssp-analytics", icon: BarChart3, roles: ["admin", "executive", "team_lead"] },
       { label: "Hunt Ops", path: "/hunt-ops", icon: Search },
       { label: "Preflight Checks", path: "/preflight-checks", icon: ShieldCheck },
       { label: "Workflows", path: "/workflows", icon: Workflow },
       { label: "ROE Builder", path: "/roe-builder", icon: ScrollText },
-
       { label: "Attack Vector Engine", path: "/attack-vector-engine", icon: Target },
-      { label: "Unified Pipeline", path: "/unified-pipeline", roles: ["admin"] as UserRole[], icon: Workflow },
+      { label: "Unified Pipeline", path: "/unified-pipeline", icon: Workflow, roles: ["admin"] },
     ],
   },
 ];
