@@ -524,12 +524,14 @@ describe("Ember UI Routes and Navigation", () => {
       "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
       "utf-8"
     );
-    // operator role should have agent-management access in the ROLE_GROUP_ACCESS
-    const operatorLine = content.split("\n").find(l => l.trimStart().startsWith("operator:"));
-    expect(operatorLine).toContain("agent-management");
-    // team_lead role should have agent-management access
-    const teamLeadLine = content.split("\n").find(l => l.trimStart().startsWith("team_lead:"));
-    expect(teamLeadLine).toContain("agent-management");
+    // operator role should have c2-agents access in the ROLE_GROUP_ACCESS (renamed from agent-management)
+    expect(content).toContain("c2-agents");
+    // Extract the operator block (multi-line array)
+    const operatorMatch = content.match(/operator:\s*\[([\s\S]*?)\]/)?.[1] ?? '';
+    expect(operatorMatch).toContain("c2-agents");
+    // team_lead role should have c2-agents access
+    const teamLeadMatch = content.match(/team_lead:\s*\[([\s\S]*?)\]/)?.[1] ?? '';
+    expect(teamLeadMatch).toContain("c2-agents");
   });
 
   it("App.tsx registers all Ember routes", async () => {

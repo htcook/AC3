@@ -540,3 +540,181 @@ describe('Lab Engagement Seed Data Structure', () => {
     expect(new Set(AGENT_PREFIXES).size).toBe(AGENT_PREFIXES.length);
   });
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 5: WebSocket LLM Event Types
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('WebSocket LLM Event Types', () => {
+  const LLM_EVENT_TYPES = [
+    'llm:decision',
+    'llm:delegation',
+    'llm:stealth_alert',
+    'llm:training_captured',
+    'llm:shadow_test_result',
+    'llm:engagement_progress',
+  ];
+
+  it('should define 6 LLM-specific WebSocket event types', () => {
+    expect(LLM_EVENT_TYPES.length).toBe(6);
+  });
+
+  it('all LLM event types should start with llm: prefix', () => {
+    for (const t of LLM_EVENT_TYPES) {
+      expect(t.startsWith('llm:')).toBe(true);
+    }
+  });
+
+  it('should have unique event type names', () => {
+    expect(new Set(LLM_EVENT_TYPES).size).toBe(LLM_EVENT_TYPES.length);
+  });
+
+  // Simulate WS event filtering logic from the frontend
+  function filterWsEvents(
+    events: Array<{ type: string; data: any }>,
+    filter: 'all' | 'llm' | 'ops' | 'stealth'
+  ) {
+    switch (filter) {
+      case 'llm':
+        return events.filter(e => e.type.startsWith('llm:'));
+      case 'ops':
+        return events.filter(e =>
+          e.type.startsWith('exploit:') ||
+          e.type.startsWith('agent:') ||
+          e.type.startsWith('ember:') ||
+          e.type.startsWith('credential:') ||
+          e.type.startsWith('lateral:') ||
+          e.type.startsWith('job:')
+        );
+      case 'stealth':
+        return events.filter(e =>
+          e.type === 'llm:stealth_alert' ||
+          e.type.startsWith('opsec:') ||
+          e.type === 'ember:burn_response'
+        );
+      default:
+        return events;
+    }
+  }
+
+  const mockWsEvents = [
+    { type: 'llm:decision', data: { agent: 'recon', confidence: 0.9 } },
+    { type: 'llm:delegation', data: { fromAgent: 'orchestrator', toAgent: 'exploit' } },
+    { type: 'llm:stealth_alert', data: { stealthScore: 0.3 } },
+    { type: 'exploit:fired', data: { module: 'sqli' } },
+    { type: 'ember:task_complete', data: { taskType: 'keylog' } },
+    { type: 'ember:burn_response', data: { action: 'go_dormant' } },
+    { type: 'opsec:burn_detected', data: { indicator: 'IDS alert' } },
+    { type: 'credential:found', data: { username: 'admin' } },
+    { type: 'job:completed', data: { type: 'scan' } },
+    { type: 'engagement:phase_changed', data: { newPhase: 'exploitation' } },
+  ];
+
+  it('should filter LLM events correctly', () => {
+    const llm = filterWsEvents(mockWsEvents, 'llm');
+    expect(llm.length).toBe(3);
+    expect(llm.every(e => e.type.startsWith('llm:'))).toBe(true);
+  });
+
+  it('should filter ops events correctly', () => {
+    const ops = filterWsEvents(mockWsEvents, 'ops');
+    expect(ops.length).toBe(5); // exploit:fired, ember:task_complete, ember:burn_response, credential:found, job:completed
+  });
+
+  it('should filter stealth events correctly', () => {
+    const stealth = filterWsEvents(mockWsEvents, 'stealth');
+    expect(stealth.length).toBe(3); // llm:stealth_alert, opsec:burn_detected, ember:burn_response
+  });
+
+  it('should return all events for "all" filter', () => {
+    const all = filterWsEvents(mockWsEvents, 'all');
+    expect(all.length).toBe(mockWsEvents.length);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 6: Agent Trend Sparkline Data
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Agent Trend Sparkline Data', () => {
+  // Simulate the trend computation logic
+  function computeTrendDirection(series: number[]): 'up' | 'down' | 'stable' {
+    if (series.length < 6) return 'stable';
+    const recent3 = series.slice(-3);
+    const prev3 = series.slice(-6, -3);
+    const recentAvg = recent3.reduce((a, b) => a + b, 0) / recent3.length;
+    const prevAvg = prev3.reduce((a, b) => a + b, 0) / prev3.length;
+    if (recentAvg > prevAvg + 5) return 'up';
+    if (recentAvg < prevAvg - 5) return 'down';
+    return 'stable';
+  }
+
+  function generateDateLabels(days: number): string[] {
+    const labels: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      labels.push(d.toISOString().slice(0, 10));
+    }
+    return labels;
+  }
+
+  it('should generate correct number of date labels for 7-day window', () => {
+    const labels = generateDateLabels(7);
+    expect(labels.length).toBe(7);
+  });
+
+  it('should generate correct number of date labels for 30-day window', () => {
+    const labels = generateDateLabels(30);
+    expect(labels.length).toBe(30);
+  });
+
+  it('date labels should be in ascending order', () => {
+    const labels = generateDateLabels(7);
+    for (let i = 1; i < labels.length; i++) {
+      expect(labels[i] > labels[i - 1]).toBe(true);
+    }
+  });
+
+  it('should detect upward trend when recent values are higher', () => {
+    const series = [10, 12, 11, 20, 25, 30]; // prev3=[10,12,11]=11, recent3=[20,25,30]=25
+    expect(computeTrendDirection(series)).toBe('up');
+  });
+
+  it('should detect downward trend when recent values are lower', () => {
+    const series = [30, 28, 25, 10, 8, 5]; // prev3=[30,28,25]=27.7, recent3=[10,8,5]=7.7
+    expect(computeTrendDirection(series)).toBe('down');
+  });
+
+  it('should detect stable trend when values are similar', () => {
+    const series = [50, 51, 49, 50, 52, 48]; // prev3=50, recent3=50
+    expect(computeTrendDirection(series)).toBe('stable');
+  });
+
+  it('should return stable for short series (< 6 points)', () => {
+    expect(computeTrendDirection([10, 20, 30])).toBe('stable');
+    expect(computeTrendDirection([])).toBe('stable');
+  });
+
+  it('sparkline data arrays should match date label count', () => {
+    const days = 7;
+    const labels = generateDateLabels(days);
+    // Simulate building series for an agent
+    const delegationSeries = labels.map(() => Math.floor(Math.random() * 50));
+    const successRateSeries = labels.map(() => Math.floor(Math.random() * 100));
+    expect(delegationSeries.length).toBe(days);
+    expect(successRateSeries.length).toBe(days);
+  });
+
+  it('peak delegations should be the max of the series', () => {
+    const series = [5, 10, 3, 20, 8, 15, 2];
+    const peak = Math.max(...series, 0);
+    expect(peak).toBe(20);
+  });
+
+  it('average success rate should be computed correctly', () => {
+    const series = [80, 90, 70, 85, 75, 95, 80];
+    const avg = Math.round(series.reduce((a, b) => a + b, 0) / series.length);
+    expect(avg).toBe(82); // (80+90+70+85+75+95+80)/7 = 82.14 → 82
+  });
+});

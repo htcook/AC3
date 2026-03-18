@@ -106,7 +106,14 @@ export type WsEventType =
   | "ember:task_complete"
   | "ember:burn_response"
   | "ember:key_rotation"
-  | "ember:opsec_scored";
+  | "ember:opsec_scored"
+  // LLM real-time monitoring events
+  | "llm:decision"
+  | "llm:delegation"
+  | "llm:stealth_alert"
+  | "llm:training_captured"
+  | "llm:shadow_test_result"
+  | "llm:engagement_progress";
 
 export interface WsEvent {
   type: WsEventType;
@@ -1363,4 +1370,137 @@ export function emitEmberOpsecScored(data: {
     eventHub.broadcastEngagement(data.engagementId, event);
   }
   eventHub.broadcastGlobal(event);
+}
+
+
+// ─── LLM Real-Time Monitoring Event Emitters ─────────────────────────
+
+/** Emit when the LLM makes a decision during an engagement */
+export function emitLLMDecision(data: {
+  engagementId?: number;
+  agent: string;
+  decisionType: string;
+  action: string;
+  confidence: number;
+  stealthScore?: number;
+  reasoning?: string;
+  model?: string;
+  tokensUsed?: number;
+  latencyMs?: number;
+}): void {
+  const event: WsEvent = {
+    type: "llm:decision",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
+}
+
+/** Emit when an LLM agent delegates to a specialist */
+export function emitLLMDelegation(data: {
+  engagementId?: number;
+  fromAgent: string;
+  toAgent: string;
+  reason: string;
+  taskType: string;
+  confidence: number;
+}): void {
+  const event: WsEvent = {
+    type: "llm:delegation",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
+}
+
+/** Emit when a stealth threshold is breached during LLM operations */
+export function emitLLMStealthAlert(data: {
+  engagementId?: number;
+  agent: string;
+  stealthScore: number;
+  threshold: number;
+  action: string;
+  recommendation: string;
+}): void {
+  const event: WsEvent = {
+    type: "llm:stealth_alert",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
+}
+
+/** Emit when a training example is captured from an engagement */
+export function emitLLMTrainingCaptured(data: {
+  engagementId?: number;
+  agent: string;
+  category: string;
+  quality: string;
+  exampleCount: number;
+}): void {
+  const event: WsEvent = {
+    type: "llm:training_captured",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
+}
+
+/** Emit when a shadow test result comes in */
+export function emitLLMShadowTestResult(data: {
+  configId: number;
+  configName: string;
+  productionModel: string;
+  challengerModel: string;
+  winner: "production" | "challenger" | "tie";
+  metric: string;
+  productionScore: number;
+  challengerScore: number;
+}): void {
+  const event: WsEvent = {
+    type: "llm:shadow_test_result",
+    timestamp: Date.now(),
+    data,
+  };
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
+}
+
+/** Emit engagement progress updates for the real-time monitor */
+export function emitLLMEngagementProgress(data: {
+  engagementId: number;
+  engagementName: string;
+  target: string;
+  phase: string;
+  progress: number;
+  findingsCount: number;
+  activeAgents: string[];
+  llmCallsTotal: number;
+}): void {
+  const event: WsEvent = {
+    type: "llm:engagement_progress",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+  eventHub.broadcast(event, "llm:monitor");
 }

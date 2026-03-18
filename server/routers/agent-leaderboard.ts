@@ -495,4 +495,173 @@ export const agentLeaderboardRouter = router({
         windowDays: days,
       };
     }),
+
+  /**
+   * Get sparkline trend data for all agents — daily success rate and delegation count
+   * for the last 7 and 30 days, returned as arrays suitable for inline sparkline charts.
+   */
+  getAgentTrends: protectedProcedure
+    .input(
+      z
+        .object({
+          windowDays: z.enum(["7", "30"]).default("7"),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      const days = input?.windowDays === "30" ? 30 : 7;
+      const db = await getDbRequired();
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 19)
+        .replace("T", " ");
+
+      // Get all active agents
+      const agents = await db
+        .select({
+          agentId: agentDefinitions.agentId,
+          name: agentDefinitions.name,
+          llmCallerPrefix: agentDefinitions.llmCallerPrefix,
+        })
+        .from(agentDefinitions)
+        .where(eq(agentDefinitions.status, "active"));
+
+      // Get daily telemetry grouped by caller and day
+      const dailyTelemetry = await db
+        .select({
+          caller: llmTelemetry.caller,
+          day: sql<string>`DATE(${llmTelemetry.calledAt})`.as("day"),
+          calls: sql<number>`COUNT(*)`,
+          successes: sql<number>`SUM(CASE WHEN ${llmTelemetry.llmStatus} = 'success' THEN 1 ELSE 0 END)`,
+          avgLatency: sql<number>`AVG(${llmTelemetry.latencyMs})`,
+        })
+        .from(llmTelemetry)
+        .where(gte(llmTelemetry.calledAt, cutoff))
+        .groupBy(llmTelemetry.caller, sql`DATE(${llmTelemetry.calledAt})`)
+        .orderBy(sql`day`);
+
+      // Get daily decisions grouped by caller and day
+      const dailyDecisions = await db
+        .select({
+          caller: llmDecisionLog.caller,
+          day: sql<string>`DATE(${llmDecisionLog.createdAt})`.as("day"),
+          decisions: sql<number>`COUNT(*)`,
+          successes: sql<number>`SUM(CASE WHEN ${llmDecisionLog.outcome} = 'success' THEN 1 ELSE 0 END)`,
+          avgStealth: sql<number>`AVG(${llmDecisionLog.stealthScore})`,
+        })
+        .from(llmDecisionLog)
+        .where(gte(llmDecisionLog.createdAt, cutoff))
+        .groupBy(llmDecisionLog.caller, sql`DATE(${llmDecisionLog.createdAt})`)
+        .orderBy(sql`day`);
+
+      // Generate date labels for the window
+      const dateLabels: string[] = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        dateLabels.push(d.toISOString().slice(0, 10));
+      }
+
+      // Build per-agent sparkline data
+      const trends = agents.map((agent) => {
+        const prefix = agent.llmCallerPrefix || agent.agentId;
+
+        // Filter telemetry and decisions for this agent
+        const agentTelemetry = dailyTelemetry.filter(
+          (t) => t.caller && t.caller.startsWith(prefix)
+        );
+        const agentDecisions = dailyDecisions.filter(
+          (d) => d.caller && d.caller.startsWith(prefix)
+        );
+
+        // Build daily arrays
+        const delegationSeries: number[] = [];
+        const successRateSeries: number[] = [];
+        const latencySeries: number[] = [];
+        const stealthSeries: number[] = [];
+
+        for (const day of dateLabels) {
+          // Aggregate telemetry for this day
+          const tDay = agentTelemetry.filter((t) => t.day === day);
+          const dDay = agentDecisions.filter((d) => d.day === day);
+
+          const dayCalls = tDay.reduce((s, t) => s + Number(t.calls), 0);
+          const daySuccessTel = tDay.reduce((s, t) => s + Number(t.successes), 0);
+          const dayDecisions = dDay.reduce((s, d) => s + Number(d.decisions), 0);
+          const daySuccessDec = dDay.reduce((s, d) => s + Number(d.successes), 0);
+
+          const totalActivity = dayCalls + dayDecisions;
+          const totalSuccess = daySuccessTel + daySuccessDec;
+
+          delegationSeries.push(totalActivity);
+          successRateSeries.push(
+            totalActivity > 0
+              ? Math.round((totalSuccess / totalActivity) * 100)
+              : 0
+          );
+
+          // Avg latency for the day
+          const dayLatency =
+            dayCalls > 0
+              ? tDay.reduce(
+                  (s, t) => s + Number(t.avgLatency) * Number(t.calls),
+                  0
+                ) / dayCalls
+              : 0;
+          latencySeries.push(Math.round(dayLatency));
+
+          // Avg stealth for the day
+          const dayStealth =
+            dayDecisions > 0
+              ? dDay.reduce(
+                  (s, d) =>
+                    s + (Number(d.avgStealth) || 0) * Number(d.decisions),
+                  0
+                ) / dayDecisions
+              : 0;
+          stealthSeries.push(Math.round(dayStealth * 100));
+        }
+
+        // Compute trend direction (last 3 days vs previous 3 days)
+        const recent3 = successRateSeries.slice(-3);
+        const prev3 = successRateSeries.slice(-6, -3);
+        const recentAvg =
+          recent3.length > 0
+            ? recent3.reduce((a, b) => a + b, 0) / recent3.length
+            : 0;
+        const prevAvg =
+          prev3.length > 0
+            ? prev3.reduce((a, b) => a + b, 0) / prev3.length
+            : 0;
+        const trendDirection =
+          recentAvg > prevAvg + 5
+            ? "up"
+            : recentAvg < prevAvg - 5
+            ? "down"
+            : "stable";
+
+        return {
+          agentId: agent.agentId,
+          name: agent.name,
+          delegationSeries,
+          successRateSeries,
+          latencySeries,
+          stealthSeries,
+          trendDirection,
+          peakDelegations: Math.max(...delegationSeries, 0),
+          avgSuccessRate:
+            successRateSeries.length > 0
+              ? Math.round(
+                  successRateSeries.reduce((a, b) => a + b, 0) /
+                    successRateSeries.length
+                )
+              : 0,
+        };
+      });
+
+      return {
+        trends,
+        dateLabels,
+        windowDays: days,
+      };
+    }),
 });

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import {
-  Trophy, Medal, TrendingUp, Zap, Clock, Brain, Shield, Target,
+  Trophy, Medal, TrendingUp, TrendingDown, Minus, Zap, Clock, Brain, Shield, Target,
   ChevronDown, ChevronUp, ArrowUpDown, Activity, BarChart3, Cpu,
   Crosshair, Eye, Swords, Network, Lock, FileText, Bot,
 } from "lucide-react";
@@ -45,10 +45,95 @@ const RANK_STYLES = [
 
 type SortField = "composite" | "delegations" | "success_rate" | "confidence" | "latency" | "tokens";
 
+// ─── SVG Sparkline Component ────────────────────────────────────────────────
+
+function Sparkline({
+  data,
+  width = 80,
+  height = 24,
+  color = "#06b6d4",
+  fillColor,
+  showDots = false,
+}: {
+  data: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+  fillColor?: string;
+  showDots?: boolean;
+}) {
+  if (!data || data.length < 2) {
+    return (
+      <svg width={width} height={height} className="opacity-30">
+        <line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={color} strokeWidth={1} strokeDasharray="2,2" />
+      </svg>
+    );
+  }
+
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const padding = 2;
+  const chartH = height - padding * 2;
+  const step = (width - padding * 2) / (data.length - 1);
+
+  const points = data.map((v, i) => ({
+    x: padding + i * step,
+    y: padding + chartH - ((v - min) / range) * chartH,
+  }));
+
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+  const fillD = `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${height} L ${points[0].x.toFixed(1)} ${height} Z`;
+
+  return (
+    <svg width={width} height={height} className="shrink-0">
+      {fillColor && (
+        <path d={fillD} fill={fillColor} opacity={0.15} />
+      )}
+      <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      {showDots && points.length <= 14 && (
+        <>
+          <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={2} fill={color} />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// ─── Trend Indicator ────────────────────────────────────────────────────────
+
+function TrendIndicator({ direction }: { direction: string }) {
+  if (direction === "up") {
+    return (
+      <div className="flex items-center gap-0.5 text-emerald-400">
+        <TrendingUp className="h-3 w-3" />
+        <span className="text-[10px] font-medium">UP</span>
+      </div>
+    );
+  }
+  if (direction === "down") {
+    return (
+      <div className="flex items-center gap-0.5 text-red-400">
+        <TrendingDown className="h-3 w-3" />
+        <span className="text-[10px] font-medium">DOWN</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-0.5 text-muted-foreground">
+      <Minus className="h-3 w-3" />
+      <span className="text-[10px] font-medium">FLAT</span>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
 export default function AgentLeaderboard() {
   const [windowDays, setWindowDays] = useState(30);
   const [sortBy, setSortBy] = useState<SortField>("composite");
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [trendWindow, setTrendWindow] = useState<"7" | "30">("7");
 
   const { data, isLoading } = trpc.agentLeaderboard.getLeaderboard.useQuery(
     { windowDays, sortBy },
@@ -59,6 +144,22 @@ export default function AgentLeaderboard() {
     { windowDays },
     { refetchInterval: 60000 }
   );
+
+  const { data: trendData } = trpc.agentLeaderboard.getAgentTrends.useQuery(
+    { windowDays: trendWindow },
+    { refetchInterval: 30000 }
+  );
+
+  // Build a lookup map for trend data by agentId
+  const trendMap = useMemo(() => {
+    const map = new Map<string, (typeof trendData)["trends"] extends (infer T)[] ? T : never>();
+    if (trendData?.trends) {
+      for (const t of trendData.trends) {
+        map.set(t.agentId, t);
+      }
+    }
+    return map;
+  }, [trendData]);
 
   if (isLoading) {
     return (
@@ -84,7 +185,7 @@ export default function AgentLeaderboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Trophy className="h-6 w-6 text-amber-400" />
@@ -94,7 +195,7 @@ export default function AgentLeaderboard() {
             Ranking {summary?.totalAgents ?? 0} specialist agents by delegation frequency, success rate, and operational efficiency
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Select value={String(windowDays)} onValueChange={(v) => setWindowDays(Number(v))}>
             <SelectTrigger className="w-[140px]">
               <SelectValue />
@@ -123,7 +224,7 @@ export default function AgentLeaderboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-card/50 border-border/50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -170,14 +271,36 @@ export default function AgentLeaderboard() {
         </Card>
       </div>
 
-      {/* Leaderboard Table */}
+      {/* Leaderboard Table with Sparklines */}
       <Card className="border-border/50">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-cyan-400" />
-            Agent Rankings
-          </CardTitle>
-          <CardDescription>Click any agent to expand detailed metrics</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-cyan-400" />
+                Agent Rankings
+              </CardTitle>
+              <CardDescription>Click any agent to expand detailed metrics. Sparklines show {trendWindow}-day trends.</CardDescription>
+            </div>
+            <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-0.5">
+              <button
+                className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                  trendWindow === "7" ? "bg-cyan-500/20 text-cyan-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setTrendWindow("7")}
+              >
+                7d
+              </button>
+              <button
+                className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                  trendWindow === "30" ? "bg-cyan-500/20 text-cyan-400 font-medium" : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setTrendWindow("30")}
+              >
+                30d
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -189,9 +312,9 @@ export default function AgentLeaderboard() {
                   <th className="text-left p-3">Category</th>
                   <th className="text-right p-3">Delegations</th>
                   <th className="text-right p-3">Success Rate</th>
-                  <th className="text-right p-3">Confidence</th>
+                  <th className="text-center p-3">Activity Trend</th>
+                  <th className="text-center p-3">Success Trend</th>
                   <th className="text-right p-3">Avg Latency</th>
-                  <th className="text-right p-3">Tokens/Op</th>
                   <th className="text-right p-3">Composite</th>
                 </tr>
               </thead>
@@ -201,6 +324,7 @@ export default function AgentLeaderboard() {
                   const CatIcon = CATEGORY_ICONS[agent.category] || Bot;
                   const catColor = CATEGORY_COLORS[agent.category] || "text-gray-400";
                   const isExpanded = expandedAgent === agent.agentId;
+                  const trend = trendMap.get(agent.agentId);
 
                   return (
                     <>
@@ -240,17 +364,53 @@ export default function AgentLeaderboard() {
                             {agent.successRate}%
                           </span>
                         </td>
-                        <td className="p-3 text-right">
-                          <span className={agent.avgConfidence >= 70 ? "text-emerald-400" : agent.avgConfidence >= 40 ? "text-amber-400" : "text-red-400"}>
-                            {agent.avgConfidence}%
-                          </span>
+                        {/* Activity Sparkline */}
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Sparkline
+                              data={trend?.delegationSeries ?? []}
+                              width={72}
+                              height={22}
+                              color="#06b6d4"
+                              fillColor="#06b6d4"
+                              showDots
+                            />
+                            {trend && <TrendIndicator direction={trend.trendDirection} />}
+                          </div>
+                        </td>
+                        {/* Success Rate Sparkline */}
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Sparkline
+                              data={trend?.successRateSeries ?? []}
+                              width={72}
+                              height={22}
+                              color={
+                                (trend?.avgSuccessRate ?? 0) >= 80
+                                  ? "#34d399"
+                                  : (trend?.avgSuccessRate ?? 0) >= 50
+                                  ? "#fbbf24"
+                                  : "#f87171"
+                              }
+                              fillColor={
+                                (trend?.avgSuccessRate ?? 0) >= 80
+                                  ? "#34d399"
+                                  : (trend?.avgSuccessRate ?? 0) >= 50
+                                  ? "#fbbf24"
+                                  : "#f87171"
+                              }
+                              showDots
+                            />
+                            <span className="text-[10px] text-muted-foreground w-8 text-right">
+                              {trend?.avgSuccessRate ?? 0}%
+                            </span>
+                          </div>
                         </td>
                         <td className="p-3 text-right font-mono">
                           <span className={agent.avgLatencyMs <= 2000 ? "text-emerald-400" : agent.avgLatencyMs <= 5000 ? "text-amber-400" : "text-red-400"}>
                             {agent.avgLatencyMs.toLocaleString()}ms
                           </span>
                         </td>
-                        <td className="p-3 text-right font-mono">{agent.tokensPerDecision.toLocaleString()}</td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <div className="w-16">
@@ -264,7 +424,7 @@ export default function AgentLeaderboard() {
                       {isExpanded && (
                         <tr key={`${agent.agentId}-detail`}>
                           <td colSpan={9} className="p-0">
-                            <AgentDetailPanel agentId={agent.agentId} windowDays={windowDays} agent={agent} />
+                            <AgentDetailPanel agentId={agent.agentId} windowDays={windowDays} agent={agent} trend={trend} />
                           </td>
                         </tr>
                       )}
@@ -348,10 +508,12 @@ function AgentDetailPanel({
   agentId,
   windowDays,
   agent,
+  trend,
 }: {
   agentId: string;
   windowDays: number;
   agent: any;
+  trend?: any;
 }) {
   const { data, isLoading } = trpc.agentLeaderboard.getAgentPerformance.useQuery(
     { agentId, windowDays },
@@ -372,9 +534,9 @@ function AgentDetailPanel({
 
   return (
     <div className="p-4 bg-muted/10 border-t border-border/30 space-y-4">
-      {/* Agent Info */}
-      <div className="flex items-start gap-6">
-        <div className="flex-1 space-y-1">
+      {/* Agent Info + Expanded Sparklines */}
+      <div className="flex items-start gap-6 flex-wrap">
+        <div className="flex-1 min-w-[200px] space-y-1">
           <h3 className="font-semibold text-lg">{data?.agent.name}</h3>
           <p className="text-sm text-muted-foreground">{data?.agent.mission}</p>
           {data?.agent.mitreTactics && (data.agent.mitreTactics as string[]).length > 0 && (
@@ -386,24 +548,50 @@ function AgentDetailPanel({
           )}
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-4 gap-3">
-          <div className="text-center p-2 rounded bg-card/50 border border-border/30">
-            <p className="text-xs text-muted-foreground">Calls</p>
-            <p className="text-lg font-bold">{agent.totalCalls}</p>
+        {/* Expanded Trend Charts */}
+        {trend && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-2 rounded bg-card/50 border border-border/30 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Delegation Activity</p>
+              <Sparkline data={trend.delegationSeries} width={120} height={32} color="#06b6d4" fillColor="#06b6d4" showDots />
+              <p className="text-xs font-mono mt-1">peak: {trend.peakDelegations}</p>
+            </div>
+            <div className="p-2 rounded bg-card/50 border border-border/30 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Success Rate</p>
+              <Sparkline data={trend.successRateSeries} width={120} height={32} color="#34d399" fillColor="#34d399" showDots />
+              <p className="text-xs font-mono mt-1">avg: {trend.avgSuccessRate}%</p>
+            </div>
+            <div className="p-2 rounded bg-card/50 border border-border/30 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Latency (ms)</p>
+              <Sparkline data={trend.latencySeries} width={120} height={32} color="#fbbf24" fillColor="#fbbf24" showDots />
+              <p className="text-xs font-mono mt-1">avg: {Math.round(trend.latencySeries.reduce((a: number, b: number) => a + b, 0) / Math.max(1, trend.latencySeries.length))}ms</p>
+            </div>
+            <div className="p-2 rounded bg-card/50 border border-border/30 text-center">
+              <p className="text-[10px] text-muted-foreground uppercase mb-1">Stealth Score</p>
+              <Sparkline data={trend.stealthSeries} width={120} height={32} color="#a78bfa" fillColor="#a78bfa" showDots />
+              <p className="text-xs font-mono mt-1">avg: {Math.round(trend.stealthSeries.reduce((a: number, b: number) => a + b, 0) / Math.max(1, trend.stealthSeries.length))}%</p>
+            </div>
           </div>
-          <div className="text-center p-2 rounded bg-card/50 border border-border/30">
-            <p className="text-xs text-muted-foreground">Decisions</p>
-            <p className="text-lg font-bold">{agent.totalDecisions}</p>
-          </div>
-          <div className="text-center p-2 rounded bg-card/50 border border-border/30">
-            <p className="text-xs text-muted-foreground">Stealth</p>
-            <p className="text-lg font-bold">{agent.avgStealthScore}</p>
-          </div>
-          <div className="text-center p-2 rounded bg-card/50 border border-border/30">
-            <p className="text-xs text-muted-foreground">Tokens</p>
-            <p className="text-lg font-bold">{agent.totalTokens.toLocaleString()}</p>
-          </div>
+        )}
+      </div>
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="text-center p-2 rounded bg-card/50 border border-border/30">
+          <p className="text-xs text-muted-foreground">Calls</p>
+          <p className="text-lg font-bold">{agent.totalCalls}</p>
+        </div>
+        <div className="text-center p-2 rounded bg-card/50 border border-border/30">
+          <p className="text-xs text-muted-foreground">Decisions</p>
+          <p className="text-lg font-bold">{agent.totalDecisions}</p>
+        </div>
+        <div className="text-center p-2 rounded bg-card/50 border border-border/30">
+          <p className="text-xs text-muted-foreground">Stealth</p>
+          <p className="text-lg font-bold">{agent.avgStealthScore}</p>
+        </div>
+        <div className="text-center p-2 rounded bg-card/50 border border-border/30">
+          <p className="text-xs text-muted-foreground">Tokens</p>
+          <p className="text-lg font-bold">{agent.totalTokens.toLocaleString()}</p>
         </div>
       </div>
 

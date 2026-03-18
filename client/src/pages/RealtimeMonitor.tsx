@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Activity, Radio, Brain, Zap, Clock, AlertTriangle, CheckCircle2,
   XCircle, Pause, Play, Target, Shield, Eye, Crosshair, Network,
-  FileText, Lock, Bot, Cpu, TrendingUp, Wifi, WifiOff, ChevronRight,
+  Lock, Bot, Cpu, TrendingUp, Wifi, WifiOff, ChevronRight,
 } from "lucide-react";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -56,12 +56,223 @@ const EVENT_TYPE_ICONS: Record<string, typeof Activity> = {
   objective_completed: CheckCircle2,
 };
 
+// ─── WebSocket Event Types ──────────────────────────────────────────────────
+
+interface WsEvent {
+  type: string;
+  timestamp: number;
+  engagementId?: number | null;
+  data: Record<string, any>;
+}
+
+interface WsLiveEvent {
+  id: string;
+  type: string;
+  timestamp: number;
+  engagementId?: number | null;
+  data: Record<string, any>;
+}
+
+// ─── WebSocket Hook ─────────────────────────────────────────────────────────
+
+function useWebSocket(isPaused: boolean) {
+  const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected");
+  const [liveEvents, setLiveEvents] = useState<WsLiveEvent[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxEvents = 200;
+
+  const connect = useCallback(() => {
+    if (isPaused) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws/events`;
+      setWsStatus("connecting");
+
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsStatus("connected");
+        reconnectAttempts.current = 0;
+        // Subscribe to LLM monitor channel + global
+        ws.send(JSON.stringify({ action: "subscribe", channels: ["global", "llm:monitor"] }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const parsed: WsEvent = JSON.parse(event.data);
+          // Filter for relevant event types
+          const relevantTypes = [
+            "llm:decision", "llm:delegation", "llm:stealth_alert",
+            "llm:training_captured", "llm:shadow_test_result", "llm:engagement_progress",
+            "engagement:phase_changed", "engagement:timeline_event", "engagement:progress_update",
+            "exploit:fired", "exploit:result", "agent:deployed", "agent:checkin",
+            "operation:started", "operation:step_complete", "operation:finished",
+            "recon:complete", "opsec:burn_detected", "opsec:threshold_warning",
+            "credential:found", "lateral:movement_executed", "privesc:escalation_found",
+            "ember:agent_registered", "ember:task_complete", "ember:burn_response",
+            "job:completed", "job:failed",
+          ];
+
+          if (relevantTypes.includes(parsed.type) || parsed.type.startsWith("llm:")) {
+            const liveEvent: WsLiveEvent = {
+              id: `ws_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              type: parsed.type,
+              timestamp: parsed.timestamp,
+              engagementId: parsed.engagementId,
+              data: parsed.data,
+            };
+            setLiveEvents((prev) => [liveEvent, ...prev].slice(0, maxEvents));
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        setWsStatus("disconnected");
+        wsRef.current = null;
+        // Exponential backoff reconnect
+        if (!isPaused) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
+          reconnectAttempts.current++;
+          reconnectTimerRef.current = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    } catch {
+      setWsStatus("disconnected");
+    }
+  }, [isPaused]);
+
+  useEffect(() => {
+    if (!isPaused) {
+      connect();
+    } else {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      setWsStatus("disconnected");
+    }
+
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [isPaused, connect]);
+
+  const clearEvents = useCallback(() => setLiveEvents([]), []);
+
+  return { wsStatus, liveEvents, clearEvents };
+}
+
+// ─── Event Formatting Helpers ───────────────────────────────────────────────
+
+function getEventIcon(type: string) {
+  if (type.startsWith("llm:decision")) return Brain;
+  if (type.startsWith("llm:delegation")) return Bot;
+  if (type.startsWith("llm:stealth")) return Shield;
+  if (type.startsWith("llm:training")) return TrendingUp;
+  if (type.startsWith("llm:shadow")) return Eye;
+  if (type.startsWith("llm:engagement")) return Target;
+  if (type.startsWith("exploit:")) return Crosshair;
+  if (type.startsWith("agent:")) return Cpu;
+  if (type.startsWith("credential:")) return Lock;
+  if (type.startsWith("lateral:")) return Network;
+  if (type.startsWith("opsec:")) return AlertTriangle;
+  if (type.startsWith("ember:")) return Zap;
+  if (type.startsWith("engagement:")) return Activity;
+  if (type.startsWith("job:")) return Clock;
+  return Radio;
+}
+
+function getEventColor(type: string) {
+  if (type === "llm:stealth_alert" || type.includes("burn")) return "text-red-400";
+  if (type === "llm:decision") return "text-purple-400";
+  if (type === "llm:delegation") return "text-cyan-400";
+  if (type.includes("error") || type.includes("failed")) return "text-red-400";
+  if (type.includes("success") || type.includes("complete")) return "text-emerald-400";
+  if (type.includes("credential")) return "text-amber-400";
+  return "text-blue-400";
+}
+
+function formatEventTitle(evt: WsLiveEvent): string {
+  const d = evt.data;
+  switch (evt.type) {
+    case "llm:decision":
+      return `${d.agent || "LLM"} → ${d.decisionType || d.action || "decision"} (${(d.confidence * 100).toFixed(0)}% conf)`;
+    case "llm:delegation":
+      return `${d.fromAgent} delegated to ${d.toAgent}: ${d.taskType}`;
+    case "llm:stealth_alert":
+      return `STEALTH ALERT: ${d.agent} score ${(d.stealthScore * 100).toFixed(0)}% (threshold ${(d.threshold * 100).toFixed(0)}%)`;
+    case "llm:training_captured":
+      return `Training captured: ${d.exampleCount} examples from ${d.agent} (${d.quality})`;
+    case "llm:shadow_test_result":
+      return `Shadow test: ${d.configName} → ${d.winner} wins (${d.metric})`;
+    case "llm:engagement_progress":
+      return `${d.engagementName}: ${d.phase} (${d.progress}%) — ${d.findingsCount} findings`;
+    case "exploit:fired":
+      return `Exploit fired: ${d.module} → ${d.targetIp}:${d.targetPort}`;
+    case "exploit:result":
+      return `Exploit ${d.success ? "SUCCESS" : "FAILED"}: ${d.module} → ${d.targetIp}`;
+    case "agent:deployed":
+      return `Agent deployed: ${d.paw} on ${d.host} (${d.platform})`;
+    case "credential:found":
+      return `Credential found: ${d.username}@${d.target} via ${d.tool}`;
+    case "ember:task_complete":
+      return `Ember task: ${d.taskType} on ${d.agentId} → ${d.status}`;
+    case "ember:burn_response":
+      return `BURN: ${d.agentId} detected ${d.burnIndicator} → ${d.action}`;
+    case "opsec:burn_detected":
+      return `OPSEC burn: ${d.indicator} (${d.severity})`;
+    case "engagement:phase_changed":
+      return `Phase: ${d.previousPhase} → ${d.newPhase}`;
+    case "job:completed":
+      return `Job complete: ${d.type} in ${d.durationMs}ms (${d.findingsCount ?? 0} findings)`;
+    case "job:failed":
+      return `Job failed: ${d.type} — ${d.error}`;
+    default:
+      return `${evt.type}: ${JSON.stringify(d).slice(0, 80)}`;
+  }
+}
+
+function formatEventDetail(evt: WsLiveEvent): string | null {
+  const d = evt.data;
+  switch (evt.type) {
+    case "llm:decision":
+      return d.reasoning || null;
+    case "llm:delegation":
+      return d.reason || null;
+    case "llm:stealth_alert":
+      return d.recommendation || null;
+    default:
+      return null;
+  }
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
 export default function RealtimeMonitor() {
   const [isPaused, setIsPaused] = useState(false);
   const [selectedEngagement, setSelectedEngagement] = useState<number | null>(null);
-  const feedRef = useRef<HTMLDivElement>(null);
+  const [wsEventFilter, setWsEventFilter] = useState<"all" | "llm" | "ops" | "stealth">("all");
 
-  // Polling queries — 5s for live feeds, 10s for engagement list
+  const { wsStatus, liveEvents, clearEvents } = useWebSocket(isPaused);
+
+  // Polling queries as data backbone — WS events overlay in real-time
   const { data: activeData } = trpc.realtimeMonitor.getActiveEngagements.useQuery(
     undefined,
     { refetchInterval: isPaused ? false : 10000 }
@@ -69,25 +280,72 @@ export default function RealtimeMonitor() {
 
   const { data: decisionFeed } = trpc.realtimeMonitor.getLiveDecisionFeed.useQuery(
     { limit: 50, engagementId: selectedEngagement ?? undefined },
-    { refetchInterval: isPaused ? false : 5000 }
+    { refetchInterval: isPaused ? false : 8000 }
   );
 
   const { data: telemetryFeed } = trpc.realtimeMonitor.getLiveTelemetryFeed.useQuery(
     { limit: 30 },
-    { refetchInterval: isPaused ? false : 5000 }
+    { refetchInterval: isPaused ? false : 8000 }
   );
 
   const { data: delegationFeed } = trpc.realtimeMonitor.getAgentDelegationFeed.useQuery(
     { limit: 30 },
-    { refetchInterval: isPaused ? false : 5000 }
+    { refetchInterval: isPaused ? false : 8000 }
   );
 
   const { data: timelineData } = trpc.realtimeMonitor.getEngagementTimeline.useQuery(
     { engagementId: selectedEngagement ?? 0, limit: 50 },
-    { enabled: !!selectedEngagement, refetchInterval: isPaused ? false : 5000 }
+    { enabled: !!selectedEngagement, refetchInterval: isPaused ? false : 8000 }
   );
 
   const liveStats = telemetryFeed?.liveStats;
+
+  // Filter WS events
+  const filteredWsEvents = useMemo(() => {
+    let filtered = liveEvents;
+    if (selectedEngagement) {
+      filtered = filtered.filter(
+        (e) => !e.engagementId || e.engagementId === selectedEngagement
+      );
+    }
+    switch (wsEventFilter) {
+      case "llm":
+        return filtered.filter((e) => e.type.startsWith("llm:"));
+      case "ops":
+        return filtered.filter(
+          (e) =>
+            e.type.startsWith("exploit:") ||
+            e.type.startsWith("agent:") ||
+            e.type.startsWith("ember:") ||
+            e.type.startsWith("credential:") ||
+            e.type.startsWith("lateral:") ||
+            e.type.startsWith("job:")
+        );
+      case "stealth":
+        return filtered.filter(
+          (e) =>
+            e.type === "llm:stealth_alert" ||
+            e.type.startsWith("opsec:") ||
+            e.type === "ember:burn_response"
+        );
+      default:
+        return filtered;
+    }
+  }, [liveEvents, selectedEngagement, wsEventFilter]);
+
+  // WS status indicator
+  const wsStatusColor =
+    wsStatus === "connected"
+      ? "text-emerald-400"
+      : wsStatus === "connecting"
+      ? "text-amber-400"
+      : "text-red-400";
+  const wsStatusLabel =
+    wsStatus === "connected"
+      ? "WS Connected"
+      : wsStatus === "connecting"
+      ? "Connecting..."
+      : "WS Disconnected";
 
   return (
     <div className="p-6 space-y-6">
@@ -99,10 +357,20 @@ export default function RealtimeMonitor() {
             Real-Time Engagement Monitor
           </h1>
           <p className="text-muted-foreground mt-1">
-            Live WebSocket feed showing active engagement progress, LLM decisions, and agent delegation events
+            Live WebSocket feed — LLM decisions, agent delegations, and engagement events stream in real time
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* WS Status */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/50">
+            <div className={`w-2 h-2 rounded-full ${
+              wsStatus === "connected" ? "bg-emerald-400 animate-pulse" :
+              wsStatus === "connecting" ? "bg-amber-400 animate-pulse" :
+              "bg-red-400"
+            }`} />
+            <span className={`text-xs font-medium ${wsStatusColor}`}>{wsStatusLabel}</span>
+          </div>
+          {/* Live/Paused */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/50">
             {isPaused ? (
               <WifiOff className="h-4 w-4 text-red-400" />
@@ -111,11 +379,7 @@ export default function RealtimeMonitor() {
             )}
             <span className="text-xs font-medium">{isPaused ? "Paused" : "Live"}</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPaused(!isPaused)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setIsPaused(!isPaused)}>
             {isPaused ? <Play className="h-4 w-4 mr-1" /> : <Pause className="h-4 w-4 mr-1" />}
             {isPaused ? "Resume" : "Pause"}
           </Button>
@@ -123,7 +387,7 @@ export default function RealtimeMonitor() {
       </div>
 
       {/* Live Stats Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="bg-card/50 border-border/50">
           <CardContent className="p-3 flex items-center justify-between">
             <div>
@@ -154,12 +418,10 @@ export default function RealtimeMonitor() {
         <Card className="bg-card/50 border-border/50">
           <CardContent className="p-3 flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Error Rate</p>
-              <p className={`text-xl font-bold ${(liveStats?.errorRate ?? 0) > 10 ? "text-red-400" : "text-amber-400"}`}>
-                {liveStats?.errorRate ?? 0}%
-              </p>
+              <p className="text-[10px] text-muted-foreground uppercase">WS Events</p>
+              <p className="text-xl font-bold text-cyan-400">{liveEvents.length}</p>
             </div>
-            <AlertTriangle className="h-6 w-6 text-amber-400 opacity-60" />
+            <Radio className="h-6 w-6 text-cyan-400 opacity-60" />
           </CardContent>
         </Card>
         <Card className="bg-card/50 border-border/50">
@@ -184,7 +446,7 @@ export default function RealtimeMonitor() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[500px]">
+            <ScrollArea className="h-[250px]">
               <div className="space-y-1 p-3">
                 {activeData?.engagements.map((eng) => (
                   <div
@@ -233,10 +495,80 @@ export default function RealtimeMonitor() {
                 )}
               </div>
             </ScrollArea>
+
+            {/* Live WS Event Stream (below engagements) */}
+            <div className="border-t border-border/30">
+              <div className="p-3 pb-1 flex items-center justify-between">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Radio className={`h-3 w-3 ${wsStatus === "connected" ? "text-emerald-400 animate-pulse" : "text-red-400"}`} />
+                  Live WS Stream
+                </h4>
+                <div className="flex items-center gap-1">
+                  {(["all", "llm", "ops", "stealth"] as const).map((f) => (
+                    <button
+                      key={f}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        wsEventFilter === f
+                          ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-400"
+                          : "border-border/30 text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => setWsEventFilter(f)}
+                    >
+                      {f.toUpperCase()}
+                    </button>
+                  ))}
+                  {liveEvents.length > 0 && (
+                    <button
+                      className="text-[10px] px-2 py-0.5 rounded-full border border-red-500/30 text-red-400 hover:bg-red-500/10 ml-1"
+                      onClick={clearEvents}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-0.5 px-3 pb-3">
+                  {filteredWsEvents.map((evt) => {
+                    const Icon = getEventIcon(evt.type);
+                    const color = getEventColor(evt.type);
+                    const detail = formatEventDetail(evt);
+                    return (
+                      <div key={evt.id} className="flex items-start gap-2 p-1.5 rounded hover:bg-muted/20 transition-colors">
+                        <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${color}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {new Date(evt.timestamp).toLocaleTimeString()}
+                            </span>
+                            {evt.engagementId && (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1">
+                                #{evt.engagementId}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs truncate">{formatEventTitle(evt)}</p>
+                          {detail && (
+                            <p className="text-[10px] text-muted-foreground truncate">{detail}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {filteredWsEvents.length === 0 && (
+                    <div className="text-center py-6 text-muted-foreground text-xs">
+                      {wsStatus === "connected"
+                        ? "Waiting for live events..."
+                        : "WebSocket disconnected — using polling fallback"}
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Center & Right: Tabbed Live Feeds */}
+        {/* Center & Right: Tabbed Data Feeds */}
         <Card className="border-border/50 lg:col-span-2">
           <Tabs defaultValue="decisions" className="h-full">
             <CardHeader className="pb-2">
@@ -278,7 +610,7 @@ export default function RealtimeMonitor() {
               {/* Decisions Feed */}
               <TabsContent value="decisions" className="m-0">
                 <ScrollArea className="h-[460px]">
-                  <div className="space-y-0.5 p-3" ref={feedRef}>
+                  <div className="space-y-0.5 p-3">
                     {decisionFeed?.decisions.map((dec) => {
                       const StatusIcon = STATUS_ICONS[dec.outcome ?? "pending"] || Clock;
                       const statusColor = STATUS_COLORS[dec.outcome ?? "pending"] || "text-gray-400";
@@ -321,7 +653,6 @@ export default function RealtimeMonitor() {
               <TabsContent value="delegations" className="m-0">
                 <ScrollArea className="h-[460px]">
                   <div className="p-3 space-y-4">
-                    {/* Agent Frequency Bar */}
                     {delegationFeed?.agentFrequency && delegationFeed.agentFrequency.length > 0 && (
                       <div className="space-y-2">
                         <h4 className="text-xs font-medium text-muted-foreground uppercase">Agent Activity (24h)</h4>
@@ -346,8 +677,6 @@ export default function RealtimeMonitor() {
                         })}
                       </div>
                     )}
-
-                    {/* Recent Delegations */}
                     <div className="space-y-1">
                       <h4 className="text-xs font-medium text-muted-foreground uppercase">Recent Delegations</h4>
                       {delegationFeed?.delegations.map((del) => {
