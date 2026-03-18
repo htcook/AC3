@@ -5916,3 +5916,172 @@ export const scanSchedules = mysqlTable("scan_schedules", {
 ]);
 export type ScanScheduleRow = typeof scanSchedules.$inferSelect;
 export type InsertScanSchedule = typeof scanSchedules.$inferInsert;
+
+
+// ─── Customer Portal Accounts ────────────────────────────────────────────────
+// Separate login system for customer organizations (not Manus OAuth)
+export const customerAccounts = mysqlTable("customer_accounts", {
+  id: int().autoincrement().primaryKey(),
+  tenantId: int("tenant_id").notNull(),
+  email: varchar("ca_email", { length: 320 }).notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  name: varchar("ca_name", { length: 255 }).notNull(),
+  title: varchar("ca_title", { length: 128 }),
+  phone: varchar("ca_phone", { length: 32 }),
+  role: mysqlEnum("ca_role", ['primary_contact', 'technical_contact', 'executive', 'viewer']).default('viewer').notNull(),
+  status: mysqlEnum("ca_status", ['active', 'inactive', 'locked', 'pending_verification']).default('pending_verification').notNull(),
+  emailVerified: tinyint("email_verified").default(0).notNull(),
+  verificationToken: varchar("verification_token", { length: 128 }),
+  resetToken: varchar("reset_token", { length: 128 }),
+  resetTokenExpiry: timestamp("reset_token_expiry", { mode: 'string' }),
+  lastLoginAt: timestamp("ca_last_login_at", { mode: 'string' }),
+  loginCount: int("login_count").default(0).notNull(),
+  failedLoginAttempts: int("failed_login_attempts").default(0).notNull(),
+  lockedUntil: timestamp("locked_until", { mode: 'string' }),
+  mfaEnabled: tinyint("mfa_enabled").default(0).notNull(),
+  mfaSecret: varchar("mfa_secret", { length: 128 }),
+  createdAt: timestamp("ca_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("ca_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("ca_email_idx").on(table.email),
+  index("ca_tenant_idx").on(table.tenantId),
+]);
+export type CustomerAccountRow = typeof customerAccounts.$inferSelect;
+export type InsertCustomerAccount = typeof customerAccounts.$inferInsert;
+
+// ─── Customer Audit Log (NIST 800-53 AU compliance) ──────────────────────────
+export const customerAuditLog = mysqlTable("customer_audit_log", {
+  id: int().autoincrement().primaryKey(),
+  customerAccountId: int("customer_account_id").notNull(),
+  tenantId: int("cal_tenant_id").notNull(),
+  action: varchar("cal_action", { length: 128 }).notNull(),
+  resource: varchar("cal_resource", { length: 128 }),
+  resourceId: varchar("cal_resource_id", { length: 128 }),
+  details: json("cal_details"),
+  ipAddress: varchar("cal_ip_address", { length: 45 }),
+  userAgent: varchar("cal_user_agent", { length: 512 }),
+  result: mysqlEnum("cal_result", ['success', 'failure', 'denied']).default('success').notNull(),
+  createdAt: timestamp("cal_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("cal_customer_idx").on(table.customerAccountId),
+  index("cal_tenant_idx").on(table.tenantId),
+  index("cal_action_idx").on(table.action),
+]);
+export type CustomerAuditLogRow = typeof customerAuditLog.$inferSelect;
+
+// ─── Engagement Credential Lists (breach → attack pipeline) ──────────────────
+export const engagementCredentialLists = mysqlTable("engagement_credential_lists", {
+  id: int().autoincrement().primaryKey(),
+  engagementId: int("ecl_engagement_id").notNull(),
+  source: mysqlEnum("ecl_source", ['dehashed', 'intelx', 'hudson_rock', 'leakcheck', 'manual', 'hibp', 'stealer_log']).notNull(),
+  username: varchar("ecl_username", { length: 512 }).notNull(),
+  password: varchar("ecl_password", { length: 512 }),
+  passwordHash: varchar("ecl_password_hash", { length: 512 }),
+  hashType: varchar("ecl_hash_type", { length: 32 }),
+  email: varchar("ecl_email", { length: 320 }),
+  breachName: varchar("ecl_breach_name", { length: 512 }),
+  breachDate: varchar("ecl_breach_date", { length: 32 }),
+  domain: varchar("ecl_domain", { length: 512 }),
+  isVerified: tinyint("ecl_is_verified").default(0).notNull(),
+  isUsed: tinyint("ecl_is_used").default(0).notNull(),
+  usedAt: timestamp("ecl_used_at", { mode: 'string' }),
+  usedResult: mysqlEnum("ecl_used_result", ['success', 'failure', 'locked', 'mfa_blocked', 'not_tested']).default('not_tested'),
+  confidence: mysqlEnum("ecl_confidence", ['high', 'medium', 'low']).default('medium').notNull(),
+  createdAt: timestamp("ecl_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ecl_engagement_idx").on(table.engagementId),
+  index("ecl_source_idx").on(table.source),
+  index("ecl_domain_idx").on(table.domain),
+]);
+export type EngagementCredentialListRow = typeof engagementCredentialLists.$inferSelect;
+export type InsertEngagementCredentialList = typeof engagementCredentialLists.$inferInsert;
+
+// ─── Company Intelligence Profiles ──────────────────────────────────────────
+export const companyIntelProfiles = mysqlTable("company_intel_profiles", {
+  id: int().autoincrement().primaryKey(),
+  tenantId: int("cip_tenant_id"),
+  domain: varchar("cip_domain", { length: 512 }).notNull(),
+  companyName: varchar("cip_company_name", { length: 512 }),
+  industry: varchar("cip_industry", { length: 255 }),
+  sector: varchar("cip_sector", { length: 255 }),
+  description: text("cip_description"),
+  employeeCount: int("cip_employee_count"),
+  employeeRange: varchar("cip_employee_range", { length: 64 }),
+  revenue: varchar("cip_revenue", { length: 128 }),
+  fundingStage: varchar("cip_funding_stage", { length: 64 }),
+  publiclyTraded: tinyint("cip_publicly_traded").default(0),
+  ticker: varchar("cip_ticker", { length: 16 }),
+  foundedYear: int("cip_founded_year"),
+  companyType: varchar("cip_company_type", { length: 64 }),
+  headquarters: json("cip_headquarters"),
+  locations: json("cip_locations"),
+  specialties: json("cip_specialties"),
+  products: json("cip_products"),
+  technologies: json("cip_technologies"),
+  socialMedia: json("cip_social_media"),
+  naicsCode: varchar("cip_naics_code", { length: 16 }),
+  sicCode: varchar("cip_sic_code", { length: 16 }),
+  dataClassifications: json("cip_data_classifications"),
+  subsidiaries: json("cip_subsidiaries"),
+  parentCompany: varchar("cip_parent_company", { length: 255 }),
+  executiveTeam: json("cip_executive_team"),
+  customerCorrected: tinyint("cip_customer_corrected").default(0).notNull(),
+  correctedAt: timestamp("cip_corrected_at", { mode: 'string' }),
+  correctedBy: int("cip_corrected_by"),
+  correctionNotes: text("cip_correction_notes"),
+  sources: json("cip_sources"),
+  confidence: int("cip_confidence").default(0),
+  lastEnrichedAt: timestamp("cip_last_enriched_at", { mode: 'string' }),
+  createdAt: timestamp("cip_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("cip_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("cip_domain_idx").on(table.domain),
+  index("cip_tenant_idx").on(table.tenantId),
+]);
+export type CompanyIntelProfileRow = typeof companyIntelProfiles.$inferSelect;
+export type InsertCompanyIntelProfile = typeof companyIntelProfiles.$inferInsert;
+
+// ─── Regulatory Framework Detection ─────────────────────────────────────────
+export const regulatoryFrameworks = mysqlTable("regulatory_frameworks", {
+  id: int().autoincrement().primaryKey(),
+  tenantId: int("rf_tenant_id"),
+  domain: varchar("rf_domain", { length: 512 }).notNull(),
+  framework: varchar("rf_framework", { length: 128 }).notNull(),
+  status: mysqlEnum("rf_status", ['auto_detected', 'customer_confirmed', 'customer_denied', 'operator_added']).default('auto_detected').notNull(),
+  confidence: int("rf_confidence").default(50),
+  detectionMethod: varchar("rf_detection_method", { length: 255 }),
+  detectionEvidence: json("rf_detection_evidence"),
+  applicableControls: json("rf_applicable_controls"),
+  notes: text("rf_notes"),
+  confirmedBy: int("rf_confirmed_by"),
+  confirmedAt: timestamp("rf_confirmed_at", { mode: 'string' }),
+  createdAt: timestamp("rf_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("rf_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("rf_domain_idx").on(table.domain),
+  index("rf_tenant_idx").on(table.tenantId),
+  index("rf_framework_idx").on(table.framework),
+]);
+export type RegulatoryFrameworkRow = typeof regulatoryFrameworks.$inferSelect;
+export type InsertRegulatoryFramework = typeof regulatoryFrameworks.$inferInsert;
+
+// ─── Customer Shared Reports ─────────────────────────────────────────────────
+export const customerSharedReports = mysqlTable("customer_shared_reports", {
+  id: int().autoincrement().primaryKey(),
+  tenantId: int("csr_tenant_id").notNull(),
+  reportType: mysqlEnum("csr_report_type", ['ac3', 'pentest', 'compliance', 'executive_summary', 'vulnerability', 'incident', 'dfir']).notNull(),
+  reportId: int("csr_report_id").notNull(),
+  title: varchar("csr_title", { length: 512 }).notNull(),
+  description: text("csr_description"),
+  sharedBy: int("csr_shared_by").notNull(),
+  sharedAt: timestamp("csr_shared_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  expiresAt: timestamp("csr_expires_at", { mode: 'string' }),
+  accessCount: int("csr_access_count").default(0).notNull(),
+  lastAccessedAt: timestamp("csr_last_accessed_at", { mode: 'string' }),
+  isActive: tinyint("csr_is_active").default(1).notNull(),
+}, (table) => [
+  index("csr_tenant_idx").on(table.tenantId),
+  index("csr_report_type_idx").on(table.reportType),
+]);
+export type CustomerSharedReportRow = typeof customerSharedReports.$inferSelect;
+export type InsertCustomerSharedReport = typeof customerSharedReports.$inferInsert;

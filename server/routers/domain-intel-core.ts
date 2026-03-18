@@ -506,6 +506,31 @@ export const domainIntelRouter = router({
 
               console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete, emitSystemNotification } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
+
+              // Auto-harvest credentials from passive recon observations into engagement credential list
+              if (pipelineInput.engagementId && result.passiveRecon?.allObservations) {
+                setImmediate(async () => {
+                  try {
+                    const { harvestCredentialsFromObservations, harvestFromExistingFindings } = await import('../lib/credential-harvester');
+                    // Harvest from passive recon observations (DeHashed, IntelX, Hudson Rock, LeakCheck)
+                    const obsResult = await harvestCredentialsFromObservations(
+                      pipelineInput.engagementId!,
+                      pipelineInput.primaryDomain,
+                      result.passiveRecon!.allObservations
+                    );
+                    console.log(`[CredentialHarvester] Observations: ${obsResult.inserted} inserted, ${obsResult.duplicates} duplicates for engagement ${pipelineInput.engagementId}`);
+                    // Also harvest from existing credentialFindings table (DeHashed breach data)
+                    const findingsResult = await harvestFromExistingFindings(
+                      pipelineInput.engagementId!,
+                      pipelineInput.primaryDomain
+                    );
+                    console.log(`[CredentialHarvester] Existing findings: ${findingsResult.inserted} inserted, ${findingsResult.duplicates} duplicates`);
+                  } catch (harvestErr: any) {
+                    console.error(`[CredentialHarvester] Failed for engagement ${pipelineInput.engagementId}:`, harvestErr.message);
+                  }
+                });
+              }
+
               // Auto-crawl discovered web assets (fire-and-forget)
               setImmediate(async () => {
                 try {
@@ -2080,6 +2105,20 @@ export const domainIntelRouter = router({
           { name: 'social-media', description: 'Social media — GitHub org/user presence', requiresKey: false, category: 'social', free: true },
           { name: 'abuseipdb', description: 'AbuseIPDB — IP abuse reputation scoring', requiresKey: true, category: 'threat-intel', free: false },
           { name: 'passivetotal', description: 'PassiveTotal — passive DNS and SSL history', requiresKey: true, category: 'dns', free: false },
+          { name: 'intelx', description: 'IntelX — darkweb/paste site search for domain mentions', requiresKey: true, category: 'darkweb', free: false },
+          { name: 'hudson-rock', description: 'Hudson Rock — stealer log credential exposure', requiresKey: true, category: 'darkweb', free: false },
+          { name: 'leakcheck', description: 'LeakCheck — credential leak database search', requiresKey: true, category: 'breaches', free: false },
+          { name: 'company-intel', description: 'Company Intel — LLM-powered firmographic data extraction', requiresKey: false, category: 'business-intel', free: true },
+          { name: 'threatminer', description: 'ThreatMiner — domain/IP threat intel and APT reports', requiresKey: false, category: 'threat-intel', free: true },
+          { name: 'ip-api', description: 'IP-API — IP geolocation, ASN, and org info', requiresKey: false, category: 'infrastructure', free: true },
+          { name: 'bgpview', description: 'BGPView — ASN lookup, network peers, IP prefixes', requiresKey: false, category: 'infrastructure', free: true },
+          { name: 'ransomware-live', description: 'Ransomware.live — ransomware victim tracking', requiresKey: false, category: 'darkweb', free: true },
+          { name: 'threatfox', description: 'ThreatFox/abuse.ch — IOC database with domain correlation', requiresKey: false, category: 'threat-intel', free: true },
+          { name: 'builtwith', description: 'BuiltWith — technology stack detection (CMS, frameworks)', requiresKey: false, category: 'web', free: true },
+          { name: 'circl-pdns', description: 'CIRCL PassiveDNS — historical DNS resolution data', requiresKey: false, category: 'dns', free: true },
+          { name: 'commoncrawl', description: 'CommonCrawl — historical web data for company context', requiresKey: false, category: 'historical', free: true },
+          { name: 'reverse-whois', description: 'Reverse WHOIS — discover all domains owned by target org', requiresKey: false, category: 'whois', free: true },
+          { name: 'typosquat', description: 'Typosquat — detect lookalike/phishing domains', requiresKey: false, category: 'phishing', free: true },
         ];
 
         return {

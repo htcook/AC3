@@ -76,6 +76,10 @@ const BUILT_IN_FEEDS: Omit<InsertDarkwebFeedRegistry, "id">[] = [
   { feedName: "blocklist_de", feedUrl: "https://api.blocklist.de/getlast.php?time=86400", feedType: "blocklist", provider: "blocklist.de", description: "Attack IPs from last 24h", requiresAuth: false, authType: "none", syncInterval: "daily", isBuiltIn: true, enabled: true },
   { feedName: "spamhaus_drop", feedUrl: "https://www.spamhaus.org/drop/drop.json", feedType: "blocklist", provider: "Spamhaus", description: "Don't Route Or Peer — hijacked IP ranges", requiresAuth: false, authType: "none", syncInterval: "daily", isBuiltIn: true, enabled: true },
   { feedName: "hibp_breaches", feedUrl: "https://haveibeenpwned.com/api/v3/breaches", feedType: "credential", provider: "HIBP", description: "Have I Been Pwned breach catalog", requiresAuth: false, authType: "none", syncInterval: "daily", isBuiltIn: true, enabled: true },
+  // --- New darkweb intelligence sources (OSINT Pipeline Expansion) ---
+  { feedName: "intelx_search", feedUrl: "https://2.intelx.io/intelligent/search", feedType: "credential", provider: "Intelligence X", description: "Intelligence X — darkweb/paste/leak search for breached credentials and stealer logs", requiresAuth: true, authType: "api_key", authEnvVar: "INTELX_API_KEY", syncInterval: "6h", isBuiltIn: true, enabled: true },
+  { feedName: "hudson_rock", feedUrl: "https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-domain", feedType: "credential", provider: "Hudson Rock", description: "Hudson Rock Cavalier — stealer log exposure and compromised employee detection", requiresAuth: true, authType: "api_key", authEnvVar: "HUDSON_ROCK_API_KEY", syncInterval: "12h", isBuiltIn: true, enabled: true },
+  { feedName: "leakcheck", feedUrl: "https://leakcheck.io/api/v2/query", feedType: "credential", provider: "LeakCheck", description: "LeakCheck — credential leak search across breach databases", requiresAuth: true, authType: "api_key", authEnvVar: "LEAKCHECK_API_KEY", syncInterval: "12h", isBuiltIn: true, enabled: true },
 ];
 
 export async function initFeedRegistry(): Promise<void> {
@@ -657,4 +661,238 @@ export async function getFeedHealthSummary() {
     requiresAuth: f.requiresAuth,
     authEnvVar: f.authEnvVar,
   }));
+}
+
+
+// ─── Intelligence X — Domain-specific darkweb/paste/leak search ─────────
+
+export async function fetchIntelXForDomain(domain: string): Promise<FeedResult> {
+  const start = Date.now();
+  const apiKey = process.env.INTELX_API_KEY;
+  if (!apiKey) return { feed: "intelx_search", fetched: 0, error: "No API key", durationMs: 0 };
+
+  try {
+    // Start search
+    const searchRes = await safeFetch("https://2.intelx.io/intelligent/search", {
+      method: "POST",
+      headers: { "x-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        term: domain,
+        buckets: ["pastes", "leaks", "darknet.tor"],
+        maxresults: 100,
+        timeout: 10,
+        sort: 2, // date descending
+      }),
+    });
+    if (!searchRes.ok) throw new Error(`HTTP ${searchRes.status}`);
+    const searchData = (await searchRes.json()) as any;
+    const searchId = searchData.id;
+    if (!searchId) return { feed: "intelx_search", fetched: 0, durationMs: Date.now() - start };
+
+    // Wait briefly then fetch results
+    await new Promise(r => setTimeout(r, 3000));
+    const resultRes = await safeFetch(`https://2.intelx.io/intelligent/search/result?id=${searchId}&limit=100`, {
+      headers: { "x-key": apiKey },
+    });
+    if (!resultRes.ok) throw new Error(`Result HTTP ${resultRes.status}`);
+    const resultData = (await resultRes.json()) as any;
+    const records = Array.isArray(resultData.records) ? resultData.records : [];
+
+    const db = await requireDb();
+    let count = 0;
+    const batch: InsertUndergroundIntelEvent[] = [];
+
+    for (const record of records.slice(0, 200)) {
+      const bucket = record.bucket || "unknown";
+      const isDarknet = bucket === "darknet.tor" || bucket === "darknet.i2p";
+      batch.push({
+        category: isDarknet ? "darkweb_mention" as any : "credential_leak" as any,
+        source: "intelx",
+        title: `IntelX: ${record.name || record.systemid || "unknown"} (${bucket})`,
+        description: `Found in ${bucket}: ${record.name || ""} | Media: ${record.media || "unknown"} | Added: ${record.added || "unknown"}`,
+        severity: isDarknet ? "high" as const : "medium" as const,
+        confidence: 75,
+        iocType: record.type === 2 ? "domain" : record.type === 3 ? "email" : "other",
+        iocValue: domain,
+        tags: [bucket, "intelx", domain].filter(Boolean),
+        rawData: record,
+        eventDate: record.added ? new Date(record.added) : new Date(),
+      });
+      count++;
+    }
+
+    if (batch.length > 0) {
+      for (let i = 0; i < batch.length; i += 50) {
+        await db.insert(undergroundIntelEvents).values(batch.slice(i, i + 50));
+      }
+    }
+
+    await updateFeedStatus("intelx_search", "active", count);
+    return { feed: "intelx_search", fetched: count, durationMs: Date.now() - start };
+  } catch (err: any) {
+    await updateFeedStatus("intelx_search", "down", 0, err.message).catch(() => {});
+    return { feed: "intelx_search", fetched: 0, error: err.message, durationMs: Date.now() - start };
+  }
+}
+
+// ─── Hudson Rock — Stealer log exposure for domain ──────────────────────
+
+export async function fetchHudsonRockForDomain(domain: string): Promise<FeedResult> {
+  const start = Date.now();
+  const apiKey = process.env.HUDSON_ROCK_API_KEY;
+  if (!apiKey) return { feed: "hudson_rock", fetched: 0, error: "No API key", durationMs: 0 };
+
+  try {
+    const res = await safeFetch(
+      `https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-domain?domain=${encodeURIComponent(domain)}`,
+      { headers: { "api-key": apiKey } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as any;
+
+    const db = await requireDb();
+    let count = 0;
+    const batch: InsertCredentialExposure[] = [];
+
+    // Process stealers (compromised employees)
+    const stealers = Array.isArray(data.stealers) ? data.stealers : [];
+    for (const stealer of stealers.slice(0, 200)) {
+      batch.push({
+        source: "hudson_rock",
+        breachName: `Stealer: ${stealer.stealer_type || "unknown"}`,
+        breachDate: stealer.date_compromised ? new Date(stealer.date_compromised) : undefined,
+        domain,
+        emailCount: 1,
+        totalRecords: 1,
+        dataClasses: ["stealer_log", "credentials"],
+        severity: "critical" as const,
+        isVerified: true,
+        description: `Hudson Rock stealer log: ${stealer.email || "unknown"} compromised via ${stealer.stealer_type || "unknown"} stealer`,
+        tags: ["hudson_rock", "stealer_log", domain],
+        rawData: stealer,
+      });
+      count++;
+    }
+
+    // Process third-party exposures
+    const thirdParty = Array.isArray(data.third_party) ? data.third_party : [];
+    for (const tp of thirdParty.slice(0, 100)) {
+      batch.push({
+        source: "hudson_rock",
+        breachName: `Third-party: ${tp.origin || "unknown"}`,
+        breachDate: tp.date_compromised ? new Date(tp.date_compromised) : undefined,
+        domain,
+        emailCount: 1,
+        totalRecords: 1,
+        dataClasses: ["third_party_exposure", "credentials"],
+        severity: "high" as const,
+        description: `Hudson Rock third-party exposure: ${tp.email || "unknown"} via ${tp.origin || "unknown"}`,
+        tags: ["hudson_rock", "third_party", domain],
+        rawData: tp,
+      });
+      count++;
+    }
+
+    if (batch.length > 0) {
+      for (let i = 0; i < batch.length; i += 50) {
+        await db.insert(credentialExposures).values(batch.slice(i, i + 50));
+      }
+    }
+
+    await updateFeedStatus("hudson_rock", "active", count);
+    return { feed: "hudson_rock", fetched: count, durationMs: Date.now() - start };
+  } catch (err: any) {
+    await updateFeedStatus("hudson_rock", "down", 0, err.message).catch(() => {});
+    return { feed: "hudson_rock", fetched: 0, error: err.message, durationMs: Date.now() - start };
+  }
+}
+
+// ─── LeakCheck — Credential leak search ─────────────────────────────────
+
+export async function fetchLeakCheckForDomain(domain: string): Promise<FeedResult> {
+  const start = Date.now();
+  const apiKey = process.env.LEAKCHECK_API_KEY;
+  if (!apiKey) return { feed: "leakcheck", fetched: 0, error: "No API key", durationMs: 0 };
+
+  try {
+    const res = await safeFetch(
+      `https://leakcheck.io/api/v2/query/${encodeURIComponent(domain)}?type=domain`,
+      { headers: { "X-API-Key": apiKey } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as any;
+
+    const db = await requireDb();
+    let count = 0;
+    const results = Array.isArray(data.result) ? data.result : [];
+    const batch: InsertCredentialExposure[] = [];
+
+    for (const entry of results.slice(0, 300)) {
+      const sources = Array.isArray(entry.sources) ? entry.sources : [];
+      batch.push({
+        source: "leakcheck",
+        breachName: sources.join(", ") || "unknown",
+        breachDate: entry.last_breach ? new Date(entry.last_breach) : undefined,
+        domain,
+        emailCount: 1,
+        totalRecords: 1,
+        dataClasses: [
+          "credential_leak",
+          ...(entry.has_password ? ["password"] : []),
+          ...(entry.has_hash ? ["password_hash"] : []),
+        ],
+        severity: (entry.has_password ? "critical" : entry.has_hash ? "high" : "medium") as any,
+        description: `LeakCheck: ${entry.email || entry.username || "unknown"} found in ${sources.join(", ") || "unknown breach"}`,
+        tags: ["leakcheck", "credential_leak", domain],
+        rawData: entry,
+      });
+      count++;
+    }
+
+    if (batch.length > 0) {
+      for (let i = 0; i < batch.length; i += 50) {
+        await db.insert(credentialExposures).values(batch.slice(i, i + 50));
+      }
+    }
+
+    await updateFeedStatus("leakcheck", "active", count);
+    return { feed: "leakcheck", fetched: count, durationMs: Date.now() - start };
+  } catch (err: any) {
+    await updateFeedStatus("leakcheck", "down", 0, err.message).catch(() => {});
+    return { feed: "leakcheck", fetched: 0, error: err.message, durationMs: Date.now() - start };
+  }
+}
+
+// ─── Domain-Specific Darkweb Sync ───────────────────────────────────────
+
+/**
+ * Run darkweb intelligence feeds for a specific domain.
+ * Queries IntelX, Hudson Rock, and LeakCheck for domain-specific data.
+ */
+export async function runDomainDarkwebSync(domain: string): Promise<DarkwebSyncResult> {
+  const startedAt = new Date();
+
+  try {
+    console.log(`[DarkwebOSINT] Starting domain-specific darkweb sync for ${domain}...`);
+
+    const results = await Promise.all([
+      fetchIntelXForDomain(domain),
+      fetchHudsonRockForDomain(domain),
+      fetchLeakCheckForDomain(domain),
+    ]);
+
+    const completedAt = new Date();
+    const totalFetched = results.reduce((sum, r) => sum + r.fetched, 0);
+    const totalErrors = results.filter((r) => r.error).length;
+
+    console.log(`[DarkwebOSINT] Domain sync complete for ${domain}: ${totalFetched} records from ${results.length} feeds (${totalErrors} errors)`);
+    results.forEach((r) => {
+      console.log(`  - ${r.feed}: ${r.fetched} records (${r.durationMs}ms)${r.error ? ` ERROR: ${r.error}` : ""}`);
+    });
+
+    return { startedAt, completedAt, results, totalFetched, totalErrors };
+  } catch (err: any) {
+    console.error(`[DarkwebOSINT] Domain sync failed for ${domain}:`, err.message);
+    return { startedAt, completedAt: new Date(), results: [], totalFetched: 0, totalErrors: 1 };
+  }
 }

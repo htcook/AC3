@@ -39,6 +39,20 @@ import { hunterConnector } from "./hunter";
 import { socialMediaConnector } from "./social-media";
 import { abuseipdbConnector } from "./abuseipdb";
 import { passivetotalConnector } from "./passivetotal";
+import { intelxSearchConnector } from "./intelx-search";
+import { hudsonRockConnector } from "./hudson-rock";
+import { leakcheckConnector } from "./leakcheck";
+import { companyIntelConnector } from "./company-intel";
+import { threatminerConnector } from "./threatminer";
+import { ipApiConnector } from "./ip-api";
+import { bgpviewConnector } from "./bgpview";
+import { ransomwareLiveConnector } from "./ransomware-live";
+import { threatfoxConnector } from "./threatfox";
+import { builtwithConnector } from "./builtwith";
+import { circlPdnsConnector } from "./circl-pdns";
+import { commoncrawlConnector } from "./commoncrawl";
+import { reverseWhoisConnector } from "./reverse-whois";
+import { typosquatConnector } from "./typosquat";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -79,6 +93,21 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   // --- Enhanced Recon Modules ---
   githubReconConnector,          // Enhanced GitHub recon — org discovery, repo enum, CI/CD, secrets, dorks
   cloudBucketReconConnector,     // Enhanced cloud bucket recon — 5 providers, permission depth, sensitive files
+  // --- OSINT Pipeline Expansion (Gap Analysis v2) ---
+  intelxSearchConnector,           // Intelligence X — darkweb/paste/leak search (requires API key)
+  hudsonRockConnector,             // Hudson Rock — stealer log exposure (requires API key)
+  leakcheckConnector,              // LeakCheck — credential leak search (requires API key)
+  companyIntelConnector,           // Company Intelligence — firmographic data via web scraping + LLM
+  threatminerConnector,            // ThreatMiner — free threat intel (passive DNS, malware, APT reports)
+  ipApiConnector,                  // ip-api.com — free IP geolocation, ASN, org info
+  bgpviewConnector,                // BGPView — free ASN lookup, network topology, IP prefixes
+  ransomwareLiveConnector,         // Ransomware.live — free ransomware victim tracking
+  threatfoxConnector,              // ThreatFox (abuse.ch) — free IOC database
+  builtwithConnector,              // BuiltWith — free tech stack detection
+  circlPdnsConnector,              // CIRCL Passive DNS — free historical DNS resolution
+  commoncrawlConnector,            // CommonCrawl — free historical web data for company context
+  reverseWhoisConnector,           // Reverse WHOIS — free related domain discovery via crt.sh
+  typosquatConnector,                // Typosquat Generator — free lookalike domain detection for phishing
 ];
 
 export interface PassiveReconConfig {
@@ -102,6 +131,9 @@ export interface PassiveReconConfig {
     abuseipdb?: string;
     passivetotal?: string;
     github?: string;
+    intelx?: string;
+    hudson_rock?: string;
+    leakcheck?: string;
   };
   timeout?: number;
   maxConcurrent?: number;
@@ -169,6 +201,9 @@ export async function runPassiveRecon(
       case "passivetotal": cfg.apiKey = apiKeys.passivetotal; break;
       case "github_recon": cfg.apiKey = apiKeys.github; break;
       case "github_leaks": cfg.apiKey = apiKeys.github; break;
+      case "intelx_search": cfg.apiKey = apiKeys.intelx; break;
+      case "hudson_rock": cfg.apiKey = apiKeys.hudson_rock; break;
+      case "leakcheck": cfg.apiKey = apiKeys.leakcheck; break;
     }
     connectorConfigs.set(connector.name, cfg);
   }
@@ -190,6 +225,7 @@ export async function runPassiveRecon(
     hibp: 'apiKey', whoisxml: 'apiKey', leakix: 'apiKey', fullhunt: 'apiKey',
     netlas: 'apiKey', hunter: 'apiKey', abuseipdb: 'apiKey', passivetotal: 'apiKey',
     github_recon: 'apiKey', github_leaks: 'apiKey',
+    intelx_search: 'apiKey', hudson_rock: 'apiKey', leakcheck: 'apiKey',
   };
   const readyConnectors: PassiveConnector[] = [];
   const skippedNoKey: ConnectorResult[] = [];

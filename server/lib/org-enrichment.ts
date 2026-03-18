@@ -678,7 +678,37 @@ ${context}
 Return ONLY the JSON object, no markdown or explanation.`;
 }
 
-export function buildLLMPromptForBIA(orgProfile: OrgProfile, shodanData: ShodanEnrichment | null, dnsData: DNSEnrichment): string {
+export interface DarkwebBreachContext {
+  totalBreachedCredentials: number;
+  breachSources: { source: string; count: number; latestDate?: string }[];
+  stealerLogExposures: number;
+  ransomwareVictim: boolean;
+  ransomwareGroup?: string;
+  ransomwareDate?: string;
+  darkwebMentions: number;
+  pasteSiteMentions: number;
+  threatActorReferences: string[];
+  iocCount: number;
+  typosquatDomainsFound: number;
+}
+
+export interface CompanyIntelContext {
+  techStack: { name: string; category: string }[];
+  asnInfo: { asn: number; name: string; prefixCount: number }[];
+  relatedDomains: string[];
+  historicalDnsChanges: number;
+  passiveDnsRecords: number;
+  commonCrawlSnapshots: number;
+}
+
+export function buildLLMPromptForBIA(
+  orgProfile: OrgProfile,
+  shodanData: ShodanEnrichment | null,
+  dnsData: DNSEnrichment,
+  darkwebContext?: DarkwebBreachContext,
+  companyIntelContext?: CompanyIntelContext,
+  detectedRegulations?: string[]
+): string {
   const context = [
     `Company: ${orgProfile.companyName}`,
     `Industry: ${orgProfile.industry} / ${orgProfile.sector}`,
@@ -695,9 +725,64 @@ export function buildLLMPromptForBIA(orgProfile: OrgProfile, shodanData: ShodanE
     `MX Records: ${dnsData.mxRecords.join(', ')}`,
     `SPF: ${dnsData.spfRecord || 'Not configured'}`,
     `DMARC: ${dnsData.dmarcRecord || 'Not configured'}`,
-  ].join('\n');
+  ];
 
-  return `Based on the following organizational profile and technical intelligence, generate a Business Impact Analysis (BIA) and Hybrid Risk scoring. Return a JSON object:
+  // Darkweb & breach intelligence
+  if (darkwebContext) {
+    context.push('');
+    context.push('=== DARKWEB & BREACH INTELLIGENCE ===');
+    context.push(`Total Breached Credentials: ${darkwebContext.totalBreachedCredentials}`);
+    if (darkwebContext.breachSources.length > 0) {
+      context.push(`Breach Sources: ${darkwebContext.breachSources.map(s => `${s.source} (${s.count} creds${s.latestDate ? `, latest: ${s.latestDate}` : ''})`).join('; ')}`);
+    }
+    context.push(`Stealer Log Exposures: ${darkwebContext.stealerLogExposures}`);
+    if (darkwebContext.ransomwareVictim) {
+      context.push(`RANSOMWARE VICTIM: Yes — Group: ${darkwebContext.ransomwareGroup || 'Unknown'}, Date: ${darkwebContext.ransomwareDate || 'Unknown'}`);
+    }
+    context.push(`Dark Web Mentions: ${darkwebContext.darkwebMentions}`);
+    context.push(`Paste Site Mentions: ${darkwebContext.pasteSiteMentions}`);
+    if (darkwebContext.threatActorReferences.length > 0) {
+      context.push(`Referenced Threat Actors: ${darkwebContext.threatActorReferences.join(', ')}`);
+    }
+    context.push(`Associated IOCs: ${darkwebContext.iocCount}`);
+    context.push(`Typosquat Domains Found: ${darkwebContext.typosquatDomainsFound}`);
+  }
+
+  // Company intelligence
+  if (companyIntelContext) {
+    context.push('');
+    context.push('=== COMPANY INTELLIGENCE ===');
+    if (companyIntelContext.techStack.length > 0) {
+      context.push(`Detected Tech Stack: ${companyIntelContext.techStack.map(t => `${t.name} (${t.category})`).join(', ')}`);
+    }
+    if (companyIntelContext.asnInfo.length > 0) {
+      context.push(`ASN Ownership: ${companyIntelContext.asnInfo.map(a => `AS${a.asn} ${a.name} (${a.prefixCount} prefixes)`).join('; ')}`);
+    }
+    if (companyIntelContext.relatedDomains.length > 0) {
+      context.push(`Related Domains Owned: ${companyIntelContext.relatedDomains.slice(0, 20).join(', ')}${companyIntelContext.relatedDomains.length > 20 ? ` (+${companyIntelContext.relatedDomains.length - 20} more)` : ''}`);
+    }
+    context.push(`Historical DNS Changes: ${companyIntelContext.historicalDnsChanges}`);
+    context.push(`Passive DNS Records: ${companyIntelContext.passiveDnsRecords}`);
+  }
+
+  // Regulatory frameworks
+  if (detectedRegulations && detectedRegulations.length > 0) {
+    context.push('');
+    context.push('=== REGULATORY COMPLIANCE OBLIGATIONS ===');
+    context.push(`Detected Frameworks: ${detectedRegulations.join(', ')}`);
+    context.push('Note: These frameworks impose specific breach notification timelines, data handling requirements, and audit obligations that affect impact severity.');
+  }
+
+  return `Based on the following organizational profile, technical intelligence, darkweb exposure data, and regulatory context, generate a comprehensive Business Impact Analysis (BIA) and Hybrid Risk scoring.
+
+IMPORTANT: Factor in the darkweb/breach data when scoring. Organizations with active credential leaks, stealer log exposure, or ransomware history should receive elevated CARVER scores for vulnerability and accessibility. Regulatory obligations amplify legal and financial impact categories. Typosquat domains indicate active phishing risk.
+
+Return a JSON object:
+
+Organization Data:
+${context.join('\n')}
+
+Return ONLY the JSON object, no markdown or explanation.
 
 {
   "missionCriticalSystems": [
@@ -722,9 +807,6 @@ export function buildLLMPromptForBIA(orgProfile: OrgProfile, shodanData: ShodanE
   "recommendations": ["actionable recommendation 1", "..."]
 }
 
-Organization Data:
-${context}
-
 Return ONLY the JSON object, no markdown or explanation.`;
 }
 
@@ -735,6 +817,10 @@ export interface EnrichmentConfig {
   securityTrailsApiKey?: string;
   censysApiId?: string;
   censysApiSecret?: string;
+  /** Optional enrichment context from OSINT pipeline */
+  darkwebContext?: DarkwebBreachContext;
+  companyIntelContext?: CompanyIntelContext;
+  detectedRegulations?: string[];
 }
 
 export interface EnrichmentResult {
@@ -865,7 +951,14 @@ export async function runEnrichmentPipeline(
 
   // Build LLM prompts for further enrichment
   const llmOrgPrompt = buildLLMPromptForOrgProfile(scrapedData, cleanDomain);
-  const llmBiaPrompt = buildLLMPromptForBIA(orgProfile, shodanData, dnsData);
+  const llmBiaPrompt = buildLLMPromptForBIA(
+    orgProfile,
+    shodanData,
+    dnsData,
+    config.darkwebContext,
+    config.companyIntelContext,
+    config.detectedRegulations
+  );
 
   return {
     orgProfile,

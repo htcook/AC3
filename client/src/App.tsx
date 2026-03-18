@@ -111,6 +111,8 @@ const PayloadGenerator = lazyWithRetry(() => import("./pages/PayloadGenerator"))
 const EngagementTimeline = lazyWithRetry(() => import("./pages/EngagementTimeline"));
 const StixExport = lazyWithRetry(() => import("./pages/StixExport"));
 const ClientPortal = lazyWithRetry(() => import("./pages/ClientPortal"));
+const CustomerPortalLogin = lazyWithRetry(() => import("./pages/CustomerPortalLogin"));
+const CustomerPortalDashboard = lazyWithRetry(() => import("./pages/CustomerPortalDashboard"));
 const EmulationPlaybooks = lazyWithRetry(() => import("./pages/EmulationPlaybooks"));
 const EvidenceCollection = lazyWithRetry(() => import("./pages/EvidenceCollection"));
 const AttackPaths = lazyWithRetry(() => import("./pages/AttackPaths"));
@@ -352,7 +354,7 @@ function Router() {
   const [location] = useLocation();
   // Routes that should NOT have the sidebar
   const noSidebarRoutes = ["/", "/overview", "/login", "/404"];
-  const isPortalRoute = location.startsWith("/portal/");
+  const isPortalRoute = location.startsWith("/portal/") || location.startsWith("/customer-");
   const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute;
 
   const routeContent = (
@@ -690,6 +692,8 @@ function Router() {
           <ProtectedRoute component={BiaReport} />
         </Route>
         <Route path="/portal/:token" component={ClientPortal} />
+        <Route path="/customer-login" component={CustomerPortalLogin} />
+        <Route path="/customer-portal" component={CustomerPortalDashboard} />
         <Route path="/cloud-attack-paths">
           <ProtectedRoute component={CloudAttackPaths} />
         </Route>

@@ -344,28 +344,81 @@ Make the phishing content highly realistic and tailored to the target domain and
           stepLog[4] = { ...stepLog[4], status: 'complete', timestamp: Date.now() };
           emitPipelineStep({ pipelineId: input.pipelineId, step: 5, stepName: 'Create GoPhish Campaign', status: 'complete' });
 
-          // Step 5b: Auto-recommend typosquat domains if target is not spoofable
+          // Step 5b: Auto-identify typosquat domains when phishing is in-scope
           try {
-            // Check the most recent OSINT recon for spoofability
-            const { domainRecon } = await import('../../drizzle/schema');
+            const { domainRecon, roeDocuments: roeTable, engagements: engTable } = await import('../../drizzle/schema');
+
+            // Check if phishing is an in-scope item:
+            // 1. Engagement type is 'phishing'
+            // 2. RoE testingTypes/attackVectors include phishing or social_engineering
+            // 3. socialEngineeringAllowed is set
+            let phishingInScope = false;
+            let phishingScopeReason = '';
+
+            // Check engagement type
+            if (riskSummary?.engagement?.id) {
+              const [eng] = await drizzleDb.select().from(engTable)
+                .where(eqOp(engTable.id, riskSummary.engagement.id))
+                .limit(1);
+              if (eng?.engagementType === 'phishing') {
+                phishingInScope = true;
+                phishingScopeReason = 'Engagement type is phishing';
+              }
+            }
+
+            // Check RoE for phishing/social engineering scope
+            if (!phishingInScope) {
+              const roeResults = await drizzleDb.select().from(roeTable)
+                .orderBy(descOp(roeTable.createdAt))
+                .limit(5);
+              for (const roe of roeResults) {
+                const testingTypes = Array.isArray(roe.testingTypes) ? roe.testingTypes : JSON.parse((roe.testingTypes as string) || '[]');
+                const attackVecs = Array.isArray(roe.attackVectors) ? roe.attackVectors : JSON.parse((roe.attackVectors as string) || '[]');
+                const hasPhishingType = testingTypes.some((t: string) => /phish|social/i.test(t));
+                const hasPhishingVector = attackVecs.some((v: string) => /phish|social|credential_harvest/i.test(v));
+                if (hasPhishingType || hasPhishingVector || roe.socialEngineeringAllowed) {
+                  phishingInScope = true;
+                  phishingScopeReason = `RoE #${roe.id}: ${hasPhishingType ? 'phishing testing type' : hasPhishingVector ? 'phishing attack vector' : 'social engineering allowed'}`;
+                  break;
+                }
+              }
+            }
+
+            // Also check pipeline clientType / orgProfile for phishing indicators
+            if (!phishingInScope && pipeline.clientType) {
+              const ct = (pipeline.clientType || '').toLowerCase();
+              if (ct.includes('phish') || ct.includes('social')) {
+                phishingInScope = true;
+                phishingScopeReason = `Pipeline client type indicates phishing: ${pipeline.clientType}`;
+              }
+            }
+
+            // Check spoofability as a secondary trigger (original logic)
             const [latestRecon] = await drizzleDb.select().from(domainRecon)
               .where(eqOp(domainRecon.domain, domains[0] || ''))
               .orderBy(descOp(domainRecon.createdAt))
               .limit(1);
 
-            if (latestRecon && !latestRecon.spoofable && (latestRecon.spoofScore ?? 0) < 50) {
-              // Target has strong email security — recommend typosquat domains
+            const notSpoofable = latestRecon && !latestRecon.spoofable && (latestRecon.spoofScore ?? 0) < 50;
+            if (notSpoofable && !phishingInScope) {
+              phishingInScope = true;
+              phishingScopeReason = `Target has strong email security (spoof score: ${latestRecon.spoofScore}/100) — typosquat recommended`;
+            }
+
+            if (phishingInScope) {
               const { generateTyposquatVariants } = await import('../lib/typosquat');
               const typosquatResult = await generateTyposquatVariants(domains[0], {
                 checkAvailability: true,
-                maxVariants: 10,
-                includeAllTechniques: false,
+                maxVariants: 15,
+                includeAllTechniques: true,
               });
 
               riskSummary.typosquatRecommendation = {
                 needed: true,
-                reason: `Target domain has strong email security (spoof score: ${latestRecon.spoofScore}/100). Typosquat domains recommended for phishing.`,
-                variants: typosquatResult.recommendedVariants.slice(0, 5).map((v: any) => ({
+                reason: phishingScopeReason,
+                spoofable: latestRecon?.spoofable ?? null,
+                spoofScore: latestRecon?.spoofScore ?? null,
+                variants: typosquatResult.recommendedVariants.slice(0, 10).map((v: any) => ({
                   domain: v.domain,
                   technique: v.technique,
                   effectiveness: v.effectiveness,
@@ -373,11 +426,11 @@ Make the phishing content highly realistic and tailored to the target domain and
                 })),
                 totalGenerated: typosquatResult.recommendedVariants.length,
               };
-              console.log(`[Pipeline] Target not spoofable (score: ${latestRecon.spoofScore}). Generated ${typosquatResult.recommendedVariants.length} typosquat recommendations.`);
+              console.log(`[Pipeline] Phishing in scope (${phishingScopeReason}). Generated ${typosquatResult.recommendedVariants.length} typosquat recommendations.`);
             } else {
               riskSummary.typosquatRecommendation = {
                 needed: false,
-                reason: 'Target domain is spoofable — direct email spoofing is viable.',
+                reason: 'Phishing not in scope and target domain is spoofable — typosquat not needed.',
               };
             }
           } catch (typoErr: any) {

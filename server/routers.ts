@@ -16,6 +16,7 @@ import { metasploitCatalogRouter } from "./routers/metasploit-catalog";
 import { engagementTimelineRouter } from "./routers/engagement-timeline";
 import { stixExportRouter } from "./routers/stix-export";
 import { clientPortalRouter } from "./routers/client-portal";
+import { customerPortalRouter } from "./routers/customer-portal";
 import { emulationPlaybooksRouter } from "./routers/emulation-playbooks";
 import { evidenceRouter } from "./routers/evidence";
 import { attackPathsRouter } from "./routers/attack-paths";
@@ -297,6 +298,7 @@ export const appRouter = router({
   engagementTimeline: engagementTimelineRouter,
   stixExport: stixExportRouter,
   clientPortal: clientPortalRouter,
+  customerPortal: customerPortalRouter,
   emulationPlaybooks: emulationPlaybooksRouter,
   evidence: evidenceRouter,
   attackPaths: attackPathsRouter,

@@ -2822,4 +2822,49 @@ Return ONLY a JSON object with vulnerabilities array.`;
           metadata: { phase: state.phase, recordedManually: true },
         });
       }),
+
+    // ─── Credential Harvester Integration ────────────────────────────────
+
+    /** Get all harvested credentials for an engagement */
+    getHarvestedCredentials: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getEngagementCredentials } = await import('../lib/credential-harvester');
+        return getEngagementCredentials(input.engagementId);
+      }),
+
+    /** Manually trigger credential harvesting from existing breach data */
+    harvestCredentials: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        domain: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const { harvestFromExistingFindings } = await import('../lib/credential-harvester');
+        return harvestFromExistingFindings(input.engagementId, input.domain);
+      }),
+
+    /** Add manually entered credentials to the engagement list */
+    addManualCredentials: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        credentials: z.array(z.object({
+          username: z.string().min(1),
+          password: z.string().optional(),
+          email: z.string().optional(),
+          notes: z.string().optional(),
+        })).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const { addManualCredentials } = await import('../lib/credential-harvester');
+        return addManualCredentials(input.engagementId, input.credentials);
+      }),
+
+    /** Run domain-specific darkweb intelligence sync (IntelX, Hudson Rock, LeakCheck) */
+    runDarkwebCredentialSync: protectedProcedure
+      .input(z.object({ domain: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const { runDomainDarkwebSync } = await import('../lib/darkweb-osint-service');
+        return runDomainDarkwebSync(input.domain);
+      }),
   });
