@@ -24,8 +24,8 @@ import {
 // ─── Agent Definitions Tests ────────────────────────────────────────────────
 
 describe("Agent Definitions", () => {
-  it("should export exactly 5 offensive agents", () => {
-    expect(ALL_OFFENSIVE_AGENTS).toHaveLength(5);
+  it("should export exactly 10 offensive agents", () => {
+    expect(ALL_OFFENSIVE_AGENTS).toHaveLength(10);
   });
 
   it("each agent should have required fields", () => {

@@ -1,56 +1,58 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
 import {
   Database, Brain, RefreshCw, BarChart3, Target, CheckCircle2,
-  AlertTriangle, Clock, Loader2, ChevronDown, ChevronUp,
-  GraduationCap, Crosshair, Bug, Zap, Eye, TrendingUp,
-  FileText, Shield, BookOpen, Flame,
+  AlertTriangle, Clock, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
+  GraduationCap, Crosshair, Zap, TrendingUp, Activity,
+  FileText, BookOpen, Cpu, Search, Filter, ArrowUpDown,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
-function verdictColor(verdict: string) {
-  switch (verdict?.toLowerCase()) {
-    case "correct": case "success": return "bg-green-500/20 text-green-400 border-green-500/30";
-    case "partial": case "warning": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-    case "incorrect": case "failure": return "bg-red-500/20 text-red-400 border-red-500/30";
+function outcomeColor(outcome: string) {
+  switch (outcome) {
+    case "success": return "bg-green-500/20 text-green-400 border-green-500/30";
+    case "failure": return "bg-red-500/20 text-red-400 border-red-500/30";
+    case "partial": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case "pending": return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
     default: return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
   }
 }
 
-function categoryColor(cat: string) {
-  switch (cat) {
-    case "vuln_correlation": return "text-cyan-400";
-    case "exploit_planning": return "text-orange-400";
-    case "exploit_outcome": return "text-red-400";
-    case "scan_decision": return "text-blue-400";
-    case "opsec_decision": return "text-yellow-400";
-    default: return "text-zinc-400";
+function qualityColor(quality: string) {
+  switch (quality) {
+    case "high": return "bg-green-500/20 text-green-400 border-green-500/30";
+    case "medium": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    case "low": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case "rejected": return "bg-red-500/20 text-red-400 border-red-500/30";
+    default: return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
   }
 }
 
 export default function TrainingDataDashboard() {
-  const [activeTab, setActiveTab] = useState<"overview" | "decisions" | "examples" | "callers">("overview");
-  const [decisionPage, setDecisionPage] = useState(0);
-  const [examplePage, setExamplePage] = useState(0);
-  const [expandedDecision, setExpandedDecision] = useState<number | null>(null);
-  const [expandedExample, setExpandedExample] = useState<number | null>(null);
-  const [callerFilter, setCallerFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"overview" | "decisions" | "examples" | "telemetry" | "models">("overview");
+  const [windowDays, setWindowDays] = useState(30);
 
-  // Queries
+  const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = trpc.trainingData.getOverview.useQuery({ windowDays });
   const { data: batchStatus, refetch: refetchBatch } = trpc.engagementAutomation.getBatchTrainingStatus.useQuery();
 
-  const stats = batchStatus?.trainingStats;
-  const graduation = batchStatus?.graduationSummary;
-
   const tabs = [
-    { id: "overview", label: "Overview", icon: BarChart3 },
-    { id: "decisions", label: "Decision Log", icon: Brain },
-    { id: "examples", label: "Training Examples", icon: Database },
-    { id: "callers", label: "Caller Analysis", icon: Target },
-  ] as const;
+    { id: "overview" as const, label: "Overview", icon: BarChart3 },
+    { id: "decisions" as const, label: "Decision Log", icon: Brain },
+    { id: "examples" as const, label: "Training Examples", icon: Database },
+    { id: "telemetry" as const, label: "Telemetry", icon: Activity },
+    { id: "models" as const, label: "Model Performance", icon: Cpu },
+  ];
 
   return (
     <AppShell>
@@ -63,32 +65,50 @@ export default function TrainingDataDashboard() {
               Training Data Dashboard
             </h1>
             <p className="text-muted-foreground mt-1">
-              Monitor LLM training data generation from engagements, decision logs, and graduation readiness.
+              Monitor LLM decision logs, training data quality, telemetry metrics, and model learning progress across all engagement operations.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetchBatch()}>
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={String(windowDays)} onValueChange={(v) => setWindowDays(Number(v))}>
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="14">Last 14 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="365">Last year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => { refetchOverview(); refetchBatch(); }}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          <MetricCard icon={Database} label="Training Examples" value={stats?.totalExamples || 0} color="text-purple-400" />
-          <MetricCard icon={Brain} label="Decisions Logged" value={stats?.totalDecisions || 0} color="text-blue-400" />
-          <MetricCard icon={Target} label="Unique Callers" value={Object.keys(stats?.callerBreakdown || {}).length} color="text-cyan-400" />
-          <MetricCard icon={Zap} label="Active Engagements" value={batchStatus?.activeCount || 0} color="text-orange-400" />
-          <MetricCard icon={CheckCircle2} label="Completed" value={batchStatus?.completedCount || 0} color="text-green-400" />
-          <MetricCard icon={GraduationCap} label="Graduation Callers" value={graduation?.totalCallers || 0} color="text-purple-400" />
-        </div>
+        {overview && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+            <MetricCard icon={Brain} label="Decisions" value={overview.decisions.total} color="text-blue-400" />
+            <MetricCard icon={CheckCircle2} label="Success" value={overview.decisions.success} color="text-green-400" />
+            <MetricCard icon={AlertTriangle} label="Failures" value={overview.decisions.failure} color="text-red-400" />
+            <MetricCard icon={Clock} label="Avg Latency" value={`${overview.decisions.avgLatencyMs}ms`} color="text-yellow-400" />
+            <MetricCard icon={Database} label="Training Ex." value={overview.trainingExamples.total} color="text-purple-400" />
+            <MetricCard icon={GraduationCap} label="High Quality" value={overview.trainingExamples.high} color="text-green-400" />
+            <MetricCard icon={Activity} label="LLM Calls" value={overview.telemetry.totalCalls} color="text-cyan-400" />
+            <MetricCard icon={Zap} label="Error Rate" value={`${overview.telemetry.errorRate}%`} color="text-orange-400" />
+          </div>
+        )}
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-border">
+        <div className="flex gap-1 border-b border-border overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? "border-purple-400 text-purple-400"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -101,42 +121,35 @@ export default function TrainingDataDashboard() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === "overview" && (
-          <OverviewTab stats={stats} graduation={graduation} batchStatus={batchStatus} />
-        )}
-        {activeTab === "decisions" && (
-          <DecisionLogTab
-            expandedDecision={expandedDecision}
-            setExpandedDecision={setExpandedDecision}
-            batchStatus={batchStatus}
-          />
-        )}
-        {activeTab === "examples" && (
-          <TrainingExamplesTab
-            expandedExample={expandedExample}
-            setExpandedExample={setExpandedExample}
-            stats={stats}
-          />
-        )}
-        {activeTab === "callers" && (
-          <CallerAnalysisTab stats={stats} graduation={graduation} />
-        )}
+        {activeTab === "overview" && <OverviewTab overview={overview} batchStatus={batchStatus} windowDays={windowDays} />}
+        {activeTab === "decisions" && <DecisionLogTab />}
+        {activeTab === "examples" && <TrainingExamplesTab />}
+        {activeTab === "telemetry" && <TelemetryTab windowDays={windowDays} />}
+        {activeTab === "models" && <ModelPerformanceTab windowDays={windowDays} />}
       </div>
     </AppShell>
   );
 }
 
-function MetricCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+function MetricCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number | string; color: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-center">
       <Icon className={`h-4 w-4 mx-auto mb-1 ${color}`} />
-      <div className="text-lg font-bold">{value.toLocaleString()}</div>
+      <div className="text-lg font-bold">{typeof value === 'number' ? value.toLocaleString() : value}</div>
       <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
     </div>
   );
 }
 
-function OverviewTab({ stats, graduation, batchStatus }: any) {
+// ─── Overview Tab ──────────────────────────────────────────────────────────
+
+function OverviewTab({ overview, batchStatus, windowDays }: { overview: any; batchStatus: any; windowDays: number }) {
+  const { data: confidenceTrends } = trpc.trainingData.getConfidenceTrends.useQuery({ windowDays });
+  const { data: outcomeDistribution } = trpc.trainingData.getOutcomeDistribution.useQuery({ windowDays, groupBy: 'day' });
+  const { data: qualityDist } = trpc.trainingData.getTrainingQualityDistribution.useQuery();
+
+  const graduation = batchStatus?.graduationSummary;
+
   return (
     <div className="space-y-6">
       {/* Graduation Tiers */}
@@ -165,68 +178,45 @@ function OverviewTab({ stats, graduation, batchStatus }: any) {
         </div>
       )}
 
-      {/* Caller Breakdown */}
-      {stats?.callerBreakdown && Object.keys(stats.callerBreakdown).length > 0 && (
+      {/* Confidence / Success Rate Trends */}
+      {confidenceTrends && confidenceTrends.daily.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-            <Target className="h-4 w-4 text-cyan-400" />
-            Training Data by Caller
-          </h3>
-          <div className="space-y-2">
-            {Object.entries(stats.callerBreakdown)
-              .sort(([, a], [, b]) => (b as number) - (a as number))
-              .map(([caller, count]) => {
-                const maxCount = Math.max(...Object.values(stats.callerBreakdown as Record<string, number>));
-                const pct = maxCount > 0 ? ((count as number) / maxCount) * 100 : 0;
-                return (
-                  <div key={caller} className="flex items-center gap-3">
-                    <div className="w-48 text-sm font-mono truncate">{caller}</div>
-                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-purple-500 rounded-full transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="w-16 text-right text-sm font-medium">{(count as number).toLocaleString()}</div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
-
-      {/* Engagement Training Summary */}
-      {batchStatus?.engagements && batchStatus.engagements.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-            <Crosshair className="h-4 w-4 text-orange-400" />
-            Engagement Training Data
+            <TrendingUp className="h-4 w-4 text-cyan-400" />
+            Model Learning Progress (Daily)
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs">
-                  <th className="text-left py-2 px-3">Engagement</th>
-                  <th className="text-left py-2 px-3">Target</th>
-                  <th className="text-center py-2 px-3">Phase</th>
-                  <th className="text-center py-2 px-3">Vulns</th>
-                  <th className="text-center py-2 px-3">Exploits</th>
-                  <th className="text-center py-2 px-3">Success</th>
-                  <th className="text-center py-2 px-3">Progress</th>
+                  <th className="text-left py-2 px-3">Date</th>
+                  <th className="text-center py-2 px-3">Decisions</th>
+                  <th className="text-center py-2 px-3">Success Rate</th>
+                  <th className="text-center py-2 px-3">Avg Stealth</th>
+                  <th className="text-center py-2 px-3">Avg Latency</th>
+                  <th className="text-left py-2 px-3">Success Trend</th>
                 </tr>
               </thead>
               <tbody>
-                {batchStatus.engagements.slice(0, 20).map((eng: any) => (
-                  <tr key={eng.engagementId} className="border-b border-border/50 hover:bg-muted/20">
-                    <td className="py-2 px-3 font-medium truncate max-w-48">{eng.name}</td>
-                    <td className="py-2 px-3 text-muted-foreground">{eng.target}</td>
+                {confidenceTrends.daily.map((d: any) => (
+                  <tr key={d.day} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="py-2 px-3 font-mono text-xs">{d.day}</td>
+                    <td className="py-2 px-3 text-center">{d.decisionCount}</td>
                     <td className="py-2 px-3 text-center">
-                      <Badge variant="outline" className="text-[10px]">{eng.opsPhase}</Badge>
+                      <span className={d.successRate >= 80 ? "text-green-400" : d.successRate >= 60 ? "text-yellow-400" : "text-red-400"}>
+                        {d.successRate}%
+                      </span>
                     </td>
-                    <td className="py-2 px-3 text-center">{eng.vulnsFound}</td>
-                    <td className="py-2 px-3 text-center">{eng.exploitsRun}</td>
-                    <td className="py-2 px-3 text-center text-green-400">{eng.exploitsSucceeded}</td>
-                    <td className="py-2 px-3 text-center">{eng.progress}%</td>
+                    <td className="py-2 px-3 text-center">{d.avgStealth}</td>
+                    <td className="py-2 px-3 text-center">{d.avgLatencyMs}ms</td>
+                    <td className="py-2 px-3">
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${d.successRate >= 80 ? "bg-green-500" : d.successRate >= 60 ? "bg-yellow-500" : "bg-red-500"}`}
+                          style={{ width: `${Math.min(d.successRate, 100)}%` }}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -235,94 +225,235 @@ function OverviewTab({ stats, graduation, batchStatus }: any) {
         </div>
       )}
 
+      {/* Caller-Level Accuracy */}
+      {confidenceTrends && confidenceTrends.callerTrends.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+            <Target className="h-4 w-4 text-orange-400" />
+            Accuracy by LLM Caller
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-xs">
+                  <th className="text-left py-2 px-3">Caller</th>
+                  <th className="text-center py-2 px-3">Decisions</th>
+                  <th className="text-center py-2 px-3">Success Rate</th>
+                  <th className="text-center py-2 px-3">Avg Stealth</th>
+                  <th className="text-center py-2 px-3">Avg Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {confidenceTrends.callerTrends.map((c: any) => (
+                  <tr key={c.caller} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="py-2 px-3 font-mono text-xs truncate max-w-48">{c.caller}</td>
+                    <td className="py-2 px-3 text-center">{c.total}</td>
+                    <td className="py-2 px-3 text-center">
+                      <span className={c.successRate >= 80 ? "text-green-400" : c.successRate >= 60 ? "text-yellow-400" : "text-red-400"}>
+                        {c.successRate}%
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">{c.avgStealth}</td>
+                    <td className="py-2 px-3 text-center">{c.avgLatencyMs}ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Training Quality Distribution */}
+      {qualityDist && (qualityDist.bySource.length > 0 || qualityDist.byModel.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {qualityDist.bySource.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                <BookOpen className="h-4 w-4 text-purple-400" />
+                Training Quality by Source
+              </h3>
+              <div className="space-y-2">
+                {qualityDist.bySource.map((r: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-2 rounded bg-muted/20">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px]">{r.source}</Badge>
+                      <Badge className={`text-[10px] ${qualityColor(r.quality)}`}>{r.quality}</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span>{r.count} examples</span>
+                      <span className="text-muted-foreground">avg: {r.avgScore}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {qualityDist.byModel.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                <Cpu className="h-4 w-4 text-cyan-400" />
+                Training Quality by Model
+              </h3>
+              <div className="space-y-2">
+                {qualityDist.byModel.map((r: any) => (
+                  <div key={r.model} className="flex items-center justify-between p-2 rounded bg-muted/20">
+                    <span className="font-mono text-xs">{r.model}</span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span>{r.count} total</span>
+                      <span className="text-green-400">{r.highCount} high</span>
+                      <span className="text-muted-foreground">avg: {r.avgScore}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Empty State */}
-      {(!stats || (stats.totalExamples === 0 && stats.totalDecisions === 0)) && (
+      {(!overview || (overview.decisions.total === 0 && overview.trainingExamples.total === 0 && overview.telemetry.totalCalls === 0)) && (
         <div className="text-center py-16 text-muted-foreground">
           <Database className="h-12 w-12 mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium">No training data yet</p>
-          <p className="text-sm mt-1">Launch batch training runs to generate LLM training examples and decision logs.</p>
+          <p className="text-sm mt-1">Launch engagements and use the AI chat to generate LLM decision logs and training examples.</p>
         </div>
       )}
     </div>
   );
 }
 
-function DecisionLogTab({ expandedDecision, setExpandedDecision, batchStatus }: any) {
-  // Show engagement-level decision data from the batch status
-  const engagements = batchStatus?.engagements || [];
+// ─── Decision Log Tab ──────────────────────────────────────────────────────
+
+function DecisionLogTab() {
+  const [page, setPage] = useState(1);
+  const [outcomeFilter, setOutcomeFilter] = useState<string>("all");
+  const [callerSearch, setCallerSearch] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data, isLoading } = trpc.trainingData.listDecisions.useQuery({
+    page,
+    pageSize: 25,
+    outcome: outcomeFilter as any,
+    caller: callerSearch || undefined,
+    phase: phaseFilter || undefined,
+  });
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-          <Brain className="h-4 w-4 text-blue-400" />
-          LLM Decision Log
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Every LLM decision during engagements is captured with full context — the input state, the decision made,
-          the reasoning, and the eventual outcome. This data feeds directly into the training pipeline and graduation engine.
-        </p>
-
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-              <div className="text-sm font-medium flex items-center gap-2">
-                <Eye className="h-4 w-4 text-cyan-400" />
-                Vuln Correlation Decisions
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                LLM correlates scanner findings with engagement observations to recommend exploitation strategy.
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
-              <div className="text-sm font-medium flex items-center gap-2">
-                <Crosshair className="h-4 w-4 text-orange-400" />
-                Exploitation Plan Decisions
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                LLM selects targets, techniques, and tools for exploitation based on vulnerability analysis.
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-              <div className="text-sm font-medium flex items-center gap-2">
-                <Flame className="h-4 w-4 text-red-400" />
-                Exploit Outcome Feedback
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Success/failure of each exploit attempt is captured and linked back to the planning decision.
-              </div>
-            </div>
+      {/* Filters */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters</span>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="w-40">
+            <Select value={outcomeFilter} onValueChange={v => { setOutcomeFilter(v); setPage(1); }}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Outcome" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Outcomes</SelectItem>
+                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="failure">Failure</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-48">
+            <Input
+              placeholder="Search caller..."
+              value={callerSearch}
+              onChange={e => { setCallerSearch(e.target.value); setPage(1); }}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="w-40">
+            <Input
+              placeholder="Phase filter..."
+              value={phaseFilter}
+              onChange={e => { setPhaseFilter(e.target.value); setPage(1); }}
+              className="h-8 text-xs"
+            />
           </div>
         </div>
+      </div>
 
-        {/* Engagement-level decision counts */}
-        {engagements.length > 0 && (
-          <div className="mt-6">
-            <h4 className="text-xs font-medium text-muted-foreground mb-3">Decision Data by Engagement</h4>
-            <div className="space-y-2">
-              {engagements.filter((e: any) => e.vulnsFound > 0 || e.exploitsRun > 0).map((eng: any) => (
-                <div key={eng.engagementId} className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{eng.name}</div>
-                    <div className="text-xs text-muted-foreground">{eng.target}</div>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="flex items-center gap-1">
-                      <Bug className="h-3 w-3 text-yellow-400" />
-                      {eng.vulnsFound} vulns
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Crosshair className="h-3 w-3 text-orange-400" />
-                      {eng.exploitsRun} exploits
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-400" />
-                      {eng.exploitsSucceeded} success
-                    </span>
-                  </div>
-                </div>
-              ))}
+      {/* Decision Table */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Brain className="h-4 w-4 text-blue-400" />
+            LLM Decision Log ({data?.total || 0} total)
+          </h3>
+          {data && data.totalPages > 1 && (
+            <div className="flex items-center gap-2 text-xs">
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                <ChevronLeft className="h-3 w-3" />
+              </Button>
+              <span className="text-muted-foreground">Page {page} of {data.totalPages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={page >= data.totalPages} onClick={() => setPage(p => p + 1)}>
+                <ChevronRight className="h-3 w-3" />
+              </Button>
             </div>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : data && data.rows.length > 0 ? (
+          <div className="space-y-2">
+            {data.rows.map((row: any) => (
+              <div key={row.id} className="border border-border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center gap-3 p-3 hover:bg-muted/20 text-left"
+                  onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                >
+                  <Badge className={`text-[10px] ${outcomeColor(row.outcome)}`}>{row.outcome}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground truncate max-w-32">{row.caller}</span>
+                  <Badge variant="outline" className="text-[10px]">{row.phase}</Badge>
+                  <span className="flex-1 text-sm truncate">{row.decision?.slice(0, 80)}</span>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">{row.createdAt?.slice(0, 16)}</span>
+                  {expandedId === row.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {expandedId === row.id && (
+                  <div className="border-t border-border p-4 bg-muted/10 space-y-3 text-sm">
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">Decision:</span>
+                      <p className="mt-1 whitespace-pre-wrap">{row.decision}</p>
+                    </div>
+                    {row.reasoning && (
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">Reasoning:</span>
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{row.reasoning}</p>
+                      </div>
+                    )}
+                    {row.contextSummary && (
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">Context:</span>
+                        <p className="mt-1 whitespace-pre-wrap text-muted-foreground text-xs">{row.contextSummary}</p>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                      {row.stealthScore != null && <span>Stealth: <strong className="text-foreground">{row.stealthScore}</strong></span>}
+                      {row.latencyMs != null && <span>Latency: <strong className="text-foreground">{row.latencyMs}ms</strong></span>}
+                      {row.tokensUsed != null && <span>Tokens: <strong className="text-foreground">{row.tokensUsed}</strong></span>}
+                      <span>Engagement: <strong className="text-foreground">#{row.engagementId}</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            <Brain className="h-8 w-8 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No decisions match the current filters.</p>
           </div>
         )}
       </div>
@@ -330,42 +461,139 @@ function DecisionLogTab({ expandedDecision, setExpandedDecision, batchStatus }: 
   );
 }
 
-function TrainingExamplesTab({ expandedExample, setExpandedExample, stats }: any) {
+// ─── Training Examples Tab ─────────────────────────────────────────────────
+
+function TrainingExamplesTab() {
+  const [page, setPage] = useState(1);
+  const [qualityFilter, setQualityFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [modelSearch, setModelSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const { data, isLoading } = trpc.trainingData.listTrainingExamples.useQuery({
+    page,
+    pageSize: 25,
+    quality: qualityFilter as any,
+    source: sourceFilter as any,
+    model: modelSearch || undefined,
+  });
+
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-          <Database className="h-4 w-4 text-purple-400" />
-          Training Examples ({stats?.totalExamples || 0})
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Training examples are structured input/output pairs extracted from engagement decisions.
-          Each example captures the context (system state, available data), the LLM's decision, and the ground truth outcome.
-          These are used to fine-tune specialist models and evaluate graduation readiness.
-        </p>
-
-        {/* Caller breakdown as training data sources */}
-        {stats?.callerBreakdown && Object.keys(stats.callerBreakdown).length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-xs font-medium text-muted-foreground">Examples by Source Caller</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {Object.entries(stats.callerBreakdown)
-                .sort(([, a], [, b]) => (b as number) - (a as number))
-                .map(([caller, count]) => (
-                  <div key={caller} className="p-3 rounded-lg bg-muted/20 border border-border">
-                    <div className="text-sm font-mono truncate" title={caller}>{caller}</div>
-                    <div className="text-lg font-bold mt-1">{(count as number).toLocaleString()}</div>
-                    <div className="text-[10px] text-muted-foreground">examples</div>
-                  </div>
-                ))}
-            </div>
+      {/* Filters */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filters</span>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="w-40">
+            <Select value={qualityFilter} onValueChange={v => { setQualityFilter(v); setPage(1); }}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Quality" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Quality</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+          <div className="w-44">
+            <Select value={sourceFilter} onValueChange={v => { setSourceFilter(v); setPage(1); }}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="lab_scenario">Lab Scenario</SelectItem>
+                <SelectItem value="live_engagement">Live Engagement</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="synthetic">Synthetic</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-48">
+            <Input
+              placeholder="Search model..."
+              value={modelSearch}
+              onChange={e => { setModelSearch(e.target.value); setPage(1); }}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      </div>
 
-        {(!stats || stats.totalExamples === 0) && (
-          <div className="text-center py-8 text-muted-foreground">
+      {/* Examples Table */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Database className="h-4 w-4 text-purple-400" />
+            Training Examples ({data?.total || 0} total)
+          </h3>
+          {data && data.totalPages > 1 && (
+            <div className="flex items-center gap-2 text-xs">
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                <ChevronLeft className="h-3 w-3" />
+              </Button>
+              <span className="text-muted-foreground">Page {page} of {data.totalPages}</span>
+              <Button variant="outline" size="sm" className="h-7 px-2" disabled={page >= data.totalPages} onClick={() => setPage(p => p + 1)}>
+                <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : data && data.rows.length > 0 ? (
+          <div className="space-y-2">
+            {data.rows.map((row: any) => (
+              <div key={row.id} className="border border-border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center gap-3 p-3 hover:bg-muted/20 text-left"
+                  onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                >
+                  <Badge className={`text-[10px] ${qualityColor(row.quality)}`}>{row.quality}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{row.source}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground">{row.model}</span>
+                  <span className="flex-1 text-sm truncate">{row.exampleId}</span>
+                  <span className="text-xs text-muted-foreground">Score: {row.qualityScore?.toFixed(2)}</span>
+                  {expandedId === row.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {expandedId === row.id && (
+                  <div className="border-t border-border p-4 bg-muted/10 space-y-3 text-sm">
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground">Messages:</span>
+                      <pre className="mt-1 text-xs bg-muted/30 p-3 rounded overflow-x-auto max-h-64">
+                        {JSON.stringify(row.messages, null, 2)}
+                      </pre>
+                    </div>
+                    {row.metadata && (
+                      <div>
+                        <span className="text-xs font-medium text-muted-foreground">Metadata:</span>
+                        <pre className="mt-1 text-xs bg-muted/30 p-3 rounded overflow-x-auto max-h-32">
+                          {JSON.stringify(row.metadata, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                      <span>Source ID: <strong className="text-foreground">{row.sourceId || 'N/A'}</strong></span>
+                      <span>Created: <strong className="text-foreground">{row.createdAt}</strong></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
             <Database className="h-8 w-8 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No training examples yet. Run batch training to generate data.</p>
+            <p className="text-sm">No training examples match the current filters.</p>
           </div>
         )}
       </div>
@@ -373,67 +601,184 @@ function TrainingExamplesTab({ expandedExample, setExpandedExample, stats }: any
   );
 }
 
-function CallerAnalysisTab({ stats, graduation }: any) {
-  const callers = Object.entries(stats?.callerBreakdown || {}).sort(([, a], [, b]) => (b as number) - (a as number));
+// ─── Telemetry Tab ─────────────────────────────────────────────────────────
+
+function TelemetryTab({ windowDays }: { windowDays: number }) {
+  const { data, isLoading } = trpc.trainingData.getTelemetryTrends.useQuery({ windowDays });
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-          <Target className="h-4 w-4 text-cyan-400" />
-          LLM Caller Analysis
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Each LLM caller represents a specialist function (vuln correlation, exploit planning, scan decision, etc.).
-          The graduation engine evaluates each caller independently based on success rate and call volume.
-        </p>
+    <div className="space-y-6">
+      {/* Daily Telemetry */}
+      {data && data.daily.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+            <Activity className="h-4 w-4 text-cyan-400" />
+            Daily LLM Telemetry
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-xs">
+                  <th className="text-left py-2 px-3">Date</th>
+                  <th className="text-center py-2 px-3">Calls</th>
+                  <th className="text-center py-2 px-3">Errors</th>
+                  <th className="text-center py-2 px-3">Error Rate</th>
+                  <th className="text-center py-2 px-3">Avg Latency</th>
+                  <th className="text-center py-2 px-3">Tokens In</th>
+                  <th className="text-center py-2 px-3">Tokens Out</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.daily.map((d: any) => (
+                  <tr key={d.day} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="py-2 px-3 font-mono text-xs">{d.day}</td>
+                    <td className="py-2 px-3 text-center">{d.totalCalls.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-red-400">{d.errors}</td>
+                    <td className="py-2 px-3 text-center">
+                      <span className={d.errorRate > 5 ? "text-red-400" : d.errorRate > 1 ? "text-yellow-400" : "text-green-400"}>
+                        {d.errorRate}%
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">{d.avgLatencyMs}ms</td>
+                    <td className="py-2 px-3 text-center text-muted-foreground">{d.totalTokensIn.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-muted-foreground">{d.totalTokensOut.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-        {callers.length > 0 ? (
+      {/* Top Callers by Usage */}
+      {data && data.topCallers.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+            <Target className="h-4 w-4 text-orange-400" />
+            Top LLM Callers by Usage
+          </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs">
                   <th className="text-left py-2 px-3">Caller</th>
-                  <th className="text-center py-2 px-3">Training Examples</th>
-                  <th className="text-center py-2 px-3">Est. Tier</th>
-                  <th className="text-left py-2 px-3">Status</th>
+                  <th className="text-center py-2 px-3">Calls</th>
+                  <th className="text-center py-2 px-3">Errors</th>
+                  <th className="text-center py-2 px-3">Error Rate</th>
+                  <th className="text-center py-2 px-3">Avg Latency</th>
+                  <th className="text-center py-2 px-3">Tokens In</th>
+                  <th className="text-center py-2 px-3">Tokens Out</th>
                 </tr>
               </thead>
               <tbody>
-                {callers.map(([caller, count]) => {
-                  const c = count as number;
-                  let tier = "Tier 4";
-                  let tierColor = "text-orange-400";
-                  if (c >= 500) { tier = "Tier 1"; tierColor = "text-green-400"; }
-                  else if (c >= 200) { tier = "Tier 2"; tierColor = "text-blue-400"; }
-                  else if (c >= 50) { tier = "Tier 3"; tierColor = "text-yellow-400"; }
-                  return (
-                    <tr key={caller} className="border-b border-border/50 hover:bg-muted/20">
-                      <td className="py-2 px-3 font-mono text-sm">{caller}</td>
-                      <td className="py-2 px-3 text-center font-medium">{c.toLocaleString()}</td>
-                      <td className="py-2 px-3 text-center">
-                        <span className={`font-medium ${tierColor}`}>{tier}</span>
-                      </td>
-                      <td className="py-2 px-3">
-                        <Badge variant="outline" className={`text-[10px] ${
-                          c >= 500 ? "border-green-500/30 text-green-400" :
-                          c >= 200 ? "border-blue-500/30 text-blue-400" :
-                          c >= 50 ? "border-yellow-500/30 text-yellow-400" :
-                          "border-orange-500/30 text-orange-400"
-                        }`}>
-                          {c >= 500 ? "Production Ready" : c >= 200 ? "Supervised" : c >= 50 ? "Training" : "Needs More Data"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {data.topCallers.map((c: any) => (
+                  <tr key={c.caller} className="border-b border-border/50 hover:bg-muted/20">
+                    <td className="py-2 px-3 font-mono text-xs truncate max-w-48">{c.caller}</td>
+                    <td className="py-2 px-3 text-center">{c.totalCalls.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-red-400">{c.errors}</td>
+                    <td className="py-2 px-3 text-center">
+                      <span className={c.errorRate > 5 ? "text-red-400" : c.errorRate > 1 ? "text-yellow-400" : "text-green-400"}>
+                        {c.errorRate}%
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">{c.avgLatencyMs}ms</td>
+                    <td className="py-2 px-3 text-center text-muted-foreground">{c.totalTokensIn.toLocaleString()}</td>
+                    <td className="py-2 px-3 text-center text-muted-foreground">{c.totalTokensOut.toLocaleString()}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!isLoading && data && data.daily.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Activity className="h-12 w-12 mx-auto mb-4 opacity-30" />
+          <p className="text-lg font-medium">No telemetry data</p>
+          <p className="text-sm mt-1">LLM call telemetry will appear here as the platform processes requests.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Model Performance Tab ─────────────────────────────────────────────────
+
+function ModelPerformanceTab({ windowDays }: { windowDays: number }) {
+  const { data, isLoading } = trpc.trainingData.getModelPerformance.useQuery({ windowDays });
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+          <Cpu className="h-4 w-4 text-cyan-400" />
+          Model Performance Comparison
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Compare model performance across all LLM calls in the selected time window. Metrics include success rate, latency, token usage, and retry frequency.
+        </p>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : data && data.length > 0 ? (
+          <div className="space-y-4">
+            {data.map((m: any) => (
+              <div key={m.model} className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-cyan-400" />
+                    <span className="font-mono text-sm font-medium">{m.model}</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">{m.totalCalls.toLocaleString()} calls</Badge>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                  <div className="text-center">
+                    <div className={`text-lg font-bold ${m.successRate >= 95 ? "text-green-400" : m.successRate >= 85 ? "text-yellow-400" : "text-red-400"}`}>
+                      {m.successRate}%
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">Success Rate</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-red-400">{m.errors}</div>
+                    <div className="text-[10px] text-muted-foreground">Errors</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold">{m.avgLatencyMs}ms</div>
+                    <div className="text-[10px] text-muted-foreground">Avg Latency</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold">{m.p95LatencyMs}ms</div>
+                    <div className="text-[10px] text-muted-foreground">P95 Latency</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold">{m.avgTokensIn}</div>
+                    <div className="text-[10px] text-muted-foreground">Avg Tokens In</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold">{m.avgTokensOut}</div>
+                    <div className="text-[10px] text-muted-foreground">Avg Tokens Out</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-yellow-400">{m.totalRetries}</div>
+                    <div className="text-[10px] text-muted-foreground">Retries</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Target className="h-8 w-8 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No caller data yet. Run training engagements to populate.</p>
+          <div className="text-center py-12 text-muted-foreground">
+            <Cpu className="h-8 w-8 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No model performance data available for this time window.</p>
           </div>
         )}
       </div>
