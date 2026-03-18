@@ -536,6 +536,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         engagementId: _engagementId,
       });
 
+      // Fire-and-forget shadow testing — never blocks the primary response
+      if (_caller && !_caller.startsWith('shadow-test:')) {
+        import("../lib/shadow-testing").then(async ({ shouldShadowTest, executeShadowTest }) => {
+          try {
+            const shadowConfig = await shouldShadowTest(_caller || 'unknown', _priority);
+            if (shadowConfig) {
+              executeShadowTest(shadowConfig, params, result).catch(() => {});
+            }
+          } catch { /* shadow testing must never break the caller */ }
+        }).catch(() => {});
+      }
+
       return result;
     } catch (err: any) {
       clearTimeout(timeoutId);

@@ -148,6 +148,7 @@ export async function executeNexusPipeline(
       executionId, 'requirement_analysis', cfg,
       async (attempt) => {
         const resp = await invokeLLM({
+          _caller: `nexus-pipeline:requirement-analysis:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -198,7 +199,6 @@ Output a JSON object with these fields:
               },
             },
           },
-          _caller: `nexus-pipeline:requirement-analysis:${callerName}`,
         });
         tokensConsumed += resp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -214,6 +214,7 @@ Output a JSON object with these fields:
       executionId, 'architecture', cfg,
       async (attempt) => {
         const resp = await invokeLLM({
+          _caller: `nexus-pipeline:architecture:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -254,7 +255,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:architecture:${callerName}`,
         });
         tokensConsumed += resp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -270,6 +270,7 @@ Output a JSON object with:
       executionId, 'code_generation', cfg,
       async (attempt) => {
         const resp = await invokeLLM({
+          _caller: `nexus-pipeline:code-generation:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -309,7 +310,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:code-generation:${callerName}`,
         });
         tokensConsumed += resp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -326,6 +326,7 @@ Output a JSON object with:
       async (attempt) => {
         // 4a: Generate tests
         const testResp = await invokeLLM({
+          _caller: `nexus-pipeline:qa-test-gen:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -363,7 +364,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:qa-test-gen:${callerName}`,
         });
         tokensConsumed += testResp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -372,6 +372,7 @@ Output a JSON object with:
 
         // 4b: LLM-as-Judge evaluation
         const judgeResp = await invokeLLM({
+          _caller: `nexus-pipeline:qa-judge:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -437,7 +438,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:qa-judge:${callerName}`,
         });
         tokensConsumed += judgeResp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -487,6 +487,7 @@ Output a JSON object with:
       executionId, 'security_review', cfg,
       async (attempt) => {
         const resp = await invokeLLM({
+          _caller: `nexus-pipeline:security-review:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -543,7 +544,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:security-review:${callerName}`,
         });
         tokensConsumed += resp.usage?.total_tokens ?? 0;
         llmCallsCount++;
@@ -581,6 +581,7 @@ Output a JSON object with:
       executionId, 'integration_test', cfg,
       async (attempt) => {
         const resp = await invokeLLM({
+          _caller: `nexus-pipeline:integration-test:${callerName}`,
           messages: [
             {
               role: 'system',
@@ -634,7 +635,6 @@ Output a JSON object with:
               },
             },
           },
-          _caller: `nexus-pipeline:integration-test:${callerName}`,
         });
         tokensConsumed += resp.usage?.total_tokens ?? 0;
         llmCallsCount++;

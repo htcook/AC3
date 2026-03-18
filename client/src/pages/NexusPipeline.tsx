@@ -8,11 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Workflow, Play, Search, CheckCircle2, XCircle, Clock,
   ArrowRight, RefreshCw, BarChart3, Layers, Shield,
   ChevronRight, Zap, TrendingUp, FileText, Code2, Eye,
+  FlaskConical, Plus, Trash2, Settings, Scale,
 } from "lucide-react";
 
 const STAGE_ICONS: Record<string, any> = {
@@ -33,12 +36,57 @@ const STATUS_COLORS: Record<string, string> = {
   paused: "bg-yellow-500/20 text-yellow-400",
 };
 
+const VERDICT_COLORS: Record<string, string> = {
+  primary_better: "bg-blue-500/20 text-blue-400",
+  experimental_better: "bg-emerald-500/20 text-emerald-400",
+  tie: "bg-amber-500/20 text-amber-400",
+  error: "bg-red-500/20 text-red-400",
+};
+
 const STAGE_ORDER = [
   "requirement_analysis", "architecture", "code_generation",
   "qa_validation", "security_review", "integration_test",
 ];
 
 export default function NexusPipeline() {
+  const [activeTab, setActiveTab] = useState("pipeline");
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Workflow className="h-7 w-7 text-purple-400" />
+          NEXUS Pipeline
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Multi-stage code generation pipeline with LLM-as-Judge quality gates and A/B shadow testing
+        </p>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="pipeline" className="gap-1.5"><Workflow className="h-3.5 w-3.5" /> Pipeline</TabsTrigger>
+          <TabsTrigger value="shadow" className="gap-1.5"><FlaskConical className="h-3.5 w-3.5" /> Shadow Testing</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pipeline" className="mt-4">
+          <PipelineTab />
+        </TabsContent>
+
+        <TabsContent value="shadow" className="mt-4">
+          <ShadowTestingTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Tab (existing functionality)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PipelineTab() {
   const [search, setSearch] = useState("");
   const [selectedExecution, setSelectedExecution] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -77,25 +125,14 @@ export default function NexusPipeline() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Workflow className="h-7 w-7 text-purple-400" />
-            NEXUS Pipeline
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Multi-stage code generation pipeline with LLM-as-Judge quality gates — converts AI skills into executable code
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-          </Button>
-          <Button size="sm" onClick={() => setNewPipelineOpen(true)}>
-            <Play className="h-4 w-4 mr-1" /> New Execution
-          </Button>
-        </div>
+      {/* Actions */}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+        </Button>
+        <Button size="sm" onClick={() => setNewPipelineOpen(true)}>
+          <Play className="h-4 w-4 mr-1" /> New Execution
+        </Button>
       </div>
 
       {/* Stats */}
@@ -229,7 +266,7 @@ export default function NexusPipeline() {
                         </div>
                       )}
                       {/* Stage progress dots */}
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-1">
                         {STAGE_ORDER.map((s) => {
                           const stageData = stageHistory.find((st: any) => st.stage === s);
                           let color = "bg-zinc-700";
@@ -308,10 +345,499 @@ export default function NexusPipeline() {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Shadow Testing Tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ShadowTestingTab() {
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<any>(null);
+
+  const utils = trpc.useUtils();
+  const { data: configsData, isLoading: configsLoading } = trpc.agentRegistry.listShadowConfigs.useQuery();
+  const configs = configsData?.configs ?? [];
+
+  const { data: analyticsData } = trpc.agentRegistry.getShadowAnalytics.useQuery(undefined);
+  const { data: testsData } = trpc.agentRegistry.listShadowTests.useQuery(undefined);
+  const recentTests = testsData?.tests ?? [];
+
+  const upsertMutation = trpc.agentRegistry.upsertShadowConfig.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Shadow config ${result.action}`);
+      utils.agentRegistry.listShadowConfigs.invalidate();
+      setConfigDialogOpen(false);
+      setEditingConfig(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const toggleMutation = trpc.agentRegistry.toggleShadowConfig.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Shadow testing ${result.enabled ? "enabled" : "disabled"}`);
+      utils.agentRegistry.listShadowConfigs.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.agentRegistry.deleteShadowConfig.useMutation({
+    onSuccess: () => {
+      toast.success("Shadow config deleted");
+      utils.agentRegistry.listShadowConfigs.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Compute verdict summary
+  const verdictSummary = useMemo(() => {
+    if (!analyticsData?.verdicts) return { primaryWins: 0, experimentalWins: 0, ties: 0, errors: 0, total: 0 };
+    let primaryWins = 0, experimentalWins = 0, ties = 0, errors = 0;
+    for (const v of analyticsData.verdicts) {
+      if (v.verdict === 'primary_better') primaryWins = v.count;
+      else if (v.verdict === 'experimental_better') experimentalWins = v.count;
+      else if (v.verdict === 'tie') ties = v.count;
+      else if (v.verdict === 'error') errors = v.count;
+    }
+    return { primaryWins, experimentalWins, ties, errors, total: primaryWins + experimentalWins + ties + errors };
+  }, [analyticsData]);
+
+  return (
+    <div className="space-y-6">
+      {/* Shadow Testing Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FlaskConical className="h-5 w-5 text-cyan-400" />
+            Shadow Testing — A/B Model Comparison
+          </h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Route a percentage of LLM requests to experimental models for side-by-side quality comparison
+          </p>
+        </div>
+        <Button size="sm" onClick={() => { setEditingConfig(null); setConfigDialogOpen(true); }}>
+          <Plus className="h-4 w-4 mr-1" /> New Config
+        </Button>
+      </div>
+
+      {/* Verdict Summary Stats */}
+      <div className="grid grid-cols-5 gap-4">
+        {[
+          { label: "Total Tests", value: verdictSummary.total, icon: FlaskConical, color: "text-cyan-400/40" },
+          { label: "Primary Wins", value: verdictSummary.primaryWins, icon: Shield, color: "text-blue-400/40", textColor: "text-blue-400" },
+          { label: "Experimental Wins", value: verdictSummary.experimentalWins, icon: Zap, color: "text-emerald-400/40", textColor: "text-emerald-400" },
+          { label: "Ties", value: verdictSummary.ties, icon: Scale, color: "text-amber-400/40", textColor: "text-amber-400" },
+          { label: "Errors", value: verdictSummary.errors, icon: XCircle, color: "text-red-400/40", textColor: "text-red-400" },
+        ].map(({ label, value, icon: Icon, color, textColor }) => (
+          <Card key={label} className="bg-card/50">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
+                  <p className={`text-2xl font-bold ${textColor || ""}`}>{value}</p>
+                </div>
+                <Icon className={`h-8 w-8 ${color}`} />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Active Shadow Configs */}
+      <Card className="bg-card/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Settings className="h-4 w-4" /> Shadow Test Configurations
+          </CardTitle>
+          <CardDescription>Manage which LLM calls get shadow-tested and against which experimental models</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {configsLoading ? (
+            <div className="space-y-2">
+              {[1, 2].map(i => <div key={i} className="h-16 bg-muted/20 rounded animate-pulse" />)}
+            </div>
+          ) : configs.length === 0 ? (
+            <div className="flex flex-col items-center py-8 text-muted-foreground">
+              <FlaskConical className="h-10 w-10 mb-2 opacity-30" />
+              <p>No shadow test configurations yet.</p>
+              <p className="text-xs mt-1">Create one to start A/B testing your LLM models.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {configs.map((config: any) => (
+                <div key={config.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="flex items-center gap-4">
+                    <Switch
+                      checked={config.enabled === 1}
+                      onCheckedChange={(checked) => toggleMutation.mutate({ id: config.id, enabled: checked })}
+                    />
+                    <div>
+                      <p className="font-medium text-sm">{config.configName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {config.primaryModel} vs {config.experimentalModel} &middot; {config.shadowPercentage}% traffic
+                        {config.callerFilter ? ` \u00b7 Filter: ${config.callerFilter}` : ""}
+                        {config.priorityFilter !== "all" ? ` \u00b7 Priority: ${config.priorityFilter}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-xs text-muted-foreground">
+                      <p>{config.totalRuns} runs</p>
+                      <p>{config.activeShadowTests} active</p>
+                    </div>
+                    <Badge variant={config.enabled === 1 ? "default" : "outline"}>
+                      {config.enabled === 1 ? "Active" : "Paused"}
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingConfig(config); setConfigDialogOpen(true); }}>
+                      <Settings className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => {
+                      if (confirm(`Delete shadow config "${config.configName}"?`)) {
+                        deleteMutation.mutate({ id: config.id });
+                      }
+                    }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Latency & Token Comparison */}
+      {analyticsData?.latencyComparison && (
+        <Card className="bg-card/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Performance Comparison
+            </CardTitle>
+            <CardDescription>Average latency and token usage across shadow tests</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Latency (ms)</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-blue-400">Primary</span>
+                    <span className="font-mono text-sm">{analyticsData.latencyComparison.avgPrimaryLatency}ms</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
+                    <div className="h-full bg-blue-400 rounded-full" style={{
+                      width: `${Math.min(100, (analyticsData.latencyComparison.avgPrimaryLatency / Math.max(analyticsData.latencyComparison.avgPrimaryLatency, analyticsData.latencyComparison.avgExperimentalLatency, 1)) * 100)}%`
+                    }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-emerald-400">Experimental</span>
+                    <span className="font-mono text-sm">{analyticsData.latencyComparison.avgExperimentalLatency}ms</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
+                    <div className="h-full bg-emerald-400 rounded-full" style={{
+                      width: `${Math.min(100, (analyticsData.latencyComparison.avgExperimentalLatency / Math.max(analyticsData.latencyComparison.avgPrimaryLatency, analyticsData.latencyComparison.avgExperimentalLatency, 1)) * 100)}%`
+                    }} />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg Tokens</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="p-2 rounded bg-muted/20 text-center">
+                    <p className="text-xs text-muted-foreground">Primary In</p>
+                    <p className="font-mono text-blue-400">{analyticsData.latencyComparison.avgPrimaryTokensIn}</p>
+                  </div>
+                  <div className="p-2 rounded bg-muted/20 text-center">
+                    <p className="text-xs text-muted-foreground">Primary Out</p>
+                    <p className="font-mono text-blue-400">{analyticsData.latencyComparison.avgPrimaryTokensOut}</p>
+                  </div>
+                  <div className="p-2 rounded bg-muted/20 text-center">
+                    <p className="text-xs text-muted-foreground">Experimental In</p>
+                    <p className="font-mono text-emerald-400">{analyticsData.latencyComparison.avgExperimentalTokensIn}</p>
+                  </div>
+                  <div className="p-2 rounded bg-muted/20 text-center">
+                    <p className="text-xs text-muted-foreground">Experimental Out</p>
+                    <p className="font-mono text-emerald-400">{analyticsData.latencyComparison.avgExperimentalTokensOut}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top Callers by Shadow Test */}
+      {analyticsData?.topCallers && analyticsData.topCallers.length > 0 && (
+        <Card className="bg-card/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Top Callers by Shadow Test Volume</CardTitle>
+            <CardDescription>Which LLM callers are being shadow-tested most frequently</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {analyticsData.topCallers.slice(0, 8).map((c: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-muted/20 text-sm">
+                  <span className="font-mono truncate max-w-[300px]">{c.caller}</span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span>{c.total} tests</span>
+                    <Badge variant="outline" className="text-blue-400">{c.primaryWins}P</Badge>
+                    <Badge variant="outline" className="text-emerald-400">{c.experimentalWins}E</Badge>
+                    <span className="text-muted-foreground">
+                      Avg: {c.avgPrimaryScore} vs {c.avgExperimentalScore}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Shadow Tests */}
+      <Card className="bg-card/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Recent Shadow Test Results</CardTitle>
+          <CardDescription>Latest LLM-as-Judge comparisons between primary and experimental models</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recentTests.length === 0 ? (
+            <div className="flex flex-col items-center py-8 text-muted-foreground">
+              <Scale className="h-10 w-10 mb-2 opacity-30" />
+              <p>No shadow test results yet.</p>
+              <p className="text-xs mt-1">Enable a shadow config and make LLM calls to see results here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentTests.map((test: any) => (
+                <div key={test.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 text-sm">
+                  <div className="flex items-center gap-3">
+                    <div className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${VERDICT_COLORS[test.judgeVerdict] || VERDICT_COLORS.error}`}>
+                      {test.judgeVerdict?.replace(/_/g, " ")}
+                    </div>
+                    <div>
+                      <p className="font-mono text-xs truncate max-w-[250px]">{test.caller}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {test.primaryModel} vs {test.experimentalModel}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-blue-400">{test.primaryScore ?? "—"}</span>
+                        <span className="text-muted-foreground">vs</span>
+                        <span className="text-emerald-400">{test.experimentalScore ?? "—"}</span>
+                      </div>
+                      {test.experimentalLatencyMs && (
+                        <p className="text-[10px] text-muted-foreground">{test.experimentalLatencyMs}ms</p>
+                      )}
+                    </div>
+                    <Badge variant={test.status === 'completed' ? 'default' : test.status === 'error' ? 'destructive' : 'outline'} className="text-[10px]">
+                      {test.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Config Dialog */}
+      <ShadowConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        editingConfig={editingConfig}
+        onSubmit={(data) => upsertMutation.mutate(data)}
+        isPending={upsertMutation.isPending}
+      />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Shadow Config Dialog
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ShadowConfigDialog({
+  open,
+  onOpenChange,
+  editingConfig,
+  onSubmit,
+  isPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editingConfig: any;
+  onSubmit: (data: any) => void;
+  isPending: boolean;
+}) {
+  const [form, setForm] = useState({
+    configName: "",
+    enabled: false,
+    shadowPercentage: 5,
+    primaryModel: "gemini-2.5-flash",
+    experimentalModel: "gpt-4o",
+    callerFilter: "",
+    priorityFilter: "all",
+    maxConcurrent: 10,
+  });
+
+  // Reset form when dialog opens
+  useState(() => {
+    if (editingConfig) {
+      setForm({
+        configName: editingConfig.configName || "",
+        enabled: editingConfig.enabled === 1,
+        shadowPercentage: editingConfig.shadowPercentage || 5,
+        primaryModel: editingConfig.primaryModel || "gemini-2.5-flash",
+        experimentalModel: editingConfig.experimentalModel || "gpt-4o",
+        callerFilter: editingConfig.callerFilter || "",
+        priorityFilter: editingConfig.priorityFilter || "all",
+        maxConcurrent: editingConfig.maxConcurrent || 10,
+      });
+    } else {
+      setForm({
+        configName: "",
+        enabled: false,
+        shadowPercentage: 5,
+        primaryModel: "gemini-2.5-flash",
+        experimentalModel: "gpt-4o",
+        callerFilter: "",
+        priorityFilter: "all",
+        maxConcurrent: 10,
+      });
+    }
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editingConfig ? "Edit" : "New"} Shadow Test Configuration</DialogTitle>
+          <DialogDescription>
+            Configure which LLM calls to shadow-test and against which experimental model
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div className="space-y-2">
+            <Label>Config Name</Label>
+            <Input
+              placeholder="e.g., GPT-4o vs Gemini Flash"
+              value={form.configName}
+              onChange={(e) => setForm({ ...form, configName: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Primary Model</Label>
+              <Select value={form.primaryModel} onValueChange={(v) => setForm({ ...form, primaryModel: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                  <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Experimental Model</Label>
+              <Select value={form.experimentalModel} onValueChange={(v) => setForm({ ...form, experimentalModel: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                  <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Shadow Percentage ({form.shadowPercentage}%)</Label>
+              <Input
+                type="range"
+                min={1}
+                max={100}
+                value={form.shadowPercentage}
+                onChange={(e) => setForm({ ...form, shadowPercentage: Number(e.target.value) })}
+                className="cursor-pointer"
+              />
+              <p className="text-xs text-muted-foreground">{form.shadowPercentage}% of matching LLM calls will be shadow-tested</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Max Concurrent</Label>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={form.maxConcurrent}
+                onChange={(e) => setForm({ ...form, maxConcurrent: Number(e.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">Limit concurrent shadow tests to avoid overload</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Caller Filter (optional)</Label>
+              <Input
+                placeholder="e.g., specialist:osint"
+                value={form.callerFilter}
+                onChange={(e) => setForm({ ...form, callerFilter: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Only shadow-test callers starting with this prefix</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Priority Filter</Label>
+              <Select value={form.priorityFilter} onValueChange={(v) => setForm({ ...form, priorityFilter: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="essential">Essential Only</SelectItem>
+                  <SelectItem value="standard">Standard Only</SelectItem>
+                  <SelectItem value="bulk">Bulk Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={form.enabled}
+              onCheckedChange={(checked) => setForm({ ...form, enabled: checked })}
+            />
+            <Label>Enable immediately</Label>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button
+            onClick={() => onSubmit({
+              ...(editingConfig?.id ? { id: editingConfig.id } : {}),
+              ...form,
+            })}
+            disabled={!form.configName || isPending}
+          >
+            <FlaskConical className="h-4 w-4 mr-1" />
+            {isPending ? "Saving..." : editingConfig ? "Update Config" : "Create Config"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Execution Detail (unchanged from before)
+// ═══════════════════════════════════════════════════════════════════════════
+
 function ExecutionDetail({ execution, onClose }: { execution: any; onClose: () => void }) {
   const stageHistory = Array.isArray(execution.stageHistory) ? execution.stageHistory : [];
 
-  // Fetch quality gates for this execution
   const { data: statusData } = trpc.agentRegistry.getPipelineStatus.useQuery(
     { executionId: execution.executionId },
     { enabled: !!execution.executionId }

@@ -504,6 +504,48 @@ async function startServer() {
         console.warn("[FIPSAudit] Failed to initialize FIPS audit scheduler:", err);
       });
 
+      // Auto-seed offensive security agent definitions (idempotent upsert)
+      import("../lib/agent-definitions").then(async ({ ALL_OFFENSIVE_AGENTS }) => {
+        try {
+          const { getDbRequired } = await import("../db");
+          const { agentDefinitions } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const db = await getDbRequired();
+          let created = 0, updated = 0;
+          for (const agent of ALL_OFFENSIVE_AGENTS) {
+            const [existing] = await db.select({ id: agentDefinitions.id, version: agentDefinitions.version })
+              .from(agentDefinitions).where(eq(agentDefinitions.agentId, agent.agentId)).limit(1);
+            if (existing) {
+              await db.update(agentDefinitions).set({
+                name: agent.name, category: agent.category, persona: agent.persona,
+                mission: agent.mission, coreRules: agent.coreRules, evidenceTags: agent.evidenceTags,
+                deliverableTemplates: agent.deliverableTemplates, workflowSteps: agent.workflowSteps,
+                toolAccess: agent.toolAccess, mitreTactics: agent.mitreTactics,
+                llmCallerPrefix: agent.llmCallerPrefix, priority: agent.priority,
+                version: (existing.version || 1) + 1,
+                updatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
+              }).where(eq(agentDefinitions.id, existing.id));
+              updated++;
+            } else {
+              await db.insert(agentDefinitions).values({
+                agentId: agent.agentId, name: agent.name, category: agent.category,
+                persona: agent.persona, mission: agent.mission, coreRules: agent.coreRules,
+                evidenceTags: agent.evidenceTags, deliverableTemplates: agent.deliverableTemplates,
+                workflowSteps: agent.workflowSteps, toolAccess: agent.toolAccess,
+                mitreTactics: agent.mitreTactics, llmCallerPrefix: agent.llmCallerPrefix,
+                priority: agent.priority, status: "active", version: 1,
+              });
+              created++;
+            }
+          }
+          console.log(`[AgentSeed] Agent definitions seeded: ${created} created, ${updated} updated, ${ALL_OFFENSIVE_AGENTS.length} total`);
+        } catch (err: any) {
+          console.warn("[AgentSeed] Failed to auto-seed agent definitions:", err.message);
+        }
+      }).catch((err) => {
+        console.warn("[AgentSeed] Failed to load agent definitions module:", err);
+      });
+
       console.log("[Background] All background schedulers initialized");
     }, BACKGROUND_DELAY);
   });

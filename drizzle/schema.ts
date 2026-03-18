@@ -6196,3 +6196,72 @@ export const nexusQualityGates = mysqlTable("nexus_quality_gates", {
 ]);
 export type NexusQualityGateRow = typeof nexusQualityGates.$inferSelect;
 export type InsertNexusQualityGate = typeof nexusQualityGates.$inferInsert;
+
+// ─── NEXUS Shadow Testing Configuration ────────────────────────────────────
+export const nexusShadowConfigs = mysqlTable("nexus_shadow_configs", {
+  id: int().autoincrement().primaryKey(),
+  configName: varchar("nsc_config_name", { length: 128 }).notNull(),
+  enabled: tinyint("nsc_enabled").default(0).notNull(),
+  /** Percentage of LLM requests to shadow-test (1-100) */
+  shadowPercentage: int("nsc_shadow_percentage").default(5).notNull(),
+  /** The primary model/provider being compared against */
+  primaryModel: varchar("nsc_primary_model", { length: 128 }).default("gemini-2.5-flash").notNull(),
+  /** The experimental model/provider to shadow-test */
+  experimentalModel: varchar("nsc_experimental_model", { length: 128 }).default("gpt-4o").notNull(),
+  /** Caller prefix filter — only shadow-test callers matching this prefix (empty = all) */
+  callerFilter: varchar("nsc_caller_filter", { length: 255 }).default(""),
+  /** Priority filter — only shadow-test calls with this priority level */
+  priorityFilter: mysqlEnum("nsc_priority_filter", ['all', 'essential', 'standard', 'bulk']).default('all'),
+  /** Max concurrent shadow tests to avoid overloading */
+  maxConcurrent: int("nsc_max_concurrent").default(10).notNull(),
+  /** Current active shadow tests count */
+  activeShadowTests: int("nsc_active_shadow_tests").default(0).notNull(),
+  /** Total shadow tests run */
+  totalRuns: int("nsc_total_runs").default(0).notNull(),
+  createdAt: timestamp("nsc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("nsc_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("nsc_config_name_idx").on(table.configName),
+  index("nsc_enabled_idx").on(table.enabled),
+]);
+export type NexusShadowConfigRow = typeof nexusShadowConfigs.$inferSelect;
+export type InsertNexusShadowConfig = typeof nexusShadowConfigs.$inferInsert;
+
+// ─── NEXUS Shadow Test Results ─────────────────────────────────────────────
+export const nexusShadowTests = mysqlTable("nexus_shadow_tests", {
+  id: int().autoincrement().primaryKey(),
+  configId: int("nst_config_id").notNull(),
+  /** The LLM caller that triggered this shadow test */
+  caller: varchar("nst_caller", { length: 255 }).notNull(),
+  /** The user prompt (truncated to 2000 chars) */
+  promptSnippet: text("nst_prompt_snippet"),
+  /** Primary model response */
+  primaryModel: varchar("nst_primary_model", { length: 128 }).notNull(),
+  primaryLatencyMs: int("nst_primary_latency_ms"),
+  primaryTokensIn: int("nst_primary_tokens_in"),
+  primaryTokensOut: int("nst_primary_tokens_out"),
+  primaryScore: int("nst_primary_score"),
+  /** Experimental model response */
+  experimentalModel: varchar("nst_experimental_model", { length: 128 }).notNull(),
+  experimentalLatencyMs: int("nst_experimental_latency_ms"),
+  experimentalTokensIn: int("nst_experimental_tokens_in"),
+  experimentalTokensOut: int("nst_experimental_tokens_out"),
+  experimentalScore: int("nst_experimental_score"),
+  /** LLM-as-Judge comparison result */
+  judgeVerdict: mysqlEnum("nst_judge_verdict", ['primary_better', 'experimental_better', 'tie', 'error']).default('tie'),
+  judgeReasoning: text("nst_judge_reasoning"),
+  judgeScore: int("nst_judge_score"),
+  /** Status */
+  status: mysqlEnum("nst_status", ['running', 'completed', 'error']).default('running'),
+  errorMessage: text("nst_error_message"),
+  createdAt: timestamp("nst_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("nst_completed_at", { mode: 'string' }),
+}, (table) => [
+  index("nst_config_id_idx").on(table.configId),
+  index("nst_caller_idx").on(table.caller),
+  index("nst_verdict_idx").on(table.judgeVerdict),
+  index("nst_status_idx").on(table.status),
+  index("nst_created_at_idx").on(table.createdAt),
+]);
+export type NexusShadowTestRow = typeof nexusShadowTests.$inferSelect;
+export type InsertNexusShadowTest = typeof nexusShadowTests.$inferInsert;

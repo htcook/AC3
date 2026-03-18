@@ -16,6 +16,8 @@ import {
   agentDefinitions,
   nexusPipelineExecutions,
   nexusQualityGates,
+  nexusShadowConfigs,
+  nexusShadowTests,
 } from "../../drizzle/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
 import {
@@ -28,6 +30,7 @@ import {
   executeNexusPipeline,
   type NexusPipelineInput,
 } from "../lib/nexus-pipeline";
+import { getShadowTestAnalytics } from "../lib/shadow-testing";
 
 // ─── Agent Registry Procedures ─────────────────────────────────────────────
 
@@ -429,6 +432,128 @@ export const agentRegistryRouter = router({
         topGraduated,
         windowDays: days,
       };
+    }),
+
+  // ─── Shadow Testing Procedures ──────────────────────────────────────────
+
+  /**
+   * List all shadow testing configurations
+   */
+  listShadowConfigs: protectedProcedure.query(async () => {
+    const db = await getDbRequired();
+    const configs = await db.select().from(nexusShadowConfigs).orderBy(desc(nexusShadowConfigs.createdAt));
+    return { configs };
+  }),
+
+  /**
+   * Create or update a shadow testing configuration
+   */
+  upsertShadowConfig: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      configName: z.string().min(1).max(128),
+      enabled: z.boolean().default(false),
+      shadowPercentage: z.number().min(1).max(100).default(5),
+      primaryModel: z.string().default('gemini-2.5-flash'),
+      experimentalModel: z.string().default('gpt-4o'),
+      callerFilter: z.string().default(''),
+      priorityFilter: z.enum(['all', 'essential', 'standard', 'bulk']).default('all'),
+      maxConcurrent: z.number().min(1).max(50).default(10),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+      if (input.id) {
+        await db.update(nexusShadowConfigs)
+          .set({
+            configName: input.configName,
+            enabled: input.enabled ? 1 : 0,
+            shadowPercentage: input.shadowPercentage,
+            primaryModel: input.primaryModel,
+            experimentalModel: input.experimentalModel,
+            callerFilter: input.callerFilter,
+            priorityFilter: input.priorityFilter,
+            maxConcurrent: input.maxConcurrent,
+            updatedAt: now,
+          })
+          .where(eq(nexusShadowConfigs.id, input.id));
+        return { success: true, action: 'updated', id: input.id };
+      } else {
+        const [result] = await db.insert(nexusShadowConfigs).values({
+          configName: input.configName,
+          enabled: input.enabled ? 1 : 0,
+          shadowPercentage: input.shadowPercentage,
+          primaryModel: input.primaryModel,
+          experimentalModel: input.experimentalModel,
+          callerFilter: input.callerFilter,
+          priorityFilter: input.priorityFilter,
+          maxConcurrent: input.maxConcurrent,
+        });
+        return { success: true, action: 'created', id: result.insertId };
+      }
+    }),
+
+  /**
+   * Toggle a shadow config on/off
+   */
+  toggleShadowConfig: protectedProcedure
+    .input(z.object({ id: z.number(), enabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.update(nexusShadowConfigs)
+        .set({
+          enabled: input.enabled ? 1 : 0,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        })
+        .where(eq(nexusShadowConfigs.id, input.id));
+      return { success: true, id: input.id, enabled: input.enabled };
+    }),
+
+  /**
+   * Delete a shadow config
+   */
+  deleteShadowConfig: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDbRequired();
+      await db.delete(nexusShadowConfigs).where(eq(nexusShadowConfigs.id, input.id));
+      return { success: true };
+    }),
+
+  /**
+   * Get shadow testing analytics
+   */
+  getShadowAnalytics: protectedProcedure
+    .input(z.object({ windowDays: z.number().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => {
+      const analytics = await getShadowTestAnalytics(input?.windowDays ?? 30);
+      return analytics;
+    }),
+
+  /**
+   * List recent shadow test results
+   */
+  listShadowTests: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(20),
+      verdict: z.enum(['primary_better', 'experimental_better', 'tie', 'error']).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const conditions: any[] = [];
+      if (input?.verdict) conditions.push(eq(nexusShadowTests.judgeVerdict, input.verdict));
+
+      const rows = conditions.length > 0
+        ? await db.select().from(nexusShadowTests)
+            .where(and(...conditions))
+            .orderBy(desc(nexusShadowTests.createdAt))
+            .limit(input?.limit ?? 20)
+        : await db.select().from(nexusShadowTests)
+            .orderBy(desc(nexusShadowTests.createdAt))
+            .limit(input?.limit ?? 20);
+
+      return { tests: rows };
     }),
 });
 
