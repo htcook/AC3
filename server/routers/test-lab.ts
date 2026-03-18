@@ -28,6 +28,8 @@ import { eq, desc, sql, and } from "drizzle-orm";
 // Import Test Lab modules
 import {
   getTestLabManager,
+  SCAN_SERVER_TARGETS,
+  DO_LAB_TEMPLATES,
   type LabEnvironmentConfig,
 } from "../lib/test-lab-infrastructure";
 
@@ -76,6 +78,52 @@ import {
 } from "../lib/graduation-lab-bridge";
 
 export const testLabRouter = router({
+  // ─── Live Targets & Templates ──────────────────────────────────────────
+
+  getLiveTargets: protectedProcedure.query(async () => {
+    return SCAN_SERVER_TARGETS.map(t => ({
+      ...t,
+      totalVulns: t.knownVulns.length,
+      criticalVulns: t.knownVulns.filter(v => v.severity === "critical").length,
+      rceCapable: t.knownVulns.filter(v => v.rceCapable).length,
+    }));
+  }),
+
+  getLabTemplates: protectedProcedure.query(async () => {
+    return DO_LAB_TEMPLATES;
+  }),
+
+  checkTargetHealth: protectedProcedure
+    .input(z.object({ targetId: z.string() }))
+    .mutation(async ({ input }) => {
+      const target = SCAN_SERVER_TARGETS.find(t => t.id === input.targetId);
+      if (!target) throw new Error("Target not found");
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const resp = await fetch(target.url, {
+          method: "HEAD",
+          signal: controller.signal,
+        }).catch(() => null);
+        clearTimeout(timeout);
+        return {
+          targetId: input.targetId,
+          status: resp ? "online" as const : "offline" as const,
+          statusCode: resp?.status || 0,
+          latencyMs: 0,
+          checkedAt: Date.now(),
+        };
+      } catch {
+        return {
+          targetId: input.targetId,
+          status: "offline" as const,
+          statusCode: 0,
+          latencyMs: 0,
+          checkedAt: Date.now(),
+        };
+      }
+    }),
+
   // ─── Dashboard ──────────────────────────────────────────────────────────
 
   getDashboard: protectedProcedure.query(async () => {

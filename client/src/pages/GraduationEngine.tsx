@@ -3,7 +3,8 @@
  *
  * Monitors which LLM tasks are approaching graduation thresholds —
  * the point where they can be replaced with deterministic code.
- * Shows real-time readiness scores, cost projections, and tier distribution.
+ * Shows real-time readiness scores, cost projections, tier distribution,
+ * specialist model states, and engagement-level tracking.
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -47,6 +48,17 @@ import {
   ChevronUp,
   XCircle,
   RefreshCw,
+  Shield,
+  Network,
+  Crosshair,
+  Eye,
+  Route,
+  Lock,
+  Layers,
+  FileText,
+  Play,
+  Star,
+  Info,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
@@ -59,6 +71,31 @@ const TIER_CONFIG = {
   4: { label: "Still Training", color: "text-zinc-400", bg: "bg-zinc-500/10 border-zinc-500/20", badge: "bg-zinc-500/20 text-zinc-300", icon: Brain },
   5: { label: "Keep LLM", color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", badge: "bg-purple-500/20 text-purple-300", icon: Cpu },
 } as const;
+
+const MODEL_ICONS: Record<string, any> = {
+  recon_analyst: Eye,
+  exploit_selector: Crosshair,
+  evasion_optimizer: Shield,
+  lateral_planner: Route,
+  persistence_engineer: Lock,
+  cognitive_core: Brain,
+};
+
+const MODEL_LABELS: Record<string, string> = {
+  recon_analyst: "Recon Analyst",
+  exploit_selector: "Exploit Selector",
+  evasion_optimizer: "Evasion Optimizer",
+  lateral_planner: "Lateral Planner",
+  persistence_engineer: "Persistence Engineer",
+  cognitive_core: "Cognitive Core",
+};
+
+const ACCESS_LEVEL_COLORS: Record<string, string> = {
+  basic: "bg-zinc-500/20 text-zinc-300",
+  operational: "bg-yellow-500/20 text-yellow-300",
+  advanced: "bg-blue-500/20 text-blue-300",
+  full: "bg-emerald-500/20 text-emerald-300",
+};
 
 // ─── Summary Cards ──────────────────────────────────────────────────────────
 
@@ -243,7 +280,6 @@ function CandidateDetail({ caller, candidate }: { caller: string; candidate: any
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Graduation Assessment */}
       <Card className="border-border/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -279,7 +315,6 @@ function CandidateDetail({ caller, candidate }: { caller: string; candidate: any
         </CardContent>
       </Card>
 
-      {/* Daily Performance Chart (text-based) */}
       <Card className="border-border/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -308,7 +343,6 @@ function CandidateDetail({ caller, candidate }: { caller: string; candidate: any
         </CardContent>
       </Card>
 
-      {/* Recent Errors */}
       <Card className="border-border/30">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -379,6 +413,536 @@ function GraduationPipeline({ summary }: { summary: any }) {
   );
 }
 
+// ─── Model States Tab ──────────────────────────────────────────────────────
+
+function ModelStatesTab() {
+  const { data: modelStates, isLoading: statesLoading } = trpc.testLab.getAllModelStates.useQuery();
+  const { data: summary, isLoading: summaryLoading } = trpc.testLab.getGraduationSummary.useQuery();
+  const { data: events, isLoading: eventsLoading } = trpc.testLab.getGraduationEvents.useQuery({ limit: 30 });
+  const { data: mappings } = trpc.testLab.getCallerMappings.useQuery();
+
+  const isLoading = statesLoading || summaryLoading;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Card key={i} className="animate-pulse border-border/50">
+            <CardContent className="p-6"><div className="h-24 bg-muted rounded" /></CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Bar */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Overall Readiness</p>
+              <p className="text-2xl font-bold text-foreground">{summary.overallReadinessScore}%</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Tier 1 (Ready)</p>
+              <p className="text-2xl font-bold text-emerald-400">{summary.modelsAtTier1}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Tier 2 (Near)</p>
+              <p className="text-2xl font-bold text-blue-400">{summary.modelsAtTier2}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Tier 3 (Emerging)</p>
+              <p className="text-2xl font-bold text-yellow-400">{summary.modelsAtTier3}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Tier 4 (Training)</p>
+              <p className="text-2xl font-bold text-zinc-400">{summary.modelsAtTier4}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Scenarios Run</p>
+              <p className="text-2xl font-bold text-foreground">{summary.totalScenariosRun}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Training Examples</p>
+              <p className="text-2xl font-bold text-foreground">{summary.totalTrainingExamples}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/50">
+            <CardContent className="p-3 text-center">
+              <p className="text-xs text-muted-foreground">Fine-Tune Runs</p>
+              <p className="text-2xl font-bold text-foreground">{summary.totalFineTuneRuns}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Recommended Action */}
+      {summary?.nextRecommendedAction && (
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-300">Recommended Next Action</p>
+              <p className="text-sm text-muted-foreground mt-1">{summary.nextRecommendedAction}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Model Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {modelStates?.map((ms: any) => {
+          const tierCfg = TIER_CONFIG[ms.currentTier as keyof typeof TIER_CONFIG];
+          const IconComp = MODEL_ICONS[ms.model] || Brain;
+          const passRate = ms.scenariosCompleted > 0
+            ? Math.round((ms.scenariosPassed / ms.scenariosCompleted) * 100)
+            : 0;
+
+          return (
+            <Card key={ms.model} className={`border-border/50 ${tierCfg.bg}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <IconComp className={`h-5 w-5 ${tierCfg.color}`} />
+                    <CardTitle className="text-sm">{MODEL_LABELS[ms.model] || ms.model}</CardTitle>
+                  </div>
+                  <Badge className={`${tierCfg.badge} border-0 text-[10px]`}>
+                    Tier {ms.currentTier}
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs">
+                  Lab Access: <Badge className={`${ACCESS_LEVEL_COLORS[ms.labAccessLevel] || ""} border-0 text-[9px] ml-1`}>
+                    {ms.labAccessLevel}
+                  </Badge>
+                  {" · "}v{ms.currentModelVersion}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Scenario Stats */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-foreground">{ms.scenariosCompleted}</p>
+                    <p className="text-[10px] text-muted-foreground">Scenarios</p>
+                  </div>
+                  <div>
+                    <p className={`text-lg font-bold ${passRate >= 80 ? "text-emerald-400" : passRate >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                      {passRate}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Pass Rate</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-foreground">{ms.trainingExamples}</p>
+                    <p className="text-[10px] text-muted-foreground">Examples</p>
+                  </div>
+                </div>
+
+                {/* Benchmark Score */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Benchmark Score</span>
+                    <span className={ms.lastBenchmarkScore >= 80 ? "text-emerald-400" : ms.lastBenchmarkScore >= 50 ? "text-yellow-400" : "text-zinc-400"}>
+                      {ms.lastBenchmarkScore}/100
+                    </span>
+                  </div>
+                  <Progress value={ms.lastBenchmarkScore} className="h-1.5" />
+                </div>
+
+                {/* Average Score */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Avg Scenario Score</span>
+                    <span className="text-muted-foreground">{ms.averageScore}/100</span>
+                  </div>
+                  <Progress value={ms.averageScore} className="h-1.5" />
+                </div>
+
+                {/* Fine-tune Runs */}
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Fine-Tune Runs</span>
+                  <span className="text-foreground">{ms.fineTuneRuns}</span>
+                </div>
+
+                {/* Feedback */}
+                {ms.feedback && (
+                  <div className="p-2 rounded bg-muted/30 border border-border/30 text-xs text-muted-foreground">
+                    {ms.feedback.recommendation}
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {ms.recommendations && ms.recommendations.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Next Steps</p>
+                    {ms.recommendations.slice(0, 2).map((r: any, i: number) => (
+                      <div key={i} className="flex items-start gap-1.5 text-xs">
+                        <Badge variant="outline" className={`text-[8px] shrink-0 mt-0.5 ${
+                          r.priority === "high" ? "border-red-500/30 text-red-400" :
+                          r.priority === "medium" ? "border-yellow-500/30 text-yellow-400" :
+                          "border-zinc-500/30 text-zinc-400"
+                        }`}>{r.priority}</Badge>
+                        <span className="text-muted-foreground">{r.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Caller → Model Mappings */}
+      {mappings && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Network className="h-4 w-4 text-cyan-400" /> Caller → Model Mappings
+            </CardTitle>
+            <CardDescription>How LLM callers map to specialist models for graduation tracking</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30">
+                    <TableHead className="text-xs">Caller Pattern</TableHead>
+                    <TableHead className="text-xs">Specialist Model</TableHead>
+                    <TableHead className="text-xs">Description</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mappings.mappings.map((m: any, i: number) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <code className="text-xs font-mono text-cyan-400">{m.callerPattern}</code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px]">{MODEL_LABELS[m.specialistModel] || m.specialistModel}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{m.description}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Graduation Events */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileText className="h-4 w-4 text-violet-400" /> Graduation Events
+          </CardTitle>
+          <CardDescription>Recent model graduation events and state changes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!eventsLoading && events && events.length > 0 ? (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {events.map((ev: any) => {
+                const evColor =
+                  ev.eventType === "model_promoted" ? "border-emerald-500/20 bg-emerald-500/5" :
+                  ev.eventType === "tier_change" ? "border-blue-500/20 bg-blue-500/5" :
+                  ev.eventType === "benchmark_passed" ? "border-cyan-500/20 bg-cyan-500/5" :
+                  ev.eventType === "model_rollback" ? "border-red-500/20 bg-red-500/5" :
+                  "border-border/30 bg-muted/10";
+                return (
+                  <div key={ev.id} className={`p-3 rounded-lg border ${evColor}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[9px]">{ev.eventType.replace(/_/g, " ")}</Badge>
+                        <span className="text-xs text-muted-foreground">{MODEL_LABELS[ev.specialistModel] || ev.specialistModel}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(ev.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ev.details}</p>
+                    {ev.previousTier && ev.newTier && (
+                      <div className="flex items-center gap-2 mt-1 text-xs">
+                        <Badge className={`${TIER_CONFIG[ev.previousTier as keyof typeof TIER_CONFIG]?.badge || ""} border-0 text-[9px]`}>
+                          Tier {ev.previousTier}
+                        </Badge>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        <Badge className={`${TIER_CONFIG[ev.newTier as keyof typeof TIER_CONFIG]?.badge || ""} border-0 text-[9px]`}>
+                          Tier {ev.newTier}
+                        </Badge>
+                      </div>
+                    )}
+                    {ev.score !== undefined && ev.score !== null && (
+                      <span className="text-[10px] text-muted-foreground">Score: {ev.score}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              No graduation events recorded yet. Run lab scenarios to generate events.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Engagement Tracking Tab ───────────────────────────────────────────────
+
+function EngagementTrackingTab() {
+  const { data: engagements, isLoading: engLoading } = trpc.engagementTimeline.listEngagementsWithStats.useQuery({ limit: 50 });
+  const { data: allCosts, isLoading: costsLoading } = trpc.llmTelemetry.allEngagementCosts.useQuery();
+  const { data: gradData } = trpc.graduationEngine.getCandidates.useQuery({ windowDays: 30 });
+
+  const isLoading = engLoading || costsLoading;
+
+  // Merge engagement data with LLM costs
+  const enrichedEngagements = useMemo(() => {
+    if (!engagements) return [];
+    const costMap = new Map<number, any>();
+    if (allCosts && Array.isArray(allCosts)) {
+      allCosts.forEach((c: any) => costMap.set(c.engagementId, c));
+    }
+    return engagements.map((eng: any) => ({
+      ...eng,
+      llmCost: costMap.get(eng.id),
+    }));
+  }, [engagements, allCosts]);
+
+  // Summary stats
+  const totalEngagements = enrichedEngagements.length;
+  const activeEngagements = enrichedEngagements.filter((e: any) => e.status === "active" || e.status === "in_progress").length;
+  const totalLlmCost = enrichedEngagements.reduce((s: number, e: any) => s + (e.llmCost?.totalCost || 0), 0);
+  const totalEvents = enrichedEngagements.reduce((s: number, e: any) => s + (e.stats?.totalEvents || 0), 0);
+  const totalFindings = enrichedEngagements.reduce((s: number, e: any) => s + (e.stats?.totalFindings || 0), 0);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <Card key={i} className="animate-pulse border-border/50">
+            <CardContent className="p-6"><div className="h-24 bg-muted rounded" /></CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Card className="border-border/50">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Total Engagements</p>
+            <p className="text-2xl font-bold text-foreground">{totalEngagements}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Active</p>
+            <p className="text-2xl font-bold text-emerald-400">{activeEngagements}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Total LLM Cost</p>
+            <p className="text-2xl font-bold text-amber-400">${totalLlmCost.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Timeline Events</p>
+            <p className="text-2xl font-bold text-blue-400">{totalEvents.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs text-muted-foreground">Findings</p>
+            <p className="text-2xl font-bold text-red-400">{totalFindings}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Graduation Impact on Engagements */}
+      {gradData?.summary && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="h-4 w-4 text-amber-400" /> Graduation Impact on Engagement Costs
+            </CardTitle>
+            <CardDescription>
+              If Tier 1 & 2 tasks were graduated, engagement LLM costs would decrease by ~${gradData.summary.potentialSavings.toFixed(2)}/month
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-3 rounded-lg bg-muted/20 border border-border/30 text-center">
+                <p className="text-xs text-muted-foreground">Current Monthly</p>
+                <p className="text-xl font-bold text-foreground">${gradData.summary.totalMonthlyCost.toFixed(2)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center">
+                <p className="text-xs text-muted-foreground">After Graduation</p>
+                <p className="text-xl font-bold text-emerald-400">
+                  ${(gradData.summary.totalMonthlyCost - gradData.summary.potentialSavings).toFixed(2)}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center">
+                <p className="text-xs text-muted-foreground">Savings</p>
+                <p className="text-xl font-bold text-amber-400">
+                  ${gradData.summary.potentialSavings.toFixed(2)}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    ({gradData.summary.totalMonthlyCost > 0 ? Math.round((gradData.summary.potentialSavings / gradData.summary.totalMonthlyCost) * 100) : 0}%)
+                  </span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Engagement Table */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Layers className="h-4 w-4 text-blue-400" /> Engagement Performance & LLM Usage
+          </CardTitle>
+          <CardDescription>
+            Per-engagement metrics with LLM cost tracking and timeline event counts
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="text-xs">Engagement</TableHead>
+                  <TableHead className="text-xs">Customer</TableHead>
+                  <TableHead className="text-xs">Type</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Events</TableHead>
+                  <TableHead className="text-xs">Findings</TableHead>
+                  <TableHead className="text-xs">LLM Cost</TableHead>
+                  <TableHead className="text-xs">LLM Calls</TableHead>
+                  <TableHead className="text-xs">Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {enrichedEngagements.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      No engagements found. Create an engagement to start tracking.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  enrichedEngagements.map((eng: any) => {
+                    const statusColor =
+                      eng.status === "active" || eng.status === "in_progress" ? "bg-emerald-500/20 text-emerald-300" :
+                      eng.status === "completed" ? "bg-blue-500/20 text-blue-300" :
+                      eng.status === "paused" ? "bg-yellow-500/20 text-yellow-300" :
+                      "bg-zinc-500/20 text-zinc-300";
+                    return (
+                      <TableRow key={eng.id} className="hover:bg-muted/20">
+                        <TableCell>
+                          <div className="max-w-[200px]">
+                            <p className="text-sm font-medium text-foreground truncate">{eng.name}</p>
+                            <p className="text-[10px] text-muted-foreground">ID: {eng.id}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{eng.customerName || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">{eng.engagementType || "pentest"}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`${statusColor} border-0 text-[10px]`}>{eng.status || "draft"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{eng.stats?.totalEvents?.toLocaleString() || 0}</TableCell>
+                        <TableCell>
+                          <span className={`text-sm ${(eng.stats?.totalFindings || 0) > 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                            {eng.stats?.totalFindings || 0}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-sm ${(eng.llmCost?.totalCost || 0) > 5 ? "text-amber-400" : "text-muted-foreground"}`}>
+                            ${(eng.llmCost?.totalCost || 0).toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {eng.llmCost?.totalCalls?.toLocaleString() || 0}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {eng.createdAt ? new Date(eng.createdAt).toLocaleDateString() : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Phase Distribution */}
+      {enrichedEngagements.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="h-4 w-4 text-violet-400" /> Engagement Phase Distribution
+            </CardTitle>
+            <CardDescription>Distribution of events across kill chain phases</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {(() => {
+                const phases: Record<string, number> = {};
+                enrichedEngagements.forEach((eng: any) => {
+                  if (eng.stats?.phaseBreakdown) {
+                    Object.entries(eng.stats.phaseBreakdown).forEach(([phase, count]: [string, any]) => {
+                      phases[phase] = (phases[phase] || 0) + (typeof count === "number" ? count : 0);
+                    });
+                  }
+                });
+                const sorted = Object.entries(phases).sort(([, a], [, b]) => (b as number) - (a as number));
+                if (sorted.length === 0) {
+                  return (
+                    <div className="col-span-full text-center py-4 text-muted-foreground text-sm">
+                      No phase data available yet. Run engagements to collect phase metrics.
+                    </div>
+                  );
+                }
+                return sorted.map(([phase, count]) => (
+                  <div key={phase} className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{phase.replace(/_/g, " ")}</p>
+                    <p className="text-lg font-bold text-foreground">{(count as number).toLocaleString()}</p>
+                  </div>
+                ));
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function GraduationEnginePage() {
@@ -386,6 +950,7 @@ export default function GraduationEnginePage() {
   const [tierFilter, setTierFilter] = useState<number | undefined>(undefined);
   const [expandedCaller, setExpandedCaller] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"score" | "calls" | "cost" | "success">("score");
+  const [activeTab, setActiveTab] = useState("candidates");
 
   const { data, isLoading, refetch } = trpc.graduationEngine.getCandidates.useQuery({
     windowDays,
@@ -415,179 +980,205 @@ export default function GraduationEnginePage() {
               Graduation Engine
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Monitor LLM tasks approaching graduation — replacement with deterministic code
+              Monitor LLM tasks, specialist model states, and engagement-level performance
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={String(windowDays)} onValueChange={(v) => setWindowDays(Number(v))}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="14">Last 14 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="60">Last 60 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
-              </SelectContent>
-            </Select>
+            {activeTab === "candidates" && (
+              <Select value={String(windowDays)} onValueChange={(v) => setWindowDays(Number(v))}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="14">Last 14 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="60">Last 60 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-3.5 w-3.5 mr-2" /> Refresh
             </Button>
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {[...Array(6)].map((_, i) => (
-              <Card key={i} className="animate-pulse border-border/50">
-                <CardContent className="p-4">
-                  <div className="h-4 bg-muted rounded w-20 mb-2" />
-                  <div className="h-8 bg-muted rounded w-16" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <>
-            {/* Summary Cards */}
-            <SummaryCards summary={data?.summary} />
+        {/* Main Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-muted/30">
+            <TabsTrigger value="candidates" className="gap-2">
+              <Brain className="h-3.5 w-3.5" /> Graduation Candidates
+            </TabsTrigger>
+            <TabsTrigger value="model-states" className="gap-2">
+              <Cpu className="h-3.5 w-3.5" /> Model States
+            </TabsTrigger>
+            <TabsTrigger value="engagements" className="gap-2">
+              <Layers className="h-3.5 w-3.5" /> Engagement Tracking
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Pipeline + Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
-                <GraduationPipeline summary={data?.summary} />
+          {/* Candidates Tab */}
+          <TabsContent value="candidates" className="space-y-6 mt-4">
+            {isLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[...Array(6)].map((_, i) => (
+                  <Card key={i} className="animate-pulse border-border/50">
+                    <CardContent className="p-4">
+                      <div className="h-4 bg-muted rounded w-20 mb-2" />
+                      <div className="h-8 bg-muted rounded w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-              <TierDistribution summary={data?.summary} />
-            </div>
+            ) : (
+              <>
+                <SummaryCards summary={data?.summary} />
 
-            {/* Candidates Table */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Brain className="h-4 w-4 text-blue-400" /> LLM Task Candidates
-                    </CardTitle>
-                    <CardDescription>
-                      {sortedCandidates.length} tasks analyzed • Click to expand details
-                    </CardDescription>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2">
+                    <GraduationPipeline summary={data?.summary} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={tierFilter ? String(tierFilter) : "all"}
-                      onValueChange={(v) => setTierFilter(v === "all" ? undefined : Number(v))}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder="All Tiers" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Tiers</SelectItem>
-                        <SelectItem value="1">Tier 1 — Ready</SelectItem>
-                        <SelectItem value="2">Tier 2 — Near</SelectItem>
-                        <SelectItem value="3">Tier 3 — Emerging</SelectItem>
-                        <SelectItem value="4">Tier 4 — Training</SelectItem>
-                        <SelectItem value="5">Tier 5 — Keep LLM</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="score">By Score</SelectItem>
-                        <SelectItem value="calls">By Volume</SelectItem>
-                        <SelectItem value="cost">By Cost</SelectItem>
-                        <SelectItem value="success">By Success</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <TierDistribution summary={data?.summary} />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border border-border/50 overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/30">
-                        <TableHead className="text-xs">Caller</TableHead>
-                        <TableHead className="text-xs">Tier</TableHead>
-                        <TableHead className="text-xs">Score</TableHead>
-                        <TableHead className="text-xs">Calls</TableHead>
-                        <TableHead className="text-xs">Success</TableHead>
-                        <TableHead className="text-xs">Avg Latency</TableHead>
-                        <TableHead className="text-xs">Tokens/Call</TableHead>
-                        <TableHead className="text-xs">$/Month</TableHead>
-                        <TableHead className="text-xs">Stability</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedCandidates.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                            No LLM telemetry data found for the selected period
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        sortedCandidates.map((c) => (
-                          <CandidateRow
-                            key={c.caller}
-                            candidate={c}
-                            expanded={expandedCaller === c.caller}
-                            onExpand={() => setExpandedCaller(expandedCaller === c.caller ? null : c.caller)}
-                          />
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Graduation Criteria Reference */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Target className="h-4 w-4 text-cyan-400" /> Graduation Criteria Reference
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                  {[
-                    { tier: 1, sr: "≥97%", calls: "≥500", latency: "<5s", action: "Generate deterministic replacement code" },
-                    { tier: 2, sr: "≥90%", calls: "≥200", latency: "<10s", action: "Begin shadow mode validation" },
-                    { tier: 3, sr: "≥80%", calls: "≥50", latency: "Any", action: "Monitor for pattern stabilization" },
-                    { tier: 4, sr: "<80%", calls: "<50", latency: "Any", action: "Continue LLM training and observation" },
-                    { tier: 5, sr: "N/A", calls: "N/A", latency: "N/A", action: "Creative/reasoning — keep LLM-powered" },
-                  ].map((t) => {
-                    const cfg = TIER_CONFIG[t.tier as keyof typeof TIER_CONFIG];
-                    return (
-                      <div key={t.tier} className={`rounded-lg border p-3 ${cfg.bg}`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge className={`${cfg.badge} border-0 text-[10px]`}>Tier {t.tier}</Badge>
-                        </div>
-                        <div className="space-y-1 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Success</span>
-                            <span className={cfg.color}>{t.sr}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Min Calls</span>
-                            <span className={cfg.color}>{t.calls}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Latency</span>
-                            <span className={cfg.color}>{t.latency}</span>
-                          </div>
-                          <p className="text-muted-foreground mt-2 pt-2 border-t border-border/30">{t.action}</p>
-                        </div>
+                <Card className="border-border/50">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Brain className="h-4 w-4 text-blue-400" /> LLM Task Candidates
+                        </CardTitle>
+                        <CardDescription>
+                          {sortedCandidates.length} tasks analyzed — Click to expand details
+                        </CardDescription>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={tierFilter ? String(tierFilter) : "all"}
+                          onValueChange={(v) => setTierFilter(v === "all" ? undefined : Number(v))}
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue placeholder="All Tiers" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Tiers</SelectItem>
+                            <SelectItem value="1">Tier 1 — Ready</SelectItem>
+                            <SelectItem value="2">Tier 2 — Near</SelectItem>
+                            <SelectItem value="3">Tier 3 — Emerging</SelectItem>
+                            <SelectItem value="4">Tier 4 — Training</SelectItem>
+                            <SelectItem value="5">Tier 5 — Keep LLM</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="score">By Score</SelectItem>
+                            <SelectItem value="calls">By Volume</SelectItem>
+                            <SelectItem value="cost">By Cost</SelectItem>
+                            <SelectItem value="success">By Success</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/30">
+                            <TableHead className="text-xs">Caller</TableHead>
+                            <TableHead className="text-xs">Tier</TableHead>
+                            <TableHead className="text-xs">Score</TableHead>
+                            <TableHead className="text-xs">Calls</TableHead>
+                            <TableHead className="text-xs">Success</TableHead>
+                            <TableHead className="text-xs">Avg Latency</TableHead>
+                            <TableHead className="text-xs">Tokens/Call</TableHead>
+                            <TableHead className="text-xs">$/Month</TableHead>
+                            <TableHead className="text-xs">Stability</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedCandidates.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                                No LLM telemetry data found for the selected period
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            sortedCandidates.map((c) => (
+                              <CandidateRow
+                                key={c.caller}
+                                candidate={c}
+                                expanded={expandedCaller === c.caller}
+                                onExpand={() => setExpandedCaller(expandedCaller === c.caller ? null : c.caller)}
+                              />
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <Target className="h-4 w-4 text-cyan-400" /> Graduation Criteria Reference
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                      {[
+                        { tier: 1, sr: "≥97%", calls: "≥500", latency: "<5s", action: "Generate deterministic replacement code" },
+                        { tier: 2, sr: "≥90%", calls: "≥200", latency: "<10s", action: "Begin shadow mode validation" },
+                        { tier: 3, sr: "≥80%", calls: "≥50", latency: "Any", action: "Monitor for pattern stabilization" },
+                        { tier: 4, sr: "<80%", calls: "<50", latency: "Any", action: "Continue LLM training and observation" },
+                        { tier: 5, sr: "N/A", calls: "N/A", latency: "N/A", action: "Creative/reasoning — keep LLM-powered" },
+                      ].map((t) => {
+                        const cfg = TIER_CONFIG[t.tier as keyof typeof TIER_CONFIG];
+                        return (
+                          <div key={t.tier} className={`rounded-lg border p-3 ${cfg.bg}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={`${cfg.badge} border-0 text-[10px]`}>Tier {t.tier}</Badge>
+                            </div>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Success</span>
+                                <span className={cfg.color}>{t.sr}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Min Calls</span>
+                                <span className={cfg.color}>{t.calls}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Latency</span>
+                                <span className={cfg.color}>{t.latency}</span>
+                              </div>
+                              <p className="text-muted-foreground mt-2 pt-2 border-t border-border/30">{t.action}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Model States Tab */}
+          <TabsContent value="model-states" className="mt-4">
+            <ModelStatesTab />
+          </TabsContent>
+
+          {/* Engagement Tracking Tab */}
+          <TabsContent value="engagements" className="mt-4">
+            <EngagementTrackingTab />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppShell>
   );

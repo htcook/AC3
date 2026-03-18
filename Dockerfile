@@ -16,7 +16,7 @@ WORKDIR /usr/src/app
 COPY package.json pnpm-lock.yaml postinstall.cjs ./
 COPY patches/ ./patches/
 
-# Install ALL dependencies (including devDependencies for esbuild)
+# Install ALL dependencies (including devDependencies for build + vite runtime import)
 RUN pnpm install --no-frozen-lockfile
 
 # Copy all source files
@@ -30,8 +30,10 @@ RUN test -f dist/index.js && echo "OK: dist/index.js (bootstrap)" || (echo "FAIL
 RUN test -f dist/_server.js && echo "OK: dist/_server.js (server bundle)" || echo "WARN: dist/_server.js missing (will build at startup)"
 RUN test -f dist/public/index.html && echo "OK: dist/public/index.html" || echo "WARN: dist/public/index.html missing"
 
-# Prune dev dependencies for smaller image
-RUN pnpm prune --prod
+# NOTE: We do NOT prune devDependencies because the esbuild server bundle
+# uses packages: "external" and the server has a static import of "vite"
+# (in server/_core/vite.ts) that resolves at module load time even in production.
+# Removing vite causes ERR_MODULE_NOT_FOUND at startup.
 
 # Remove build dependencies to reduce image size
 RUN apt-get purge -y python3 make g++ && apt-get autoremove -y

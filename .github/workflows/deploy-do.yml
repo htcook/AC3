@@ -10,6 +10,7 @@ env:
   REGISTRY_NAME: ace-c3-registry
   IMAGE_NAME: ace-c3
   APP_ID: 30f972fa-3c51-4a8d-baed-92a696303a50
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-deploy:
