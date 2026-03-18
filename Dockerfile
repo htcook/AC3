@@ -1,5 +1,12 @@
 FROM node:22-slim
 
+# Install build dependencies needed by native modules (ssh2, node-gyp)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install exact pnpm version matching packageManager in package.json
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
@@ -25,6 +32,9 @@ RUN test -f dist/public/index.html && echo "OK: dist/public/index.html" || echo 
 
 # Prune dev dependencies for smaller image
 RUN pnpm prune --prod
+
+# Remove build dependencies to reduce image size
+RUN apt-get purge -y python3 make g++ && apt-get autoremove -y
 
 # Expose port (platform uses PORT env var, default 8080)
 EXPOSE 8080
