@@ -1,7 +1,7 @@
 FROM node:22-slim
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install exact pnpm version matching packageManager in package.json
+RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
 WORKDIR /usr/src/app
 
