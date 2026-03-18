@@ -65,6 +65,18 @@ export const ENV = {
   GREYNOISE_API_KEY: process.env.GREYNOISE_API_KEY ?? "",
   // AbuseIPDB — IP abuse reputation
   ABUSEIPDB_API_KEY: process.env.ABUSEIPDB_API_KEY ?? "",
+  // OSINT Pipeline Expansion — additional connector API keys
+  VIRUSTOTAL_API_KEY: process.env.VIRUSTOTAL_API_KEY ?? "",
+  HIBP_API_KEY: process.env.HIBP_API_KEY ?? "",
+  WHOISXML_API_KEY: process.env.WHOISXML_API_KEY ?? "",
+  LEAKIX_API_KEY: process.env.LEAKIX_API_KEY ?? "",
+  FULLHUNT_API_KEY: process.env.FULLHUNT_API_KEY ?? "",
+  NETLAS_API_KEY: process.env.NETLAS_API_KEY ?? "",
+  HUNTER_API_KEY: process.env.HUNTER_API_KEY ?? "",
+  PASSIVETOTAL_API_KEY: process.env.PASSIVETOTAL_API_KEY ?? "",
+  INTELX_API_KEY: process.env.INTELX_API_KEY ?? "",
+  HUDSON_ROCK_API_KEY: process.env.HUDSON_ROCK_API_KEY ?? "",
+  LEAKCHECK_API_KEY: process.env.LEAKCHECK_API_KEY ?? "",
   // GitHub PAT — code recon dorks (fine-grained)
   GITHUB_PAT: process.env.GITHUB_PAT ?? '',
   // GitHub Classic Token — failover for rate-limited fine-grained PAT

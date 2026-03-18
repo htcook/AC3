@@ -2012,10 +2012,25 @@ export const domainIntelRouter = router({
         const apiKeys: Record<string, string> = {};
         if (process.env.SHODAN_API_KEY) apiKeys.shodan = process.env.SHODAN_API_KEY;
         if (process.env.CENSYS_API_ID) apiKeys.censys_id = process.env.CENSYS_API_ID;
+        if (process.env.CENSYS_API_SECRET) apiKeys.censys_secret = process.env.CENSYS_API_SECRET;
         if (process.env.URLSCAN_API_KEY) apiKeys.urlscan = process.env.URLSCAN_API_KEY;
         if (process.env.SECURITYTRAILS_API_KEY) apiKeys.securitytrails = process.env.SECURITYTRAILS_API_KEY;
         if (process.env.DEHASHED_API_KEY) apiKeys.dehashed = process.env.DEHASHED_API_KEY;
-        if (process.env.ABUSECH_API_KEY) apiKeys.abuseipdb = process.env.ABUSECH_API_KEY;
+        if (process.env.ABUSEIPDB_API_KEY) apiKeys.abuseipdb = process.env.ABUSEIPDB_API_KEY;
+        if (process.env.BINARYEDGE_API_KEY) apiKeys.binaryedge = process.env.BINARYEDGE_API_KEY;
+        if (process.env.GREYNOISE_API_KEY) apiKeys.greynoise = process.env.GREYNOISE_API_KEY;
+        if (process.env.GITHUB_PAT || process.env.GITHUB_CLASSIC_TOKEN) apiKeys.github = process.env.GITHUB_PAT || process.env.GITHUB_CLASSIC_TOKEN || '';
+        if (process.env.VIRUSTOTAL_API_KEY) apiKeys.virustotal = process.env.VIRUSTOTAL_API_KEY;
+        if (process.env.HIBP_API_KEY) apiKeys.hibp = process.env.HIBP_API_KEY;
+        if (process.env.WHOISXML_API_KEY) apiKeys.whoisxml = process.env.WHOISXML_API_KEY;
+        if (process.env.LEAKIX_API_KEY) apiKeys.leakix = process.env.LEAKIX_API_KEY;
+        if (process.env.FULLHUNT_API_KEY) apiKeys.fullhunt = process.env.FULLHUNT_API_KEY;
+        if (process.env.NETLAS_API_KEY) apiKeys.netlas = process.env.NETLAS_API_KEY;
+        if (process.env.HUNTER_API_KEY) apiKeys.hunter = process.env.HUNTER_API_KEY;
+        if (process.env.PASSIVETOTAL_API_KEY) apiKeys.passivetotal = process.env.PASSIVETOTAL_API_KEY;
+        if (process.env.INTELX_API_KEY) apiKeys.intelx = process.env.INTELX_API_KEY;
+        if (process.env.HUDSON_ROCK_API_KEY) apiKeys.hudson_rock = process.env.HUDSON_ROCK_API_KEY;
+        if (process.env.LEAKCHECK_API_KEY) apiKeys.leakcheck = process.env.LEAKCHECK_API_KEY;
 
         // Import ALL_CONNECTORS from passive index
         const { ALL_CONNECTORS } = await import('../lib/passive/index');
