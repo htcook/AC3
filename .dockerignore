@@ -1,13 +1,85 @@
+# Dependencies (installed fresh in Docker)
 node_modules
+.pnpm-store/
+
+# Git
 .git
+.github/
+
+# Manus platform files
 .manus/
 .manus-logs/
+
+# Test files (not needed in production image)
 *.test.ts
 *.test.js
 *.test.tsx
 *.spec.ts
 vitest.config.ts
+coverage/
+.nyc_output
+
+# Documentation (not needed in production image)
 README.md
 todo.md
+docs/
+*.md
+!drizzle/*.md
+
+# Environment files (injected at runtime)
 .env
 .env.*
+
+# Analysis/debug files
+debug-*.txt
+*-audit*.md
+*-research*.md
+*-analysis*.md
+*-notes*.md
+*-results*.md
+*-results*.json
+
+# One-off scripts and debug files
+scripts/
+fix-*.py
+fix-*.sh
+*.mjs
+*.cjs
+!build.cjs
+!postinstall.cjs
+test-caldera-key.cjs
+js_exploit_task.cjs
+query-scan-debug.ts
+engagement-progress.txt
+engagement-data.txt
+threatActorSeed*.ts
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Stale build artifacts (rebuilt during Docker build)
+client/dist/
+client/.client-assets/
+dist/_server.js
+dist/public/
+
+# Docker/deploy config (not needed inside the image)
+docker-compose.yml
+ecosystem.config.cjs
+deploy/
+do-app-spec.yaml
+
+# Large knowledge files (served from DO scan service)
+server/lib/knowledge/attack_chains_300.json
+server/lib/knowledge/asset_role_ontology.json
+server/threatActorSeed2.ts
+
+# Drizzle snapshots (only _journal.json needed, not full snapshots)
+drizzle/meta/*_snapshot.json

@@ -91,6 +91,8 @@ export async function executeToolViaQueue(
     forceLocal?: boolean;
     /** Force queue execution (fail if no workers) */
     forceQueue?: boolean;
+    /** AbortSignal from the engagement for graceful shutdown cancellation */
+    engagementAbortSignal?: AbortSignal;
   }
 ): Promise<ToolExecResult & { executionMode: "queue" | "local" }> {
   const startTime = Date.now();
@@ -155,7 +157,7 @@ export async function executeToolViaQueue(
     if (!options?.forceLocal) {
       try {
         const { executeToolViaHttp } = await import("./do-scan-api");
-        const httpResult = await executeToolViaHttp(config);
+        const httpResult = await executeToolViaHttp(config, options?.engagementAbortSignal);
         const latency = Date.now() - startTime;
         metrics.fellBackToSSH++; // Reuse counter for non-queue execution
         metrics.avgSSHLatencyMs = metrics.fellBackToSSH === 1
@@ -270,6 +272,8 @@ export async function executeRawCommandViaQueue(
     engagementId?: number;
     roeScope?: string[];
     forceLocal?: boolean;
+    /** AbortSignal from the engagement for graceful shutdown cancellation */
+    engagementAbortSignal?: AbortSignal;
   }
 ): Promise<ToolExecResult & { executionMode: "queue" | "local" }> {
   // ── Safety Engine Assessment for raw commands ───────────────────────
@@ -305,7 +309,7 @@ export async function executeRawCommandViaQueue(
     try {
       console.log(`[RawCmdViaQueue] Using DO HTTP API for: ${command.slice(0, 80)}...`);
       const { executeRawCommandViaHttp } = await import("./do-scan-api");
-      const result = await executeRawCommandViaHttp(command, timeoutSeconds);
+      const result = await executeRawCommandViaHttp(command, timeoutSeconds, options?.engagementAbortSignal);
       console.log(`[RawCmdViaQueue] HTTP completed: exit=${result.exitCode}, stdout=${result.stdout.length}b`);
       return { ...result, executionMode: "local" as const };
     } catch (httpErr: any) {

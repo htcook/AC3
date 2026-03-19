@@ -67,11 +67,20 @@ async function fetchWithRetry(
   url: string,
   options: RequestInit,
   timeoutMs: number,
-  label: string
+  label: string,
+  engagementAbortSignal?: AbortSignal
 ): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    // Check if the engagement has been aborted (e.g., server shutdown)
+    if (engagementAbortSignal?.aborted) {
+      throw new DOMException(
+        `Engagement aborted before ${label} attempt ${attempt}`,
+        "AbortError"
+      );
+    }
+
     if (attempt > 0) {
       const delay = RETRY_CONFIG.baseDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt - 1);
       console.log(`${LOG} Retry ${attempt}/${RETRY_CONFIG.maxRetries} for ${label} after ${delay}ms`);
@@ -83,15 +92,35 @@ async function fetchWithRetry(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
+      // If the engagement abort signal fires, also abort this request
+      const onEngagementAbort = () => controller.abort();
+      engagementAbortSignal?.addEventListener("abort", onEngagementAbort, { once: true });
 
-      clearTimeout(timeout);
-      return response;
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        engagementAbortSignal?.removeEventListener("abort", onEngagementAbort);
+        return response;
+      } catch (err: any) {
+        clearTimeout(timeout);
+        engagementAbortSignal?.removeEventListener("abort", onEngagementAbort);
+        throw err;
+      }
     } catch (err: any) {
       lastError = err;
+
+      // If aborted by engagement signal, don't retry — propagate immediately
+      if (engagementAbortSignal?.aborted) {
+        throw new DOMException(
+          `Engagement aborted during ${label}: ${err.message}`,
+          "AbortError"
+        );
+      }
+
       const isRetryable = err.name === "AbortError" ||
         err.message?.includes("fetch failed") ||
         err.message?.includes("ECONNRESET") ||
@@ -117,11 +146,26 @@ async function fetchWithRetry(
  * v1.1: Added retry with exponential backoff and +60s timeout buffer.
  */
 export async function executeToolViaHttp(
-  config: ToolExecConfig
+  config: ToolExecConfig,
+  engagementAbortSignal?: AbortSignal
 ): Promise<ToolExecResult> {
   const { tool, args, timeoutSeconds = 300, sudo = false } = config;
   const startTime = Date.now();
   metrics.totalRequests++;
+
+  // Early exit if engagement already aborted
+  if (engagementAbortSignal?.aborted) {
+    return {
+      tool,
+      command: `${tool} ${args}`,
+      stdout: "",
+      stderr: "Engagement aborted before execution",
+      exitCode: -1,
+      durationMs: 0,
+      timedOut: false,
+      error: "Engagement aborted",
+    };
+  }
 
   try {
     console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}...`);
@@ -146,7 +190,8 @@ export async function executeToolViaHttp(
         }),
       },
       timeoutMs,
-      `${tool} ${(args || "").slice(0, 40)}`
+      `${tool} ${(args || "").slice(0, 40)}`,
+      engagementAbortSignal
     );
 
     if (!response.ok) {
@@ -199,10 +244,25 @@ export async function executeToolViaHttp(
  */
 export async function executeRawCommandViaHttp(
   command: string,
-  timeoutSeconds: number = 300
+  timeoutSeconds: number = 300,
+  engagementAbortSignal?: AbortSignal
 ): Promise<ToolExecResult> {
   const startTime = Date.now();
   metrics.totalRequests++;
+
+  // Early exit if engagement already aborted
+  if (engagementAbortSignal?.aborted) {
+    return {
+      tool: "raw",
+      command,
+      stdout: "",
+      stderr: "Engagement aborted before execution",
+      exitCode: -1,
+      durationMs: 0,
+      timedOut: false,
+      error: "Engagement aborted",
+    };
+  }
 
   try {
     console.log(`${LOG} Raw command: ${command.slice(0, 100)}...`);
@@ -220,7 +280,8 @@ export async function executeRawCommandViaHttp(
         body: JSON.stringify({ command, timeoutSeconds }),
       },
       timeoutMs,
-      `raw: ${command.slice(0, 40)}`
+      `raw: ${command.slice(0, 40)}`,
+      engagementAbortSignal
     );
 
     if (!response.ok) {

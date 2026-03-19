@@ -2751,7 +2751,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       const { getScanServerConfigForNmap } = await import("./scan-server-executor");
       const { executeNmapScan } = await import("./nmap-orchestrator");
       const roeScope = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
-      const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope });
+      const engagementAbortSig = getEngagementAbortSignal(state.engagementId);
+      const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope, engagementAbortSignal: engagementAbortSig });
       const serverConfig = await getScanServerConfigForNmap();
 
       for (const target of targets) {
@@ -3429,7 +3430,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   // Job Queue Bridge: route Phase B tool execution through Redis queue
   const { suggestToolCommands } = await import("./scan-server-executor");
   const roeScope_B = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
-  const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_B });
+  const engagementAbortSig_B = getEngagementAbortSignal(state.engagementId);
+  const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_B, engagementAbortSignal: engagementAbortSig_B });
 
   for (const asset of state.assets) {
     if (asset.ports.length === 0) continue;
@@ -3870,7 +3872,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
     // Job Queue Bridge: route nuclei execution through Redis queue
     const roeScope_N = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
-    const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_N });
+    const engagementAbortSig_N = getEngagementAbortSignal(state.engagementId);
+    const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_N, engagementAbortSignal: engagementAbortSig_N });
 
     // Helper: execute nuclei with retry on SSH connection failures
     async function executeNucleiWithRetry(
