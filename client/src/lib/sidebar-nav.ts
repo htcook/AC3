@@ -424,6 +424,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "OSCAL Export", path: "/oscal-export", icon: FileCheck2 },
       { label: "STIX Export", path: "/stix-export", icon: Code2 },
       { label: "Evidence", path: "/evidence", icon: FileCheck2 },
+      { label: "Evidence Gallery", path: "/evidence-gallery", icon: Camera },
       { label: "Scoring", path: "/scoring", icon: BarChart3 },
       { label: "BIA Report", path: "/bia-report", icon: BarChart3 },
       { label: "Risk Trending", path: "/risk-trending", icon: TrendingUp },

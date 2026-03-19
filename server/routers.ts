@@ -153,6 +153,7 @@ import { safetyEngineRouter } from "./routers/safety-engine";
 import { agentInternalScanningRouter } from "./routers/agent-internal-scanning";
 import { phishingImpactRouter } from "./routers/phishing-impact";
 import { soc2ComplianceRouter } from "./routers/soc2-compliance";
+import { evidenceGalleryRouter } from "./routers/evidence-gallery";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -309,6 +310,7 @@ export const appRouter = router({
   customerPortal: customerPortalRouter,
   emulationPlaybooks: emulationPlaybooksRouter,
   evidence: evidenceRouter,
+  evidenceGallery: evidenceGalleryRouter,
   attackPaths: attackPathsRouter,
   purpleTeam: purpleTeamRouter,
   webhooks: webhooksRouter,

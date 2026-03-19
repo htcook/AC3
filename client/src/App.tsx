@@ -116,6 +116,7 @@ const CustomerPortalDashboard = lazyWithRetry(() => import("./pages/CustomerPort
 const CustomerAccounts = lazyWithRetry(() => import("./pages/CustomerAccounts"));
 const EmulationPlaybooks = lazyWithRetry(() => import("./pages/EmulationPlaybooks"));
 const EvidenceCollection = lazyWithRetry(() => import("./pages/EvidenceCollection"));
+const EvidenceGallery = lazyWithRetry(() => import("./pages/EvidenceGallery"));
 const AttackPaths = lazyWithRetry(() => import("./pages/AttackPaths"));
 const PurpleTeam = lazyWithRetry(() => import("./pages/PurpleTeam"));
 const Webhooks = lazyWithRetry(() => import("./pages/Webhooks"));
@@ -654,6 +655,9 @@ function Router() {
         </Route>
         <Route path="/evidence">
           <ProtectedRoute component={EvidenceCollection} />
+        </Route>
+        <Route path="/evidence-gallery">
+          <ProtectedRoute component={EvidenceGallery} />
         </Route>
         <Route path="/attack-paths">
           <ProtectedRoute component={AttackPaths} />
