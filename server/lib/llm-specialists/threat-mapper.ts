@@ -127,10 +127,19 @@ export interface ThreatMapperOutput {
 }
 
 export async function mapThreats(input: ThreatMapperInput): Promise<ThreatMapperOutput> {
+  // Inject banking domain knowledge if applicable
+  let bankingThreatCtx = '';
+  try {
+    const isBanking = input.assets?.some((a: any) => /bank|altoro|mutual|vulnbank|fintech|payment/i.test(a.hostname || ''));
+    if (isBanking) {
+      const { getBankingContextCompact } = await import('./banking-domain-knowledge');
+      bankingThreatCtx = '\n\n' + getBankingContextCompact() + '\n\nKnown banking threat actors: Carbanak/FIN7, Lazarus Group (DPRK), APT38, Silence Group, TA505, FIN8, Cobalt Group, Magecart. Focus on financial sector TTPs: credential harvesting, SWIFT fraud, ATM jackpotting, card skimming, business email compromise, and ransomware targeting financial institutions.';
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: buildCustomerContext(input.engagement),
-    assetContext: buildAssetContext(input.assets),
+    assetContext: buildAssetContext(input.assets) + bankingThreatCtx,
   });
 
   const userMessage = `Based on the following scan findings and asset data, identify relevant threat actors and attack behaviors:\n\n${input.findingsSummary}`;

@@ -32,12 +32,12 @@ export interface ThrottleConfig {
 }
 
 const DEFAULT_CONFIG: ThrottleConfig = {
-  minDelayMs: 1500,
-  maxDelayMs: 15000,
-  backoffMultiplier: 2.0,
-  cooldownMultiplier: 0.85,
+  minDelayMs: 800,
+  maxDelayMs: 12000,
+  backoffMultiplier: 1.8,
+  cooldownMultiplier: 0.8,
   cooldownThreshold: 3,
-  maxConcurrent: 1,
+  maxConcurrent: 3,
 };
 
 // ─── State ──────────────────────────────────────────────────────────
@@ -178,8 +178,21 @@ async function processQueue(): Promise<void> {
   isProcessing = true;
   
   while (true) {
+    // Wait for a slot if at max concurrency
+    if (activeCount >= config.maxConcurrent) {
+      await sleep(100);
+      continue;
+    }
+    
     const entry = getNextEntry();
-    if (!entry) break;
+    if (!entry) {
+      // If there are still active calls, wait for them to complete and check again
+      if (activeCount > 0) {
+        await sleep(100);
+        continue;
+      }
+      break;
+    }
     
     // Enforce minimum delay between calls
     const elapsed = Date.now() - lastCallAt;
@@ -189,9 +202,9 @@ async function processQueue(): Promise<void> {
       await sleep(waitMs);
     }
     
-    // Check if call has been waiting too long (> 2 minutes)
+    // Check if call has been waiting too long (> 3 minutes)
     const waitTime = Date.now() - entry.enqueuedAt;
-    if (waitTime > 120_000) {
+    if (waitTime > 180_000) {
       console.warn(`[LLM Throttle] Dropping stale ${entry.priority} call from ${entry.caller} (waited ${Math.round(waitTime / 1000)}s)`);
       entry.reject(new Error(`LLM call timed out in queue after ${Math.round(waitTime / 1000)}s`));
       totalFailed++;
@@ -202,61 +215,62 @@ async function processQueue(): Promise<void> {
     lastCallAt = Date.now();
     totalProcessed++;
     
-    try {
-      const result = await invokeLLM(entry.params);
-      activeCount--;
-      
-      // Success: cool down the delay
-      consecutiveSuccesses++;
-      if (consecutiveSuccesses >= config.cooldownThreshold) {
-        const newDelay = currentDelayMs * config.cooldownMultiplier;
-        currentDelayMs = Math.max(newDelay, config.minDelayMs);
-        consecutiveSuccesses = 0;
-        console.log(`[LLM Throttle] Cooldown: delay reduced to ${Math.round(currentDelayMs)}ms after ${config.cooldownThreshold} successes`);
-      }
-      
-      totalSucceeded++;
-      entry.resolve(result);
-    } catch (err: any) {
-      activeCount--;
-      const message = err?.message || String(err);
-      
-      // Check if this is a rate limit error
-      const isRateLimit = message.includes('403') || message.includes('429') || message.includes('rate limit') || message.includes('Forbidden') || message.includes('Too Many Requests');
-      
-      // Check if invokeLLM already exhausted all its internal retries + fallback
-      // When invokeLLM throws after trying Forge (4 attempts) + OpenAI fallback, 
-      // re-queuing just causes another full retry cycle and potential infinite loop
-      const isExhaustedRetries = message.includes('providers_exhausted') || message.includes('LLM invoke failed') || message.includes('All LLM providers failed');
-      
-      if (isRateLimit) {
-        const newDelay = currentDelayMs * config.backoffMultiplier;
-        currentDelayMs = Math.min(newDelay, config.maxDelayMs);
-        consecutiveSuccesses = 0;
-        totalRateLimited++;
-        console.warn(`[LLM Throttle] Rate limited! Delay increased to ${Math.round(currentDelayMs)}ms`);
-        
-        // Only re-queue if invokeLLM hasn't already exhausted all retries/fallbacks
-        // and we haven't already throttle-retried this call
-        if (!entry.params._throttleRetried && !isExhaustedRetries) {
-          entry.params._throttleRetried = true;
-          queues[entry.priority].unshift(entry);
-          console.log(`[LLM Throttle] Re-queued ${entry.priority} call from ${entry.caller} for retry`);
-          
-          // Extra wait before retry
-          await sleep(currentDelayMs);
-          continue;
-        } else {
-          console.warn(`[LLM Throttle] NOT re-queuing ${entry.caller} — ${isExhaustedRetries ? 'all providers exhausted' : 'already retried once'}. Letting caller handle fallback.`);
-        }
-      }
-      
-      totalFailed++;
-      entry.reject(err);
-    }
+    // Fire and continue (don't await — allows concurrency)
+    processEntry(entry).catch(() => {});
   }
   
   isProcessing = false;
+}
+
+async function processEntry(entry: QueueEntry): Promise<void> {
+  try {
+    const result = await invokeLLM(entry.params);
+    activeCount--;
+    
+    // Success: cool down the delay
+    consecutiveSuccesses++;
+    if (consecutiveSuccesses >= config.cooldownThreshold) {
+      const newDelay = currentDelayMs * config.cooldownMultiplier;
+      currentDelayMs = Math.max(newDelay, config.minDelayMs);
+      consecutiveSuccesses = 0;
+      console.log(`[LLM Throttle] Cooldown: delay reduced to ${Math.round(currentDelayMs)}ms after ${config.cooldownThreshold} successes`);
+    }
+    
+    totalSucceeded++;
+    entry.resolve(result);
+  } catch (err: any) {
+    activeCount--;
+    const message = err?.message || String(err);
+    
+    // Check if this is a rate limit error
+    const isRateLimit = message.includes('403') || message.includes('429') || message.includes('rate limit') || message.includes('Forbidden') || message.includes('Too Many Requests');
+    
+    // Check if invokeLLM already exhausted all its internal retries + fallback
+    const isExhaustedRetries = message.includes('providers_exhausted') || message.includes('LLM invoke failed') || message.includes('All LLM providers failed');
+    
+    if (isRateLimit) {
+      const newDelay = currentDelayMs * config.backoffMultiplier;
+      currentDelayMs = Math.min(newDelay, config.maxDelayMs);
+      consecutiveSuccesses = 0;
+      totalRateLimited++;
+      console.warn(`[LLM Throttle] Rate limited! Delay increased to ${Math.round(currentDelayMs)}ms`);
+      
+      // Only re-queue if invokeLLM hasn't already exhausted all retries/fallbacks
+      if (!entry.params._throttleRetried && !isExhaustedRetries) {
+        entry.params._throttleRetried = true;
+        queues[entry.priority].unshift(entry);
+        console.log(`[LLM Throttle] Re-queued ${entry.priority} call from ${entry.caller} for retry`);
+        // Kick processing again after delay
+        setTimeout(() => processQueue(), currentDelayMs);
+        return;
+      } else {
+        console.warn(`[LLM Throttle] NOT re-queuing ${entry.caller} — ${isExhaustedRetries ? 'all providers exhausted' : 'already retried once'}. Letting caller handle fallback.`);
+      }
+    }
+    
+    totalFailed++;
+    entry.reject(err);
+  }
 }
 
 function sleep(ms: number): Promise<void> {

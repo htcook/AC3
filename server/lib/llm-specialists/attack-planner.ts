@@ -185,10 +185,19 @@ export interface AttackPlannerOutput {
 }
 
 export async function planAttack(input: AttackPlannerInput): Promise<AttackPlannerOutput> {
+  // Inject banking domain knowledge if applicable
+  let bankingAttackCtx = '';
+  try {
+    const isBanking = input.assets?.some((a: any) => /bank|altoro|mutual|vulnbank|fintech|payment/i.test(a.hostname || ''));
+    if (isBanking) {
+      const { buildBankingDomainContext } = await import('./banking-domain-knowledge');
+      bankingAttackCtx = '\n\n' + buildBankingDomainContext({ phase: 'vuln_detection', includeRegulatory: true, includeTechStack: true, includeAttackScenarios: true });
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: buildCustomerContext(input.engagement),
-    assetContext: buildAssetContext(input.assets),
+    assetContext: buildAssetContext(input.assets) + bankingAttackCtx,
   });
 
   const userMessage = `Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n${input.passiveReconSummary}`;

@@ -149,10 +149,18 @@ export interface VulnVerifierOutput {
 }
 
 export async function verifyVulnerability(input: VulnVerifierInput): Promise<VulnVerifierOutput> {
+  // Inject banking domain knowledge if applicable
+  let bankingVulnCtx = '';
+  try {
+    if (/bank|altoro|mutual|vulnbank|fintech|payment/i.test(input.finding?.hostname || '')) {
+      const { getBankingContextCompact } = await import('./banking-domain-knowledge');
+      bankingVulnCtx = '\n\n' + getBankingContextCompact();
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: input.engagement ? buildCustomerContext(input.engagement) : undefined,
-    assetContext: input.assetContext,
+    assetContext: (input.assetContext || '') + bankingVulnCtx,
   });
 
   const f = input.finding;

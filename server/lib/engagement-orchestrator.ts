@@ -336,6 +336,12 @@ export interface EngagementOpsState {
 // ─── In-Memory State Store ──────────────────────────────────────────────────
 
 const opsStates = new Map<number, EngagementOpsState>();
+
+// ═══ CONCURRENT ENGAGEMENT CAPACITY ═══
+// Maximum number of engagements that can run simultaneously.
+// Each active engagement consumes ~15-30MB of heap for state, logs, and LLM contexts.
+// With 1536MB heap, 10 concurrent engagements is the safe ceiling.
+export const MAX_CONCURRENT_ENGAGEMENTS = 10;
 const approvalResolvers = new Map<string, (approved: boolean) => void>();
 
 let idCounter = 0;
@@ -587,14 +593,27 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    if (heapMB > 300) {
+    // Scaled thresholds for 10 concurrent engagements
+    const HEAP_WARNING_MB = 800;
+    const HEAP_CRITICAL_MB = 1200;
+    if (heapMB > HEAP_WARNING_MB) {
       console.warn(`[MemoryWatchdog] HIGH HEAP: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
-      // Emergency: trim all active states' logs and toolResults
+      // Per-engagement log budget: scale down as more engagements are active
+      const activeCount = Math.max(1, opsStates.size);
+      const perEngBudget = heapMB > HEAP_CRITICAL_MB
+        ? Math.floor(150 / activeCount * Math.min(activeCount, 10))
+        : Math.floor(400 / activeCount * Math.min(activeCount, 10));
+      const maxLogsPerEng = Math.max(100, Math.min(500, perEngBudget));
       for (const [engId, state] of opsStates.entries()) {
-        const maxLogs = heapMB > 400 ? 100 : 250;
-        if (state.log.length > maxLogs) {
-          state.log = state.log.slice(-maxLogs);
-          console.warn(`[MemoryWatchdog] Trimmed logs for engagement #${engId} to ${maxLogs}`);
+        // Evict completed engagement states that are older than 10 minutes
+        if ((state.phase === 'completed' || state.phase === 'error') && state.completedAt && Date.now() - state.completedAt > 600_000) {
+          opsStates.delete(engId);
+          console.warn(`[MemoryWatchdog] Evicted completed engagement #${engId} from memory`);
+          continue;
+        }
+        if (state.log.length > maxLogsPerEng) {
+          state.log = state.log.slice(-maxLogsPerEng);
+          console.warn(`[MemoryWatchdog] Trimmed logs for engagement #${engId} to ${maxLogsPerEng}`);
         }
         // Trim large toolResult outputs
         for (const asset of state.assets) {
@@ -656,8 +675,8 @@ export function getHealthStatus() {
     },
     memoryWatchdog: {
       running: memoryWatchdogInterval !== null,
-      heapWarningThresholdMB: 300,
-      heapCriticalThresholdMB: 400,
+      heapWarningThresholdMB: 800,
+      heapCriticalThresholdMB: 1200,
     },
     engagements: {
       activeCount: opsStates.size,
@@ -730,12 +749,12 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
-  // Memory-aware log trimming: aggressive when heap usage > 400MB
+  // Memory-aware log trimming: scaled for 10 concurrent engagements
   const heapMB = process.memoryUsage().heapUsed / 1024 / 1024;
-  const maxLogs = heapMB > 400 ? 200 : heapMB > 300 ? 350 : 500;
+  const maxLogs = heapMB > 1200 ? 200 : heapMB > 800 ? 400 : 600;
   if (state.log.length > maxLogs) state.log = state.log.slice(-maxLogs);
   // Under extreme memory pressure, also trim toolResults outputPreview
-  if (heapMB > 400) {
+  if (heapMB > 1200) {
     for (const asset of state.assets) {
       for (const tr of (asset.toolResults || [])) {
         if (tr.outputPreview && tr.outputPreview.length > 512) {
@@ -1333,7 +1352,20 @@ Return valid JSON per the response_format schema.`;
     } catch (e) {
       console.warn('[ScanPlan] Failed to build threat actor learning context:', e);
     }
+    // Banking domain knowledge injection
+    let bankingCtx = '';
+    try {
+      const inferredSector = state.engagementContext?.inferredSector || '';
+      if (inferredSector === 'banking_financial_services' || state.assets.some(a => /bank|altoro|mutual|vulnbank|fintech|payment/i.test(a.hostname))) {
+        const { buildBankingDomainContext } = await import('./llm-specialists/banking-domain-knowledge');
+        bankingCtx = buildBankingDomainContext({ phase: 'enumeration', includeRegulatory: true, includeTechStack: true });
+        console.log('[ScanPlan] Banking domain knowledge injected');
+      }
+    } catch (e) {
+      console.warn('[ScanPlan] Failed to build banking context:', e);
+    }
     enrichmentCtx = [
+      bankingCtx || '',
       ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
       bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
       corpusCtx ? '## Triage Examples\n' + corpusCtx : '',
@@ -1683,11 +1715,20 @@ Prioritize critical and high severity vulnerabilities. Generate one exploit_atte
 Do NOT return scan-type actions (nmap_scan, nuclei_scan) during exploitation — only exploit_attempt, c2_deploy, or complete.`
     : '';
 
+   // Inject banking domain knowledge if applicable
+  let bankingOpsCtx = '';
+  try {
+    if (context.assets?.some((a: any) => /bank|altoro|mutual|vulnbank|fintech|payment/i.test(a.hostname || a.ip || ''))) {
+      const { getBankingContextCompact, buildBankingDomainContext } = await import('./llm-specialists/banking-domain-knowledge');
+      bankingOpsCtx = ['exploitation', 'post_exploit'].includes(context.phase)
+        ? '\n\n' + buildBankingDomainContext({ phase: context.phase, includeRegulatory: false, includeTechStack: false, includeAttackScenarios: true })
+        : '\n\n' + getBankingContextCompact();
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = `Pentest AI for ${context.engagementType} engagement. Phase: ${context.phase}.
-
 Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
 Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vuln} nuclei_scan={targets,severity,tags?} zap_scan={targetUrl,scanType:full|active|spider_only,wafAware} exploit_attempt={target,port,cve,service,module?} c2_deploy={target,platform,method} recon={domain} complete={reason}
-Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.${exploitPhaseInstructions}`;
+Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.${exploitPhaseInstructions}${bankingOpsCtx}`;
 
   try {
     const response = await throttledLLMCall({
@@ -2831,7 +2872,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     }
   }
 
-  const targets = scopedAssets.map(a => a.ip || a.hostname);
+  // Build target list preserving asset identity (avoid IP dedup when multiple assets share an IP)
+  // Each entry maps to a unique asset by hostname, using IP only for nmap execution
+  const targets = scopedAssets.map(a => ({
+    scanTarget: a.ip || a.hostname,  // What nmap scans (IP preferred)
+    assetHostname: a.hostname,       // Which asset this belongs to
+  }));
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE A: Discovery Nmap with Evasion Tactics
@@ -2857,8 +2903,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope, engagementAbortSignal: engagementAbortSig });
       const serverConfig = await getScanServerConfigForNmap();
 
-      for (const target of targets) {
-        const asset = state.assets.find(a => (a.ip || a.hostname) === target);
+      for (const targetEntry of targets) {
+        const target = targetEntry.scanTarget;
+        const asset = state.assets.find(a => a.hostname === targetEntry.assetHostname);
         if (!asset) continue;
         asset.status = "scanning";
 
@@ -4009,6 +4056,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     for (const asset of nucleiAssets) {
       const target = asset.ip || asset.hostname;
       // Build nuclei target URLs for web ports, or just the host for non-web
+      // Use hostname (not IP) so multiple assets on the same server get distinct scans
       const webPorts = asset.ports.filter(p =>
         ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
         [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
@@ -4017,9 +4065,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       const nucleiTargetUrls = webPorts.length > 0
         ? webPorts.map(p => {
             const scheme = p.port === 443 || p.port === 8443 ? "https" : "http";
-            return `${scheme}://${target}:${p.port}`;
+            return `${scheme}://${asset.hostname}:${p.port}`;
           })
-        : [target];
+        : [asset.hostname];
 
       // Build technology-aware nuclei tags from httpx-detected technologies
       const detectedTechs = asset.passiveRecon?.technologies || [];
@@ -4157,14 +4205,17 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
     for (const wp of webPorts) {
       const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
-      const targetUrl = `${protocol}://${webApp.ip || webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
+      // Use hostname for ZAP target URL (not IP) to support multiple assets on same server
+      const targetUrl = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
+      // Dedup key includes hostname to avoid skipping distinct assets that share an IP
+      const dedupKey = `${webApp.hostname}:${wp.port}`;
 
-      // Skip if we already scanned this exact URL in this run
-      if (scannedTargetUrls.has(targetUrl)) {
+      // Skip if we already scanned this exact host+port in this run
+      if (scannedTargetUrls.has(dedupKey)) {
         addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Dedup Skip: ${targetUrl}`, detail: "Already scanned in this engagement run" });
         continue;
       }
-      scannedTargetUrls.add(targetUrl);
+      scannedTargetUrls.add(dedupKey);
 
       addLog(state, {
         phase: "vuln_detection",
@@ -5728,6 +5779,22 @@ export async function executeEngagement(
   }
 ): Promise<void> {
   let startPhase = options?.startPhase || 'recon';
+
+  // ═══ CAPACITY CHECK ═══
+  // Count actively running engagements (exclude completed/error/idle)
+  const runningCount = [...opsStates.values()].filter(s => s.isRunning && s.phase !== 'completed' && s.phase !== 'error').length;
+  if (runningCount >= MAX_CONCURRENT_ENGAGEMENTS) {
+    const errState = opsStates.get(engagementId) || initOpsState(engagementId, 'pentest');
+    addLog(errState, {
+      phase: 'idle', type: 'error',
+      title: `⛔ Capacity Limit Reached (${MAX_CONCURRENT_ENGAGEMENTS} concurrent)`,
+      detail: `Cannot start engagement — ${runningCount} engagements are already running. Wait for one to complete or stop an active engagement.`,
+    });
+    errState.phase = 'error';
+    errState.error = `Capacity limit: ${runningCount}/${MAX_CONCURRENT_ENGAGEMENTS} concurrent engagements`;
+    return;
+  }
+
   let state = opsStates.get(engagementId);
 
   // ═══ DURABLE STATE RESUME ═══
@@ -5927,6 +5994,34 @@ export async function executeEngagement(
       console.error(`[OWASP Coverage] Real-time update failed after ${completedPhase}:`, e.message);
     }
   }
+
+  // ═══ PHASE ACTIVITY HEARTBEAT ═══
+  // Detect stalls: if no new log entries for 5 minutes, emit a heartbeat warning.
+  // If no activity for 10 minutes, force-advance to next phase.
+  let lastActivityAt = Date.now();
+  const STALL_WARNING_MS = 5 * 60_000;
+  const STALL_FORCE_MS = 10 * 60_000;
+  const heartbeatInterval = setInterval(() => {
+    if (!state.isRunning || state.phase === 'completed' || state.phase === 'error') {
+      clearInterval(heartbeatInterval);
+      return;
+    }
+    const idleMs = Date.now() - lastActivityAt;
+    if (idleMs > STALL_FORCE_MS) {
+      addLog(state, {
+        phase: state.phase, type: 'warning',
+        title: `⏰ Phase Stall Detected: ${state.phase}`,
+        detail: `No activity for ${Math.round(idleMs / 60_000)} minutes. Phase may be stuck on an LLM call or external tool. The pipeline will attempt to continue.`,
+      });
+      lastActivityAt = Date.now(); // Reset to avoid spamming
+    } else if (idleMs > STALL_WARNING_MS) {
+      console.warn(`[Heartbeat] Engagement #${engagementId} phase ${state.phase}: idle for ${Math.round(idleMs / 1000)}s`);
+    }
+  }, 60_000); // Check every minute
+
+  // Wrap addLog to update lastActivityAt
+  const origAddLog = addLog;
+  const trackActivity = () => { lastActivityAt = Date.now(); };
 
   try {
     // Phase 1: Recon (skip if starting from a later phase)
@@ -6389,6 +6484,7 @@ export async function executeEngagement(
     }
 
     // Complete
+    clearInterval(heartbeatInterval); // Clean up heartbeat on completion
     state.phase = "completed";
     state.progress = 100;
     state.isRunning = false;
@@ -6672,6 +6768,7 @@ export async function executeEngagement(
       console.warn(`[Notification] Completion notification failed for #${engagementId}:`, notifErr.message);
     }
   } catch (e: any) {
+    clearInterval(heartbeatInterval); // Clean up heartbeat on error
     state.phase = "error";
     state.isRunning = false;
     state.error = e.message;

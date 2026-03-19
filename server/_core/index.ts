@@ -125,6 +125,75 @@ async function startServer() {
   // Cookie parser for session management
   app.use(cookieParser());
 
+  // === TEMPORARY: Debug endpoint for engagement state ===
+  app.get('/api/_test/engagement-state/:id', async (req, res) => {
+    try {
+      const { getOpsState } = await import('../lib/engagement-orchestrator.js');
+      const state = getOpsState(Number(req.params.id));
+      if (!state) return res.json({ found: false });
+      const full = req.query.full === 'true';
+      if (full) {
+        // Return full state for report generation
+        return res.json({
+          found: true,
+          phase: state.phase,
+          error: state.error,
+          isRunning: state.isRunning,
+          progress: state.progress,
+          engagementType: state.engagementType,
+          trainingLabMode: (state as any).trainingLabMode,
+          stats: state.stats,
+          assets: state.assets,
+          log: state.log || state.logs || [],
+          scanPlan: state.scanPlan,
+          exploitPlan: state.exploitPlan,
+          engagementContext: state.engagementContext,
+          roeScopeGuard: state.roeScopeGuard,
+          startedAt: state.startedAt,
+          completedAt: state.completedAt,
+        });
+      }
+      res.json({
+        found: true,
+        phase: state.phase,
+        error: state.error,
+        isRunning: state.isRunning,
+        progress: state.progress,
+        logsCount: (state.log || state.logs || []).length,
+        assetsCount: state.assets?.length || 0,
+        lastLogs: (state.log || state.logs || []).slice(-5).map((l: any) => ({ type: l.type, title: l.title, detail: (l.detail || '').substring(0, 300) })),
+        trainingLabMode: (state as any).trainingLabMode,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // === TEMPORARY: Test trigger for Banking Systems engagement ===
+  app.post('/api/_test/trigger-banking', async (req, res) => {
+    try {
+      const { executeEngagement, initOpsState, getOpsState, persistOpsStateNow, clearOpsState } = await import('../lib/engagement-orchestrator.js');
+      const engagementId = req.body?.engagementId || 1770043;
+      // Force-clear any stale state (error/completed from previous runs or DB recovery)
+      await clearOpsState(engagementId);
+      // Initialize fresh ops state and set trainingLabMode BEFORE calling executeEngagement
+      let state = initOpsState(engagementId, 'pentest');
+      (state as any).trainingLabMode = true;
+      await persistOpsStateNow(engagementId);
+      // Pass proper operatorCtx (id + name), not trainingLabMode
+      executeEngagement(engagementId, {
+        id: 'system-test',
+        name: 'Banking Test Runner',
+      }).catch(err => {
+        console.error('[Banking Test] Pipeline error:', err?.message || err);
+        console.error('[Banking Test] Stack:', err?.stack);
+      });
+      res.json({ ok: true, engagementId, message: 'Banking Systems pipeline started with trainingLabMode=true' });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // SAML 2.0 protocol endpoints (metadata, ACS, SSO initiation)

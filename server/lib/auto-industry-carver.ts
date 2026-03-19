@@ -53,7 +53,9 @@ export type ThreatCategory =
   | "credential_stuffing"
   | "abuse_of_apis"
   | "ot_intrusion"
-  | "hacktivism";
+  | "hacktivism"
+  | "web_app_exploitation"
+  | "account_takeover";
 
 export interface NaicsCandidate {
   code: string;
@@ -155,8 +157,14 @@ export const INDUSTRY_DETECTION_RULES: Record<string, {
 }> = {
   banking: {
     tlds: [".bank"],
-    keywords: ["bank", "fdic", "credit union", "ach", "swift"],
-    assetSignals: ["swift", "ach", "payment gateway"],
+    keywords: ["bank", "banking", "fdic", "credit union", "ach", "swift", "altoro", "mutual", "vulnbank",
+      "mortgage", "loan", "deposit", "savings", "checking", "wire transfer", "routing number",
+      "wealth management", "brokerage", "securities", "fintech", "payment", "transaction",
+      "account balance", "atm", "debit", "credit card", "merchant", "pci", "pci-dss",
+      "core banking", "online banking", "mobile banking", "treasury", "forex", "capital markets"],
+    assetSignals: ["swift", "ach", "payment gateway", "online banking", "wire transfer",
+      "core banking", "card processing", "merchant services", "treasury management",
+      "loan origination", "account management", "bill pay", "mobile deposit"],
     regulatory: ["GLBA", "SOX", "FFIEC"],
   },
   defense: {
@@ -222,9 +230,15 @@ export const NAICS_AUTO_MAPPING: Record<CarverSector, NaicsSectorMapping> = {
       { code: "523930", label: "Investment Advice" },
     ],
     signals: {
-      keywords: ["bank", "credit union", "fdic", "routing number", "wealth management", "brokerage", "securities"],
+      keywords: ["bank", "banking", "credit union", "fdic", "routing number", "wealth management",
+        "brokerage", "securities", "altoro", "mutual", "vulnbank", "mortgage", "loan",
+        "deposit", "savings", "checking", "fintech", "payment", "transaction", "atm",
+        "debit", "credit card", "merchant", "pci", "treasury", "forex", "capital markets"],
       tlds: [".bank"],
-      assetSignals: ["swift", "ach", "payment gateway", "online banking", "wire transfer"],
+      assetSignals: ["swift", "ach", "payment gateway", "online banking", "wire transfer",
+        "core banking", "card processing", "merchant services", "treasury management",
+        "loan origination", "account management", "bill pay", "mobile deposit",
+        "kyc", "aml", "fraud detection", "risk scoring"],
     },
   },
   healthcare_providers: {
@@ -376,7 +390,13 @@ export const REGULATORY_OVERLAYS: Record<string, RegulatoryOverlay> = {
 // ═══════════════════════════════════════════════════════════════════════
 
 export const AUTO_BIA_ASSET_PRIORITY: Record<CarverSector, string[]> = {
-  banking_financial_services: ["SWIFT", "Core Banking System", "Online Banking Portal", "Email"],
+  banking_financial_services: [
+    "SWIFT/Wire Transfer System", "Core Banking Platform", "Online Banking Portal",
+    "Mobile Banking API", "Payment Processing Gateway", "ACH/EFT Processing",
+    "Card Management System", "Loan Origination System", "Treasury Management",
+    "Customer Account Database", "KYC/AML Systems", "Fraud Detection Engine",
+    "ATM Network Controller", "Email/Communication Systems",
+  ],
   healthcare_providers: ["EHR System", "Patient Data Store", "Billing Systems", "Email"],
   pharmaceuticals_biotech: ["CTMS", "LIMS", "GxP Systems", "R&D Data Store", "Email"],
   defense_aerospace: ["Classified Network", "Engineering Systems", "Program Data", "Email"],
@@ -393,6 +413,8 @@ export const THREAT_ACTOR_LIKELIHOOD: Record<CarverSector, Partial<Record<Threat
   banking_financial_services: {
     ransomware_ecrime: 0.85, financial_fraud_bec: 0.90,
     apt_state_espionage: 0.60, ddos_extortion: 0.55, insider_threat: 0.45,
+    credential_stuffing: 0.80, abuse_of_apis: 0.75, supply_chain: 0.50,
+    web_app_exploitation: 0.85, account_takeover: 0.90,
   },
   healthcare_providers: {
     ransomware_ecrime: 0.90, data_extortion: 0.80,

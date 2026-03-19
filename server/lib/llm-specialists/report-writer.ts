@@ -128,9 +128,18 @@ export interface ReportWriterOutput {
 }
 
 export async function writeReportFinding(input: ReportWriterInput): Promise<ReportWriterOutput> {
+  // Inject banking domain knowledge if applicable
+  let bankingReportCtx = '';
+  try {
+    if (/bank|altoro|mutual|vulnbank|fintech|payment/i.test(input.finding?.hostname || '')) {
+      const { BANKING_REGULATORY_CONTEXT } = await import('./banking-domain-knowledge');
+      bankingReportCtx = '\n\nThis is a BANKING engagement. Include regulatory impact (PCI-DSS, GLBA, FFIEC, SOX) in remediation recommendations. Assess financial impact of each finding. Reference banking-specific compliance requirements.' + BANKING_REGULATORY_CONTEXT;
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: input.engagement ? buildCustomerContext(input.engagement) : undefined,
+    additionalContext: bankingReportCtx || undefined,
   });
 
   const f = input.finding;

@@ -147,11 +147,19 @@ export interface ScanAnalystOutput {
 }
 
 export async function analyzeScan(input: ScanAnalystInput): Promise<ScanAnalystOutput> {
+  // Inject banking domain knowledge if applicable
+  let bankingAdditionalCtx = '';
+  try {
+    if (/bank|altoro|mutual|vulnbank|fintech|payment/i.test(input.hostname || '')) {
+      const { getBankingContextCompact } = await import('./banking-domain-knowledge');
+      bankingAdditionalCtx = '\n\n' + getBankingContextCompact();
+    }
+  } catch (e) { /* non-fatal */ }
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: input.engagement ? buildCustomerContext(input.engagement) : undefined,
     assetContext: input.assets ? buildAssetContext(input.assets) : undefined,
-    additionalContext: FEW_SHOT_EXAMPLE,
+    additionalContext: FEW_SHOT_EXAMPLE + bankingAdditionalCtx,
   });
 
   const userMessage = `Analyze the following scan data for: ${input.hostname}\n\n${input.scanData}`;
