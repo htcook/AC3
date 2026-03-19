@@ -552,6 +552,76 @@ export async function persistOpsStateNow(engagementId: number): Promise<void> {
   }
 }
 
+// ─── Graceful Shutdown ─────────────────────────────────────────────────────
+
+/** Per-engagement abort controllers — used to cancel in-flight operations on shutdown */
+const engagementAbortControllers = new Map<number, AbortController>();
+
+/** Get or create an AbortController for an engagement */
+export function getEngagementAbortSignal(engagementId: number): AbortSignal {
+  let controller = engagementAbortControllers.get(engagementId);
+  if (!controller) {
+    controller = new AbortController();
+    engagementAbortControllers.set(engagementId, controller);
+  }
+  return controller.signal;
+}
+
+/** Abort a specific engagement's in-flight operations */
+export function abortEngagement(engagementId: number): void {
+  const controller = engagementAbortControllers.get(engagementId);
+  if (controller) {
+    controller.abort();
+    engagementAbortControllers.delete(engagementId);
+  }
+}
+
+/**
+ * Flush ALL pending debounced state to DB immediately.
+ * Call this during graceful shutdown (SIGTERM/SIGINT) to prevent data loss.
+ * Returns the number of states flushed.
+ */
+export async function flushAllPendingState(): Promise<number> {
+  // Cancel all debounce timers
+  for (const [engId, timer] of persistTimers.entries()) {
+    clearTimeout(timer);
+    persistTimers.delete(engId);
+  }
+
+  // Force-persist all active states
+  const activeEngagements = Array.from(opsStates.entries());
+  if (activeEngagements.length === 0) return 0;
+
+  console.log(`[GracefulShutdown] Flushing ${activeEngagements.length} active engagement state(s) to DB...`);
+  let flushed = 0;
+
+  try {
+    const { saveOpsSnapshot } = await import('../db');
+    await Promise.allSettled(
+      activeEngagements.map(async ([engId, state]) => {
+        try {
+          await saveOpsSnapshot(engId, state);
+          flushed++;
+          console.log(`[GracefulShutdown] Flushed state for engagement #${engId} (phase=${state.phase}, progress=${state.progress}%)`);
+        } catch (e: any) {
+          console.error(`[GracefulShutdown] Failed to flush state for #${engId}: ${e.message}`);
+        }
+      })
+    );
+  } catch (e: any) {
+    console.error(`[GracefulShutdown] DB import failed during flush: ${e.message}`);
+  }
+
+  // Abort all in-flight engagement operations
+  for (const [engId, controller] of engagementAbortControllers.entries()) {
+    controller.abort();
+    engagementAbortControllers.delete(engId);
+  }
+
+  console.log(`[GracefulShutdown] Flushed ${flushed}/${activeEngagements.length} engagement states`);
+  return flushed;
+}
+
 // ─── Broadcast helpers ──────────────────────────────────────────────────────
 
 export function broadcastOpsUpdate(engagementId: number, data: Record<string, any>) {

@@ -384,6 +384,41 @@ async function startServer() {
     // Don't exit — let the server keep running
   });
 
+  // ── Graceful Shutdown ─────────────────────────────────────────────────
+  // Flush engagement state and clean up SSH connections before process exit.
+  // This prevents data loss when tsx watch restarts the server on file changes.
+  let isShuttingDown = false;
+  async function gracefulShutdown(signal: string) {
+    if (isShuttingDown) return; // Prevent double-shutdown
+    isShuttingDown = true;
+    console.log(`\n[GracefulShutdown] Received ${signal}, flushing state...`);
+    const shutdownTimeout = setTimeout(() => {
+      console.error('[GracefulShutdown] Timeout after 5s, forcing exit');
+      process.exit(1);
+    }, 5000);
+    try {
+      // 1. Flush all engagement states to DB
+      const { flushAllPendingState } = await import('../lib/engagement-orchestrator');
+      const flushed = await flushAllPendingState();
+      console.log(`[GracefulShutdown] Flushed ${flushed} engagement state(s)`);
+      // 2. Clean up SSH connection pool
+      const { cleanupSSHPool } = await import('../lib/scan-server-executor');
+      cleanupSSHPool();
+      // 3. Close the HTTP server
+      server.close(() => {
+        console.log('[GracefulShutdown] HTTP server closed');
+      });
+    } catch (err: any) {
+      console.error(`[GracefulShutdown] Error during shutdown: ${err.message}`);
+    } finally {
+      clearTimeout(shutdownTimeout);
+      console.log('[GracefulShutdown] Shutdown complete');
+      process.exit(0);
+    }
+  }
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
 

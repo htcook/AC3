@@ -175,6 +175,25 @@ function resetPoolIdleTimer() {
   }, POOL_IDLE_TIMEOUT);
 }
 
+/**
+ * Clean up the SSH connection pool.
+ * Call during graceful shutdown to prevent connection leaks.
+ */
+export function cleanupSSHPool(): void {
+  if (poolIdleTimer) {
+    clearTimeout(poolIdleTimer);
+    poolIdleTimer = null;
+  }
+  if (pooledConn) {
+    try {
+      pooledConn.end();
+      console.log('[ScanServer] SSH pool connection closed (graceful shutdown)');
+    } catch { /* ignore */ }
+    pooledConn = null;
+    pooledConnReady = false;
+  }
+}
+
 async function getPooledConnection(): Promise<InstanceType<typeof SSHClient>> {
   if (pooledConn && pooledConnReady) {
     resetPoolIdleTimer();
