@@ -6,6 +6,54 @@ import { z } from "zod";
 import * as db from "../db";
 import { ENV } from "../_core/env";
 import { invokeLLM } from "../_core/llm";
+import { captureCalderaEvidence } from "../lib/caldera-evidence-collector";
+
+/**
+ * Collect Caldera evidence snapshot for report generation.
+ * Attempts to find the most recent operation related to the engagement
+ * and captures agents, operation timeline, and adversary profile data
+ * with source/destination IPs and timestamps.
+ */
+async function collectCalderaEvidenceForReport(engagement: any) {
+  try {
+    const calderaUrl = ENV.calderaBaseUrl;
+    const calderaKey = ENV.calderaApiKey;
+    if (!calderaUrl || !calderaKey) return undefined;
+
+    // Find the most recent operation related to this engagement
+    const opsResp = await fetch(calderaUrl + '/api/v2/operations', {
+      headers: { 'KEY': calderaKey },
+    });
+    if (!opsResp.ok) return undefined;
+    const allOps = await opsResp.json();
+    if (!Array.isArray(allOps) || allOps.length === 0) return undefined;
+
+    // Match by engagement name/ID in operation name, or take the most recent
+    const engName = (engagement.name || engagement.customerName || '').toLowerCase();
+    const engId = engagement.id;
+    const matchedOp = allOps.find((op: any) =>
+      op.name?.toLowerCase().includes(engName) ||
+      op.name?.includes(`Eng${engId}`) ||
+      op.name?.includes(`eng${engId}`)
+    ) || allOps[allOps.length - 1];
+
+    const operationId = matchedOp ? String(matchedOp.id) : undefined;
+    const adversaryId = matchedOp?.adversary?.adversary_id || undefined;
+
+    const snapshot = await captureCalderaEvidence({
+      engagementId: engId,
+      engagementName: engagement.name || `Engagement-${engId}`,
+      operationId,
+      adversaryId,
+      targets: [], // Will be populated from agents
+    });
+
+    return snapshot || undefined;
+  } catch (e) {
+    console.log('[ReportsCore] Caldera evidence collection failed (non-fatal):', (e as any).message);
+    return undefined;
+  }
+}
 import { and, desc, eq, min, not } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
@@ -411,6 +459,7 @@ export const reportsRouter = router({
               auditLogEntries,
               provenanceRecords,
               activeScanPlan: activeScanPlanMeta,
+              calderaEvidenceSnapshot: await collectCalderaEvidenceForReport(engagement),
             });
 
             // Store as S3 file

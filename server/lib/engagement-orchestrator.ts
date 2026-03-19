@@ -110,6 +110,7 @@ import {
   buildCompactSourceSecretsContext,
 } from "./knowledge/zap-source-secrets-knowledge";
 import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
+import { captureCalderaEvidence, type CalderaEvidenceSnapshot } from "./caldera-evidence-collector";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -5479,6 +5480,42 @@ ${(() => {
     detail: `${state.stats.exploitsAttempted} attempts, ${state.stats.exploitsSucceeded} succeeded, ${state.stats.sessionsOpened} sessions`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
+
+  // ── Auto-Capture Caldera Evidence (Exploitation Phase) ──
+  if (state.stats.exploitsSucceeded > 0) {
+    try {
+      addLog(state, {
+        phase: 'exploitation', type: 'info',
+        title: '📸 Capturing Exploitation Evidence',
+        detail: 'Auto-collecting C2 agent data, operation results, and network metadata for report artifacts.',
+      });
+      const exploitEvidence = await captureCalderaEvidence({
+        engagementId: state.engagementId,
+        engagementName: engagement?.name || `Engagement-${state.engagementId}`,
+        targets: state.assets.filter(a => a.status === 'compromised').map(a => ({ hostname: a.hostname, ip: a.ip || '' })),
+      });
+      if (exploitEvidence) {
+        (state as any).__calderaExploitEvidence = exploitEvidence;
+        addLog(state, {
+          phase: 'exploitation', type: 'evidence',
+          title: '📸 Exploitation Evidence Captured',
+          detail: `Captured ${exploitEvidence.agents.length} agent(s) from Caldera. Source: ${exploitEvidence.calderaServerIp}, Targets: ${exploitEvidence.agents.map(a => a.hostIp).join(', ')}`,
+          data: {
+            agentCount: exploitEvidence.agents.length,
+            calderaServerUrl: exploitEvidence.calderaServerUrl,
+            calderaServerIp: exploitEvidence.calderaServerIp,
+            capturedAt: exploitEvidence.capturedAt,
+          },
+        });
+      }
+    } catch (evidenceErr: any) {
+      addLog(state, {
+        phase: 'exploitation', type: 'warning',
+        title: '⚠️ Evidence Capture Failed',
+        detail: `Could not auto-capture Caldera evidence: ${evidenceErr.message}`,
+      });
+    }
+  }
 }
 async function executePostExploit(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "post_exploit";
@@ -5641,6 +5678,9 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
 
             if (launchResult.success && launchResult.operationId) {
               autoLaunchedOpId = String(launchResult.operationId);
+              // Store on state for evidence capture in post-exploit phase
+              (state as any).__autoLaunchedOpId = autoLaunchedOpId;
+              (state as any).__autoLaunchedAdversaryId = selectedAdversaryId;
               addLog(state, {
                 phase: 'post_exploit', type: 'info',
                 title: `✅ Operation Launched: ${opName}`,
@@ -5761,6 +5801,79 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
         },
       });
     }
+  }
+
+  // ── Auto-Capture Caldera Evidence (Post-Exploit Phase) ──
+  // This is the comprehensive capture that includes operation results, adversary profiles,
+  // and the full attack chain with source/destination IPs and timestamps.
+  try {
+    // Find the auto-launched operation ID if available
+    const postExploitOpId = (state as any).__autoLaunchedOpId || null;
+    // Find the adversary ID — prefer the stored one from auto-launch, fall back to operation lookup
+    let advId: string | undefined = (state as any).__autoLaunchedAdversaryId || undefined;
+    if (!advId && postExploitOpId) {
+      // Try to get adversary from the operation data
+      try {
+        const { listOperations } = await import('./caldera-operation-launcher');
+        const opsResult = await listOperations();
+        if (opsResult.success && opsResult.operations) {
+          const matchOp = opsResult.operations.find((o: any) => String(o.id) === String(postExploitOpId));
+          advId = matchOp?.adversaryId;
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    addLog(state, {
+      phase: 'post_exploit', type: 'info',
+      title: '📸 Capturing Post-Exploit Evidence',
+      detail: `Auto-collecting complete C2 evidence snapshot (agents, operations, adversary profile, attack chain) with source/destination IPs and timestamps.`,
+    });
+
+    const postExploitEvidence = await captureCalderaEvidence({
+      engagementId: state.engagementId,
+      engagementName: engagement?.name || `Engagement-${state.engagementId}`,
+      operationId: postExploitOpId || undefined,
+      adversaryId: advId,
+      targets: state.assets.filter(a => a.status === 'compromised').map(a => ({ hostname: a.hostname, ip: a.ip || '' })),
+    });
+
+    if (postExploitEvidence) {
+      (state as any).__calderaPostExploitEvidence = postExploitEvidence;
+      const opCount = postExploitEvidence.operations.length;
+      const linkCount = postExploitEvidence.operations.reduce((sum, op) => sum + op.links.length, 0);
+      const successLinks = postExploitEvidence.operations.reduce((sum, op) => sum + op.links.filter(l => l.status === 'success').length, 0);
+
+      addLog(state, {
+        phase: 'post_exploit', type: 'evidence',
+        title: '📸 Post-Exploit Evidence Captured',
+        detail: [
+          `Agents: ${postExploitEvidence.agents.length}`,
+          `Operations: ${opCount}`,
+          `Abilities: ${linkCount} (${successLinks} succeeded)`,
+          `Adversary: ${postExploitEvidence.adversaryProfile?.name || 'N/A'}`,
+          `Source: ${postExploitEvidence.calderaServerIp}`,
+          `Targets: ${postExploitEvidence.agents.map(a => a.hostIp).filter(Boolean).join(', ') || 'N/A'}`,
+          `Captured: ${postExploitEvidence.capturedAt}`,
+        ].join(' | '),
+        data: {
+          agentCount: postExploitEvidence.agents.length,
+          operationCount: opCount,
+          linkCount,
+          successLinks,
+          adversaryName: postExploitEvidence.adversaryProfile?.name,
+          calderaServerUrl: postExploitEvidence.calderaServerUrl,
+          calderaServerIp: postExploitEvidence.calderaServerIp,
+          capturedAt: postExploitEvidence.capturedAt,
+          renderedPanels: Object.keys(postExploitEvidence.renderedHtml),
+        },
+      });
+    }
+  } catch (evidenceErr: any) {
+    addLog(state, {
+      phase: 'post_exploit', type: 'warning',
+      title: '⚠️ Post-Exploit Evidence Capture Failed',
+      detail: `Could not auto-capture Caldera evidence: ${evidenceErr.message}`,
+    });
   }
 
   state.progress = 90;
