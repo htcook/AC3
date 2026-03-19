@@ -156,7 +156,7 @@ export const liveTriggerTempRouter = router({
         preservedVulns: state.stats.vulnsFound,
         preservedPorts: state.stats.portsFound,
         preservedExploits: state.stats.exploitsSucceeded,
-        logCount: state.logs.length,
+        logCount: state.log.length,
         lastUpdated: state.completedAt || state.startedAt,
         stats: state.stats,
       };

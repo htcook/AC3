@@ -576,6 +576,52 @@ export function abortEngagement(engagementId: number): void {
   }
 }
 
+// ─── Memory Watchdog ──────────────────────────────────────────────────────────
+
+let memoryWatchdogInterval: NodeJS.Timeout | null = null;
+
+/** Start a memory watchdog that logs warnings and triggers emergency trimming */
+export function startMemoryWatchdog() {
+  if (memoryWatchdogInterval) return;
+  memoryWatchdogInterval = setInterval(() => {
+    const mem = process.memoryUsage();
+    const heapMB = mem.heapUsed / 1024 / 1024;
+    const rssMB = mem.rss / 1024 / 1024;
+    if (heapMB > 300) {
+      console.warn(`[MemoryWatchdog] HIGH HEAP: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
+      // Emergency: trim all active states' logs and toolResults
+      for (const [engId, state] of opsStates.entries()) {
+        const maxLogs = heapMB > 400 ? 100 : 250;
+        if (state.log.length > maxLogs) {
+          state.log = state.log.slice(-maxLogs);
+          console.warn(`[MemoryWatchdog] Trimmed logs for engagement #${engId} to ${maxLogs}`);
+        }
+        // Trim large toolResult outputs
+        for (const asset of state.assets) {
+          for (const tr of (asset.toolResults || [])) {
+            if (tr.outputPreview && tr.outputPreview.length > 1024) {
+              tr.outputPreview = tr.outputPreview.slice(0, 512) + '...[trimmed by watchdog]';
+            }
+          }
+        }
+      }
+      // Suggest GC if available
+      if (global.gc) {
+        console.warn('[MemoryWatchdog] Triggering manual GC...');
+        global.gc();
+      }
+    }
+  }, 30_000); // Check every 30 seconds
+}
+
+/** Stop the memory watchdog */
+export function stopMemoryWatchdog() {
+  if (memoryWatchdogInterval) {
+    clearInterval(memoryWatchdogInterval);
+    memoryWatchdogInterval = null;
+  }
+}
+
 /**
  * Flush ALL pending debounced state to DB immediately.
  * Call this during graceful shutdown (SIGTERM/SIGINT) to prevent data loss.
@@ -640,8 +686,20 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
-  // Keep last 500 entries
-  if (state.log.length > 500) state.log = state.log.slice(-500);
+  // Memory-aware log trimming: aggressive when heap usage > 400MB
+  const heapMB = process.memoryUsage().heapUsed / 1024 / 1024;
+  const maxLogs = heapMB > 400 ? 200 : heapMB > 300 ? 350 : 500;
+  if (state.log.length > maxLogs) state.log = state.log.slice(-maxLogs);
+  // Under extreme memory pressure, also trim toolResults outputPreview
+  if (heapMB > 400) {
+    for (const asset of state.assets) {
+      for (const tr of (asset.toolResults || [])) {
+        if (tr.outputPreview && tr.outputPreview.length > 512) {
+          tr.outputPreview = tr.outputPreview.slice(0, 512) + '...[trimmed]';
+        }
+      }
+    }
+  }
   broadcastOpsUpdate(state.engagementId, { type: "log", entry: logEntry });
   // Trigger debounced persistence on every log entry
   persistOpsStateDebounced(state.engagementId);
@@ -5657,7 +5715,7 @@ export async function executeEngagement(
           detail: `State recovered from DB snapshot.\n` +
             `Last completed phase: ${recoveredPhaseLabel}\n` +
             `Continuing from: ${startPhaseLabel}\n` +
-            `Preserved: ${state.assets.length} assets, ${state.stats.vulnsFound} vulns, ${state.stats.portsFound} ports, ${state.logs.length} log entries`,
+            `Preserved: ${state.assets.length} assets, ${state.stats.vulnsFound} vulns, ${state.stats.portsFound} ports, ${state.log.length} log entries`,
         });
         console.log(`[OpsState] Resuming engagement #${engagementId}: ${recoveredPhaseLabel} → ${startPhaseLabel} (${state.assets.length} assets, ${state.stats.vulnsFound} vulns)`);
       }

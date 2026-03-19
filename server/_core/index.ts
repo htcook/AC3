@@ -375,12 +375,30 @@ async function startServer() {
   // ── Global crash protection ──────────────────────────────────────────────
   // Prevent unhandled errors from killing the server process and wiping in-memory state
   process.on('unhandledRejection', (reason: any) => {
-    console.error('[CRASH PROTECTION] Unhandled Promise rejection:', reason?.message || reason);
+    const mem = process.memoryUsage();
+    const heapMB = (mem.heapUsed / 1024 / 1024).toFixed(0);
+    const rssMB = (mem.rss / 1024 / 1024).toFixed(0);
+    console.error(`[CRASH PROTECTION] Unhandled Promise rejection (heap=${heapMB}MB, rss=${rssMB}MB):`, reason?.message || reason);
     if (reason?.stack) console.error(reason.stack.slice(0, 500));
+    // If it's an AbortError, this is expected during shutdown — no action needed
+    if (reason?.name === 'AbortError' || reason?.code === 'ABORT_ERR') {
+      console.log('[CRASH PROTECTION] AbortError detected — likely from engagement cancellation, safe to ignore');
+      return;
+    }
   });
   process.on('uncaughtException', (err: Error) => {
-    console.error('[CRASH PROTECTION] Uncaught exception:', err.message);
+    const mem = process.memoryUsage();
+    const heapMB = (mem.heapUsed / 1024 / 1024).toFixed(0);
+    const rssMB = (mem.rss / 1024 / 1024).toFixed(0);
+    console.error(`[CRASH PROTECTION] Uncaught exception (heap=${heapMB}MB, rss=${rssMB}MB):`, err.message);
     if (err.stack) console.error(err.stack.slice(0, 500));
+    // Emergency: if it's OOM-related, try to flush state before potential crash
+    if (err.message?.includes('heap') || err.message?.includes('memory') || err.message?.includes('allocation')) {
+      console.error('[CRASH PROTECTION] Memory-related crash detected, attempting emergency state flush...');
+      import('../lib/engagement-orchestrator').then(({ flushAllPendingState }) => {
+        flushAllPendingState().then(n => console.log(`[CRASH PROTECTION] Emergency flush: ${n} states saved`));
+      }).catch(() => {});
+    }
     // Don't exit — let the server keep running
   });
 
@@ -398,7 +416,8 @@ async function startServer() {
     }, 5000);
     try {
       // 1. Flush all engagement states to DB
-      const { flushAllPendingState } = await import('../lib/engagement-orchestrator');
+      const { flushAllPendingState, stopMemoryWatchdog } = await import('../lib/engagement-orchestrator');
+      stopMemoryWatchdog();
       const flushed = await flushAllPendingState();
       console.log(`[GracefulShutdown] Flushed ${flushed} engagement state(s)`);
       // 2. Clean up SSH connection pool
@@ -582,6 +601,14 @@ async function startServer() {
       });
 
       console.log("[Background] All background schedulers initialized");
+
+      // Start Memory Watchdog (monitors heap usage, trims state under pressure)
+      import("../lib/engagement-orchestrator").then(({ startMemoryWatchdog }) => {
+        startMemoryWatchdog();
+        console.log("[MemoryWatchdog] Memory watchdog started (30s interval)");
+      }).catch((err) => {
+        console.warn("[MemoryWatchdog] Failed to start memory watchdog:", err);
+      });
 
       // Initialize Engagement Auto-Resume Hook (detect interrupted engagements)
       import("../lib/engagement-auto-resume").then(({ initAutoResumeHook }) => {
