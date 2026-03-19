@@ -254,4 +254,27 @@ export const liveTriggerTempRouter = router({
         .limit(20);
       return rows;
     }),
+
+  /** Get interrupted engagements detected at server startup */
+  getInterruptedEngagements: publicProcedure
+    .query(async () => {
+      const { getDetectedInterruptions } = await import('../lib/engagement-auto-resume');
+      return getDetectedInterruptions();
+    }),
+
+  /** Dismiss/acknowledge interrupted engagement notifications */
+  dismissInterruptions: publicProcedure
+    .mutation(async () => {
+      const { clearDetectedInterruptions } = await import('../lib/engagement-auto-resume');
+      clearDetectedInterruptions();
+      return { success: true };
+    }),
+
+  /** Auto-resume a specific interrupted engagement */
+  autoResumeEngagement: publicProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { autoResumeEngagement } = await import('../lib/engagement-auto-resume');
+      return autoResumeEngagement(input.engagementId);
+    }),
 });

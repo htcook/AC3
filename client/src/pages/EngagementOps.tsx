@@ -1587,6 +1587,9 @@ export default function EngagementOps() {
         </div>
       )}
 
+      {/* ── Interrupted Engagement Banner (Auto-Resume) ── */}
+      <InterruptedEngagementBanner engagementId={engagementId} />
+
       {/* ── Recon Complete Banner — Start Active Scan Prompt ── */}
       {ops?.phase === "recon_complete" && !ops.isRunning && (
         <div className="flex-none border-b border-cyan-500/30">
@@ -1906,6 +1909,7 @@ export default function EngagementOps() {
                 color: 'text-orange-400',
                 subTabs: [
                   { value: 'c2feed', label: 'C2 Activity', icon: <Radio className="h-3 w-3" /> },
+                  { value: 'c2map', label: 'Network Map', icon: <Network className="h-3 w-3" /> },
                 ],
               },
               {
@@ -4077,6 +4081,9 @@ export default function EngagementOps() {
                 <C2ActivityFeed engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
+            <TabsContent value="c2map" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <C2NetworkMap engagementId={engagementId} />
+            </TabsContent>
           </Tabs>
         </div>
 
@@ -5762,6 +5769,546 @@ function ScanReportImportPanel({ engagementId }: { engagementId: number }) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// C2 Network Map — SVG-based network topology showing C2 agents as nodes
+// with lateral movement paths between compromised hosts
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface MapNode {
+  id: string;
+  label: string;
+  type: 'attacker' | 'agent' | 'target' | 'pivot';
+  x: number;
+  y: number;
+  status: 'online' | 'offline' | 'lost' | 'initial';
+  platform?: string;
+  paw?: string;
+  executors?: string[];
+  group?: string;
+  ip?: string;
+}
+
+interface MapEdge {
+  from: string;
+  to: string;
+  type: 'initial_access' | 'lateral_movement' | 'c2_callback' | 'pivot';
+  label?: string;
+  animated?: boolean;
+}
+
+function C2NetworkMap({ engagementId }: { engagementId: number }) {
+  const [selectedNode, setSelectedNode] = useState<MapNode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Get C2 poller state for live agent data
+  const pollerStateQ = trpc.liveTrigger.getC2PollerState.useQuery(
+    { engagementId },
+    { refetchInterval: 5000, enabled: engagementId > 0 }
+  );
+
+  // Get engagement ops state for asset data
+  const opsStateQ = trpc.liveTrigger.getState.useQuery(
+    { engagementId },
+    { refetchInterval: 10000, enabled: engagementId > 0 }
+  );
+
+  // WebSocket events for real-time updates
+  const { events: c2Events } = useWebSocket({
+    channels: [`engagement:${engagementId}`],
+    filterTypes: ['c2:agent_checkin', 'c2:agent_lost', 'c2:ability_executed'],
+    maxEvents: 50,
+    enabled: engagementId > 0,
+  });
+
+  // Build topology from poller + ops data
+  const { nodes, edges } = useMemo(() => {
+    const nodeMap = new Map<string, MapNode>();
+    const edgeList: MapEdge[] = [];
+
+    const pollerData = pollerStateQ.data;
+    const opsData = opsStateQ.data as any;
+
+    // Attacker node (always present)
+    nodeMap.set('attacker', {
+      id: 'attacker',
+      label: 'Operator',
+      type: 'attacker',
+      x: 80,
+      y: 300,
+      status: 'initial',
+      platform: 'C2 Server',
+    });
+
+    // Add agents from poller data
+    if (pollerData?.agents && pollerData.agents.length > 0) {
+      const agentCount = pollerData.agents.length;
+      const startY = Math.max(100, 300 - (agentCount * 60));
+      pollerData.agents.forEach((agent: any, idx: number) => {
+        const nodeId = `agent-${agent.paw}`;
+        const yPos = startY + idx * 120;
+        const xPos = 350 + (idx % 2 === 0 ? 0 : 60);
+        nodeMap.set(nodeId, {
+          id: nodeId,
+          label: agent.host || agent.paw,
+          type: 'agent',
+          x: xPos,
+          y: yPos,
+          status: 'online',
+          platform: agent.platform,
+          paw: agent.paw,
+          executors: agent.executors,
+          group: agent.group,
+          ip: agent.host,
+        });
+        // C2 callback from attacker to agent
+        edgeList.push({
+          from: 'attacker',
+          to: nodeId,
+          type: 'c2_callback',
+          label: 'C2',
+          animated: true,
+        });
+      });
+    }
+
+    // Add target assets from ops state
+    if (opsData?.assets && opsData.assets.length > 0) {
+      const existingHosts = new Set(
+        Array.from(nodeMap.values()).map(n => n.ip || n.label)
+      );
+      const targetAssets = opsData.assets.filter(
+        (a: any) => !existingHosts.has(a.ip) && !existingHosts.has(a.hostname)
+      );
+      const startY = Math.max(80, 300 - (targetAssets.length * 40));
+      targetAssets.slice(0, 8).forEach((asset: any, idx: number) => {
+        const nodeId = `target-${asset.ip || asset.hostname}`;
+        const yPos = startY + idx * 90;
+        nodeMap.set(nodeId, {
+          id: nodeId,
+          label: asset.hostname || asset.ip,
+          type: 'target',
+          x: 620 + (idx % 2 === 0 ? 0 : 50),
+          y: yPos,
+          status: 'offline',
+          platform: asset.type || 'unknown',
+          ip: asset.ip,
+        });
+      });
+
+      // Lateral movement edges between agents and targets
+      const agentNodes = Array.from(nodeMap.values()).filter(n => n.type === 'agent');
+      const targetNodes = Array.from(nodeMap.values()).filter(n => n.type === 'target');
+      if (agentNodes.length > 0 && targetNodes.length > 0) {
+        // First agent connects to first target as initial pivot
+        edgeList.push({
+          from: agentNodes[0].id,
+          to: targetNodes[0].id,
+          type: 'lateral_movement',
+          label: 'Pivot',
+          animated: true,
+        });
+        // Additional agents may connect to other targets
+        for (let i = 1; i < Math.min(agentNodes.length, targetNodes.length); i++) {
+          edgeList.push({
+            from: agentNodes[i].id,
+            to: targetNodes[i].id,
+            type: 'lateral_movement',
+            label: 'Lateral',
+          });
+        }
+      }
+    }
+
+    // If no agents, show targets with initial access from attacker
+    if (!pollerData?.agents?.length && opsData?.assets?.length > 0) {
+      const targetNodes = Array.from(nodeMap.values()).filter(n => n.type === 'target');
+      targetNodes.slice(0, 3).forEach(t => {
+        edgeList.push({
+          from: 'attacker',
+          to: t.id,
+          type: 'initial_access',
+          label: 'Scan',
+        });
+      });
+    }
+
+    // Process WebSocket events for lost agents
+    c2Events.forEach(evt => {
+      if (evt.type === 'c2:agent_lost' && evt.data?.paw) {
+        const nodeId = `agent-${evt.data.paw}`;
+        const node = nodeMap.get(nodeId);
+        if (node) node.status = 'lost';
+      }
+    });
+
+    return { nodes: Array.from(nodeMap.values()), edges: edgeList };
+  }, [pollerStateQ.data, opsStateQ.data, c2Events]);
+
+  // Edge color by type
+  const getEdgeColor = (type: MapEdge['type']) => {
+    switch (type) {
+      case 'c2_callback': return '#f97316'; // orange
+      case 'lateral_movement': return '#ef4444'; // red
+      case 'initial_access': return '#22d3ee'; // cyan
+      case 'pivot': return '#a855f7'; // purple
+      default: return '#6b7280';
+    }
+  };
+
+  // Node color by type/status
+  const getNodeColor = (node: MapNode) => {
+    if (node.status === 'lost') return '#ef4444';
+    switch (node.type) {
+      case 'attacker': return '#f97316';
+      case 'agent': return '#22c55e';
+      case 'target': return '#6b7280';
+      case 'pivot': return '#a855f7';
+      default: return '#6b7280';
+    }
+  };
+
+  const getNodeGlow = (node: MapNode) => {
+    if (node.status === 'lost') return 'rgba(239,68,68,0.3)';
+    if (node.type === 'attacker') return 'rgba(249,115,22,0.3)';
+    if (node.type === 'agent') return 'rgba(34,197,94,0.3)';
+    return 'rgba(107,114,128,0.15)';
+  };
+
+  const getNodeIcon = (node: MapNode) => {
+    switch (node.type) {
+      case 'attacker': return '⚔️';
+      case 'agent': return node.status === 'lost' ? '💀' : '🤖';
+      case 'target': return '🎯';
+      case 'pivot': return '🔄';
+      default: return '📌';
+    }
+  };
+
+  const svgWidth = 820;
+  const svgHeight = Math.max(600, nodes.length * 80 + 100);
+
+  return (
+    <div className="space-y-4 p-2">
+      <p className="text-sm text-muted-foreground">
+        Interactive network topology showing C2 agents, compromised hosts, and lateral movement paths. Nodes update in real-time as agents check in or are lost.
+      </p>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-orange-500" /> Operator (C2 Server)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-green-500" /> Active Agent
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500" /> Lost Agent
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-gray-500" /> Target (Uncompromised)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#f97316" strokeWidth="2" strokeDasharray="4 2" /></svg> C2 Callback
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#ef4444" strokeWidth="2" /></svg> Lateral Movement
+        </div>
+        <div className="flex items-center gap-1.5">
+          <svg width="24" height="2"><line x1="0" y1="1" x2="24" y2="1" stroke="#22d3ee" strokeWidth="2" strokeDasharray="6 3" /></svg> Initial Access
+        </div>
+      </div>
+
+      {/* SVG Network Map */}
+      <Card className="border-border/30 overflow-hidden">
+        <div className="relative" style={{ minHeight: '500px' }}>
+          {nodes.length <= 1 ? (
+            <div className="flex flex-col items-center justify-center h-[500px] text-muted-foreground">
+              <Network className="h-12 w-12 mb-3 opacity-20" />
+              <p className="text-sm">No C2 agents or targets detected yet.</p>
+              <p className="text-[10px] mt-1">Agents will appear when the C2 poller detects check-ins during Phase 5.</p>
+            </div>
+          ) : (
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              className="w-full h-auto"
+              style={{ minHeight: '500px', background: 'radial-gradient(circle at 50% 50%, rgba(249,115,22,0.02) 0%, transparent 70%)' }}
+            >
+              {/* Grid background */}
+              <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
+                </pattern>
+                {/* Animated dash for C2 callbacks */}
+                <style>{`
+                  @keyframes dash { to { stroke-dashoffset: -20; } }
+                  .animated-edge { animation: dash 1.5s linear infinite; }
+                  @keyframes pulse-glow { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
+                  .node-glow { animation: pulse-glow 2s ease-in-out infinite; }
+                `}</style>
+              </defs>
+              <rect width={svgWidth} height={svgHeight} fill="url(#grid)" />
+
+              {/* Edges */}
+              {edges.map((edge, idx) => {
+                const fromNode = nodes.find(n => n.id === edge.from);
+                const toNode = nodes.find(n => n.id === edge.to);
+                if (!fromNode || !toNode) return null;
+
+                const color = getEdgeColor(edge.type);
+                const isDashed = edge.type === 'c2_callback' || edge.type === 'initial_access';
+                const midX = (fromNode.x + toNode.x) / 2;
+                const midY = (fromNode.y + toNode.y) / 2 - 10;
+
+                return (
+                  <g key={`edge-${idx}`}>
+                    <line
+                      x1={fromNode.x}
+                      y1={fromNode.y}
+                      x2={toNode.x}
+                      y2={toNode.y}
+                      stroke={color}
+                      strokeWidth={edge.animated ? 2.5 : 1.5}
+                      strokeDasharray={isDashed ? '8 4' : 'none'}
+                      className={edge.animated ? 'animated-edge' : ''}
+                      opacity={0.7}
+                    />
+                    {/* Arrow head */}
+                    <circle
+                      cx={toNode.x - (toNode.x - fromNode.x) * 0.15}
+                      cy={toNode.y - (toNode.y - fromNode.y) * 0.15}
+                      r={3}
+                      fill={color}
+                    />
+                    {/* Edge label */}
+                    {edge.label && (
+                      <text
+                        x={midX}
+                        y={midY}
+                        textAnchor="middle"
+                        fill={color}
+                        fontSize={9}
+                        fontWeight="bold"
+                        opacity={0.8}
+                      >
+                        {edge.label}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Nodes */}
+              {nodes.map((node) => {
+                const color = getNodeColor(node);
+                const glow = getNodeGlow(node);
+                const isHovered = hoveredNode === node.id;
+                const isSelected = selectedNode?.id === node.id;
+                const radius = node.type === 'attacker' ? 28 : 22;
+
+                return (
+                  <g
+                    key={node.id}
+                    className="cursor-pointer"
+                    onClick={() => setSelectedNode(isSelected ? null : node)}
+                    onMouseEnter={() => setHoveredNode(node.id)}
+                    onMouseLeave={() => setHoveredNode(null)}
+                  >
+                    {/* Glow */}
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={radius + 8}
+                      fill={glow}
+                      className={node.type === 'agent' && node.status === 'online' ? 'node-glow' : ''}
+                    />
+                    {/* Node circle */}
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={radius}
+                      fill="rgba(0,0,0,0.6)"
+                      stroke={color}
+                      strokeWidth={isHovered || isSelected ? 3 : 2}
+                    />
+                    {/* Icon */}
+                    <text
+                      x={node.x}
+                      y={node.y + 5}
+                      textAnchor="middle"
+                      fontSize={node.type === 'attacker' ? 18 : 14}
+                    >
+                      {getNodeIcon(node)}
+                    </text>
+                    {/* Label */}
+                    <text
+                      x={node.x}
+                      y={node.y + radius + 16}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize={10}
+                      fontWeight="600"
+                    >
+                      {node.label.length > 20 ? node.label.substring(0, 18) + '...' : node.label}
+                    </text>
+                    {/* Platform badge */}
+                    {node.platform && (
+                      <text
+                        x={node.x}
+                        y={node.y + radius + 28}
+                        textAnchor="middle"
+                        fill="rgba(255,255,255,0.5)"
+                        fontSize={8}
+                      >
+                        {node.platform}
+                      </text>
+                    )}
+                    {/* Status indicator */}
+                    {node.type === 'agent' && (
+                      <circle
+                        cx={node.x + radius - 4}
+                        cy={node.y - radius + 4}
+                        r={5}
+                        fill={node.status === 'online' ? '#22c55e' : node.status === 'lost' ? '#ef4444' : '#6b7280'}
+                        stroke="rgba(0,0,0,0.5)"
+                        strokeWidth={1.5}
+                      />
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+        </div>
+      </Card>
+
+      {/* Selected Node Detail Panel */}
+      {selectedNode && (
+        <Card className="border-border/30">
+          <CardHeader className="py-3 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{getNodeIcon(selectedNode)}</span>
+                <CardTitle className="text-sm">{selectedNode.label}</CardTitle>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    selectedNode.status === 'online' ? 'text-green-400 border-green-500/30' :
+                    selectedNode.status === 'lost' ? 'text-red-400 border-red-500/30' :
+                    'text-muted-foreground border-border/30'
+                  }`}
+                >
+                  {selectedNode.status}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedNode(null)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 pt-0">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Type:</span>{' '}
+                <span className="font-semibold capitalize">{selectedNode.type}</span>
+              </div>
+              {selectedNode.ip && (
+                <div>
+                  <span className="text-muted-foreground">IP:</span>{' '}
+                  <span className="font-mono">{selectedNode.ip}</span>
+                </div>
+              )}
+              {selectedNode.paw && (
+                <div>
+                  <span className="text-muted-foreground">Paw:</span>{' '}
+                  <span className="font-mono">{selectedNode.paw}</span>
+                </div>
+              )}
+              {selectedNode.platform && (
+                <div>
+                  <span className="text-muted-foreground">Platform:</span>{' '}
+                  <span>{selectedNode.platform}</span>
+                </div>
+              )}
+              {selectedNode.group && (
+                <div>
+                  <span className="text-muted-foreground">Group:</span>{' '}
+                  <span>{selectedNode.group}</span>
+                </div>
+              )}
+              {selectedNode.executors && selectedNode.executors.length > 0 && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Executors:</span>{' '}
+                  <span>{selectedNode.executors.join(', ')}</span>
+                </div>
+              )}
+            </div>
+            {/* Show edges connected to this node */}
+            <div className="mt-2 pt-2 border-t border-border/20">
+              <span className="text-[10px] text-muted-foreground font-semibold">Connections:</span>
+              <div className="mt-1 space-y-1">
+                {edges
+                  .filter(e => e.from === selectedNode.id || e.to === selectedNode.id)
+                  .map((edge, idx) => {
+                    const otherNodeId = edge.from === selectedNode.id ? edge.to : edge.from;
+                    const otherNode = nodes.find(n => n.id === otherNodeId);
+                    const direction = edge.from === selectedNode.id ? '→' : '←';
+                    return (
+                      <div key={idx} className="flex items-center gap-2 text-[10px]">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: getEdgeColor(edge.type) }}
+                        />
+                        <span>{direction} {otherNode?.label || otherNodeId}</span>
+                        <Badge variant="outline" className="text-[9px] h-4">
+                          {edge.type.replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats Summary */}
+      <div className="grid grid-cols-4 gap-3">
+        <Card className="border-border/30 p-3 text-center">
+          <div className="text-lg font-bold text-green-400">
+            {nodes.filter(n => n.type === 'agent' && n.status === 'online').length}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Active Agents</div>
+        </Card>
+        <Card className="border-border/30 p-3 text-center">
+          <div className="text-lg font-bold text-red-400">
+            {nodes.filter(n => n.type === 'agent' && n.status === 'lost').length}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Lost Agents</div>
+        </Card>
+        <Card className="border-border/30 p-3 text-center">
+          <div className="text-lg font-bold text-gray-400">
+            {nodes.filter(n => n.type === 'target').length}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Targets</div>
+        </Card>
+        <Card className="border-border/30 p-3 text-center">
+          <div className="text-lg font-bold text-orange-400">
+            {edges.filter(e => e.type === 'lateral_movement').length}
+          </div>
+          <div className="text-[10px] text-muted-foreground">Lateral Moves</div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // C2 Activity Feed — Live Caldera C2 agent check-ins, ability executions,
 // and operation progress via WebSocket events and tRPC polling
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6099,6 +6646,134 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Interrupted Engagement Banner — Auto-Resume notification on server restart
+// ═══════════════════════════════════════════════════════════════════════════
+
+function InterruptedEngagementBanner({ engagementId }: { engagementId: number }) {
+  const [dismissed, setDismissed] = useState(false);
+
+  const interruptedQ = trpc.liveTrigger.getInterruptedEngagements.useQuery(
+    undefined,
+    { refetchInterval: 30000 }
+  );
+
+  const dismissMut = trpc.liveTrigger.dismissInterruptions.useMutation({
+    onSuccess: () => {
+      setDismissed(true);
+      interruptedQ.refetch();
+    },
+  });
+
+  const resumeMut = trpc.liveTrigger.autoResumeEngagement.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(result.message);
+        interruptedQ.refetch();
+      } else {
+        toast.error(result.message);
+      }
+    },
+    onError: (err) => toast.error(`Resume failed: ${err.message}`),
+  });
+
+  const interrupted = interruptedQ.data || [];
+  const thisEngagement = interrupted.find(e => e.engagementId === engagementId);
+  const otherEngagements = interrupted.filter(e => e.engagementId !== engagementId);
+
+  if (dismissed || interrupted.length === 0) return null;
+
+  const PHASE_LABELS: Record<string, string> = {
+    recon: 'Phase 1: Recon',
+    enumeration: 'Phase 2: Enumeration',
+    vuln_detection: 'Phase 3: Vuln Detection',
+    exploitation: 'Phase 4: Exploitation',
+    post_exploit: 'Phase 5: Post-Exploit',
+  };
+
+  return (
+    <div className="flex-none border-b border-amber-500/30">
+      <div className="bg-amber-500/10 px-6 py-3">
+        {/* This engagement was interrupted */}
+        {thisEngagement && (
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-full bg-amber-500/20">
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-amber-300">
+                  Engagement Interrupted — Server Restarted
+                </h3>
+                <p className="text-xs text-amber-400/80 mt-0.5">
+                  This engagement was in <strong>{PHASE_LABELS[thisEngagement.phase] || thisEngagement.phase}</strong> ({thisEngagement.progress}% complete) 
+                  with {thisEngagement.assetsCount} assets and {thisEngagement.vulnsFound} vulnerabilities when the server restarted.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-none ml-4">
+              {thisEngagement.canResume && (
+                <Button
+                  size="sm"
+                  onClick={() => resumeMut.mutate({ engagementId: thisEngagement.engagementId })}
+                  disabled={resumeMut.isPending}
+                  className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500"
+                >
+                  {resumeMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                  Resume Engagement
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => dismissMut.mutate()}
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Other interrupted engagements */}
+        {otherEngagements.length > 0 && (
+          <div className={thisEngagement ? "pt-2 border-t border-amber-500/20 mt-2" : ""}>
+            <div className="flex items-center gap-2 text-xs text-amber-400/80 mb-1.5">
+              <AlertTriangle className="h-3 w-3" />
+              <span>{otherEngagements.length} other interrupted engagement{otherEngagements.length > 1 ? 's' : ''} detected:</span>
+            </div>
+            <div className="space-y-1">
+              {otherEngagements.map(eng => (
+                <div key={eng.engagementId} className="flex items-center justify-between text-xs p-1.5 rounded bg-amber-500/5 border border-amber-500/10">
+                  <span className="font-mono text-amber-300">
+                    Engagement #{eng.engagementId}
+                  </span>
+                  <span className="text-amber-400/70">
+                    {PHASE_LABELS[eng.phase] || eng.phase} · {eng.progress}% · {eng.assetsCount} assets · {eng.vulnsFound} vulns
+                  </span>
+                  {eng.canResume && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => resumeMut.mutate({ engagementId: eng.engagementId })}
+                      disabled={resumeMut.isPending}
+                      className="h-6 text-[10px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      <Play className="h-3 w-3 mr-0.5" /> Resume
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

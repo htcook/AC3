@@ -547,6 +547,14 @@ async function startServer() {
       });
 
       console.log("[Background] All background schedulers initialized");
+
+      // Initialize Engagement Auto-Resume Hook (detect interrupted engagements)
+      import("../lib/engagement-auto-resume").then(({ initAutoResumeHook }) => {
+        initAutoResumeHook();
+        console.log("[AutoResume] Engagement auto-resume hook initialized");
+      }).catch((err) => {
+        console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
+      });
     }, BACKGROUND_DELAY);
   });
 }
