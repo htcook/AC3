@@ -622,6 +622,50 @@ export function stopMemoryWatchdog() {
   }
 }
 
+/** Get health status for the /health endpoint */
+export function getHealthStatus() {
+  const mem = process.memoryUsage();
+  const activeEngagements: Array<{
+    id: number;
+    phase: string;
+    progress: number;
+    assets: number;
+    logs: number;
+  }> = [];
+  for (const [engId, state] of opsStates.entries()) {
+    activeEngagements.push({
+      id: engId,
+      phase: state.phase,
+      progress: state.progress,
+      assets: state.assets.length,
+      logs: state.log.length,
+    });
+  }
+  return {
+    status: 'ok' as const,
+    timestamp: Date.now(),
+    uptime: process.uptime(),
+    pid: process.pid,
+    nodeVersion: process.version,
+    memory: {
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      externalMB: Math.round(mem.external / 1024 / 1024),
+      arrayBuffersMB: Math.round((mem.arrayBuffers || 0) / 1024 / 1024),
+    },
+    memoryWatchdog: {
+      running: memoryWatchdogInterval !== null,
+      heapWarningThresholdMB: 300,
+      heapCriticalThresholdMB: 400,
+    },
+    engagements: {
+      activeCount: opsStates.size,
+      details: activeEngagements,
+    },
+  };
+}
+
 /**
  * Flush ALL pending debounced state to DB immediately.
  * Call this during graceful shutdown (SIGTERM/SIGINT) to prevent data loss.

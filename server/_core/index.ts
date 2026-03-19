@@ -74,8 +74,26 @@ async function startServer() {
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: Date.now() });
   });
-  app.get('/api/health', (_req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: Date.now() });
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const { getHealthStatus } = await import('../lib/engagement-orchestrator');
+      const health = getHealthStatus();
+      res.status(200).json(health);
+    } catch (err: any) {
+      // Fallback if orchestrator import fails
+      res.status(200).json({
+        status: 'ok',
+        timestamp: Date.now(),
+        uptime: process.uptime(),
+        pid: process.pid,
+        nodeVersion: process.version,
+        memory: {
+          heapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        },
+        error: err.message,
+      });
+    }
   });
 
   // ─── HTTPS Enforcement ───────────────────────────────────────────────

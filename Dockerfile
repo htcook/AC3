@@ -43,5 +43,9 @@ EXPOSE 8080
 
 ENV NODE_ENV=production
 
+# Set V8 heap ceiling for predictable OOM behavior in containers
+# 512MB gives enough room for scan operations while preventing runaway memory
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
 # Start the server
 CMD ["node", "dist/index.js"]
