@@ -6270,3 +6270,50 @@ export const nexusShadowTests = mysqlTable("nexus_shadow_tests", {
 ]);
 export type NexusShadowTestRow = typeof nexusShadowTests.$inferSelect;
 export type InsertNexusShadowTest = typeof nexusShadowTests.$inferInsert;
+
+// ─── Evidence Integrity Anchors ─────────────────────────────────────────────
+// Stores Merkle root anchors for evidence chains, enabling tamper detection
+export const evidenceIntegrityAnchors = mysqlTable("evidence_integrity_anchors", {
+  id: int().autoincrement().notNull(),
+  engagementId: varchar("eia_engagement_id", { length: 64 }).notNull(),
+  merkleRoot: varchar("eia_merkle_root", { length: 64 }).notNull(),
+  hmacSignature: varchar("eia_hmac_signature", { length: 64 }).notNull(),
+  chainLength: int("eia_chain_length").notNull(),
+  anchoredAt: timestamp("eia_anchored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  anchoredBy: varchar("eia_anchored_by", { length: 255 }).notNull(),
+  status: mysqlEnum("eia_status", ['active', 'superseded', 'invalidated']).default('active').notNull(),
+  notes: text("eia_notes"),
+}, (table) => [
+  index("eia_engagement_idx").on(table.engagementId),
+  index("eia_status_idx").on(table.status),
+]);
+export type EvidenceIntegrityAnchorRow = typeof evidenceIntegrityAnchors.$inferSelect;
+export type InsertEvidenceIntegrityAnchor = typeof evidenceIntegrityAnchors.$inferInsert;
+
+// ─── Evidence Guardrail Audit Log ───────────────────────────────────────────
+// Records every guardrail check result for audit trail
+export const evidenceGuardrailAudit = mysqlTable("evidence_guardrail_audit", {
+  id: int().autoincrement().notNull(),
+  engagementId: varchar("ega_engagement_id", { length: 64 }).notNull(),
+  evidenceId: varchar("ega_evidence_id", { length: 128 }),
+  specialist: varchar("ega_specialist", { length: 100 }).notNull(),
+  checkType: mysqlEnum("ega_check_type", ['hallucination', 'provenance', 'chain_integrity', 'evidence_gate']).notNull(),
+  passed: tinyint("ega_passed").notNull(),
+  score: int("ega_score"),
+  recommendation: mysqlEnum("ega_recommendation", ['accept', 'review', 'reject', 'quarantine']).notNull(),
+  groundedClaimsCount: int("ega_grounded_claims").default(0),
+  ungroundedClaimsCount: int("ega_ungrounded_claims").default(0),
+  criticalIssues: int("ega_critical_issues").default(0),
+  wasSanitized: tinyint("ega_was_sanitized").default(0),
+  details: json("ega_details"),
+  contentHash: varchar("ega_content_hash", { length: 64 }),
+  createdAt: timestamp("ega_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ega_engagement_idx").on(table.engagementId),
+  index("ega_specialist_idx").on(table.specialist),
+  index("ega_passed_idx").on(table.passed),
+  index("ega_recommendation_idx").on(table.recommendation),
+  index("ega_created_at_idx").on(table.createdAt),
+]);
+export type EvidenceGuardrailAuditRow = typeof evidenceGuardrailAudit.$inferSelect;
+export type InsertEvidenceGuardrailAudit = typeof evidenceGuardrailAudit.$inferInsert;

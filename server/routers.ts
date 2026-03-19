@@ -81,6 +81,7 @@ import { attackCoverageRouter } from "./routers/attack-coverage";
 import { unifiedPipelineRouter } from "./routers/unified-pipeline";
 import { roeBuilderRouter } from "./routers/roe-builder";
 import { ksiEvidenceChainRouter } from "./routers/ksi-evidence-chain";
+import { evidenceIntegrityRouter } from "./routers/evidence-integrity";
 import { ksiValidationSchedulerRouter } from "./routers/ksi-validation-scheduler";
 import { oscalExportRouter } from "./routers/oscal-export";
 import { ksiAutoCollectorRouter } from "./routers/ksi-auto-collector";
@@ -367,6 +368,7 @@ export const appRouter = router({
   unifiedPipeline: unifiedPipelineRouter,
   roeBuilder: roeBuilderRouter,
   ksiEvidenceChain: ksiEvidenceChainRouter,
+  evidenceIntegrity: evidenceIntegrityRouter,
   ksiValidationScheduler: ksiValidationSchedulerRouter,
   oscalExport: oscalExportRouter,
   ksiAutoCollector: ksiAutoCollectorRouter,
