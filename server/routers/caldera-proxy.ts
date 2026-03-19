@@ -126,17 +126,22 @@ export const calderaProxyRouter = router({
       return deploy || {};
     }),
 
-    // Check C2 server health
+    // Check C2 server health — retries once on failure to reduce false negatives
+    // during heavy nmap scans that temporarily slow the Caldera server
     checkHealth: protectedProcedure.query(async () => {
-      try {
-        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
-          headers: { 'KEY': CALDERA_API_KEY },
-          signal: AbortSignal.timeout(5000),
-        });
-        return response.ok;
-      } catch {
-        return false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
+            headers: { 'KEY': CALDERA_API_KEY },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (response.ok) return true;
+        } catch {
+          // Retry after a short delay on first attempt
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
+        }
       }
+      return false;
     }),
 
     // Create a new ability on the C2 server

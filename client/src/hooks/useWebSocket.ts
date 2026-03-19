@@ -286,19 +286,28 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = () => {
-        setStatus("disconnected");
         wsRef.current = null;
 
         // Auto-reconnect with exponential backoff
         if (autoReconnect && enabled) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          // Show "connecting" during reconnect attempts instead of "disconnected"
+          // to prevent the OFFLINE indicator from flashing on transient drops
+          const attempts = reconnectAttemptsRef.current;
+          setStatus(attempts < 3 ? "connecting" : "disconnected");
+          const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
           reconnectAttemptsRef.current++;
           reconnectTimeoutRef.current = setTimeout(connect, delay);
+        } else {
+          setStatus("disconnected");
         }
       };
 
       ws.onerror = () => {
-        setStatus("error");
+        // Only show error if we've exhausted quick reconnect attempts
+        // First few failures are normal during server restarts / nmap scans
+        if (reconnectAttemptsRef.current >= 3) {
+          setStatus("error");
+        }
       };
     } catch {
       setStatus("error");

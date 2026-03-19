@@ -15,7 +15,7 @@ import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import DashboardConfigPanel from "@/components/DashboardConfigPanel";
 import WhatsNew, { WhatsNewTrigger } from "@/components/WhatsNew";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import AppShell from "@/components/AppShell";
 import { useDashboardEvents } from "@/hooks/useWebSocket";
 import { DashboardWidgetProvider, useDashboardWidgets } from "@/contexts/DashboardWidgetConfig";
@@ -62,6 +62,12 @@ function DashboardInner() {
   const { isVisible, getOrderedWidgetIds, openConfig } = useDashboardWidgets();
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+
+  // Sticky-online counters: require 3 consecutive failures before flipping to offline
+  // This prevents transient timeouts (common during heavy nmap scans) from causing icon flashing
+  const serverFailCountRef = useRef(0);
+  const gophishFailCountRef = useRef(0);
+  const OFFLINE_THRESHOLD = 3;
 
   // Start Engagement form state
   const [domain, setDomain] = useState('');
@@ -216,11 +222,32 @@ function DashboardInner() {
   }, [dashScanStatus.data, isScanning, dashScanId]);
 
   useEffect(() => {
-    if (healthData !== undefined) setServerStatus(healthData ? 'online' : 'offline');
+    if (healthData === undefined) return;
+    if (healthData) {
+      // Server responded OK — reset failure counter and mark online
+      serverFailCountRef.current = 0;
+      setServerStatus('online');
+    } else {
+      // Transient failure — only flip to offline after OFFLINE_THRESHOLD consecutive failures
+      serverFailCountRef.current++;
+      if (serverFailCountRef.current >= OFFLINE_THRESHOLD) {
+        setServerStatus('offline');
+      }
+      // Otherwise keep current status (stays 'online' or 'checking')
+    }
   }, [healthData]);
 
   useEffect(() => {
-    if (gophishData !== undefined) setGophishStatus(gophishData.online ? 'online' : 'offline');
+    if (gophishData === undefined) return;
+    if (gophishData.online) {
+      gophishFailCountRef.current = 0;
+      setGophishStatus('online');
+    } else {
+      gophishFailCountRef.current++;
+      if (gophishFailCountRef.current >= OFFLINE_THRESHOLD) {
+        setGophishStatus('offline');
+      }
+    }
   }, [gophishData]);
 
   const gophish = gophishData || {
@@ -920,7 +947,7 @@ function DashboardInner() {
           <div className="grid md:grid-cols-2 gap-3">
             <a href={DEFAULT_SERVER.httpUrl} target="_blank" rel="noopener noreferrer" className="bg-card border border-border p-4 cursor-pointer hover:border-primary transition-colors group block">
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-3 h-3 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                <div className={`w-3 h-3 transition-colors duration-500 ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                 <div className="flex-1">
                   <h3 className="font-display text-sm">EMULATION SERVER</h3>
                   <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:8888</p>
@@ -936,7 +963,7 @@ function DashboardInner() {
             </a>
             <a href="https://gophish.aceofcloud.io" target="_blank" rel="noopener noreferrer" className="bg-card border border-emerald-500/30 p-4 cursor-pointer hover:border-emerald-500 transition-colors group block">
               <div className="flex items-center gap-3 mb-3">
-                <div className={`w-3 h-3 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                <div className={`w-3 h-3 transition-colors duration-500 ${gophishStatus === 'online' ? 'bg-emerald-500' : gophishStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
                 <div className="flex-1">
                   <h3 className="font-display text-sm text-emerald-500">PHISHING SERVER</h3>
                   <p className="text-[10px] text-muted-foreground">{DEFAULT_SERVER.ipAddress}:3333</p>
@@ -1291,7 +1318,11 @@ function CollapsibleSection({ title, expanded, onToggle, children, icon, badge }
 function StatusDot({ status, label }: { status: string; label: string }) {
   return (
     <div className="flex items-center gap-1">
-      <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-green-500' : status === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+      <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${
+        status === 'online' ? 'bg-green-500' :
+        status === 'offline' ? 'bg-red-500' :
+        'bg-yellow-500 animate-pulse'
+      }`} />
       <span className="text-[10px] font-display tracking-wider text-muted-foreground">{label}</span>
     </div>
   );

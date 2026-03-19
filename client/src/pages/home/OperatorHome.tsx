@@ -414,12 +414,12 @@ export default function OperatorHome() {
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-display tracking-wider ${
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-display tracking-wider transition-colors duration-500 ${
                   wsStatus === "connected" ? "bg-emerald-500/10 text-emerald-400" :
                   wsStatus === "connecting" ? "bg-amber-500/10 text-amber-400" :
                   "bg-red-500/10 text-red-400"
                 }`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${
+                  <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${
                     wsStatus === "connected" ? "bg-emerald-500 animate-pulse" :
                     wsStatus === "connecting" ? "bg-amber-500 animate-pulse" :
                     "bg-red-500"
