@@ -99,6 +99,8 @@ import {
   PieChart,
   Crown,
   Flame,
+  Camera,
+  ShieldCheck,
 } from "lucide-react";
 import { useState, useEffect, ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -391,6 +393,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/training-dashboard", icon: GraduationCap, label: "TRAINING" },
           { href: "/report-templates", icon: FileStack, label: "REPORT TEMPLATES" },
           { href: "/evidence", icon: Archive, label: "EVIDENCE VAULT" },
+          { href: "/evidence-gallery", icon: Camera, label: "EVIDENCE GALLERY" },
+          { href: "/evidence-integrity", icon: ShieldCheck, label: "EVIDENCE INTEGRITY" },
         ],
       },
     ],

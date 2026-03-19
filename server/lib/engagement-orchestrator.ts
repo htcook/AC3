@@ -111,6 +111,17 @@ import {
 } from "./knowledge/zap-source-secrets-knowledge";
 import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
 import { captureCalderaEvidence, type CalderaEvidenceSnapshot } from "./caldera-evidence-collector";
+import {
+  evidenceGate,
+  createIntegrityEnvelope,
+  buildProvenance,
+  recordCustodyEvent,
+  sha256 as integrityHash,
+  flushChainToDb,
+  createAnchor as createIntegrityAnchor,
+  type EvidenceSourceTool,
+} from "./evidence-integrity-guardrails";
+import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -4784,12 +4795,47 @@ ${(() => {
             },
             engagementId: state.engagementId,
           });
+          // ── Evidence Integrity Gate: validate LLM vuln verification ──
+          const vulnVerifContent = JSON.stringify(result);
+          const vulnVerifGate = evidenceGate({
+            content: vulnVerifContent,
+            provenance: buildProvenance({
+              tool: 'llm_analysis' as EvidenceSourceTool,
+              command: 'specialist:vuln-verifier',
+              collectorHost: process.env.SCAN_SERVER_HOST || 'ac3-platform',
+              rawOutput: vulnVerifContent,
+              targetHost: v.hostname,
+              sourceIp: '127.0.0.1',
+              destinationIp: v.hostname,
+            }),
+            groundTruth: { vuln_source: `${v.title} ${v.cve || ''} ${v.severity}` },
+            knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip || '', ports: a.ports.map(p => p.port) })),
+            knownCves: state.assets.flatMap(a => a.vulns.filter(vl => vl.cve).map(vl => vl.cve!)),
+            strictness: 'moderate',
+          });
+          // Create integrity envelope for LLM verification output
+          createIntegrityEnvelope({
+            evidenceId: `vuln-verif-${state.engagementId}-${v.cve || v.title.slice(0, 20)}-${Date.now()}`,
+            engagementId: String(state.engagementId),
+            content: vulnVerifContent,
+            provenance: buildProvenance({
+              tool: 'llm_analysis' as EvidenceSourceTool,
+              command: 'specialist:vuln-verifier',
+              collectorHost: process.env.SCAN_SERVER_HOST || 'ac3-platform',
+              rawOutput: vulnVerifContent,
+              targetHost: v.hostname,
+              sourceIp: '127.0.0.1',
+              destinationIp: v.hostname,
+            }),
+            performedBy: 'AC3 Vuln Verifier',
+          });
           const verdictEmoji = result.analyst_verdict.includes('True Positive') ? '✅' : result.analyst_verdict.includes('False Positive') ? '❌' : '❓';
+          const integrityTag = vulnVerifGate.passed ? '🔒' : '⚠️';
           addLog(state, {
             phase: 'vuln_detection', type: 'llm_decision',
-            title: `${verdictEmoji} Verified: ${v.title}`,
-            detail: `Verdict: ${result.analyst_verdict} (${result.confidence})\nExploitability: ${result.exploitability.rating}\nImpact: ${result.business_impact.severity} — ${result.business_impact.rationale}\nATT&CK: ${result.attack_mapping.map(m => m.technique_id).join(', ') || 'N/A'}\nValidation: ${result.safe_validation_step}`,
-            data: { vulnVerification: result },
+            title: `${verdictEmoji} Verified: ${v.title} ${integrityTag}`,
+            detail: `Verdict: ${result.analyst_verdict} (${result.confidence})\nExploitability: ${result.exploitability.rating}\nImpact: ${result.business_impact.severity} — ${result.business_impact.rationale}\nATT&CK: ${result.attack_mapping.map(m => m.technique_id).join(', ') || 'N/A'}\nValidation: ${result.safe_validation_step}\nIntegrity: ${vulnVerifGate.passed ? 'PASSED' : 'FAILED'} (hash=${vulnVerifGate.contentHash.slice(0, 12)}...)`,
+            data: { vulnVerification: result, integrityGate: { passed: vulnVerifGate.passed, contentHash: vulnVerifGate.contentHash, provenanceValid: vulnVerifGate.provenanceValid, warnings: vulnVerifGate.warnings, errors: vulnVerifGate.errors } },
           });
         } catch (vErr: any) {
           console.warn(`[VulnVerifier] Failed for ${v.title}:`, vErr.message);
@@ -5496,16 +5542,49 @@ ${(() => {
       });
       if (exploitEvidence) {
         (state as any).__calderaExploitEvidence = exploitEvidence;
+        // ── Evidence Integrity Gate: validate exploitation evidence ──
+        const exploitEvidenceContent = JSON.stringify(exploitEvidence);
+        const exploitProvenance = buildProvenance({
+          tool: 'caldera' as EvidenceSourceTool,
+          command: 'captureCalderaEvidence:exploitation',
+          collectorHost: process.env.SCAN_SERVER_HOST || 'ac3-platform',
+          rawOutput: exploitEvidenceContent,
+          targetHost: exploitEvidence.agents[0]?.hostIp || state.assets[0]?.hostname || 'unknown',
+          sourceIp: exploitEvidence.calderaServerIp || '127.0.0.1',
+          destinationIp: exploitEvidence.agents[0]?.hostIp || 'unknown',
+        });
+        const exploitGateResult = evidenceGate({
+          content: exploitEvidenceContent,
+          provenance: exploitProvenance,
+          knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip || '', ports: a.ports.map(p => p.port) })),
+          strictness: 'moderate',
+        });
+        const gateEmoji = exploitGateResult.passed ? '✅' : '⚠️';
         addLog(state, {
           phase: 'exploitation', type: 'evidence',
-          title: '📸 Exploitation Evidence Captured',
-          detail: `Captured ${exploitEvidence.agents.length} agent(s) from Caldera. Source: ${exploitEvidence.calderaServerIp}, Targets: ${exploitEvidence.agents.map(a => a.hostIp).join(', ')}`,
+          title: `📸 Exploitation Evidence Captured ${gateEmoji}`,
+          detail: `Captured ${exploitEvidence.agents.length} agent(s) from Caldera. Source: ${exploitEvidence.calderaServerIp}, Targets: ${exploitEvidence.agents.map(a => a.hostIp).join(', ')}\nIntegrity: hash=${exploitGateResult.contentHash.slice(0, 12)}... provenance=${exploitGateResult.provenanceValid ? 'valid' : 'INVALID'}${exploitGateResult.warnings.length > 0 ? ` (${exploitGateResult.warnings.length} warnings)` : ''}`,
           data: {
             agentCount: exploitEvidence.agents.length,
             calderaServerUrl: exploitEvidence.calderaServerUrl,
             calderaServerIp: exploitEvidence.calderaServerIp,
             capturedAt: exploitEvidence.capturedAt,
+            integrityGate: {
+              passed: exploitGateResult.passed,
+              contentHash: exploitGateResult.contentHash,
+              provenanceValid: exploitGateResult.provenanceValid,
+              warnings: exploitGateResult.warnings,
+              errors: exploitGateResult.errors,
+            },
           },
+        });
+        // Create integrity envelope for chain tracking
+        createIntegrityEnvelope({
+          evidenceId: `exploit-evidence-${state.engagementId}-${Date.now()}`,
+          engagementId: String(state.engagementId),
+          content: exploitEvidenceContent,
+          provenance: exploitProvenance,
+          performedBy: 'AC3 Orchestrator',
         });
       }
     } catch (evidenceErr: any) {
@@ -5789,15 +5868,53 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
 
     const compromised = state.assets.filter(a => a.status === "compromised");
     for (const asset of compromised) {
+      // ── Evidence Integrity Gate: validate per-asset pentest evidence ──
+      const assetEvidenceContent = JSON.stringify({
+        hostname: asset.hostname,
+        vulns: asset.vulns,
+        exploits: asset.exploitAttempts.filter(e => e.success),
+      });
+      const assetProvenance = buildProvenance({
+        tool: 'metasploit' as EvidenceSourceTool,
+        command: 'evidence-collection:pentest',
+        collectorHost: process.env.SCAN_SERVER_HOST || 'ac3-platform',
+        rawOutput: assetEvidenceContent,
+        targetHost: asset.hostname,
+        sourceIp: process.env.SCAN_SERVER_HOST || '127.0.0.1',
+        destinationIp: asset.ip || asset.hostname,
+      });
+      const assetGate = evidenceGate({
+        content: assetEvidenceContent,
+        provenance: assetProvenance,
+        knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip || '', ports: a.ports.map(p => p.port) })),
+        knownCves: asset.vulns.filter(v => v.cve).map(v => v.cve!),
+        strictness: 'moderate',
+      });
+      // Create integrity envelope
+      createIntegrityEnvelope({
+        evidenceId: `pentest-evidence-${state.engagementId}-${asset.hostname}-${Date.now()}`,
+        engagementId: String(state.engagementId),
+        content: assetEvidenceContent,
+        provenance: assetProvenance,
+        performedBy: 'AC3 Orchestrator',
+      });
+      const assetGateIcon = assetGate.passed ? '🔒' : '⚠️';
       addLog(state, {
         phase: "post_exploit",
         type: "evidence",
-        title: `Evidence: ${fmtTarget(asset)}`,
-        detail: `Unauthorized access demonstrated via ${asset.exploitAttempts.filter(e => e.success).map(e => e.module).join(", ")}. ${asset.vulns.length} vulnerabilities confirmed exploitable.`,
+        title: `Evidence: ${fmtTarget(asset)} ${assetGateIcon}`,
+        detail: `Unauthorized access demonstrated via ${asset.exploitAttempts.filter(e => e.success).map(e => e.module).join(", ")}. ${asset.vulns.length} vulnerabilities confirmed exploitable.\nIntegrity: ${assetGate.passed ? 'PASSED' : 'FAILED'} (hash=${assetGate.contentHash.slice(0, 12)}...)`,
         data: {
           hostname: asset.hostname,
           vulns: asset.vulns,
           exploits: asset.exploitAttempts.filter(e => e.success),
+          integrityGate: {
+            passed: assetGate.passed,
+            contentHash: assetGate.contentHash,
+            provenanceValid: assetGate.provenanceValid,
+            warnings: assetGate.warnings,
+            errors: assetGate.errors,
+          },
         },
       });
     }
@@ -5842,10 +5959,27 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       const opCount = postExploitEvidence.operations.length;
       const linkCount = postExploitEvidence.operations.reduce((sum, op) => sum + op.links.length, 0);
       const successLinks = postExploitEvidence.operations.reduce((sum, op) => sum + op.links.filter(l => l.status === 'success').length, 0);
-
+      // ── Evidence Integrity Gate: validate post-exploit evidence ──
+      const postExploitContent = JSON.stringify(postExploitEvidence);
+      const postExploitProvenance = buildProvenance({
+        tool: 'caldera' as EvidenceSourceTool,
+        command: 'captureCalderaEvidence:post_exploit',
+        collectorHost: process.env.SCAN_SERVER_HOST || 'ac3-platform',
+        rawOutput: postExploitContent,
+        targetHost: postExploitEvidence.agents[0]?.hostIp || state.assets[0]?.hostname || 'unknown',
+        sourceIp: postExploitEvidence.calderaServerIp || '127.0.0.1',
+        destinationIp: postExploitEvidence.agents[0]?.hostIp || 'unknown',
+      });
+      const postExploitGate = evidenceGate({
+        content: postExploitContent,
+        provenance: postExploitProvenance,
+        knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip || '', ports: a.ports.map(p => p.port) })),
+        strictness: 'moderate',
+      });
+      const peGateEmoji = postExploitGate.passed ? '✅' : '⚠️';
       addLog(state, {
         phase: 'post_exploit', type: 'evidence',
-        title: '📸 Post-Exploit Evidence Captured',
+        title: `📸 Post-Exploit Evidence Captured ${peGateEmoji}`,
         detail: [
           `Agents: ${postExploitEvidence.agents.length}`,
           `Operations: ${opCount}`,
@@ -5854,6 +5988,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
           `Source: ${postExploitEvidence.calderaServerIp}`,
           `Targets: ${postExploitEvidence.agents.map(a => a.hostIp).filter(Boolean).join(', ') || 'N/A'}`,
           `Captured: ${postExploitEvidence.capturedAt}`,
+          `Integrity: hash=${postExploitGate.contentHash.slice(0, 12)}... provenance=${postExploitGate.provenanceValid ? 'valid' : 'INVALID'}`,
         ].join(' | '),
         data: {
           agentCount: postExploitEvidence.agents.length,
@@ -5865,7 +6000,22 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
           calderaServerIp: postExploitEvidence.calderaServerIp,
           capturedAt: postExploitEvidence.capturedAt,
           renderedPanels: Object.keys(postExploitEvidence.renderedHtml),
+          integrityGate: {
+            passed: postExploitGate.passed,
+            contentHash: postExploitGate.contentHash,
+            provenanceValid: postExploitGate.provenanceValid,
+            warnings: postExploitGate.warnings,
+            errors: postExploitGate.errors,
+          },
         },
+      });
+      // Create integrity envelope for chain tracking
+      createIntegrityEnvelope({
+        evidenceId: `postexploit-evidence-${state.engagementId}-${Date.now()}`,
+        engagementId: String(state.engagementId),
+        content: postExploitContent,
+        provenance: postExploitProvenance,
+        performedBy: 'AC3 Orchestrator',
       });
     }
   } catch (evidenceErr: any) {
@@ -5875,7 +6025,6 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
       detail: `Could not auto-capture Caldera evidence: ${evidenceErr.message}`,
     });
   }
-
   state.progress = 90;
   addLog(state, { phase: "post_exploit", type: "phase_complete", title: "✅ Phase 5 Complete", detail: state.engagementType === "red_team" ? "C2 agents deployed" : "Evidence collected" });
 }
@@ -6608,13 +6757,39 @@ export async function executeEngagement(
     state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
     state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
 
-    addLog(state, {
+     addLog(state, {
       phase: "completed",
       type: "phase_complete",
       title: "🏁 Engagement Execution Complete",
       detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
     });
-
+    // ── Evidence Chain Flush & Integrity Anchor ──
+    try {
+      const flushResult = await flushChainToDb(String(state.engagementId));
+      const anchor = createIntegrityAnchor(String(state.engagementId));
+      addLog(state, {
+        phase: 'completed', type: 'evidence',
+        title: `🔐 Evidence Chain Sealed`,
+        detail: [
+          `Flushed ${flushResult.flushed} evidence envelopes to DB`,
+          anchor ? `Merkle root: ${anchor.merkleRoot.slice(0, 16)}...` : 'No anchor (empty chain)',
+          anchor ? `Chain length: ${anchor.chainLength}` : '',
+          flushResult.errors.length > 0 ? `Flush errors: ${flushResult.errors.length}` : '',
+        ].filter(Boolean).join(' | '),
+        data: {
+          chainFlushed: flushResult.flushed,
+          flushErrors: flushResult.errors,
+          anchor: anchor ? {
+            merkleRoot: anchor.merkleRoot,
+            hmacSignature: anchor.hmacSignature,
+            chainLength: anchor.chainLength,
+            anchoredAt: anchor.anchoredAt,
+          } : null,
+        },
+      });
+    } catch (chainErr: any) {
+      console.error('[EvidenceChain] Failed to flush/anchor:', chainErr.message);
+    }
     // ── Accuracy Feedback Loop: auto-compare findings against ground truth ──
     try {
       const { runAccuracyComparison } = await import('./accuracy-feedback-loop');
