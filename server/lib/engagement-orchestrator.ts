@@ -6643,6 +6643,34 @@ export async function executeEngagement(
       message: `${state.engagementType} engagement #${engagementId} finished: ${state.stats.exploitsSucceeded} successful exploits`,
       severity: "info",
     });
+
+    // ── Owner Push Notification ──
+    try {
+      const { notifyOwner } = await import('../_core/notification');
+      const durationMs = (state.completedAt || Date.now()) - (state.startedAt || Date.now());
+      const durationMin = Math.round(durationMs / 60_000);
+      const phases = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
+      const phasesCompleted = phases.filter(p => state.log.some(l => l.phase === p)).length;
+      const critVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'critical').length, 0);
+      const highVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'high').length, 0);
+      await notifyOwner({
+        title: `✅ Engagement #${engagementId} Complete — ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits`,
+        content: [
+          `${state.engagementType.toUpperCase()} engagement #${engagementId} has completed.`,
+          ``,
+          `Duration: ${durationMin} minutes | Phases: ${phasesCompleted}/5`,
+          `Assets: ${state.assets.length} | Ports: ${state.stats.portsFound}`,
+          `Vulnerabilities: ${state.stats.vulnsFound} (${critVulns} critical, ${highVulns} high)`,
+          `Exploits: ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} succeeded`,
+          `Sessions: ${state.stats.sessionsOpened} | ZAP Scans: ${state.stats.zapScansRun || 0}`,
+          `Log entries: ${state.log.length}`,
+          ``,
+          `View full results on the Engagement Ops page.`,
+        ].join('\n'),
+      });
+    } catch (notifErr: any) {
+      console.warn(`[Notification] Completion notification failed for #${engagementId}:`, notifErr.message);
+    }
   } catch (e: any) {
     state.phase = "error";
     state.isRunning = false;
@@ -6650,6 +6678,29 @@ export async function executeEngagement(
     addLog(state, { phase: "error", type: "error", title: "Pipeline Error", detail: e.message });
     // Save error state so it can be inspected and potentially resumed
     await persistOpsStateNow(engagementId);
+
+    // ── Owner Push Notification (Error) ──
+    try {
+      const { notifyOwner } = await import('../_core/notification');
+      const durationMs = Date.now() - (state.startedAt || Date.now());
+      const durationMin = Math.round(durationMs / 60_000);
+      await notifyOwner({
+        title: `❌ Engagement #${engagementId} Failed — ${state.phase} phase error`,
+        content: [
+          `${state.engagementType.toUpperCase()} engagement #${engagementId} encountered an error.`,
+          ``,
+          `Error: ${e.message}`,
+          `Last phase: ${state.log.length > 0 ? state.log[state.log.length - 1].phase : 'unknown'}`,
+          `Duration: ${durationMin} minutes`,
+          `Assets: ${state.assets.length} | Vulns: ${state.stats.vulnsFound}`,
+          `Log entries: ${state.log.length}`,
+          ``,
+          `The engagement state has been saved. Use Resume to continue from the last checkpoint.`,
+        ].join('\n'),
+      });
+    } catch (notifErr: any) {
+      console.warn(`[Notification] Error notification failed for #${engagementId}:`, notifErr.message);
+    }
   }
 }
 
@@ -6706,5 +6757,183 @@ export async function resumeEngagement(
     success: true,
     message: `Resuming engagement from phase: ${resumePhase}. ${state.assets.length} assets, ${state.stats.vulnsFound} vulns recovered.`,
     resumePhase,
+  };
+}
+
+
+// ─── Startup Recovery: Detect Interrupted Engagements ────────────────────────
+
+/**
+ * Scan the DB for engagements that were running when the server last shut down.
+ * Loads their state into memory (marked as crashed/error) and notifies the owner.
+ * Call this once during server startup (after DB is ready).
+ */
+export async function recoverInterruptedEngagements(): Promise<{
+  recovered: number;
+  engagements: Array<{ id: number; phase: string; assets: number }>;
+}> {
+  const result: { recovered: number; engagements: Array<{ id: number; phase: string; assets: number }> } = {
+    recovered: 0,
+    engagements: [],
+  };
+
+  try {
+    const { getDbRequired } = await import('../db');
+    const db = await getDbRequired();
+    const { engagementOpsSnapshots } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+
+    // Find all snapshots that were marked as running (server crashed mid-execution)
+    const interrupted = await db.select()
+      .from(engagementOpsSnapshots)
+      .where(eq(engagementOpsSnapshots.isRunning, 1));
+
+    for (const row of interrupted) {
+      const engId = row.engagementId;
+      try {
+        // Load and normalize the state (loadOpsSnapshot already handles crash detection)
+        const { loadOpsSnapshot } = await import('../db');
+        const state = await loadOpsSnapshot(engId);
+        if (state) {
+          opsStates.set(engId, state);
+          result.recovered++;
+          result.engagements.push({
+            id: engId,
+            phase: state.phase,
+            assets: state.assets?.length || 0,
+          });
+          console.log(`[StartupRecovery] Recovered engagement #${engId}: phase=${state.phase}, assets=${state.assets?.length || 0}`);
+        }
+      } catch (e: any) {
+        console.error(`[StartupRecovery] Failed to recover engagement #${engId}:`, e.message);
+      }
+    }
+
+    // Notify owner if any engagements were interrupted
+    if (result.recovered > 0) {
+      try {
+        const { notifyOwner } = await import('../_core/notification');
+        const engList = result.engagements
+          .map(e => `  • #${e.id}: last phase = ${e.phase}, ${e.assets} assets preserved`)
+          .join('\n');
+        await notifyOwner({
+          title: `⚠️ ${result.recovered} Interrupted Engagement${result.recovered > 1 ? 's' : ''} Recovered`,
+          content: [
+            `The server restarted and ${result.recovered} engagement${result.recovered > 1 ? 's were' : ' was'} interrupted mid-execution.`,
+            ``,
+            `Recovered engagements:`,
+            engList,
+            ``,
+            `All asset data and progress has been preserved. Use the Resume button on the Engagement Ops page to continue from the last checkpoint.`,
+          ].join('\n'),
+        });
+      } catch (notifErr: any) {
+        console.warn('[StartupRecovery] Notification failed:', notifErr.message);
+      }
+    }
+  } catch (e: any) {
+    console.error('[StartupRecovery] Recovery scan failed:', e.message);
+  }
+
+  return result;
+}
+
+// ─── Re-run From Phase ──────────────────────────────────────────────────────
+
+/**
+ * Re-run a completed (or errored) engagement starting from a specific phase.
+ * Preserves all data from phases BEFORE the target phase, clears data from
+ * the target phase onward, then executes the pipeline from that phase.
+ */
+export async function rerunFromPhase(
+  engagementId: number,
+  targetPhase: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit',
+  operatorCtx: { id: string; name?: string }
+): Promise<{ success: boolean; message: string }> {
+  const PHASE_ORDER: Array<'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit'> = [
+    'recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit',
+  ];
+
+  const targetIdx = PHASE_ORDER.indexOf(targetPhase);
+  if (targetIdx < 0) {
+    return { success: false, message: `Invalid phase: ${targetPhase}. Must be one of: ${PHASE_ORDER.join(', ')}` };
+  }
+
+  // Get state from memory or DB
+  let state = await getOpsStateWithRecovery(engagementId);
+  if (!state) {
+    return { success: false, message: 'No saved state found for this engagement. Run it first before re-running from a specific phase.' };
+  }
+
+  if (state.isRunning) {
+    return { success: false, message: 'Engagement is currently running. Stop it first before re-running.' };
+  }
+
+  // Determine which phases to keep (everything before targetPhase)
+  const phasesToKeep = PHASE_ORDER.slice(0, targetIdx);
+  const phasesToClear = PHASE_ORDER.slice(targetIdx);
+
+  // Clear logs from phases being re-run
+  state.log = state.log.filter(l => phasesToKeep.includes(l.phase as any));
+
+  // Clear asset data from phases being re-run
+  if (targetIdx <= 1) {
+    // Re-running from recon or enumeration: clear port data
+    for (const asset of state.assets) {
+      asset.ports = [];
+      asset.toolResults = [];
+    }
+    state.stats.portsFound = 0;
+  }
+  if (targetIdx <= 2) {
+    // Re-running from vuln_detection or earlier: clear vuln data
+    for (const asset of state.assets) {
+      asset.vulns = [];
+      asset.zapFindings = [];
+      asset.nucleiFindings = [];
+    }
+    state.stats.vulnsFound = 0;
+    state.stats.zapScansRun = 0;
+  }
+  if (targetIdx <= 3) {
+    // Re-running from exploitation or earlier: clear exploit data
+    for (const asset of state.assets) {
+      asset.exploitAttempts = [];
+    }
+    state.stats.exploitsAttempted = 0;
+    state.stats.exploitsSucceeded = 0;
+    state.stats.sessionsOpened = 0;
+  }
+  // Post-exploit: clear post-exploit specific data
+  if (targetIdx <= 4) {
+    state.completedAt = undefined;
+  }
+
+  // Reset state for re-execution
+  state.error = undefined;
+  state.isRunning = false;
+  state.progress = Math.round((targetIdx / PHASE_ORDER.length) * 100);
+
+  // Add re-run log entry
+  addLog(state, {
+    phase: targetPhase,
+    type: 'info',
+    title: `🔄 Re-run from ${targetPhase.replace(/_/g, ' ')}`,
+    detail: `Operator initiated re-run from ${targetPhase}. Preserved data from: ${phasesToKeep.join(', ') || 'none'}. Clearing: ${phasesToClear.join(', ')}.`,
+  });
+
+  // Save the cleaned state
+  opsStates.set(engagementId, state);
+  await persistOpsStateNow(engagementId);
+
+  // Fire off the execution from the target phase
+  executeEngagement(engagementId, operatorCtx, {
+    startPhase: targetPhase,
+    resume: false,
+  });
+
+  return {
+    success: true,
+    message: `Re-running engagement #${engagementId} from ${targetPhase}. Preserved ${phasesToKeep.length} prior phase(s), ${state.assets.length} assets, ${state.log.length} log entries.`,
   };
 }

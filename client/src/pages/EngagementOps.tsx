@@ -830,6 +830,18 @@ export default function EngagementOps() {
     onError: (e) => toast.error(`Re-run failed: ${e.message}`),
   });
 
+  // ── Re-run From Specific Phase ──
+  const [showRerunFromPhaseDialog, setShowRerunFromPhaseDialog] = useState(false);
+  const [rerunTargetPhase, setRerunTargetPhase] = useState<'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit'>('exploitation');
+  const rerunFromPhaseMut = trpc.engagementOps.rerunFromPhase.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowRerunFromPhaseDialog(false);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Re-run failed: ${e.message}`),
+  });
+
   // ── Functional Exploit Generation ──
   const [showExploitGen, setShowExploitGen] = useState(false);
   const [selectedExploitAsset, setSelectedExploitAsset] = useState('');
@@ -4257,6 +4269,23 @@ export default function EngagementOps() {
             </div>
           </div>
 
+          {/* Re-run From Specific Phase */}
+          <div className="mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => setShowRerunFromPhaseDialog(true)}
+              disabled={ops?.isRunning}
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Re-run From Phase
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-relaxed mt-1">
+              Restart from a specific phase, preserving all data from earlier phases.
+            </p>
+          </div>
+
           <Separator />
 
           {/* Functional Exploit Generator */}
@@ -4565,6 +4594,75 @@ export default function EngagementOps() {
             >
               {rerunMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
               Start Re-Run
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Re-run From Phase Dialog ── */}
+      <AlertDialog open={showRerunFromPhaseDialog} onOpenChange={setShowRerunFromPhaseDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-amber-400" />
+              Re-run From Phase
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Restart the pipeline from a specific phase. All data from earlier phases will be preserved; data from the selected phase onward will be cleared and re-generated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              {[
+                { id: 'recon' as const, label: 'Reconnaissance', desc: 'Clears all data and starts fresh', icon: <Search className="h-4 w-4" />, preserves: 'Nothing' },
+                { id: 'enumeration' as const, label: 'Enumeration', desc: 'Re-runs nmap scanning and port discovery', icon: <Network className="h-4 w-4" />, preserves: 'Recon data' },
+                { id: 'vuln_detection' as const, label: 'Vulnerability Detection', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'Recon + ports' },
+                { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'Recon + ports + vulns' },
+                { id: 'post_exploit' as const, label: 'Post-Exploitation', desc: 'Re-runs post-exploit analysis and reporting prep', icon: <Key className="h-4 w-4" />, preserves: 'All prior phases' },
+              ].map(phase => (
+                <label
+                  key={phase.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+                    rerunTargetPhase === phase.id
+                      ? 'bg-amber-500/10 border-amber-500/30 ring-1 ring-amber-500/20'
+                      : 'border-transparent hover:bg-muted/30'
+                  }`}
+                  onClick={() => setRerunTargetPhase(phase.id)}
+                >
+                  <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                    rerunTargetPhase === phase.id ? 'border-amber-400' : 'border-muted-foreground/30'
+                  }`}>
+                    {rerunTargetPhase === phase.id && <div className="h-2 w-2 rounded-full bg-amber-400" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400">{phase.icon}</span>
+                      <span className="text-sm font-medium">{phase.label}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Preserves: {phase.preserves}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {ops && (
+              <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
+                <div className="text-[10px] text-muted-foreground">Current state: {ops.assets?.length || 0} assets, {ops.stats?.vulnsFound || 0} vulns, {ops.stats?.exploitsSucceeded || 0} exploits</div>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
+              onClick={() => rerunFromPhaseMut.mutate({
+                engagementId,
+                targetPhase: rerunTargetPhase,
+              })}
+              disabled={rerunFromPhaseMut.isPending}
+            >
+              {rerunFromPhaseMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+              Re-run from {rerunTargetPhase.replace(/_/g, ' ')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

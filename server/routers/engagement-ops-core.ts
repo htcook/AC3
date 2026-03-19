@@ -144,6 +144,28 @@ export const engagementOpsRouter = router({
         return result;
       }),
 
+    /** Re-run a completed/errored engagement from a specific phase, preserving prior phase data */
+    rerunFromPhase: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        targetPhase: z.enum(['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { rerunFromPhase } = await import('../lib/engagement-orchestrator');
+        const result = await rerunFromPhase(input.engagementId, input.targetPhase, {
+          id: String(ctx.user.id),
+          name: ctx.user.name || undefined,
+        });
+        if (result.success) {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'engagement_rerun_from_phase',
+            details: `Re-running engagement #${input.engagementId} from phase: ${input.targetPhase}`,
+          });
+        }
+        return result;
+      }),
+
     /** Skip the currently scanning domain — marks it as skipped so the pipeline moves to the next domain */
     skipCurrentDomain: protectedProcedure
       .input(z.object({ engagementId: z.number() }))

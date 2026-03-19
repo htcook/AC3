@@ -636,6 +636,19 @@ async function startServer() {
       }).catch((err) => {
         console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
       });
+
+      // Startup Recovery: detect and recover interrupted engagements from DB
+      import("../lib/engagement-orchestrator").then(async ({ recoverInterruptedEngagements }) => {
+        const result = await recoverInterruptedEngagements();
+        if (result.recovered > 0) {
+          console.log(`[StartupRecovery] Recovered ${result.recovered} interrupted engagement(s):`,
+            result.engagements.map(e => `#${e.id}(${e.phase})`).join(', '));
+        } else {
+          console.log("[StartupRecovery] No interrupted engagements found");
+        }
+      }).catch((err) => {
+        console.warn("[StartupRecovery] Recovery scan failed:", err);
+      });
     }, BACKGROUND_DELAY);
   });
 }
