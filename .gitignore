@@ -190,12 +190,14 @@ threatActorSeed*.ts
 # Client dist (now in dist/public/)
 client/dist/
 
-# IMPORTANT: Ensure dist/ is NEVER excluded from deploy
-# The platform uses gitignore-like rules to package the deploy artifact
+# Deploy: dist/index.js is the bootstrap (committed to git, small)
+# dist/_server.js and dist/public/ are rebuilt during Docker build from .client-assets/
 !dist/
-!dist/**
 !dist/index.js
-!dist/_server.js
-!dist/public/**
+dist/_server.js
+dist/public/
+# .client-assets/ is pre-built Vite output needed by build.cjs
 !.client-assets/
 !.client-assets/**
+# Also exclude stale client build directories
+client/.client-assets/
