@@ -8,7 +8,7 @@
 
 | Field | Value |
 |---|---|
-| **Report Title** | FedRAMP-Aligned Penetration Test Report — Banking Systems |
+| **Report Title** |# Penetration Test Report— Banking Systems |
 | **Engagement ID** | ENG-1770043 |
 | **Engagement Type** | Full Active Penetration Test (Red Team) |
 | **Client** | AceOfCloud Training Lab — Banking Systems |
@@ -16,7 +16,7 @@
 | **Report Date** | March 19, 2026 |
 | **Assessor Organization** | Ace C3 (Caldera Command Center) |
 | **Methodology** | NIST SP 800-115, OWASP Testing Guide v4.2, PTES, MITRE ATT&CK |
-| **FedRAMP Alignment** | FedRAMP Penetration Test Guidance (Rev. 5), CA-8, RA-5 |
+| **Compliance Alignment** | NIST SP 800-53 Rev. 5 (CA-8, RA-5), FedRAMP, PCI-DSS, GLBA, FFIEC |
 
 ---
 
@@ -65,9 +65,23 @@ The engagement targeted two in-scope banking applications — **Altoro Mutual** 
 | FedRAMP Compliance Score | 47% |
 | OWASP Top 10:2025 Coverage | 85% |
 
-### Overall Risk Rating: **MODERATE**
+### Overall Risk Rating: **HIGH**
 
-The assessment identified two high-severity vulnerabilities related to deprecated XSS protection headers, eight low-severity configuration weaknesses, and 22 informational findings. A successful SSH exploitation was achieved against the Altoro Mutual application, resulting in a reverse shell and subsequent C2 agent deployment. The FedRAMP compliance score of 47% indicates significant gaps in security controls that require remediation before achieving Authorization to Operate (ATO).
+The overall risk rating is assessed as **HIGH** based on the successful exploitation of the target environment. The assessment achieved full remote code execution via SSH authentication bypass (CVSS 9.8), established a persistent reverse shell, and deployed two C2 agents running an advanced persistent threat (APT) adversary profile (Axiom). This exploitation chain demonstrates that an attacker with network access can achieve complete system compromise, including the ability to exfiltrate sensitive banking data, pivot laterally, and maintain persistent access.
+
+The risk rating is driven by the following factors:
+
+| Factor | Assessment | Justification |
+|---|---|---|
+| **Exploitability** | Critical | SSH auth bypass requires no credentials, no user interaction, and is remotely exploitable |
+| **Impact** | Critical | Full system compromise with root-level shell access to banking infrastructure |
+| **Active Exploitation** | Confirmed | Successful exploitation achieved during this assessment with C2 persistence |
+| **Banking Context** | High | Compromised host serves banking applications processing financial transactions |
+| **Regulatory Impact** | High | Findings affect PCI-DSS Req 2/6/8, GLBA Safeguards Rule, FFIEC CAT, FedRAMP CA-8/RA-5 |
+| **Detection Gap** | High | C2 agent operated undetected; no alerting observed during adversary simulation |
+| **Compliance Score** | Moderate | FedRAMP compliance at 47% indicates significant control gaps requiring remediation |
+
+In addition to the critical exploitation finding, the assessment identified two high-severity vulnerabilities related to deprecated XSS protection headers, eight low-severity configuration weaknesses, and 22 informational findings. The combination of a confirmed exploitation path with low compliance maturity and absent detection capabilities warrants the HIGH overall risk rating. Immediate remediation of the SSH authentication vulnerability and implementation of network segmentation controls is strongly recommended before production deployment.
 
 ---
 

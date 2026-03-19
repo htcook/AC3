@@ -443,6 +443,7 @@ export const reportsRouter = router({
 
         // ─── Legacy single-prompt report generation ───
         const { invokeLLM } = await import('../_core/llm');
+        const { buildSectionOutline, getReportBlueprint } = await import('../lib/report-section-blueprints');
 
         const clientTypeLabels: Record<string, string> = {
           msp: 'Managed Service Provider (MSP)',
@@ -454,56 +455,88 @@ export const reportsRouter = router({
           other: 'Organization',
         };
 
-        const sectionPrompts: Record<string, string> = {
-          executive_summary: 'Write a concise executive summary suitable for C-level stakeholders. Focus on business risk, key findings, and recommended actions.',
-          technical_detail: 'Write a detailed technical report covering all findings, attack paths, vulnerabilities, and remediation steps with specific technical guidance.',
-          compliance: 'Write a compliance-focused report mapping findings to relevant frameworks (NIST CSF, ISO 27001, SOC 2, HIPAA, PCI DSS). Include gap analysis.',
-          phishing_results: 'Write a phishing campaign results report with click rates, credential capture rates, user behavior analysis, and awareness training recommendations.',
-          osint_assessment: 'Write an OSINT assessment report covering domain security posture, email authentication, typosquat risks, and external attack surface findings.',
-          full_engagement: 'Write a comprehensive engagement report covering all aspects: executive summary, OSINT findings, phishing results, technical findings, and recommendations.',
-          purple_team: 'Write a Purple Team exercise report covering adversary emulation results, detection coverage analysis, technique-by-technique breakdown of what was detected vs missed, SOC performance metrics, and specific detection engineering recommendations. Include a MITRE ATT&CK heatmap summary.',
-          red_team_assessment: 'Write a Red Team assessment report covering attack paths, initial access methods, lateral movement, privilege escalation, persistence mechanisms, and data exfiltration attempts. Include a kill chain analysis and specific remediation steps for each finding.',
-          detection_gap_analysis: 'Write a Detection Gap Analysis report that maps every tested MITRE ATT&CK technique to its detection status (detected/partially detected/missed). Include specific Sigma rules, YARA rules, and SIEM queries that should be implemented to close each gap. Prioritize gaps by risk severity.',
+        // ─── Map report types to assessment blueprint types ───
+        const reportTypeToBlueprint: Record<string, string> = {
+          executive_summary: 'penetration_test',
+          technical_detail: 'penetration_test',
+          compliance: 'penetration_test',
+          phishing_results: 'phishing_campaign',
+          osint_assessment: 'vulnerability_assessment',
+          full_engagement: 'hybrid',
+          purple_team: 'purple_team',
+          red_team_assessment: 'red_team',
+          detection_gap_analysis: 'purple_team',
         };
 
-        const reportPrompt = sectionPrompts[input.reportType] || sectionPrompts.full_engagement;
+        // Also map from engagement type if available
+        const engTypeToBlueprint: Record<string, string> = {
+          red_team: 'red_team',
+          phishing: 'phishing_campaign',
+          pentest: 'penetration_test',
+          purple_team: 'purple_team',
+          tabletop: 'tabletop_exercise',
+        };
+
+        // Determine the best blueprint: prefer engagement type, fallback to report type mapping
+        const engType = (engagement.engagementType || '').toLowerCase().replace(/[\s-]/g, '_');
+        const blueprintType = engTypeToBlueprint[engType] || reportTypeToBlueprint[input.reportType] || 'penetration_test';
+        const blueprint = getReportBlueprint(blueprintType);
+        const sectionOutline = buildSectionOutline(blueprintType);
+
+        // ─── Auto-escalate risk when successful exploits exist ───
+        let riskEscalation = '';
+        try {
+          const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+          const opsState = await getOpsStateWithRecovery(input.engagementId);
+          if (opsState) {
+            const hasSuccessfulExploit = (opsState as any).assets?.some((a: any) =>
+              a.exploitAttempts?.some((ea: any) => ea.success)
+            );
+            const hasC2Agents = ((opsState as any).stats?.c2Agents || 0) > 0;
+            if (hasSuccessfulExploit || hasC2Agents) {
+              riskEscalation = `\n\nCRITICAL RISK ESCALATION: This engagement achieved SUCCESSFUL EXPLOITATION with confirmed shell access and/or C2 agent deployment. The overall risk rating MUST be HIGH or CRITICAL. Include a dedicated "Exploitation Evidence" section with:\n- CVSS v3.1 score and full vector string with per-metric justification\n- Exploitation timeline with precise timestamps\n- Session evidence (shell access, commands executed)\n- C2 agent deployment proof (agent IDs, callback confirmation)\n- Approval gate audit trail\n- Risk rating justification table (exploitability, impact, regulatory, detection gaps)\n- Banking/financial context impact if applicable`;
+            }
+          }
+        } catch (e) { /* non-fatal */ }
+
+        const reportPrompt = `Generate a ${blueprint.displayName} for a ${clientTypeLabels[input.clientType] || 'client'}. Target audience: ${blueprint.audience}. Applicable frameworks: ${blueprint.defaultFrameworks.join(', ')}.`;
 
         try {
           const response = await invokeLLM({ _caller: "reports-core", _priority: 'bulk',
             messages: [
               {
                 role: 'system',
-                content: `You are a senior penetration testing reporting engine designed to produce professional cybersecurity assessment reports suitable for enterprise clients and government compliance frameworks including FedRAMP, NIST 800-53, and SOC2.
+                content: `You are a senior cybersecurity assessment reporting engine designed to produce professional reports suitable for enterprise clients and government compliance frameworks including FedRAMP, NIST 800-53, SOC2, PCI-DSS, and HIPAA.
 
-Your task is to convert raw security testing data, reconnaissance outputs, and vulnerability signals into a fully structured ${input.reportType.replace(/_/g, ' ')} report for a ${clientTypeLabels[input.clientType] || 'client'} suitable for executive leadership and security engineering teams.
+Your task is to convert raw security testing data, reconnaissance outputs, and vulnerability signals into a fully structured ${blueprint.displayName} for a ${clientTypeLabels[input.clientType] || 'client'} suitable for ${blueprint.audience}.
 
-The report must follow professional penetration testing standards used by top consulting firms (Mandiant, NCC Group, Bishop Fox, CrowdStrike).
+The report must follow professional standards used by top consulting firms (Mandiant, NCC Group, Bishop Fox, CrowdStrike).
 
-REPORT STRUCTURE:
-1 Executive Summary
-2 Engagement Overview
-3 Scope of Testing
-4 Rules of Engagement
-5 Methodology (PTES, OWASP Testing Guide, NIST SP 800-115, FedRAMP guidance)
-6 Attack Surface Overview (tables + diagram)
-7 Vulnerability Summary (severity distribution + risk heatmap)
-8 Detailed Findings (CVSS, evidence, attack scenario, remediation)
-9 Exploitation Narrative (attack chain timeline)
-10 Risk Matrix
-11 Remediation Roadmap
-12 Detection & Monitoring Recommendations
-13 Appendix (tools used, evidence artifacts)
+${sectionOutline}
 
-FORMATTING:
-Use structured tables and Mermaid diagrams when possible.
-Every finding must include:
-- CVSS v3.1 score and vector
-- MITRE ATT&CK mapping
-- NIST 800-53 control mapping
-- OWASP Top 10 category
+FORMATTING REQUIREMENTS:
+- Use structured Markdown tables for all tabular data
+- Use Mermaid diagrams for attack chains, kill chains, and process flows where appropriate
+- Every vulnerability finding MUST include:
+  * CVSS v3.1 score and full vector string (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)
+  * Per-metric CVSS justification table
+  * MITRE ATT&CK technique mapping (T-number and tactic)
+  * NIST 800-53 control mapping
+  * OWASP Top 10:2025 category
+  * Supporting evidence artifacts (numbered E-1, E-2, etc.)
+  * Risk rating with justification
+  * Remediation recommendation with priority
+- Every successful exploitation MUST include:
+  * Exploitation timeline with precise timestamps
+  * Session evidence (shell access, commands, output)
+  * C2 agent deployment proof if applicable
+  * Approval gate audit trail
+  * Risk rating justification table
+- Include a Risk Matrix table mapping likelihood vs impact
+- Include a Remediation Roadmap with prioritized action items and timelines
 
 Output format: Markdown compatible with PDF export.
-Brand the report as produced by Ace of Cloud LLC (aceofcloud.com). Report Author: Harrison Cook.`,
+Brand the report as produced by Ace of Cloud LLC (aceofcloud.com). Report Author: Harrison Cook.${riskEscalation}`,
               },
               {
                 role: 'user',
@@ -691,6 +724,16 @@ Instructions: ${reportPrompt}`,
         // Wrap in branded Ace of Cloud template
         const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
+        // Determine assessment type display name from blueprint
+        let assessmentTypeDisplay = 'Security Assessment';
+        try {
+          const { getReportBlueprint } = await import('../lib/report-section-blueprints');
+          // Try to get engagement for type info
+          const eng = await db.getEngagementById((report as any).engagementId);
+          const engType = (eng?.engagementType || (report as any).reportType || 'pentest').toLowerCase().replace(/[\s-]/g, '_');
+          assessmentTypeDisplay = getReportBlueprint(engType).displayName;
+        } catch { assessmentTypeDisplay = ((report as any).reportType || 'security_assessment').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()); }
+
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -739,7 +782,7 @@ Instructions: ${reportPrompt}`,
     <div class="report-meta">
       <div>Client: ${report.preparedFor || 'Client'}</div>
       <div>Prepared by: ${report.preparedBy || 'Ace of Cloud LLC'}</div>
-      <div>Assessment Type: Penetration Test</div>
+      <div>Assessment Type: ${assessmentTypeDisplay}</div>
       <div>Report Date: ${dateStr}</div>
     </div>
     <div class="classification-line">CONFIDENTIAL \u2013 Security Assessment Report</div>

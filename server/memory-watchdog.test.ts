@@ -40,8 +40,8 @@ describe("Memory Watchdog & Crash Protection", () => {
         startedAt: Date.now(),
       };
 
-      // Add 600 logs (exceeds the 500 default limit)
-      for (let i = 0; i < 600; i++) {
+      // Add 1200 logs (exceeds the 1000 default limit for 10 concurrent engagements)
+      for (let i = 0; i < 1200; i++) {
         state.log.push({
           id: `log-${i}`,
           timestamp: Date.now(),
@@ -51,9 +51,9 @@ describe("Memory Watchdog & Crash Protection", () => {
         });
       }
 
-      // addLog should trim to at most 500 (under normal memory)
+      // addLog should trim to at most 1000 (under normal memory, scaled for 10 concurrent engagements)
       addLog(state, { phase: "recon", type: "info", title: "New log entry" });
-      expect(state.log.length).toBeLessThanOrEqual(501); // 500 max + the new entry might push it to 501 before trim
+      expect(state.log.length).toBeLessThanOrEqual(1001); // 1000 max + the new entry might push it to 1001 before trim
       expect(state.log.length).toBeGreaterThan(0);
     });
 
