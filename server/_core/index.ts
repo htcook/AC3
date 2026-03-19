@@ -122,6 +122,7 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Cookie parser for session management
   app.use(cookieParser());
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // SAML 2.0 protocol endpoints (metadata, ACS, SSO initiation)
