@@ -96,6 +96,8 @@ async function startServer() {
     }
   });
 
+
+
   // ─── HTTPS Enforcement ───────────────────────────────────────────────
   // Redirect all HTTP requests to HTTPS in production.
   // Behind a reverse proxy, X-Forwarded-Proto indicates the original protocol.
