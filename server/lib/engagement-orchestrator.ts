@@ -100,6 +100,10 @@ import {
   type BugBountyPhase,
 } from "./knowledge/bugbounty-methodology-knowledge";
 import {
+  buildMissedVulnContext,
+  buildMissedVulnAttackContext,
+} from "./knowledge/missed-vuln-training-knowledge";
+import {
   buildThreatActorLearningContext,
   buildThreatActorVulnContext,
   scoreEngagementThreatAttribution,
@@ -1395,6 +1399,7 @@ Return valid JSON per the response_format schema.`;
       toolsCtx || '',
       methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '',
       phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '',
+      buildMissedVulnContext({ targetPreset: targetPreset || undefined }),
     ].filter(Boolean).join('\n\n');
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);

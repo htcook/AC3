@@ -157,10 +157,26 @@ export async function verifyVulnerability(input: VulnVerifierInput): Promise<Vul
       bankingVulnCtx = '\n\n' + getBankingContextCompact();
     }
   } catch (e) { /* non-fatal */ }
+
+  // Inject missed vuln training knowledge to reduce false negatives
+  let missedVulnCtx = '';
+  try {
+    const { getMissedVulnSummary } = await import('../knowledge/missed-vuln-training-knowledge');
+    const summary = getMissedVulnSummary();
+    const relevantPatterns = summary.filter(p =>
+      p.cwe.some(c => input.finding?.cwe?.includes(c) || input.finding?.title?.toLowerCase().includes(p.name.toLowerCase().split(' ')[0]))
+    );
+    if (relevantPatterns.length > 0) {
+      missedVulnCtx = '\n\nKnown missed vulnerability patterns relevant to this finding:\n' +
+        relevantPatterns.map(p => `- ${p.name} (${p.severity}, CWE: ${p.cwe.join(', ')})`).join('\n') +
+        '\nThese patterns are frequently missed by automated scanners. Be more lenient when verifying findings that match these patterns.';
+    }
+  } catch (e) { /* non-fatal */ }
+
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: input.engagement ? buildCustomerContext(input.engagement) : undefined,
-    assetContext: (input.assetContext || '') + bankingVulnCtx,
+    assetContext: (input.assetContext || '') + bankingVulnCtx + missedVulnCtx,
   });
 
   const f = input.finding;

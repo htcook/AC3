@@ -19,6 +19,7 @@ import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowledge/offensive-techniques-knowledge";
 import { getFalsePositiveTriageContext } from "./knowledge/zap-pentesting-knowledge";
 import { buildVulnTestingContext, buildPhaseToolContext } from "./knowledge/bugbounty-methodology-knowledge";
+import { buildMissedVulnContext } from "./knowledge/missed-vuln-training-knowledge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -313,6 +314,9 @@ ${buildVulnTestingContext('sql_injection')}
 
 ## Phase-Specific Tool Recommendations
 ${buildPhaseToolContext('exploitation')}
+
+## Commonly Missed Vulnerability Patterns
+${buildMissedVulnContext()}
 
 ## False Positive Triage
 When analyzing ZAP scan findings, use this knowledge to classify findings:

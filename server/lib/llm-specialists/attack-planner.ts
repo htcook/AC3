@@ -194,10 +194,25 @@ export async function planAttack(input: AttackPlannerInput): Promise<AttackPlann
       bankingAttackCtx = '\n\n' + buildBankingDomainContext({ phase: 'vuln_detection', includeRegulatory: true, includeTechStack: true, includeAttackScenarios: true });
     }
   } catch (e) { /* non-fatal */ }
+
+  // Inject missed vulnerability training knowledge
+  let missedVulnCtx = '';
+  try {
+    const { buildMissedVulnAttackContext } = await import('../knowledge/missed-vuln-training-knowledge');
+    const targetPreset = input.assets?.[0]?.hostname?.includes('juice') ? 'juice-shop'
+      : input.assets?.[0]?.hostname?.includes('dvwa') ? 'dvwa'
+      : input.assets?.[0]?.hostname?.includes('bwapp') ? 'bwapp'
+      : input.assets?.[0]?.hostname?.includes('mutillidae') ? 'mutillidae'
+      : input.assets?.[0]?.hostname?.includes('webgoat') ? 'webgoat'
+      : input.assets?.[0]?.hostname?.includes('crapi') ? 'crapi'
+      : undefined;
+    missedVulnCtx = '\n\n## Commonly Missed Vulnerabilities — MUST Include in Attack Plan\n' + buildMissedVulnAttackContext(targetPreset);
+  } catch (e) { /* non-fatal */ }
+
   const systemPrompt = assembleSystemPrompt({
     rolePrompt: ROLE_PROMPT,
     customerContext: buildCustomerContext(input.engagement),
-    assetContext: buildAssetContext(input.assets) + bankingAttackCtx,
+    assetContext: buildAssetContext(input.assets) + bankingAttackCtx + missedVulnCtx,
   });
 
   const userMessage = `Based on the following passive reconnaissance results, design an attack path and active scanning strategy:\n\n${input.passiveReconSummary}`;
