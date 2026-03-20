@@ -197,6 +197,7 @@ import { agentLeaderboardRouter } from "./routers/agent-leaderboard";
 import { realtimeMonitorRouter } from "./routers/realtime-monitor";
 import { trainingDataReviewRouter } from "./routers/training-data-review";
 import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: commented out for production
+import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -575,6 +576,8 @@ export const appRouter = router({
   trainingReview: trainingDataReviewRouter,
   // ─── TEMP: Live engagement trigger (commented out for production) ──
   liveTrigger: liveTriggerTempRouter,
+  // ─── Campaign Orchestrator (Multi-stage Red Team Campaign Chaining) ──
+  campaignOrchestrator: campaignOrchestratorRouter,
 });
 export type AppRouter = typeof appRouter;
 

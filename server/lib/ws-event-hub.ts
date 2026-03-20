@@ -127,7 +127,16 @@ export type WsEventType =
   | "evidence:chain_flushed"
   | "evidence:anchor_created"
   | "evidence:anchor_verified"
-  | "evidence:tamper_detected";
+  | "evidence:tamper_detected"
+  // Campaign Orchestrator events
+  | "campaign_orch:started"
+  | "campaign_orch:stage_started"
+  | "campaign_orch:stage_completed"
+  | "campaign_orch:stage_failed"
+  | "campaign_orch:condition_eval"
+  | "campaign_orch:completed"
+  | "campaign_orch:paused"
+  | "campaign_orch:aborted";
 
 export interface WsEvent {
   type: WsEventType;

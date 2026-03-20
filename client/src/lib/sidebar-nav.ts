@@ -173,6 +173,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Campaign Execution", path: "/campaign-execution", icon: Rocket },
       { label: "Campaign Archetypes", path: "/campaign-archetypes", icon: Layers },
       { label: "Campaign Advisor", path: "/campaign-advisor", icon: Brain },
+      { label: "Campaign Orchestrator", path: "/campaign-orchestrator", icon: Layers },
       { label: "Phishing Ops", path: "/phishing-ops", icon: Zap },
       { label: "Phishing Impact", path: "/phishing-impact-testing", icon: Mail },
       { label: "GoPhish", path: "/gophish", icon: Globe },

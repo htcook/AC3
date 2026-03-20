@@ -72,6 +72,7 @@ const InfraReference = lazyWithRetry(() => import("./pages/InfraReference"));
 const TemplateLibrary = lazyWithRetry(() => import("./pages/TemplateLibrary"));
 const Engagements = lazyWithRetry(() => import("./pages/Engagements"));
 const CampaignWizard = lazyWithRetry(() => import("./pages/CampaignWizard"));
+const CampaignOrchestrator = lazyWithRetry(() => import("./pages/CampaignOrchestrator"));
 const EngagementResults = lazyWithRetry(() => import("./pages/EngagementResults"));
 const OsintRecon = lazyWithRetry(() => import("./pages/OsintRecon"));
 const DomainIntel = lazyWithRetry(() => import("./pages/DomainIntel"));
@@ -489,6 +490,12 @@ function Router() {
         </Route>
         <Route path="/campaign-wizard">
           <ProtectedRoute component={CampaignWizard} />
+        </Route>
+        <Route path="/campaign-orchestrator">
+          <ProtectedRoute component={CampaignOrchestrator} />
+        </Route>
+        <Route path="/campaign-orchestrator/:id">
+          <ProtectedRoute component={CampaignOrchestrator} />
         </Route>
         <Route path="/domain-recon">
           <Redirect to="/domain-intel" />

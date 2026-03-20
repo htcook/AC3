@@ -6317,3 +6317,98 @@ export const evidenceGuardrailAudit = mysqlTable("evidence_guardrail_audit", {
 ]);
 export type EvidenceGuardrailAuditRow = typeof evidenceGuardrailAudit.$inferSelect;
 export type InsertEvidenceGuardrailAudit = typeof evidenceGuardrailAudit.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Red Team Campaign Orchestrator — Multi-phase campaign chaining with
+// conditional logic for end-to-end automated red team operations
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const redteamCampaigns = mysqlTable("redteam_campaigns", {
+  id: int().autoincrement().notNull(),
+  name: varchar("rtc_name", { length: 255 }).notNull(),
+  description: text("rtc_description"),
+  customerName: varchar("rtc_customer_name", { length: 255 }),
+  objective: text("rtc_objective"),
+  status: mysqlEnum("rtc_status", [
+    'draft', 'ready', 'running', 'paused', 'completed', 'failed', 'aborted'
+  ]).default('draft').notNull(),
+  currentStageOrder: int("rtc_current_stage_order").default(0),
+  startedAt: timestamp("rtc_started_at", { mode: 'string' }),
+  completedAt: timestamp("rtc_completed_at", { mode: 'string' }),
+  pausedAt: timestamp("rtc_paused_at", { mode: 'string' }),
+  maxDurationHours: int("rtc_max_duration_hours").default(72),
+  safetyLevel: mysqlEnum("rtc_safety_level", ['passive_only', 'low_impact', 'standard', 'full_exploitation']).default('standard'),
+  notifyOnStageComplete: tinyint("rtc_notify_on_stage").default(1),
+  notifyOnCampaignComplete: tinyint("rtc_notify_on_complete").default(1),
+  autoAdvance: tinyint("rtc_auto_advance").default(1),
+  resultsSummary: json("rtc_results_summary"),
+  createdBy: int("rtc_created_by"),
+  createdAt: timestamp("rtc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("rtc_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("rtc_status_idx").on(table.status),
+  index("rtc_created_by_idx").on(table.createdBy),
+]);
+export type RedteamCampaignRow = typeof redteamCampaigns.$inferSelect;
+export type InsertRedteamCampaign = typeof redteamCampaigns.$inferInsert;
+
+export const redteamCampaignStages = mysqlTable("redteam_campaign_stages", {
+  id: int().autoincrement().notNull(),
+  campaignId: int("rcs_campaign_id").notNull(),
+  name: varchar("rcs_name", { length: 255 }).notNull(),
+  description: text("rcs_description"),
+  stageOrder: int("rcs_stage_order").notNull(),
+  stageType: mysqlEnum("rcs_stage_type", [
+    'recon', 'enumeration', 'vuln_scan', 'phishing', 'exploitation',
+    'post_exploit', 'lateral_move', 'c2_deploy', 'exfiltration', 'cleanup', 'custom'
+  ]).notNull(),
+  engagementId: int("rcs_engagement_id"),
+  config: json("rcs_config"),
+  entryConditions: json("rcs_entry_conditions"),
+  exitConditions: json("rcs_exit_conditions"),
+  onSuccess: mysqlEnum("rcs_on_success", ['next', 'skip_to', 'complete', 'pause']).default('next'),
+  onSuccessTarget: int("rcs_on_success_target"),
+  onFailure: mysqlEnum("rcs_on_failure", ['abort', 'skip', 'retry', 'pause', 'fallback']).default('pause'),
+  onFailureTarget: int("rcs_on_failure_target"),
+  maxRetries: int("rcs_max_retries").default(1),
+  timeoutMinutes: int("rcs_timeout_minutes").default(60),
+  status: mysqlEnum("rcs_status", [
+    'pending', 'waiting', 'running', 'completed', 'failed', 'skipped', 'timed_out', 'aborted'
+  ]).default('pending').notNull(),
+  retryCount: int("rcs_retry_count").default(0),
+  startedAt: timestamp("rcs_started_at", { mode: 'string' }),
+  completedAt: timestamp("rcs_completed_at", { mode: 'string' }),
+  results: json("rcs_results"),
+  errorMessage: text("rcs_error_message"),
+  createdAt: timestamp("rcs_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("rcs_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("rcs_campaign_idx").on(table.campaignId),
+  index("rcs_stage_order_idx").on(table.campaignId, table.stageOrder),
+  index("rcs_status_idx").on(table.status),
+  index("rcs_engagement_idx").on(table.engagementId),
+]);
+export type RedteamCampaignStageRow = typeof redteamCampaignStages.$inferSelect;
+export type InsertRedteamCampaignStage = typeof redteamCampaignStages.$inferInsert;
+
+export const redteamCampaignLogs = mysqlTable("redteam_campaign_logs", {
+  id: int().autoincrement().notNull(),
+  campaignId: int("rcl_campaign_id").notNull(),
+  stageId: int("rcl_stage_id"),
+  logType: mysqlEnum("rcl_log_type", [
+    'info', 'warning', 'error', 'stage_start', 'stage_complete', 'stage_fail',
+    'condition_eval', 'branch_decision', 'campaign_start', 'campaign_complete',
+    'campaign_pause', 'campaign_abort', 'retry', 'timeout', 'ai_decision'
+  ]).notNull(),
+  title: varchar("rcl_title", { length: 500 }).notNull(),
+  detail: text("rcl_detail"),
+  metadata: json("rcl_metadata"),
+  createdAt: timestamp("rcl_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("rcl_campaign_idx").on(table.campaignId),
+  index("rcl_stage_idx").on(table.stageId),
+  index("rcl_type_idx").on(table.logType),
+  index("rcl_created_at_idx").on(table.createdAt),
+]);
+export type RedteamCampaignLogRow = typeof redteamCampaignLogs.$inferSelect;
+export type InsertRedteamCampaignLog = typeof redteamCampaignLogs.$inferInsert;
