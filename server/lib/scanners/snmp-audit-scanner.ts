@@ -476,7 +476,7 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
     if (rawOutput.length > 100 && !useDeterministicAnalysis("snmp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
-          return invokeLLM({
+          return invokeLLM({ _caller: "snmp-audit-scanner",
             _caller: "snmp-audit-scanner",
             messages: [
               {

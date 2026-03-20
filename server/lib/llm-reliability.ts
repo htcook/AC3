@@ -384,7 +384,7 @@ export async function resilientInvokeLLM(
 
   // 3. Make the live call
   try {
-    const result = await invokeLLM(params);
+    const result = await invokeLLM({ _caller: "llm-reliability", ...params });
     recordCircuitSuccess();
 
     // Cache the result

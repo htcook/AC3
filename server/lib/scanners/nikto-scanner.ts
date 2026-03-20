@@ -397,7 +397,7 @@ export async function analyzeNiktoFindings(
     `[${f.severity.toUpperCase()}] ${f.method} ${f.uri} — ${f.description}`
   ).join("\n");
 
-  const response = await throttledLLMCall("nikto-analyst", () => invokeLLM({
+  const response = await throttledLLMCall("nikto-analyst", () => invokeLLM({ _caller: "nikto-scanner",
     _caller: "nikto-scanner.analyzeNiktoFindings",
     messages: [
       {

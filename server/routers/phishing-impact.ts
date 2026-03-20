@@ -339,7 +339,7 @@ export const phishingImpactRouter = router({
       osintContext: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "phishing-impact",
         _caller: "phishing-impact.generateSpearPhishLure",
         messages: [
           {

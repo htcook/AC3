@@ -604,7 +604,7 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
     if (rawOutput.length > 100 && !useDeterministicAnalysis("smtp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
-          return invokeLLM({
+          return invokeLLM({ _caller: "smtp-audit-scanner",
             _caller: "smtp-audit-scanner",
             messages: [
               {

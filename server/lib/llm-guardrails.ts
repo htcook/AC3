@@ -284,7 +284,7 @@ export class LLMGuardrails {
       };
     }
 
-    return invokeLLM(result.params);
+    return invokeLLM({ _caller: "llm-guardrails", ...result.params });
   }
 
   // ── Prompt Injection ──────────────────────────────────────────────────

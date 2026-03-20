@@ -21,7 +21,7 @@ async function invokeLLMWithTimeout(params: Parameters<typeof invokeLLM>[0], tim
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs + 5_000) // 5s grace over fetch timeout
   );
-  return Promise.race([invokeLLM(paramsWithTimeout), timeoutPromise]) as ReturnType<typeof invokeLLM>;
+  return Promise.race([invokeLLM({ _caller: "domainIntel", ...paramsWithTimeout }), timeoutPromise]) as ReturnType<typeof invokeLLM>;
 }
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";

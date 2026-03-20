@@ -747,7 +747,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "rule-validator",
       _caller: "rule-validator.performLLMAnalysis",
       messages: [
         { role: "system", content: "You are a detection engineering expert. Return valid JSON only." },

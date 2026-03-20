@@ -432,7 +432,7 @@ export async function analyzeWapitiFindings(
     `[${f.severity.toUpperCase()}] ${f.module} — ${f.method} ${f.path}${f.parameter ? ` (param: ${f.parameter})` : ""} — ${f.description.slice(0, 120)}`
   ).join("\n");
 
-  const response = await throttledLLMCall("wapiti-analyst", () => invokeLLM({
+  const response = await throttledLLMCall("wapiti-analyst", () => invokeLLM({ _caller: "wapiti-scanner",
     _caller: "wapiti-scanner.analyzeWapitiFindings",
     messages: [
       {

@@ -366,7 +366,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "hunt-engine.generateHypothesis",
       _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are an expert threat hunter. Return only valid JSON." },
@@ -495,7 +495,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "hunt-engine.analyzeEvidence",
       _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are an expert threat hunt analyst. Return only valid JSON." },
@@ -594,7 +594,7 @@ Return JSON:
 }`;
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "hunt-engine.correlate",
       _caller: "hunt-engine",
       messages: [
         { role: "system", content: "You are a senior threat hunt lead writing a GSA HACS-compliant deliverable. Return only valid JSON." },
@@ -667,7 +667,7 @@ export async function translateSigmaToSiem(
   };
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "hunt-engine.assess",
       _caller: "hunt-engine.translateSigmaToSiem",
       messages: [
         {
@@ -696,7 +696,7 @@ export async function generateBaselineQuery(
   timeWindow: string = "7d"
 ): Promise<{ query: string; description: string }> {
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "hunt-engine.recommend",
       _caller: "hunt-engine.generateBaselineQuery",
       messages: [
         {

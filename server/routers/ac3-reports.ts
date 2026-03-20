@@ -638,7 +638,7 @@ export const ac3ReportsRouter = {
 
       const prompt = buildFindingNarrativePrompt(findingData, report);
 
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "ac3-reports.executive",
         _caller: "ac3-reports.generateFindingNarrative",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
@@ -703,7 +703,7 @@ export const ac3ReportsRouter = {
 
       const prompt = buildExecSummaryPrompt(report, findings);
 
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "ac3-reports.narrative",
         _caller: "ac3-reports.generateExecSummary",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
@@ -770,7 +770,7 @@ export const ac3ReportsRouter = {
 
       const prompt = buildQaReviewPrompt(report, findings);
 
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "ac3-reports.technical",
         _caller: "ac3-reports.runQaReview",
         messages: [
           { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
@@ -854,7 +854,7 @@ export const ac3ReportsRouter = {
         try {
           const prompt = buildFindingNarrativePrompt(finding, report);
 
-          const response = await invokeLLM({
+          const response = await invokeLLM({ _caller: "ac3-reports.remediation",
             _caller: "ac3-reports.generateAllNarratives",
             messages: [
               { role: "system", content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },

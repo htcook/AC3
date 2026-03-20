@@ -214,7 +214,7 @@ Generate a JSON object with these fields:
 
 Make the phishing content highly realistic and tailored to the target domain and sector. Use professional language and branding cues from the target organization. Leverage the matched phishing exploit techniques to maximize effectiveness.`;
 
-                  const llmResponse = await invokeLLM({
+                  const llmResponse = await invokeLLM({ _caller: "engagement-pipeline",
                     _caller: "engagement-pipeline",
                     messages: [
                       { role: 'system', content: 'You are a red team phishing content generator. Output only valid JSON.' },

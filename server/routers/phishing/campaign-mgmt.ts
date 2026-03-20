@@ -177,7 +177,7 @@ Make the phishing content highly realistic and tailored to the target domain and
 
       let generatedContent: any = {};
       try {
-        const llmResponse = await invokeLLM({
+        const llmResponse = await invokeLLM({ _caller: "phishing-campaign-mgmt",
           _caller: "campaign-mgmt",
           messages: [
             { role: "system", content: "You are a red team phishing content generator. Output only valid JSON." },

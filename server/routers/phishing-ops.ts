@@ -242,7 +242,7 @@ Make the phishing content highly realistic and tailored to the target domain and
 
       let generatedContent: any = {};
       try {
-        const llmResponse = await invokeLLM({
+        const llmResponse = await invokeLLM({ _caller: "phishing-ops.generate",
           _caller: "phishing-ops",
           messages: [
             { role: "system", content: `You are a red team phishing content generator. Output only valid JSON.
@@ -1105,7 +1105,7 @@ Generate a JSON object with:
 
 Be thorough and specific about compliance impact. Map the phishing campaign results directly to control failures or gaps in each framework.`;
 
-          const llmResponse = await invokeLLM({
+          const llmResponse = await invokeLLM({ _caller: "phishing-ops.analyze",
             _caller: "phishing-ops",
             messages: [
               { role: "system", content: "You are a cybersecurity compliance consultant. Output only valid JSON." },

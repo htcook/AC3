@@ -247,7 +247,7 @@ async function llmScoreActionRisk(
 ): Promise<OpsecScore> {
   const { invokeLLM } = await import("../_core/llm");
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _caller: "opsec-risk-engine",
     _caller: "opsec-risk-engine.llmScoreActionRisk",
     messages: [
       { role: "system", content: OPSEC_SYSTEM_PROMPT },

@@ -342,7 +342,7 @@ async function llmPlanLateralMovement(
 ): Promise<PivotPlan> {
   const { invokeLLM } = await import("../_core/llm");
 
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _caller: "lateral-movement.plan",
     _caller: "lateral-movement-engine.llmPlanLateralMovement",
     messages: [
       { role: "system", content: LATERAL_SYSTEM_PROMPT },
@@ -535,7 +535,7 @@ export async function planPivotPath(
 ): Promise<{ path: string[]; techniques: string[]; totalOpsecRisk: number; reasoning: string }> {
   try {
     const { invokeLLM } = await import("../_core/llm");
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "lateral-movement.execute",
       _caller: "lateral-movement-engine.planPivotPath",
       messages: [
         {

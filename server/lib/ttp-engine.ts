@@ -35,7 +35,7 @@ const TACTIC_ORDER = [
  * IOC patterns, detection rules, and team exercise value.
  */
 export async function researchTechnique(techniqueId: string, techniqueName: string, tactic: string): Promise<InsertTtpKnowledge> {
-  const response = await invokeLLM({
+  const response = await invokeLLM({ _caller: "ttp-engine",
     _caller: "ttp-engine.analyze",
     messages: [
       {

@@ -224,7 +224,7 @@ async function processQueue(): Promise<void> {
 
 async function processEntry(entry: QueueEntry): Promise<void> {
   try {
-    const result = await invokeLLM(entry.params);
+    const result = await invokeLLM({ _caller: "llm-throttle", ...entry.params });
     activeCount--;
     
     // Success: cool down the delay

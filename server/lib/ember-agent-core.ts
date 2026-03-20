@@ -819,7 +819,7 @@ ACTION HISTORY:
 ${this.actionHistory.map(a => `  [${new Date(a.timestamp).toISOString()}] ${a.action} → ${a.result}`).join("\n") || "  No previous actions"}`;
 
     try {
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "ember-agent.plan",
         _caller: "ember-cognitive-core:analyzeEnvironment",
         messages: [
           { role: "system", content: systemPrompt },
@@ -921,7 +921,7 @@ ${this.actionHistory.map(a => `  [${new Date(a.timestamp).toISOString()}] ${a.ac
 
     // If no cached plan, generate new one via LLM
     try {
-      const response = await invokeLLM({
+      const response = await invokeLLM({ _caller: "ember-agent.execute",
         _caller: "ember-cognitive-core:decideNextAction",
         messages: [
           {

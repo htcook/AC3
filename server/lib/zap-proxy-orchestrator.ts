@@ -1083,7 +1083,7 @@ export async function detectLoginConfiguration(
 
     // Use LLM to analyze the login page
     const { invokeLLM } = await import("../_core/llm");
-    const llmResponse = await invokeLLM({
+    const llmResponse = await invokeLLM({ _caller: "zap-proxy-orchestrator",
     _caller: "zap-proxy-orchestrator.analyze",
       messages: [
         {

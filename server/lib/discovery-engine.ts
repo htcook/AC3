@@ -814,7 +814,7 @@ ${result.enrichmentResults.flatMap(e => e.correlations).slice(0, 10).map(c => `-
 
 Provide your analysis as JSON with these fields: executiveSummary, keyFindings (array), riskAssessment, attackSurfaceAnalysis, recommendations (array), threatActorRelevance (array), nextSteps (array).`;
 
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "discovery-engine",
       _caller: "discovery-engine.analyzeScanWithLLM",
       messages: [
         { role: "system", content: "You are a senior penetration tester and red team operator. Provide actionable security analysis. Return valid JSON only." },

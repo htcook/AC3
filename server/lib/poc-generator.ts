@@ -326,7 +326,7 @@ export async function generateLLMPoC(finding: {
   const target = finding.target || "TARGET";
 
   try {
-    const response = await invokeLLM({
+    const response = await invokeLLM({ _caller: "poc-generator",
       _caller: "poc-generator.generateLLMPoC",
       messages: [
         {

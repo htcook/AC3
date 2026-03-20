@@ -1719,7 +1719,7 @@ ${learningContext}`;
             console.log(`[TrainingLab] LLM retry #${attempt} for ${hostname}`);
             await new Promise(r => setTimeout(r, 3000 * attempt)); // backoff
           }
-          result = await invokeLLM(llmPayload);
+          result = await invokeLLM({ ...llmPayload, _caller: "training-lab.execute" });
           break; // success
         } catch (retryErr: any) {
           if (attempt === 2 || !retryErr.message?.includes('403')) throw retryErr;
@@ -2095,7 +2095,7 @@ export const trainingLabRouter = router({
             ).join("\n")}\n\nPlease incorporate this feedback to improve your analysis accuracy.`;
           }
 
-          const result = await invokeLLM({
+          const result = await invokeLLM({ _caller: "training-lab.evaluate",
             _caller: "training-lab.portsSummary",
             messages: [
               { role: "system", content: "You are an expert penetration tester providing detailed vulnerability analysis. Always respond with valid JSON." },

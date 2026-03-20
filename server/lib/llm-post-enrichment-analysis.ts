@@ -91,7 +91,7 @@ export async function runPostEnrichmentAnalysis(
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`LLM timeout after ${timeoutMs}ms`)), timeoutMs)
       );
-      return Promise.race([invokeLLM(params), timeoutPromise]);
+      return Promise.race([invokeLLM({ _caller: "llm-post-enrichment", ...params }), timeoutPromise]);
     };
     // Wire knowledge modules for enriched post-enrichment analysis
     const { getThreatGroupVulnContext, getSectorThreatContext } = await import("./threat-group-knowledge");
