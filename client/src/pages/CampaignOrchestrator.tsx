@@ -20,7 +20,8 @@ import {
   Zap, Target, Shield, Brain, Layers, Rocket, RefreshCw, SkipForward,
   GitBranch, Workflow, Activity, Search, Filter, MoreHorizontal, Copy,
   Crosshair, Bug, Globe, Radio, ChevronUp, GripVertical, Sparkles,
-  AlertCircle, Timer, ArrowUpDown, RotateCcw, Settings2, FileText
+  AlertCircle, Timer, ArrowUpDown, RotateCcw, Settings2, FileText,
+  ClipboardList, ExternalLink
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import AppShell from "@/components/AppShell";
@@ -408,6 +409,12 @@ function CampaignDetailView({ campaignId, onBack }: { campaignId: number; onBack
   const [addStageOpen, setAddStageOpen] = useState(false);
   const [editStageId, setEditStageId] = useState<number | null>(null);
   const [aiPlanOpen, setAiPlanOpen] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneCustomer, setCloneCustomer] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportName, setReportName] = useState("");
+  const [reportType, setReportType] = useState<string>("red_team");
 
   // Form state for new/edit stage
   const [stageName, setStageName] = useState("");
@@ -512,6 +519,23 @@ function CampaignDetailView({ campaignId, onBack }: { campaignId: number; onBack
 
   const updateCampaignMut = trpc.campaignOrchestrator.update.useMutation({
     onSuccess: () => { toast.success("Campaign updated"); refetch(); },
+    onError: (e) => toast.error(sanitizeErrorForToast(e)),
+  });
+
+  const cloneMut = trpc.campaignOrchestrator.clone.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Campaign cloned with ${data.stagesCloned} stages`);
+      setCloneOpen(false);
+      onBack();
+    },
+    onError: (e) => toast.error(sanitizeErrorForToast(e)),
+  });
+
+  const generateReportMut = trpc.campaignOrchestrator.generateReport.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Report created with ${data.findingsCreated} findings`);
+      setReportOpen(false);
+    },
     onError: (e) => toast.error(sanitizeErrorForToast(e)),
   });
 
@@ -681,8 +705,113 @@ function CampaignDetailView({ campaignId, onBack }: { campaignId: number; onBack
               </Button>
             </>
           )}
+          {/* Clone Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setCloneName(`${campaign?.name || "Campaign"} (Copy)`);
+              setCloneCustomer(campaign?.customerName || "");
+              setCloneOpen(true);
+            }}
+            className="gap-1.5 text-blue-400 border-blue-500/30"
+          >
+            <Copy className="w-3.5 h-3.5" /> Clone
+          </Button>
+          {/* Generate Report — for finished campaigns */}
+          {isFinished && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setReportName(`${campaign?.name || "Campaign"} \u2014 Assessment Report`);
+                setReportOpen(true);
+              }}
+              className="gap-1.5 text-cyan-400 border-cyan-500/30"
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Generate Report
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Clone Campaign Dialog */}
+      <Dialog open={cloneOpen} onOpenChange={setCloneOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="w-5 h-5 text-blue-400" /> Clone Campaign
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">New Campaign Name</Label>
+              <Input value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="mt-1" placeholder="Campaign name" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Customer (optional)</Label>
+              <Input value={cloneCustomer} onChange={(e) => setCloneCustomer(e.target.value)} className="mt-1" placeholder="Customer name" />
+            </div>
+            <p className="text-xs text-muted-foreground">All stages and their conditions will be duplicated. The new campaign will be created as a draft.</p>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button
+              onClick={() => cloneMut.mutate({ campaignId, name: cloneName, customerName: cloneCustomer || undefined })}
+              disabled={!cloneName || cloneMut.isPending}
+              className="gap-2"
+            >
+              <Copy className="w-4 h-4" /> Clone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Report Dialog */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-cyan-400" /> Generate AC3 Report
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Report Name</Label>
+              <Input value={reportName} onChange={(e) => setReportName(e.target.value)} className="mt-1" placeholder="Report name" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Assessment Type</Label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="red_team">Red Team</SelectItem>
+                  <SelectItem value="penetration_test">Penetration Test</SelectItem>
+                  <SelectItem value="purple_team">Purple Team</SelectItem>
+                  <SelectItem value="vulnerability_assessment">Vulnerability Assessment</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">This will create a new AC3 report with findings auto-generated from each completed campaign stage, including ATT&CK technique mappings and NIST control references.</p>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+            <Button
+              onClick={() => generateReportMut.mutate({
+                campaignId,
+                reportName: reportName || undefined,
+                assessmentType: reportType as any,
+              })}
+              disabled={generateReportMut.isPending}
+              className="gap-2 bg-cyan-600 hover:bg-cyan-700"
+            >
+              {generateReportMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+              Generate Report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Progress bar for running campaigns */}
       {(isRunning || isPaused) && statusData && (

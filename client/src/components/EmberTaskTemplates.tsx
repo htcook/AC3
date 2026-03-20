@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import {
   Rocket, Search, Key, Shield, ArrowRightLeft, Upload,
   Terminal, Eye, Zap, Loader2, Play, ChevronDown, ChevronUp,
   Crosshair, Cpu, Flame, AlertTriangle, CheckCircle2,
-  FolderSearch, Camera, Keyboard,
+  FolderSearch, Camera, Keyboard, Edit3, Star, Trash2, Plus,
 } from "lucide-react";
 
 // ─── Template Definitions ───────────────────────────────────────────────────
@@ -257,17 +257,22 @@ const TEMPLATES: TaskTemplate[] = [
 function TemplateCard({
   template,
   onDeploy,
+  onCustomize,
+  isCustom,
+  onDelete,
 }: {
   template: TaskTemplate;
   onDeploy: (t: TaskTemplate) => void;
+  onCustomize: () => void;
+  isCustom?: boolean;
+  onDelete?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const catMeta = CATEGORY_META[template.category];
   const riskMeta = RISK_META[template.risk];
   const CatIcon = catMeta.icon;
-
   return (
-    <Card className={`${catMeta.border} ${catMeta.bg} hover:border-opacity-60 transition-all`}>
+    <Card className={`${catMeta.border} ${catMeta.bg} hover:border-opacity-60 transition-all ${isCustom ? 'ring-1 ring-amber-500/20' : ''}`}>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -275,7 +280,10 @@ function TemplateCard({
               <template.icon className={`h-4 w-4 ${template.color}`} />
             </div>
             <div>
-              <h3 className="text-sm font-semibold">{template.name}</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold">{template.name}</h3>
+                {isCustom && <Badge className="text-[8px] px-1 py-0 bg-amber-500/20 text-amber-400 border-0">Custom</Badge>}
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${riskMeta.bg} ${riskMeta.color} border-0`}>
                   {riskMeta.label} Risk
@@ -284,14 +292,36 @@ function TemplateCard({
               </div>
             </div>
           </div>
-          <Button
-            size="sm"
-            className="h-7 text-xs bg-zinc-700 hover:bg-zinc-600"
-            onClick={() => onDeploy(template)}
-          >
-            <Play className="h-3 w-3 mr-1" />
-            Deploy
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              onClick={onCustomize}
+              title={isCustom ? "Edit template" : "Clone & customize"}
+            >
+              <Edit3 className="h-3 w-3" />
+            </Button>
+            {isCustom && onDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                onClick={onDelete}
+                title="Delete custom template"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-zinc-700 hover:bg-zinc-600"
+              onClick={() => onDeploy(template)}
+            >
+              <Play className="h-3 w-3 mr-1" />
+              Deploy
+            </Button>
+          </div>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">{template.description}</p>
@@ -563,9 +593,46 @@ export default function EmberTaskTemplates({ agents }: { agents: Array<{ id: str
   const [searchQuery, setSearchQuery] = useState("");
   const [deployTemplate, setDeployTemplate] = useState<TaskTemplate | null>(null);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editorTemplate, setEditorTemplate] = useState<TaskTemplate | null>(null);
+  const [editCustomId, setEditCustomId] = useState<string | null>(null);
+
+  // Fetch custom templates
+  const { data: customTemplates, refetch: refetchCustom } = trpc.emberTemplates.listTemplates.useQuery();
+  const cloneMut = trpc.emberTemplates.cloneTemplate.useMutation({
+    onSuccess: () => { toast.success("Template saved as custom"); refetchCustom(); setShowEditor(false); },
+    onError: (e: any) => toast.error(e.message || "Clone failed"),
+  });
+  const saveMut = trpc.emberTemplates.saveTemplate.useMutation({
+    onSuccess: () => { toast.success("Custom template saved"); refetchCustom(); setShowEditor(false); },
+    onError: (e: any) => toast.error(e.message || "Save failed"),
+  });
+  const deleteMut = trpc.emberTemplates.deleteTemplate.useMutation({
+    onSuccess: () => { toast.success("Template deleted"); refetchCustom(); },
+    onError: (e: any) => toast.error(e.message || "Delete failed"),
+  });
+
+  // Merge custom templates into the built-in list
+  const allTemplates = useMemo(() => {
+    const customs: TaskTemplate[] = (customTemplates || []).map((ct: any) => ({
+      id: ct.templateId,
+      name: ct.name,
+      description: ct.description || "Custom template",
+      category: (ct.category === "custom" ? "recon" : ct.category) as TaskTemplate["category"],
+      icon: Star,
+      color: "text-amber-400",
+      risk: ct.risk as TaskTemplate["risk"],
+      steps: Array.isArray(ct.steps) ? ct.steps : [],
+      estimatedDuration: ct.estimatedDuration || "varies",
+      tags: [...(Array.isArray(ct.tags) ? ct.tags : []), "custom"],
+      _isCustom: true,
+      _customId: ct.templateId,
+    }));
+    return [...TEMPLATES, ...customs] as (TaskTemplate & { _isCustom?: boolean; _customId?: string })[];
+  }, [customTemplates]);
 
   const filteredTemplates = useMemo(() => {
-    return TEMPLATES.filter((t) => {
+    return allTemplates.filter((t) => {
       if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -577,7 +644,7 @@ export default function EmberTaskTemplates({ agents }: { agents: Array<{ id: str
       }
       return true;
     });
-  }, [categoryFilter, searchQuery]);
+  }, [categoryFilter, searchQuery, allTemplates]);
 
   const handleDeploy = (template: TaskTemplate) => {
     if (agents.length === 0) {
@@ -651,7 +718,18 @@ export default function EmberTaskTemplates({ agents }: { agents: Array<{ id: str
         {/* Template Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
           {filteredTemplates.map((template) => (
-            <TemplateCard key={template.id} template={template} onDeploy={handleDeploy} />
+            <TemplateCard
+              key={template.id}
+              template={template}
+              onDeploy={handleDeploy}
+              onCustomize={() => { setEditorTemplate(template); setEditCustomId((template as any)._customId || null); setShowEditor(true); }}
+              isCustom={(template as any)._isCustom}
+              onDelete={(template as any)._isCustom ? () => {
+                if (confirm(`Delete custom template "${template.name}"?`)) {
+                  deleteMut.mutate({ templateId: (template as any)._customId });
+                }
+              } : undefined}
+            />
           ))}
           {filteredTemplates.length === 0 && (
             <div className="col-span-2 text-center py-8 text-muted-foreground text-sm">
@@ -662,7 +740,7 @@ export default function EmberTaskTemplates({ agents }: { agents: Array<{ id: str
 
         {/* Stats */}
         <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-2 border-t border-zinc-800">
-          <span>{TEMPLATES.length} templates available</span>
+          <span>{TEMPLATES.length} built-in + {(customTemplates || []).length} custom templates</span>
           <span>{agents.length} active agent{agents.length !== 1 ? "s" : ""} for deployment</span>
         </div>
       </CardContent>
@@ -674,6 +752,271 @@ export default function EmberTaskTemplates({ agents }: { agents: Array<{ id: str
         open={deployOpen}
         onOpenChange={setDeployOpen}
       />
+
+      {/* Customize/Clone Dialog */}
+      <CustomizeDialog
+        open={showEditor}
+        onClose={() => { setShowEditor(false); setEditorTemplate(null); setEditCustomId(null); }}
+        template={editorTemplate}
+        editCustomId={editCustomId}
+        onSave={(data) => {
+          if (editCustomId) {
+            saveMut.mutate({ templateId: editCustomId, ...data });
+          } else {
+            cloneMut.mutate({ sourceId: editorTemplate?.id || "scratch", ...data });
+          }
+        }}
+        saving={cloneMut.isPending || saveMut.isPending}
+      />
     </Card>
+  );
+}
+
+// ─── Customize / Clone Dialog ──────────────────────────────────────────────
+const TASK_TYPES = [
+  "recon", "shell_exec", "file_ops", "cred_dump", "persist",
+  "lateral_move", "exfil", "privesc", "screenshot", "keylog",
+];
+const CATEGORY_OPTIONS = [
+  { value: "recon", label: "Reconnaissance" },
+  { value: "credential", label: "Credential Ops" },
+  { value: "persistence", label: "Persistence" },
+  { value: "lateral", label: "Lateral Movement" },
+  { value: "exfil", label: "Exfiltration" },
+  { value: "custom", label: "Custom" },
+];
+const RISK_OPTIONS = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
+function CustomizeDialog({
+  open,
+  onClose,
+  template,
+  editCustomId,
+  onSave,
+  saving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  template: TaskTemplate | null;
+  editCustomId: string | null;
+  onSave: (data: {
+    name: string;
+    description?: string;
+    category: string;
+    risk: string;
+    estimatedDuration?: string;
+    tags?: string[];
+    steps: TaskStep[];
+  }) => void;
+  saving: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("recon");
+  const [risk, setRisk] = useState("medium");
+  const [estimatedDuration, setEstimatedDuration] = useState("");
+  const [tagsStr, setTagsStr] = useState("");
+  const [steps, setSteps] = useState<TaskStep[]>([]);
+
+  // Sync form when template changes
+  useEffect(() => {
+    if (template && open) {
+      setName(editCustomId ? template.name : `${template.name} (Custom)`);
+      setDescription(template.description || "");
+      setCategory(template.category);
+      setRisk(template.risk);
+      setEstimatedDuration(template.estimatedDuration || "");
+      setTagsStr(template.tags.filter(t => t !== "custom").join(", "));
+      setSteps(template.steps.map(s => ({ ...s })));
+    }
+  }, [template, open, editCustomId]);
+
+  const addStep = () => {
+    setSteps([...steps, { taskType: "shell_exec", params: { cmd: "" }, priority: 5, requiresElevation: false }]);
+  };
+  const removeStep = (idx: number) => {
+    setSteps(steps.filter((_, i) => i !== idx));
+  };
+  const updateStep = (idx: number, updates: Partial<TaskStep>) => {
+    setSteps(steps.map((s, i) => i === idx ? { ...s, ...updates } : s));
+  };
+  const moveStep = (idx: number, dir: -1 | 1) => {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= steps.length) return;
+    const arr = [...steps];
+    [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+    setSteps(arr);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit3 className="w-5 h-5 text-amber-400" />
+            {editCustomId ? "Edit Custom Template" : "Clone & Customize Template"}
+          </DialogTitle>
+          <DialogDescription>
+            {editCustomId
+              ? "Modify your custom template settings and steps."
+              : "Create a custom copy of this template with your own modifications."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Name & Category */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name *</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_OPTIONS.map(c => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Risk & Duration */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Risk Level</label>
+              <Select value={risk} onValueChange={setRisk}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {RISK_OPTIONS.map(r => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Est. Duration</label>
+              <Input value={estimatedDuration} onChange={(e) => setEstimatedDuration(e.target.value)} placeholder="e.g., 2-5 min" className="mt-1" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Description</label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1" />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tags (comma-separated)</label>
+            <Input value={tagsStr} onChange={(e) => setTagsStr(e.target.value)} placeholder="recon, passive, enumeration" className="mt-1" />
+          </div>
+
+          {/* Steps Editor */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Task Steps ({steps.length})</label>
+              <Button variant="ghost" size="sm" onClick={addStep} className="h-6 text-xs gap-1">
+                <Plus className="h-3 w-3" /> Add Step
+              </Button>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {steps.map((step, idx) => (
+                <div key={idx} className="flex items-start gap-2 bg-zinc-900/50 rounded-lg p-2">
+                  <span className="text-[10px] text-muted-foreground font-mono pt-2 w-4">{idx + 1}</span>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex gap-2">
+                      <Select value={step.taskType} onValueChange={(v) => updateStep(idx, { taskType: v })}>
+                        <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {TASK_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        className="h-7 text-xs flex-1"
+                        placeholder="params (key=value, ...)"
+                        value={Object.entries(step.params).map(([k, v]) => `${k}=${v}`).join(", ")}
+                        onChange={(e) => {
+                          const params: Record<string, string> = {};
+                          e.target.value.split(",").forEach(p => {
+                            const [k, ...v] = p.trim().split("=");
+                            if (k) params[k.trim()] = v.join("=").trim();
+                          });
+                          updateStep(idx, { params });
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px]">
+                      <label className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Priority:</span>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          className="h-5 w-12 text-[10px] px-1"
+                          value={step.priority}
+                          onChange={(e) => updateStep(idx, { priority: Number(e.target.value) })}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={step.requiresElevation}
+                          onChange={(e) => updateStep(idx, { requiresElevation: e.target.checked })}
+                          className="rounded border-zinc-600"
+                        />
+                        <Zap className="h-3 w-3 text-amber-400" />
+                        <span className="text-muted-foreground">Elevation</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => moveStep(idx, -1)} disabled={idx === 0}>
+                      <ChevronUp className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => moveStep(idx, 1)} disabled={idx === steps.length - 1}>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400" onClick={() => removeStep(idx)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {steps.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">No steps yet. Add one to get started.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button
+            onClick={() => onSave({
+              name,
+              description: description || undefined,
+              category: category as any,
+              risk: risk as any,
+              estimatedDuration: estimatedDuration || undefined,
+              tags: tagsStr ? tagsStr.split(",").map(t => t.trim()).filter(Boolean) : undefined,
+              steps,
+            })}
+            disabled={!name || steps.length === 0 || saving}
+            className="gap-2 bg-amber-600 hover:bg-amber-700"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {editCustomId ? "Save Changes" : "Save as Custom"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

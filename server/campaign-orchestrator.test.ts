@@ -283,3 +283,126 @@ describe("Campaign Orchestrator — WebSocket Events", () => {
     expect(wsFile).toContain("campaign_orch:aborted");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. CAMPAIGN CLONING — Router Procedure
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Campaign Orchestrator — Clone Procedure", () => {
+  it("router has 'clone' procedure", async () => {
+    const { campaignOrchestratorRouter } = await import("./routers/campaign-orchestrator");
+    const procedures = Object.keys((campaignOrchestratorRouter as any)._def.procedures || {});
+    expect(procedures).toContain("clone");
+  });
+
+  it("router has 'generateReport' procedure", async () => {
+    const { campaignOrchestratorRouter } = await import("./routers/campaign-orchestrator");
+    const procedures = Object.keys((campaignOrchestratorRouter as any)._def.procedures || {});
+    expect(procedures).toContain("generateReport");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. CAMPAIGN-TO-REPORT PIPELINE — Schema & Mapping
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Campaign-to-Report Pipeline — Schema & Mapping", () => {
+  it("schema exports ac3Reports and ac3ReportFindings tables", async () => {
+    const schema = await import("../drizzle/schema");
+    expect(schema.ac3Reports).toBeDefined();
+    expect(schema.ac3ReportFindings).toBeDefined();
+  });
+
+  it("campaign orchestrator router imports ac3Reports", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    expect(content).toContain("ac3Reports");
+    expect(content).toContain("ac3ReportFindings");
+    expect(content).toContain("randomUUID");
+  });
+
+  it("generateReport procedure has ATT&CK technique mappings", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    expect(content).toContain("STAGE_TO_TECHNIQUE");
+    expect(content).toContain("T1595"); // Active Scanning
+    expect(content).toContain("T1566"); // Phishing
+    expect(content).toContain("T1190"); // Exploit Public-Facing Application
+    expect(content).toContain("T1041"); // Exfiltration Over C2 Channel
+  });
+
+  it("generateReport procedure has NIST control mappings", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    expect(content).toContain("STAGE_TO_CONTROL");
+    expect(content).toContain("RA-5"); // Vulnerability Monitoring
+    expect(content).toContain("AT-2"); // Literacy Training
+    expect(content).toContain("SC-7"); // Boundary Protection
+  });
+
+  it("generateReport includes severity derivation logic", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    expect(content).toContain("deriveSeverity");
+    expect(content).toContain("criticalVulns");
+    expect(content).toContain("exploitsSucceeded");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. TEMPLATE CUSTOMIZATION — Router & UI
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Template Customization — Router & Schema", () => {
+  it("ember-templates router exports expected procedures", async () => {
+    const { emberTemplatesRouter } = await import("./routers/ember-templates");
+    expect(emberTemplatesRouter).toBeDefined();
+    const procedures = Object.keys(emberTemplatesRouter);
+    expect(procedures).toContain("listTemplates");
+    expect(procedures).toContain("getTemplate");
+    expect(procedures).toContain("saveTemplate");
+    expect(procedures).toContain("cloneTemplate");
+    expect(procedures).toContain("deleteTemplate");
+  });
+
+  it("schema exports emberCustomTemplates table", async () => {
+    const schema = await import("../drizzle/schema");
+    expect(schema.emberCustomTemplates).toBeDefined();
+  });
+
+  it("EmberTaskTemplates component includes customize integration", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/components/EmberTaskTemplates.tsx", "utf-8");
+    expect(content).toContain("Customize");
+    expect(content).toContain("listTemplates");
+    expect(content).toContain("CustomizeDialog");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. CAMPAIGN CLONE & REPORT UI — Button Integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Campaign Orchestrator UI — Clone & Report Buttons", () => {
+  it("CampaignOrchestrator page includes Clone button and dialog", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/CampaignOrchestrator.tsx", "utf-8");
+    expect(content).toContain("Clone");
+    expect(content).toContain("cloneMut");
+    expect(content).toContain("cloneOpen");
+    expect(content).toContain("cloneName");
+    expect(content).toContain("Clone Campaign");
+  });
+
+  it("CampaignOrchestrator page includes Generate Report button and dialog", async () => {
+    const fs = await import("fs");
+    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/CampaignOrchestrator.tsx", "utf-8");
+    expect(content).toContain("Generate Report");
+    expect(content).toContain("generateReportMut");
+    expect(content).toContain("reportOpen");
+    expect(content).toContain("ClipboardList");
+    expect(content).toContain("Assessment Type");
+    expect(content).toContain("red_team");
+    expect(content).toContain("penetration_test");
+  });
+});
