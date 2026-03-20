@@ -2941,4 +2941,56 @@ Return ONLY a JSON object with vulnerabilities array.`;
         }
         return results;
       }),
+
+  // ── FP Suppression ─────────────────────────────────────────────────────
+
+  getSuppressionProfiles: protectedProcedure.query(async () => {
+    const { getSuppressionProfiles } = await import('../lib/knowledge/fp-suppression-rules');
+    return getSuppressionProfiles();
+  }),
+
+  getSuppressionRules: protectedProcedure.query(async () => {
+    const { getSuppressionRuleSummary } = await import('../lib/knowledge/fp-suppression-rules');
+    return getSuppressionRuleSummary();
+  }),
+
+  applySuppressionToEngagement: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      profileName: z.string().default('balanced'),
+      customRules: z.record(z.string(), z.boolean()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { applySuppressionRules } = await import('../lib/knowledge/fp-suppression-rules');
+      const { getOpsState } = await import('../lib/engagement-orchestrator');
+      const state = getOpsState(input.engagementId);
+      if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
+
+      const vulnAnalysis = (state as any).vulnAnalysis || [];
+      const suppressed = (state as any).vulnAnalysisSuppressed || [];
+      const allFindings = [...vulnAnalysis, ...suppressed];
+
+      const result = applySuppressionRules(allFindings, input.profileName, input.customRules);
+
+      (state as any).vulnAnalysis = result.kept;
+      (state as any).vulnAnalysisSuppressed = result.suppressed;
+      (state as any).fpSuppressionStats = result.stats;
+      (state as any).metadata = { ...(state as any).metadata, fpSuppressionProfile: input.profileName };
+
+      return result.stats;
+    }),
+
+  getSuppressionStats: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getOpsState } = await import('../lib/engagement-orchestrator');
+      const state = getOpsState(input.engagementId);
+      if (!state) return null;
+      return {
+        stats: (state as any).fpSuppressionStats || null,
+        suppressedCount: ((state as any).vulnAnalysisSuppressed || []).length,
+        keptCount: ((state as any).vulnAnalysis || []).length,
+        profile: (state as any).metadata?.fpSuppressionProfile || 'balanced',
+      };
+    }),
   });

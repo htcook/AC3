@@ -20,6 +20,7 @@ import { getFirewallEvasionContext, getFileUploadBypassContext } from "./knowled
 import { getFalsePositiveTriageContext } from "./knowledge/zap-pentesting-knowledge";
 import { buildVulnTestingContext, buildPhaseToolContext } from "./knowledge/bugbounty-methodology-knowledge";
 import { buildMissedVulnContext } from "./knowledge/missed-vuln-training-knowledge";
+import { buildFPSuppressionContext } from "./knowledge/fp-suppression-rules";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -321,6 +322,8 @@ ${buildMissedVulnContext()}
 ## False Positive Triage
 When analyzing ZAP scan findings, use this knowledge to classify findings:
 ${getFalsePositiveTriageContext()}
+
+${buildFPSuppressionContext()}
 
 **Apply FP triage before requesting re-scans:**
 - If a finding matches 2+ FP indicators, classify as likely FP and do NOT request re-scans for it

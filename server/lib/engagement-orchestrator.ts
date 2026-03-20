@@ -6647,11 +6647,30 @@ export async function executeEngagement(
               services: servicesMap,
             });
 
-            // Store analysis results in state for UI consumption
-            (state as any).vulnAnalysis = analysisResults;
+            // Apply FP suppression before storing
+            const { applySuppressionRules } = await import('./knowledge/fp-suppression-rules');
+            const suppressionProfile = (state as any).metadata?.fpSuppressionProfile || 'balanced';
+            const { kept, suppressed, stats: suppressionStats } = applySuppressionRules(
+              analysisResults,
+              suppressionProfile
+            );
 
-            // Generate summary
-            const summary = generateAnalysisSummary(analysisResults);
+            // Store both kept and suppressed for UI toggle
+            (state as any).vulnAnalysis = kept;
+            (state as any).vulnAnalysisSuppressed = suppressed;
+            (state as any).fpSuppressionStats = suppressionStats;
+
+            if (suppressionStats.suppressed > 0) {
+              addLog(state, {
+                phase: 'vuln_detection', type: 'info',
+                title: `🔇 FP Suppression: ${suppressionStats.suppressed} findings filtered (${suppressionProfile} profile)`,
+                detail: `Kept: ${suppressionStats.kept} | Suppressed: ${suppressionStats.suppressed} | Rules: ${Object.entries(suppressionStats.byRule).map(([r,c]) => `${r}:${c}`).join(', ')}`,
+                data: { suppressionStats },
+              });
+            }
+
+            // Generate summary from kept findings (post-suppression)
+            const summary = generateAnalysisSummary(kept);
 
             // Log the classification breakdown
             const classBreakdown = Object.entries(summary.byClass)

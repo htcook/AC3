@@ -44,7 +44,7 @@ import {
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
-  FileUp, Upload,
+  FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -1932,6 +1932,7 @@ export default function EngagementOps() {
                 subTabs: [
                   { value: 'llmsynthesis', label: 'LLM Synthesis', icon: <Brain className="h-3 w-3" />, count: synthCount },
                   { value: 'feedback', label: 'Feedback Loop', icon: <RefreshCw className="h-3 w-3" />, count: feedbackLoopQ.data?.totalScansExecuted || 0 },
+                  { value: 'fpsuppression', label: 'FP Suppression', icon: <Filter className="h-3 w-3" /> },
                 ],
               },
             ];
@@ -3876,6 +3877,11 @@ export default function EngagementOps() {
                   )}
                 </div>
               </ScrollArea>
+            </TabsContent>
+
+            {/* ── FP Suppression Tab ── */}
+            <TabsContent value="fpsuppression" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <FPSuppressionPanel engagementId={engagementId} />
             </TabsContent>
 
             {/* ── Vulnerability Trends Tab ── */}
@@ -6873,5 +6879,266 @@ function InterruptedEngagementBanner({ engagementId }: { engagementId: number })
         )}
       </div>
     </div>
+  );
+}
+
+
+// ── FP Suppression Panel ────────────────────────────────────────────────────
+
+function FPSuppressionPanel({ engagementId }: { engagementId: number }) {
+  const [selectedProfile, setSelectedProfile] = useState("balanced");
+  const [showSuppressed, setShowSuppressed] = useState(false);
+  const [customRules, setCustomRules] = useState<Record<string, boolean>>({});
+  const [isCustom, setIsCustom] = useState(false);
+
+  const profilesQ = trpc.engagementOps.getSuppressionProfiles.useQuery();
+  const rulesQ = trpc.engagementOps.getSuppressionRules.useQuery();
+  const statsQ = trpc.engagementOps.getSuppressionStats.useQuery({ engagementId });
+  const utils = trpc.useUtils();
+
+  const applyMut = trpc.engagementOps.applySuppressionToEngagement.useMutation({
+    onSuccess: (stats) => {
+      toast.success(`FP Suppression applied: ${stats.suppressed} findings filtered`, {
+        description: `Kept: ${stats.kept} | Profile: ${selectedProfile}`,
+      });
+      utils.engagementOps.getSuppressionStats.invalidate({ engagementId });
+      utils.engagementOps.getState.invalidate({ engagementId });
+    },
+    onError: (e) => toast.error(`Failed to apply suppression: ${e.message}`),
+  });
+
+  // Initialize custom rules from the balanced profile
+  useEffect(() => {
+    if (rulesQ.data && Object.keys(customRules).length === 0) {
+      const defaults: Record<string, boolean> = {};
+      rulesQ.data.forEach(r => { defaults[r.id] = r.enabledByDefault; });
+      setCustomRules(defaults);
+    }
+  }, [rulesQ.data]);
+
+  const handleApply = () => {
+    applyMut.mutate({
+      engagementId,
+      profileName: isCustom ? "balanced" : selectedProfile,
+      customRules: isCustom ? customRules : undefined,
+    });
+  };
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    informational_noise: "Informational Noise",
+    tool_artifact: "Tool Artifacts",
+    config_observation: "Config Observations",
+    duplicate_finding: "Duplicate Findings",
+  };
+
+  const TP_RISK_COLORS: Record<string, string> = {
+    low: "text-green-400 bg-green-500/10 border-green-500/20",
+    medium: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
+    high: "text-red-400 bg-red-500/10 border-red-500/20",
+  };
+
+  return (
+    <ScrollArea className="h-[calc(100vh-280px)]">
+      <div className="space-y-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          Configure false positive suppression to reduce noise in vulnerability findings. Rules are based on analysis of previous engagement results and known tool artifacts.
+        </p>
+
+        {/* Current Stats */}
+        {statsQ.data?.stats && (
+          <Card className="bg-card/50 border-cyan-500/20">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-foreground">{statsQ.data.stats.total}</div>
+                  <div className="text-[10px] text-muted-foreground">Total Findings</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-emerald-400">{statsQ.data.stats.kept}</div>
+                  <div className="text-[10px] text-muted-foreground">Kept</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-400">{statsQ.data.stats.suppressed}</div>
+                  <div className="text-[10px] text-muted-foreground">Suppressed</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-cyan-400">
+                    {statsQ.data.stats.total > 0
+                      ? Math.round((statsQ.data.stats.suppressed / statsQ.data.stats.total) * 100)
+                      : 0}%
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">Reduction</div>
+                </div>
+              </div>
+
+              {/* Per-rule breakdown */}
+              {Object.keys(statsQ.data.stats.byRule || {}).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <div className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Suppression by Rule</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(statsQ.data.stats.byRule).sort((a, b) => b[1] - a[1]).map(([rule, count]) => (
+                      <Badge key={rule} variant="outline" className="text-[10px] bg-orange-500/5 border-orange-500/20 text-orange-300">
+                        {rule}: {count}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Per-category breakdown */}
+              {Object.keys(statsQ.data.stats.byCategory || {}).length > 0 && (
+                <div className="mt-2">
+                  <div className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">By Category</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(statsQ.data.stats.byCategory).map(([cat, count]) => (
+                      <Badge key={cat} variant="outline" className="text-[10px] bg-purple-500/5 border-purple-500/20 text-purple-300">
+                        {CATEGORY_LABELS[cat] || cat}: {count}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Profile Selector */}
+        <Card className="bg-card/50 border-border/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Filter className="h-4 w-4 text-cyan-400" /> Suppression Profile
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Choose a preset profile or customize individual rules.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {(profilesQ.data || []).map(profile => (
+                <button
+                  key={profile.id}
+                  onClick={() => { setSelectedProfile(profile.id); setIsCustom(false); }}
+                  className={`text-left p-3 rounded-lg border transition-all ${
+                    !isCustom && selectedProfile === profile.id
+                      ? "border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-500/30"
+                      : "border-border/30 bg-card/30 hover:bg-card/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium">{profile.name}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {profile.enabledCount}/{profile.totalRules}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">{profile.description}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom toggle */}
+            <button
+              onClick={() => setIsCustom(!isCustom)}
+              className={`w-full text-left p-3 rounded-lg border transition-all ${
+                isCustom
+                  ? "border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30"
+                  : "border-border/30 bg-card/30 hover:bg-card/50"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Wrench className="h-3.5 w-3.5 text-purple-400" />
+                <span className="text-xs font-medium">Custom Rules</span>
+                <Badge variant="outline" className="text-[10px] ml-auto">
+                  {Object.values(customRules).filter(Boolean).length}/{Object.keys(customRules).length}
+                </Badge>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Toggle individual suppression rules.</p>
+            </button>
+
+            {/* Custom Rules List */}
+            {isCustom && rulesQ.data && (
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                {rulesQ.data.map(rule => (
+                  <div
+                    key={rule.id}
+                    className={`flex items-start gap-2 p-2 rounded-md border transition-all ${
+                      customRules[rule.id]
+                        ? "border-cyan-500/20 bg-cyan-500/5"
+                        : "border-border/20 bg-card/20 opacity-60"
+                    }`}
+                  >
+                    <button
+                      onClick={() => setCustomRules(prev => ({ ...prev, [rule.id]: !prev[rule.id] }))}
+                      className="mt-0.5 flex-none"
+                    >
+                      {customRules[rule.id]
+                        ? <ToggleRight className="h-4 w-4 text-cyan-400" />
+                        : <ToggleLeft className="h-4 w-4 text-muted-foreground" />
+                      }
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium truncate">{rule.name}</span>
+                        <Badge variant="outline" className={`text-[9px] ${TP_RISK_COLORS[rule.tpRisk] || ""}`}>
+                          TP Risk: {rule.tpRisk}
+                        </Badge>
+                        <Badge variant="outline" className="text-[9px]">
+                          ~{rule.estimatedSuppression} FPs
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{rule.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Apply Button */}
+            <Button
+              onClick={handleApply}
+              disabled={applyMut.isPending}
+              className="w-full"
+              size="sm"
+            >
+              {applyMut.isPending ? (
+                <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> Applying...</>
+              ) : (
+                <><FilterX className="h-3 w-3 mr-1.5" /> Apply Suppression</>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Suppressed Findings Preview */}
+        {statsQ.data && statsQ.data.suppressedCount > 0 && (
+          <Card className="bg-card/50 border-border/30">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-orange-400" /> Suppressed Findings ({statsQ.data.suppressedCount})
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[10px] h-6"
+                  onClick={() => setShowSuppressed(!showSuppressed)}
+                >
+                  {showSuppressed ? "Hide" : "Show"} Details
+                </Button>
+              </div>
+              <CardDescription className="text-xs">
+                These findings were filtered by the active suppression profile. Review to ensure no true positives were removed.
+              </CardDescription>
+            </CardHeader>
+            {showSuppressed && (
+              <CardContent className="space-y-1 max-h-[300px] overflow-y-auto">
+                <p className="text-[10px] text-muted-foreground italic">
+                  Suppressed findings are still stored and can be restored by switching to the "None" profile.
+                </p>
+              </CardContent>
+            )}
+          </Card>
+        )}
+      </div>
+    </ScrollArea>
   );
 }
