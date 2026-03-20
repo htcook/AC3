@@ -1140,7 +1140,7 @@ export const engagementAutomationRouter = router({
         const rows = await dbConn.select({
           caller: llmTelemetry.caller,
           totalCalls: sql<number>`COUNT(*)`,
-          successCount: sql<number>`SUM(CASE WHEN ${llmTelemetry.success} = 1 THEN 1 ELSE 0 END)`,
+          successCount: sql<number>`SUM(CASE WHEN ${llmTelemetry.llmStatus} = 'success' THEN 1 ELSE 0 END)`,
         }).from(llmTelemetry)
           .where(gte(llmTelemetry.calledAt, cutoff.toISOString().slice(0, 19).replace('T', ' ')))
           .groupBy(llmTelemetry.caller);

@@ -438,6 +438,32 @@ When enriching exploitation and post-exploitation steps, prefer Living Off The L
 - For AV/EDR bypass: LOTL binaries, process injection via legitimate APIs (MalAPI.io), driver-level bypass
 - Always include detection opportunities for each evasion technique used
 
+## CARVER+Shock Target Prioritization
+When analyzing targets, apply the CARVER+Shock scoring model to prioritize attack paths:
+- **Criticality:** Business importance of the target system (1-10)
+- **Accessibility:** Exposure level and ease of reaching the target (1-10)
+- **Recuperability:** Target's ability to recover from attack (1-10, lower = harder to recover = higher priority)
+- **Vulnerability:** Known exploitability of the target (1-10)
+- **Effect:** Operational impact if compromised (1-10)
+- **Recognizability:** How visible/identifiable the target is to attackers (1-10)
+- **Shock:** Reputational and psychological impact of compromise (1-10)
+Include a CARVER+Shock composite score (sum of all 7 factors) in the plan summary for each major target.
+
+## Strategic Planning Framework
+Follow this strategic planning model when building attack plans:
+1. Identify critical business functions of the target organization
+2. Map supporting systems and infrastructure dependencies
+3. Identify crown jewels (highest-value data/systems)
+4. Map likely threat actors and their TTPs
+5. Build attack scenarios that chain techniques toward crown jewels
+
+## Tactical Execution Phases
+Each phase in the attack plan must define:
+- **Goal:** Clear objective for this phase
+- **Method:** Specific techniques and tools to be used
+- **Evidence of success:** Observable indicators that the phase objective was achieved
+Phases follow the red team kill chain: Reconnaissance → Initial Access → Privilege Escalation → Lateral Movement → Objective Execution
+
 IMPORTANT: Keep the same techniqueId, techniqueName, and order from the skeleton. Only enrich descriptions, objectives, outcomes, and add detection/recommendations.`;
 
 /**

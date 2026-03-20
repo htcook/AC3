@@ -306,6 +306,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Web App Scanner", path: "/web-app-scanner", icon: Globe },
       { label: "ZAP Proxy", path: "/zap-proxy", icon: Scan },
       { label: "Nuclei Scanner", path: "/nuclei-scanner", icon: Microscope },
+      { label: "Amass Scanner", path: "/amass-scanner", icon: Globe },
       { label: "Batch Scanner", path: "/batch-scanner", icon: Layers },
       { label: "Vuln Scanner", path: "/vuln-scanner", icon: Bug },
       { label: "API Security Testing", path: "/api-security-testing", icon: Code2 },

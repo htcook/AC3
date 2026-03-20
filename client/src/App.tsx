@@ -173,6 +173,7 @@ const PentestReport = lazyWithRetry(() => import("./pages/PentestReport"));
 const AtomicRedTeam = lazyWithRetry(() => import("./pages/AtomicRedTeam"));
 const SliverC2 = lazyWithRetry(() => import("./pages/SliverC2"));
 const NucleiScanner = lazyWithRetry(() => import("./pages/NucleiScanner"));
+const AmassScanner = lazyWithRetry(() => import("./pages/AmassScanner"));
 const AttackCoverage = lazyWithRetry(() => import("./pages/AttackCoverage"));
 const UnifiedPipeline = lazyWithRetry(() => import("./pages/UnifiedPipeline"));
 const RoeBuilder = lazyWithRetry(() => import("./pages/RoeBuilder"));
@@ -845,6 +846,9 @@ function Router() {
         </Route>
         <Route path="/nuclei-scanner">
           <ProtectedRoute component={VulnScanningHub} />
+        </Route>
+        <Route path="/amass-scanner">
+          <ProtectedRoute component={AmassScanner} />
         </Route>
         <Route path="/attack-coverage">
           <ProtectedRoute component={AttackCoverage} />

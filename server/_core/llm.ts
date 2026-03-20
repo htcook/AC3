@@ -649,12 +649,33 @@ function inferCaller(): string {
   try {
     const stack = new Error().stack || "";
     const lines = stack.split("\n");
+    // Skip frames from llm.ts itself, db.ts telemetry recording, and generic frames
+    const skipPatterns = [
+      "llm.ts", "llm.js",
+      "at Error", "at Object",
+      "at inferCaller", "at recordTelemetry", "at logTelemetry",
+      "at processTicksAndRejections",
+      "node:internal",
+    ];
     for (const line of lines) {
-      if (line.includes("llm.ts") || line.includes("llm.js") || line.includes("at Error") || line.includes("at Object")) continue;
-      const match = line.match(/at\s+(?:async\s+)?([\w.]+)\s+\(/);
-      if (match) return match[1];
-      const fileMatch = line.match(/([\w-]+)\.(?:ts|js):(\d+)/);
-      if (fileMatch) return `${fileMatch[1]}:${fileMatch[2]}`;
+      if (skipPatterns.some(p => line.includes(p))) continue;
+      // Try to match function name like "at functionName ("
+      const match = line.match(/at\s+(?:async\s+)?([\w$.]+)\s+\(/);
+      if (match && match[1] !== "inferCaller") {
+        // Convert class.method to more readable format
+        const name = match[1];
+        // Skip generic wrappers
+        if (["Module", "Promise", "Object", "Array", "Function"].includes(name.split(".")[0])) continue;
+        return name;
+      }
+      // Try to extract filename:line as fallback
+      const fileMatch = line.match(/\/([\w-]+)\.(?:ts|js):(\d+)/);
+      if (fileMatch) {
+        const fileName = fileMatch[1];
+        // Skip framework/internal files
+        if (["llm", "db", "context", "trpc", "index"].includes(fileName)) continue;
+        return `${fileName}:${fileMatch[2]}`;
+      }
     }
   } catch { /* ignore */ }
   return "unknown";

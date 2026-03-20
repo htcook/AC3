@@ -333,6 +333,8 @@ export interface EngagementOpsState {
     headless: boolean;        // use headless browser for JS-rendered pages
     customHeaders?: Record<string, string>; // custom headers for authenticated scanning
   };
+  /** When true, attempt every exploit opportunity across all assets — do not stop at first success */
+  exhaustiveExploit?: boolean;
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -523,6 +525,7 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
     log: [],
     approvalGates: [],
     skippedDomains: new Set(),
+    exhaustiveExploit: true, // Default: attempt every exploit opportunity, don't stop at first success
     stats: {
       hostsScanned: 0, portsFound: 0, vulnsFound: 0,
       exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
@@ -5594,10 +5597,14 @@ ${(() => {
       }
     }
 
-    // For red team: stop after first successful exploit
-    if (state.engagementType === "red_team" && state.stats.exploitsSucceeded > 0) {
-      addLog(state, { phase: "exploitation", type: "info", title: "Red Team: Entry Point Secured", detail: "First shell obtained — moving to C2 deployment" });
+    // For red team: only stop early if exhaustiveExploit is disabled (legacy behavior)
+    if (state.engagementType === "red_team" && state.stats.exploitsSucceeded > 0 && !state.exhaustiveExploit) {
+      addLog(state, { phase: "exploitation", type: "info", title: "Red Team: Entry Point Secured", detail: "First shell obtained — moving to C2 deployment (exhaustive mode OFF)" });
       break;
+    }
+    // In exhaustive mode: log progress but continue to next exploit opportunity
+    if (state.engagementType === "red_team" && state.stats.exploitsSucceeded > 0 && state.exhaustiveExploit) {
+      addLog(state, { phase: "exploitation", type: "info", title: `🔄 Exhaustive Mode: ${state.stats.exploitsSucceeded} shell(s) obtained — continuing to next target`, detail: `${state.stats.exploitsAttempted} attempted, ${state.stats.exploitsSucceeded} succeeded so far. Exhaustive exploitation enabled — attempting all remaining opportunities.` });
     }
   }
 

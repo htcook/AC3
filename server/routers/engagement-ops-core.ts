@@ -66,7 +66,7 @@ export const engagementOpsRouter = router({
 
     /** Start autonomous execution — one-click pentest/red team */
     execute: protectedProcedure
-      .input(z.object({ engagementId: z.number() }))
+      .input(z.object({ engagementId: z.number(), exhaustiveExploit: z.boolean().optional().default(true) }))
       .mutation(async ({ input, ctx }) => {
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -84,6 +84,8 @@ export const engagementOpsRouter = router({
         if (state.isRunning) {
           throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is already running' });
         }
+        // Set exhaustive exploitation mode — when true, attempts every exploit opportunity
+        state.exhaustiveExploit = input.exhaustiveExploit;
 
         await db.logActivity({
           userId: ctx.user.id,
@@ -149,9 +151,15 @@ export const engagementOpsRouter = router({
       .input(z.object({
         engagementId: z.number(),
         targetPhase: z.enum(['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']),
+        exhaustiveExploit: z.boolean().optional().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { rerunFromPhase } = await import('../lib/engagement-orchestrator');
+        const { rerunFromPhase, getOpsState } = await import('../lib/engagement-orchestrator');
+        // Set exhaustive exploitation mode on the existing state
+        const existingState = getOpsState(input.engagementId);
+        if (existingState) {
+          existingState.exhaustiveExploit = input.exhaustiveExploit;
+        }
         const result = await rerunFromPhase(input.engagementId, input.targetPhase, {
           id: String(ctx.user.id),
           name: ctx.user.name || undefined,
@@ -1485,6 +1493,7 @@ export const engagementOpsRouter = router({
           exploitGeneration: z.boolean().default(true),
         }).default({}),
         resetState: z.boolean().default(false),
+        exhaustiveExploit: z.boolean().optional().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
         const {
@@ -1501,6 +1510,8 @@ export const engagementOpsRouter = router({
         if (state.isRunning) {
           throw new TRPCError({ code: 'CONFLICT', message: 'Pipeline is already running. Reset or wait for completion.' });
         }
+        // Set exhaustive exploitation mode
+        state.exhaustiveExploit = input.exhaustiveExploit;
 
         state.isRunning = true;
         state.error = undefined;

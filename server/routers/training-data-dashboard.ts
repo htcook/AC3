@@ -493,7 +493,7 @@ export const trainingDataDashboardRouter = router({
           successCalls: sql<number>`SUM(CASE WHEN ${llmTelemetry.llmStatus} = 'success' THEN 1 ELSE 0 END)`,
           errors: sql<number>`SUM(CASE WHEN ${llmTelemetry.llmStatus} = 'error' THEN 1 ELSE 0 END)`,
           avgLatency: sql<number>`AVG(${llmTelemetry.latencyMs})`,
-          p95Latency: sql<number>`PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ${llmTelemetry.latencyMs})`,
+          p95Latency: sql<number>`0`,
           avgTokensIn: sql<number>`AVG(${llmTelemetry.tokensIn})`,
           avgTokensOut: sql<number>`AVG(${llmTelemetry.tokensOut})`,
           totalRetries: sql<number>`SUM(${llmTelemetry.retryCount})`,

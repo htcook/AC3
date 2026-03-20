@@ -512,6 +512,38 @@ export const testLabRouter = router({
     return getGraduationLabSummary();
   }),
 
+  // Alias used by TestLabGraduation.tsx
+  getGraduationStatus: protectedProcedure.query(async () => {
+    const states = getAllModelStates();
+    return {
+      modelStates: states.map(s => ({
+        ...s,
+        feedback: generateGraduationFeedback(s.model),
+        nextTierRequirements: generateGraduationFeedback(s.model).requirements,
+      })),
+      summary: getGraduationLabSummary(),
+    };
+  }),
+
+  // Standalone recommended scenarios endpoint
+  getRecommendedScenarios: protectedProcedure
+    .input(z.object({
+      model: z.enum([
+        "recon_analyst", "exploit_selector", "evasion_optimizer",
+        "lateral_planner", "persistence_engineer", "cognitive_core",
+      ]).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      if (input?.model) {
+        return getRecommendedScenarios(input.model);
+      }
+      // Return recommendations for all models
+      const states = getAllModelStates();
+      return states.flatMap(s => 
+        getRecommendedScenarios(s.model).map(r => ({ ...r, model: s.model }))
+      ).slice(0, 20);
+    }),
+
   getModelState: protectedProcedure
     .input(z.object({
       model: z.enum([

@@ -337,6 +337,7 @@ export async function getTrainingStats(): Promise<{
   byQuality: Record<string, number>;
   totalDecisions: number;
   decisionOutcomes: Record<string, number>;
+  callerBreakdown: Record<string, number>;
   totalC2Executions: number;
   c2SuccessRate: number;
 }> {
@@ -358,9 +359,12 @@ export async function getTrainingStats(): Promise<{
     // Decision log stats
     const decisions = await db.select().from(llmDecisionLog);
     const decisionOutcomes: Record<string, number> = {};
+    const callerBreakdown: Record<string, number> = {};
     for (const d of decisions) {
       const o = d.outcome || 'pending';
       decisionOutcomes[o] = (decisionOutcomes[o] || 0) + 1;
+      const c = d.caller || 'unknown';
+      callerBreakdown[c] = (callerBreakdown[c] || 0) + 1;
     }
 
     // C2 execution stats
@@ -374,6 +378,7 @@ export async function getTrainingStats(): Promise<{
       byQuality,
       totalDecisions: decisions.length,
       decisionOutcomes,
+      callerBreakdown,
       totalC2Executions: c2Execs.length,
       c2SuccessRate: c2Execs.length > 0 ? c2Successes / c2Execs.length : 0,
     };
@@ -381,7 +386,7 @@ export async function getTrainingStats(): Promise<{
     console.error(`[TrainingBridge] Failed to get training stats:`, err.message);
     return {
       totalExamples: 0, byModel: {}, bySource: {}, byQuality: {},
-      totalDecisions: 0, decisionOutcomes: {},
+      totalDecisions: 0, decisionOutcomes: {}, callerBreakdown: {},
       totalC2Executions: 0, c2SuccessRate: 0,
     };
   }
