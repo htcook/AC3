@@ -123,6 +123,16 @@ export default function Engagements() {
   const { data: allCampaignLinks, refetch: refetchLinks } = trpc.campaignEngagements.listAll.useQuery();
   const { data: gophishCampaigns } = trpc.gophishProxy.getCampaigns.useQuery();
 
+  // Live ops status for all engagements (polls every 5s if any are running)
+  const engagementIds = useMemo(() => (engagements || []).map((e: any) => e.id), [engagements]);
+  const { data: liveOpsStatus } = trpc.engagementOps.batchGetLiveStatus.useQuery(
+    { engagementIds },
+    {
+      enabled: engagementIds.length > 0,
+      refetchInterval: Object.values(liveOpsStatus || {}).some((s: any) => s?.isRunning) ? 5000 : 30000,
+    }
+  );
+
   // adversary operations data
   const { data: operations, isLoading: opsLoading, refetch: refetchOps, isRefetching } = trpc.calderaProxy.getOperations.useQuery();
   const { data: allAbilities } = trpc.calderaProxy.getAbilities.useQuery();
@@ -825,7 +835,78 @@ export default function Engagements() {
                           <span className={`text-xs px-2 py-0.5 ${statusConfig.color} font-display tracking-wider`}>
                             {(statusConfig.label || '').toUpperCase()}
                           </span>
+                          {/* Live ops status indicator */}
+                          {(() => {
+                            const ops = liveOpsStatus?.[engagement.id];
+                            if (!ops) return null;
+                            if (ops.isRunning) {
+                              return (
+                                <span className="flex items-center gap-1.5 text-xs px-2 py-0.5 bg-green-500/20 text-green-400 font-display tracking-wider animate-pulse">
+                                  <Play className="w-3 h-3" />
+                                  {ops.phase.replace(/_/g, ' ').toUpperCase()} ({ops.progress}%)
+                                </span>
+                              );
+                            }
+                            if (ops.phase === 'complete' || ops.phase === 'reporting') {
+                              return (
+                                <span className="flex items-center gap-1.5 text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 font-display tracking-wider">
+                                  <CheckCircle className="w-3 h-3" />
+                                  COMPLETE
+                                </span>
+                              );
+                            }
+                            if (ops.phase === 'error') {
+                              return (
+                                <span className="flex items-center gap-1.5 text-xs px-2 py-0.5 bg-red-500/20 text-red-400 font-display tracking-wider">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  ERROR
+                                </span>
+                              );
+                            }
+                            if (ops.assetsDiscovered > 0 || ops.vulnsFound > 0) {
+                              return (
+                                <span className="flex items-center gap-1.5 text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 font-display tracking-wider">
+                                  <Pause className="w-3 h-3" />
+                                  PAUSED
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
+                        {/* Live ops stats bar */}
+                        {(() => {
+                          const ops = liveOpsStatus?.[engagement.id];
+                          if (!ops || (!ops.isRunning && ops.assetsDiscovered === 0 && ops.vulnsFound === 0)) return null;
+                          return (
+                            <div className="flex items-center gap-3 mt-2 flex-wrap">
+                              {ops.isRunning && ops.progress > 0 && (
+                                <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${ops.progress}%` }} />
+                                </div>
+                              )}
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Target className="w-3 h-3 text-cyan-400" />
+                                {ops.assetsDiscovered} assets
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Bug className="w-3 h-3 text-orange-400" />
+                                {ops.vulnsFound} vulns
+                              </span>
+                              {ops.exploitsRun > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Zap className="w-3 h-3 text-red-400" />
+                                  {ops.exploitsSucceeded}/{ops.exploitsRun} exploits
+                                </span>
+                              )}
+                              {ops.isRunning && ops.lastLogMessage && (
+                                <span className="text-xs text-muted-foreground/70 truncate max-w-[300px]" title={ops.lastLogMessage}>
+                                  {ops.lastLogMessage}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             <Users className="w-3.5 h-3.5" />

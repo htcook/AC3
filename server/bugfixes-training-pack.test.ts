@@ -209,3 +209,68 @@ describe('use-toast hook compatibility', () => {
     expect(source).toContain('toast');
   });
 });
+
+describe('RoE-approved safety auto-escalation', () => {
+  it('should auto-escalate to full_exploitation for RoE-signed pentest/red_team engagements', async () => {
+    const source = await import('fs').then(fs =>
+      fs.readFileSync('./server/lib/engagement-orchestrator.ts', 'utf-8')
+    );
+    
+    // Verify the auto-escalation logic exists
+    expect(source).toContain('AUTO-ESCALATION: RoE-approved Pentest/Red Team engagements');
+    expect(source).toContain("engagement.roeStatus === 'signed'");
+    expect(source).toContain("'pentest', 'red_team', 'purple_team'");
+    expect(source).toContain("engagementSafetyLevel = 'full_exploitation'");
+    
+    // Verify it logs the escalation
+    expect(source).toContain('Safety Auto-Escalated: RoE Approved');
+    expect(source).toContain('Full scan-to-exploit-to-C2 pipeline authorized');
+  });
+
+  it('should only escalate when both RoE is signed AND engagement type is offensive', async () => {
+    const source = await import('fs').then(fs =>
+      fs.readFileSync('./server/lib/engagement-orchestrator.ts', 'utf-8')
+    );
+    
+    // Verify both conditions are checked
+    expect(source).toContain('roeSigned && offensiveType');
+    
+    // Verify it doesn't escalate if already at full_exploitation
+    expect(source).toContain("engagementSafetyLevel !== 'full_exploitation'");
+  });
+});
+
+describe('batchGetLiveStatus endpoint', () => {
+  it('should have batchGetLiveStatus procedure in engagement-ops-core router', async () => {
+    const source = await import('fs').then(fs =>
+      fs.readFileSync('./server/routers/engagement-ops-core.ts', 'utf-8')
+    );
+    
+    expect(source).toContain('batchGetLiveStatus');
+    // Verify it accepts an array of engagement IDs
+    expect(source).toContain('engagementIds');
+  });
+
+  it('should be used in the Engagements list page for live status polling', async () => {
+    const source = await import('fs').then(fs =>
+      fs.readFileSync('./client/src/pages/Engagements.tsx', 'utf-8')
+    );
+    
+    expect(source).toContain('batchGetLiveStatus');
+    // Verify it polls (refetchInterval)
+    expect(source).toContain('refetchInterval');
+  });
+});
+
+describe('inferCaller enhanced skip patterns', () => {
+  it('should skip invokeLLM and common async wrapper frames', async () => {
+    const source = await import('fs').then(fs =>
+      fs.readFileSync('./server/_core/llm.ts', 'utf-8')
+    );
+    
+    // Verify enhanced skip patterns
+    expect(source).toContain('"at invokeLLM"');
+    expect(source).toContain('"node_modules"');
+    expect(source).toContain('"_core/"');
+  });
+});

@@ -6309,12 +6309,30 @@ export async function executeEngagement(
     active: "full_exploitation",
     aggressive: "full_exploitation",
   };
-  const engagementSafetyLevel: SafetyLevel = scanModeToSafety[engagement.scanMode || "standard"] || "standard";
+  let engagementSafetyLevel: SafetyLevel = scanModeToSafety[engagement.scanMode || "standard"] || "standard";
+
+  // ═══ AUTO-ESCALATION: RoE-approved Pentest/Red Team engagements always get full pipeline access ═══
+  // When the RoE is signed and the engagement type is pentest or red_team,
+  // automatically escalate to full_exploitation so the entire pipeline
+  // (recon → enum → vuln detection → exploitation → C2 → lateral movement → exfiltration)
+  // runs without safety blocks. The RoE approval IS the authorization.
+  const roeSigned = engagement.roeStatus === 'signed';
+  const offensiveType = ['pentest', 'red_team', 'purple_team'].includes(engagement.engagementType);
+  if (roeSigned && offensiveType && engagementSafetyLevel !== 'full_exploitation') {
+    const originalLevel = engagementSafetyLevel;
+    engagementSafetyLevel = 'full_exploitation';
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '🔓 Safety Auto-Escalated: RoE Approved',
+      detail: `Engagement type '${engagement.engagementType}' with signed RoE — safety level escalated from '${originalLevel}' to 'full_exploitation'. Full scan-to-exploit-to-C2 pipeline authorized.`,
+    });
+  }
+
   const safetyEngine = getSafetyEngine(engagementId, engagementSafetyLevel);
   addLog(state, {
     phase: state.phase, type: "info",
     title: `🛡️ Safety Engine Active — Level: ${safetyEngine.getProfile().label}`,
-    detail: `Safety level '${engagementSafetyLevel}' initialized from scan mode '${engagement.scanMode || "standard"}'.\n` +
+    detail: `Safety level '${engagementSafetyLevel}' ${roeSigned && offensiveType ? '(auto-escalated from RoE-approved ' + engagement.engagementType + ')' : 'initialized from scan mode \'' + (engagement.scanMode || 'standard') + '\''}.\n` +
       `Credential testing: ${safetyEngine.getProfile().allowCredentialTesting ? '✅' : '❌'}\n` +
       `Exploitation: ${safetyEngine.getProfile().allowExploitation ? '✅' : '❌'}\n` +
       `C2 deployment: ${safetyEngine.getProfile().allowC2Deployment ? '✅' : '❌'}\n` +

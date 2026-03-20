@@ -654,8 +654,10 @@ function inferCaller(): string {
       "llm.ts", "llm.js",
       "at Error", "at Object",
       "at inferCaller", "at recordTelemetry", "at logTelemetry",
+      "at invokeLLM", "at async invokeLLM",
       "at processTicksAndRejections",
-      "node:internal",
+      "node:internal", "node_modules",
+      "_core/", "procedureBuilder",
     ];
     for (const line of lines) {
       if (skipPatterns.some(p => line.includes(p))) continue;

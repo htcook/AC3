@@ -2900,4 +2900,45 @@ Return ONLY a JSON object with vulnerabilities array.`;
         const { runDomainDarkwebSync } = await import('../lib/darkweb-osint-service');
         return runDomainDarkwebSync(input.domain);
       }),
+
+    /** Batch get live ops status for multiple engagements — used by the engagement list page */
+    batchGetLiveStatus: protectedProcedure
+      .input(z.object({ engagementIds: z.array(z.number()).max(50) }))
+      .query(async ({ input }) => {
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        const results: Record<number, {
+          isRunning: boolean;
+          phase: string;
+          progress: number;
+          assetsDiscovered: number;
+          vulnsFound: number;
+          exploitsRun: number;
+          exploitsSucceeded: number;
+          lastLogMessage: string;
+          lastLogTime: number | null;
+          startedAt: number | null;
+        }> = {};
+        for (const id of input.engagementIds) {
+          let state = getOpsState(id);
+          if (!state) {
+            state = await getOpsStateWithRecovery(id);
+          }
+          if (state) {
+            const lastLog = state.log?.length > 0 ? state.log[state.log.length - 1] : null;
+            results[id] = {
+              isRunning: !!state.isRunning,
+              phase: state.phase || 'idle',
+              progress: state.progress || 0,
+              assetsDiscovered: state.stats?.assetsDiscovered || 0,
+              vulnsFound: state.stats?.vulnsFound || 0,
+              exploitsRun: state.stats?.exploitsRun || 0,
+              exploitsSucceeded: state.stats?.exploitsSucceeded || 0,
+              lastLogMessage: lastLog?.title || lastLog?.detail || '',
+              lastLogTime: lastLog?.ts || null,
+              startedAt: state.startedAt || null,
+            };
+          }
+        }
+        return results;
+      }),
   });
