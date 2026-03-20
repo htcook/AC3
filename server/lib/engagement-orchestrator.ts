@@ -4253,6 +4253,46 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               detail: `${targetUrl} is protected by ${wafVendor}. Adjusting scan parameters for evasion.`,
               data: { wafVendor, targetUrl },
             });
+
+            // ── Evidence Integrity Gate: Blue Team Defense (WAF detection) ──
+            try {
+              const wafContent = `WAF detected on ${targetUrl}. Vendor: ${wafVendor}. ` +
+                `Target: ${webApp.hostname}. Engagement: ${state.engagementId}. ` +
+                `Defense mechanism active — scan parameters adjusted for evasion. ` +
+                `Timestamp: ${new Date().toISOString()}`;
+              const wafProvenance = buildProvenance({
+                tool: 'zap' as EvidenceSourceTool,
+                collectorHost: scanServerHost || 'ac3-platform',
+                rawOutput: wafContent,
+                targetHost: webApp.hostname,
+                sourceIp: scanServerHost || 'unknown',
+                destinationIp: webApp.ip || 'unknown',
+              });
+              const wafGate = evidenceGate({
+                content: wafContent,
+                provenance: wafProvenance,
+                engagementId: String(state.engagementId),
+                evidenceType: 'blue_team_win',
+                sourceTool: 'zap' as EvidenceSourceTool,
+              });
+              const wafEvidenceId = `waf-detection-${webApp.hostname}-${Date.now()}`;
+              createIntegrityEnvelope({
+                engagementId: String(state.engagementId),
+                evidenceId: wafEvidenceId,
+                content: wafContent,
+                provenance: wafProvenance,
+                sourceTool: 'zap' as EvidenceSourceTool,
+              });
+              recordCustodyEvent({
+                engagementId: String(state.engagementId),
+                evidenceId: wafEvidenceId,
+                action: wafGate.passed ? 'integrity_verified' : 'integrity_flagged',
+                performedBy: 'Evidence Gate',
+                details: `WAF detection evidence (blue team defense): ${wafGate.passed ? 'passed' : 'flagged'}`,
+              });
+            } catch (wafGateErr: any) {
+              // WAF evidence gate is best-effort
+            }
           }
         } catch { /* WAF detection is best-effort */ }
 
@@ -5467,6 +5507,49 @@ ${(() => {
           },
         });
 
+        // ── Evidence Integrity Gate: Blue Team Win (exploit failure = defense held) ──
+        if (!success) {
+          try {
+            const blueTeamContent = `Defense held: Exploit failed on ${target}:${port}. ` +
+              `Service: ${service || 'unknown'}. Module: ${module || cve || 'auto'}. ` +
+              `WAF: ${asset?.wafDetected || 'none'}. ` +
+              `Output: ${exploitOutput.slice(0, 500)}. ` +
+              `Engagement: ${state.engagementId}. Timestamp: ${new Date().toISOString()}`;
+            const blueTeamProvenance = buildProvenance({
+              tool: 'metasploit' as EvidenceSourceTool,
+              collectorHost: scanServerHost || 'ac3-platform',
+              rawOutput: blueTeamContent,
+              targetHost: target,
+              sourceIp: scanServerHost || 'unknown',
+              destinationIp: asset?.ip || target,
+            });
+            const blueTeamGate = evidenceGate({
+              content: blueTeamContent,
+              provenance: blueTeamProvenance,
+              engagementId: String(state.engagementId),
+              evidenceType: 'blue_team_win',
+              sourceTool: 'metasploit' as EvidenceSourceTool,
+            });
+            const blueTeamEvidenceId = `blue-team-win-${target}-${port}-${Date.now()}`;
+            createIntegrityEnvelope({
+              engagementId: String(state.engagementId),
+              evidenceId: blueTeamEvidenceId,
+              content: blueTeamContent,
+              provenance: blueTeamProvenance,
+              sourceTool: 'metasploit' as EvidenceSourceTool,
+            });
+            recordCustodyEvent({
+              engagementId: String(state.engagementId),
+              evidenceId: blueTeamEvidenceId,
+              action: blueTeamGate.passed ? 'integrity_verified' : 'integrity_flagged',
+              performedBy: 'Evidence Gate',
+              details: `Blue team win evidence (exploit blocked): ${blueTeamGate.passed ? 'passed' : 'flagged'}`,
+            });
+          } catch (btGateErr: any) {
+            addLog(state, { phase: 'exploitation', type: 'warning', title: '⚠️ Blue Team Evidence Gate Error', detail: btGateErr.message });
+          }
+        }
+
         // ── Training Bridge: capture exploit outcome ──
         captureExploitOutcome({
           engagementId: state.engagementId,
@@ -5657,9 +5740,47 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
         detail: "Agent callback established. Ready for lateral movement and adversary operations.",
         riskTier: "red",
       });
-    }
 
-    // ── Caldera Operation Auto-Launch ──
+      // ── Evidence Integrity Gate: C2 Deploy ──
+      try {
+        const c2Content = `C2 agent deployed on ${asset.hostname} (${asset.ip || 'unknown'}). ` +
+          `Agent callback established via Caldera Sandcat. Platform: linux. Executors: sh, psh. ` +
+          `Engagement: ${state.engagementId}. Timestamp: ${new Date().toISOString()}`;
+        const c2Provenance = buildProvenance({
+          tool: 'caldera' as EvidenceSourceTool,
+          collectorHost: scanServerHost || 'ac3-platform',
+          rawOutput: c2Content,
+          targetHost: asset.hostname,
+          sourceIp: scanServerHost || 'unknown',
+          destinationIp: asset.ip || 'unknown',
+        });
+        const c2Gate = evidenceGate({
+          content: c2Content,
+          provenance: c2Provenance,
+          engagementId: String(state.engagementId),
+          evidenceType: 'c2_callback',
+          sourceTool: 'caldera' as EvidenceSourceTool,
+        });
+        const c2EvidenceId = `c2-deploy-${asset.hostname}-${Date.now()}`;
+        createIntegrityEnvelope({
+          engagementId: String(state.engagementId),
+          evidenceId: c2EvidenceId,
+          content: c2Content,
+          provenance: c2Provenance,
+          sourceTool: 'caldera' as EvidenceSourceTool,
+        });
+        recordCustodyEvent({
+          engagementId: String(state.engagementId),
+          evidenceId: c2EvidenceId,
+          action: c2Gate.passed ? 'integrity_verified' : 'integrity_flagged',
+          performedBy: 'Evidence Gate',
+          details: `C2 deploy evidence: ${c2Gate.passed ? 'passed' : 'flagged'} (score: ${Math.round(c2Gate.hallucinationScore * 100)}%)`,
+        });
+      } catch (c2GateErr: any) {
+        addLog(state, { phase: 'post_exploit', type: 'warning', title: '⚠️ C2 Evidence Gate Error', detail: c2GateErr.message });
+      }
+    }
+    // ── Caldera Operation Auto-Launch ───
     // If compromised hosts exist and agents are deployed, auto-push adversary profile
     // and launch a Caldera operation to execute the adversary emulation plan.
     let autoLaunchedOpId: string | null = null;
@@ -5846,6 +5967,47 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
               `Polls: ${finalSnapshot.pollCount} | Events: ${finalSnapshot.recentEvents.length}`,
             data: { c2Summary: finalSnapshot },
           });
+
+          // ── Evidence Integrity Gate: C2 Monitoring Complete ──
+          try {
+            const c2MonitorContent = `C2 Monitoring Complete for engagement ${state.engagementId}. ` +
+              `Agents: ${finalSnapshot.agents.length}. Abilities executed: ${finalSnapshot.processedLinkCount}. ` +
+              `Operation state: ${finalSnapshot.operationSnapshot?.state || 'unknown'}. ` +
+              `Agent details: ${finalSnapshot.agents.map((a: any) => `${a.paw}@${a.host}`).join(', ')}. ` +
+              `Poll count: ${finalSnapshot.pollCount}. Events: ${finalSnapshot.recentEvents.length}.`;
+            const c2MonProvenance = buildProvenance({
+              tool: 'caldera' as EvidenceSourceTool,
+              collectorHost: scanServerHost || 'ac3-platform',
+              rawOutput: c2MonitorContent,
+              targetHost: state.assets[0]?.hostname || 'unknown',
+              sourceIp: scanServerHost || 'unknown',
+              destinationIp: state.assets[0]?.ip || 'unknown',
+            });
+            const c2MonGate = evidenceGate({
+              content: c2MonitorContent,
+              provenance: c2MonProvenance,
+              engagementId: String(state.engagementId),
+              evidenceType: 'c2_callback',
+              sourceTool: 'caldera' as EvidenceSourceTool,
+            });
+            const c2MonEvidenceId = `c2-monitor-complete-${Date.now()}`;
+            createIntegrityEnvelope({
+              engagementId: String(state.engagementId),
+              evidenceId: c2MonEvidenceId,
+              content: c2MonitorContent,
+              provenance: c2MonProvenance,
+              sourceTool: 'caldera' as EvidenceSourceTool,
+            });
+            recordCustodyEvent({
+              engagementId: String(state.engagementId),
+              evidenceId: c2MonEvidenceId,
+              action: c2MonGate.passed ? 'integrity_verified' : 'integrity_flagged',
+              performedBy: 'Evidence Gate',
+              details: `C2 monitoring evidence: ${c2MonGate.passed ? 'passed' : 'flagged'} (score: ${Math.round(c2MonGate.hallucinationScore * 100)}%)`,
+            });
+          } catch (c2MonGateErr: any) {
+            addLog(state, { phase: 'post_exploit', type: 'warning', title: '⚠️ C2 Monitor Evidence Gate Error', detail: c2MonGateErr.message });
+          }
         }
       } else {
         addLog(state, {

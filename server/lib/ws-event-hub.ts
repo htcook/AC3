@@ -119,7 +119,15 @@ export type WsEventType =
   | "llm:stealth_alert"
   | "llm:training_captured"
   | "llm:shadow_test_result"
-  | "llm:engagement_progress";
+  | "llm:engagement_progress"
+  // Evidence integrity events
+  | "evidence:gate_passed"
+  | "evidence:gate_flagged"
+  | "evidence:quarantined"
+  | "evidence:chain_flushed"
+  | "evidence:anchor_created"
+  | "evidence:anchor_verified"
+  | "evidence:tamper_detected";
 
 export interface WsEvent {
   type: WsEventType;
@@ -1509,4 +1517,130 @@ export function emitLLMEngagementProgress(data: {
   eventHub.broadcastEngagement(data.engagementId, event);
   eventHub.broadcastGlobal(event);
   eventHub.broadcast(event, "llm:monitor");
+}
+
+// ─── Evidence Integrity Emitters ───────────────────────────────────────
+
+/** Emit when an evidence gate check passes */
+export function emitEvidenceGatePassed(data: {
+  engagementId: number;
+  evidenceId: string;
+  evidenceType: string;
+  sourceTool: string;
+  score: number;
+  target?: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:gate_passed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an evidence gate check flags content */
+export function emitEvidenceGateFlagged(data: {
+  engagementId: number;
+  evidenceId: string;
+  evidenceType: string;
+  sourceTool: string;
+  score: number;
+  recommendation: string;
+  ungroundedClaims: number;
+  target?: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:gate_flagged",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when evidence is quarantined */
+export function emitEvidenceQuarantined(data: {
+  engagementId: number;
+  evidenceId: string;
+  evidenceType: string;
+  reason: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:quarantined",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an evidence chain is flushed to DB */
+export function emitEvidenceChainFlushed(data: {
+  engagementId: number;
+  flushedCount: number;
+  errorCount: number;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:chain_flushed",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when a Merkle root anchor is created */
+export function emitEvidenceAnchorCreated(data: {
+  engagementId: number;
+  merkleRoot: string;
+  chainLength: number;
+  anchoredBy: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:anchor_created",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an anchor is verified */
+export function emitEvidenceAnchorVerified(data: {
+  engagementId: number;
+  valid: boolean;
+  merkleRoot: string;
+  error?: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:anchor_verified",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when evidence tampering is detected */
+export function emitEvidenceTamperDetected(data: {
+  engagementId: number;
+  evidenceId: string;
+  expectedHash: string;
+  actualHash: string;
+}): void {
+  const event: WsEvent = {
+    type: "evidence:tamper_detected",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  eventHub.broadcastEngagement(data.engagementId, event);
+  eventHub.broadcastGlobal(event);
 }

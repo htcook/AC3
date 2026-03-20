@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useEvidenceIntegrityEvents } from "@/hooks/useWebSocket";
+import type { WsEvent } from "@/hooks/useWebSocket";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,9 +52,208 @@ function scoreBar(score: number) {
   );
 }
 
-// ─── Main Component ─────────────────────────────────────────────────────
-export default function EvidenceIntegrity() {
-  const [activeTab, setActiveTab] = useState("overview");
+// ─── Live Monitor Panel ─────────────────────────────────────────────────────────────
+function LiveMonitorPanel() {
+  const { events, status, lastEvent } = useEvidenceIntegrityEvents();
+  const [isPaused, setIsPaused] = useState(false);
+  const [displayEvents, setDisplayEvents] = useState<WsEvent[]>([]);
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  // Accumulate events unless paused
+  useEffect(() => {
+    if (!isPaused && events.length > 0) {
+      setDisplayEvents(events);
+    }
+  }, [events, isPaused]);
+
+  // Counters
+  const counters = useMemo(() => {
+    const c = { passed: 0, flagged: 0, quarantined: 0, anchors: 0, tampered: 0, flushed: 0 };
+    for (const e of displayEvents) {
+      switch (e.type) {
+        case "evidence:gate_passed": c.passed++; break;
+        case "evidence:gate_flagged": c.flagged++; break;
+        case "evidence:quarantined": c.quarantined++; break;
+        case "evidence:anchor_created": c.anchors++; break;
+        case "evidence:tamper_detected": c.tampered++; break;
+        case "evidence:chain_flushed": c.flushed++; break;
+      }
+    }
+    return c;
+  }, [displayEvents]);
+
+  function eventIcon(type: string) {
+    switch (type) {
+      case "evidence:gate_passed": return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />;
+      case "evidence:gate_flagged": return <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />;
+      case "evidence:quarantined": return <ShieldX className="h-3.5 w-3.5 text-red-400" />;
+      case "evidence:chain_flushed": return <Database className="h-3.5 w-3.5 text-blue-400" />;
+      case "evidence:anchor_created": return <Anchor className="h-3.5 w-3.5 text-violet-400" />;
+      case "evidence:anchor_verified": return <Lock className="h-3.5 w-3.5 text-emerald-400" />;
+      case "evidence:tamper_detected": return <ShieldX className="h-3.5 w-3.5 text-red-500 animate-pulse" />;
+      default: return <Activity className="h-3.5 w-3.5 text-muted-foreground" />;
+    }
+  }
+
+  function eventBadgeColor(type: string) {
+    switch (type) {
+      case "evidence:gate_passed": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      case "evidence:gate_flagged": return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+      case "evidence:quarantined": return "bg-red-500/15 text-red-400 border-red-500/30";
+      case "evidence:chain_flushed": return "bg-blue-500/15 text-blue-400 border-blue-500/30";
+      case "evidence:anchor_created": return "bg-violet-500/15 text-violet-400 border-violet-500/30";
+      case "evidence:anchor_verified": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+      case "evidence:tamper_detected": return "bg-red-600/20 text-red-300 border-red-600/40";
+      default: return "bg-muted/30 text-muted-foreground border-border/50";
+    }
+  }
+
+  function eventLabel(type: string) {
+    return type.replace("evidence:", "").replace(/_/g, " ").toUpperCase();
+  }
+
+  function eventDescription(event: WsEvent) {
+    const d = event.data;
+    switch (event.type) {
+      case "evidence:gate_passed":
+        return `${d.sourceTool || "unknown"} → ${d.evidenceType || "evidence"} (score: ${Math.round((d.score || 0) * 100)}%)`;
+      case "evidence:gate_flagged":
+        return `${d.sourceTool || "unknown"} → ${d.evidenceType || "evidence"} (score: ${Math.round((d.score || 0) * 100)}%) — ${d.recommendation || "review"}`;
+      case "evidence:quarantined":
+        return `${d.evidenceType || "evidence"}: ${d.reason || "integrity check failed"}`;
+      case "evidence:chain_flushed":
+        return `${d.flushedCount || 0} envelopes flushed, ${d.errorCount || 0} errors`;
+      case "evidence:anchor_created":
+        return `Merkle root: ${(d.merkleRoot || "").slice(0, 16)}... (${d.chainLength || 0} items)`;
+      case "evidence:anchor_verified":
+        return d.valid ? `Anchor verified: ${(d.merkleRoot || "").slice(0, 16)}...` : `Verification FAILED: ${d.error || "mismatch"}`;
+      case "evidence:tamper_detected":
+        return `Evidence ${d.evidenceId || "unknown"} — expected: ${(d.expectedHash || "").slice(0, 12)}... actual: ${(d.actualHash || "").slice(0, 12)}...`;
+      default:
+        return JSON.stringify(d).slice(0, 100);
+    }
+  }
+
+  const statusColor = status === "connected" ? "bg-emerald-500" : status === "connecting" ? "bg-amber-500" : "bg-red-500";
+
+  return (
+    <div className="space-y-4">
+      {/* Live Monitor Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${statusColor} ${status === "connected" ? "animate-pulse" : ""}`} />
+            <span className="text-sm font-medium">
+              {status === "connected" ? "Live" : status === "connecting" ? "Connecting..." : "Disconnected"}
+            </span>
+          </div>
+          <Badge variant="outline" className="text-xs font-mono">
+            {displayEvents.length} events
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPaused(!isPaused)}
+            className={isPaused ? "border-amber-500/50 text-amber-400" : ""}
+          >
+            {isPaused ? (
+              <><Activity className="h-3.5 w-3.5 mr-1" /> Resume</>
+            ) : (
+              <><Clock className="h-3.5 w-3.5 mr-1" /> Pause</>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDisplayEvents([])}
+          >
+            <XCircle className="h-3.5 w-3.5 mr-1" /> Clear
+          </Button>
+        </div>
+      </div>
+
+      {/* Live Counters */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: "Passed", value: counters.passed, color: "text-emerald-400", bg: "bg-emerald-500/10", icon: CheckCircle2 },
+          { label: "Flagged", value: counters.flagged, color: "text-amber-400", bg: "bg-amber-500/10", icon: ShieldAlert },
+          { label: "Quarantined", value: counters.quarantined, color: "text-red-400", bg: "bg-red-500/10", icon: ShieldX },
+          { label: "Anchors", value: counters.anchors, color: "text-violet-400", bg: "bg-violet-500/10", icon: Anchor },
+          { label: "Flushed", value: counters.flushed, color: "text-blue-400", bg: "bg-blue-500/10", icon: Database },
+          { label: "Tampered", value: counters.tampered, color: counters.tampered > 0 ? "text-red-500" : "text-muted-foreground", bg: counters.tampered > 0 ? "bg-red-600/15" : "bg-muted/20", icon: AlertTriangle },
+        ].map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.label} className={`${c.bg} rounded-lg p-3 flex items-center gap-2`}>
+              <Icon className={`h-4 w-4 ${c.color}`} />
+              <div>
+                <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
+                <p className="text-[10px] text-muted-foreground">{c.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Event Feed */}
+      <Card className="border-border/50 bg-card/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <Activity className="h-4 w-4 text-emerald-400" />
+            Real-Time Evidence Event Feed
+            {isPaused && <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30">PAUSED</Badge>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div ref={feedRef} className="max-h-[500px] overflow-y-auto space-y-1 pr-1">
+            {displayEvents.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Activity className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No evidence integrity events yet</p>
+                <p className="text-xs mt-1">Events will appear here in real-time during active engagements</p>
+              </div>
+            ) : (
+              displayEvents.map((event, idx) => (
+                <div
+                  key={`${event.timestamp}-${idx}`}
+                  className={`flex items-start gap-3 p-2.5 rounded-md border border-transparent hover:border-border/30 hover:bg-muted/10 transition-colors ${
+                    idx === 0 && !isPaused ? "animate-in fade-in slide-in-from-top-1 duration-300" : ""
+                  }`}
+                >
+                  <div className="mt-0.5">{eventIcon(event.type)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className={`text-[10px] font-mono ${eventBadgeColor(event.type)}`}>
+                        {eventLabel(event.type)}
+                      </Badge>
+                      {event.engagementId && (
+                        <span className="text-[10px] text-muted-foreground font-mono">ENG-{event.engagementId}</span>
+                      )}
+                      {event.data?.target && (
+                        <span className="text-[10px] text-muted-foreground">{event.data.target}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {eventDescription(event)}
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap font-mono">
+                    {new Date(event.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────────
+export default function EvidenceIntegrity() {st [activeTab, setActiveTab] = useState("overview");
   const [auditEngagement, setAuditEngagement] = useState<string>("all");
   const [auditSpecialist, setAuditSpecialist] = useState<string>("all");
   const [auditRecommendation, setAuditRecommendation] = useState<string>("all");
@@ -210,6 +411,9 @@ export default function EvidenceIntegrity() {
           </TabsTrigger>
           <TabsTrigger value="validate" className="gap-1.5">
             <Fingerprint className="h-3.5 w-3.5" /> Validate
+          </TabsTrigger>
+          <TabsTrigger value="live" className="gap-1.5">
+            <Activity className="h-3.5 w-3.5" /> Live Monitor
           </TabsTrigger>
         </TabsList>
 
@@ -771,6 +975,11 @@ export default function EvidenceIntegrity() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ─── Live Monitor Tab ─── */}
+        <TabsContent value="live" className="space-y-4 mt-4">
+          <LiveMonitorPanel />
         </TabsContent>
       </Tabs>
 

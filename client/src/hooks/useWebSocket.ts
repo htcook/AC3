@@ -98,7 +98,15 @@ export type WsEventType =
   | "automation:profile_pushed"
   | "automation:playbook_triggered"
   | "automation:pipeline_run"
-  | "automation:enrichment_complete";
+  | "automation:enrichment_complete"
+  // Evidence integrity events
+  | "evidence:gate_passed"
+  | "evidence:gate_flagged"
+  | "evidence:quarantined"
+  | "evidence:chain_flushed"
+  | "evidence:anchor_created"
+  | "evidence:anchor_verified"
+  | "evidence:tamper_detected";
 
 export interface WsEvent {
   type: WsEventType;
@@ -150,6 +158,10 @@ const TOAST_EVENT_TYPES: WsEventType[] = [
   "job:completed",
   "job:failed",
   "job:worker_lost",
+  "evidence:gate_flagged",
+  "evidence:quarantined",
+  "evidence:anchor_created",
+  "evidence:tamper_detected",
 ];
 
 function getToastInfo(event: WsEvent): { title: string; description: string; variant?: "default" | "destructive" } | null {
@@ -204,6 +216,14 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
       return { title: "Job Failed", description: `${event.data.type || "scan"}: ${event.data.error || "unknown error"}`, variant: "destructive" };
     case "job:worker_lost":
       return { title: "Worker Lost", description: `${event.data.workerHost || "worker"} (${event.data.workerType || "unknown"})`, variant: "destructive" };
+    case "evidence:gate_flagged":
+      return { title: "Evidence Flagged", description: `${event.data.evidenceType || "evidence"} from ${event.data.sourceTool || "unknown"} — score: ${event.data.score}`, variant: "destructive" };
+    case "evidence:quarantined":
+      return { title: "Evidence Quarantined", description: `${event.data.evidenceType || "evidence"}: ${event.data.reason || "integrity check failed"}`, variant: "destructive" };
+    case "evidence:anchor_created":
+      return { title: "Integrity Anchor Created", description: `Chain length: ${event.data.chainLength || 0} — Merkle root sealed` };
+    case "evidence:tamper_detected":
+      return { title: "TAMPER DETECTED", description: `Evidence ${event.data.evidenceId || "unknown"} hash mismatch`, variant: "destructive" };
     default:
       return null;
   }
@@ -626,6 +646,28 @@ export function useJobQueueEvents(engagementId?: number) {
       "job:cancelled",
       "job:worker_registered",
       "job:worker_lost",
+    ],
+    []
+  );
+  return useWebSocket({ channels, filterTypes, maxEvents: 200, showToasts: true });
+}
+
+// ─── Evidence Integrity hooks ─────────────────────────────────────
+/** Hook for Evidence Integrity dashboard — real-time evidence gate and anchor events */
+export function useEvidenceIntegrityEvents(engagementId?: number) {
+  const channels = useMemo(
+    () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
+    [engagementId]
+  );
+  const filterTypes = useMemo<WsEventType[]>(
+    () => [
+      "evidence:gate_passed",
+      "evidence:gate_flagged",
+      "evidence:quarantined",
+      "evidence:chain_flushed",
+      "evidence:anchor_created",
+      "evidence:anchor_verified",
+      "evidence:tamper_detected",
     ],
     []
   );
