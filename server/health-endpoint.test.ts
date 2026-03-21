@@ -50,6 +50,7 @@ describe("Health Endpoint & getHealthStatus", () => {
       expect(typeof health.memoryWatchdog.running).toBe("boolean");
       expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(800);
       expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(1200);
+      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(6000);
     });
 
     it("should include engagement status", async () => {
@@ -101,10 +102,11 @@ describe("Health Endpoint & getHealthStatus", () => {
   });
 
   describe("Dockerfile NODE_OPTIONS", () => {
-    it("should have --max-old-space-size=1536 in Dockerfile for 10 concurrent engagements", async () => {
+    it("should have --max-old-space-size=1536 and --expose-gc in Dockerfile", async () => {
       const fs = await import("fs");
       const dockerfile = fs.readFileSync("Dockerfile", "utf-8");
       expect(dockerfile).toContain("--max-old-space-size=1536");
+      expect(dockerfile).toContain("--expose-gc");
       expect(dockerfile).toContain("NODE_OPTIONS");
     });
   });

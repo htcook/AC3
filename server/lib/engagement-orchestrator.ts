@@ -612,38 +612,50 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Scaled thresholds for 10 concurrent engagements
+    // Thresholds calibrated for s-4vcpu-8gb droplet (8GB RAM, --max-old-space-size=1536)
+    // Warning: start trimming logs to slow growth
+    // Critical: aggressive eviction + forced GC to prevent OOM restart
     const HEAP_WARNING_MB = 800;
     const HEAP_CRITICAL_MB = 1200;
-    if (heapMB > HEAP_WARNING_MB) {
-      console.warn(`[MemoryWatchdog] HIGH HEAP: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
+    const RSS_EMERGENCY_MB = 6000; // 75% of 8GB container — emergency flush before OOM kill
+
+    const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
+    if (needsAction) {
+      const level = rssMB > RSS_EMERGENCY_MB ? 'EMERGENCY' : heapMB > HEAP_CRITICAL_MB ? 'CRITICAL' : 'WARNING';
+      console.warn(`[MemoryWatchdog] ${level}: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
+
       // Per-engagement log budget: scale down as more engagements are active
       const activeCount = Math.max(1, opsStates.size);
-      const perEngBudget = heapMB > HEAP_CRITICAL_MB
+      const isEmergency = rssMB > RSS_EMERGENCY_MB || heapMB > HEAP_CRITICAL_MB;
+      const perEngBudget = isEmergency
         ? Math.floor(150 / activeCount * Math.min(activeCount, 10))
         : Math.floor(400 / activeCount * Math.min(activeCount, 10));
-      const maxLogsPerEng = Math.max(100, Math.min(500, perEngBudget));
+      const maxLogsPerEng = Math.max(50, Math.min(500, perEngBudget));
+
       for (const [engId, state] of opsStates.entries()) {
-        // Evict completed engagement states that are older than 10 minutes
-        if ((state.phase === 'completed' || state.phase === 'error') && state.completedAt && Date.now() - state.completedAt > 600_000) {
+        // Evict completed/error engagement states older than 5 min (emergency) or 10 min (normal)
+        const evictAge = isEmergency ? 300_000 : 600_000;
+        if ((state.phase === 'completed' || state.phase === 'error') && state.completedAt && Date.now() - state.completedAt > evictAge) {
           opsStates.delete(engId);
           console.warn(`[MemoryWatchdog] Evicted completed engagement #${engId} from memory`);
           continue;
         }
         if (state.log.length > maxLogsPerEng) {
+          const trimmed = state.log.length - maxLogsPerEng;
           state.log = state.log.slice(-maxLogsPerEng);
-          console.warn(`[MemoryWatchdog] Trimmed logs for engagement #${engId} to ${maxLogsPerEng}`);
+          console.warn(`[MemoryWatchdog] Trimmed ${trimmed} logs for engagement #${engId} to ${maxLogsPerEng}`);
         }
         // Trim large toolResult outputs
+        const outputLimit = isEmergency ? 512 : 1024;
         for (const asset of state.assets) {
           for (const tr of (asset.toolResults || [])) {
-            if (tr.outputPreview && tr.outputPreview.length > 1024) {
+            if (tr.outputPreview && tr.outputPreview.length > outputLimit) {
               tr.outputPreview = tr.outputPreview.slice(0, 512) + '...[trimmed by watchdog]';
             }
           }
         }
       }
-      // Suggest GC if available
+      // Trigger GC if available (requires --expose-gc flag in NODE_OPTIONS)
       if (global.gc) {
         console.warn('[MemoryWatchdog] Triggering manual GC...');
         global.gc();
@@ -696,6 +708,7 @@ export function getHealthStatus() {
       running: memoryWatchdogInterval !== null,
       heapWarningThresholdMB: 800,
       heapCriticalThresholdMB: 1200,
+      rssEmergencyThresholdMB: 6000,
     },
     engagements: {
       activeCount: opsStates.size,

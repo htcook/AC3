@@ -45,7 +45,8 @@ ENV NODE_ENV=production
 
 # Set V8 heap ceiling for predictable OOM behavior in containers
 # 1536MB (1.5GB) supports up to 10 concurrent engagements (~15MB state each + LLM contexts)
-ENV NODE_OPTIONS="--max-old-space-size=1536"
+# --expose-gc allows the memory watchdog to trigger manual garbage collection under pressure
+ENV NODE_OPTIONS="--max-old-space-size=1536 --expose-gc"
 
 # Start the server
 CMD ["node", "dist/index.js"]
