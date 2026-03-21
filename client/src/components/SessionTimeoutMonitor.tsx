@@ -32,6 +32,7 @@ export function SessionTimeoutMonitor() {
   });
 
   const refreshMutation = trpc.calderaAuth.refreshSession.useMutation();
+  const logoutMutation = trpc.calderaAuth.logout.useMutation();
   const utils = trpc.useUtils();
 
   // Format remaining time as "Xm Ys"
@@ -122,10 +123,16 @@ export function SessionTimeoutMonitor() {
     }
   };
 
-  // Handle logout
-  const handleLogout = () => {
+  // Handle logout — clear server session before redirecting
+  const handleLogout = async () => {
     setShowWarning(false);
-    setLocation("/login");
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      // Session may already be expired — proceed to login
+    }
+    localStorage.removeItem("manus-runtime-user-info");
+    window.location.href = "/login";
   };
 
   if (!showWarning) return null;

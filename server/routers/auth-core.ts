@@ -9,8 +9,12 @@ import jwt from "jsonwebtoken";
 export const authRouter = router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
+      // Clear Manus OAuth session cookie
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      // Also clear Caldera session cookie to prevent auto-login bounce
+      const calderaCookieOptions = getCalderaCookieOptions(ctx.req);
+      ctx.res.clearCookie(CALDERA_SESSION_COOKIE, { ...calderaCookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
   });
@@ -183,10 +187,13 @@ export const calderaAuthRouter = router({
         return { success: false, message: 'Session expired, please log in again' };
       }
     }),
-    // Logout
+    // Logout — clear both Caldera session and Manus OAuth cookies
     logout: publicProcedure.mutation(async ({ ctx }) => {
       const cookieOpts = getCalderaCookieOptions(ctx.req);
       ctx.res.clearCookie(CALDERA_SESSION_COOKIE, { ...cookieOpts, maxAge: -1 });
+      // Also clear Manus OAuth session cookie to fully terminate the session
+      const oauthCookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...oauthCookieOptions, maxAge: -1 });
       return { success: true };
     }),
   });

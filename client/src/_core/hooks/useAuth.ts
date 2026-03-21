@@ -24,22 +24,33 @@ export function useAuth(options?: UseAuthOptions) {
     },
   });
 
+  // Also prepare calderaAuth logout to clear the Caldera session cookie
+  const calderaLogoutMutation = trpc.calderaAuth.logout.useMutation();
+
   const logout = useCallback(async () => {
     try {
-      await logoutMutation.mutateAsync();
+      // Clear both auth sessions in parallel
+      await Promise.allSettled([
+        logoutMutation.mutateAsync(),
+        calderaLogoutMutation.mutateAsync(),
+      ]);
     } catch (error: unknown) {
       if (
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
-        return;
+        // Already logged out — ignore
       }
-      throw error;
     } finally {
+      // Clear client-side auth state
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      // Clear cached user info from localStorage
+      localStorage.removeItem("manus-runtime-user-info");
+      // Redirect to login page so the user stays logged out
+      window.location.href = "/login";
     }
-  }, [logoutMutation, utils]);
+  }, [logoutMutation, calderaLogoutMutation, utils]);
 
   const state = useMemo(() => {
     localStorage.setItem(
@@ -48,7 +59,7 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      loading: meQuery.isLoading || logoutMutation.isPending || calderaLogoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
@@ -58,6 +69,7 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    calderaLogoutMutation.isPending,
   ]);
 
   useEffect(() => {
