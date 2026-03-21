@@ -501,9 +501,9 @@ async function startServer() {
     isShuttingDown = true;
     console.log(`\n[GracefulShutdown] Received ${signal}, flushing state...`);
     const shutdownTimeout = setTimeout(() => {
-      console.error('[GracefulShutdown] Timeout after 5s, forcing exit');
+      console.error('[GracefulShutdown] Timeout after 15s, forcing exit');
       process.exit(1);
-    }, 5000);
+    }, 15000);
     try {
       // 1. Flush all engagement states to DB
       const { flushAllPendingState, stopMemoryWatchdog } = await import('../lib/engagement-orchestrator');

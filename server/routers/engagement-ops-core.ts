@@ -2993,4 +2993,73 @@ Return ONLY a JSON object with vulnerabilities array.`;
         profile: (state as any).metadata?.fpSuppressionProfile || 'balanced',
       };
     }),
+
+  // ─── Auto-Resume Management ───────────────────────────────────────────────
+
+  /** Toggle auto-resume on restart for an engagement */
+  setAutoResume: protectedProcedure
+    .input(z.object({ engagementId: z.number(), enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const dbConn = await db.getDbRequired();
+      await dbConn.update(schema.engagements)
+        .set({ autoResumeOnRestart: input.enabled ? 1 : 0 })
+        .where(sql`id = ${input.engagementId}`);
+      await db.logActivity({ userId: ctx.user.id, action: 'set_auto_resume', details: `Set auto-resume=${input.enabled} for engagement #${input.engagementId}` });
+      return { success: true, enabled: input.enabled };
+    }),
+
+  /** Get auto-resume status for an engagement */
+  getAutoResumeStatus: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const dbConn = await db.getDbRequired();
+      const [eng] = await dbConn.select({ autoResumeOnRestart: schema.engagements.autoResumeOnRestart })
+        .from(schema.engagements).where(sql`id = ${input.engagementId}`).limit(1);
+      const [snap] = await dbConn.select({
+        interruptCount: schema.engagementOpsSnapshots.interruptCount,
+        lastInterruptedAt: schema.engagementOpsSnapshots.lastInterruptedAt,
+      })
+        .from(schema.engagementOpsSnapshots)
+        .where(sql`engagement_id = ${input.engagementId}`).limit(1);
+      const interruptCount = snap?.interruptCount || 0;
+      const lastInterruptedAt = snap?.lastInterruptedAt ? new Date(snap.lastInterruptedAt).getTime() : 0;
+      const crashLoopBlocked = interruptCount >= 3 && lastInterruptedAt > (Date.now() - 24 * 60 * 60 * 1000);
+      return {
+        enabled: eng?.autoResumeOnRestart === 1,
+        interruptCount,
+        crashLoopBlocked,
+        lastInterruptedAt: snap?.lastInterruptedAt || null,
+      };
+    }),
+
+  /** Cancel a scheduled auto-resume */
+  cancelAutoResume: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const { cancelAutoResume } = await import('../lib/engagement-auto-resume');
+      const cancelled = cancelAutoResume(input.engagementId);
+      if (cancelled) {
+        await db.logActivity({ userId: ctx.user.id, action: 'cancel_auto_resume', details: `Cancelled auto-resume for engagement #${input.engagementId}` });
+      }
+      return { success: cancelled, message: cancelled ? 'Auto-resume cancelled' : 'No scheduled auto-resume found' };
+    }),
+
+  /** Reset the crash-loop interrupt counter */
+  resetInterruptCounter: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const { resetInterruptCounter } = await import('../lib/engagement-auto-resume');
+      const success = await resetInterruptCounter(input.engagementId);
+      if (success) {
+        await db.logActivity({ userId: ctx.user.id, action: 'reset_interrupt_counter', details: `Reset interrupt counter for engagement #${input.engagementId}` });
+      }
+      return { success };
+    }),
+
+  /** Get all interrupted engagements detected at startup */
+  getInterruptedEngagements: protectedProcedure
+    .query(async () => {
+      const { getDetectedInterruptions } = await import('../lib/engagement-auto-resume');
+      return getDetectedInterruptions();
+    }),
   });

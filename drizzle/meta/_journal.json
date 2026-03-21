@@ -225,6 +225,20 @@
       "when": 1774015268728,
       "tag": "0031_ambitious_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1774099835171,
+      "tag": "0032_solid_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1774101800040,
+      "tag": "0033_sudden_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }

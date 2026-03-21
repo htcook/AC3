@@ -1897,6 +1897,8 @@ export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
 	phase: varchar({ length: 64 }),
 	isRunning: tinyint("is_running").default(0),
 	assetCount: int("asset_count").default(0),
+	interruptCount: int("interrupt_count").default(0),
+	lastInterruptedAt: timestamp("last_interrupted_at", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -2042,6 +2044,7 @@ export const engagements = mysqlTable("engagements", {
 	roeDocumentId: int("roe_document_id"),
 	engTenantId: int("eng_tenant_id"),
 	scanMode: mysqlEnum("scan_mode", ['strict_passive','standard','active']).default('strict_passive'),
+	autoResumeOnRestart: tinyint("auto_resume_on_restart").default(0),
 });
 
 export const errorIncidents = mysqlTable("error_incidents", {
