@@ -612,12 +612,12 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for s-4vcpu-8gb droplet (8GB RAM, --max-old-space-size=1536)
+    // Thresholds calibrated for s-8vcpu-32gb-amd droplet (32GB RAM, --max-old-space-size=1536)
     // Warning: start trimming logs to slow growth
     // Critical: aggressive eviction + forced GC to prevent OOM restart
-    const HEAP_WARNING_MB = 800;
-    const HEAP_CRITICAL_MB = 1200;
-    const RSS_EMERGENCY_MB = 6000; // 75% of 8GB container — emergency flush before OOM kill
+    const HEAP_WARNING_MB = 2000;
+    const HEAP_CRITICAL_MB = 4000;
+    const RSS_EMERGENCY_MB = 24000; // 75% of 32GB container — emergency flush before OOM kill
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
@@ -706,9 +706,9 @@ export function getHealthStatus() {
     },
     memoryWatchdog: {
       running: memoryWatchdogInterval !== null,
-      heapWarningThresholdMB: 800,
-      heapCriticalThresholdMB: 1200,
-      rssEmergencyThresholdMB: 6000,
+      heapWarningThresholdMB: 2000,
+      heapCriticalThresholdMB: 4000,
+      rssEmergencyThresholdMB: 24000,
     },
     engagements: {
       activeCount: opsStates.size,

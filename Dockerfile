@@ -44,9 +44,9 @@ EXPOSE 8080
 ENV NODE_ENV=production
 
 # Set V8 heap ceiling for predictable OOM behavior in containers
-# 1536MB (1.5GB) supports up to 10 concurrent engagements (~15MB state each + LLM contexts)
+# 8192MB (8GB) supports 40+ concurrent asset scans on s-8vcpu-32gb-amd droplet (32GB RAM)
 # --expose-gc allows the memory watchdog to trigger manual garbage collection under pressure
-ENV NODE_OPTIONS="--max-old-space-size=1536 --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=8192 --expose-gc"
 
 # Start the server
 CMD ["node", "dist/index.js"]
