@@ -1387,20 +1387,32 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
     let urlsFound = scan.urlsDiscovered || 0;
 
     if (scan.status === "spidering" && scan.zapSpiderScanId) {
-      const spiderStatus = await zapRequest("/JSON/spider/view/status/", {
-        scanId: scan.zapSpiderScanId,
-      }, cfg);
-      spiderProgress = parseInt(spiderStatus.status || "0", 10);
+      // If DB already shows spider complete (e.g., after server restart with stale ZAP scan IDs),
+      // trust the DB value and skip the ZAP API check to avoid infinite polling on stale IDs.
+      const dbSpiderDone = (scan.spiderProgress || 0) >= 100;
 
-      const spiderResults = await zapRequest("/JSON/spider/view/results/", {
-        scanId: scan.zapSpiderScanId,
-      }, cfg);
-      urlsFound = (spiderResults.results || []).length;
+      if (!dbSpiderDone) {
+        // Spider still in progress — poll ZAP for live status
+        const spiderStatus = await zapRequest("/JSON/spider/view/status/", {
+          scanId: scan.zapSpiderScanId,
+        }, cfg);
+        spiderProgress = parseInt(spiderStatus.status || "0", 10);
 
-      await db.update(webAppScans).set({
-        spiderProgress,
-        urlsDiscovered: urlsFound,
-      }).where(eq(webAppScans.id, scanId));
+        const spiderResults = await zapRequest("/JSON/spider/view/results/", {
+          scanId: scan.zapSpiderScanId,
+        }, cfg);
+        urlsFound = (spiderResults.results || []).length;
+
+        await db.update(webAppScans).set({
+          spiderProgress,
+          urlsDiscovered: urlsFound,
+        }).where(eq(webAppScans.id, scanId));
+      } else {
+        // DB says spider is done — use DB values, skip stale ZAP API call
+        spiderProgress = scan.spiderProgress || 100;
+        urlsFound = scan.urlsDiscovered || 0;
+        console.log(`[ZAP pollScanProgress] Scan #${scanId}: DB shows spider complete (${spiderProgress}%), skipping stale ZAP spider check`);
+      }
 
       if (spiderProgress >= 100) {
         const llmConfig: LLMScanConfig | null = scan.llmScanConfig ? JSON.parse(scan.llmScanConfig) : null;
@@ -1461,25 +1473,42 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             console.warn(`[ZAP Playbook] ${pbResult.errors.length} errors applying playbook:`, pbResult.errors);
           }
         }
-        const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
-          url: scan.targetUrl,
-          recurse: "true",
-          scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
-        }, cfg);
+        // Wrap active scan start in try-catch to fail fast instead of stalling
+        try {
+          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
+            url: scan.targetUrl,
+            recurse: "true",
+            scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
+          }, cfg);
 
-        await db.update(webAppScans).set({
-          status: "active_scanning",
-          zapActiveScanId: String(activeScanResult.scan),
-          spiderProgress: 100,
-        }).where(eq(webAppScans.id, scanId));
+          await db.update(webAppScans).set({
+            status: "active_scanning",
+            zapActiveScanId: String(activeScanResult.scan),
+            spiderProgress: 100,
+          }).where(eq(webAppScans.id, scanId));
 
-        return {
-          status: "active_scanning",
-          spiderProgress: 100,
-          activeScanProgress: 0,
-          urlsFound,
-          alertCounts: await getAlertCounts(scanId),
-        };
+          return {
+            status: "active_scanning",
+            spiderProgress: 100,
+            activeScanProgress: 0,
+            urlsFound,
+            alertCounts: await getAlertCounts(scanId),
+          };
+        } catch (activeScanErr: any) {
+          console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan: ${activeScanErr.message}`);
+          await db.update(webAppScans).set({
+            status: "error",
+            errorMessage: `Failed to start ZAP active scan: ${activeScanErr.message}`,
+            completedAt: new Date(),
+          }).where(eq(webAppScans.id, scanId));
+          return {
+            status: "error",
+            spiderProgress: 100,
+            activeScanProgress: 0,
+            urlsFound,
+            alertCounts: await getAlertCounts(scanId),
+          };
+        }
       }
     }
 
@@ -1524,26 +1553,42 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             console.warn(`[ZAP Playbook] ${pbResult2.errors.length} errors applying playbook:`, pbResult2.errors);
           }
         }
-        // Start active scan after AJAX spider
-        const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
-          url: scan.targetUrl,
-          recurse: "true",
-          scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
-        }, cfg);
+        // Start active scan after AJAX spider — wrapped in try-catch to fail fast
+        try {
+          const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
+            url: scan.targetUrl,
+            recurse: "true",
+            scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
+          }, cfg);
 
-        await db.update(webAppScans).set({
-          status: "active_scanning",
-          zapActiveScanId: String(activeScanResult.scan),
-          urlsDiscovered: urlsFound,
-        }).where(eq(webAppScans.id, scanId));
+          await db.update(webAppScans).set({
+            status: "active_scanning",
+            zapActiveScanId: String(activeScanResult.scan),
+            urlsDiscovered: urlsFound,
+          }).where(eq(webAppScans.id, scanId));
 
-        return {
-          status: "active_scanning",
-          spiderProgress: 100,
-          activeScanProgress: 0,
-          urlsFound,
-          alertCounts: await getAlertCounts(scanId),
-        };
+          return {
+            status: "active_scanning",
+            spiderProgress: 100,
+            activeScanProgress: 0,
+            urlsFound,
+            alertCounts: await getAlertCounts(scanId),
+          };
+        } catch (activeScanErr: any) {
+          console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan after AJAX spider: ${activeScanErr.message}`);
+          await db.update(webAppScans).set({
+            status: "error",
+            errorMessage: `Failed to start ZAP active scan after AJAX spider: ${activeScanErr.message}`,
+            completedAt: new Date(),
+          }).where(eq(webAppScans.id, scanId));
+          return {
+            status: "error",
+            spiderProgress: 100,
+            activeScanProgress: 0,
+            urlsFound,
+            alertCounts: await getAlertCounts(scanId),
+          };
+        }
       }
 
       return {
