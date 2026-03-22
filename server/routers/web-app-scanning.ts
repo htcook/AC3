@@ -291,6 +291,14 @@ export const webAppScanningRouter = router({
     return getScanStats();
   }),
 
+  /** Retry a failed scan — resets it and starts a fresh scan with the same config */
+  retryScan: protectedProcedure
+    .input(z.object({ scanId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const { retryScan } = await import("../lib/zap-scanner");
+      return retryScan(input.scanId, String(ctx.user.id));
+    }),
+
   /** Delete a scan and its findings */
   deleteScan: protectedProcedure
     .input(z.object({ scanId: z.number() }))

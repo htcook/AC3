@@ -1964,6 +1964,90 @@ export async function getScanStats(): Promise<{
 }
 
 /**
+ * Retry a failed/error scan by resetting its state and starting a fresh ZAP scan with the same config.
+ * Only scans with status "error" can be retried.
+ */
+export async function retryScan(scanId: number, userId: string): Promise<{ scanId: number; spiderScanId?: string; status: string; message: string }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  // Fetch the original scan
+  const [scan] = await db.select().from(webAppScans).where(eq(webAppScans.id, scanId)).limit(1);
+  if (!scan) throw new Error(`Scan #${scanId} not found`);
+  if (scan.status !== "error") throw new Error(`Scan #${scanId} is in status '${scan.status}' — only error scans can be retried`);
+
+  // Clear old findings for this scan
+  await db.delete(webAppFindings).where(eq(webAppFindings.scanId, scanId));
+
+  // Reset the scan record to starting state
+  await db.update(webAppScans).set({
+    status: "starting",
+    spiderProgress: 0,
+    activeScanProgress: 0,
+    urlsDiscovered: 0,
+    totalAlerts: 0,
+    alertCounts: null,
+    errorMessage: null,
+    zapSpiderScanId: null,
+    zapActiveScanId: null,
+    zapAjaxSpiderScanId: null,
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    startedBy: userId,
+  }).where(eq(webAppScans.id, scanId));
+
+  // Parse LLM config if available
+  let llmConfig: LLMScanConfig | undefined;
+  if (scan.llmScanConfig) {
+    try { llmConfig = JSON.parse(scan.llmScanConfig); } catch { /* ignore */ }
+  }
+
+  // Parse discovered technologies
+  let discoveredTechnologies: string[] | undefined;
+  if (scan.detectedTechStack) {
+    try { discoveredTechnologies = JSON.parse(scan.detectedTechStack); } catch { /* ignore */ }
+  }
+
+  // Start a fresh scan reusing the original config
+  try {
+    const result = await startScan({
+      targetUrl: scan.targetUrl,
+      scanType: (scan.scanType as "spider_only" | "active" | "full") || "full",
+      scanMode: (scan.scanMode as "passive" | "active") || "passive",
+      userId,
+      scanName: `[RETRY] ${scan.scanName || scan.targetUrl}`,
+      llmConfig,
+      attackChainId: scan.attackChainId || undefined,
+      calderaOperationId: scan.calderaOperationId || undefined,
+      metasploitSessionId: scan.metasploitSessionId || undefined,
+      domainIntelScanId: scan.domainIntelScanId || undefined,
+      discoveredTechnologies,
+    });
+
+    // Mark the old scan as superseded
+    await db.update(webAppScans).set({
+      status: "error",
+      errorMessage: `Superseded by retry scan #${result.scanId}`,
+    }).where(eq(webAppScans.id, scanId));
+
+    return {
+      scanId: result.scanId,
+      spiderScanId: result.spiderScanId,
+      status: result.status,
+      message: `Retry started as scan #${result.scanId}`,
+    };
+  } catch (err: any) {
+    // If retry fails, mark the scan back as error with the new error
+    await db.update(webAppScans).set({
+      status: "error",
+      errorMessage: `Retry failed: ${err.message}`,
+      completedAt: new Date().toISOString(),
+    }).where(eq(webAppScans.id, scanId));
+    throw new Error(`Retry failed for scan #${scanId}: ${err.message}`);
+  }
+}
+
+/**
  * Delete a scan and its findings.
  */
 export async function deleteScan(scanId: number): Promise<{ success: boolean }> {

@@ -316,6 +316,10 @@ function ScanCard({ scan, onPoll, onRefresh }: { scan: any; onPoll: (id: number)
   const deleteScan = trpc.webAppScanning.deleteScan.useMutation({
     onSuccess: () => { toast.success("Scan deleted"); onRefresh(); },
   });
+  const retryScan = trpc.webAppScanning.retryScan.useMutation({
+    onSuccess: (data) => { toast.success(`Retry started as scan #${data.scanId}`); onRefresh(); },
+    onError: (err) => { toast.error(`Retry failed: ${err.message}`); },
+  });
   const stopScan = trpc.webAppScanning.stopScan.useMutation({
     onSuccess: () => { toast.success("Scan stopped"); onRefresh(); },
   });
@@ -380,6 +384,11 @@ function ScanCard({ scan, onPoll, onRefresh }: { scan: any; onPoll: (id: number)
                   <Square className="w-3 h-3 mr-1" />Stop
                 </Button>
               </>
+            )}
+            {scan.status === "error" && (
+              <Button variant="ghost" size="sm" onClick={() => retryScan.mutate({ scanId: scan.id })} disabled={retryScan.isPending} className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
+                {retryScan.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Retry
+              </Button>
             )}
             {scan.status === "completed" && (
               <>
