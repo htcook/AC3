@@ -131,6 +131,10 @@ import {
   type EvidenceSourceTool,
 } from "./evidence-integrity-guardrails";
 import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
+import { SERVER_INSTANCE_ID } from "./server-instance";
+
+// Cache server instance ID at module level for sync access in getHealthStatus
+const _serverInstanceId = SERVER_INSTANCE_ID;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -708,6 +712,7 @@ export function getHealthStatus() {
     uptime: process.uptime(),
     pid: process.pid,
     nodeVersion: process.version,
+    serverInstanceId: _serverInstanceId,
     memory: {
       heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
       heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),

@@ -1899,6 +1899,7 @@ export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
 	assetCount: int("asset_count").default(0),
 	interruptCount: int("interrupt_count").default(0),
 	lastInterruptedAt: timestamp("last_interrupted_at", { mode: 'string' }),
+	serverInstanceId: varchar("server_instance_id", { length: 64 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });

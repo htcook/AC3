@@ -239,6 +239,13 @@
       "when": 1774101800040,
       "tag": "0033_sudden_gwen_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1774151709798,
+      "tag": "0034_right_darwin",
+      "breakpoints": true
     }
   ]
 }

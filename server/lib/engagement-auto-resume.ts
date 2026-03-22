@@ -15,6 +15,7 @@
  */
 
 import { eventHub } from "./ws-event-hub";
+import { SERVER_INSTANCE_ID } from "./server-instance";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -84,6 +85,18 @@ export async function detectInterruptedEngagements(): Promise<InterruptedEngagem
 
     for (const snap of interrupted) {
       const engId = snap.engagementId;
+
+      // Check if this engagement was owned by a DIFFERENT server instance.
+      // If the snapshot's server_instance_id doesn't match ours, it means
+      // another server (e.g., local dev) is running this engagement — NOT an interrupt.
+      const snapshotOwner = snap.serverInstanceId as string | null;
+      if (snapshotOwner && snapshotOwner !== SERVER_INSTANCE_ID) {
+        console.log(
+          `[AutoResume] Engagement #${engId} is owned by server instance "${snapshotOwner}" ` +
+          `(we are "${SERVER_INSTANCE_ID}"). Skipping — not a real interrupt.`
+        );
+        continue;
+      }
 
       // Increment interrupt_count and set last_interrupted_at
       const currentInterruptCount = (snap.interruptCount || 0) + 1;

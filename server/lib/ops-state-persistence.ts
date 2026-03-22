@@ -22,6 +22,7 @@ import { ENV } from "../_core/env";
 import { getDb } from "../db";
 import { sql, eq, desc, and } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
+import { SERVER_INSTANCE_ID } from "./server-instance";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ export async function saveStateSnapshot(
         phase,
         isRunning: options.isRunning ? 1 : 0,
         assetCount,
+        serverInstanceId: SERVER_INSTANCE_ID,
       })
       .where(eq(schema.engagementOpsSnapshots.id, existing[0].id));
     snapshotId = existing[0].id;
@@ -133,6 +135,7 @@ export async function saveStateSnapshot(
         phase,
         isRunning: options.isRunning ? 1 : 0,
         assetCount,
+        serverInstanceId: SERVER_INSTANCE_ID,
       });
     snapshotId = (result as any)[0]?.insertId || 0;
   }
