@@ -31,6 +31,11 @@ import {
   formatChainsForPrompt,
 } from "./knowledge/attack-chain-retriever";
 import {
+  acquireScanSlot,
+  releaseAllForEngagement,
+  getScanConcurrencyMetrics,
+} from "./scan-concurrency";
+import {
   inferAssetContext,
   formatOntologyForPrompt,
 } from "./knowledge/asset-ontology";
@@ -599,6 +604,8 @@ export function abortEngagement(engagementId: number): void {
     controller.abort();
     engagementAbortControllers.delete(engagementId);
   }
+  // Release any held scan concurrency slots for this engagement
+  releaseAllForEngagement(engagementId);
 }
 
 // ─── Memory Watchdog ──────────────────────────────────────────────────────────
@@ -710,6 +717,7 @@ export function getHealthStatus() {
       heapCriticalThresholdMB: 4000,
       rssEmergencyThresholdMB: 24000,
     },
+    scanConcurrency: getScanConcurrencyMetrics(),
     engagements: {
       activeCount: opsStates.size,
       details: activeEngagements,
@@ -4086,10 +4094,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       return { stdout: '', stderr: 'All retries exhausted', exitCode: -1, durationMs: 0, timedOut: false, error: 'All retries exhausted' };
     }
 
+    // ── Parallel Nuclei scanning with concurrency semaphore ──
+    // Instead of sequential per-asset, we build scan tasks and run them
+    // with backpressure from the global scan concurrency limiter.
+    const nucleiScanTasks: Array<{ asset: any; url: string; nucleiArgs: string; target: string; techTags: string[]; assetVulnKeys: Set<string> }> = [];
+
     for (const asset of nucleiAssets) {
       const target = asset.ip || asset.hostname;
-      // Build nuclei target URLs for web ports, or just the host for non-web
-      // Use hostname (not IP) so multiple assets on the same server get distinct scans
       const webPorts = asset.ports.filter(p =>
         ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
         [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
@@ -4124,90 +4135,107 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
 
       const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
-
       for (const url of nucleiTargetUrls) {
-        // Build nuclei args: use tech-specific tags if available, otherwise broad severity scan
         const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(',')}` : '';
         const nucleiArgs = `-u ${url} -severity critical,high,medium ${tagArgs} -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+        nucleiScanTasks.push({ asset, url, nucleiArgs, target, techTags, assetVulnKeys });
+      }
+    }
 
+    // Execute nuclei tasks with concurrency semaphore
+    const NUCLEI_BATCH_SIZE = 4; // Process in batches matching maxConcurrentNuclei
+    const concurrencyMetrics = getScanConcurrencyMetrics();
+    addLog(state, {
+      phase: "vuln_detection", type: "info",
+      title: `⚡ Parallel Nuclei: ${nucleiScanTasks.length} scans across ${nucleiAssets.length} assets`,
+      detail: `Concurrency limiter: ${concurrencyMetrics.activeTotal}/${concurrencyMetrics.activeTotal + NUCLEI_BATCH_SIZE} slots active, batch size=${NUCLEI_BATCH_SIZE}`,
+    });
+
+    async function executeNucleiTask(task: typeof nucleiScanTasks[0]) {
+      const { asset, url, nucleiArgs, target, techTags, assetVulnKeys } = task;
+      let release: (() => void) | null = null;
+      try {
+        release = await acquireScanSlot('nuclei', state.engagementId);
         addLog(state, {
           phase: "vuln_detection", type: "scan_start",
           title: `Nuclei: ${url}`,
           detail: `Running vulnerability scan${techTags.length > 0 ? ` (tech-targeted: ${techTags.join(', ')})` : ' (broad severity scan)'}`,
         });
 
-        try {
-          const result = await executeNucleiWithRetry(nucleiArgs, target);
+        const result = await executeNucleiWithRetry(nucleiArgs, target);
 
-          // Log SSH failures explicitly so they're visible in the UI
-          if (result.exitCode === -1 && !result.stdout) {
-            phase3NucleiErrors++;
-            addLog(state, {
-              phase: "vuln_detection", type: "warning",
-              title: `Nuclei Failed: ${url}`,
-              detail: `SSH connection failed after retries. Error: ${result.error || result.stderr || 'Connection timeout'}. Duration: ${result.durationMs}ms`,
-            });
-          }
-
-          // Parse nuclei JSON output
-          const findings = parseToolOutput("nuclei", result.stdout, asset);
-
-          // Deduplicate: only add findings not already discovered in targeted_enum
-          let newFindings = 0;
-          for (const f of findings) {
-            const key = `${f.severity}::${f.title}::${f.cve || ''}`;
-            if (!assetVulnKeys.has(key)) {
-              asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
-              assetVulnKeys.add(key);
-              state.stats.vulnsFound++;
-              newFindings++;
-            }
-          }
-          phase3NucleiFindings += newFindings;
-
-          // Store as toolResult on asset
-          const nucleiCmd = `nuclei ${nucleiArgs}`;
-          asset.toolResults.push({
-            tool: 'nuclei',
-            command: nucleiCmd,
-            exitCode: result.exitCode,
-            durationMs: result.durationMs,
-            timedOut: result.timedOut,
-            findingCount: findings.length,
-            findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-            outputPreview: result.stdout.slice(0, 2048),
-            executedAt: Date.now(),
-            phase: 'vuln_detection',
-          });
-
-          const dupeNote = findings.length > newFindings ? ` (${findings.length - newFindings} duplicates from targeted_enum skipped)` : '';
-          addLog(state, {
-            phase: "vuln_detection",
-            type: "scan_result",
-            title: `Nuclei Complete: ${url}`,
-            detail: `${newFindings} new findings${dupeNote}, exit code ${result.exitCode}, ${result.durationMs}ms${result.timedOut ? " (TIMED OUT)" : ""}${result.error ? ` [Error: ${result.error}]` : ''}`,
-            data: { findings, outputPreview: result.stdout.slice(0, 500) },
-          });
-
-          // Persist nuclei results to database
-          await persistScanResult({
-            engagementId: state.engagementId,
-            tool: "nuclei",
-            target: url,
-            command: nucleiCmd,
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
-            durationMs: result.durationMs,
-            timedOut: result.timedOut,
-            findings,
-            phase: "vuln_detection",
-          });
-        } catch (e: any) {
+        if (result.exitCode === -1 && !result.stdout) {
           phase3NucleiErrors++;
-          addLog(state, { phase: "vuln_detection", type: "error", title: `Nuclei Error: ${url}`, detail: e.message });
+          addLog(state, {
+            phase: "vuln_detection", type: "warning",
+            title: `Nuclei Failed: ${url}`,
+            detail: `SSH connection failed after retries. Error: ${result.error || result.stderr || 'Connection timeout'}. Duration: ${result.durationMs}ms`,
+          });
         }
+
+        const findings = parseToolOutput("nuclei", result.stdout, asset);
+        let newFindings = 0;
+        for (const f of findings) {
+          const key = `${f.severity}::${f.title}::${f.cve || ''}`;
+          if (!assetVulnKeys.has(key)) {
+            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
+            assetVulnKeys.add(key);
+            state.stats.vulnsFound++;
+            newFindings++;
+          }
+        }
+        phase3NucleiFindings += newFindings;
+
+        const nucleiCmd = `nuclei ${nucleiArgs}`;
+        asset.toolResults.push({
+          tool: 'nuclei',
+          command: nucleiCmd,
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+          timedOut: result.timedOut,
+          findingCount: findings.length,
+          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+          outputPreview: result.stdout.slice(0, 2048),
+          executedAt: Date.now(),
+          phase: 'vuln_detection',
+        });
+
+        const dupeNote = findings.length > newFindings ? ` (${findings.length - newFindings} duplicates from targeted_enum skipped)` : '';
+        addLog(state, {
+          phase: "vuln_detection",
+          type: "scan_result",
+          title: `Nuclei Complete: ${url}`,
+          detail: `${newFindings} new findings${dupeNote}, exit code ${result.exitCode}, ${result.durationMs}ms${result.timedOut ? " (TIMED OUT)" : ""}${result.error ? ` [Error: ${result.error}]` : ''}`,
+          data: { findings, outputPreview: result.stdout.slice(0, 500) },
+        });
+
+        await persistScanResult({
+          engagementId: state.engagementId,
+          tool: "nuclei",
+          target: url,
+          command: nucleiCmd,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+          timedOut: result.timedOut,
+          findings,
+          phase: "vuln_detection",
+        });
+      } catch (e: any) {
+        phase3NucleiErrors++;
+        addLog(state, { phase: "vuln_detection", type: "error", title: `Nuclei Error: ${url}`, detail: e.message });
+      } finally {
+        if (release) release();
       }
+    }
+
+    // Run nuclei tasks in parallel batches with semaphore backpressure
+    for (let i = 0; i < nucleiScanTasks.length; i += NUCLEI_BATCH_SIZE) {
+      const batch = nucleiScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
+      await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
+      // Persist state after each batch completes
+      persistOpsStateDebounced(state.engagementId, 500);
     }
 
     // Accurate summary: report Phase 3 nuclei findings separately from total
@@ -4257,7 +4285,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         detail: "Starting OWASP ZAP scan with WAF detection and evasion",
       });
 
+      // Acquire ZAP scan slot from concurrency limiter
+      let zapRelease: (() => void) | null = null;
       try {
+        zapRelease = await acquireScanSlot('zap', state.engagementId);
         // First, detect WAF
         let wafVendor: string | undefined;
         try {
@@ -4513,6 +4544,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
       } catch (e: any) {
         addLog(state, { phase: "vuln_detection", type: "error", title: `ZAP Scan Error: ${targetUrl}`, detail: e.message });
+      } finally {
+        if (zapRelease) zapRelease();
       }
     }
 
