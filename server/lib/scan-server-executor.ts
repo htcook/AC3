@@ -337,6 +337,101 @@ async function executeSSH(
   });
 }
 
+// ─── P6: SSH Retry with Exponential Backoff ────────────────────────────────
+// Wraps SSH execution functions with automatic retry on connection failures.
+// Only retries on transient SSH errors (connection reset, timeout, ECONNREFUSED);
+// does NOT retry on tool-level errors (non-zero exit code from the scan tool).
+
+const SSH_RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 2000,  // 2s → 4s → 8s exponential backoff
+  backoffMultiplier: 2,
+  /** Error patterns that indicate a transient SSH/network issue worth retrying */
+  retryablePatterns: [
+    'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH',
+    'SSH connection error', 'SSH pool connection error', 'SSH pool connection timed out',
+    'SSH command timed out', 'socket hang up', 'Connection reset',
+    'read ECONNRESET', 'connect ECONNREFUSED', 'Channel open failure',
+    'Keepalive timeout', 'Client-side network socket disconnected',
+  ],
+};
+
+interface SSHRetryMetrics {
+  totalRetries: number;
+  successAfterRetry: number;
+  exhaustedRetries: number;
+}
+
+const sshRetryMetrics: SSHRetryMetrics = {
+  totalRetries: 0,
+  successAfterRetry: 0,
+  exhaustedRetries: 0,
+};
+
+export function getSSHRetryMetrics(): SSHRetryMetrics {
+  return { ...sshRetryMetrics };
+}
+
+function isRetryableSSHError(error: Error | string): boolean {
+  const msg = typeof error === 'string' ? error : error.message;
+  return SSH_RETRY_CONFIG.retryablePatterns.some(pattern => msg.includes(pattern));
+}
+
+async function sshSleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Execute an SSH command with automatic retry on transient connection failures.
+ * Invalidates the pooled connection on failure so the next attempt gets a fresh one.
+ */
+async function executeSSHWithRetry(
+  command: string,
+  timeoutSeconds: number,
+  usePool: boolean = true
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= SSH_RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      if (usePool) {
+        return await executeSSHPooled(command, timeoutSeconds * 1000);
+      } else {
+        return await executeViaChildProcessSSH(command, timeoutSeconds);
+      }
+    } catch (err: any) {
+      lastError = err;
+
+      if (attempt < SSH_RETRY_CONFIG.maxRetries && isRetryableSSHError(err)) {
+        sshRetryMetrics.totalRetries++;
+        const delay = SSH_RETRY_CONFIG.baseDelayMs * Math.pow(SSH_RETRY_CONFIG.backoffMultiplier, attempt);
+        console.warn(`[ScanServer] SSH attempt ${attempt + 1}/${SSH_RETRY_CONFIG.maxRetries + 1} failed: ${err.message}. Retrying in ${delay}ms...`);
+
+        // Invalidate the pooled connection so next attempt gets a fresh one
+        if (pooledConn) {
+          try { pooledConn.end(); } catch { /* ignore */ }
+          pooledConn = null;
+          pooledConnReady = false;
+        }
+
+        await sshSleep(delay);
+        continue;
+      }
+
+      // Non-retryable error or retries exhausted
+      if (attempt >= SSH_RETRY_CONFIG.maxRetries) {
+        sshRetryMetrics.exhaustedRetries++;
+        console.error(`[ScanServer] SSH retries exhausted after ${attempt + 1} attempts: ${err.message}`);
+      }
+      throw err;
+    }
+  }
+
+  // Should never reach here, but TypeScript needs it
+  sshRetryMetrics.successAfterRetry++;
+  throw lastError || new Error('SSH retry logic error');
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
@@ -345,7 +440,7 @@ async function executeSSH(
  *
  * Execution strategy:
  *   1. Try HTTP API (do-scan-api) — non-blocking, better error handling
- *   2. Fall back to child_process SSH if HTTP is unavailable
+ *   2. Fall back to child_process SSH with P6 retry (exponential backoff)
  *
  * The HTTP API path is preferred because it:
  *   - Eliminates SSH connection overhead and key management
@@ -377,15 +472,16 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
     return await executeToolViaHttp(config);
   } catch (httpImportErr: any) {
     // do-scan-api module failed to load — fall through to direct SSH
-    console.warn(`[ScanServer] HTTP API module unavailable (${httpImportErr.message}), using direct SSH`);
+    console.warn(`[ScanServer] HTTP API module unavailable (${httpImportErr.message}), using direct SSH with retry`);
   }
 
-  // Fallback: direct child_process SSH
+  // Fallback: direct child_process SSH with P6 retry
   const prefix = sudo ? "sudo " : "";
   const command = `${prefix}${tool} ${args} 2>&1`;
 
   try {
-    const result = await executeViaChildProcessSSH(command, timeoutSeconds);
+    const result = await executeSSHWithRetry(command, timeoutSeconds, false);
+    if (sshRetryMetrics.totalRetries > 0) sshRetryMetrics.successAfterRetry++;
     return {
       tool,
       command: `${tool} ${args}`,
@@ -429,9 +525,10 @@ export async function executeRawCommand(
     console.warn(`[ScanServer] HTTP API module unavailable for raw command, using direct SSH`);
   }
 
-  // Fallback: direct child_process SSH
+  // Fallback: direct child_process SSH with P6 retry
   try {
-    const result = await executeViaChildProcessSSH(command, timeoutSeconds);
+    const result = await executeSSHWithRetry(command, timeoutSeconds, false);
+    if (sshRetryMetrics.totalRetries > 0) sshRetryMetrics.successAfterRetry++;
     return {
       tool: "raw",
       command,
@@ -570,7 +667,7 @@ export async function executeViaChildProcessSSH(
  */
 export async function checkScanServerStatus(): Promise<ScanServerStatus> {
   try {
-    const result = await executeSSH("cat /opt/tool-manifest.json 2>/dev/null && echo '---HEALTH---' && bash /opt/health-check.sh 2>/dev/null", 15000);
+    const result = await executeSSHWithRetry("cat /opt/tool-manifest.json 2>/dev/null && echo '---HEALTH---' && bash /opt/health-check.sh 2>/dev/null", 15, true);
     const parts = result.stdout.split("---HEALTH---");
     let tools: Record<string, { installed: boolean; path?: string }> = {};
 

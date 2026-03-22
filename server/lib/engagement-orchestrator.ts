@@ -1869,7 +1869,14 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   // Run domain intel scan for each domain
   for (const domain of domains) {
     try {
-      addLog(state, { phase: "recon", type: "scan_start", title: `Domain Intel: ${domain}`, detail: "Running passive OSINT scan" });
+      // Lab domain detection — fast-track mode skips external API connectors
+      const { isLabDomain } = await import("./passive/index");
+      const isLab = isLabDomain(domain);
+      const modeLabel = isLab ? 'Lab fast-track OSINT (local connectors only)' : 'Running passive OSINT scan';
+      addLog(state, { phase: "recon", type: "scan_start", title: `Domain Intel: ${domain}`, detail: modeLabel });
+      if (isLab) {
+        addLog(state, { phase: "recon", type: "info", title: `Lab Domain Detected`, detail: `${domain} matched training lab pattern — skipping external API connectors (Shodan, SecurityTrails, Censys, etc.) to avoid timeouts` });
+      }
 
       const { runDomainIntelPipeline } = await import("../domainIntel");
       const result = await runDomainIntelPipeline({

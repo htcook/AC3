@@ -164,6 +164,37 @@ export interface PassiveReconResult {
 }
 
 
+// ─── Training Lab Detection ─────────────────────────────────────────
+// Lab/training domains won't have WHOIS, Shodan, SecurityTrails, or breach
+// data. Running 40+ connectors against them wastes 2-5 minutes per domain.
+// Fast-track mode runs only free/local connectors that actually return data.
+
+const LAB_DOMAIN_PATTERNS = [
+  /\.lab\.aceofcloud\.io$/i,
+  /\.lab\.aceofcloud\.com$/i,
+  /\.training\.aceofcloud\./i,
+  /\.test\.aceofcloud\./i,
+  /\.ctf\.aceofcloud\./i,
+  /^(dvwa|juiceshop|bwapp|mutillidae|webgoat|altoro|dvbank|hackazon|bodgeit|railsgoat)/i,
+];
+
+/** Connectors that work against lab/internal domains (no external API needed or free) */
+const LAB_FAST_TRACK_CONNECTORS = new Set([
+  'crtsh',           // Certificate transparency — works for any domain with a cert
+  'dns_deep',        // DNS records — works for any resolvable domain
+  'http_security',   // HTTP headers — works for any reachable web server
+  'email_security',  // DMARC/SPF/DKIM — works via DNS
+  'rdap',            // RDAP/WHOIS — fast fail for lab domains, minimal cost
+  'shodan_internetdb', // Free Shodan InternetDB — fast, no API key needed
+  'ip_api',          // Free IP geolocation — works for any IP
+  'wayback',         // Wayback Machine — fast fail for lab domains
+  'container_discovery', // Docker/K8s discovery — works for lab infra
+]);
+
+export function isLabDomain(domain: string): boolean {
+  return LAB_DOMAIN_PATTERNS.some(pattern => pattern.test(domain));
+}
+
 /**
  * Run passive reconnaissance against a domain
  */
@@ -174,8 +205,22 @@ export async function runPassiveRecon(
   const start = Date.now();
   const { scanMode, apiKeys = {}, timeout = 15000, maxConcurrent = 10 } = config;
 
+  // ── Lab Domain Fast-Track ──────────────────────────────────────────
+  const labMode = isLabDomain(domain);
+  if (labMode) {
+    console.log(`[PassiveRecon] Lab domain detected: ${domain} — fast-track mode (${LAB_FAST_TRACK_CONNECTORS.size} connectors only)`);
+  }
+
   // Apply scan mode policy
-  const { allowed, blocked } = filterConnectors(ALL_CONNECTORS, scanMode);
+  const { allowed: modeAllowed, blocked } = filterConnectors(ALL_CONNECTORS, scanMode);
+  // Further filter for lab domains
+  const allowed = labMode
+    ? modeAllowed.filter(c => LAB_FAST_TRACK_CONNECTORS.has(c.name))
+    : modeAllowed;
+  if (labMode) {
+    const skippedCount = modeAllowed.length - allowed.length;
+    console.log(`[PassiveRecon] Lab fast-track: Running ${allowed.length} connectors, skipped ${skippedCount} external API connectors`);
+  }
   const scanModeDescription = getScanModeDescription(scanMode);
 
   // Build connector configs
