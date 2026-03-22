@@ -782,6 +782,14 @@ export async function flushAllPendingState(): Promise<number> {
     engagementAbortControllers.delete(engId);
   }
 
+  // Release all claim locks so other servers can pick up the engagements
+  try {
+    const { releaseAllClaims } = await import('./engagement-claim-lock');
+    await releaseAllClaims();
+  } catch (e: any) {
+    console.error(`[GracefulShutdown] Failed to release claim locks: ${e.message}`);
+  }
+
   console.log(`[GracefulShutdown] Flushed ${flushed}/${activeEngagements.length} engagement states`);
   return flushed;
 }
@@ -6299,6 +6307,26 @@ export async function executeEngagement(
     return;
   }
 
+  // ═══ CLAIM LOCK ═══
+  // Acquire ownership so no other server instance can run this engagement simultaneously
+  try {
+    const { claimEngagement } = await import('./engagement-claim-lock');
+    const claim = await claimEngagement(engagementId);
+    if (!claim.claimed) {
+      const errState = opsStates.get(engagementId) || initOpsState(engagementId, 'pentest');
+      addLog(errState, {
+        phase: 'idle', type: 'error',
+        title: `⛔ Engagement Owned by Another Server`,
+        detail: `Cannot start: another server instance (${claim.currentOwner}) owns this engagement. ${claim.reason}`,
+      });
+      errState.phase = 'error';
+      errState.error = `Claim denied: owned by ${claim.currentOwner}`;
+      return;
+    }
+  } catch (e: any) {
+    console.warn(`[ExecuteEngagement] Claim lock check failed (proceeding): ${e.message}`);
+  }
+
   let state = opsStates.get(engagementId);
 
   // ═══ DURABLE STATE RESUME ═══
@@ -7435,6 +7463,20 @@ export async function resumeEngagement(
   const resumePhase = state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused'
     ? (state.log.length > 0 ? state.log[state.log.length - 1].phase : 'recon')
     : state.phase;
+
+  // ── Claim Lock: acquire ownership before resuming ──
+  try {
+    const { claimEngagement } = await import('./engagement-claim-lock');
+    const claim = await claimEngagement(engagementId);
+    if (!claim.claimed) {
+      return {
+        success: false,
+        message: `Cannot resume: another server instance (${claim.currentOwner}) owns this engagement. ${claim.reason}`,
+      };
+    }
+  } catch (e: any) {
+    console.warn(`[ResumeEngagement] Claim lock check failed (proceeding anyway): ${e.message}`);
+  }
 
   // Reset error state
   state.error = undefined;

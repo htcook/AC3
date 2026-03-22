@@ -277,6 +277,26 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       return;
     }
 
+    // ── Claim Lock: only proceed if we can atomically claim ownership ──
+    const { claimEngagement } = await import("./engagement-claim-lock");
+    const claim = await claimEngagement(engagementId);
+    if (!claim.claimed) {
+      console.log(
+        `[AutoResume] Engagement #${engagementId}: claim denied — ${claim.reason}. ` +
+        `Another server instance is handling it. Skipping auto-resume.`
+      );
+      eventHub.broadcastEngagement(engagementId, {
+        type: "engagement:auto_resume_skipped",
+        engagementId,
+        reason: claim.reason,
+        currentOwner: claim.currentOwner,
+        message: `Auto-resume skipped for #${engagementId}: another server (${claim.currentOwner}) owns it.`,
+      });
+      // Remove from detected list since another server is handling it
+      detectedInterruptions = detectedInterruptions.filter(e => e.engagementId !== engagementId);
+      return;
+    }
+
     console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase}...`);
 
     // Notify owner before resuming

@@ -2212,6 +2212,13 @@ export async function getScanResultsSummary(engagementId: number) {
  */
 export async function saveOpsSnapshot(engagementId: number, state: any): Promise<void> {
   const db = await getDbRequired();
+  // Import server instance ID for ownership tracking
+  let serverInstanceId: string | undefined;
+  try {
+    const { SERVER_INSTANCE_ID } = await import('./lib/server-instance');
+    serverInstanceId = SERVER_INSTANCE_ID;
+  } catch { /* ignore if module not available */ }
+
   // Serialize the state — strip non-serializable fields (Set → Array already handled in getState)
   const stateToSave = {
     ...state,
@@ -2231,6 +2238,7 @@ export async function saveOpsSnapshot(engagementId: number, state: any): Promise
         phase: state.phase || 'idle',
         isRunning: state.isRunning || false,
         assetCount: state.assets?.length || 0,
+        ...(serverInstanceId ? { serverInstanceId } : {}),
       })
       .where(eq(engagementOpsSnapshots.engagementId, engagementId));
   } else {
@@ -2240,6 +2248,7 @@ export async function saveOpsSnapshot(engagementId: number, state: any): Promise
       phase: state.phase || 'idle',
       isRunning: state.isRunning || false,
       assetCount: state.assets?.length || 0,
+      ...(serverInstanceId ? { serverInstanceId } : {}),
     });
   }
 }
