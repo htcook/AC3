@@ -551,6 +551,10 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
 // Debounced persistence to avoid hammering the DB on every log entry
 const persistTimers = new Map<number, NodeJS.Timeout>();
 
+// Periodic forced persistence timers — one per active engagement
+// These ensure state is saved every 60s even if the debounced persist hasn't fired
+const periodicPersistTimers = new Map<number, NodeJS.Timeout>();
+
 function persistOpsStateDebounced(engagementId: number, delayMs = 2000) {
   const existing = persistTimers.get(engagementId);
   if (existing) clearTimeout(existing);
@@ -735,6 +739,12 @@ export async function flushAllPendingState(): Promise<number> {
   for (const [engId, timer] of persistTimers.entries()) {
     clearTimeout(timer);
     persistTimers.delete(engId);
+  }
+
+  // Cancel all periodic persistence timers
+  for (const [engId, timer] of periodicPersistTimers.entries()) {
+    clearInterval(timer);
+    periodicPersistTimers.delete(engId);
   }
 
   // Force-persist all active states
@@ -6519,6 +6529,33 @@ export async function executeEngagement(
     }
   }, 60_000); // Check every minute
 
+  // ═══ PERIODIC FORCED PERSISTENCE (P4) ═══
+  // Force-persist state every 60s to minimize data loss on hard crashes (OOM/SIGKILL).
+  // The debounced persistence (2s) handles normal saves, but on a hard kill the debounce
+  // timer never fires. This guarantees max 60s of data loss instead of "since last phase checkpoint".
+  const PERIODIC_PERSIST_INTERVAL_MS = 60_000;
+  let lastPeriodicPersistAt = Date.now();
+  // Clear any existing periodic timer for this engagement (e.g. from a previous run)
+  const existingPeriodicTimer = periodicPersistTimers.get(engagementId);
+  if (existingPeriodicTimer) clearInterval(existingPeriodicTimer);
+  const periodicPersistInterval = setInterval(async () => {
+    if (!state.isRunning || state.phase === 'completed' || state.phase === 'error') {
+      clearInterval(periodicPersistInterval);
+      periodicPersistTimers.delete(engagementId);
+      return;
+    }
+    try {
+      const { saveOpsSnapshot } = await import('../db');
+      await saveOpsSnapshot(engagementId, state);
+      const elapsed = Math.round((Date.now() - lastPeriodicPersistAt) / 1000);
+      lastPeriodicPersistAt = Date.now();
+      console.log(`[PeriodicPersist] Engagement #${engagementId}: state saved (phase=${state.phase}, progress=${state.progress}%, assets=${state.assets.length}, logs=${state.log.length}, interval=${elapsed}s)`);
+    } catch (e: any) {
+      console.error(`[PeriodicPersist] Failed for engagement #${engagementId}: ${e.message}`);
+    }
+  }, PERIODIC_PERSIST_INTERVAL_MS);
+  periodicPersistTimers.set(engagementId, periodicPersistInterval);
+
   // Wrap addLog to update lastActivityAt
   const origAddLog = addLog;
   const trackActivity = () => { lastActivityAt = Date.now(); };
@@ -7004,6 +7041,7 @@ export async function executeEngagement(
 
     // Complete
     clearInterval(heartbeatInterval); // Clean up heartbeat on completion
+    clearInterval(periodicPersistInterval); // Clean up periodic persistence on completion
     state.phase = "completed";
     state.progress = 100;
     state.isRunning = false;
@@ -7314,6 +7352,7 @@ export async function executeEngagement(
     }
   } catch (e: any) {
     clearInterval(heartbeatInterval); // Clean up heartbeat on error
+    clearInterval(periodicPersistInterval); // Clean up periodic persistence on error
     state.phase = "error";
     state.isRunning = false;
     state.error = e.message;
