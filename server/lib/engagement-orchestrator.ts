@@ -732,9 +732,9 @@ export function getHealthStatus() {
     },
     memoryWatchdog: {
       running: memoryWatchdogInterval !== null,
-      heapWarningThresholdMB: 2000,
-      heapCriticalThresholdMB: 4000,
-      rssEmergencyThresholdMB: 24000,
+      heapWarningThresholdMB: 150,
+      heapCriticalThresholdMB: 200,
+      rssEmergencyThresholdMB: 400,
     },
     scanConcurrency: getScanConcurrencyMetrics(),
     engagements: {
