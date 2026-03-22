@@ -1157,9 +1157,12 @@ export async function startScan(params: {
       eq(webAppScans.targetUrl, params.targetUrl)
     ))
     .limit(1);
-  if (existingScan) {
+  if (existingScan && existingScan.status !== 'error') {
     console.log(`[ZAP Dedup] Scan already exists: ${effectiveScanName} → id=${existingScan.id} (status=${existingScan.status}). Returning existing.`);
     return { scanId: existingScan.id, status: existingScan.status, llmConfig: params.llmConfig, deduplicated: true } as any;
+  }
+  if (existingScan && existingScan.status === 'error') {
+    console.log(`[ZAP Dedup] Previous scan errored: ${effectiveScanName} → id=${existingScan.id}. Allowing retry with new scan.`);
   }
 
   // Generate LLM scan config if not provided — enhanced with tech-specific rule intelligence
@@ -1297,9 +1300,9 @@ export async function startScan(params: {
 
     // Apply playbook rules to ZAP scan policy BEFORE scanning
     if (playbook && params.scanMode === "active") {
-      console.log(`[ZAP Playbook] Pre-applying ${playbook.name} (${playbook.enabledRules.length} enabled, ${playbook.disabledRules.length} disabled)`);
+      console.log(`[ZAP Playbook] Pre-applying ${playbook.name} (${playbook.enabledRules.length} enabled, ${(playbook.disabledRuleIds || []).length} disabled)`);
       const pbResult = await applyPlaybookToZap(playbook, zapApiCfg, zapRequest);
-      console.log(`[ZAP Playbook] Applied: ${pbResult.rulesConfigured} rules configured, ${pbResult.errors.length} errors`);
+      console.log(`[ZAP Playbook] Applied: ${pbResult.applied ? 'success' : 'partial'}, ${pbResult.errors.length} errors`);
     }
 
     // Apply LLM-configured spider settings
