@@ -945,6 +945,10 @@ Tech Stack: ${finding.targetTechStack?.join(", ") || "Unknown"}`,
   }
 }
 
+// ─── Poll Failure Tracking ──────────────────────────────────────────────────
+/** Track consecutive poll failures per scan to detect and recover from stalled scans */
+const pollFailureCounters = new Map<number, number>();
+
 // ─── Scan Lifecycle Functions ───────────────────────────────────────────────
 
 /**
@@ -1581,6 +1585,9 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
       }
     }
 
+    // Reset failure counter on successful poll
+    pollFailureCounters.delete(scanId);
+
     return {
       status: scan.status,
       spiderProgress,
@@ -1589,6 +1596,39 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
       alertCounts: await getAlertCounts(scanId),
     };
   } catch (err: any) {
+    // ── ERROR RECOVERY: Log the error and track consecutive failures ──
+    console.error(`[ZAP pollScanProgress] Scan #${scanId} (status=${scan.status}) error: ${err.message}`);
+
+    // Track consecutive poll failures per scan to prevent infinite stall
+    if (!pollFailureCounters.has(scanId)) pollFailureCounters.set(scanId, 0);
+    const failures = (pollFailureCounters.get(scanId) || 0) + 1;
+    pollFailureCounters.set(scanId, failures);
+
+    const MAX_POLL_FAILURES = 5; // After 5 consecutive failures (~75s at 15s intervals), mark as error
+    if (failures >= MAX_POLL_FAILURES) {
+      console.error(`[ZAP pollScanProgress] Scan #${scanId}: ${failures} consecutive failures. Marking as error.`);
+      try {
+        const db2 = await getDb();
+        if (db2) {
+          await db2.update(webAppScans).set({
+            status: "error",
+            errorMessage: `ZAP scan stalled after ${failures} consecutive poll failures: ${err.message}`,
+            completedAt: new Date(),
+          }).where(eq(webAppScans.id, scanId));
+        }
+      } catch (dbErr: any) {
+        console.error(`[ZAP pollScanProgress] Failed to mark scan #${scanId} as error: ${dbErr.message}`);
+      }
+      pollFailureCounters.delete(scanId);
+      return {
+        status: "error",
+        spiderProgress: scan.spiderProgress || 0,
+        activeScanProgress: scan.activeScanProgress || 0,
+        urlsFound: scan.urlsDiscovered || 0,
+        alertCounts: JSON.parse(scan.alertCounts || '{"high":0,"medium":0,"low":0,"info":0}'),
+      };
+    }
+
     return {
       status: scan.status,
       spiderProgress: scan.spiderProgress || 0,

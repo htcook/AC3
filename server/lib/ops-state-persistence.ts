@@ -86,6 +86,57 @@ function verifyChecksum(data: string, checksum: string): boolean {
 /**
  * Save a state snapshot to the database.
  */
+/**
+ * Trim state before persisting to keep state_json under MAX_STATE_KB.
+ * Preserves assets and findings but aggressively trims logs and tool output.
+ */
+function trimStateForPersistence(state: Record<string, any>): Record<string, any> {
+  const MAX_STATE_KB = 256; // Target max 256KB per engagement state
+  const MAX_LOGS = 50;     // Keep only last 50 logs in persisted state
+  const MAX_OUTPUT_CHARS = 256; // Trim tool output previews
+
+  // Deep clone to avoid mutating in-memory state
+  const trimmed = JSON.parse(JSON.stringify(state));
+
+  // 1. Trim logs to last N entries
+  if (Array.isArray(trimmed.log) && trimmed.log.length > MAX_LOGS) {
+    trimmed.log = trimmed.log.slice(-MAX_LOGS);
+  }
+
+  // 2. Trim tool output previews on all assets
+  if (Array.isArray(trimmed.assets)) {
+    for (const asset of trimmed.assets) {
+      if (Array.isArray(asset.toolResults)) {
+        for (const tr of asset.toolResults) {
+          if (tr.outputPreview && tr.outputPreview.length > MAX_OUTPUT_CHARS) {
+            tr.outputPreview = tr.outputPreview.slice(0, MAX_OUTPUT_CHARS) + '...[trimmed]';
+          }
+          // Cap findings arrays
+          if (tr.findings && tr.findings.length > 20) {
+            tr.findings = tr.findings.slice(0, 20);
+          }
+        }
+      }
+      // Trim large raw data arrays (e.g. ports, services)
+      if (Array.isArray(asset.openPorts) && asset.openPorts.length > 200) {
+        asset.openPorts = asset.openPorts.slice(0, 200);
+      }
+    }
+  }
+
+  // 3. If still too large, progressively reduce logs further
+  let jsonStr = JSON.stringify(trimmed);
+  if (jsonStr.length > MAX_STATE_KB * 1024 && Array.isArray(trimmed.log)) {
+    trimmed.log = trimmed.log.slice(-20);
+    jsonStr = JSON.stringify(trimmed);
+  }
+  if (jsonStr.length > MAX_STATE_KB * 1024 && Array.isArray(trimmed.log)) {
+    trimmed.log = trimmed.log.slice(-5);
+  }
+
+  return trimmed;
+}
+
 export async function saveStateSnapshot(
   engagementId: number,
   state: Record<string, any>,
@@ -98,7 +149,9 @@ export async function saveStateSnapshot(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const stateStr = JSON.stringify(state);
+  // Trim state before persisting to cap DB size and prevent memory bloat on recovery
+  const trimmedState = trimStateForPersistence(state);
+  const stateStr = JSON.stringify(trimmedState);
   const checksum = computeChecksum(stateStr);
   const assetCount = Array.isArray(state.assets) ? state.assets.length : 0;
   const phase = options.phase || state.phase || state.currentPhase || "unknown";
@@ -117,7 +170,7 @@ export async function saveStateSnapshot(
     await db
       .update(schema.engagementOpsSnapshots)
       .set({
-        stateJson: { ...state, _checksum: checksum, _snapshotType: options.snapshotType || "periodic" },
+        stateJson: { ...trimmedState, _checksum: checksum, _snapshotType: options.snapshotType || "periodic" },
         phase,
         isRunning: options.isRunning ? 1 : 0,
         assetCount,
@@ -131,7 +184,7 @@ export async function saveStateSnapshot(
       .insert(schema.engagementOpsSnapshots)
       .values({
         engagementId,
-        stateJson: { ...state, _checksum: checksum, _snapshotType: options.snapshotType || "periodic" },
+        stateJson: { ...trimmedState, _checksum: checksum, _snapshotType: options.snapshotType || "periodic" },
         phase,
         isRunning: options.isRunning ? 1 : 0,
         assetCount,
@@ -246,10 +299,11 @@ export function startPeriodicSnapshots(
         return;
       }
 
-      // Check if state has changed since last snapshot
+      // Check if state has changed since last snapshot (compare trimmed versions)
       const cached = stateCache.get(engagementId);
       if (cached) {
-        const currentStr = JSON.stringify(state);
+        const currentTrimmed = trimStateForPersistence(state);
+        const currentStr = JSON.stringify(currentTrimmed);
         const cachedStr = JSON.stringify(cached.state);
         if (currentStr === cachedStr) {
           return; // No changes, skip snapshot

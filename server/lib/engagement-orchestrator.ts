@@ -627,29 +627,31 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for s-8vcpu-32gb-amd droplet (32GB RAM, --max-old-space-size=1536)
+    // Thresholds calibrated for Manus container (~242MB heap, ~512MB RSS)
+    // The DO droplet has 32GB but the engagement orchestrator runs on Manus.
     // Warning: start trimming logs to slow growth
     // Critical: aggressive eviction + forced GC to prevent OOM restart
-    const HEAP_WARNING_MB = 2000;
-    const HEAP_CRITICAL_MB = 4000;
-    const RSS_EMERGENCY_MB = 24000; // 75% of 32GB container — emergency flush before OOM kill
+    // Emergency: flush everything before the container gets OOM-killed
+    const HEAP_WARNING_MB = 150;
+    const HEAP_CRITICAL_MB = 200;
+    const RSS_EMERGENCY_MB = 400; // Manus container limit is ~512MB
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
       const level = rssMB > RSS_EMERGENCY_MB ? 'EMERGENCY' : heapMB > HEAP_CRITICAL_MB ? 'CRITICAL' : 'WARNING';
       console.warn(`[MemoryWatchdog] ${level}: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
 
-      // Per-engagement log budget: scale down as more engagements are active
+      // Per-engagement log budget: aggressive for Manus container (~242MB heap)
       const activeCount = Math.max(1, opsStates.size);
       const isEmergency = rssMB > RSS_EMERGENCY_MB || heapMB > HEAP_CRITICAL_MB;
       const perEngBudget = isEmergency
-        ? Math.floor(150 / activeCount * Math.min(activeCount, 10))
-        : Math.floor(400 / activeCount * Math.min(activeCount, 10));
-      const maxLogsPerEng = Math.max(50, Math.min(500, perEngBudget));
+        ? Math.floor(30 / activeCount)
+        : Math.floor(80 / activeCount);
+      const maxLogsPerEng = Math.max(20, Math.min(100, perEngBudget));
 
       for (const [engId, state] of opsStates.entries()) {
-        // Evict completed/error engagement states older than 5 min (emergency) or 10 min (normal)
-        const evictAge = isEmergency ? 300_000 : 600_000;
+        // Evict completed/error engagement states immediately at emergency, 2 min otherwise
+        const evictAge = isEmergency ? 0 : 120_000;
         if ((state.phase === 'completed' || state.phase === 'error') && state.completedAt && Date.now() - state.completedAt > evictAge) {
           opsStates.delete(engId);
           console.warn(`[MemoryWatchdog] Evicted completed engagement #${engId} from memory`);
@@ -660,12 +662,20 @@ export function startMemoryWatchdog() {
           state.log = state.log.slice(-maxLogsPerEng);
           console.warn(`[MemoryWatchdog] Trimmed ${trimmed} logs for engagement #${engId} to ${maxLogsPerEng}`);
         }
-        // Trim large toolResult outputs
-        const outputLimit = isEmergency ? 512 : 1024;
+        // Aggressively trim toolResult outputs to prevent memory bloat
+        const outputLimit = isEmergency ? 256 : 512;
         for (const asset of state.assets) {
           for (const tr of (asset.toolResults || [])) {
             if (tr.outputPreview && tr.outputPreview.length > outputLimit) {
-              tr.outputPreview = tr.outputPreview.slice(0, 512) + '...[trimmed by watchdog]';
+              tr.outputPreview = tr.outputPreview.slice(0, outputLimit) + '...[trimmed]';
+            }
+          }
+          // At emergency level, also clear raw scan data that's already been processed
+          if (isEmergency) {
+            for (const tr of (asset.toolResults || [])) {
+              if (tr.findings && tr.findings.length > 10) {
+                tr.findings = tr.findings.slice(0, 10);
+              }
             }
           }
         }
@@ -676,7 +686,7 @@ export function startMemoryWatchdog() {
         global.gc();
       }
     }
-  }, 30_000); // Check every 30 seconds
+  }, 10_000); // Check every 10 seconds — Manus container can OOM fast
 }
 
 /** Stop the memory watchdog */
@@ -812,12 +822,12 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
-  // Memory-aware log trimming: scaled for 10 concurrent engagements
+  // Memory-aware log trimming: calibrated for Manus container (~242MB heap)
   const heapMB = process.memoryUsage().heapUsed / 1024 / 1024;
-  const maxLogs = heapMB > 1200 ? 200 : heapMB > 800 ? 400 : 600;
+  const maxLogs = heapMB > 180 ? 50 : heapMB > 120 ? 100 : 200;
   if (state.log.length > maxLogs) state.log = state.log.slice(-maxLogs);
-  // Under extreme memory pressure, also trim toolResults outputPreview
-  if (heapMB > 1200) {
+  // Under memory pressure, also trim toolResults outputPreview
+  if (heapMB > 150) {
     for (const asset of state.assets) {
       for (const tr of (asset.toolResults || [])) {
         if (tr.outputPreview && tr.outputPreview.length > 512) {
@@ -4544,8 +4554,33 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}` });
                 await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
               }
-            } catch {
+            } catch (pollErr: any) {
+              addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Poll Error: ${targetUrl}`, detail: pollErr.message || 'Unknown poll error' });
               zapDone = true; // Stop polling on error
+            }
+          }
+
+          // If the polling loop timed out without completing, mark the scan as timed out
+          if (!zapDone) {
+            addLog(state, {
+              phase: "vuln_detection", type: "warning",
+              title: `ZAP Timeout: ${targetUrl}`,
+              detail: `ZAP scan #${zapScanId} did not complete within 5 minutes. Marking as timed out and moving on.`,
+            });
+            try {
+              const { getDb } = await import("../db");
+              const db = await getDb();
+              if (db) {
+                const { webAppScans } = await import("../../drizzle/schema");
+                const { eq } = await import("drizzle-orm");
+                await db.update(webAppScans).set({
+                  status: "error",
+                  errorMessage: `ZAP scan timed out after 5 minutes of polling (stuck in spider→active transition)`,
+                  completedAt: new Date(),
+                }).where(eq(webAppScans.id, zapScanId));
+              }
+            } catch (dbErr: any) {
+              console.error(`[Orchestrator] Failed to mark timed-out ZAP scan #${zapScanId}: ${dbErr.message}`);
             }
           }
         }
