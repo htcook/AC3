@@ -6311,7 +6311,8 @@ export async function executeEngagement(
   // Acquire ownership so no other server instance can run this engagement simultaneously
   try {
     const { claimEngagement } = await import('./engagement-claim-lock');
-    const claim = await claimEngagement(engagementId);
+    // User-initiated actions force-claim to override stale claims from dead servers
+    const claim = await claimEngagement(engagementId, { force: true });
     if (!claim.claimed) {
       const errState = opsStates.get(engagementId) || initOpsState(engagementId, 'pentest');
       addLog(errState, {
@@ -7464,10 +7465,11 @@ export async function resumeEngagement(
     ? (state.log.length > 0 ? state.log[state.log.length - 1].phase : 'recon')
     : state.phase;
 
-  // ── Claim Lock: acquire ownership before resuming ──
+  // ── Claim Lock: acquire ownership before resuming (force=true for user-initiated) ──
   try {
     const { claimEngagement } = await import('./engagement-claim-lock');
-    const claim = await claimEngagement(engagementId);
+    // User-initiated resumes force-claim to override stale claims from dead servers
+    const claim = await claimEngagement(engagementId, { force: true });
     if (!claim.claimed) {
       return {
         success: false,

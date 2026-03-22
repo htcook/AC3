@@ -55,7 +55,8 @@ describe("Claim Lock — Ownership Decision Logic", () => {
   function shouldClaimSucceed(
     currentOwner: string | null,
     updatedAt: number | null,
-    ourId: string
+    ourId: string,
+    force: boolean = false
   ): { canClaim: boolean; reason: string } {
     // No owner → claim
     if (!currentOwner) {
@@ -69,6 +70,10 @@ describe("Claim Lock — Ownership Decision Logic", () => {
     const age = updatedAt ? Date.now() - updatedAt : Infinity;
     if (age >= CLAIM_EXPIRY_MS) {
       return { canClaim: true, reason: "Stale claim — stealing" };
+    }
+    // Force override for user-initiated actions
+    if (force) {
+      return { canClaim: true, reason: "Force-claimed (user-initiated)" };
     }
     return { canClaim: false, reason: `Fresh claim by ${currentOwner}` };
   }
@@ -113,6 +118,36 @@ describe("Claim Lock — Ownership Decision Logic", () => {
     // At exactly CLAIM_EXPIRY_MS, should be stale
     const result = shouldClaimSucceed(OTHER_ID, Date.now() - CLAIM_EXPIRY_MS, OUR_ID);
     expect(result.canClaim).toBe(true);
+  });
+
+  // ── Force-claim tests (user-initiated override) ──
+
+  it("should allow force-claim even when another server has a fresh claim", () => {
+    const result = shouldClaimSucceed(OTHER_ID, Date.now() - 10_000, OUR_ID, true);
+    expect(result.canClaim).toBe(true);
+    expect(result.reason).toContain("Force");
+  });
+
+  it("should allow force-claim at 1 second old (well within expiry)", () => {
+    const result = shouldClaimSucceed(OTHER_ID, Date.now() - 1_000, OUR_ID, true);
+    expect(result.canClaim).toBe(true);
+  });
+
+  it("force=false should still deny fresh claims (auto-resume behavior)", () => {
+    const result = shouldClaimSucceed(OTHER_ID, Date.now() - 10_000, OUR_ID, false);
+    expect(result.canClaim).toBe(false);
+  });
+
+  it("force should not affect unclaimed engagements", () => {
+    const result = shouldClaimSucceed(null, null, OUR_ID, true);
+    expect(result.canClaim).toBe(true);
+    expect(result.reason).toBe("Unclaimed");
+  });
+
+  it("force should not affect already-owned engagements", () => {
+    const result = shouldClaimSucceed(OUR_ID, Date.now(), OUR_ID, true);
+    expect(result.canClaim).toBe(true);
+    expect(result.reason).toBe("Already owned by us");
   });
 });
 
