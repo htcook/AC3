@@ -2247,11 +2247,11 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
             state!.stats.vulnsFound = state!.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
             state!.stats.assetsDiscovered = state!.assets.length;
 
-            state!.phase = 'complete';
+            state!.phase = 'completed';
             state!.isRunning = false;
             state!.currentAction = undefined;
-            addLog(state!, { phase: 'complete', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.stats.hostsScanned} scanned, ${state!.stats.portsFound} ports, ${state!.stats.vulnsFound} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
-            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'complete' });
+            addLog(state!, { phase: 'completed', type: 'success', title: '\u{1f3c1} Pipeline Complete', detail: `${state!.assets.length} assets, ${state!.stats.hostsScanned} scanned, ${state!.stats.portsFound} ports, ${state!.stats.vulnsFound} vulns, ${(state as any).generatedExploits?.length || 0} exploits` });
+            broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'completed' });
 
             // Record vulnerability trend snapshot
             try {

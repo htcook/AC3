@@ -216,6 +216,7 @@ const PHASES: Array<{ id: string; label: string; icon: React.ReactNode; color: s
 
 function getPhaseIndex(phase: string): number {
   if (phase === "recon_complete") return 0; // still in recon area
+  if (phase === "complete") return PHASES.findIndex(p => p.id === "completed"); // normalize 'complete' → 'completed'
   const idx = PHASES.findIndex(p => p.id === phase);
   return idx >= 0 ? idx : -1;
 }
@@ -1088,7 +1089,8 @@ export default function EngagementOps() {
   const isReconComplete = ops?.phase === "recon_complete" || (getPhaseIndex(ops?.phase || "idle") > 0 && ops?.phase !== "recon");
   const isIdle = !ops || ops.phase === "idle";
   const isErrorState = ops?.phase === "error";
-  const canStartPassive = hasTargets && !ops?.isRunning && (isIdle || ops?.phase === "idle" || isErrorState);
+  const isCompleted = ops?.phase === "completed" || ops?.phase === "complete";
+  const canStartPassive = hasTargets && !ops?.isRunning && (isIdle || ops?.phase === "idle" || isErrorState || isCompleted);
   const canStartActive = isReconComplete && !ops?.isRunning && roeSigned;
 
   if (!engagementId) {
@@ -1366,7 +1368,7 @@ export default function EngagementOps() {
                 )}
 
                 {/* Completed state */}
-                {ops?.phase === "completed" && (
+                {isCompleted && (
                   <>
                     <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Completed
