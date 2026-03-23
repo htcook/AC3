@@ -1720,8 +1720,44 @@ export const engagementOpsRouter = router({
                   }
                 }
 
+                // Fallback: if passive recon produced 0 observations, create synthetic ones from known assets
+                // This ensures lab domains (which skip external OSINT) still get active scan targets
+                if (allObservations.length === 0 && state!.assets.length > 0) {
+                  for (const asset of state!.assets) {
+                    allObservations.push({
+                      id: `fallback-${asset.hostname}`,
+                      assetId: asset.hostname,
+                      hostname: asset.hostname,
+                      name: asset.hostname,
+                      domain: asset.hostname,
+                      source: 'fallback-asset-list',
+                      type: 'host',
+                      assetType: 'domain',
+                      value: asset.hostname,
+                      tags: ['fallback'],
+                      confidence: 1.0,
+                      timestamp: Date.now(),
+                      evidence: {},
+                      attribution: { provider: 'engagement-assets', method: 'Known target from engagement scope' },
+                      observedAt: new Date(),
+                    });
+                  }
+                  addLog(state!, { phase: 'scanning', type: 'info', title: '\u{1f504} Fallback: Creating scan targets from asset list', detail: `Passive recon returned 0 observations. Using ${state!.assets.length} known assets as scan targets.` });
+                }
+                // Build technologies, services, and WAF maps from assets for the handoff
+                const techMap: Record<string, string[]> = {};
+                const servicesList: Array<{ hostname: string; port: number; service: string; version: string }> = [];
+                const wafMap: Record<string, boolean> = {};
+                for (const asset of state!.assets) {
+                  const pr = asset.passiveRecon as any;
+                  if (pr?.technologies?.length) techMap[asset.hostname] = pr.technologies;
+                  for (const port of (asset.ports || [])) {
+                    servicesList.push({ hostname: asset.hostname, port: (port as any).port, service: (port as any).service || 'unknown', version: (port as any).version || '' });
+                  }
+                  if (pr?.wafDetected) wafMap[asset.hostname] = true;
+                }
                 activeScanPlan = generateActiveScanPlan(
-                  { observations: allObservations, riskSignals: allRiskSignals },
+                  { observations: allObservations, riskSignals: allRiskSignals, technologies: techMap, services: servicesList, wafDetected: wafMap },
                   roe,
                 );
 

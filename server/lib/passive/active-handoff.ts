@@ -480,7 +480,7 @@ export function generateActiveScanPlan(
   }>();
 
   for (const obs of passiveResults.observations) {
-    const hostname = obs.name || obs.domain || "";
+    const hostname = obs.name || obs.domain || (obs as any).hostname || (obs as any).assetId || "";
     if (!hostname) continue;
 
     if (!targetMap.has(hostname)) {

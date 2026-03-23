@@ -160,28 +160,4 @@ export const scanServerRouter = router({
       }
     }),
 
-    /** Temporary: check nginx vhost configs and docker containers on scan server */
-    nginxCheck: protectedProcedure.query(async () => {
-      try {
-        const { executeTool } = await import('../lib/scan-server-executor');
-        const cmds = [
-          'echo "=== Docker Containers ==="',
-          'docker ps --format "{{.Names}}\t{{.Status}}\t{{.Ports}}"',
-          'echo ""',
-          'echo "=== Nginx sites-enabled ==="',
-          'ls /etc/nginx/sites-enabled/',
-          'echo ""',
-          'echo "=== Nginx Vhost Configs ==="',
-          'for f in /etc/nginx/sites-enabled/*; do echo "--- $f ---"; cat "$f"; echo ""; done',
-        ].join(' && ');
-        const result = await executeTool({
-          tool: 'bash',
-          args: `-c '${cmds}'`,
-          timeoutSeconds: 15,
-        });
-        return { output: result.stdout + (result.stderr ? '\nSTDERR: ' + result.stderr : ''), error: null };
-      } catch (err: any) {
-        return { output: null, error: err.message };
-      }
-    }),
   });
