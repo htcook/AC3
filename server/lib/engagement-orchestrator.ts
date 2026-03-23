@@ -822,19 +822,24 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
-  // Memory-aware log trimming: calibrated for Manus container (~242MB heap)
+  // Memory-aware log trimming: calibrated for Manus container (~384MB max-old-space)
   const heapMB = process.memoryUsage().heapUsed / 1024 / 1024;
-  const maxLogs = heapMB > 180 ? 50 : heapMB > 120 ? 100 : 200;
+  const maxLogs = heapMB > 200 ? 30 : heapMB > 150 ? 50 : heapMB > 100 ? 80 : 150;
   if (state.log.length > maxLogs) state.log = state.log.slice(-maxLogs);
-  // Under memory pressure, also trim toolResults outputPreview
-  if (heapMB > 150) {
+  // Under memory pressure, aggressively trim toolResults outputPreview
+  if (heapMB > 120) {
+    const outputCap = heapMB > 200 ? 128 : heapMB > 150 ? 256 : 512;
     for (const asset of state.assets) {
       for (const tr of (asset.toolResults || [])) {
-        if (tr.outputPreview && tr.outputPreview.length > 512) {
-          tr.outputPreview = tr.outputPreview.slice(0, 512) + '...[trimmed]';
+        if (tr.outputPreview && tr.outputPreview.length > outputCap) {
+          tr.outputPreview = tr.outputPreview.slice(0, outputCap) + '...[trimmed]';
         }
       }
     }
+  }
+  // Trigger GC periodically when heap is high (every ~50 log entries)
+  if (heapMB > 180 && state.log.length % 50 === 0 && global.gc) {
+    global.gc();
   }
   broadcastOpsUpdate(state.engagementId, { type: "log", entry: logEntry });
   // Trigger debounced persistence on every log entry
@@ -935,7 +940,7 @@ async function persistTimelineEvent(engagementId: number, logEntry: OpsLogEntry)
       eventType: eventType as any,
       severity: severity as any,
       title: logEntry.title.slice(0, 512),
-      description: logEntry.detail?.slice(0, 5000),
+      description: logEntry.detail?.slice(0, 2000),
       metadata: logEntry.data || null,
       sourceModule: 'engagement-orchestrator',
       timestamp: logEntry.timestamp,
@@ -3185,7 +3190,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               severity: 'info',
               title: `${p.port}/${p.protocol} ${p.service}${p.product ? ` (${p.product})` : ''}`,
             })),
-            outputPreview: (nmapResult.stdout || '').slice(0, 2048),
+            outputPreview: (nmapResult.stdout || '').slice(0, 1024),
             executedAt: Date.now(),
             phase: 'discovery',
           });
@@ -3431,7 +3436,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               timedOut: httpxResult.timedOut || false,
               findingCount: httpxFindings.length,
               findings: httpxFindings,
-              outputPreview: (httpxResult.stdout || '').slice(0, 2048),
+              outputPreview: (httpxResult.stdout || '').slice(0, 1024),
               executedAt: Date.now(),
               phase: 'discovery',
             });
@@ -3722,7 +3727,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           timedOut: nmapResult.timedOut || false,
           findingCount: findings.length,
           findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-          outputPreview: (nmapResult.stdout || '').slice(0, 2048),
+          outputPreview: (nmapResult.stdout || '').slice(0, 1024),
           executedAt: Date.now(),
           phase: 'targeted_enum',
         });
@@ -3976,7 +3981,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         timedOut: result.timedOut,
         findingCount: findings.length,
         findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-        outputPreview: result.stdout.slice(0, 2048),
+        outputPreview: result.stdout.slice(0, 1024),
         executedAt: Date.now(),
         phase: 'targeted_enum',
       });
@@ -4235,7 +4240,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           timedOut: result.timedOut,
           findingCount: findings.length,
           findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-          outputPreview: result.stdout.slice(0, 2048),
+          outputPreview: result.stdout.slice(0, 1024),
           executedAt: Date.now(),
           phase: 'vuln_detection',
         });
@@ -4595,7 +4600,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           timedOut: false,
           findingCount: zapFindings.length,
           findings: zapFindings.map(f => ({ severity: f.risk, title: f.alert })),
-          outputPreview: JSON.stringify(zapFindings.slice(0, 10), null, 2).slice(0, 2048),
+          outputPreview: JSON.stringify(zapFindings.slice(0, 10), null, 2).slice(0, 1024),
           executedAt: Date.now(),
           phase: 'vuln_detection',
         });
@@ -4701,7 +4706,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             timedOut: result.timedOut,
             findingCount: findings.length,
             findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-            outputPreview: result.stdout.slice(0, 2048),
+            outputPreview: result.stdout.slice(0, 1024),
             executedAt: Date.now(),
             phase: 'credential_testing',
           });
@@ -4820,6 +4825,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   const allVulns = state.assets.flatMap(a => a.vulns);
   if (allVulns.length > 0) {
     addLog(state, { phase: "vuln_detection", type: "llm_decision", title: "LLM Correlation Analysis", detail: "Analyzing findings across all tools to identify attack vectors..." });
+
+    // ── Pre-LLM memory relief: GC + trim before building large context strings ──
+    if (global.gc) {
+      global.gc();
+      const preLlmMem = process.memoryUsage();
+      console.log(`[MemoryRelief] Pre-LLM GC: heap=${Math.round(preLlmMem.heapUsed/1024/1024)}MB, RSS=${Math.round(preLlmMem.rss/1024/1024)}MB`);
+    }
 
     // ── KEV enrichment: match discovered CVEs against CISA KEV catalog ──
     let kevContext = '';
@@ -5200,6 +5212,13 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
   state.currentAction = "Running exploitation phase...";
   addLog(state, { phase: "exploitation", type: "info", title: "⚔️ Phase 4: Exploitation", detail: "Attempting exploitation on vulnerable assets" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "exploitation" });
+
+  // ── Pre-exploitation memory relief ──
+  if (global.gc) {
+    global.gc();
+    const preExploitMem = process.memoryUsage();
+    console.log(`[MemoryRelief] Pre-exploit GC: heap=${Math.round(preExploitMem.heapUsed/1024/1024)}MB, RSS=${Math.round(preExploitMem.rss/1024/1024)}MB`);
+  }
 
   // Get LLM to prioritize targets
   const _exploitDecStart = Date.now();
@@ -6772,7 +6791,7 @@ export async function executeEngagement(
               for (const tr of (asset.toolResults || [])) {
                 if (tr.outputPreview && tr.findingCount > 0) {
                   const existing = toolOutputMap.get(tr.tool) || '';
-                  toolOutputMap.set(tr.tool, (existing + '\n' + tr.outputPreview).slice(0, 2000));
+                  toolOutputMap.set(tr.tool, (existing + '\n' + tr.outputPreview).slice(0, 1024));
                 }
               }
               return asset.vulns.map((v, idx) => {

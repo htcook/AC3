@@ -531,10 +531,62 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
 
-    // Defer background tasks by 2 minutes to avoid proxy rate-limiting on startup
-    const BACKGROUND_DELAY = 120_000; // 2 minutes
-    console.log(`[Background] Deferring background schedulers by ${BACKGROUND_DELAY / 1000}s to avoid rate limits...`);
+    // ── PHASE 1: Immediate (0s) — Critical services only ──────────────────
+    // Start Memory Watchdog IMMEDIATELY — the container starts at ~434MB RSS
+    // with a ~512MB limit, so we need pressure relief from the first second.
+    import("../lib/engagement-orchestrator").then(({ startMemoryWatchdog }) => {
+      startMemoryWatchdog();
+      console.log("[MemoryWatchdog] Memory watchdog started immediately (10s interval)");
+    }).catch((err) => {
+      console.warn("[MemoryWatchdog] Failed to start memory watchdog:", err);
+    });
+
+    // Trigger initial GC after module loading settles (if --expose-gc is set)
     setTimeout(() => {
+      if (global.gc) {
+        global.gc();
+        const mem = process.memoryUsage();
+        console.log(`[GC] Initial GC complete: heap=${Math.round(mem.heapUsed/1024/1024)}MB, RSS=${Math.round(mem.rss/1024/1024)}MB`);
+      }
+    }, 5_000);
+
+    // ── PHASE 2: After 30s — Startup recovery + lightweight schedulers ────
+    setTimeout(() => {
+      console.log("[Background] Phase 2: Starting recovery + lightweight schedulers...");
+
+      // Startup Recovery: detect and recover interrupted engagements from DB
+      import("../lib/engagement-orchestrator").then(async ({ recoverInterruptedEngagements }) => {
+        const result = await recoverInterruptedEngagements();
+        if (result.recovered > 0) {
+          console.log(`[StartupRecovery] Recovered ${result.recovered} interrupted engagement(s):`,
+            result.engagements.map(e => `#${e.id}(${e.phase})`).join(', '));
+        } else {
+          console.log("[StartupRecovery] No interrupted engagements found");
+        }
+      }).catch((err) => {
+        console.warn("[StartupRecovery] Recovery scan failed:", err);
+      });
+
+      // Initialize Engagement Auto-Resume Hook (detect interrupted engagements)
+      import("../lib/engagement-auto-resume").then(({ initAutoResumeHook }) => {
+        initAutoResumeHook();
+        console.log("[AutoResume] Engagement auto-resume hook initialized");
+      }).catch((err) => {
+        console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
+      });
+
+      // Initialize Scan Recovery cron job (every 5 minutes)
+      import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
+        initScanRecoverySchedule();
+      }).catch((err) => {
+        console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
+      });
+    }, 30_000);
+
+    // ── PHASE 3: After 2 min — Cron-only schedulers (no immediate sync) ──
+    setTimeout(() => {
+      console.log("[Background] Phase 3: Starting cron schedulers (no immediate data sync)...");
+
       // Initialize IOC Feed auto-sync cron job (daily at 06:00 UTC)
       import("../lib/ioc-sync").then(({ initIocSyncSchedule }) => {
         initIocSyncSchedule();
@@ -558,49 +610,46 @@ async function startServer() {
 
       // Initialize Exploit Catalog enrichment scheduler (weekly)
       import("../lib/enrichment-scheduler").then(({ startScheduler }) => {
-        startScheduler(); // 7-day interval, safe to call multiple times
+        startScheduler();
         console.log("[Enrichment] Weekly enrichment scheduler initialized");
       }).catch((err) => {
         console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
       });
 
-      // Initialize Scan Recovery cron job (every 5 minutes)
-      import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
-        initScanRecoverySchedule();
-      }).catch((err) => {
-        console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
-      });
-
       // Initialize Darkweb Feed sync scheduler (staggered: 6h/12h/24h)
+      // NOTE: DDW + RSS auto-seed on startup REMOVED to prevent OOM.
+      // These feeds sync on their scheduled cron intervals instead.
       import("../lib/darkweb-feed-scheduler").then(({ initDarkwebFeedScheduler }) => {
         initDarkwebFeedScheduler();
       }).catch((err) => {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
-      // Auto-seed DDW threat actor data + RSS feeds on startup (30s delay to let server stabilize)
-      setTimeout(async () => {
-        try {
-          console.log("[AutoSeed] Starting DDW feed auto-seed...");
-          const { syncDailyDarkWebFeed } = await import("../lib/dailydarkweb-feed");
-          const ddwResult = await syncDailyDarkWebFeed();
-          console.log(`[AutoSeed] DDW seed complete: FULCRUMSEC(iocs=${ddwResult.fulcrumsec.iocs}, events=${ddwResult.fulcrumsec.events}, breachEvents=${ddwResult.fulcrumsec.breachEvents}), actors(${ddwResult.actors.actors} new, ${ddwResult.actors.events} events, ${ddwResult.actors.breachEvents} breach events)`);
-        } catch (err: any) {
-          console.warn("[AutoSeed] DDW feed auto-seed failed:", err.message);
-        }
+      // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
+      import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
+        initAutoGenerationSchedule();
+      }).catch((err) => {
+        console.warn("[AutoGenPipeline] Failed to initialize auto-generation scheduler:", err);
+      });
 
-        // Trigger all 18 RSS feeds after DDW seed (additional 30s delay)
-        setTimeout(async () => {
-          try {
-            console.log("[AutoSeed] Starting multi-source RSS feed sync...");
-            const { syncAllThreatIntelFeeds } = await import("../lib/threat-intel-rss");
-            const rssResult = await syncAllThreatIntelFeeds({});
-            console.log(`[AutoSeed] RSS sync complete: ${rssResult.feedsSucceeded}/${rssResult.totalFeeds} feeds, TGE:${rssResult.totalThreatGroupEvents} RE:${rssResult.totalRansomwareEvents} UIE:${rssResult.totalUndergroundEvents} IR:${rssResult.totalIncidentReports}`);
-          } catch (err: any) {
-            console.warn("[AutoSeed] RSS feed sync failed:", err.message);
-          }
-        }, 30_000);
-      }, 30_000);
+      // Initialize Scheduled FIPS Compliance Audit (daily at 02:00 UTC)
+      import("../lib/fips-audit-scheduler").then(({ initFipsAuditScheduler }) => {
+        initFipsAuditScheduler();
+        console.log("[FIPSAudit] Scheduled FIPS compliance audit initialized");
+      }).catch((err) => {
+        console.warn("[FIPSAudit] Failed to initialize FIPS audit scheduler:", err);
+      });
+
+      // Force GC after cron scheduler registration
+      if (global.gc) {
+        global.gc();
+        console.log("[GC] Post-cron-init GC triggered");
+      }
+    }, 120_000);
+
+    // ── PHASE 4: After 5 min — Heavy monitors + agent seeding ────────────
+    setTimeout(() => {
+      console.log("[Background] Phase 4: Starting monitors + agent seeding...");
 
       // Initialize Automated Domain Scan Scheduler (every 5 minutes)
       import("../lib/scan-scheduler").then(({ initScanScheduler }) => {
@@ -610,42 +659,28 @@ async function startServer() {
         console.warn("[ScanScheduler] Failed to initialize scan scheduler:", err);
       });
 
-      // Initialize Agent Watchdog Scheduler (every 60 seconds)
+      // Initialize Agent Watchdog Scheduler (every 5 minutes — reduced from 60s)
       import("../lib/agent-heartbeat").then(({ startWatchdogScheduler }) => {
-        startWatchdogScheduler(60_000);
-        console.log("[AgentWatchdog] Agent watchdog scheduler initialized (60s interval)");
+        startWatchdogScheduler(300_000);
+        console.log("[AgentWatchdog] Agent watchdog scheduler initialized (300s interval)");
       }).catch((err) => {
         console.warn("[AgentWatchdog] Failed to initialize watchdog scheduler:", err);
       });
 
-      // Initialize Ember Agent Health Monitor (every 30 seconds)
+      // Initialize Ember Agent Health Monitor (every 2 minutes — reduced from 30s)
       import("../lib/ember-health-monitor").then(({ startEmberHealthMonitor }) => {
-        startEmberHealthMonitor({ sweepIntervalMs: 30_000 });
-        console.log("[EmberHealth] Ember agent health monitor initialized (30s sweep)");
+        startEmberHealthMonitor({ sweepIntervalMs: 120_000 });
+        console.log("[EmberHealth] Ember agent health monitor initialized (120s sweep)");
       }).catch((err) => {
         console.warn("[EmberHealth] Failed to initialize Ember health monitor:", err);
       });
 
-      // Initialize Ember Agent Cleanup Scheduler (every 1 hour, 7-day retention)
+      // Initialize Ember Agent Cleanup Scheduler (every 2 hours — relaxed from 1h)
       import("../lib/ember-agent-cleanup").then(({ startEmberCleanupScheduler }) => {
-        startEmberCleanupScheduler({ intervalMs: 3_600_000, config: { retentionHours: 168 } });
-        console.log("[EmberCleanup] Agent cleanup scheduler initialized (1h interval, 7d retention)");
+        startEmberCleanupScheduler({ intervalMs: 7_200_000, config: { retentionHours: 168 } });
+        console.log("[EmberCleanup] Agent cleanup scheduler initialized (2h interval, 7d retention)");
       }).catch((err) => {
         console.warn("[EmberCleanup] Failed to initialize cleanup scheduler:", err);
-      });
-
-      // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
-      import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
-        initAutoGenerationSchedule();
-      }).catch((err) => {
-        console.warn("[AutoGenPipeline] Failed to initialize auto-generation scheduler:", err);
-      });
-      // Initialize Scheduled FIPS Compliance Audit (daily at 02:00 UTC)
-      import("../lib/fips-audit-scheduler").then(({ initFipsAuditScheduler }) => {
-        initFipsAuditScheduler();
-        console.log("[FIPSAudit] Scheduled FIPS compliance audit initialized");
-      }).catch((err) => {
-        console.warn("[FIPSAudit] Failed to initialize FIPS audit scheduler:", err);
       });
 
       // Auto-seed offensive security agent definitions (idempotent upsert)
@@ -691,36 +726,7 @@ async function startServer() {
       });
 
       console.log("[Background] All background schedulers initialized");
-
-      // Start Memory Watchdog (monitors heap usage, trims state under pressure)
-      import("../lib/engagement-orchestrator").then(({ startMemoryWatchdog }) => {
-        startMemoryWatchdog();
-        console.log("[MemoryWatchdog] Memory watchdog started (30s interval)");
-      }).catch((err) => {
-        console.warn("[MemoryWatchdog] Failed to start memory watchdog:", err);
-      });
-
-      // Initialize Engagement Auto-Resume Hook (detect interrupted engagements)
-      import("../lib/engagement-auto-resume").then(({ initAutoResumeHook }) => {
-        initAutoResumeHook();
-        console.log("[AutoResume] Engagement auto-resume hook initialized");
-      }).catch((err) => {
-        console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
-      });
-
-      // Startup Recovery: detect and recover interrupted engagements from DB
-      import("../lib/engagement-orchestrator").then(async ({ recoverInterruptedEngagements }) => {
-        const result = await recoverInterruptedEngagements();
-        if (result.recovered > 0) {
-          console.log(`[StartupRecovery] Recovered ${result.recovered} interrupted engagement(s):`,
-            result.engagements.map(e => `#${e.id}(${e.phase})`).join(', '));
-        } else {
-          console.log("[StartupRecovery] No interrupted engagements found");
-        }
-      }).catch((err) => {
-        console.warn("[StartupRecovery] Recovery scan failed:", err);
-      });
-    }, BACKGROUND_DELAY);
+    }, 300_000);
   });
 }
 
