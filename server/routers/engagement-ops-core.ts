@@ -442,6 +442,41 @@ export const engagementOpsRouter = router({
         return { resolved: true, modified: hasModifications || false };
       }),
 
+    /** Dismiss a single stale/orphaned approval gate (no active resolver after server restart) */
+    dismissStaleApproval: protectedProcedure
+      .input(z.object({ gateId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const { dismissStaleApproval } = await import('../lib/engagement-orchestrator');
+        const dismissed = dismissStaleApproval(input.gateId, ctx.user.name || String(ctx.user.id));
+        if (!dismissed) throw new TRPCError({ code: 'NOT_FOUND', message: 'Gate not found, not stale, or already resolved' });
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'ops_stale_gate_dismissed',
+          details: `Dismissed stale approval gate ${input.gateId}`,
+        });
+
+        return { dismissed: true };
+      }),
+
+    /** Dismiss ALL stale approval gates for an engagement */
+    dismissAllStaleApprovals: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { dismissAllStaleApprovals } = await import('../lib/engagement-orchestrator');
+        const count = dismissAllStaleApprovals(input.engagementId, ctx.user.name || String(ctx.user.id));
+
+        if (count > 0) {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'ops_stale_gates_bulk_dismissed',
+            details: `Dismissed ${count} stale approval gate(s) for engagement ${input.engagementId}`,
+          });
+        }
+
+        return { dismissed: count };
+      }),
+
     /** Add targets to an engagement (paste-in from operator) */
     addTargets: protectedProcedure
       .input(z.object({

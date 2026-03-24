@@ -22,6 +22,7 @@ import { throttledLLMCall } from "../llm-throttle";
 import { analyzeProtocolAuditDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -697,7 +698,7 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
               info: findings.filter(f => f.severity === "info").length,
             },
           }),
-        }).where(require("drizzle-orm").eq(scanResults.id, scanId));
+        }).where(eq(scanResults.id, scanId));
       } catch (err) {
         console.warn("[SMTPAudit] Failed to update scan record:", err);
       }
@@ -735,7 +736,7 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
           status: "error",
           completedAt: Date.now(),
           rawOutput: rawOutput + `\nERROR: ${err.message}`,
-        }).where(require("drizzle-orm").eq(scanResults.id, scanId));
+        }).where(eq(scanResults.id, scanId));
       } catch {}
     }
 

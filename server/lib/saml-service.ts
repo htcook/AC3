@@ -6,6 +6,7 @@
  * and AES-256-GCM for encrypted assertions.
  */
 import crypto from "node:crypto";
+import { deflateRawSync } from "node:zlib";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ export function generateAuthnRequest(idpConfig: SAMLIdPConfig, relayState?: stri
   </samlp:AuthnRequest>`;
 
   // Deflate and base64url encode for HTTP-Redirect binding
-  const deflated = require("zlib").deflateRawSync(authnRequest);
+  const deflated = deflateRawSync(authnRequest);
   const encoded = deflated.toString("base64");
   const urlEncoded = encodeURIComponent(encoded);
 

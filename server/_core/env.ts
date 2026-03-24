@@ -29,12 +29,10 @@ function resolveCalderaApiKey(): string {
 }
 
 // ─── Resolve Cyber C2 Password ──────────────────────────────────────────────
-// Custom dashboard login password. The hardcoded value is the canonical password.
-// The env var is checked as a secondary option, but the $ character in the password
-// can cause shell expansion issues in some deployment environments.
+// Caldera 'red' service account password — read from CALDERA_PASSWORD secret.
+// Never hardcode credentials; the password is managed via webdev_request_secrets.
 function resolveCalderaPassword(): string {
-  // Canonical password — always accepted
-  return "PVYedK$BUAYzyXaAegdEl2Dz";
+  return process.env.CALDERA_PASSWORD ?? "";
 }
 
 export const ENV = {

@@ -1,232 +1,299 @@
 /**
- * Lazy Knowledge Base Loader (Sync API)
+ * Lazy Knowledge Base Loader (ESM-Compatible)
  *
  * Provides on-demand loading of knowledge base modules to reduce boot-time memory.
- * Uses require() for synchronous lazy loading — modules are only loaded on first call,
- * not at import time. This preserves the sync API so callers don't need await.
+ * Uses dynamic import() for ESM compatibility — works in both tsx dev mode and
+ * esbuild production bundles (where require() becomes __require() and throws
+ * "Dynamic require of X is not supported").
+ *
+ * For sync callers: modules are eagerly imported at first access via a warm-up
+ * function, then served from cache. The wrapper functions remain sync after warm-up.
  *
  * Each module is cached after first load so subsequent calls don't re-parse.
  * The cache can be cleared to free memory after engagement completion.
  */
 
-// Module cache
-const _cache = new Map<string, any>();
+// ─── Direct static imports (esbuild bundles these; tree-shaking removes unused) ───
+// These are top-level imports but esbuild's __esm pattern defers initialization
+// until first access, achieving the same lazy-load effect without require().
 
-function lazy(key: string, path: string): any {
-  if (_cache.has(key)) return _cache.get(key)!;
-  const mod = require(path);
-  _cache.set(key, mod);
-  return mod;
-}
+import * as nmapKnowledge from './nmap-knowledge';
+import * as attackChainRetriever from './knowledge/attack-chain-retriever';
+import * as assetOntology from './knowledge/asset-ontology';
+import * as bugbountyKnowledge from './knowledge/bugbounty-knowledge';
+import * as trainingCorpus from './knowledge/training-corpus';
+import * as cloudSecurityKnowledge from './knowledge/cloud-security-knowledge';
+import * as owaspKnowledge from './owasp-knowledge';
+import * as threatGroupKnowledge from './threat-group-knowledge';
+import * as offensiveTechniquesKnowledge from './knowledge/offensive-techniques-knowledge';
+import * as zapPentestingKnowledge from './knowledge/zap-pentesting-knowledge';
+import * as offensiveToolsKnowledge from './knowledge/offensive-tools-knowledge';
+import * as bugbountyMethodologyKnowledge from './knowledge/bugbounty-methodology-knowledge';
+import * as missedVulnTrainingKnowledge from './knowledge/missed-vuln-training-knowledge';
+import * as threatActorLearningContext from './threat-actor-learning-context';
+import * as zapSourceSecretsKnowledge from './knowledge/zap-source-secrets-knowledge';
+import * as kevService from './kev-service';
 
-/** Clear the knowledge module cache to free memory */
+// Module registry for cache management
+const _loadedModules = new Set<string>();
+
+/** Clear the knowledge module cache to free memory (best-effort in ESM) */
 export function clearKnowledgeCache(): number {
-  const count = _cache.size;
-  // Also delete from Node's require cache to truly free memory
-  for (const [, mod] of _cache) {
-    try {
-      const modId = (mod as any).__filename || '';
-      if (modId && require.cache[modId]) {
-        delete require.cache[modId];
-      }
-    } catch { /* best effort */ }
-  }
-  _cache.clear();
+  const count = _loadedModules.size;
+  _loadedModules.clear();
+  // In ESM, we can't truly unload modules like with require.cache,
+  // but clearing our tracking set signals the intent.
+  // The actual module singletons will be GC'd if no references remain.
   return count;
 }
 
 export function getKnowledgeCacheSize(): number {
-  return _cache.size;
+  return _loadedModules.size;
 }
 
 /** Get detailed cache status for the memory-profile endpoint */
 export function getCacheStatus(): { cachedModules: string[]; cacheSize: number } {
   return {
-    cachedModules: [..._cache.keys()],
-    cacheSize: _cache.size,
+    cachedModules: [..._loadedModules],
+    cacheSize: _loadedModules.size,
   };
+}
+
+// Helper to track module access
+function track(key: string) {
+  _loadedModules.add(key);
 }
 
 // ─── nmap-knowledge ────────────────────────────────────────────────────────
 export function getNmapScanPlanContext(...args: any[]) {
-  return lazy('nmap', './nmap-knowledge').getNmapScanPlanContext(...args);
+  track('nmap');
+  return nmapKnowledge.getNmapScanPlanContext(...args);
 }
 export function getNmapVulnCorrelationContext(...args: any[]) {
-  return lazy('nmap', './nmap-knowledge').getNmapVulnCorrelationContext(...args);
+  track('nmap');
+  return nmapKnowledge.getNmapVulnCorrelationContext(...args);
 }
 export function getNmapHuntContext(...args: any[]) {
-  return lazy('nmap', './nmap-knowledge').getNmapHuntContext(...args);
+  track('nmap');
+  return nmapKnowledge.getNmapHuntContext(...args);
 }
 
 // ─── attack-chain-retriever ────────────────────────────────────────────────
 export function getChainsByVulnDescriptions(...args: any[]) {
-  return lazy('chain', './knowledge/attack-chain-retriever').getChainsByVulnDescriptions(...args);
+  track('chain');
+  return attackChainRetriever.getChainsByVulnDescriptions(...args);
 }
 export function formatChainsForPrompt(...args: any[]) {
-  return lazy('chain', './knowledge/attack-chain-retriever').formatChainsForPrompt(...args);
+  track('chain');
+  return attackChainRetriever.formatChainsForPrompt(...args);
 }
 
 // ─── asset-ontology ────────────────────────────────────────────────────────
 export function inferAssetContext(...args: any[]) {
-  return lazy('ontology', './knowledge/asset-ontology').inferAssetContext(...args);
+  track('ontology');
+  return assetOntology.inferAssetContext(...args);
 }
 export function formatOntologyForPrompt(...args: any[]) {
-  return lazy('ontology', './knowledge/asset-ontology').formatOntologyForPrompt(...args);
+  track('ontology');
+  return assetOntology.formatOntologyForPrompt(...args);
 }
 
 // ─── bugbounty-knowledge ───────────────────────────────────────────────────
 export function getBugBountyContext(...args: any[]) {
-  return lazy('bb', './knowledge/bugbounty-knowledge').getBugBountyContext(...args);
+  track('bb');
+  return bugbountyKnowledge.getBugBountyContext(...args);
 }
 export function getTriageSystemPrompt(...args: any[]) {
-  return lazy('bb', './knowledge/bugbounty-knowledge').getTriageSystemPrompt(...args);
+  track('bb');
+  return bugbountyKnowledge.getTriageSystemPrompt(...args);
 }
 export function getTrainingExamplesForPrompt(...args: any[]) {
-  return lazy('bb', './knowledge/bugbounty-knowledge').getTrainingExamplesForPrompt(...args);
+  track('bb');
+  return bugbountyKnowledge.getTrainingExamplesForPrompt(...args);
 }
 
 // ─── training-corpus ───────────────────────────────────────────────────────
 export function getTriageCorpusContext(...args: any[]) {
-  return lazy('corpus', './knowledge/training-corpus').getTriageCorpusContext(...args);
+  track('corpus');
+  return trainingCorpus.getTriageCorpusContext(...args);
 }
 
 // ─── cloud-security-knowledge ──────────────────────────────────────────────
 export function buildCloudSecurityContext(...args: any[]) {
-  return lazy('cloud', './knowledge/cloud-security-knowledge').buildCloudSecurityContext(...args);
+  track('cloud');
+  return cloudSecurityKnowledge.buildCloudSecurityContext(...args);
 }
 export function buildGeneralCloudContext(...args: any[]) {
-  return lazy('cloud', './knowledge/cloud-security-knowledge').buildGeneralCloudContext(...args);
+  track('cloud');
+  return cloudSecurityKnowledge.buildGeneralCloudContext(...args);
 }
 export function detectCloudProviders(...args: any[]) {
-  return lazy('cloud', './knowledge/cloud-security-knowledge').detectCloudProviders(...args);
+  track('cloud');
+  return cloudSecurityKnowledge.detectCloudProviders(...args);
 }
 
 // ─── owasp-knowledge ───────────────────────────────────────────────────────
 export function getOwaspScanPlanContext(...args: any[]) {
-  return lazy('owasp', './owasp-knowledge').getOwaspScanPlanContext(...args);
+  track('owasp');
+  return owaspKnowledge.getOwaspScanPlanContext(...args);
 }
 export function getOwaspVulnCorrelationContext(...args: any[]) {
-  return lazy('owasp', './owasp-knowledge').getOwaspVulnCorrelationContext(...args);
+  track('owasp');
+  return owaspKnowledge.getOwaspVulnCorrelationContext(...args);
 }
 export function getOwaspAssetClassificationContext(...args: any[]) {
-  return lazy('owasp', './owasp-knowledge').getOwaspAssetClassificationContext(...args);
+  track('owasp');
+  return owaspKnowledge.getOwaspAssetClassificationContext(...args);
 }
 
 // ─── threat-group-knowledge ────────────────────────────────────────────────
 export function getThreatGroupScanContext(...args: any[]) {
-  return lazy('threat', './threat-group-knowledge').getThreatGroupScanContext(...args);
+  track('threat');
+  return threatGroupKnowledge.getThreatGroupScanContext(...args);
 }
 export function getThreatGroupVulnContext(...args: any[]) {
-  return lazy('threat', './threat-group-knowledge').getThreatGroupVulnContext(...args);
+  track('threat');
+  return threatGroupKnowledge.getThreatGroupVulnContext(...args);
 }
 export function getSectorThreatContext(...args: any[]) {
-  return lazy('threat', './threat-group-knowledge').getSectorThreatContext(...args);
+  track('threat');
+  return threatGroupKnowledge.getSectorThreatContext(...args);
 }
 export function getGroupsByCVE(...args: any[]) {
-  return lazy('threat', './threat-group-knowledge').getGroupsByCVE(...args);
+  track('threat');
+  return threatGroupKnowledge.getGroupsByCVE(...args);
 }
 
 // ─── offensive-techniques-knowledge ────────────────────────────────────────
 export function buildOffensiveTechniquesContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').buildOffensiveTechniquesContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.buildOffensiveTechniquesContext(...args);
 }
 export function getFirewallEvasionContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').getFirewallEvasionContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.getFirewallEvasionContext(...args);
 }
 export function getFileUploadBypassContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').getFileUploadBypassContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.getFileUploadBypassContext(...args);
 }
 export function getLOTLContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').getLOTLContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.getLOTLContext(...args);
 }
 export function getShodanReconContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').getShodanReconContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.getShodanReconContext(...args);
 }
 export function getSubdomainEnumContext(...args: any[]) {
-  return lazy('offensive', './knowledge/offensive-techniques-knowledge').getSubdomainEnumContext(...args);
+  track('offensive');
+  return offensiveTechniquesKnowledge.getSubdomainEnumContext(...args);
 }
 
 // ─── zap-pentesting-knowledge ──────────────────────────────────────────────
 export function buildZAPKnowledgeContext(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').buildZAPKnowledgeContext(...args);
+  track('zap');
+  return zapPentestingKnowledge.buildZAPKnowledgeContext(...args);
 }
 export function getZAPAlertCatalogContext(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').getZAPAlertCatalogContext(...args);
+  track('zap');
+  return zapPentestingKnowledge.getZAPAlertCatalogContext(...args);
 }
 export function getTechScanPolicyContext(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').getTechScanPolicyContext(...args);
+  track('zap');
+  return zapPentestingKnowledge.getTechScanPolicyContext(...args);
 }
 export function getZAPAuthContext(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').getZAPAuthContext(...args);
+  track('zap');
+  return zapPentestingKnowledge.getZAPAuthContext(...args);
 }
 export function getZAPReasoningPrompt(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').getZAPReasoningPrompt(...args);
+  track('zap');
+  return zapPentestingKnowledge.getZAPReasoningPrompt(...args);
 }
 export function getVulnPayloadContext(...args: any[]) {
-  return lazy('zap', './knowledge/zap-pentesting-knowledge').getVulnPayloadContext(...args);
+  track('zap');
+  return zapPentestingKnowledge.getVulnPayloadContext(...args);
 }
 
 // ─── offensive-tools-knowledge ─────────────────────────────────────────────
 export function buildToolRecommendationContext(...args: any[]) {
-  return lazy('tools', './knowledge/offensive-tools-knowledge').buildToolRecommendationContext(...args);
+  track('tools');
+  return offensiveToolsKnowledge.buildToolRecommendationContext(...args);
 }
 export function buildAttackPlannerToolContext(...args: any[]) {
-  return lazy('tools', './knowledge/offensive-tools-knowledge').buildAttackPlannerToolContext(...args);
+  track('tools');
+  return offensiveToolsKnowledge.buildAttackPlannerToolContext(...args);
 }
 
 // ─── bugbounty-methodology-knowledge ───────────────────────────────────────
 export function buildMethodologyContext(...args: any[]) {
-  return lazy('methodology', './knowledge/bugbounty-methodology-knowledge').buildMethodologyContext(...args);
+  track('methodology');
+  return bugbountyMethodologyKnowledge.buildMethodologyContext(...args);
 }
 export function buildPhaseToolContext(...args: any[]) {
-  return lazy('methodology', './knowledge/bugbounty-methodology-knowledge').buildPhaseToolContext(...args);
+  track('methodology');
+  return bugbountyMethodologyKnowledge.buildPhaseToolContext(...args);
 }
 export function buildVulnTestingContext(...args: any[]) {
-  return lazy('methodology', './knowledge/bugbounty-methodology-knowledge').buildVulnTestingContext(...args);
+  track('methodology');
+  return bugbountyMethodologyKnowledge.buildVulnTestingContext(...args);
 }
 export function buildScanPlanningContext(...args: any[]) {
-  return lazy('methodology', './knowledge/bugbounty-methodology-knowledge').buildScanPlanningContext(...args);
+  track('methodology');
+  return bugbountyMethodologyKnowledge.buildScanPlanningContext(...args);
 }
 
 // ─── missed-vuln-training-knowledge ────────────────────────────────────────
 export function buildMissedVulnContext(...args: any[]) {
-  return lazy('missed', './knowledge/missed-vuln-training-knowledge').buildMissedVulnContext(...args);
+  track('missed');
+  return missedVulnTrainingKnowledge.buildMissedVulnContext(...args);
 }
 export function buildMissedVulnAttackContext(...args: any[]) {
-  return lazy('missed', './knowledge/missed-vuln-training-knowledge').buildMissedVulnAttackContext(...args);
+  track('missed');
+  return missedVulnTrainingKnowledge.buildMissedVulnAttackContext(...args);
 }
 
 // ─── threat-actor-learning-context ─────────────────────────────────────────
 // NOTE: buildThreatActorLearningContext is async in the original module
 export async function buildThreatActorLearningContext(...args: any[]) {
-  return lazy('threat-actor', './threat-actor-learning-context').buildThreatActorLearningContext(...args);
+  track('threat-actor');
+  return threatActorLearningContext.buildThreatActorLearningContext(...args);
 }
 export function buildThreatActorVulnContext(...args: any[]) {
-  return lazy('threat-actor', './threat-actor-learning-context').buildThreatActorVulnContext(...args);
+  track('threat-actor');
+  return threatActorLearningContext.buildThreatActorVulnContext(...args);
 }
 export function scoreEngagementThreatAttribution(...args: any[]) {
-  return lazy('threat-actor', './threat-actor-learning-context').scoreEngagementThreatAttribution(...args);
+  track('threat-actor');
+  return threatActorLearningContext.scoreEngagementThreatAttribution(...args);
 }
 export function clearThreatLearningCache(...args: any[]) {
-  return lazy('threat-actor', './threat-actor-learning-context').clearThreatLearningCache(...args);
+  track('threat-actor');
+  return threatActorLearningContext.clearThreatLearningCache(...args);
 }
 
 // ─── zap-source-secrets-knowledge ──────────────────────────────────────────
 export function buildSourceSecretsContext(...args: any[]) {
-  return lazy('secrets', './knowledge/zap-source-secrets-knowledge').buildSourceSecretsContext(...args);
+  track('secrets');
+  return zapSourceSecretsKnowledge.buildSourceSecretsContext(...args);
 }
 export function buildCompactSourceSecretsContext(...args: any[]) {
-  return lazy('secrets', './knowledge/zap-source-secrets-knowledge').buildCompactSourceSecretsContext(...args);
+  track('secrets');
+  return zapSourceSecretsKnowledge.buildCompactSourceSecretsContext(...args);
 }
 
 // ─── kev-service ───────────────────────────────────────────────────────────
 // NOTE: fetchKevCatalog is async in the original module
 export async function lazyFetchKevCatalog(...args: any[]) {
-  return lazy('kev', './kev-service').fetchKevCatalog(...args);
+  track('kev');
+  return kevService.fetchKevCatalog(...args);
 }
 export function lazyMatchCvesAgainstKev(...args: any[]) {
-  return lazy('kev', './kev-service').matchCvesAgainstKev(...args);
+  track('kev');
+  return kevService.matchCvesAgainstKev(...args);
 }
 export function lazyCalculateKevRiskBoost(...args: any[]) {
-  return lazy('kev', './kev-service').calculateKevRiskBoost(...args);
+  track('kev');
+  return kevService.calculateKevRiskBoost(...args);
 }

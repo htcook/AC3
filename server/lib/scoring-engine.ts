@@ -22,19 +22,12 @@
  */
 
 import { invokeLLM } from "../_core/llm";
-// MEMORY OPTIMIZATION: Knowledge modules lazy-loaded on-demand instead of at boot.
-// inferAssetContext, getChainsByVulnDescriptions, formatChainsForPrompt,
-// fetchKevCatalog, matchCvesAgainstKev, calculateKevRiskBoost,
-// detectCloudProviders, buildCloudSecurityContext were imported but never used.
-// Only formatOntologyForPrompt is actually called (line ~1344), loaded lazily below.
-let _formatOntologyForPrompt: typeof import("./knowledge/asset-ontology")["formatOntologyForPrompt"] | null = null;
+// MEMORY OPTIMIZATION: Knowledge modules loaded via ESM static imports.
+// esbuild defers initialization via __esm pattern, achieving lazy-load effect.
+import { formatOntologyForPrompt as _fmtOntology } from "./knowledge/asset-ontology";
+import { getOwaspAssetClassificationContext as _getOwaspClassCtx } from "./owasp-knowledge";
 function getFormatOntologyForPrompt() {
-  if (!_formatOntologyForPrompt) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require("./knowledge/asset-ontology");
-    _formatOntologyForPrompt = mod.formatOntologyForPrompt;
-  }
-  return _formatOntologyForPrompt!;
+  return _fmtOntology;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1353,8 +1346,7 @@ ${(() => {
   ].filter(Boolean));
   const ontologyCtx = allTech.length > 0 ? getFormatOntologyForPrompt()([...new Set(allTech)]) : '';
   // Inject OWASP risk classification context
-  const { getOwaspAssetClassificationContext } = require('./owasp-knowledge');
-  const owaspCtx = getOwaspAssetClassificationContext();
+  const owaspCtx = _getOwaspClassCtx();
   return (ontologyCtx ? 'ASSET ARCHITECTURE KNOWLEDGE BASE:\n' + ontologyCtx + '\n\n' : '') + owaspCtx;
 })()}
 

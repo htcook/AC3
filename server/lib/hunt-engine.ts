@@ -73,6 +73,8 @@ import {
   getGroupsBySector,
   getThreatGroupSummary,
 } from "./threat-group-knowledge";
+import * as nmapKnowledge from "./nmap-knowledge";
+import * as owaspKnowledge from "./owasp-knowledge";
 
 // ═══════════════════════════════════════════════════════════════════════
 // §1 — TYPES
@@ -318,10 +320,8 @@ ${(() => {
   const cloudPathsStr = cloudPaths.slice(0, 3).map((p: any) => `- ${p.title} (${p.steps?.flatMap((s: any) => s.mitre).join(', ') || 'N/A'}): ${p.steps?.map((s: any) => s.action).join(' → ') || p.initial_condition}`).join('\n');
   const cloudRulesStr = cloudRules.slice(0, 3).map((r: any) => `- ${r.name}: ${r.description} [confidence: ${r.confidence}]`).join('\n');
   // Inject nmap-based threat hunting context
-  const { getNmapHuntContext: getNmapHunt } = require('./nmap-knowledge');
-  const nmapHuntCtx = getNmapHunt();
-  const { getOwaspHuntContext: getOwaspHunt } = require('./owasp-knowledge');
-  const owaspHuntCtx = getOwaspHunt();
+  const nmapHuntCtx = nmapKnowledge.getNmapHuntContext();
+  const owaspHuntCtx = owaspKnowledge.getOwaspHuntContext();
   // Inject threat group intelligence based on sector
   const threatGroupCtx = getThreatGroupHuntContext({ sector: ctx.orgSector });
   const sectorCtx = getSectorThreatContext(ctx.orgSector);

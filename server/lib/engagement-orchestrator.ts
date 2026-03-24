@@ -83,6 +83,7 @@ import {
 } from "./evidence-integrity-guardrails";
 import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
 import { SERVER_INSTANCE_ID } from "./server-instance";
+import { capLLMContext as _capLLMContext } from "./memory-manager";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
 const _serverInstanceId = SERVER_INSTANCE_ID;
@@ -981,6 +982,21 @@ function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean
   // Training labs are authorized targets where we want the full pipeline to run unattended
   if ((state as any).trainingLabMode === true) return true;
 
+  // ── Precedent-based auto-approval ──
+  // If the operator has already manually approved a gate at the same risk tier
+  // (or higher) in this engagement, auto-approve subsequent gates at that tier.
+  // This means: approve one credential test → all credential tests auto-approved.
+  // Approve one exploit → all exploits at that tier auto-approved.
+  const TIER_ORDER: Record<string, number> = { yellow: 0, orange: 1, red: 2 };
+  const currentTierIdx = TIER_ORDER[riskTier] ?? -1;
+  const hasManualPrecedent = state.approvalGates.some(g =>
+    g.status === 'approved' &&
+    g.resolvedBy &&
+    !g.resolvedBy.startsWith('auto-') && // Must be a real manual approval, not auto-timeout/auto-roe
+    (TIER_ORDER[g.riskTier] ?? -1) >= currentTierIdx
+  );
+  if (hasManualPrecedent) return true;
+
   // Only auto-approve if RoE is signed
   const roeStatus = state.roeScopeGuard?.roeStatus;
   if (roeStatus !== 'signed') return false;
@@ -997,15 +1013,27 @@ async function requestApproval(
   state: EngagementOpsState,
   gate: Omit<ApprovalGate, "id" | "status" | "createdAt">
 ): Promise<boolean> {
-  // ── Auto-Approval for Signed RoE ──
-  // Skip the blocking approval gate for low/medium risk actions when RoE is signed
+  // ── Auto-Approval (RoE / Precedent) ──
+  // Skip the blocking approval gate when auto-approve conditions are met:
+  // 1. Training lab mode (all tiers)
+  // 2. Operator already approved a gate at this tier or higher (precedent)
+  // 3. Signed RoE for yellow/orange tiers
   if (shouldAutoApprove(state, gate.riskTier)) {
+    // Determine the reason for auto-approval for audit trail
+    const isTrainingLab = (state as any).trainingLabMode === true;
+    const hasPrecedent = !isTrainingLab && state.approvalGates.some(g =>
+      g.status === 'approved' && g.resolvedBy && !g.resolvedBy.startsWith('auto-') &&
+      ({ yellow: 0, orange: 1, red: 2 }[g.riskTier] ?? -1) >= ({ yellow: 0, orange: 1, red: 2 }[gate.riskTier] ?? -1)
+    );
+    const autoReason = isTrainingLab ? 'training-lab' : hasPrecedent ? 'operator-precedent' : 'signed-roe';
+    const autoLabel = isTrainingLab ? 'Training Lab' : hasPrecedent ? 'Operator Precedent' : 'Signed RoE';
+
     const approval: ApprovalGate = {
       id: genId(),
       status: "approved",
       createdAt: Date.now(),
       resolvedAt: Date.now(),
-      resolvedBy: 'auto-approval:signed-roe',
+      resolvedBy: `auto-approval:${autoReason}`,
       ...gate,
     };
     state.approvalGates.push(approval);
@@ -1013,8 +1041,8 @@ async function requestApproval(
     addLog(state, {
       phase: gate.phase,
       type: "approval_response",
-      title: `✅ Auto-Approved (Signed RoE): ${gate.title}`,
-      detail: `${gate.description} — Auto-approved because RoE is signed and risk tier is ${gate.riskTier}.`,
+      title: `✅ Auto-Approved (${autoLabel}): ${gate.title}`,
+      detail: `${gate.description} — Auto-approved via ${autoLabel.toLowerCase()} (risk tier: ${gate.riskTier}).`,
       data: gate.detail,
       riskTier: gate.riskTier,
     });
@@ -1120,6 +1148,91 @@ export function resolveApproval(gateId: string, approved: boolean, resolvedBy?: 
   resolver(approved);
   approvalResolvers.delete(gateId);
   return true;
+}
+
+/**
+ * Dismiss a stale/orphaned approval gate that has no active resolver.
+ * This happens when the server restarts while an approval gate was pending —
+ * the in-memory resolver is lost but the gate still shows as "pending" in the UI.
+ * Marks the gate as denied with a clear audit trail.
+ */
+export function dismissStaleApproval(gateId: string, resolvedBy?: string): boolean {
+  // If there's an active resolver, this isn't stale — use resolveApproval instead
+  if (approvalResolvers.has(gateId)) return false;
+
+  for (const [, state] of opsStates) {
+    const gate = state.approvalGates.find(g => g.id === gateId && g.status === 'pending');
+    if (gate) {
+      gate.status = 'denied';
+      gate.resolvedAt = Date.now();
+      gate.resolvedBy = resolvedBy || 'dismissed:stale-gate';
+
+      // Unpause the engagement if it was paused for this gate
+      const hasOtherPending = state.approvalGates.some(g => g.id !== gateId && g.status === 'pending');
+      if (!hasOtherPending) {
+        state.isPaused = false;
+      }
+
+      addLog(state, {
+        phase: gate.phase,
+        type: 'approval_response',
+        title: `🗑️ Dismissed (Stale): ${gate.title}`,
+        detail: `Approval gate dismissed — the server restarted while this gate was pending, so the action context was lost. The engagement pipeline will continue without this action.`,
+        riskTier: gate.riskTier,
+      });
+
+      broadcastOpsUpdate(state.engagementId, {
+        type: 'approval_resolved',
+        gateId: gate.id,
+        approved: false,
+      });
+
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Dismiss ALL stale pending approval gates for an engagement.
+ * Useful after server restart to clear all orphaned gates at once.
+ */
+export function dismissAllStaleApprovals(engagementId: number, resolvedBy?: string): number {
+  const state = opsStates.get(engagementId);
+  if (!state) return 0;
+
+  let dismissed = 0;
+  const staleGates = state.approvalGates.filter(
+    g => g.status === 'pending' && !approvalResolvers.has(g.id)
+  );
+
+  for (const gate of staleGates) {
+    gate.status = 'denied';
+    gate.resolvedAt = Date.now();
+    gate.resolvedBy = resolvedBy || 'dismissed:stale-gate-bulk';
+
+    addLog(state, {
+      phase: gate.phase,
+      type: 'approval_response',
+      title: `🗑️ Dismissed (Stale): ${gate.title}`,
+      detail: `Stale approval gate auto-dismissed after server restart.`,
+      riskTier: gate.riskTier,
+    });
+
+    broadcastOpsUpdate(state.engagementId, {
+      type: 'approval_resolved',
+      gateId: gate.id,
+      approved: false,
+    });
+
+    dismissed++;
+  }
+
+  if (dismissed > 0) {
+    state.isPaused = false;
+  }
+
+  return dismissed;
 }
 
 /**
@@ -4888,8 +5001,7 @@ ${(() => {
     technology: detectedTech[0],
   });
   // Cap total context to prevent multi-MB prompts (memory optimization)
-  const { capLLMContext: capCtx } = require('./memory-manager');
-  return capCtx([
+  return _capLLMContext([
     { label: 'chains', content: chainCtx },
     { label: 'ontology', content: ontologyCtx },
     { label: 'bugBounty', content: bugBountyCtx },
@@ -5261,8 +5373,7 @@ ${(() => {
   // Compact source secrets context for exploitation (token-limited)
   const sourceSecretsExploitCtx = buildCompactSourceSecretsContext();
   // Cap total context to prevent multi-MB prompts (memory optimization)
-  const { capLLMContext: capCtxExploit } = require('./memory-manager');
-  return capCtxExploit([
+  return _capLLMContext([
     { label: 'chains', content: chainContext },
     { label: 'ontology', content: ontologyContext },
     { label: 'bugBounty', content: bbContext },

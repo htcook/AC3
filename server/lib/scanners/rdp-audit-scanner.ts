@@ -22,6 +22,7 @@ import { throttledLLMCall } from "../llm-throttle";
 import { analyzeProtocolAuditDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
 import { scanResults } from "../../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -580,7 +581,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
               info: findings.filter(f => f.severity === "info").length,
             },
           }),
-        }).where(require("drizzle-orm").eq(scanResults.id, scanId));
+        }).where(eq(scanResults.id, scanId));
       } catch (err) {
         console.warn("[RDPAudit] Failed to update scan record:", err);
       }
@@ -616,7 +617,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
           status: "error",
           completedAt: Date.now(),
           rawOutput: rawOutput + `\nERROR: ${err.message}`,
-        }).where(require("drizzle-orm").eq(scanResults.id, scanId));
+        }).where(eq(scanResults.id, scanId));
       } catch {}
     }
 

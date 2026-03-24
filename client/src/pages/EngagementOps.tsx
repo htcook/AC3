@@ -816,6 +816,23 @@ export default function EngagementOps() {
 
   const approveMut = trpc.engagementOps.resolveApproval.useMutation({
     onSuccess: () => opsStateQ.refetch(),
+    onError: (e) => {
+      // If the gate is stale (no resolver), offer to dismiss it
+      if (e.message.includes('not found') || e.message.includes('already resolved')) {
+        toast.error('This approval gate is stale (server restarted). Use "Dismiss" to clear it.');
+      } else {
+        toast.error(e.message);
+      }
+    },
+  });
+
+  const dismissStaleMut = trpc.engagementOps.dismissStaleApproval.useMutation({
+    onSuccess: () => { toast.success('Stale approval gate dismissed'); opsStateQ.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const dismissAllStaleMut = trpc.engagementOps.dismissAllStaleApprovals.useMutation({
+    onSuccess: (data) => { toast.success(`Dismissed ${data.dismissed} stale approval gate(s)`); opsStateQ.refetch(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -1819,9 +1836,22 @@ export default function EngagementOps() {
       {/* ── Approval Banner ── */}
       {pendingApprovals.length > 0 && (
         <div className="flex-none bg-orange-500/10 border-b border-orange-500/30 px-6 py-3">
-          <div className="flex items-center gap-2 text-orange-400 text-sm font-medium mb-2">
-            <ShieldAlert className="h-4 w-4" />
-            {pendingApprovals.length} Approval{pendingApprovals.length > 1 ? "s" : ""} Required
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-orange-400 text-sm font-medium">
+              <ShieldAlert className="h-4 w-4" />
+              {pendingApprovals.length} Approval{pendingApprovals.length > 1 ? "s" : ""} Required
+            </div>
+            {pendingApprovals.length > 1 && engagementId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-muted-foreground/30 text-muted-foreground hover:bg-muted/50 text-xs"
+                onClick={() => dismissAllStaleMut.mutate({ engagementId })}
+                disabled={dismissAllStaleMut.isPending}
+              >
+                Dismiss All Stale
+              </Button>
+            )}
           </div>
           <div className="space-y-2">
             {pendingApprovals.map(gate => {
@@ -1844,6 +1874,16 @@ export default function EngagementOps() {
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{gate.description}</p>
                   </div>
                   <div className="flex items-center gap-2 ml-4 flex-none">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-foreground text-xs"
+                      onClick={() => dismissStaleMut.mutate({ gateId: gate.id })}
+                      disabled={dismissStaleMut.isPending}
+                      title="Dismiss this stale approval gate (server restarted, action context lost)"
+                    >
+                      Dismiss
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
