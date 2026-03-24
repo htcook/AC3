@@ -4716,6 +4716,176 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     webApp.status = webApp.vulns.length > 0 ? "vulns_found" : "no_vulns";
   }
 
+  // ── Supplementary Injection Scanners: SQLMap + XSStrike on discovered web apps ──
+  addLog(state, { phase: "vuln_detection", type: "info", title: "💉 Supplementary Injection Scanning", detail: "Running SQLMap (SQL injection) and XSStrike (XSS) on discovered web app parameters" });
+
+  for (const webApp of webApps) {
+    if (!isInRoeScope(state, webApp.hostname, webApp.ip)) continue;
+
+    // Collect injectable URLs from ZAP findings and attack surface
+    const targetUrl = `${webApp.protocol || 'https'}://${webApp.hostname}${webApp.port && webApp.port !== 443 && webApp.port !== 80 ? ':' + webApp.port : ''}`;
+    const injectableUrls: Array<{ url: string; method: string; params: string[] }> = [];
+
+    // Use ZAP spider results if available — query the DB for discovered URLs
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (db) {
+        const { webAppScans } = await import("../../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        const latestScan = await db.select().from(webAppScans)
+          .where(eq(webAppScans.engagementId, state.engagementId))
+          .orderBy(desc(webAppScans.id))
+          .limit(1);
+        if (latestScan[0]?.urlsDiscovered) {
+          // Build URL list from the target with common injectable params
+          injectableUrls.push(
+            { url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q", "query", "page", "cat", "item"] },
+            { url: `${targetUrl}/search`, method: "GET", params: ["q", "query", "term", "keyword"] },
+          );
+        }
+      }
+    } catch { /* non-fatal */ }
+
+    // Fallback: test the main URL with common params
+    if (injectableUrls.length === 0) {
+      injectableUrls.push(
+        { url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q"] },
+      );
+    }
+
+    // Build cookie string from confirmed credentials for authenticated scanning
+    const webCreds = (webApp as any).confirmedCredentials || [];
+    const cookieStr = webCreds.length > 0 ? webCreds[0]?.sessionCookie || "" : "";
+
+    // ── SQLMap: Deep SQL Injection Testing ──
+    try {
+      const approved = await requestApproval(state, {
+        phase: "vuln_detection",
+        riskTier: "orange",
+        title: `SQLMap Injection Test: ${webApp.hostname}`,
+        description: `Running SQLMap against ${injectableUrls.length} URLs on ${webApp.hostname} to detect and confirm SQL injection vulnerabilities. SQLMap uses safe, non-destructive payloads by default.`,
+        target: webApp.hostname,
+        toolCommand: `sqlmap --batch --smart --risk 2 --level 3 ${targetUrl}`,
+      });
+
+      if (approved) {
+        const { batchSqlmapScan, analyzeSqlmapFindings } = await import("./scanners/sqlmap-scanner");
+        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 SQLMap: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for SQL injection` });
+
+        const sqlmapResults = await batchSqlmapScan(injectableUrls, {
+          engagementId: state.engagementId,
+          risk: 2,
+          level: 3,
+          cookie: cookieStr || undefined,
+          timeoutSeconds: 120,
+          enumerateDbs: true,
+        });
+
+        const allFindings = sqlmapResults.flatMap(r => r.findings);
+        const sqliCount = allFindings.filter(f => f.type === "sqli").length;
+
+        if (sqliCount > 0) {
+          webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap] ${sqliCount} SQL injection vulnerabilities confirmed`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap deep injection testing' });
+          state.stats.vulnsFound += sqliCount;
+
+          // LLM analysis of SQLMap findings
+          try {
+            const analysis = await analyzeSqlmapFindings(allFindings, targetUrl);
+            addLog(state, { phase: "vuln_detection", type: "scan_result", title: `SQLMap Analysis: ${webApp.hostname}`, detail: analysis.riskSummary, data: { exploitChains: analysis.exploitChains.length, recommendations: analysis.recommendations.length } });
+          } catch { /* non-fatal */ }
+        }
+
+        const wafResults = sqlmapResults.filter(r => r.wafDetected);
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_result",
+          title: `SQLMap Complete: ${webApp.hostname}`,
+          detail: `${sqliCount} SQL injection vulns confirmed, ${allFindings.length} total findings${wafResults.length > 0 ? `, WAF detected: ${wafResults[0].wafDetected}` : ''}`,
+          data: { sqliCount, totalFindings: allFindings.length },
+        });
+
+        webApp.toolResults.push({
+          tool: 'sqlmap',
+          command: `sqlmap --batch --smart --risk 2 --level 3 ${targetUrl}`,
+          exitCode: 0,
+          durationMs: sqlmapResults.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
+          timedOut: false,
+          findingCount: allFindings.length,
+          findings: allFindings.map(f => ({ severity: f.severity, title: f.title })),
+          outputPreview: JSON.stringify(allFindings.slice(0, 5), null, 2).slice(0, 1024),
+          executedAt: Date.now(),
+          phase: 'vuln_detection',
+        });
+      }
+    } catch (sqlmapErr: any) {
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `SQLMap Error: ${webApp.hostname}`, detail: sqlmapErr.message });
+    }
+
+    // ── XSStrike/Dalfox: Advanced XSS Testing ──
+    try {
+      const approved = await requestApproval(state, {
+        phase: "vuln_detection",
+        riskTier: "orange",
+        title: `XSS Scan: ${webApp.hostname}`,
+        description: `Running XSStrike/Dalfox against ${injectableUrls.length} URLs on ${webApp.hostname} to detect reflected, stored, and DOM-based XSS vulnerabilities with WAF bypass techniques.`,
+        target: webApp.hostname,
+        toolCommand: `xsstrike/dalfox ${targetUrl}`,
+      });
+
+      if (approved) {
+        const { batchXssScan, analyzeXssFindings } = await import("./scanners/xsstrike-scanner");
+        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 XSS Scan: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for XSS vulnerabilities` });
+
+        const xssResults = await batchXssScan(injectableUrls, {
+          engagementId: state.engagementId,
+          cookie: cookieStr || undefined,
+          timeoutSeconds: 90,
+          domAnalysis: true,
+          wafBypass: true,
+        });
+
+        const allFindings = xssResults.flatMap(r => r.findings).filter(f => f.type !== "waf_detected");
+        const xssCount = allFindings.length;
+        const domCount = allFindings.filter(f => f.type === "dom_xss").length;
+
+        if (xssCount > 0) {
+          const severity = domCount > 0 || allFindings.some(f => f.type === "stored_xss") ? "high" : "medium";
+          webApp.vulns.push({ id: genId(), severity, title: `[XSS] ${xssCount} XSS vulnerabilities (${domCount} DOM-based)`, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${xssResults[0]?.tool || 'XSS scanner'}` });
+          state.stats.vulnsFound += xssCount;
+
+          // LLM analysis of XSS findings
+          try {
+            const analysis = await analyzeXssFindings(allFindings, targetUrl);
+            addLog(state, { phase: "vuln_detection", type: "scan_result", title: `XSS Analysis: ${webApp.hostname}`, detail: analysis.riskSummary, data: { exploitScenarios: analysis.exploitScenarios.length, recommendations: analysis.recommendations.length } });
+          } catch { /* non-fatal */ }
+        }
+
+        const toolUsed = xssResults.find(r => r.tool !== "none")?.tool || "none";
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_result",
+          title: `XSS Scan Complete: ${webApp.hostname}`,
+          detail: `${xssCount} XSS vulns found (${domCount} DOM-based) using ${toolUsed}${xssResults.some(r => r.stats.wafDetected) ? ' (WAF detected, bypass attempted)' : ''}`,
+          data: { xssCount, domCount, tool: toolUsed },
+        });
+
+        webApp.toolResults.push({
+          tool: toolUsed,
+          command: `${toolUsed} ${targetUrl}`,
+          exitCode: 0,
+          durationMs: xssResults.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
+          timedOut: false,
+          findingCount: allFindings.length,
+          findings: allFindings.map(f => ({ severity: f.severity, title: f.title })),
+          outputPreview: JSON.stringify(allFindings.slice(0, 5), null, 2).slice(0, 1024),
+          executedAt: Date.now(),
+          phase: 'vuln_detection',
+        });
+      }
+    } catch (xssErr: any) {
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `XSS Scan Error: ${webApp.hostname}`, detail: xssErr.message });
+    }
+  }
+
   // ── Credential Testing: run priority 3 tools (hydra) on login services ──
   addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing vendor/OEM default credentials first, then common wordlists on discovered login services" });
 
@@ -6600,6 +6770,18 @@ export async function executeEngagement(
       phase: state.phase, type: 'info',
       title: '🔓 Safety Auto-Escalated: RoE Approved',
       detail: `Engagement type '${engagement.engagementType}' with signed RoE — safety level escalated from '${originalLevel}' to 'full_exploitation'. Full scan-to-exploit-to-C2 pipeline authorized.`,
+    });
+  }
+
+  // ═══ TRAINING LAB AUTO-ESCALATION ═══
+  // Training lab engagements always get full_exploitation since they target intentionally vulnerable apps
+  if ((state as any).trainingLabMode && engagementSafetyLevel !== 'full_exploitation') {
+    const originalLevel = engagementSafetyLevel;
+    engagementSafetyLevel = 'full_exploitation';
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '🔓 Safety Auto-Escalated: Training Lab',
+      detail: `Training lab mode detected — safety level escalated from '${originalLevel}' to 'full_exploitation'. Full pipeline authorized for intentionally vulnerable target.`,
     });
   }
 

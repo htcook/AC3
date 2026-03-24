@@ -77,6 +77,8 @@ const ALLOWED_TOOLS = new Set([
   "tcpdump", "tshark", "editcap", "mergecap", "capinfos",
   // Scapy packet crafting (via Python)
   "python3", "scapy",
+  // Advanced injection & XSS testing tools
+  "xsstrike", "dalfox",
   // Allow reading tool manifest and health check
   "bash", "sh",
 ]);

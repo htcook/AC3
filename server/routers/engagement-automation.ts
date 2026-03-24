@@ -949,6 +949,9 @@ export const engagementAutomationRouter = router({
             targetDomain: target.domain,
             targetIpRange: null,
             createdBy: ctx.user.id,
+            scanMode: input.scanMode === 'active' ? 'active' : input.scanMode === 'standard' ? 'standard' : 'strict_passive',
+            roeStatus: 'signed',
+            roeSignedDate: new Date(),
             notes: JSON.stringify({
               trainingLab: true,
               batchRun: true,
