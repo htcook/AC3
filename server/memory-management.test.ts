@@ -63,18 +63,18 @@ describe("Memory Watchdog Thresholds (Manus Container)", () => {
     "utf-8"
   );
 
-  it("should have HEAP_WARNING_MB at 150 (not 2000)", () => {
-    expect(orchestratorSrc).toContain("HEAP_WARNING_MB = 150");
+  it("should have HEAP_WARNING_MB at 250 (above boot-time heap of ~230MB)", () => {
+    expect(orchestratorSrc).toContain("HEAP_WARNING_MB = 250");
     expect(orchestratorSrc).not.toContain("HEAP_WARNING_MB = 2000");
   });
 
-  it("should have HEAP_CRITICAL_MB at 200 (not 4000)", () => {
-    expect(orchestratorSrc).toContain("HEAP_CRITICAL_MB = 200");
+  it("should have HEAP_CRITICAL_MB at 300 (not 4000)", () => {
+    expect(orchestratorSrc).toContain("HEAP_CRITICAL_MB = 300");
     expect(orchestratorSrc).not.toContain("HEAP_CRITICAL_MB = 4000");
   });
 
-  it("should have RSS_EMERGENCY_MB at 400 (not 24000)", () => {
-    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = 400");
+  it("should have RSS_EMERGENCY_MB at 420 (not 24000)", () => {
+    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = 420");
     expect(orchestratorSrc).not.toContain("RSS_EMERGENCY_MB = 24000");
   });
 
@@ -83,13 +83,14 @@ describe("Memory Watchdog Thresholds (Manus Container)", () => {
     expect(orchestratorSrc).toContain("Manus container can OOM fast");
   });
 
-  it("should have aggressive log budgets (30 emergency, 80 normal)", () => {
-    expect(orchestratorSrc).toContain("Math.floor(30 / activeCount)");
-    expect(orchestratorSrc).toContain("Math.floor(80 / activeCount)");
+  it("should have aggressive log budgets based on heap pressure", () => {
+    // Log budget scales with heap: 30 at >200MB, 50 at >150MB, 80 at >100MB, 150 otherwise
+    expect(orchestratorSrc).toContain("heapMB > 200 ? 30");
+    expect(orchestratorSrc).toContain("heapMB > 150 ? 50");
   });
 
   it("should evict completed states immediately at emergency level", () => {
-    expect(orchestratorSrc).toContain("isEmergency ? 0 : 120_000");
+    expect(orchestratorSrc).toContain("isEmergency ? 0 : 60_000");
   });
 });
 
@@ -101,17 +102,17 @@ describe("addLog Memory-Aware Trimming (Manus Container)", () => {
     "utf-8"
   );
 
-  it("should trigger aggressive trimming at 180MB heap (not 1200MB)", () => {
-    expect(orchestratorSrc).toContain("heapMB > 180 ? 50");
+  it("should trigger aggressive trimming at 200MB heap", () => {
+    expect(orchestratorSrc).toContain("heapMB > 200 ? 30");
   });
 
-  it("should trigger moderate trimming at 120MB heap (not 800MB)", () => {
-    expect(orchestratorSrc).toContain("heapMB > 120 ? 100");
-  });
-
-  it("should trigger tool output trimming at 150MB heap (not 1200MB)", () => {
+  it("should trigger tool output trimming at 120MB heap", () => {
     // The if condition for trimming toolResults
-    expect(orchestratorSrc).toContain("if (heapMB > 150)");
+    expect(orchestratorSrc).toContain("if (heapMB > 120)");
+  });
+
+  it("should trigger GC at 180MB heap", () => {
+    expect(orchestratorSrc).toContain("heapMB > 180");
   });
 });
 

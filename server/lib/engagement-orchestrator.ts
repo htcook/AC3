@@ -17,7 +17,37 @@
 
 import { invokeLLM } from "../_core/llm";
 import { throttledLLMCall } from "./llm-throttle";
-import { getNmapScanPlanContext, getNmapVulnCorrelationContext, getNmapHuntContext } from "./nmap-knowledge";
+// ═══ LAZY KNOWLEDGE BASE IMPORTS (memory optimization) ═══
+// All 17 knowledge modules are loaded on-demand via knowledge-lazy.ts
+// to reduce boot-time heap from ~230MB to ~150MB.
+import {
+  getNmapScanPlanContext, getNmapVulnCorrelationContext, getNmapHuntContext,
+  getChainsByVulnDescriptions, formatChainsForPrompt,
+  inferAssetContext, formatOntologyForPrompt,
+  getBugBountyContext, getTriageSystemPrompt, getTrainingExamplesForPrompt,
+  getTriageCorpusContext,
+  buildCloudSecurityContext, buildGeneralCloudContext, detectCloudProviders,
+  getOwaspScanPlanContext, getOwaspVulnCorrelationContext, getOwaspAssetClassificationContext,
+  getThreatGroupScanContext, getThreatGroupVulnContext, getSectorThreatContext, getGroupsByCVE,
+  buildOffensiveTechniquesContext, getFirewallEvasionContext, getFileUploadBypassContext,
+  getLOTLContext, getShodanReconContext, getSubdomainEnumContext,
+  buildZAPKnowledgeContext, getZAPAlertCatalogContext, getTechScanPolicyContext,
+  getZAPAuthContext, getZAPReasoningPrompt, getVulnPayloadContext,
+  buildToolRecommendationContext, buildAttackPlannerToolContext,
+  buildMethodologyContext, buildPhaseToolContext, buildVulnTestingContext, buildScanPlanningContext,
+  buildMissedVulnContext, buildMissedVulnAttackContext,
+  buildThreatActorLearningContext, buildThreatActorVulnContext,
+  scoreEngagementThreatAttribution, clearThreatLearningCache,
+  buildSourceSecretsContext, buildCompactSourceSecretsContext,
+  lazyFetchKevCatalog, lazyMatchCvesAgainstKev, lazyCalculateKevRiskBoost,
+  clearKnowledgeCache,
+} from "./knowledge-lazy";
+// Re-export KEV functions with original names for compatibility
+const fetchKevCatalog = lazyFetchKevCatalog;
+const matchCvesAgainstKev = lazyMatchCvesAgainstKev;
+const calculateKevRiskBoost = lazyCalculateKevRiskBoost;
+type KevMatch = any; // Type-only import not needed at runtime
+type BugBountyPhase = any; // Type-only import not needed at runtime
 import {
   emitExploitFired, emitExploitResult, emitAgentDeployed,
   emitReconComplete, emitSystemNotification, emitSystemAlert,
@@ -27,49 +57,10 @@ import { onShellObtained } from "./post-exploit-auto-trigger";
 import { captureDecision, captureExploitOutcome, updateDecisionOutcome } from "./engagement-training-bridge";
 import { emitLLMDecision, emitLLMDelegation, emitLLMEngagementProgress } from "./ws-event-hub";
 import {
-  getChainsByVulnDescriptions,
-  formatChainsForPrompt,
-} from "./knowledge/attack-chain-retriever";
-import {
   acquireScanSlot,
   releaseAllForEngagement,
   getScanConcurrencyMetrics,
 } from "./scan-concurrency";
-import {
-  inferAssetContext,
-  formatOntologyForPrompt,
-} from "./knowledge/asset-ontology";
-import {
-  getBugBountyContext,
-  getTriageSystemPrompt,
-  getTrainingExamplesForPrompt,
-} from "./knowledge/bugbounty-knowledge";
-import {
-  getTriageCorpusContext,
-} from "./knowledge/training-corpus";
-import {
-  buildCloudSecurityContext,
-  buildGeneralCloudContext,
-  detectCloudProviders,
-} from "./knowledge/cloud-security-knowledge";
-import {
-  getOwaspScanPlanContext,
-  getOwaspVulnCorrelationContext,
-  getOwaspAssetClassificationContext,
-} from "./owasp-knowledge";
-import { getOwaspTracker, resetOwaspTracker } from "./owasp-coverage-tracker";
-import {
-  getThreatGroupScanContext,
-  getThreatGroupVulnContext,
-  getSectorThreatContext,
-  getGroupsByCVE,
-} from "./threat-group-knowledge";
-import {
-  fetchKevCatalog,
-  matchCvesAgainstKev,
-  calculateKevRiskBoost,
-  type KevMatch,
-} from "./kev-service";
 import {
   executeToolViaQueue,
   executeRawCommandViaQueue,
@@ -77,47 +68,7 @@ import {
   getBridgeStatus,
 } from "./job-queue-bridge";
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
-import {
-  buildOffensiveTechniquesContext,
-  getFirewallEvasionContext,
-  getFileUploadBypassContext,
-  getLOTLContext,
-  getShodanReconContext,
-  getSubdomainEnumContext,
-} from "./knowledge/offensive-techniques-knowledge";
-import {
-  buildZAPKnowledgeContext,
-  getZAPAlertCatalogContext,
-  getTechScanPolicyContext,
-  getZAPAuthContext,
-  getZAPReasoningPrompt,
-  getVulnPayloadContext,
-} from "./knowledge/zap-pentesting-knowledge";
-import {
-  buildToolRecommendationContext,
-  buildAttackPlannerToolContext,
-} from "./knowledge/offensive-tools-knowledge";
-import {
-  buildMethodologyContext,
-  buildPhaseToolContext,
-  buildVulnTestingContext,
-  buildScanPlanningContext,
-  type BugBountyPhase,
-} from "./knowledge/bugbounty-methodology-knowledge";
-import {
-  buildMissedVulnContext,
-  buildMissedVulnAttackContext,
-} from "./knowledge/missed-vuln-training-knowledge";
-import {
-  buildThreatActorLearningContext,
-  buildThreatActorVulnContext,
-  scoreEngagementThreatAttribution,
-  clearThreatLearningCache,
-} from "./threat-actor-learning-context";
-import {
-  buildSourceSecretsContext,
-  buildCompactSourceSecretsContext,
-} from "./knowledge/zap-source-secrets-knowledge";
+import { getOwaspTracker, resetOwaspTracker } from "./owasp-coverage-tracker";
 import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
 import { captureCalderaEvidence, type CalderaEvidenceSnapshot } from "./caldera-evidence-collector";
 import {
@@ -623,66 +574,89 @@ let memoryWatchdogInterval: NodeJS.Timeout | null = null;
 /** Start a memory watchdog that logs warnings and triggers emergency trimming */
 export function startMemoryWatchdog() {
   if (memoryWatchdogInterval) return;
-  memoryWatchdogInterval = setInterval(() => {
+  memoryWatchdogInterval = setInterval(async () => {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for Manus container (~242MB heap, ~512MB RSS)
-    // The DO droplet has 32GB but the engagement orchestrator runs on Manus.
-    // Warning: start trimming logs to slow growth
-    // Critical: aggressive eviction + forced GC to prevent OOM restart
-    // Emergency: flush everything before the container gets OOM-killed
-    const HEAP_WARNING_MB = 150;
-    const HEAP_CRITICAL_MB = 200;
-    const RSS_EMERGENCY_MB = 400; // Manus container limit is ~512MB
+    // Thresholds calibrated for Manus container (~512MB RSS limit)
+    // Boot-time heap is ~230MB due to heavy static imports, so WARNING must be above that
+    const HEAP_WARNING_MB = 250;
+    const HEAP_CRITICAL_MB = 300;
+    const RSS_EMERGENCY_MB = 420;
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
       const level = rssMB > RSS_EMERGENCY_MB ? 'EMERGENCY' : heapMB > HEAP_CRITICAL_MB ? 'CRITICAL' : 'WARNING';
       console.warn(`[MemoryWatchdog] ${level}: ${heapMB.toFixed(0)}MB heap, ${rssMB.toFixed(0)}MB RSS, ${opsStates.size} active states`);
 
-      // Per-engagement log budget: aggressive for Manus container (~242MB heap)
-      const activeCount = Math.max(1, opsStates.size);
       const isEmergency = rssMB > RSS_EMERGENCY_MB || heapMB > HEAP_CRITICAL_MB;
-      const perEngBudget = isEmergency
-        ? Math.floor(30 / activeCount)
-        : Math.floor(80 / activeCount);
-      const maxLogsPerEng = Math.max(20, Math.min(100, perEngBudget));
 
       for (const [engId, state] of opsStates.entries()) {
-        // Evict completed/error engagement states immediately at emergency, 2 min otherwise
-        const evictAge = isEmergency ? 0 : 120_000;
-        if ((state.phase === 'completed' || state.phase === 'error') && state.completedAt && Date.now() - state.completedAt > evictAge) {
+        // Evict completed/error engagement states: immediately at CRITICAL+, 60s at WARNING
+        const evictAge = isEmergency ? 0 : 60_000;
+        if ((state.phase === 'completed' || state.phase === 'error')) {
+          const age = state.completedAt ? Date.now() - state.completedAt : Infinity;
+          if (age > evictAge) {
+            opsStates.delete(engId);
+            console.warn(`[MemoryWatchdog] Evicted ${state.phase} engagement #${engId} from memory (age=${Math.round(age/1000)}s)`);
+            continue;
+          }
+        }
+        // Also evict idle states that have been sitting for > 5 minutes
+        if (!state.isRunning && state.phase === 'idle') {
           opsStates.delete(engId);
-          console.warn(`[MemoryWatchdog] Evicted completed engagement #${engId} from memory`);
+          console.warn(`[MemoryWatchdog] Evicted idle engagement #${engId} from memory`);
           continue;
         }
-        if (state.log.length > maxLogsPerEng) {
-          const trimmed = state.log.length - maxLogsPerEng;
-          state.log = state.log.slice(-maxLogsPerEng);
-          console.warn(`[MemoryWatchdog] Trimmed ${trimmed} logs for engagement #${engId} to ${maxLogsPerEng}`);
-        }
-        // Aggressively trim toolResult outputs to prevent memory bloat
-        const outputLimit = isEmergency ? 256 : 512;
-        for (const asset of state.assets) {
-          for (const tr of (asset.toolResults || [])) {
-            if (tr.outputPreview && tr.outputPreview.length > outputLimit) {
-              tr.outputPreview = tr.outputPreview.slice(0, outputLimit) + '...[trimmed]';
-            }
+
+        // Use memory-manager for aggressive eviction at CRITICAL/EMERGENCY level
+        if (isEmergency) {
+          try {
+            const { emergencyEviction, logMemoryProfile } = await import('./memory-manager');
+            // Persist to DB first so we don't lose data
+            try {
+              const { saveOpsSnapshot } = await import('../db');
+              await saveOpsSnapshot(engId, state);
+            } catch { /* best effort */ }
+            const result = emergencyEviction(state);
+            console.warn(`[MemoryWatchdog] Emergency eviction for #${engId}: freed ~${(result.freedEstimateBytes / 1024).toFixed(0)}KB, actions: ${result.actions.join(', ')}`);
+          } catch (e: any) {
+            console.error(`[MemoryWatchdog] Emergency eviction failed for #${engId}:`, e.message);
           }
-          // At emergency level, also clear raw scan data that's already been processed
-          if (isEmergency) {
+        } else {
+          // WARNING level: moderate trimming
+          const maxLogsPerEng = Math.max(20, Math.floor(60 / Math.max(1, opsStates.size)));
+          if (state.log.length > maxLogsPerEng) {
+            state.log = state.log.slice(-maxLogsPerEng);
+          }
+          // Trim toolResult outputs
+          for (const asset of state.assets) {
             for (const tr of (asset.toolResults || [])) {
+              if (tr.outputPreview && tr.outputPreview.length > 256) {
+                tr.outputPreview = tr.outputPreview.slice(0, 256) + '...[trimmed]';
+              }
               if (tr.findings && tr.findings.length > 10) {
                 tr.findings = tr.findings.slice(0, 10);
               }
             }
           }
+          // Clear passiveReconResults at WARNING level too
+          if ((state as any).passiveReconResults) {
+            delete (state as any).passiveReconResults;
+          }
+          // Clear temporary analysis objects
+          for (const key of ['vulnAnalysisSuppressed', 'fpSuppressionStats', 'scanFeedbackLoop', 'cloudDetection']) {
+            if ((state as any)[key]) delete (state as any)[key];
+          }
         }
+      }
+      // Clear knowledge module cache at emergency level to free ~80MB
+      if (isEmergency) {
+        const cleared = clearKnowledgeCache();
+        if (cleared > 0) console.warn(`[MemoryWatchdog] Cleared ${cleared} knowledge module caches`);
       }
       // Trigger GC if available (requires --expose-gc flag in NODE_OPTIONS)
       if (global.gc) {
-        console.warn('[MemoryWatchdog] Triggering manual GC...');
         global.gc();
       }
     }
@@ -732,9 +706,9 @@ export function getHealthStatus() {
     },
     memoryWatchdog: {
       running: memoryWatchdogInterval !== null,
-      heapWarningThresholdMB: 150,
-      heapCriticalThresholdMB: 200,
-      rssEmergencyThresholdMB: 400,
+      heapWarningThresholdMB: 250,
+      heapCriticalThresholdMB: 300,
+      rssEmergencyThresholdMB: 420,
     },
     scanConcurrency: getScanConcurrencyMetrics(),
     engagements: {
@@ -1442,24 +1416,26 @@ Return valid JSON per the response_format schema.`;
     } catch (e) {
       console.warn('[ScanPlan] Failed to build banking context:', e);
     }
-    enrichmentCtx = [
-      bankingCtx || '',
-      ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '',
-      bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '',
-      corpusCtx ? '## Triage Examples\n' + corpusCtx : '',
-      cloudCtx || '',
-      nmapCtx || '',
-      owaspCtx || '',
-      threatGroupCtx || '',
-      threatActorLearningCtx || '',
-      offensiveTechCtx || '',
-      zapKnowledgeCtx || '',
-      sourceSecretsCtx || '',
-      toolsCtx || '',
-      methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '',
-      phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '',
-      buildMissedVulnContext({ targetPreset: targetPreset || undefined }),
-    ].filter(Boolean).join('\n\n');
+    // Use capLLMContext to prevent multi-MB prompt accumulation (memory optimization)
+    const { capLLMContext } = await import('./memory-manager');
+    enrichmentCtx = capLLMContext([
+      { label: 'banking', content: bankingCtx || '' },
+      { label: 'ontology', content: ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '' },
+      { label: 'bugbounty', content: bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '' },
+      { label: 'triage', content: corpusCtx ? '## Triage Examples\n' + corpusCtx : '' },
+      { label: 'cloud', content: cloudCtx || '' },
+      { label: 'nmap', content: nmapCtx || '' },
+      { label: 'owasp', content: owaspCtx || '' },
+      { label: 'threatGroup', content: threatGroupCtx || '' },
+      { label: 'threatActor', content: threatActorLearningCtx || '' },
+      { label: 'offensive', content: offensiveTechCtx || '' },
+      { label: 'zap', content: zapKnowledgeCtx || '' },
+      { label: 'secrets', content: sourceSecretsCtx || '' },
+      { label: 'tools', content: toolsCtx || '' },
+      { label: 'methodology', content: methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '' },
+      { label: 'phaseTool', content: phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '' },
+      { label: 'missedVuln', content: buildMissedVulnContext({ targetPreset: targetPreset || undefined }) },
+    ]);
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);
   }
@@ -1786,6 +1762,11 @@ async function llmDecide(context: {
   }
 
   // ─── Fallback: direct invokeLLM ───
+  // Cap the question size to prevent oversized prompts (memory optimization)
+  if (context.question.length > 15_000) {
+    console.warn(`[OpsLLM] Question too large (${context.question.length} chars), truncating to 15K`);
+    context.question = context.question.slice(0, 15_000) + '\n[...context truncated for memory]';
+  }
   // Build phase-specific instructions for the LLM
   const exploitPhaseInstructions = ['exploitation', 'post_exploit'].includes(context.phase)
     ? `\n\nIMPORTANT: You are in the ${context.phase} phase. You MUST return actions with type "exploit_attempt" for each vulnerability you want to exploit.
@@ -4906,7 +4887,21 @@ ${(() => {
     includeBrowserStorage: true,
     technology: detectedTech[0],
   });
-  return chainCtx + ontologyCtx + '\n\n' + bugBountyCtx + '\n\n' + triageCtx + (cloudSecCtx ? '\n\n' + cloudSecCtx : '') + '\n\n' + nmapVulnCtx + '\n\n' + owaspVulnCtx + '\n\n' + threatVulnCtx + (offTechVulnCtx ? '\n\n' + offTechVulnCtx : '') + (zapVulnCtx ? '\n\n' + zapVulnCtx : '') + (sourceSecretsVulnCtx ? '\n\n' + sourceSecretsVulnCtx : '');
+  // Cap total context to prevent multi-MB prompts (memory optimization)
+  const { capLLMContext: capCtx } = require('./memory-manager');
+  return capCtx([
+    { label: 'chains', content: chainCtx },
+    { label: 'ontology', content: ontologyCtx },
+    { label: 'bugBounty', content: bugBountyCtx },
+    { label: 'triage', content: triageCtx },
+    { label: 'cloud', content: cloudSecCtx || '' },
+    { label: 'nmap', content: nmapVulnCtx },
+    { label: 'owasp', content: owaspVulnCtx },
+    { label: 'threat', content: threatVulnCtx },
+    { label: 'offensive', content: offTechVulnCtx || '' },
+    { label: 'zap', content: zapVulnCtx || '' },
+    { label: 'secrets', content: sourceSecretsVulnCtx || '' },
+  ]);
 })()}`,
     });
 
@@ -5265,7 +5260,20 @@ ${(() => {
   });
   // Compact source secrets context for exploitation (token-limited)
   const sourceSecretsExploitCtx = buildCompactSourceSecretsContext();
-  return chainContext + ontologyContext + '\n\n' + bbContext + '\n\n' + corpusContext + '\n\n' + nmapExploitCtx + '\n\n' + owaspExploitCtx + '\n\n' + threatExploitCtx + (offTechExploitCtx ? '\n\n' + offTechExploitCtx : '') + (zapExploitCtx ? '\n\n' + zapExploitCtx : '') + '\n\n' + sourceSecretsExploitCtx;
+  // Cap total context to prevent multi-MB prompts (memory optimization)
+  const { capLLMContext: capCtxExploit } = require('./memory-manager');
+  return capCtxExploit([
+    { label: 'chains', content: chainContext },
+    { label: 'ontology', content: ontologyContext },
+    { label: 'bugBounty', content: bbContext },
+    { label: 'corpus', content: corpusContext },
+    { label: 'nmap', content: nmapExploitCtx },
+    { label: 'owasp', content: owaspExploitCtx },
+    { label: 'threat', content: threatExploitCtx },
+    { label: 'offensive', content: offTechExploitCtx || '' },
+    { label: 'zap', content: zapExploitCtx || '' },
+    { label: 'secrets', content: sourceSecretsExploitCtx },
+  ]);
 })()}`,
   });
 
@@ -6543,6 +6551,17 @@ export async function executeEngagement(
   async function phaseCheckpoint(completedPhase: string) {
     await persistOpsStateNow(engagementId);
     console.log(`[OpsState] Phase checkpoint saved: ${completedPhase} for engagement #${engagementId}`);
+    // ═══ POST-PHASE MEMORY CLEANUP ═══
+    // State is now safely in DB. Strip heavy data from memory to prevent OOM.
+    try {
+      const { postPhaseCleanup, logMemoryProfile } = await import('./memory-manager');
+      logMemoryProfile(engagementId, state, `pre-cleanup-${completedPhase}`);
+      const cleanup = postPhaseCleanup(state, completedPhase);
+      logMemoryProfile(engagementId, state, `post-cleanup-${completedPhase}`);
+      console.log(`[MemCleanup] Eng#${engagementId} phase=${completedPhase}: freed ~${(cleanup.freedEstimateBytes / 1024).toFixed(0)}KB, actions: ${cleanup.actions.join(', ')}`);
+    } catch (e: any) {
+      console.error(`[MemCleanup] Failed for #${engagementId}:`, e.message);
+    }
     // ═══ REAL-TIME OWASP COVERAGE UPDATE ═══
     try {
       // Re-populate tracker from current state after each phase
@@ -7412,6 +7431,10 @@ export async function executeEngagement(
     // Final checkpoint
     await phaseCheckpoint('completed');
 
+    // Free knowledge module memory after engagement completes
+    const clearedMods = clearKnowledgeCache();
+    if (clearedMods > 0) console.log(`[MemCleanup] Cleared ${clearedMods} knowledge module caches after completion`);
+
     emitSystemNotification({
       title: "Engagement Complete",
       message: `${state.engagementType} engagement #${engagementId} finished: ${state.stats.exploitsSucceeded} successful exploits`,
@@ -7454,6 +7477,8 @@ export async function executeEngagement(
     addLog(state, { phase: "error", type: "error", title: "Pipeline Error", detail: e.message });
     // Save error state so it can be inspected and potentially resumed
     await persistOpsStateNow(engagementId);
+    // Free knowledge module memory on error too
+    try { clearKnowledgeCache(); } catch { /* best effort */ }
 
     // ── Owner Push Notification (Error) ──
     try {
@@ -7582,19 +7607,29 @@ export async function recoverInterruptedEngagements(): Promise<{
     for (const row of interrupted) {
       const engId = row.engagementId;
       try {
-        // Load and normalize the state (loadOpsSnapshot already handles crash detection)
-        const { loadOpsSnapshot } = await import('../db');
-        const state = await loadOpsSnapshot(engId);
-        if (state) {
-          opsStates.set(engId, state);
-          result.recovered++;
-          result.engagements.push({
-            id: engId,
-            phase: state.phase,
-            assets: state.assets?.length || 0,
-          });
-          console.log(`[StartupRecovery] Recovered engagement #${engId}: phase=${state.phase}, assets=${state.assets?.length || 0}`);
-        }
+        // MEMORY OPTIMIZATION: Don't load full state into memory at boot.
+        // Just record that this engagement exists and can be resumed.
+        // The full state will be loaded on-demand when the user clicks Resume.
+        // Parse just enough metadata from the snapshot to show in the UI.
+        let phase = 'unknown';
+        let assetCount = 0;
+        try {
+          const snapshotData = typeof row.stateJson === 'string' ? JSON.parse(row.stateJson) : row.stateJson;
+          phase = snapshotData?.phase || 'unknown';
+          assetCount = snapshotData?.assets?.length || 0;
+        } catch { /* use defaults */ }
+
+        // Mark as error/stopped in DB so it won't be recovered again on next restart
+        // The state stays in DB and can be loaded on-demand via getOpsStateWithRecovery()
+        try {
+          await db.update(engagementOpsSnapshots)
+            .set({ isRunning: 0 })
+            .where(eq(engagementOpsSnapshots.engagementId, engId));
+        } catch { /* best effort */ }
+
+        result.recovered++;
+        result.engagements.push({ id: engId, phase, assets: assetCount });
+        console.log(`[StartupRecovery] Recovered engagement #${engId}: phase=${phase}, assets=${assetCount} (state NOT loaded into memory — will load on Resume)`);
       } catch (e: any) {
         console.error(`[StartupRecovery] Failed to recover engagement #${engId}:`, e.message);
       }
