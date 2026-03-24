@@ -20,13 +20,13 @@ import { SERVER_INSTANCE_ID } from "./server-instance";
 // ─── Configuration ──────────────────────────────────────────────────────────
 
 /** Maximum interrupts within the crash-loop window before blocking auto-resume */
-const MAX_INTERRUPTS_BEFORE_BLOCK = 3;
+const MAX_INTERRUPTS_BEFORE_BLOCK = 10; // Raised from 3: deployment restarts are expected, not crash loops
 
 /** Time window for crash-loop detection (24 hours in ms) */
 const CRASH_LOOP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** Delay after server startup before auto-resuming (3 minutes) */
-const AUTO_RESUME_DELAY_MS = 3 * 60 * 1000;
+/** Delay after server startup before auto-resuming (30 seconds — fast recovery) */
+const AUTO_RESUME_DELAY_MS = 30 * 1000;
 
 /** Grace period after auto-resume is scheduled, during which operator can cancel (30 seconds) */
 const CANCEL_GRACE_PERIOD_MS = 30 * 1000;
@@ -86,16 +86,27 @@ export async function detectInterruptedEngagements(): Promise<InterruptedEngagem
     for (const snap of interrupted) {
       const engId = snap.engagementId;
 
-      // Check if this engagement was owned by a DIFFERENT server instance.
-      // If the snapshot's server_instance_id doesn't match ours, it means
-      // another server (e.g., local dev) is running this engagement — NOT an interrupt.
+      // Check if this engagement was owned by a DIFFERENT server (hostname).
+      // We compare only the hostname prefix (not pid/timestamp/random) to allow
+      // the SAME server to resume after a restart (where pid/timestamp change).
+      // This prevents cross-server conflicts (e.g., local dev vs production)
+      // while still allowing single-server restart recovery.
       const snapshotOwner = snap.serverInstanceId as string | null;
-      if (snapshotOwner && snapshotOwner !== SERVER_INSTANCE_ID) {
+      if (snapshotOwner) {
+        const ownerHostname = snapshotOwner.split("-").slice(0, -3).join("-") || snapshotOwner;
+        const ourHostname = SERVER_INSTANCE_ID.split("-").slice(0, -3).join("-") || SERVER_INSTANCE_ID;
+        if (ownerHostname !== ourHostname) {
+          console.log(
+            `[AutoResume] Engagement #${engId} is owned by a different server "${ownerHostname}" ` +
+            `(we are "${ourHostname}"). Skipping — not a real interrupt on this server.`
+          );
+          continue;
+        }
         console.log(
-          `[AutoResume] Engagement #${engId} is owned by server instance "${snapshotOwner}" ` +
-          `(we are "${SERVER_INSTANCE_ID}"). Skipping — not a real interrupt.`
+          `[AutoResume] Engagement #${engId} was owned by same hostname "${ownerHostname}" ` +
+          `(old instance: "${snapshotOwner}", new instance: "${SERVER_INSTANCE_ID}"). ` +
+          `This is a server restart — proceeding with auto-resume.`
         );
-        continue;
       }
 
       // Increment interrupt_count and set last_interrupted_at
@@ -131,8 +142,9 @@ export async function detectInterruptedEngagements(): Promise<InterruptedEngagem
         // Ignore parse errors
       }
 
-      const PHASE_ORDER = ["recon", "enumeration", "vuln_detection", "exploitation", "post_exploit"];
-      const canResume = assetsCount > 0 && PHASE_ORDER.includes(phase);
+      // Include both old orchestrator phases AND new rerunFullPipeline phases
+      const RESUMABLE_PHASES = ["recon", "enumeration", "vuln_detection", "exploitation", "post_exploit", "scanning", "recon_complete"];
+      const canResume = assetsCount > 0 && RESUMABLE_PHASES.includes(phase);
 
       // Check if auto-resume is enabled for this engagement
       let autoResumeEnabled = false;
@@ -318,28 +330,135 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       console.warn(`[AutoResume] Notification failed for #${engagementId}:`, notifErr.message);
     }
 
-    // Use the orchestrator's resume capability
-    const { resumeEngagement } = await import("./engagement-orchestrator");
-    const result = await resumeEngagement(engagementId, {
-      id: "system-auto-resume",
-      name: "Auto-Resume System",
-    });
-
-    if (result.success) {
-      console.log(`[AutoResume] Successfully resumed engagement #${engagementId}: ${result.message}`);
-      eventHub.broadcastEngagement(engagementId, {
-        type: "engagement:auto_resumed",
-        engagementId,
-        resumePhase: result.resumePhase,
-        message: `Engagement #${engagementId} auto-resumed from ${result.resumePhase}.`,
+    // ── Resume via rerunFullPipeline (same code path as the UI) ──
+    // Load the state to get the stored pipelinePhases config
+    const { getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate, persistOpsStateNow } = await import("./engagement-orchestrator");
+    let state = await getOpsStateWithRecovery(engagementId);
+    
+    // Determine which phases to run based on stored config and current progress
+    const storedPhases = (state as any)?.pipelinePhases || { passive: true, active: true, llmAnalysis: true, exploitGeneration: true };
+    const currentPhase = interruption.phase;
+    
+    // Skip phases that have already completed based on current phase
+    // Phase order: recon -> scanning -> exploitation -> completed
+    const phaseComplete = {
+      passive: ['scanning', 'vuln_detection', 'exploitation', 'completed'].includes(currentPhase),
+      active: ['exploitation', 'completed'].includes(currentPhase),
+      llmAnalysis: ['exploitation', 'completed'].includes(currentPhase),
+      exploitGeneration: currentPhase === 'completed',
+    };
+    
+    const resumePhases = {
+      passive: storedPhases.passive && !phaseComplete.passive,
+      active: storedPhases.active && !phaseComplete.active,
+      llmAnalysis: storedPhases.llmAnalysis && !phaseComplete.llmAnalysis,
+      exploitGeneration: storedPhases.exploitGeneration && !phaseComplete.exploitGeneration,
+    };
+    
+    console.log(`[AutoResume] Engagement #${engagementId}: currentPhase=${currentPhase}, resumePhases=${JSON.stringify(resumePhases)}`);
+    
+    // Call rerunFullPipeline via internal HTTP (uses the same code path as the UI)
+    // We need to get the owner's JWT to authenticate the internal call
+    try {
+      const { sign } = await import("jsonwebtoken");
+      const jwtSecret = process.env.JWT_SECRET;
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+      const ownerName = process.env.OWNER_NAME || "Auto-Resume System";
+      
+      if (!jwtSecret || !ownerOpenId) {
+        throw new Error("Missing JWT_SECRET or OWNER_OPEN_ID for internal auth");
+      }
+      
+      // Create a short-lived internal JWT for the owner
+      const internalToken = sign(
+        { sub: ownerOpenId, name: ownerName, iat: Math.floor(Date.now() / 1000) },
+        jwtSecret,
+        { expiresIn: "5m" }
+      );
+      
+      const port = process.env.PORT || 3000;
+      const response = await fetch(`http://localhost:${port}/api/trpc/engagementOps.rerunFullPipeline`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": `token=${internalToken}`,
+        },
+        body: JSON.stringify({
+          json: {
+            engagementId,
+            phases: resumePhases,
+            resetState: false,
+            exhaustiveExploit: (state as any)?.exhaustiveExploit ?? true,
+          },
+        }),
       });
-    } else {
-      console.error(`[AutoResume] Failed to resume engagement #${engagementId}: ${result.message}`);
-      eventHub.broadcastEngagement(engagementId, {
-        type: "engagement:auto_resume_failed",
-        engagementId,
-        error: result.message,
+      
+      const responseData = await response.json().catch(() => null);
+      
+      if (response.ok && responseData?.result?.data?.json?.started) {
+        console.log(`[AutoResume] Successfully resumed engagement #${engagementId} via rerunFullPipeline`);
+        eventHub.broadcastEngagement(engagementId, {
+          type: "engagement:auto_resumed",
+          engagementId,
+          resumePhase: currentPhase,
+          message: `Engagement #${engagementId} auto-resumed from ${currentPhase} via full pipeline.`,
+        });
+      } else {
+        const errorMsg = responseData?.error?.json?.message || responseData?.error?.message || `HTTP ${response.status}`;
+        console.error(`[AutoResume] rerunFullPipeline failed for #${engagementId}: ${errorMsg}`);
+        
+        // Fallback to the old resumeEngagement path
+        console.log(`[AutoResume] Falling back to orchestrator resumeEngagement for #${engagementId}...`);
+        const { resumeEngagement } = await import("./engagement-orchestrator");
+        const result = await resumeEngagement(engagementId, {
+          id: "system-auto-resume",
+          name: "Auto-Resume System",
+        });
+        
+        if (result.success) {
+          console.log(`[AutoResume] Fallback resume succeeded for #${engagementId}: ${result.message}`);
+          eventHub.broadcastEngagement(engagementId, {
+            type: "engagement:auto_resumed",
+            engagementId,
+            resumePhase: result.resumePhase,
+            message: `Engagement #${engagementId} auto-resumed (fallback) from ${result.resumePhase}.`,
+          });
+        } else {
+          console.error(`[AutoResume] Fallback resume also failed for #${engagementId}: ${result.message}`);
+          eventHub.broadcastEngagement(engagementId, {
+            type: "engagement:auto_resume_failed",
+            engagementId,
+            error: `Primary: ${errorMsg}. Fallback: ${result.message}`,
+          });
+        }
+      }
+    } catch (httpErr: any) {
+      console.error(`[AutoResume] Internal HTTP call failed for #${engagementId}: ${httpErr.message}`);
+      
+      // Fallback to the old resumeEngagement path
+      console.log(`[AutoResume] Falling back to orchestrator resumeEngagement for #${engagementId}...`);
+      const { resumeEngagement } = await import("./engagement-orchestrator");
+      const result = await resumeEngagement(engagementId, {
+        id: "system-auto-resume",
+        name: "Auto-Resume System",
       });
+      
+      if (result.success) {
+        console.log(`[AutoResume] Fallback resume succeeded for #${engagementId}: ${result.message}`);
+        eventHub.broadcastEngagement(engagementId, {
+          type: "engagement:auto_resumed",
+          engagementId,
+          resumePhase: result.resumePhase,
+          message: `Engagement #${engagementId} auto-resumed (fallback) from ${result.resumePhase}.`,
+        });
+      } else {
+        console.error(`[AutoResume] All resume attempts failed for #${engagementId}: ${result.message}`);
+        eventHub.broadcastEngagement(engagementId, {
+          type: "engagement:auto_resume_failed",
+          engagementId,
+          error: result.message,
+        });
+      }
     }
 
     // Remove from detected list

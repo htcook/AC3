@@ -618,22 +618,13 @@ async function startServer() {
     setTimeout(() => {
       console.log("[Background] Phase 2: Starting recovery + lightweight schedulers...");
 
-      // Startup Recovery: detect and recover interrupted engagements from DB
-      import("../lib/engagement-orchestrator").then(async ({ recoverInterruptedEngagements }) => {
-        const result = await recoverInterruptedEngagements();
-        if (result.recovered > 0) {
-          console.log(`[StartupRecovery] Recovered ${result.recovered} interrupted engagement(s):`,
-            result.engagements.map(e => `#${e.id}(${e.phase})`).join(', '));
-        } else {
-          console.log("[StartupRecovery] No interrupted engagements found");
-        }
-      }).catch((err) => {
-        console.warn("[StartupRecovery] Recovery scan failed:", err);
-      });
-
-      // Initialize Engagement Auto-Resume Hook (detect interrupted engagements)
-      import("../lib/engagement-auto-resume").then(({ initAutoResumeHook }) => {
-        initAutoResumeHook();
+      // Startup Recovery + Auto-Resume: detect interrupted engagements and auto-resume them.
+      // NOTE: We use ONLY the auto-resume hook (which handles detection, notification, AND resume).
+      // The old recoverInterruptedEngagements() was racing with initAutoResumeHook() — both
+      // tried to find isRunning=1 records, and whichever ran first would clear the flag,
+      // causing the other to find nothing. Now initAutoResumeHook() is the single source of truth.
+      import("../lib/engagement-auto-resume").then(async ({ initAutoResumeHook }) => {
+        await initAutoResumeHook();
         console.log("[AutoResume] Engagement auto-resume hook initialized");
       }).catch((err) => {
         console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);

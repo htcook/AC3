@@ -582,7 +582,7 @@ export function startMemoryWatchdog() {
     // Boot-time heap is ~230MB due to heavy static imports, so WARNING must be above that
     const HEAP_WARNING_MB = 250;
     const HEAP_CRITICAL_MB = 300;
-    const RSS_EMERGENCY_MB = 480; // tsx dev watcher adds ~200MB RSS overhead; idle RSS is ~430MB
+    const RSS_EMERGENCY_MB = 550; // tsx dev watcher adds ~200MB RSS overhead; idle RSS is ~510MB in Manus container
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
@@ -708,7 +708,7 @@ export function getHealthStatus() {
       running: memoryWatchdogInterval !== null,
       heapWarningThresholdMB: 250,
       heapCriticalThresholdMB: 300,
-      rssEmergencyThresholdMB: 480,
+      rssEmergencyThresholdMB: 550,
     },
     scanConcurrency: getScanConcurrencyMetrics(),
     engagements: {

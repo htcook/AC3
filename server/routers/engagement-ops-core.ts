@@ -1516,6 +1516,9 @@ export const engagementOpsRouter = router({
         state.isRunning = true;
         state.error = undefined;
         state.currentAction = 'Starting full pipeline re-run...';
+        // Store the pipeline phases config on state so auto-resume knows which phases to run
+        (state as any).pipelinePhases = input.phases;
+        (state as any).exhaustiveExploit = input.exhaustiveExploit;
         addLog(state, {
           phase: 'recon', type: 'info',
           title: '\u{1f504} Full Pipeline Re-Run Started',
@@ -1524,6 +1527,10 @@ export const engagementOpsRouter = router({
         broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon' });
 
         await db.logActivity({ userId: ctx.user.id, action: 'full_pipeline_rerun', details: `Started full pipeline re-run for engagement #${input.engagementId}` });
+
+        // Persist isRunning=true to DB BEFORE starting the async pipeline
+        // This ensures auto-resume can detect the interrupted engagement if the server crashes
+        await persistOpsStateNow(input.engagementId, state);
 
         // Run pipeline asynchronously
         (async () => {
@@ -1572,6 +1579,9 @@ export const engagementOpsRouter = router({
                 }
               }
             }
+
+            // ── Persist after Phase 1 (Passive Recon) ──
+            await persistOpsStateNow(input.engagementId).catch(() => {});
 
             // Phase 2: LLM Analysis of passive results
             if (input.phases.llmAnalysis) {
@@ -1781,6 +1791,9 @@ export const engagementOpsRouter = router({
               }
             }
 
+            // ── Persist after Phase 2 (LLM Analysis) ──
+            await persistOpsStateNow(input.engagementId).catch(() => {});
+
             // Phase 3: Active Scanning (uses handoff plan when available, falls back to defaults)
             if (input.phases.active) {
               state!.phase = 'scanning';
@@ -1950,6 +1963,9 @@ export const engagementOpsRouter = router({
                     // Header probe is non-critical, just log
                     addLog(state!, { phase: 'scanning', type: 'info', title: `Header probe skipped: ${asset.hostname}`, detail: err.message });
                   }
+
+                  // ── Persist after each asset scan (crash-resilient checkpoint) ──
+                  await persistOpsStateNow(input.engagementId).catch(() => {});
                 }
               } catch (err: any) {
                 addLog(state!, { phase: 'scanning', type: 'error', title: '\u274c Active scanning failed', detail: err.message });
@@ -2213,6 +2229,9 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                 addLog(state!, { phase: 'scanning', type: 'error', title: '\u274c LLM Vuln Synthesis failed', detail: err.message });
               }
             }
+
+            // ── Persist after Phase 3 (Active Scanning + LLM Vuln Synthesis) ──
+            await persistOpsStateNow(input.engagementId).catch(() => {});
 
             // Phase 4: Exploit Generation
             if (input.phases.exploitGeneration) {
