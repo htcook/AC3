@@ -96,7 +96,71 @@ async function startServer() {
     }
   });
 
+  // ─── Memory Profile Endpoint ──────────────────────────────────────
+  // Real-time per-engagement memory breakdown for debugging OOM issues
+  app.get('/api/memory-profile', async (_req, res) => {
+    try {
+      const { getHealthStatus } = await import('../lib/engagement-orchestrator');
+      const health = getHealthStatus();
+      const mem = process.memoryUsage();
 
+      // Try to get detailed per-engagement breakdown from memory-manager
+      let engagementBreakdown: any[] = [];
+      try {
+        const { estimateStateSize } = await import('../lib/memory-manager');
+        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        for (const detail of health.engagements.details) {
+          const state = getOpsState(detail.id);
+          if (state) {
+            const estimate = estimateStateSize(state);
+            engagementBreakdown.push({
+              id: detail.id,
+              phase: detail.phase,
+              assets: detail.assets,
+              logs: detail.logs,
+              estimatedSizeKB: Math.round(estimate / 1024),
+              breakdown: {
+                assetsCount: state.assets?.length || 0,
+                toolResultsCount: state.assets?.reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0) || 0,
+                findingsCount: state.assets?.reduce((sum: number, a: any) => sum + a.toolResults?.reduce((s2: number, tr: any) => s2 + (tr.findings?.length || 0), 0) || 0, 0) || 0,
+                logsCount: state.log?.length || 0,
+                hasPassiveRecon: !!(state as any).passiveReconResults,
+                hasVulnAnalysis: !!(state as any).vulnAnalysis,
+                hasScanFeedback: !!(state as any).scanFeedbackLoop,
+                hasAttackChains: !!(state as any).attackChains,
+              },
+            });
+          }
+        }
+      } catch { /* memory-manager not available */ }
+
+      // Knowledge cache status
+      let knowledgeCacheStatus: any = null;
+      try {
+        const { getCacheStatus } = await import('../lib/knowledge-lazy');
+        knowledgeCacheStatus = getCacheStatus();
+      } catch { /* not available */ }
+
+      res.status(200).json({
+        timestamp: Date.now(),
+        uptime: process.uptime(),
+        memory: {
+          heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+          heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+          rssMB: Math.round(mem.rss / 1024 / 1024),
+          externalMB: Math.round(mem.external / 1024 / 1024),
+          arrayBuffersMB: Math.round((mem.arrayBuffers || 0) / 1024 / 1024),
+        },
+        gcAvailable: typeof global.gc === 'function',
+        activeEngagements: health.engagements.activeCount,
+        engagementBreakdown,
+        knowledgeCacheStatus,
+        watchdog: health.memoryWatchdog,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // ─── HTTPS Enforcement ───────────────────────────────────────────────
   // Redirect all HTTP requests to HTTPS in production.
@@ -106,7 +170,7 @@ async function startServer() {
     const host = req.hostname || req.headers.host || '';
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
     // Skip redirect for health check paths (platform may probe via HTTP)
-    if (req.path === '/healthz' || req.path === '/api/health') return next();
+    if (req.path === '/healthz' || req.path === '/api/health' || req.path === '/api/memory-profile') return next();
     const proto = req.protocol || (req.headers['x-forwarded-proto'] as string) || 'http';
     if (!isLocalhost && proto !== 'https') {
       const redirectUrl = `https://${req.headers.host}${req.originalUrl}`;

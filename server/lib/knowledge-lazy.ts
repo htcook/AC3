@@ -39,6 +39,14 @@ export function getKnowledgeCacheSize(): number {
   return _cache.size;
 }
 
+/** Get detailed cache status for the memory-profile endpoint */
+export function getCacheStatus(): { cachedModules: string[]; cacheSize: number } {
+  return {
+    cachedModules: [..._cache.keys()],
+    cacheSize: _cache.size,
+  };
+}
+
 // ─── nmap-knowledge ────────────────────────────────────────────────────────
 export function getNmapScanPlanContext(...args: any[]) {
   return lazy('nmap', './nmap-knowledge').getNmapScanPlanContext(...args);
