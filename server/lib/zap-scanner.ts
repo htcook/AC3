@@ -47,6 +47,7 @@ import {
   TECH_SCAN_POLICIES,
   type TechScanPolicy,
 } from "./knowledge/zap-pentesting-knowledge";
+import { buildLearningContext, GROUND_TRUTH_LIBRARY } from "./llm-self-learning";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -69,6 +70,42 @@ export const DEFAULT_ZAP_CONFIG: ZapConfig = {
   requestDelayMs: 20,
   maxAlertsPerScan: 1000,
 };
+
+// ─── Target Preset Detection (for self-learning feedback loop) ─────────────────────────────────
+
+const TARGET_PRESET_PATTERNS: Array<{ preset: string; patterns: RegExp[] }> = [
+  { preset: 'juice-shop', patterns: [/juice.?shop/i, /owasp.*juice/i] },
+  { preset: 'dvwa', patterns: [/dvwa/i, /damn.*vulnerable.*web/i] },
+  { preset: 'mutillidae', patterns: [/mutillidae/i, /nowasp/i] },
+  { preset: 'zero-bank', patterns: [/zero\.webappsecurity/i, /zero-bank/i] },
+  { preset: 'altoro-mutual', patterns: [/altoromutual/i, /altoro.*mutual/i] },
+  { preset: 'hackazon', patterns: [/hackazon/i] },
+  { preset: 'webscantest', patterns: [/webscantest/i] },
+  { preset: 'crapi', patterns: [/crapi/i, /completely.*ridiculous.*api/i] },
+  { preset: 'webgoat', patterns: [/webgoat/i] },
+  { preset: 'vulnweb-rest', patterns: [/rest\.vulnweb/i] },
+  { preset: 'vulnweb-aspnet', patterns: [/aspnet\.vulnweb/i, /testasp\.vulnweb/i] },
+  { preset: 'testsparker-angular', patterns: [/angular\.testsparker/i, /rest\.testsparker/i] },
+  { preset: 'bodgeit', patterns: [/bodgeit/i] },
+];
+
+/**
+ * Detect the training target preset from a URL.
+ * Returns the preset name if matched, or undefined for unknown targets.
+ */
+function detectTargetPreset(targetUrl: string): string | undefined {
+  const urlLower = targetUrl.toLowerCase();
+  for (const { preset, patterns } of TARGET_PRESET_PATTERNS) {
+    for (const pattern of patterns) {
+      if (pattern.test(urlLower)) return preset;
+    }
+  }
+  // Also check if the preset exists in the ground truth library
+  for (const preset of Object.keys(GROUND_TRUTH_LIBRARY)) {
+    if (urlLower.includes(preset.replace(/-/g, ''))) return preset;
+  }
+  return undefined;
+}
 
 // ─── ZAP API Client ─────────────────────────────────────────────────────────
 
@@ -435,6 +472,7 @@ export async function generateLLMScanConfig(params: {
   techStackHints?: string[];
   authHints?: { type: string; loginUrl?: string; credentials?: Record<string, string> };
   scopeConstraints?: string[];
+  targetPreset?: string;
 }): Promise<LLMScanConfig> {
   // Build dynamic ZAP knowledge context based on tech hints
   const techKnowledge = params.techStackHints?.length
@@ -449,6 +487,19 @@ export async function generateLLMScanConfig(params: {
 
   const dynamicKnowledge = [techKnowledge, authKnowledge, alertKnowledge].filter(Boolean).join('\n\n');
 
+  // ─── Self-Learning Feedback: inject missed vuln patterns into scan config ───
+  let learningFeedback = '';
+  if (params.targetPreset) {
+    try {
+      const learningCtx = await buildLearningContext(params.targetPreset);
+      if (learningCtx) {
+        learningFeedback = `\n\n## SELF-LEARNING FEEDBACK FROM PREVIOUS SCANS\n${learningCtx}\n\nBased on the above feedback:\n- If vulnerabilities were MISSED: ensure the corresponding ZAP scan rules are ENABLED at HIGH strength and INSANE threshold\n- If injection vulns were missed: enable ALL injection rules (40018-40027 for SQLi, 90019 for code injection, 90020 for OS command injection)\n- If XSS was missed: enable 40012, 40014, 40016 at INSANE threshold AND set useAjaxSpider=true for DOM XSS\n- If CSRF was missed: set handleAntiCSRFTokens=true\n- If auth bypass was missed: enable forced browsing rules and set postForm=true in spider\n- If file inclusion was missed: enable rules 6 (Path Traversal) and 7 (Remote File Inclusion) at HIGH/INSANE\n- If SSRF was missed: enable rule 40046 at HIGH/INSANE\n- ALWAYS use AJAX spider if DOM-based XSS or client-side vulns were previously missed\n`;
+      }
+    } catch (e: any) {
+      console.warn(`[ZAP LLM Config] Failed to build learning context: ${e.message}`);
+    }
+  }
+
   const userPrompt = `Analyze this target and generate optimal ZAP scan configuration:
 
 **Target URL**: ${params.targetUrl}
@@ -458,7 +509,8 @@ ${params.authHints ? `**Authentication**: Type=${params.authHints.type}, Login U
 ${params.scopeConstraints?.length ? `**Scope Constraints**: ${params.scopeConstraints.join(", ")}` : ""}
 
 ${params.scanMode === "passive" ? "Configure for maximum URL discovery and passive vulnerability detection WITHOUT any active attacks. Focus on spider depth, technology fingerprinting, and passive scan rules." : "Configure for thorough active vulnerability testing. Enable all relevant attack categories. Optimize for the detected technology stack."}
-${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge : ''}`;
+${dynamicKnowledge ? '\n\n## ZAP Knowledge Base Reference\n' + dynamicKnowledge : ''}
+${learningFeedback}`;
 
   try {
     const response = await throttledLLMCall({
@@ -1138,6 +1190,8 @@ export async function startScan(params: {
   playbookPhase?: PlaybookPhase;
   /** Discovered technologies from web crawler / fingerprinting */
   discoveredTechnologies?: string[];
+  /** Target preset name for self-learning feedback (e.g. 'juice-shop', 'dvwa') */
+  targetPreset?: string;
 }): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any; playbookApplied?: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1170,11 +1224,17 @@ export async function startScan(params: {
   }
 
   // Generate LLM scan config if not provided — enhanced with tech-specific rule intelligence
+  // Self-learning: detect target preset from URL if not explicitly provided
+  const targetPreset = params.targetPreset || detectTargetPreset(params.targetUrl);
   const llmConfig = params.llmConfig || await generateLLMScanConfig({
     targetUrl: params.targetUrl,
     scanMode: params.scanMode,
     techStackHints: params.discoveredTechnologies,
+    targetPreset,
   });
+  if (targetPreset) {
+    console.log(`[ZAP Self-Learning] Target preset detected: ${targetPreset} — learning feedback injected into scan config`);
+  }
 
   // Select and apply attack playbook based on discovered technologies
   const technologies = params.discoveredTechnologies || llmConfig.technologies || [];
@@ -1473,12 +1533,33 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             console.warn(`[ZAP Playbook] ${pbResult.errors.length} errors applying playbook:`, pbResult.errors);
           }
         }
+        // ─── Attack Surface Enumeration: collect site tree, params, technologies ───
+        try {
+          const [siteTreeResult, paramsResult, techResult] = await Promise.allSettled([
+            zapRequest("/JSON/core/view/urls/", { baseurl: scan.targetUrl }, cfg),
+            zapRequest("/JSON/params/view/params/", { site: new URL(scan.targetUrl).origin }, cfg),
+            zapRequest("/JSON/wappalyzer/view/listAll/", {}, cfg).catch(() => null),
+          ]);
+          const discoveredUrls = siteTreeResult.status === 'fulfilled' ? (siteTreeResult.value?.urls || []) : [];
+          const discoveredParams = paramsResult.status === 'fulfilled' ? (paramsResult.value?.Parameters || []) : [];
+          const detectedTech = techResult.status === 'fulfilled' && techResult.value ? techResult.value : null;
+          console.log(`[ZAP AttackSurface] Scan #${scanId}: ${discoveredUrls.length} URLs, ${discoveredParams.length} params, tech: ${detectedTech ? 'detected' : 'N/A'}`);
+          // Store attack surface data alongside the scan
+          await db.update(webAppScans).set({
+            urlsDiscovered: discoveredUrls.length || urlsFound,
+          }).where(eq(webAppScans.id, scanId));
+        } catch (asErr: any) {
+          console.warn(`[ZAP AttackSurface] Scan #${scanId}: Failed to enumerate attack surface: ${asErr.message}`);
+        }
+
         // Wrap active scan start in try-catch to fail fast instead of stalling
+        // NOTE: Do NOT pass scanPolicyName — applyPlaybookToZap already configured
+        // rules on the default policy. Passing a non-existent policy name (e.g. "Heavy")
+        // causes ZAP to return 400 Bad Request.
         try {
           const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
             url: scan.targetUrl,
             recurse: "true",
-            scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
           }, cfg);
 
           await db.update(webAppScans).set({
@@ -1553,12 +1634,28 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             console.warn(`[ZAP Playbook] ${pbResult2.errors.length} errors applying playbook:`, pbResult2.errors);
           }
         }
+        // ─── Attack Surface Enumeration after AJAX spider ───
+        try {
+          const [siteTreeResult2, paramsResult2] = await Promise.allSettled([
+            zapRequest("/JSON/core/view/urls/", { baseurl: scan.targetUrl }, cfg),
+            zapRequest("/JSON/params/view/params/", { site: new URL(scan.targetUrl).origin }, cfg),
+          ]);
+          const discoveredUrls2 = siteTreeResult2.status === 'fulfilled' ? (siteTreeResult2.value?.urls || []) : [];
+          const discoveredParams2 = paramsResult2.status === 'fulfilled' ? (paramsResult2.value?.Parameters || []) : [];
+          console.log(`[ZAP AttackSurface] Scan #${scanId} (post-AJAX): ${discoveredUrls2.length} URLs, ${discoveredParams2.length} params`);
+          await db.update(webAppScans).set({
+            urlsDiscovered: discoveredUrls2.length || urlsFound,
+          }).where(eq(webAppScans.id, scanId));
+        } catch (asErr2: any) {
+          console.warn(`[ZAP AttackSurface] Scan #${scanId}: Failed to enumerate post-AJAX attack surface: ${asErr2.message}`);
+        }
+
         // Start active scan after AJAX spider — wrapped in try-catch to fail fast
+        // NOTE: Do NOT pass scanPolicyName — rules already configured on default policy
         try {
           const activeScanResult = await zapRequest("/JSON/ascan/action/scan/", {
             url: scan.targetUrl,
             recurse: "true",
-            scanPolicyName: scan.scanPolicyName || cfg.activeScanPolicy,
           }, cfg);
 
           await db.update(webAppScans).set({
