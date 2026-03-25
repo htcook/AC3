@@ -4337,9 +4337,28 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
 
       const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
+
+      // ── Training lab enhanced scanning: add vuln-category tags for broader coverage ──
+      const isTrainingLabScan = (state as any).trainingLabMode === true;
+      if (isTrainingLabScan) {
+        // Add vulnerability category tags that target common training lab vulns
+        const vulnCategoryTags = [
+          'sqli', 'xss', 'ssti', 'xxe', 'ssrf', 'lfi', 'rfi',
+          'redirect', 'exposure', 'default-login', 'ftp',
+          'cve', 'misconfig', 'unauth', 'injection',
+          'file-inclusion', 'traversal', 'upload', 'deserialization',
+        ];
+        for (const tag of vulnCategoryTags) {
+          if (!techTags.includes(tag)) techTags.push(tag);
+        }
+      }
+
       for (const url of nucleiTargetUrls) {
         const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(',')}` : '';
-        const nucleiArgs = `-u ${url} -severity critical,high,medium ${tagArgs} -jsonl -nc -duc -ni -timeout 10 -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+        // Training labs: include low severity to catch info disclosure, also increase timeout
+        const severityArg = isTrainingLabScan ? '-severity critical,high,medium,low' : '-severity critical,high,medium';
+        const timeoutArg = isTrainingLabScan ? '-timeout 15' : '-timeout 10';
+        const nucleiArgs = `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
         nucleiScanTasks.push({ asset, url, nucleiArgs, target, techTags, assetVulnKeys });
       }
     }
@@ -4449,6 +4468,50 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       title: "Nuclei Scan Complete",
       detail: `Phase 3 nuclei found ${phase3NucleiFindings} new vulnerabilities across ${nucleiAssets.length} targets${phase3NucleiErrors > 0 ? ` (${phase3NucleiErrors} scans failed — SSH connection issues)` : ''}. Total vulns: ${totalVulns} (${priorVulns} from prior phases + ${phase3NucleiFindings} new)`,
     });
+
+    // ── Training Lab: Second Nuclei pass without tags for broad coverage ──
+    // The first pass uses technology/vuln-category tags which limits to matching templates.
+    // This second pass runs ALL templates at critical+high severity to catch anything missed.
+    if ((state as any).trainingLabMode === true) {
+      const broadScanTasks: typeof nucleiScanTasks = [];
+      for (const asset of nucleiAssets) {
+        const webPorts = asset.ports.filter((p: any) =>
+          ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+          [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+        );
+        const nucleiTargetUrls = webPorts.length > 0
+          ? webPorts.map((p: any) => {
+              const scheme = p.port === 443 || p.port === 8443 ? "https" : "http";
+              return `${scheme}://${asset.hostname}:${p.port}`;
+            })
+          : [asset.hostname];
+        const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
+        const target = asset.ip || asset.hostname;
+        for (const url of nucleiTargetUrls) {
+          // No -tags flag: run ALL templates at critical+high severity
+          const nucleiArgs = `-u ${url} -severity critical,high -jsonl -nc -duc -ni -timeout 15 -retries 1 -rate-limit 150`;
+          broadScanTasks.push({ asset, url, nucleiArgs, target, techTags: [], assetVulnKeys });
+        }
+      }
+
+      if (broadScanTasks.length > 0) {
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `🎯 Training Lab: Broad Nuclei Scan (no tag filter)`,
+          detail: `Running ${broadScanTasks.length} broad scans to catch templates not matching specific tags`,
+        });
+        for (let i = 0; i < broadScanTasks.length; i += NUCLEI_BATCH_SIZE) {
+          const batch = broadScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
+          await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
+          persistOpsStateDebounced(state.engagementId, 500);
+        }
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_result",
+          title: "Broad Nuclei Scan Complete",
+          detail: `Training lab broad scan finished. Total vulns now: ${state.stats.vulnsFound}`,
+        });
+      }
+    }
   }
 
   // ── ZAP scan on web applications (WAF-aware, RoE scope enforced) ──
@@ -4835,15 +4898,23 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
       if (approved) {
         const { batchSqlmapScan, analyzeSqlmapFindings } = await import("./scanners/sqlmap-scanner");
-        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 SQLMap: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for SQL injection` });
+        // Training labs: increase risk/level for deeper SQLi detection (schema dump, credential extraction)
+        const isTrainingLabSqlmap = (state as any).trainingLabMode === true;
+        const sqlmapRisk = isTrainingLabSqlmap ? 3 : 2;
+        const sqlmapLevel = isTrainingLabSqlmap ? 5 : 3;
+        const sqlmapTimeout = isTrainingLabSqlmap ? 180 : 120;
+        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 SQLMap: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for SQL injection${isTrainingLabSqlmap ? ' (training lab: risk=3, level=5, deep enum)' : ''}` });
 
         const sqlmapResults = await batchSqlmapScan(injectableUrls, {
           engagementId: state.engagementId,
-          risk: 2,
-          level: 3,
+          risk: sqlmapRisk as 1 | 2 | 3,
+          level: sqlmapLevel as 1 | 2 | 3 | 4 | 5,
           cookie: cookieStr || undefined,
-          timeoutSeconds: 120,
+          timeoutSeconds: sqlmapTimeout,
           enumerateDbs: true,
+          enumerateTables: isTrainingLabSqlmap,
+          // Training labs: use all injection techniques for maximum coverage
+          techniques: isTrainingLabSqlmap ? 'BEUSTQ' : undefined,
         });
 
         const allFindings = sqlmapResults.flatMap(r => r.findings);

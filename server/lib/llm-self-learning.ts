@@ -1097,10 +1097,112 @@ function computeMatchScore(
  * `autoDetectable: true` (or `autoDetectable` not set) are scored.
  * This gives a more realistic accuracy picture for automated scanning.
  */
+/**
+ * Informational finding patterns that should not count as false positives.
+ * These are infrastructure observations, not vulnerability findings.
+ */
+const INFORMATIONAL_FP_PATTERNS: RegExp[] = [
+  /^anti-csrf tokens? check$/i,
+  /^absence of anti-csrf tokens?$/i,
+  /^application error disclosure$/i,
+  /^cookie without (secure|httponly|samesite) flag$/i,
+  /^x-frame-options header not set$/i,
+  /^x-content-type-options header not set$/i,
+  /^server leaks? information via x-powered-by$/i,
+  /^server leaks? inodes via etags?$/i,
+  /^strict-transport-security header not set$/i,
+  /^timestamp disclosure$/i,
+  /^information disclosure.*suspicious comments$/i,
+  /^modern web application$/i,
+  /^user controllable html element attribute$/i,
+  /^re-examine cache-control directives$/i,
+  /^loosely scoped cookie$/i,
+  /^cookie without samesite attribute$/i,
+  /^sec-fetch-\w+ header is missing$/i,
+  /^retrieved x-powered-by header$/i,
+  /^x-xss-protection header/i,
+  /^cross-domain javascript source file inclusion$/i,
+  /^incomplete or no cache-control/i,
+  /^content-type header missing$/i,
+  /^permissions policy header not set$/i,
+];
+
+/**
+ * Patterns that are informational even at medium severity (header/config observations).
+ * These are never actual vulnerabilities regardless of how ZAP rates them.
+ */
+const MEDIUM_SEVERITY_INFORMATIONAL_PATTERNS: RegExp[] = [
+  /^x-frame-options header not set$/i,
+  /^x-content-type-options header not set$/i,
+  /^content.security.policy.*header not set$/i,
+  /^strict-transport-security header not set$/i,
+  /^permissions policy header not set$/i,
+  /^missing anti-clickjacking header$/i,
+  /^cross-domain misconfiguration$/i,
+];
+
+/**
+ * Check if a finding is purely informational and should be excluded from FP counting.
+ */
+function isInformationalFinding(title: string, severity: string): boolean {
+  const normalizedTitle = normalizeTitle(title);
+  const sev = (severity || "").toLowerCase();
+  // Medium severity: only filter header/config observation patterns
+  if (sev === "medium") {
+    return MEDIUM_SEVERITY_INFORMATIONAL_PATTERNS.some(p => p.test(normalizedTitle));
+  }
+  // Info/low severity: filter all informational patterns
+  if (sev !== "info" && sev !== "low" && sev !== "informational") return false;
+  return INFORMATIONAL_FP_PATTERNS.some(p => p.test(normalizedTitle));
+}
+
+/**
+ * Subtype keywords that distinguish variants within the same synonym group.
+ * Used to prevent over-deduplication (e.g., XSS-Reflected vs XSS-Stored should stay separate).
+ */
+const SUBTYPE_KEYWORDS = [
+  "reflected", "stored", "persistent", "dom", "dom-based", "dom based",
+  "blind", "error-based", "time-based", "union-based", "boolean-based",
+  "local", "remote",
+  "login", "search", "api", "header", "cookie", "url", "form",
+];
+
+function getDeduplicationSubtypeKey(title: string): string {
+  const lower = title.toLowerCase();
+  const subtypes = SUBTYPE_KEYWORDS.filter(kw => lower.includes(kw));
+  return subtypes.sort().join("+") || "_default";
+}
+
+function deduplicateFindings(
+  findings: Array<{ title: string; severity: string; category?: string; cve?: string; cwe?: string }>
+): Array<{ title: string; severity: string; category?: string; cve?: string; cwe?: string }> {
+  const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0, informational: 0 };
+  // Use synKey + subtypeKey as the dedup key so variants stay separate
+  const synGroups = new Map<string, typeof findings[0]>();
+  const noSynFindings: typeof findings = [];
+
+  for (const f of findings) {
+    const normalized = normalizeTitle(f.title);
+    const synKey = getSynonymKey(normalized);
+    if (synKey) {
+      const subtypeKey = getDeduplicationSubtypeKey(normalized);
+      const dedupKey = `${synKey}::${subtypeKey}`;
+      const existing = synGroups.get(dedupKey);
+      if (!existing || (severityOrder[f.severity?.toLowerCase() || "info"] || 0) > (severityOrder[existing.severity?.toLowerCase() || "info"] || 0)) {
+        synGroups.set(dedupKey, f);
+      }
+    } else {
+      noSynFindings.push(f);
+    }
+  }
+
+  return [...synGroups.values(), ...noSynFindings];
+}
+
 export function scoreAgainstGroundTruth(
   targetPreset: string,
   llmFindings: Array<{ title: string; severity: string; category?: string; cve?: string; cwe?: string }>,
-  options?: { autoDetectableOnly?: boolean }
+  options?: { autoDetectableOnly?: boolean; deduplicateFindings?: boolean; filterInformational?: boolean }
 ): AccuracyScore | null {
   const fullGroundTruth = GROUND_TRUTH_LIBRARY[targetPreset];
   if (!fullGroundTruth || fullGroundTruth.length === 0) return null;
@@ -1113,6 +1215,25 @@ export function scoreAgainstGroundTruth(
 
   if (groundTruth.length === 0) return null;
 
+  // ── Pre-scoring: deduplicate findings with same synonym key ──
+  const shouldDedup = options?.deduplicateFindings ?? true;
+  let processedFindings = shouldDedup ? deduplicateFindings(llmFindings) : [...llmFindings];
+
+  // ── Pre-scoring: filter out purely informational findings ──
+  const shouldFilter = options?.filterInformational ?? true;
+  const filteredOut: typeof processedFindings = [];
+  if (shouldFilter) {
+    const kept: typeof processedFindings = [];
+    for (const f of processedFindings) {
+      if (isInformationalFinding(f.title, f.severity)) {
+        filteredOut.push(f);
+      } else {
+        kept.push(f);
+      }
+    }
+    processedFindings = kept;
+  }
+
   const matchDetails: AccuracyScore["matchDetails"] = [];
   const matchedLlmIndices = new Set<number>();
   const matchedGtIndices = new Set<number>();
@@ -1123,8 +1244,8 @@ export function scoreAgainstGroundTruth(
   // the word "Injection" via keyword overlap.
   const allPairs: Array<{ gtIdx: number; fIdx: number; score: number }> = [];
   for (let gi = 0; gi < groundTruth.length; gi++) {
-    for (let fi = 0; fi < llmFindings.length; fi++) {
-      const score = computeMatchScore(groundTruth[gi], llmFindings[fi]);
+    for (let fi = 0; fi < processedFindings.length; fi++) {
+      const score = computeMatchScore(groundTruth[gi], processedFindings[fi]);
       if (score > 0.8) {
         allPairs.push({ gtIdx: gi, fIdx: fi, score });
       }
@@ -1147,7 +1268,7 @@ export function scoreAgainstGroundTruth(
       // Find which finding was matched
       const pair = allPairs.find(p => p.gtIdx === gi && matchedLlmIndices.has(p.fIdx) && matchedGtIndices.has(p.gtIdx));
       if (pair) {
-        const f = llmFindings[pair.fIdx];
+        const f = processedFindings[pair.fIdx];
         const severityMatch = gt.severity.toLowerCase() === (f.severity || "").toLowerCase();
         matchDetails.push({ groundTruth: gt, matched: true, llmFinding: f, severityMatch });
       } else {
@@ -1158,8 +1279,8 @@ export function scoreAgainstGroundTruth(
     }
   }
 
-  // Unmatched LLM findings = potential false positives
-  const unmatchedLlmFindings = llmFindings.filter((_, i) => !matchedLlmIndices.has(i));
+  // Unmatched LLM findings = potential false positives (excludes deduplicated and informational findings)
+  const unmatchedLlmFindings = processedFindings.filter((_, i) => !matchedLlmIndices.has(i));
 
   const truePositives = matchDetails.filter(m => m.matched).length;
   const falseNegatives = matchDetails.filter(m => !m.matched).length;
@@ -1176,7 +1297,7 @@ export function scoreAgainstGroundTruth(
   const severityAccuracy = truePositives > 0 ? severityCorrect / truePositives : 0;
 
   // Overall score: weighted combination of F1 (60%) + severity accuracy (20%) + low FP rate (20%)
-  const fpRate = llmFindings.length > 0 ? falsePositives / llmFindings.length : 0;
+  const fpRate = processedFindings.length > 0 ? falsePositives / processedFindings.length : 0;
   const overallScore = (f1Score * 0.6) + (severityAccuracy * 0.2) + ((1 - fpRate) * 0.2);
 
   return {
