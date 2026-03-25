@@ -278,6 +278,7 @@ const KnowledgeBase = lazyWithRetry(() => import("./pages/KnowledgeBase"));
 const LlmLearning = lazyWithRetry(() => import("./pages/LlmLearning"));
 const LearningDashboard = lazyWithRetry(() => import("./pages/LearningDashboard"));
 const DastScanners = lazyWithRetry(() => import("./pages/DastScanners"));
+const UnifiedFindings = lazyWithRetry(() => import("./pages/UnifiedFindings"));
 const PacketAnalysis = lazyWithRetry(() => import("./pages/PacketAnalysis"));
 const AIGovernance = lazyWithRetry(() => import("./pages/AIGovernance"));
 const ExecutiveDashboard = lazyWithRetry(() => import("./pages/ExecutiveDashboard"));
@@ -1048,6 +1049,9 @@ function Router() {
         </Route>
         <Route path="/dast-scanners">
           <ProtectedRoute component={DastScanners} />
+        </Route>
+        <Route path="/unified-findings">
+          <ProtectedRoute component={UnifiedFindings} />
         </Route>
         <Route path="/packet-analysis">
           <ProtectedRoute component={PacketAnalysis} />

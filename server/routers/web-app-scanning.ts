@@ -1116,4 +1116,182 @@ export const webAppScanningRouter = router({
       
       return { runId, findingsCount: input.findings.length };
     }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UNIFIED FINDINGS — Cross-tool findings view (ZAP + SQLMap + XSStrike)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Get all unified findings with filtering, grouping, and pagination */
+  unifiedFindings: protectedProcedure
+    .input(z.object({
+      severity: z.string().optional(),
+      tool: z.string().optional(),
+      mitreTactic: z.string().optional(),
+      search: z.string().optional(),
+      scanId: z.number().optional(),
+      limit: z.number().min(1).max(500).default(200),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { webAppFindings, webAppScans } = await import("../../drizzle/schema");
+      const { desc, eq, like, and, sql, count } = await import("drizzle-orm");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Build dynamic where conditions
+      const conditions: any[] = [];
+      if (input.severity) conditions.push(eq(webAppFindings.severity, input.severity));
+      if (input.mitreTactic) conditions.push(eq(webAppFindings.mitreTactic, input.mitreTactic));
+      if (input.scanId) conditions.push(eq(webAppFindings.scanId, input.scanId));
+      if (input.search) conditions.push(like(webAppFindings.alertName, `%${input.search}%`));
+
+      // Tool filter: match zapPluginId prefix
+      if (input.tool) {
+        if (input.tool === "zap") {
+          // ZAP findings have numeric zapPluginId (e.g., "40018", "6")
+          conditions.push(sql`${webAppFindings.zapPluginId} REGEXP '^[0-9]+$'`);
+        } else if (input.tool === "sqlmap") {
+          conditions.push(like(webAppFindings.zapPluginId, 'sqlmap-%'));
+        } else if (input.tool === "xsstrike" || input.tool === "dalfox") {
+          conditions.push(
+            sql`(${webAppFindings.zapPluginId} LIKE 'xsstrike-%' OR ${webAppFindings.zapPluginId} LIKE 'dalfox-%')`
+          );
+        }
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      // Get total count
+      const [{ total }] = await db.select({ total: count() }).from(webAppFindings).where(whereClause);
+
+      // Get findings with scan info
+      const findings = await db
+        .select({
+          id: webAppFindings.id,
+          scanId: webAppFindings.scanId,
+          alertName: webAppFindings.alertName,
+          severity: webAppFindings.severity,
+          confidence: webAppFindings.confidence,
+          description: webAppFindings.description,
+          solution: webAppFindings.solution,
+          referenceLinks: webAppFindings.referenceLinks,
+          cweId: webAppFindings.cweId,
+          wascId: webAppFindings.wascId,
+          url: webAppFindings.url,
+          method: webAppFindings.method,
+          param: webAppFindings.param,
+          attack: webAppFindings.attack,
+          evidence: webAppFindings.evidence,
+          zapPluginId: webAppFindings.zapPluginId,
+          zapAlertRef: webAppFindings.zapAlertRef,
+          createdAt: webAppFindings.createdAt,
+          mitreAttackId: webAppFindings.mitreAttackId,
+          mitreAttackName: webAppFindings.mitreAttackName,
+          mitreTactic: webAppFindings.mitreTactic,
+          exploitAvailable: webAppFindings.exploitAvailable,
+          exploitModulePath: webAppFindings.exploitModulePath,
+          calderaAbilityId: webAppFindings.calderaAbilityId,
+          aiTriageVerdict: webAppFindings.aiTriageVerdict,
+          aiTriageReason: webAppFindings.aiTriageReason,
+          falsePositiveScore: webAppFindings.falsePositiveScore,
+          // Scan info
+          scanName: webAppScans.scanName,
+          scanType: webAppScans.scanType,
+          targetUrl: webAppScans.targetUrl,
+        })
+        .from(webAppFindings)
+        .leftJoin(webAppScans, eq(webAppFindings.scanId, webAppScans.id))
+        .where(whereClause)
+        .orderBy(desc(webAppFindings.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return { findings, total, limit: input.limit, offset: input.offset };
+    }),
+
+  /** Get summary stats for unified findings dashboard */
+  unifiedFindingsStats: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { webAppFindings, webAppScans } = await import("../../drizzle/schema");
+    const { sql, count, eq } = await import("drizzle-orm");
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+    // Total findings
+    const [{ total }] = await db.select({ total: count() }).from(webAppFindings);
+
+    // By severity
+    const bySeverity = await db
+      .select({ severity: webAppFindings.severity, count: count() })
+      .from(webAppFindings)
+      .groupBy(webAppFindings.severity);
+
+    // By tool (inferred from zapPluginId prefix)
+    const byTool = await db.select({
+      tool: sql<string>`
+        CASE
+          WHEN ${webAppFindings.zapPluginId} LIKE 'sqlmap-%' THEN 'sqlmap'
+          WHEN ${webAppFindings.zapPluginId} LIKE 'xsstrike-%' THEN 'xsstrike'
+          WHEN ${webAppFindings.zapPluginId} LIKE 'dalfox-%' THEN 'dalfox'
+          WHEN ${webAppFindings.zapPluginId} REGEXP '^[0-9]+$' THEN 'zap'
+          ELSE 'other'
+        END`.as('tool'),
+      count: count(),
+    }).from(webAppFindings).groupBy(sql`tool`);
+
+    // By MITRE tactic
+    const byMitreTactic = await db
+      .select({ tactic: webAppFindings.mitreTactic, count: count() })
+      .from(webAppFindings)
+      .where(sql`${webAppFindings.mitreTactic} IS NOT NULL AND ${webAppFindings.mitreTactic} != ''`)
+      .groupBy(webAppFindings.mitreTactic);
+
+    // By MITRE technique (top 10)
+    const byMitreTechnique = await db
+      .select({
+        techniqueId: webAppFindings.mitreAttackId,
+        techniqueName: webAppFindings.mitreAttackName,
+        tactic: webAppFindings.mitreTactic,
+        count: count(),
+      })
+      .from(webAppFindings)
+      .where(sql`${webAppFindings.mitreAttackId} IS NOT NULL AND ${webAppFindings.mitreAttackId} != ''`)
+      .groupBy(webAppFindings.mitreAttackId, webAppFindings.mitreAttackName, webAppFindings.mitreTactic)
+      .orderBy(sql`count(*) DESC`)
+      .limit(10);
+
+    // Exploit availability
+    const [{ exploitable }] = await db
+      .select({ exploitable: count() })
+      .from(webAppFindings)
+      .where(eq(webAppFindings.exploitAvailable, 1));
+
+    // Recent scans with finding counts
+    const recentScans = await db
+      .select({
+        id: webAppScans.id,
+        scanName: webAppScans.scanName,
+        scanType: webAppScans.scanType,
+        targetUrl: webAppScans.targetUrl,
+        status: webAppScans.status,
+        totalAlerts: webAppScans.totalAlerts,
+        completedAt: webAppScans.completedAt,
+      })
+      .from(webAppScans)
+      .orderBy(sql`${webAppScans.completedAt} DESC NULLS LAST`)
+      .limit(10);
+
+    return {
+      total,
+      bySeverity: Object.fromEntries(bySeverity.map(r => [r.severity || 'unknown', r.count])),
+      byTool: Object.fromEntries(byTool.map(r => [r.tool, r.count])),
+      byMitreTactic: Object.fromEntries(byMitreTactic.map(r => [r.tactic || 'unknown', r.count])),
+      byMitreTechnique,
+      exploitable,
+      recentScans,
+    };
+  }),
 });

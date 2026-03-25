@@ -304,6 +304,7 @@ export const sidebarNavGroups: NavGroup[] = [
     icon: Scan,
     color: "text-emerald-400",
     items: [
+      { label: "Unified Findings", path: "/unified-findings", icon: Shield },
       { label: "Web App Scanner", path: "/web-app-scanner", icon: Globe },
       { label: "ZAP Proxy", path: "/zap-proxy", icon: Scan },
       { label: "Nuclei Scanner", path: "/nuclei-scanner", icon: Microscope },
