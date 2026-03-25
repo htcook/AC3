@@ -31,6 +31,8 @@ export interface GroundTruthVuln {
   cve?: string;
   description: string;
   detectionHint?: string;
+  /** Whether this vuln is detectable by automated scanners (ZAP, Nuclei, SQLMap, etc.) */
+  autoDetectable?: boolean;
 }
 
 /**
@@ -230,61 +232,61 @@ export const TARGET_PRECISION_CONFIG: Record<string, TargetPrecisionConfig> = {
 export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
   "juice-shop": [
     // ── Injection ──
-    { title: "SQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Login form vulnerable to SQL injection via email field. Payload: ' OR 1=1-- allows admin bypass. Also exploitable for user credential extraction.", detectionHint: "Test login with ' OR 1=1-- in email field" },
-    { title: "SQL Injection - Database Schema", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "SQL injection can be used to extract the entire database schema via UNION SELECT on search endpoint.", detectionHint: "Use ' UNION SELECT sql FROM sqlite_master-- in search" },
-    { title: "SQL Injection - User Credentials", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "SQL injection allows extracting user credentials (email + password hash) from the Users table.", detectionHint: "Use UNION SELECT email,password FROM Users in search" },
-    { title: "NoSQL Injection in Product Reviews", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Product review endpoint vulnerable to NoSQL injection via MongoDB query operators ($gt, $ne). Can manipulate and exfiltrate review data.", detectionHint: "Test review API with $gt/$ne operators in JSON" },
-    { title: "NoSQL DoS", category: "Injection", owaspCategory: "A03:2025", severity: "medium", description: "NoSQL injection can cause denial of service through expensive MongoDB operations like $where with sleep().", detectionHint: "Test with $where: 'sleep(5000)' in review API" },
-    { title: "Server-Side Template Injection (SSTI)", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Template injection possible in certain endpoints allowing server-side code execution.", detectionHint: "Test with {{7*7}} or #{7*7} in input fields" },
+    { title: "SQL Injection in Login", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Login form vulnerable to SQL injection via email field. Payload: ' OR 1=1-- allows admin bypass. Also exploitable for user credential extraction.", detectionHint: "Test login with ' OR 1=1-- in email field", autoDetectable: true },
+    { title: "SQL Injection - Database Schema", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "SQL injection can be used to extract the entire database schema via UNION SELECT on search endpoint.", detectionHint: "Use ' UNION SELECT sql FROM sqlite_master-- in search", autoDetectable: true },
+    { title: "SQL Injection - User Credentials", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "SQL injection allows extracting user credentials (email + password hash) from the Users table.", detectionHint: "Use UNION SELECT email,password FROM Users in search", autoDetectable: true },
+    { title: "NoSQL Injection in Product Reviews", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Product review endpoint vulnerable to NoSQL injection via MongoDB query operators ($gt, $ne). Can manipulate and exfiltrate review data.", detectionHint: "Test review API with $gt/$ne operators in JSON", autoDetectable: true },
+    { title: "NoSQL DoS", category: "Injection", owaspCategory: "A03:2025", severity: "medium", description: "NoSQL injection can cause denial of service through expensive MongoDB operations like $where with sleep().", detectionHint: "Test with $where: 'sleep(5000)' in review API", autoDetectable: false },
+    { title: "Server-Side Template Injection (SSTI)", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Template injection possible in certain endpoints allowing server-side code execution.", detectionHint: "Test with {{7*7}} or #{7*7} in input fields", autoDetectable: true },
     // ── XSS ──
-    { title: "Reflected XSS in Search", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Search functionality reflects user input without sanitization. Requires bypassing Angular sanitizer with iframe/img payloads.", detectionHint: "Test search with <iframe src='javascript:alert(1)'>" },
-    { title: "DOM XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DOM-based XSS via URL hash/fragment. The /#/search?q= parameter is processed client-side without sanitization.", detectionHint: "Test /#/search?q=<script>alert(1)</script>" },
-    { title: "Stored XSS via API", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Stored XSS possible via product descriptions or user feedback that bypasses server-side XSS protection.", detectionHint: "Submit feedback with <<script>Foo</script>img src=x onerror=alert(1)>" },
-    { title: "HTTP Header XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "XSS via HTTP headers that are reflected in error pages or responses.", detectionHint: "Set True-Client-IP header to <script>alert(1)</script>" },
-    { title: "Video XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "XSS via video subtitles or media content that is rendered without sanitization.", detectionHint: "Upload subtitle file with XSS payload" },
+    { title: "Reflected XSS in Search", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Search functionality reflects user input without sanitization. Requires bypassing Angular sanitizer with iframe/img payloads.", detectionHint: "Test search with <iframe src='javascript:alert(1)'>", autoDetectable: true },
+    { title: "DOM XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DOM-based XSS via URL hash/fragment. The /#/search?q= parameter is processed client-side without sanitization.", detectionHint: "Test /#/search?q=<script>alert(1)</script>", autoDetectable: true },
+    { title: "Stored XSS via API", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "Stored XSS possible via product descriptions or user feedback that bypasses server-side XSS protection.", detectionHint: "Submit feedback with <<script>Foo</script>img src=x onerror=alert(1)>", autoDetectable: true },
+    { title: "HTTP Header XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "XSS via HTTP headers that are reflected in error pages or responses.", detectionHint: "Set True-Client-IP header to <script>alert(1)</script>", autoDetectable: true },
+    { title: "Video XSS", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "XSS via video subtitles or media content that is rendered without sanitization.", detectionHint: "Upload subtitle file with XSS payload", autoDetectable: false },
     // ── Broken Authentication ──
-    { title: "Broken Authentication - Admin Account", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Admin account (admin@juice-sh.op) accessible via SQL injection or weak password guess.", detectionHint: "Login with admin@juice-sh.op and SQLi or admin123" },
-    { title: "Password Strength", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Multiple user accounts have weak/guessable passwords. admin@juice-sh.op uses admin123.", detectionHint: "Brute force with common password lists" },
-    { title: "Weak Password Policy", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "No password complexity requirements. Single-character passwords accepted during registration.", detectionHint: "Register with password 'a'" },
-    { title: "Password Reset Exploitation", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Security questions for password reset have guessable answers. Jim's answer is 'Samuel', Bender's is 'Stop'.", detectionHint: "Use forgot password with known security question answers" },
-    { title: "Two-Factor Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "2FA implementation can be bypassed through TOTP token manipulation or timing attacks.", detectionHint: "Analyze TOTP implementation for weaknesses" },
+    { title: "Broken Authentication - Admin Account", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "critical", description: "Admin account (admin@juice-sh.op) accessible via SQL injection or weak password guess.", detectionHint: "Login with admin@juice-sh.op and SQLi or admin123", autoDetectable: true },
+    { title: "Password Strength", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Multiple user accounts have weak/guessable passwords. admin@juice-sh.op uses admin123.", detectionHint: "Brute force with common password lists", autoDetectable: true },
+    { title: "Weak Password Policy", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "No password complexity requirements. Single-character passwords accepted during registration.", detectionHint: "Register with password 'a'", autoDetectable: false },
+    { title: "Password Reset Exploitation", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Security questions for password reset have guessable answers. Jim's answer is 'Samuel', Bender's is 'Stop'.", detectionHint: "Use forgot password with known security question answers", autoDetectable: false },
+    { title: "Two-Factor Authentication Bypass", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "2FA implementation can be bypassed through TOTP token manipulation or timing attacks.", detectionHint: "Analyze TOTP implementation for weaknesses", autoDetectable: false },
     // ── Broken Access Control ──
-    { title: "Broken Access Control - Admin Panel", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "critical", description: "Admin panel at /#/administration accessible by manipulating JWT token role or direct URL access.", detectionHint: "Navigate to /#/administration with forged JWT" },
-    { title: "View Other Users' Baskets", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Other users' shopping baskets accessible by changing basket ID in API requests.", detectionHint: "Change basket ID in /rest/basket/ requests" },
-    { title: "Forged Feedback", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Feedback can be submitted as another user by manipulating the UserId field in the request.", detectionHint: "POST feedback with different UserId" },
-    { title: "Product Tampering", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Product descriptions can be modified via PUT request to /api/Products/:id.", detectionHint: "PUT to /api/Products/1 with modified description" },
-    { title: "Directory Traversal - File Access", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File serving endpoint allows directory traversal using poison null byte (%00) to access arbitrary files.", detectionHint: "Test /ftp/coupons_2013.md.bak%2500.md for null byte bypass" },
-    { title: "Manipulate Basket", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Items can be added to other users' baskets by manipulating the BasketId in POST requests.", detectionHint: "POST to /api/BasketItems with different BasketId" },
+    { title: "Broken Access Control - Admin Panel", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "critical", description: "Admin panel at /#/administration accessible by manipulating JWT token role or direct URL access.", detectionHint: "Navigate to /#/administration with forged JWT", autoDetectable: true },
+    { title: "View Other Users' Baskets", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Other users' shopping baskets accessible by changing basket ID in API requests.", detectionHint: "Change basket ID in /rest/basket/ requests", autoDetectable: false },
+    { title: "Forged Feedback", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Feedback can be submitted as another user by manipulating the UserId field in the request.", detectionHint: "POST feedback with different UserId", autoDetectable: false },
+    { title: "Product Tampering", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Product descriptions can be modified via PUT request to /api/Products/:id.", detectionHint: "PUT to /api/Products/1 with modified description", autoDetectable: false },
+    { title: "Directory Traversal - File Access", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File serving endpoint allows directory traversal using poison null byte (%00) to access arbitrary files.", detectionHint: "Test /ftp/coupons_2013.md.bak%2500.md for null byte bypass", autoDetectable: true },
+    { title: "Manipulate Basket", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "Items can be added to other users' baskets by manipulating the BasketId in POST requests.", detectionHint: "POST to /api/BasketItems with different BasketId", autoDetectable: false },
     // ── Cryptographic Issues ──
-    { title: "JWT Vulnerability - None Algorithm", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "critical", description: "JWT tokens can be forged using the 'none' algorithm to bypass authentication.", detectionHint: "Decode JWT, change alg to none, remove signature" },
-    { title: "Forged Signed JWT", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "critical", description: "JWT signed with weak secret (from vulnerable jsonwebtoken library) can be forged.", detectionHint: "Crack JWT secret and forge admin token" },
-    { title: "Weak Crypto - MD5 Password Hashes", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "high", description: "Passwords stored as unsalted MD5 hashes, easily crackable with rainbow tables.", detectionHint: "Extract password hashes via SQLi and crack with hashcat" },
+    { title: "JWT Vulnerability - None Algorithm", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "critical", description: "JWT tokens can be forged using the 'none' algorithm to bypass authentication.", detectionHint: "Decode JWT, change alg to none, remove signature", autoDetectable: true },
+    { title: "Forged Signed JWT", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "critical", description: "JWT signed with weak secret (from vulnerable jsonwebtoken library) can be forged.", detectionHint: "Crack JWT secret and forge admin token", autoDetectable: false },
+    { title: "Weak Crypto - MD5 Password Hashes", category: "Cryptographic Failures", owaspCategory: "A02:2025", severity: "high", description: "Passwords stored as unsalted MD5 hashes, easily crackable with rainbow tables.", detectionHint: "Extract password hashes via SQLi and crack with hashcat", autoDetectable: false },
     // ── Sensitive Data Exposure ──
-    { title: "Sensitive Data Exposure - FTP Directory", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "FTP directory (/ftp) publicly accessible with sensitive files: backups, configs, and confidential documents.", detectionHint: "Browse /ftp for backup files and configs" },
-    { title: "Exposed Credentials", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "Hardcoded credentials found in source code and configuration files accessible via /ftp.", detectionHint: "Check /ftp files and client-side JS for credentials" },
-    { title: "Password Hash Leak", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "Password hashes leaked through product reviews or API responses.", detectionHint: "Check API responses for password hash fields" },
-    { title: "Exposed Metrics", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "medium", description: "Prometheus metrics endpoint exposed at /metrics revealing internal application data.", detectionHint: "Access /metrics endpoint" },
+    { title: "Sensitive Data Exposure - FTP Directory", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "FTP directory (/ftp) publicly accessible with sensitive files: backups, configs, and confidential documents.", detectionHint: "Browse /ftp for backup files and configs", autoDetectable: true },
+    { title: "Exposed Credentials", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "Hardcoded credentials found in source code and configuration files accessible via /ftp.", detectionHint: "Check /ftp files and client-side JS for credentials", autoDetectable: true },
+    { title: "Password Hash Leak", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "high", description: "Password hashes leaked through product reviews or API responses.", detectionHint: "Check API responses for password hash fields", autoDetectable: false },
+    { title: "Exposed Metrics", category: "Sensitive Data Exposure", owaspCategory: "A05:2025", severity: "medium", description: "Prometheus metrics endpoint exposed at /metrics revealing internal application data.", detectionHint: "Access /metrics endpoint", autoDetectable: true },
     // ── XXE ──
-    { title: "XXE Data Access", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "XML External Entity injection via file upload (deprecated B2B interface) allows reading server files.", detectionHint: "Upload XML with <!ENTITY xxe SYSTEM 'file:///etc/passwd'> via /file-upload" },
-    { title: "XXE DoS", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Billion laughs attack via XXE causes denial of service through recursive entity expansion.", detectionHint: "Upload XML with recursive entity definitions" },
+    { title: "XXE Data Access", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "XML External Entity injection via file upload (deprecated B2B interface) allows reading server files.", detectionHint: "Upload XML with <!ENTITY xxe SYSTEM 'file:///etc/passwd'> via /file-upload", autoDetectable: true },
+    { title: "XXE DoS", category: "Injection", owaspCategory: "A03:2025", severity: "high", description: "Billion laughs attack via XXE causes denial of service through recursive entity expansion.", detectionHint: "Upload XML with recursive entity definitions", autoDetectable: false },
     // ── Insecure Deserialization ──
-    { title: "Insecure Deserialization", category: "Insecure Deserialization", owaspCategory: "A08:2025", severity: "critical", description: "Node.js deserialization vulnerability allows RCE via crafted serialized objects in cookies/requests.", detectionHint: "Check for node-serialize usage, craft RCE payload" },
+    { title: "Insecure Deserialization", category: "Insecure Deserialization", owaspCategory: "A08:2025", severity: "critical", description: "Node.js deserialization vulnerability allows RCE via crafted serialized objects in cookies/requests.", detectionHint: "Check for node-serialize usage, craft RCE payload", autoDetectable: false },
     // ── SSRF ──
-    { title: "SSRF via Profile Image URL", category: "Server-Side Request Forgery", owaspCategory: "A10:2025", severity: "high", description: "Profile image upload accepts URLs, allowing SSRF to internal services and cloud metadata.", detectionHint: "Set profile image URL to http://localhost:3000/api/Users" },
+    { title: "SSRF via Profile Image URL", category: "Server-Side Request Forgery", owaspCategory: "A10:2025", severity: "high", description: "Profile image upload accepts URLs, allowing SSRF to internal services and cloud metadata.", detectionHint: "Set profile image URL to http://localhost:3000/api/Users", autoDetectable: true },
     // ── Security Misconfiguration ──
-    { title: "Information Disclosure - Error Messages", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Verbose error messages expose stack traces, internal paths, and technology versions.", detectionHint: "Trigger errors with invalid input and check responses" },
-    { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Missing Content-Security-Policy, X-Frame-Options, and other security headers.", detectionHint: "Check HTTP response headers" },
-    { title: "Deprecated Interface", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "B2B interface still accepts XML file uploads despite being deprecated, enabling XXE attacks.", detectionHint: "Find /file-upload endpoint and test XML upload" },
+    { title: "Information Disclosure - Error Messages", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Verbose error messages expose stack traces, internal paths, and technology versions.", detectionHint: "Trigger errors with invalid input and check responses", autoDetectable: true },
+    { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Missing Content-Security-Policy, X-Frame-Options, and other security headers.", detectionHint: "Check HTTP response headers", autoDetectable: true },
+    { title: "Deprecated Interface", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "B2B interface still accepts XML file uploads despite being deprecated, enabling XXE attacks.", detectionHint: "Find /file-upload endpoint and test XML upload", autoDetectable: true },
     // ── Vulnerable Components ──
-    { title: "Outdated Dependencies", category: "Vulnerable Components", owaspCategory: "A06:2025", severity: "medium", description: "Application uses outdated npm packages with known CVEs including jsonwebtoken and express-jwt.", detectionHint: "Check package.json and npm audit" },
-    { title: "Vulnerable Library", category: "Vulnerable Components", owaspCategory: "A06:2025", severity: "high", description: "Known vulnerable libraries (e.g., sanitize-html, jsonwebtoken) with exploitable CVEs.", detectionHint: "Check library versions against known CVEs" },
+    { title: "Outdated Dependencies", category: "Vulnerable Components", owaspCategory: "A06:2025", severity: "medium", description: "Application uses outdated npm packages with known CVEs including jsonwebtoken and express-jwt.", detectionHint: "Check package.json and npm audit", autoDetectable: true },
+    { title: "Vulnerable Library", category: "Vulnerable Components", owaspCategory: "A06:2025", severity: "high", description: "Known vulnerable libraries (e.g., sanitize-html, jsonwebtoken) with exploitable CVEs.", detectionHint: "Check library versions against known CVEs", autoDetectable: true },
     // ── Improper Input Validation ──
-    { title: "Zero Stars Feedback", category: "Improper Input Validation", owaspCategory: "A03:2025", severity: "low", description: "Feedback rating can be set to 0 stars by intercepting and modifying the request.", detectionHint: "Intercept feedback POST and set rating to 0" },
-    { title: "Negative Order Quantity", category: "Improper Input Validation", owaspCategory: "A03:2025", severity: "medium", description: "Negative quantities can be ordered, resulting in credit to the account (Payback Time challenge).", detectionHint: "Set quantity to negative value in basket" },
+    { title: "Zero Stars Feedback", category: "Improper Input Validation", owaspCategory: "A03:2025", severity: "low", description: "Feedback rating can be set to 0 stars by intercepting and modifying the request.", detectionHint: "Intercept feedback POST and set rating to 0", autoDetectable: false },
+    { title: "Negative Order Quantity", category: "Improper Input Validation", owaspCategory: "A03:2025", severity: "medium", description: "Negative quantities can be ordered, resulting in credit to the account (Payback Time challenge).", detectionHint: "Set quantity to negative value in basket", autoDetectable: false },
     // ── Unvalidated Redirects ──
-    { title: "Unvalidated Redirect", category: "Unvalidated Redirects", owaspCategory: "A05:2025", severity: "medium", description: "Allowlisted redirect URLs contain outdated entries that can be exploited for open redirect.", detectionHint: "Check /redirect?to= with allowlisted URLs" },
+    { title: "Unvalidated Redirect", category: "Unvalidated Redirects", owaspCategory: "A05:2025", severity: "medium", description: "Allowlisted redirect URLs contain outdated entries that can be exploited for open redirect.", detectionHint: "Check /redirect?to= with allowlisted URLs", autoDetectable: true },
     // ── CSRF ──
-    { title: "CSRF - No Token Validation", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "State-changing operations lack CSRF token validation.", detectionHint: "Check forms for CSRF tokens" },
+    { title: "CSRF - No Token Validation", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "State-changing operations lack CSRF token validation.", detectionHint: "Check forms for CSRF tokens", autoDetectable: true },
   ],
 
   "vulnweb-php": [
@@ -498,21 +500,21 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
   ],
   "dvwa": [
     // ── TOP 5 CRITICAL (most commonly missed — MUST be found) ──
-    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "DVWA SQL Injection exercise: The 'id' parameter on the SQL Injection page (/vulnerabilities/sqli/) is directly concatenated into a MySQL query without sanitization. Payload ' OR 1=1 -- bypasses the query. UNION-based extraction possible. This is one of DVWA's most important exercises and MUST be reported.", detectionHint: "DVWA /vulnerabilities/sqli/ page — test ID parameter with ' OR 1=1 -- or ' UNION SELECT user,password FROM users--" },
-    { title: "XSS - Reflected", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA Reflected XSS exercise: The 'name' parameter on the XSS (Reflected) page (/vulnerabilities/xss_r/) is echoed back without encoding. Payload <script>alert(1)</script> executes immediately. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/xss_r/ page — inject <script>alert(1)</script> in name field" },
-    { title: "XSS - Stored", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA Stored XSS exercise: The guestbook on the XSS (Stored) page (/vulnerabilities/xss_s/) stores user input without sanitization. Submitted XSS payloads persist and execute for all visitors. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/xss_s/ page — submit <script>alert(1)</script> in guestbook name or message field" },
-    { title: "Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "DVWA Command Injection exercise: The IP address input on the Command Injection page (/vulnerabilities/exec/) is passed directly to shell_exec() with ping. Operators ; | && allow command chaining (e.g., 127.0.0.1; cat /etc/passwd). This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/exec/ page — test with 127.0.0.1; id or 127.0.0.1 | cat /etc/passwd" },
-    { title: "CSRF", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "DVWA CSRF exercise: The password change form on the CSRF page (/vulnerabilities/csrf/) has no anti-CSRF token. An attacker can craft an external HTML page that auto-submits a password change request. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/csrf/ page — craft external form that auto-submits password change via GET parameters" },
+    { title: "SQL Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "DVWA SQL Injection exercise: The 'id' parameter on the SQL Injection page (/vulnerabilities/sqli/) is directly concatenated into a MySQL query without sanitization. Payload ' OR 1=1 -- bypasses the query. UNION-based extraction possible. This is one of DVWA's most important exercises and MUST be reported.", detectionHint: "DVWA /vulnerabilities/sqli/ page — test ID parameter with ' OR 1=1 -- or ' UNION SELECT user,password FROM users--", autoDetectable: true },
+    { title: "XSS - Reflected", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA Reflected XSS exercise: The 'name' parameter on the XSS (Reflected) page (/vulnerabilities/xss_r/) is echoed back without encoding. Payload <script>alert(1)</script> executes immediately. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/xss_r/ page — inject <script>alert(1)</script> in name field", autoDetectable: true },
+    { title: "XSS - Stored", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA Stored XSS exercise: The guestbook on the XSS (Stored) page (/vulnerabilities/xss_s/) stores user input without sanitization. Submitted XSS payloads persist and execute for all visitors. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/xss_s/ page — submit <script>alert(1)</script> in guestbook name or message field", autoDetectable: true },
+    { title: "Command Injection", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "DVWA Command Injection exercise: The IP address input on the Command Injection page (/vulnerabilities/exec/) is passed directly to shell_exec() with ping. Operators ; | && allow command chaining (e.g., 127.0.0.1; cat /etc/passwd). This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/exec/ page — test with 127.0.0.1; id or 127.0.0.1 | cat /etc/passwd", autoDetectable: true },
+    { title: "CSRF", category: "Cross-Site Request Forgery", owaspCategory: "A01:2025", severity: "medium", description: "DVWA CSRF exercise: The password change form on the CSRF page (/vulnerabilities/csrf/) has no anti-CSRF token. An attacker can craft an external HTML page that auto-submits a password change request. This is a core DVWA exercise and MUST be reported.", detectionHint: "DVWA /vulnerabilities/csrf/ page — craft external form that auto-submits password change via GET parameters", autoDetectable: true },
     // ── Other DVWA exercises ──
-    { title: "XSS - DOM Based", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA DOM XSS exercise: The URL parameter on the XSS (DOM) page (/vulnerabilities/xss_d/) is processed client-side without sanitization.", detectionHint: "DVWA /vulnerabilities/xss_d/ — manipulate URL fragment with XSS payload" },
-    { title: "File Inclusion - Local", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Local file inclusion via page parameter.", detectionHint: "Test with ../../etc/passwd" },
-    { title: "File Inclusion - Remote", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Remote file inclusion allows loading external PHP files.", detectionHint: "Include remote PHP shell via URL" },
-    { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A04:2025", severity: "critical", description: "Unrestricted file upload allows PHP webshell upload.", detectionHint: "Upload .php file and execute via web" },
-    { title: "Brute Force", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Login form has no rate limiting or account lockout.", detectionHint: "Attempt multiple login attempts with common passwords" },
-    { title: "Insecure CAPTCHA", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "CAPTCHA implementation can be bypassed by manipulating step parameter.", detectionHint: "Skip CAPTCHA step by modifying POST parameters" },
-    { title: "Weak Session IDs", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "Session IDs are predictable and sequential.", detectionHint: "Collect multiple session IDs and analyze pattern" },
-    { title: "Open HTTP Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Redirect parameter allows redirection to arbitrary URLs.", detectionHint: "Test redirect parameter with external URL" },
-    { title: "Content Security Policy Bypass", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "CSP headers are misconfigured allowing inline script execution.", detectionHint: "Check CSP headers and test bypass techniques" },
+    { title: "XSS - DOM Based", category: "Cross-Site Scripting", owaspCategory: "A03:2025", severity: "high", description: "DVWA DOM XSS exercise: The URL parameter on the XSS (DOM) page (/vulnerabilities/xss_d/) is processed client-side without sanitization.", detectionHint: "DVWA /vulnerabilities/xss_d/ — manipulate URL fragment with XSS payload", autoDetectable: true },
+    { title: "File Inclusion - Local", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Local file inclusion via page parameter.", detectionHint: "Test with ../../etc/passwd", autoDetectable: true },
+    { title: "File Inclusion - Remote", category: "Injection", owaspCategory: "A03:2025", severity: "critical", description: "Remote file inclusion allows loading external PHP files.", detectionHint: "Include remote PHP shell via URL", autoDetectable: true },
+    { title: "File Upload Vulnerability", category: "Injection", owaspCategory: "A04:2025", severity: "critical", description: "Unrestricted file upload allows PHP webshell upload.", detectionHint: "Upload .php file and execute via web", autoDetectable: false },
+    { title: "Brute Force", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "high", description: "Login form has no rate limiting or account lockout.", detectionHint: "Attempt multiple login attempts with common passwords", autoDetectable: true },
+    { title: "Insecure CAPTCHA", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "CAPTCHA implementation can be bypassed by manipulating step parameter.", detectionHint: "Skip CAPTCHA step by modifying POST parameters", autoDetectable: false },
+    { title: "Weak Session IDs", category: "Broken Authentication", owaspCategory: "A02:2025", severity: "medium", description: "Session IDs are predictable and sequential.", detectionHint: "Collect multiple session IDs and analyze pattern", autoDetectable: false },
+    { title: "Open HTTP Redirect", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "Redirect parameter allows redirection to arbitrary URLs.", detectionHint: "Test redirect parameter with external URL", autoDetectable: true },
+    { title: "Content Security Policy Bypass", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", description: "CSP headers are misconfigured allowing inline script execution.", detectionHint: "Check CSP headers and test bypass techniques", autoDetectable: true },
   ],
 
   "scanme-nmap": [
@@ -886,67 +888,233 @@ export interface AccuracyScore {
     severityMatch: boolean;
   }>;
   unmatchedLlmFindings: any[];
+  /** If set, this score was computed against only auto-detectable ground truth */
+  autoDetectableOnly?: boolean;
+  /** Total ground truth including manual-only vulns */
+  totalGroundTruthFull?: number;
+}
+
+// ─── Synonym Map for Fuzzy Matching ──────────────────────────────────────────
+
+// Sub-type synonyms for more precise matching within a category
+const VULN_SUBTYPE_SYNONYMS: Array<[string[], string]> = [
+  [["reflected", "xss_r", "xss (reflected)", "cross site scripting (reflected)"], "xss_reflected"],
+  [["stored", "persistent", "xss_s", "xss (stored)", "xss (persistent)", "cross site scripting (persistent)", "cross site scripting (stored)"], "xss_stored"],
+  [["dom", "dom-based", "dom based", "xss_d", "xss (dom)", "cross site scripting (dom)"], "xss_dom"],
+  [["local file inclusion", "lfi", "file inclusion - local", "local file"], "fi_local"],
+  [["remote file inclusion", "rfi", "file inclusion - remote", "remote file"], "fi_remote"],
+  [["blind sql", "boolean-based sql", "time-based sql", "sql injection (blind)"], "sqli_blind"],
+  [["union", "union-based", "union select"], "sqli_union"],
+  [["error-based"], "sqli_error"],
+];
+
+function getSubtypeKey(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const [synonyms, key] of VULN_SUBTYPE_SYNONYMS) {
+    for (const syn of synonyms) {
+      if (lower.includes(syn)) return key;
+    }
+  }
+  return null;
+}
+
+const VULN_SYNONYMS: Array<[string[], string]> = [
+  [["sql injection", "sqli", "sql inject", "blind sql", "union select", "union-based sql", "error-based sql", "boolean-based sql", "time-based sql"], "sql_injection"],
+  [["cross-site scripting", "cross site scripting", "xss", "reflected xss", "stored xss", "dom xss", "dom-based xss", "persistent xss", "script injection"], "xss"],
+  [["command injection", "os command injection", "remote code execution", "rce", "shell injection", "code execution", "os command"], "command_injection"],
+  [["cross-site request forgery", "csrf", "xsrf", "session riding", "anti-csrf", "no csrf token", "missing csrf"], "csrf"],
+  [["file inclusion", "local file inclusion", "lfi", "remote file inclusion", "rfi", "path traversal", "directory traversal"], "file_inclusion"],
+  [["brute force", "credential stuffing", "password guessing", "no rate limiting", "no account lockout"], "brute_force"],
+  [["open redirect", "unvalidated redirect", "url redirect", "http redirect"], "open_redirect"],
+  [["content security policy", "csp bypass", "csp misconfiguration", "csp header"], "csp"],
+  [["server-side request forgery", "ssrf"], "ssrf"],
+  [["xml external entity", "xxe"], "xxe"],
+  [["server-side template injection", "ssti", "template injection"], "ssti"],
+  [["insecure deserialization", "deserialization", "object injection"], "deserialization"],
+  [["jwt", "json web token", "jwt vulnerability", "jwt none", "jwt algorithm", "jwt forgery"], "jwt"],
+  [["nosql injection", "nosql", "mongodb injection"], "nosql_injection"],
+  [["file upload", "unrestricted file upload", "arbitrary file upload"], "file_upload"],
+  [["weak session", "session fixation", "session management", "predictable session", "session id"], "weak_session"],
+  [["captcha", "insecure captcha", "captcha bypass"], "captcha"],
+  [["missing security headers", "security headers", "missing headers", "x-frame-options", "hsts"], "missing_headers"],
+  [["information disclosure", "info disclosure", "error messages", "stack trace", "verbose error"], "info_disclosure"],
+  [["directory listing", "directory indexing", "directory browsing"], "directory_listing"],
+  [["broken access control", "idor", "insecure direct object reference", "privilege escalation", "access control", "authorization bypass"], "broken_access_control"],
+  [["broken authentication", "authentication bypass", "auth bypass"], "broken_auth"],
+  [["sensitive data exposure", "data exposure", "data leak", "exposed credentials"], "data_exposure"],
+  [["vulnerable component", "outdated", "vulnerable library", "known vulnerability"], "vulnerable_component"],
+];
+
+/**
+ * Strip tool prefixes like [ZAP], [Nuclei], [sqlmap], [nmap], [Nikto], [Gobuster] etc.
+ * Also normalizes whitespace and trims.
+ */
+function normalizeTitle(title: string): string {
+  return (title || "")
+    .replace(/^\[\w+(?:\s*\w+)*\]\s*/i, "")  // Strip [ToolName] prefix
+    .replace(/^\(\w+\)\s*/i, "")              // Strip (ToolName) prefix
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Get the canonical synonym key for a vulnerability title.
+ */
+function getSynonymKey(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const [synonyms, key] of VULN_SYNONYMS) {
+    for (const syn of synonyms) {
+      if (lower.includes(syn)) return key;
+    }
+  }
+  return null;
+}
+
+/**
+ * Compute a match score between a ground truth vuln and an LLM finding.
+ * Uses title normalization, synonym matching, category matching, and CWE/CVE matching.
+ */
+function computeMatchScore(
+  gt: GroundTruthVuln,
+  f: { title: string; severity: string; category?: string; cve?: string; cwe?: string }
+): number {
+  let matchScore = 0;
+
+  // Normalize titles (strip tool prefixes)
+  const gtTitle = normalizeTitle(gt.title).toLowerCase();
+  const fTitle = normalizeTitle(f.title).toLowerCase();
+
+  // 1. Direct title containment (strongest signal)
+  if (fTitle.includes(gtTitle) || gtTitle.includes(fTitle)) {
+    matchScore += 4;
+  } else {
+    // 2. Synonym-based matching
+    const gtSynKey = getSynonymKey(gtTitle);
+    const fSynKey = getSynonymKey(fTitle);
+    if (gtSynKey && fSynKey && gtSynKey === fSynKey) {
+      matchScore += 3.5;
+      // 2b. Subtype bonus: if both have the same subtype (e.g., both "xss_stored"), add extra score
+      const gtSubtype = getSubtypeKey(gtTitle);
+      const fSubtype = getSubtypeKey(fTitle);
+      if (gtSubtype && fSubtype && gtSubtype === fSubtype) {
+        matchScore += 1.5; // Strong bonus for exact subtype match
+      } else if (gtSubtype && fSubtype && gtSubtype !== fSubtype) {
+        matchScore -= 0.5; // Penalty for mismatched subtypes within same category
+      }
+    } else {
+      // 3. Keyword overlap (with stopword filtering)
+      const stopwords = new Set(["the", "and", "for", "via", "with", "from", "that", "this", "based"]);
+      const gtWords = new Set(gtTitle.split(/[\s\-_\/]+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      const fWords = new Set(fTitle.split(/[\s\-_\/]+/).filter(w => w.length > 2 && !stopwords.has(w)));
+      let overlap = 0;
+      for (const w of gtWords) {
+        if (fWords.has(w)) overlap++;
+        // Also check partial matches for compound words
+        else {
+          for (const fw of fWords) {
+            if (fw.includes(w) || w.includes(fw)) { overlap += 0.5; break; }
+          }
+        }
+      }
+      const overlapRatio = overlap / Math.max(gtWords.size, 1);
+      matchScore += overlapRatio * 2.5;
+    }
+  }
+
+  // 4. Category match (bonus)
+  const gtCat = (gt.category || "").toLowerCase();
+  const fCat = (f.category || "").toLowerCase();
+  if (gtCat && fCat) {
+    if (fCat.includes(gtCat) || gtCat.includes(fCat)) matchScore += 1;
+    else {
+      // Synonym-based category match
+      const gtCatKey = getSynonymKey(gtCat);
+      const fCatKey = getSynonymKey(fCat);
+      if (gtCatKey && fCatKey && gtCatKey === fCatKey) matchScore += 0.8;
+    }
+  }
+
+  // 5. CVE match (strong signal)
+  if (gt.cve && f.cve && gt.cve.toLowerCase() === f.cve.toLowerCase()) matchScore += 4;
+
+  // 6. Severity match (minor bonus)
+  const gtSev = (gt.severity || "").toLowerCase();
+  const fSev = (f.severity || "").toLowerCase();
+  if (gtSev === fSev) matchScore += 0.5;
+
+  // 7. OWASP category match (bonus for same OWASP top 10 category)
+  if (gt.owaspCategory && f.category) {
+    const fOwasp = (f as any).owasp || "";
+    if (fOwasp && gt.owaspCategory.toLowerCase() === fOwasp.toLowerCase()) matchScore += 0.5;
+  }
+
+  return matchScore;
 }
 
 /**
  * Compare LLM findings against ground truth for a target.
  * Returns precision, recall, F1, and detailed match information.
+ *
+ * When `autoDetectableOnly` is true, only ground truth vulns with
+ * `autoDetectable: true` (or `autoDetectable` not set) are scored.
+ * This gives a more realistic accuracy picture for automated scanning.
  */
 export function scoreAgainstGroundTruth(
   targetPreset: string,
-  llmFindings: Array<{ title: string; severity: string; category?: string; cve?: string }>
+  llmFindings: Array<{ title: string; severity: string; category?: string; cve?: string; cwe?: string }>,
+  options?: { autoDetectableOnly?: boolean }
 ): AccuracyScore | null {
-  const groundTruth = GROUND_TRUTH_LIBRARY[targetPreset];
-  if (!groundTruth || groundTruth.length === 0) return null;
+  const fullGroundTruth = GROUND_TRUTH_LIBRARY[targetPreset];
+  if (!fullGroundTruth || fullGroundTruth.length === 0) return null;
+
+  // Filter ground truth based on autoDetectable flag
+  const autoOnly = options?.autoDetectableOnly ?? false;
+  const groundTruth = autoOnly
+    ? fullGroundTruth.filter(gt => gt.autoDetectable !== false)
+    : fullGroundTruth;
+
+  if (groundTruth.length === 0) return null;
 
   const matchDetails: AccuracyScore["matchDetails"] = [];
   const matchedLlmIndices = new Set<number>();
+  const matchedGtIndices = new Set<number>();
 
-  // For each ground truth vuln, find the best matching LLM finding
-  for (const gt of groundTruth) {
-    let bestMatch: { index: number; score: number; finding: any } | null = null;
-
-    for (let i = 0; i < llmFindings.length; i++) {
-      if (matchedLlmIndices.has(i)) continue;
-
-      const f = llmFindings[i];
-      let matchScore = 0;
-
-      // Title similarity (fuzzy match)
-      const gtTitle = gt.title.toLowerCase();
-      const fTitle = (f.title || "").toLowerCase();
-      if (fTitle.includes(gtTitle) || gtTitle.includes(fTitle)) matchScore += 3;
-      else {
-        // Check for keyword overlap
-        const gtWords = new Set(gtTitle.split(/\s+/).filter(w => w.length > 3));
-        const fWords = new Set(fTitle.split(/\s+/).filter(w => w.length > 3));
-        let overlap = 0;
-        for (const w of gtWords) { if (fWords.has(w)) overlap++; }
-        matchScore += (overlap / Math.max(gtWords.size, 1)) * 2;
-      }
-
-      // Category match
-      const gtCat = gt.category.toLowerCase();
-      const fCat = (f.category || "").toLowerCase();
-      if (fCat.includes(gtCat) || gtCat.includes(fCat)) matchScore += 1;
-
-      // CVE match (strong signal)
-      if (gt.cve && f.cve && gt.cve === f.cve) matchScore += 3;
-
-      // Severity keyword match
-      const gtSev = gt.severity.toLowerCase();
-      const fSev = (f.severity || "").toLowerCase();
-      if (gtSev === fSev) matchScore += 0.5;
-
-      if (matchScore > 1.0 && (!bestMatch || matchScore > bestMatch.score)) {
-        bestMatch = { index: i, score: matchScore, finding: f };
+  // ── Global optimal matching: compute all scores, then assign best-first ──
+  // This prevents order-dependent greedy matching where "SQL Injection" (first in GT)
+  // steals matches from "Command Injection" or "File Inclusion" because they share
+  // the word "Injection" via keyword overlap.
+  const allPairs: Array<{ gtIdx: number; fIdx: number; score: number }> = [];
+  for (let gi = 0; gi < groundTruth.length; gi++) {
+    for (let fi = 0; fi < llmFindings.length; fi++) {
+      const score = computeMatchScore(groundTruth[gi], llmFindings[fi]);
+      if (score > 0.8) {
+        allPairs.push({ gtIdx: gi, fIdx: fi, score });
       }
     }
+  }
 
-    if (bestMatch) {
-      matchedLlmIndices.add(bestMatch.index);
-      const severityMatch = gt.severity.toLowerCase() === (bestMatch.finding.severity || "").toLowerCase();
-      matchDetails.push({ groundTruth: gt, matched: true, llmFinding: bestMatch.finding, severityMatch });
+  // Sort by score descending — assign highest-confidence matches first
+  allPairs.sort((a, b) => b.score - a.score);
+
+  for (const pair of allPairs) {
+    if (matchedGtIndices.has(pair.gtIdx) || matchedLlmIndices.has(pair.fIdx)) continue;
+    matchedGtIndices.add(pair.gtIdx);
+    matchedLlmIndices.add(pair.fIdx);
+  }
+
+  // Build matchDetails from the assignments
+  for (let gi = 0; gi < groundTruth.length; gi++) {
+    const gt = groundTruth[gi];
+    if (matchedGtIndices.has(gi)) {
+      // Find which finding was matched
+      const pair = allPairs.find(p => p.gtIdx === gi && matchedLlmIndices.has(p.fIdx) && matchedGtIndices.has(p.gtIdx));
+      if (pair) {
+        const f = llmFindings[pair.fIdx];
+        const severityMatch = gt.severity.toLowerCase() === (f.severity || "").toLowerCase();
+        matchDetails.push({ groundTruth: gt, matched: true, llmFinding: f, severityMatch });
+      } else {
+        matchDetails.push({ groundTruth: gt, matched: false, severityMatch: false });
+      }
     } else {
       matchDetails.push({ groundTruth: gt, matched: false, severityMatch: false });
     }
@@ -975,6 +1143,8 @@ export function scoreAgainstGroundTruth(
 
   return {
     totalGroundTruth: groundTruth.length,
+    totalGroundTruthFull: fullGroundTruth.length,
+    autoDetectableOnly: autoOnly,
     truePositives,
     falsePositives,
     falseNegatives,

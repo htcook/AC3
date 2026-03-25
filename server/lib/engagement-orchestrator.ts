@@ -7617,7 +7617,8 @@ export async function executeEngagement(
         broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
 
         // Collect all findings from all assets (vulns + ZAP findings + nuclei findings)
-        const allFindings = state.assets.flatMap(a => [
+        // Collect all raw findings from all sources
+        const rawFindings = state.assets.flatMap(a => [
           ...a.vulns.map(v => ({
             name: v.title,
             severity: v.severity,
@@ -7636,6 +7637,30 @@ export async function executeEngagement(
             cwe: n.classification?.cweId?.[0] ? `CWE-${n.classification.cweId[0]}` : undefined,
           })),
         ]);
+
+        // Normalize finding names: strip tool prefixes, normalize whitespace
+        const normalizeForScoring = (name: string) =>
+          (name || '').replace(/^\[\w+(?:\s*\w+)*\]\s*/i, '').replace(/^\(\w+\)\s*/i, '').replace(/\s+/g, ' ').trim();
+
+        // Deduplicate findings by normalized name + severity (keep highest severity)
+        const severityRank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+        const deduped = new Map<string, typeof rawFindings[0]>();
+        for (const f of rawFindings) {
+          const key = normalizeForScoring(f.name).toLowerCase();
+          const existing = deduped.get(key);
+          if (!existing || (severityRank[f.severity?.toLowerCase() || 'info'] || 0) > (severityRank[existing.severity?.toLowerCase() || 'info'] || 0)) {
+            deduped.set(key, { ...f, name: normalizeForScoring(f.name) });
+          }
+        }
+        const allFindings = [...deduped.values()];
+        if (rawFindings.length !== allFindings.length) {
+          addLog(state, {
+            phase: 'completed', type: 'info',
+            title: `🔄 Finding Normalization: ${rawFindings.length} → ${allFindings.length} (${rawFindings.length - allFindings.length} duplicates removed)`,
+            detail: `Stripped tool prefixes and deduplicated findings before accuracy scoring.`,
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        }
 
         // Determine which knowledge modules were used during this engagement
         const modulesUsed = [
