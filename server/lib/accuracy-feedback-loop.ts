@@ -452,6 +452,293 @@ export async function rescoreAllTargets(): Promise<{
 }
 
 /**
+ * Run a LOCAL accuracy comparison using the improved scoreAgainstGroundTruth algorithm.
+ * This bypasses the DO learning engine and uses the local synonym map, optimal matching,
+ * and autoDetectable tiering. Stores results in the same accuracy_comparisons table.
+ */
+export async function runLocalAccuracyComparison(opts: {
+  sessionId: string;
+  engagementId?: string;
+  targetPreset: string;
+  targetUrl?: string;
+  scanType?: string;
+  findings: Array<{
+    name: string;
+    severity?: string;
+    cwe?: string;
+    owasp?: string;
+    endpoint?: string;
+    confidence?: number;
+  }>;
+  knowledgeModulesUsed?: string[];
+  scanDurationMs?: number;
+  autoDetectableOnly?: boolean;
+}): Promise<AccuracyComparisonResult | null> {
+  try {
+    const { scoreAgainstGroundTruth } = await import('./llm-self-learning');
+
+    // Convert findings to the format expected by scoreAgainstGroundTruth
+    const llmFindings = opts.findings.map(f => ({
+      title: f.name,
+      severity: f.severity || 'medium',
+      category: f.owasp || undefined,
+      cwe: f.cwe || undefined,
+    }));
+
+    // Run local scoring with the improved matching algorithm
+    const localScore = scoreAgainstGroundTruth(
+      opts.targetPreset,
+      llmFindings,
+      { autoDetectableOnly: opts.autoDetectableOnly ?? false }
+    );
+
+    if (!localScore) {
+      console.warn(`${LOG} Local scoring returned null for ${opts.targetPreset}`);
+      return null;
+    }
+
+    const { precision, recall, f1Score, truePositives, falsePositives, falseNegatives } = localScore;
+
+    // Build matched/missed/fp arrays from matchDetails
+    const matchedFindings = localScore.matchDetails
+      .filter(m => m.matched)
+      .map(m => m.groundTruth.title);
+    const missedVulns = localScore.matchDetails
+      .filter(m => !m.matched)
+      .map(m => m.groundTruth.title);
+    const falsePositiveFindings = localScore.unmatchedLlmFindings
+      .map((f: any) => f.title || f.name || 'Unknown');
+
+    // Compute deltas from previous comparison
+    const deltas = await computeDeltas(opts.targetPreset, precision, recall, f1Score);
+
+    // Store in DB
+    const db = await getDbRequired();
+    const scoringMode = opts.autoDetectableOnly ? 'local-auto-detectable' : 'local-full';
+    const insertData: InsertAccuracyComparison = {
+      sessionId: opts.sessionId,
+      engagementId: opts.engagementId,
+      targetPreset: opts.targetPreset,
+      targetUrl: opts.targetUrl,
+      scanType: opts.scanType ? `${opts.scanType} (${scoringMode})` : scoringMode,
+      precision,
+      recall,
+      f1Score,
+      truePositives,
+      falsePositives,
+      falseNegatives,
+      totalFindings: opts.findings.length,
+      totalGroundTruth: localScore.totalGroundTruth,
+      matchedFindings,
+      missedVulns,
+      falsePositiveFindings,
+      f1Delta: deltas.f1Delta,
+      precisionDelta: deltas.precisionDelta,
+      recallDelta: deltas.recallDelta,
+      knowledgeModulesUsed: opts.knowledgeModulesUsed || [],
+      scanDurationMs: opts.scanDurationMs,
+    };
+
+    const [inserted] = await db.insert(accuracyComparisons).values(insertData).$returningId();
+    const comparisonId = inserted.id;
+
+    // Build per-vuln-type breakdown
+    const vulnBreakdown = [
+      ...matchedFindings.map(v => ({ vulnType: v, detectionRate: 100, falsePositiveRate: 0, timesFound: 1, timesMissed: 0, timesFalsePositive: 0 })),
+      ...missedVulns.map(v => ({ vulnType: v, detectionRate: 0, falsePositiveRate: 0, timesFound: 0, timesMissed: 1, timesFalsePositive: 0 })),
+      ...falsePositiveFindings.map(v => ({ vulnType: v, detectionRate: 0, falsePositiveRate: 100, timesFound: 0, timesMissed: 0, timesFalsePositive: 1 })),
+    ];
+
+    const vulnTypeRows: InsertVulnTypeAccuracy[] = vulnBreakdown.map(v => ({
+      comparisonId,
+      vulnType: v.vulnType,
+      detectionRate: v.detectionRate,
+      falsePositiveRate: v.falsePositiveRate,
+      timesFound: v.timesFound,
+      timesMissed: v.timesMissed,
+      timesFalsePositive: v.timesFalsePositive,
+      targetPreset: opts.targetPreset,
+    }));
+
+    if (vulnTypeRows.length > 0) {
+      await db.insert(vulnTypeAccuracy).values(vulnTypeRows);
+    }
+
+    const result: AccuracyComparisonResult = {
+      sessionId: opts.sessionId,
+      engagementId: opts.engagementId,
+      targetPreset: opts.targetPreset,
+      targetUrl: opts.targetUrl,
+      scanType: scoringMode,
+      precision,
+      recall,
+      f1Score,
+      truePositives,
+      falsePositives,
+      falseNegatives,
+      totalFindings: opts.findings.length,
+      totalGroundTruth: localScore.totalGroundTruth,
+      matchedFindings,
+      missedVulns,
+      falsePositiveFindings,
+      f1Delta: deltas.f1Delta,
+      precisionDelta: deltas.precisionDelta,
+      recallDelta: deltas.recallDelta,
+      vulnTypeBreakdown: vulnBreakdown.map(v => ({
+        vulnType: v.vulnType,
+        detectionRate: v.detectionRate,
+        falsePositiveRate: v.falsePositiveRate,
+        timesFound: v.timesFound,
+        timesMissed: v.timesMissed,
+      })),
+    };
+
+    console.log(`${LOG} Local comparison (${scoringMode}): F1=${f1Score.toFixed(3)} P=${precision.toFixed(3)} R=${recall.toFixed(3)} TP=${truePositives} FP=${falsePositives} FN=${falseNegatives}`);
+    return result;
+  } catch (err: any) {
+    console.error(`${LOG} Local accuracy comparison failed:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Rescore all targets locally using the improved matching algorithm.
+ * Runs both full and autoDetectable-only scoring for each target.
+ */
+export async function rescoreLocalAllTargets(): Promise<{
+  rescored: number;
+  failed: number;
+  results: Array<{
+    targetPreset: string;
+    previousF1: number;
+    newF1Full: number;
+    newF1AutoDetectable: number;
+    f1DeltaFull: number;
+    f1DeltaAutoDetectable: number;
+    status: 'success' | 'failed' | 'skipped';
+    error?: string;
+    matchedFindings?: string[];
+    missedVulns?: string[];
+    falsePositiveFindings?: string[];
+  }>;
+}> {
+  const db = await getDb();
+  if (!db) return { rescored: 0, failed: 0, results: [] };
+
+  console.log(`${LOG} Starting LOCAL rescore of all targets...`);
+
+  // Get the latest comparison for each target
+  const latestRows = await db.execute(sql`
+    SELECT ac.*
+    FROM accuracy_comparisons ac
+    INNER JOIN (
+      SELECT target_preset, MAX(id) as max_id
+      FROM accuracy_comparisons
+      GROUP BY target_preset
+    ) latest ON ac.id = latest.max_id
+  `) as any;
+
+  const targets = Array.isArray(latestRows?.[0]) ? latestRows[0] : (Array.isArray(latestRows) ? latestRows : []);
+  if (targets.length === 0) {
+    console.log(`${LOG} No targets to rescore`);
+    return { rescored: 0, failed: 0, results: [] };
+  }
+
+  const results: Array<{
+    targetPreset: string;
+    previousF1: number;
+    newF1Full: number;
+    newF1AutoDetectable: number;
+    f1DeltaFull: number;
+    f1DeltaAutoDetectable: number;
+    status: 'success' | 'failed' | 'skipped';
+    error?: string;
+    matchedFindings?: string[];
+    missedVulns?: string[];
+    falsePositiveFindings?: string[];
+  }> = [];
+
+  let rescored = 0;
+  let failed = 0;
+
+  for (const target of targets) {
+    const preset = target.target_preset ?? target.targetPreset;
+    const previousF1 = Number(target.f1_score ?? target.f1Score ?? 0);
+
+    // Reconstruct findings from stored data
+    const matchedFindings = (() => {
+      try {
+        const raw = target.matched_findings ?? target.matchedFindings;
+        return typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch { return []; }
+    })();
+    const fpFindings = (() => {
+      try {
+        const raw = target.false_positive_findings ?? target.falsePositiveFindings;
+        return typeof raw === 'string' ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
+      } catch { return []; }
+    })();
+
+    const findings = [
+      ...matchedFindings.map((name: string) => ({ name, severity: 'High' })),
+      ...fpFindings.map((name: string) => ({ name, severity: 'Medium' })),
+    ];
+
+    if (findings.length === 0) {
+      results.push({ targetPreset: preset, previousF1, newF1Full: 0, newF1AutoDetectable: 0, f1DeltaFull: 0, f1DeltaAutoDetectable: 0, status: 'skipped', error: 'No findings data stored' });
+      continue;
+    }
+
+    try {
+      // Run FULL local scoring
+      const fullResult = await runLocalAccuracyComparison({
+        sessionId: `rescore-local-full-${preset}-${Date.now()}`,
+        targetPreset: preset,
+        targetUrl: target.target_url ?? target.targetUrl ?? undefined,
+        scanType: 'rescore',
+        findings,
+      });
+
+      // Run AUTO-DETECTABLE-ONLY local scoring
+      const autoResult = await runLocalAccuracyComparison({
+        sessionId: `rescore-local-auto-${preset}-${Date.now()}`,
+        targetPreset: preset,
+        targetUrl: target.target_url ?? target.targetUrl ?? undefined,
+        scanType: 'rescore',
+        findings,
+        autoDetectableOnly: true,
+      });
+
+      const newF1Full = fullResult?.f1Score ?? 0;
+      const newF1Auto = autoResult?.f1Score ?? 0;
+
+      results.push({
+        targetPreset: preset,
+        previousF1,
+        newF1Full,
+        newF1AutoDetectable: newF1Auto,
+        f1DeltaFull: newF1Full - previousF1,
+        f1DeltaAutoDetectable: newF1Auto - previousF1,
+        status: 'success',
+        matchedFindings: fullResult?.matchedFindings,
+        missedVulns: fullResult?.missedVulns,
+        falsePositiveFindings: fullResult?.falsePositiveFindings,
+      });
+      rescored++;
+      console.log(`${LOG} Rescored ${preset}: Full F1=${newF1Full.toFixed(3)} AutoDetectable F1=${newF1Auto.toFixed(3)} (prev=${previousF1.toFixed(3)})`);
+    } catch (err: any) {
+      results.push({ targetPreset: preset, previousF1, newF1Full: 0, newF1AutoDetectable: 0, f1DeltaFull: 0, f1DeltaAutoDetectable: 0, status: 'failed', error: err.message });
+      failed++;
+    }
+
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  console.log(`${LOG} Local rescore complete: ${rescored} rescored, ${failed} failed`);
+  return { rescored, failed, results };
+}
+
+/**
  * Get accuracy summary statistics.
  */
 export async function getAccuracySummary(): Promise<{

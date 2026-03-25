@@ -7690,7 +7690,7 @@ export async function executeEngagement(
             : '';
           addLog(state, {
             phase: 'completed', type: 'info',
-            title: `✅ Accuracy: F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr} ${trendEmoji}`,
+            title: `✅ Accuracy (DO): F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr} ${trendEmoji}`,
             detail: `P=${(compResult.precision * 100).toFixed(1)}% R=${(compResult.recall * 100).toFixed(1)}% | ` +
               `TP=${compResult.truePositives} FP=${compResult.falsePositives} FN=${compResult.falseNegatives} | ` +
               `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}`,
@@ -7715,6 +7715,60 @@ export async function executeEngagement(
           } catch (notifErr: any) {
             console.warn('[AccuracyFeedback] Notification failed:', notifErr.message);
           }
+        }
+
+        // ── Local scoring with improved matching algorithm (dual mode) ──
+        try {
+          const { runLocalAccuracyComparison } = await import('./accuracy-feedback-loop');
+
+          // Full local scoring
+          const localFull = await runLocalAccuracyComparison({
+            sessionId: `eng-${engagementId}-local-full-${Date.now()}`,
+            engagementId: String(engagementId),
+            targetPreset,
+            targetUrl: state.assets[0]?.hostname || '',
+            scanType: state.engagementType,
+            findings: allFindings,
+            knowledgeModulesUsed: uniqueModules,
+            scanDurationMs: state.completedAt ? state.completedAt - (state.startedAt || state.completedAt) : undefined,
+            autoDetectableOnly: false,
+          });
+
+          // AutoDetectable-only local scoring
+          const localAuto = await runLocalAccuracyComparison({
+            sessionId: `eng-${engagementId}-local-auto-${Date.now()}`,
+            engagementId: String(engagementId),
+            targetPreset,
+            targetUrl: state.assets[0]?.hostname || '',
+            scanType: state.engagementType,
+            findings: allFindings,
+            knowledgeModulesUsed: uniqueModules,
+            scanDurationMs: state.completedAt ? state.completedAt - (state.startedAt || state.completedAt) : undefined,
+            autoDetectableOnly: true,
+          });
+
+          if (localFull) {
+            addLog(state, {
+              phase: 'completed', type: 'info',
+              title: `📊 Local Accuracy (Full): F1=${(localFull.f1Score * 100).toFixed(1)}%`,
+              detail: `P=${(localFull.precision * 100).toFixed(1)}% R=${(localFull.recall * 100).toFixed(1)}% | ` +
+                `TP=${localFull.truePositives} FP=${localFull.falsePositives} FN=${localFull.falseNegatives}`,
+              data: { localAccuracyFull: localFull },
+            });
+          }
+          if (localAuto) {
+            addLog(state, {
+              phase: 'completed', type: 'info',
+              title: `🎯 Local Accuracy (Auto-Detectable): F1=${(localAuto.f1Score * 100).toFixed(1)}%`,
+              detail: `P=${(localAuto.precision * 100).toFixed(1)}% R=${(localAuto.recall * 100).toFixed(1)}% | ` +
+                `TP=${localAuto.truePositives} FP=${localAuto.falsePositives} FN=${localAuto.falseNegatives} | ` +
+                `Missed: ${localAuto.missedVulns.slice(0, 5).join(', ') || 'none'}`,
+              data: { localAccuracyAutoDetectable: localAuto },
+            });
+          }
+          broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        } catch (localErr: any) {
+          console.warn('[AccuracyFeedback] Local scoring failed:', localErr.message);
         }
       }
     } catch (accErr: any) {

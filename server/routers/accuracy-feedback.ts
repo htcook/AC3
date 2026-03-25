@@ -13,12 +13,14 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   runAccuracyComparison,
+  runLocalAccuracyComparison,
   getAccuracyHistory,
   getLatestComparisonPerTarget,
   getVulnTypeBreakdown,
   getAggregateVulnTypeAccuracy,
   getAccuracySummary,
   rescoreAllTargets,
+  rescoreLocalAllTargets,
 } from "../lib/accuracy-feedback-loop";
 import { seedAccuracyData } from "../lib/accuracy-seed";
 
@@ -88,5 +90,45 @@ export const accuracyFeedbackRouter = router({
   /** Rescore all targets using their latest findings against current ground truth */
   rescoreAll: protectedProcedure.mutation(async () => {
     return rescoreAllTargets();
+  }),
+
+  /** Run a local accuracy comparison using the improved matching algorithm */
+  runLocalComparison: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      engagementId: z.string().optional(),
+      targetPreset: z.string(),
+      targetUrl: z.string().optional(),
+      scanType: z.string().optional(),
+      findings: z.array(z.object({
+        name: z.string(),
+        severity: z.string().optional(),
+        cwe: z.string().optional(),
+        owasp: z.string().optional(),
+        endpoint: z.string().optional(),
+        confidence: z.number().optional(),
+      })),
+      knowledgeModulesUsed: z.array(z.string()).optional(),
+      scanDurationMs: z.number().optional(),
+      autoDetectableOnly: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return runLocalAccuracyComparison(input);
+    }),
+
+  /** Rescore all targets locally with both full and autoDetectable-only scoring */
+  rescoreLocalAll: protectedProcedure.mutation(async () => {
+    return rescoreLocalAllTargets();
+  }),
+
+  /** Get available ground truth targets and their autoDetectable counts */
+  groundTruthTargets: protectedProcedure.query(async () => {
+    const { GROUND_TRUTH_LIBRARY } = await import('../lib/llm-self-learning');
+    return Object.entries(GROUND_TRUTH_LIBRARY).map(([key, vulns]) => {
+      const total = vulns.length;
+      const autoDetectable = vulns.filter((v: any) => v.autoDetectable !== false).length;
+      const manualOnly = vulns.filter((v: any) => v.autoDetectable === false).length;
+      return { target: key, total, autoDetectable, manualOnly };
+    });
   }),
 });
