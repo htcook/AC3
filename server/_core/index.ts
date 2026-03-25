@@ -258,6 +258,30 @@ async function startServer() {
     }
   });
 
+  // === TEMPORARY: Test trigger for Juice Shop engagement ===
+  app.post('/api/_test/trigger-juiceshop', async (req, res) => {
+    try {
+      const { executeEngagement, initOpsState, getOpsState, persistOpsStateNow, clearOpsState } = await import('../lib/engagement-orchestrator.js');
+      const engagementId = req.body?.engagementId || 1800006;
+      // Force-clear any stale state (error/completed from previous runs or DB recovery)
+      await clearOpsState(engagementId);
+      // Initialize fresh ops state and set trainingLabMode BEFORE calling executeEngagement
+      let state = initOpsState(engagementId, 'pentest');
+      (state as any).trainingLabMode = true;
+      await persistOpsStateNow(engagementId);
+      executeEngagement(engagementId, {
+        id: 'system-test',
+        name: 'Juice Shop Test Runner',
+      }).catch(err => {
+        console.error('[JuiceShop Test] Pipeline error:', err?.message || err);
+        console.error('[JuiceShop Test] Stack:', err?.stack);
+      });
+      res.json({ ok: true, engagementId, message: 'Juice Shop pipeline started with trainingLabMode=true and URL resolver fix' });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // SAML 2.0 protocol endpoints (metadata, ACS, SSO initiation)

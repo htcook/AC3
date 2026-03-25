@@ -348,7 +348,8 @@ export async function startSqlmapScan(config: SqlmapConfig): Promise<SqlmapScanR
   args.push("--smart");
 
   const fullArgs = args.join(" ");
-  console.log(`[SQLMap] Starting scan: sqlmap ${fullArgs.substring(0, 200)}...`);
+  console.log(`[SQLMap] Starting scan: sqlmap ${fullArgs.substring(0, 300)}`);
+  console.log(`[SQLMap] Config: target=${config.targetUrl}, cookie=${config.cookie ? 'yes(' + config.cookie.substring(0, 30) + '...)' : 'none'}, risk=${config.risk}, level=${config.level}, timeout=${timeout}s`);
 
   let result: ToolExecResult;
   try {
@@ -359,7 +360,9 @@ export async function startSqlmapScan(config: SqlmapConfig): Promise<SqlmapScanR
       timeoutSeconds: timeout + 60,
       engagementId: config.engagementId,
     });
+    console.log(`[SQLMap] executeTool returned: exitCode=${result.exitCode}, timedOut=${result.timedOut}, stdout=${result.stdout?.substring(0, 200) || '(empty)'}`);
   } catch (err: any) {
+    console.error(`[SQLMap] executeTool threw: ${err.message}\n${err.stack?.substring(0, 300)}`);
     return {
       scanId: null,
       status: "error",

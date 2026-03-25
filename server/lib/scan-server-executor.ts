@@ -456,6 +456,7 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
 
   // Validate tool is allowed
   if (!ALLOWED_TOOLS.has(tool)) {
+    console.warn(`[ScanServer] Tool "${tool}" blocked by whitelist. Allowed: ${[...ALLOWED_TOOLS].join(', ')}`);
     return {
       tool,
       command: `${tool} ${args}`,
@@ -468,10 +469,14 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
     };
   }
 
+  console.log(`[ScanServer] executeTool: tool=${tool}, timeout=${timeoutSeconds}s, target=${config.target || 'N/A'}, args=${String(args).substring(0, 150)}`);
+
   // Primary path: HTTP API (includes its own SSH fallback)
   try {
     const { executeToolViaHttp } = await import("./do-scan-api");
-    return await executeToolViaHttp(config);
+    const httpResult = await executeToolViaHttp(config);
+    console.log(`[ScanServer] HTTP API result: tool=${tool}, exitCode=${httpResult.exitCode}, timedOut=${httpResult.timedOut}, duration=${httpResult.durationMs}ms, stdout=${httpResult.stdout?.substring(0, 100) || '(empty)'}`);
+    return httpResult;
   } catch (httpImportErr: any) {
     // do-scan-api module failed to load — fall through to direct SSH
     console.warn(`[ScanServer] HTTP API module unavailable (${httpImportErr.message}), using direct SSH with retry`);
@@ -480,10 +485,12 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
   // Fallback: direct child_process SSH with P6 retry
   const prefix = sudo ? "sudo " : "";
   const command = `${prefix}${tool} ${args} 2>&1`;
+  console.log(`[ScanServer] SSH fallback: ${command.substring(0, 150)}`);
 
   try {
     const result = await executeSSHWithRetry(command, timeoutSeconds, false);
     if (sshRetryMetrics.totalRetries > 0) sshRetryMetrics.successAfterRetry++;
+    console.log(`[ScanServer] SSH result: tool=${tool}, exitCode=${result.exitCode}, duration=${Date.now() - startTime}ms, stdout=${result.stdout?.substring(0, 100) || '(empty)'}`);
     return {
       tool,
       command: `${tool} ${args}`,
@@ -495,6 +502,7 @@ export async function executeTool(config: ToolExecConfig): Promise<ToolExecResul
     };
   } catch (err: any) {
     const timedOut = err.message.includes("timed out");
+    console.error(`[ScanServer] SSH error: tool=${tool}, timedOut=${timedOut}, error=${err.message.substring(0, 200)}`);
     return {
       tool,
       command: `${tool} ${args}`,

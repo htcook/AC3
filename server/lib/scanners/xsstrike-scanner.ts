@@ -364,7 +364,8 @@ export async function startXssScan(config: XssConfig): Promise<XssScanResult> {
     command = `xsstrike ${args.join(" ")} 2>&1 || python3 -m xsstrike ${args.join(" ")} 2>&1`;
   }
 
-  console.log(`[XSS] Starting ${activeTool} scan: ${command.substring(0, 200)}...`);
+  console.log(`[XSS] Starting ${activeTool} scan: ${command.substring(0, 300)}`);
+  console.log(`[XSS] Config: target=${config.targetUrl}, cookie=${config.cookie ? 'yes(' + config.cookie.substring(0, 30) + '...)' : 'none'}, timeout=${timeout}s, dom=${config.domAnalysis}, wafBypass=${config.wafBypass}`);
 
   try {
     result = await executeTool({
@@ -374,7 +375,9 @@ export async function startXssScan(config: XssConfig): Promise<XssScanResult> {
       timeoutSeconds: timeout + 60,
       engagementId: config.engagementId,
     });
+    console.log(`[XSS] executeTool returned: exitCode=${result.exitCode}, timedOut=${result.timedOut}, stdout=${result.stdout?.substring(0, 200) || '(empty)'}`);
   } catch (err: any) {
+    console.error(`[XSS] executeTool threw: ${err.message}\n${err.stack?.substring(0, 300)}`);
     return {
       scanId: null,
       status: "error",

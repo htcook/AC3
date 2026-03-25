@@ -154,6 +154,9 @@ async function zapRequest(
   });
 
   if (!response.ok) {
+    let responseBody = '';
+    try { responseBody = JSON.stringify(response.json()).substring(0, 200); } catch {}
+    console.error(`[ZAP API] ${response.status} ${response.statusText} at ${endpoint} | params: ${JSON.stringify(params).substring(0, 200)} | body: ${responseBody}`);
     throw new Error(`ZAP API error: ${response.status} ${response.statusText} at ${endpoint}`);
   }
 
@@ -1394,8 +1397,9 @@ export async function startScan(params: {
     // ── Seed URL Injection: pre-load known endpoints into ZAP's site tree ──
     // For SPA targets (Angular, React), the traditional spider finds very few URLs.
     // Pre-seeding with known endpoints ensures ZAP has enough URLs for active scanning.
+    console.log(`[ZAP startScan] Scan #${scanId}: target=${params.targetUrl}, type=${params.scanType}, mode=${params.scanMode}, trainingLab=${params.trainingLabMode}, seedUrls=${params.seedUrls?.length || 0}`);
     if (params.seedUrls && params.seedUrls.length > 0) {
-      console.log(`[ZAP Seed URLs] Pre-loading ${params.seedUrls.length} seed URLs into ZAP site tree`);
+      console.log(`[ZAP Seed URLs] Pre-loading ${params.seedUrls.length} seed URLs into ZAP site tree (first 3: ${params.seedUrls.slice(0, 3).join(', ')})`);
       const seedResults = await Promise.allSettled(
         params.seedUrls.map(seedUrl =>
           zapRequest("/JSON/core/action/accessUrl/", { url: seedUrl, followRedirects: "true" }, cfg)
@@ -1407,6 +1411,7 @@ export async function startScan(params: {
     }
 
     // Start spider crawl
+    console.log(`[ZAP Spider] Scan #${scanId}: Starting spider on ${params.targetUrl}`);
     const spiderResult = await zapRequest("/JSON/spider/action/scan/", {
       url: params.targetUrl,
       maxchildren: String(llmConfig.spiderConfig?.maxChildren || cfg.spiderMaxChildren),
@@ -1505,6 +1510,20 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
 
         // Check if AJAX spider should be used
         if (llmConfig?.useAjaxSpider && !scan.zapAjaxSpiderScanId) {
+          // Apply AJAX spider configuration before starting
+          const ajaxConfig = llmConfig.ajaxSpiderConfig;
+          if (ajaxConfig) {
+            const ajaxDuration = Math.min(ajaxConfig.maxDuration || 5, 5); // Cap at 5 minutes to leave time for active scan
+            await zapRequest("/JSON/ajaxSpider/action/setOptionMaxDuration/", { Integer: String(ajaxDuration) }, cfg).catch(() => {});
+            await zapRequest("/JSON/ajaxSpider/action/setOptionMaxCrawlDepth/", { Integer: String(ajaxConfig.maxCrawlDepth || 5) }, cfg).catch(() => {});
+            await zapRequest("/JSON/ajaxSpider/action/setOptionNumberOfBrowsers/", { Integer: String(ajaxConfig.numberOfBrowsers || 2) }, cfg).catch(() => {});
+            await zapRequest("/JSON/ajaxSpider/action/setOptionClickDefaultElems/", { Boolean: String(ajaxConfig.clickDefaultElems ?? true) }, cfg).catch(() => {});
+            console.log(`[ZAP AJAX Spider] Scan #${scanId}: Set maxDuration=${ajaxDuration}min, maxCrawlDepth=${ajaxConfig.maxCrawlDepth}, browsers=${ajaxConfig.numberOfBrowsers}`);
+          } else {
+            // No LLM config — set a safe default of 5 minutes
+            await zapRequest("/JSON/ajaxSpider/action/setOptionMaxDuration/", { Integer: "5" }, cfg).catch(() => {});
+            console.log(`[ZAP AJAX Spider] Scan #${scanId}: Set default maxDuration=5min (no LLM config)`);
+          }
           const ajaxResult = await zapRequest("/JSON/ajaxSpider/action/scan/", {
             url: scan.targetUrl,
             subtreeonly: "true",
@@ -1742,7 +1761,7 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
         } catch (activeScanErr: any) {
           // ── Retry: if active scan fails with 400 after AJAX spider, seed site tree and retry ──
           if (activeScanErr.message?.includes('400')) {
-            console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan 400 after AJAX spider — retrying with accessUrl seed`);
+            console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan 400 after AJAX spider on ${scan.targetUrl} — retrying with accessUrl seed`);
             try {
               await zapRequest("/JSON/core/action/accessUrl/", { url: scan.targetUrl, followRedirects: "true" }, cfg);
               const commonPaths = ['/', '/api', '/rest', '/login', '/search', '/#'];
@@ -1773,10 +1792,10 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
                 alertCounts: await getAlertCounts(scanId),
               };
             } catch (retryErr: any) {
-              console.error(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry also failed after AJAX spider: ${retryErr.message}`);
+              console.error(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry also failed after AJAX spider on ${scan.targetUrl}: ${retryErr.message}`);
             }
           }
-          console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan after AJAX spider: ${activeScanErr.message}`);
+          console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan after AJAX spider on ${scan.targetUrl}: ${activeScanErr.message}. URLs discovered: ${urlsFound}`);
           await db.update(webAppScans).set({
             status: "error",
             errorMessage: `Failed to start ZAP active scan after AJAX spider: ${activeScanErr.message}`,
@@ -2691,6 +2710,25 @@ export async function configureZapAuthentication(
     let detectedLoginUrl: string | undefined;
     let detectedMethod: 'form' | 'basic' | 'json' = 'form';
 
+    // ── Training Lab Pre-configured Auth ──
+    // For training labs behind reverse proxies, fetch() from the Manus sandbox can't reach
+    // the target. Use pre-configured auth methods instead of probing.
+    const TRAINING_LAB_AUTH_PRESETS: Record<string, { method: 'json' | 'form'; loginPath: string; usernameField: string; passwordField: string }> = {
+      'juice-shop': { method: 'json', loginPath: '/rest/user/login', usernameField: 'email', passwordField: 'password' },
+      'dvwa': { method: 'form', loginPath: '/login.php', usernameField: 'username', passwordField: 'password' },
+      'hackazon': { method: 'form', loginPath: '/user/login', usernameField: 'username', passwordField: 'password' },
+      'webgoat': { method: 'form', loginPath: '/WebGoat/login', usernameField: 'username', passwordField: 'password' },
+      'mutillidae': { method: 'form', loginPath: '/index.php?page=login.php', usernameField: 'username', passwordField: 'password' },
+    };
+
+    const targetPreset = detectTargetPreset(targetUrl);
+    if (targetPreset && TRAINING_LAB_AUTH_PRESETS[targetPreset]) {
+      const preset = TRAINING_LAB_AUTH_PRESETS[targetPreset];
+      detectedMethod = preset.method;
+      detectedLoginUrl = `${parsedUrl.origin}${preset.loginPath}`;
+      console.log(`[ZAP Auth] Training lab preset detected: ${targetPreset} — using ${preset.method} auth at ${detectedLoginUrl} (skipping fetch-based detection)`);
+    } else {
+    // Standard form detection for non-training-lab targets
     for (const path of loginPaths) {
       try {
         const testUrl = `${parsedUrl.origin}${path}`;
@@ -2723,6 +2761,7 @@ export async function configureZapAuthentication(
         }
       } catch { /* continue to next path */ }
     }
+    } // end else (non-training-lab)
 
     // Step 3: Configure authentication based on detected method
     if (detectedMethod === 'basic') {
@@ -2742,13 +2781,20 @@ export async function configureZapAuthentication(
       // Form-based authentication — most common (DVWA, WordPress, etc.)
       const loginUrl = detectedLoginUrl || `${parsedUrl.origin}/login`;
 
-      // Detect form field names by fetching the login page
-      let usernameField = 'username';
-      let passwordField = 'password';
+      // Detect form field names — use preset for training labs, fetch for others
+      const authPreset = targetPreset ? TRAINING_LAB_AUTH_PRESETS[targetPreset] : undefined;
+      let usernameField = authPreset?.usernameField || 'username';
+      let passwordField = authPreset?.passwordField || 'password';
       let csrfField: string | undefined;
       let extraFields: Record<string, string> = {};
 
+      if (authPreset) {
+        console.log(`[ZAP Auth] Using preset field names for ${targetPreset}: ${usernameField}/${passwordField}`);
+      }
+
       try {
+        // Skip fetch for training labs — we can't reach them from the Manus sandbox
+        if (authPreset) throw new Error('Using preset — skip fetch');
         const loginPage = await fetch(loginUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           signal: AbortSignal.timeout(5000),
@@ -2858,11 +2904,15 @@ export async function configureZapAuthentication(
     } else if (detectedMethod === 'json') {
       // JSON-based authentication (SPA/API login)
       const loginUrl = detectedLoginUrl || `${parsedUrl.origin}/api/login`;
+      // Use preset field names if available (e.g., Juice Shop uses "email" not "username")
+      const jsonUserField = authPreset?.usernameField || 'username';
+      const jsonPassField = authPreset?.passwordField || 'password';
+      console.log(`[ZAP Auth] JSON auth fields: ${jsonUserField}/${jsonPassField} for ${loginUrl}`);
       try {
         await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
           contextId,
           authMethodName: "jsonBasedAuthentication",
-          authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(`{"username":"{%username%}","password":"{%password%}"}`)}`,
+          authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(`{"${jsonUserField}":"{%username%}","${jsonPassField}":"{%password%}"}`)}`,
         }, cfg);
         console.log(`[ZAP Auth] Configured JSON-based auth: ${loginUrl}`);
       } catch (e: any) {

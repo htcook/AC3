@@ -4531,6 +4531,31 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
   }
 
+  // ── Training Lab ZAP URL Resolver ──
+  // ZAP runs in a Docker container and cannot resolve internal hostnames like
+  // juiceshop.lab.aceofcloud.io. For labs hosted on the scan server behind nginx
+  // reverse proxy, we must use the public reverse proxy URL instead.
+  // This map translates logical hostnames to ZAP-accessible URLs.
+  const TRAINING_LAB_ZAP_URL_MAP: Record<string, { zapBaseUrl: string; skipPortScan: boolean }> = {
+    'juiceshop.lab.aceofcloud.io': {
+      zapBaseUrl: 'https://scan.aceofcloud.io/lab/juice-shop',
+      skipPortScan: true, // Only one URL, no per-port scanning needed
+    },
+    // DVWA resolves fine from ZAP (dvbank.lab.aceofcloud.io has DNS entry)
+    // External labs (demo.testfire.net, testphp.vulnweb.com) resolve fine
+  };
+
+  /**
+   * Resolve a training lab hostname to a ZAP-accessible base URL.
+   * Returns the reverse proxy URL if the hostname is in the map, otherwise
+   * returns null (use the default hostname-based URL).
+   */
+  function resolveTrainingLabZapUrl(hostname: string): { zapBaseUrl: string; skipPortScan: boolean } | null {
+    if (!state.trainingLabMode) return null;
+    const key = hostname.toLowerCase();
+    return TRAINING_LAB_ZAP_URL_MAP[key] || null;
+  }
+
   // ── ZAP scan on web applications (WAF-aware, RoE scope enforced) ──
   const webApps = state.assets.filter(a =>
     (a.type === "web_app" ||
@@ -4542,6 +4567,29 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   const scannedTargetUrls = new Set<string>();
 
   for (const webApp of webApps) {
+    // ── Training Lab URL Resolution: check if this lab needs a reverse proxy URL for ZAP ──
+    const labZapUrl = resolveTrainingLabZapUrl(webApp.hostname);
+
+    if (labZapUrl) {
+      // This lab requires a reverse proxy URL — skip per-port scanning and use the resolved URL directly
+      const targetUrl = labZapUrl.zapBaseUrl;
+      const dedupKey = `zap-proxy:${targetUrl}`;
+
+      if (scannedTargetUrls.has(dedupKey)) {
+        addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Dedup Skip: ${targetUrl}`, detail: "Already scanned in this engagement run" });
+      } else {
+        scannedTargetUrls.add(dedupKey);
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `🔄 Training Lab URL Rewrite: ${webApp.hostname} → ${targetUrl}`,
+          detail: `ZAP cannot resolve ${webApp.hostname} (Docker DNS limitation). Using reverse proxy URL: ${targetUrl}`,
+        });
+
+        // Store the resolved URL on the asset for downstream use (SQLMap, XSStrike)
+        (webApp as any).resolvedZapUrl = targetUrl;
+      }
+    }
+
     const webPorts = webApp.ports.filter(p =>
       ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)
     );
@@ -4567,12 +4615,22 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       }
     }
 
-    for (const wp of filteredWebPorts) {
-      const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
-      // Use hostname for ZAP target URL (not IP) to support multiple assets on same server
-      const targetUrl = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
-      // Dedup key includes hostname to avoid skipping distinct assets that share an IP
-      const dedupKey = `${webApp.hostname}:${wp.port}`;
+    // If this lab uses a reverse proxy URL, use a single scan iteration with that URL
+    // instead of iterating over individual ports
+    const scanTargets: Array<{ targetUrl: string; dedupKey: string }> = [];
+    if (labZapUrl && !scannedTargetUrls.has(`zap-proxy-done:${labZapUrl.zapBaseUrl}`)) {
+      scanTargets.push({ targetUrl: labZapUrl.zapBaseUrl, dedupKey: `zap-proxy-done:${labZapUrl.zapBaseUrl}` });
+    } else if (!labZapUrl) {
+      for (const wp of filteredWebPorts) {
+        const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
+        const url = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
+        const key = `${webApp.hostname}:${wp.port}`;
+        scanTargets.push({ targetUrl: url, dedupKey: key });
+      }
+    }
+
+    console.log(`[ZAP Orchestrator] ${webApp.hostname}: ${scanTargets.length} scan targets: ${scanTargets.map(t => t.targetUrl).join(', ')}`);
+    for (const { targetUrl, dedupKey } of scanTargets) {
 
       // Skip if we already scanned this exact host+port in this run
       if (scannedTargetUrls.has(dedupKey)) {
@@ -4760,6 +4818,15 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               '/showimage.php?file=./pictures/1.jpg', '/search.php?test=query',
               '/comment.php', '/guestbook.php', '/cart.php',
             ],
+            'hackazon': [
+              '/', '/user/login', '/user/register', '/search?searchString=test',
+              '/product/view?id=1', '/category/view?id=1', '/wishlist',
+              '/cart', '/checkout', '/contact', '/faq',
+              '/account', '/account/orders', '/account/profile',
+              '/api/product', '/api/category', '/api/user',
+              '/rest/product', '/rest/category',
+              '/admin', '/admin/user', '/admin/product',
+            ],
           };
 
           for (const [labKey, paths] of Object.entries(TRAINING_LAB_SEED_URLS)) {
@@ -4838,7 +4905,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         if (zapScanId) {
           const { pollScanProgress } = await import("./zap-scanner");
           let zapDone = false;
-          const zapTimeoutMinutes = state.trainingLabMode ? 12 : 5;
+          const zapTimeoutMinutes = state.trainingLabMode ? 25 : 5;
           const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
           while (!zapDone && Date.now() < zapTimeout) {
             try {
@@ -4865,7 +4932,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                   }
                 }
               } else {
-                addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}` });
+                addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}, Status: ${progress.status}` });
+                // Update heartbeat so stall detector knows we're alive during long ZAP scans
+                if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
                 await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
               }
             } catch (pollErr: any) {
@@ -4938,7 +5007,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     if (!isInRoeScope(state, webApp.hostname, webApp.ip)) continue;
 
     // Collect injectable URLs from ZAP findings and attack surface
-    const targetUrl = `${webApp.protocol || 'https'}://${webApp.hostname}${webApp.port && webApp.port !== 443 && webApp.port !== 80 ? ':' + webApp.port : ''}`;
+    // Use the resolved ZAP URL if available (for labs behind reverse proxy)
+    const resolvedUrl = (webApp as any).resolvedZapUrl;
+    const targetUrl = resolvedUrl || `${webApp.protocol || 'https'}://${webApp.hostname}${webApp.port && webApp.port !== 443 && webApp.port !== 80 ? ':' + webApp.port : ''}`;
     const injectableUrls: Array<{ url: string; method: string; params: string[] }> = [];
 
     // Use ZAP spider results if available — query the DB for discovered URLs
@@ -5038,9 +5109,120 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       }
     }
 
-    // Build cookie string from confirmed credentials for authenticated scanning
+    // Build cookie/token string from confirmed credentials for authenticated scanning
     const webCreds = (webApp as any).confirmedCredentials || [];
-    const cookieStr = webCreds.length > 0 ? webCreds[0]?.sessionCookie || "" : "";
+    let cookieStr = webCreds.length > 0 ? webCreds[0]?.sessionCookie || "" : "";
+
+    // ── Training Lab Auth Handoff: acquire session token for authenticated SQLMap/XSStrike scanning ──
+    // The training lab credentials are injected but don't include session cookies.
+    // For targets that use JWT/token auth (like Juice Shop), we need to actually log in
+    // to get a valid token, then pass it as a cookie/header to SQLMap and XSStrike.
+    // NOTE: The auth handoff uses the ORIGINAL hostname (not the reverse proxy URL) because
+    // curl runs on the scan server which CAN resolve internal hostnames via /etc/hosts.
+    if (state.trainingLabMode && !cookieStr && webCreds.length > 0) {
+      const hostname = webApp.hostname.toLowerCase();
+      // Use original hostname for auth (scan server can resolve it), not the ZAP proxy URL
+      const authBaseUrl = `http://${webApp.hostname}`;
+      try {
+        // Juice Shop uses JWT via /rest/user/login → returns { token: "..." }
+        if (hostname.includes('juiceshop') || hostname.includes('juice-shop')) {
+          const loginCred = webCreds.find((c: any) => c.loginPath === '/rest/user/login') || webCreds[0];
+          const loginUrl = `${authBaseUrl}/rest/user/login`;
+          addLog(state, {
+            phase: "vuln_detection", type: "info",
+            title: `🔑 Auth Handoff: Acquiring Juice Shop JWT for SQLMap/XSStrike`,
+            detail: `Logging in as ${loginCred.username} via ${loginUrl} to get auth token`,
+          });
+          // Execute login via scan server to get JWT (the scan server has network access to the lab)
+          const { executeTool } = await import("./scan-server-executor");
+          const loginResult = await executeTool({
+            tool: 'curl',
+            args: `-s -X POST ${loginUrl} -H "Content-Type: application/json" -d '{"email":"${loginCred.username}","password":"${loginCred.password}"}'`,
+            timeout: 15,
+          });
+          if (loginResult.stdout) {
+            try {
+              const loginResp = JSON.parse(loginResult.stdout);
+              if (loginResp.authentication?.token) {
+                cookieStr = `token=${loginResp.authentication.token}`;
+                // Also store on the credential for future use
+                loginCred.sessionCookie = cookieStr;
+                addLog(state, {
+                  phase: "vuln_detection", type: "info",
+                  title: `✅ Auth Handoff: JWT acquired for ${loginCred.username}`,
+                  detail: `Got JWT token (${loginResp.authentication.token.substring(0, 20)}...). Passing as cookie to SQLMap/XSStrike.`,
+                });
+              } else if (loginResp.token) {
+                cookieStr = `token=${loginResp.token}`;
+                loginCred.sessionCookie = cookieStr;
+                addLog(state, {
+                  phase: "vuln_detection", type: "info",
+                  title: `✅ Auth Handoff: Token acquired for ${loginCred.username}`,
+                  detail: `Got token. Passing as cookie to SQLMap/XSStrike.`,
+                });
+              }
+            } catch { /* JSON parse failed — not a JSON response */ }
+          }
+        }
+        // DVWA uses PHP session cookies via /login.php → Set-Cookie: PHPSESSID=...
+        else if (hostname.includes('dvwa')) {
+          const loginCred = webCreds.find((c: any) => c.loginPath === '/login.php') || webCreds[0];
+          const { executeTool } = await import("./scan-server-executor");
+          // First get the CSRF token from login page
+          const getLoginResult = await executeTool({
+            tool: 'curl',
+            args: `-s -c /tmp/dvwa_cookies.txt -b /tmp/dvwa_cookies.txt ${authBaseUrl}/login.php`,
+            timeout: 15,
+          });
+          // Extract CSRF token from the login form
+          const csrfMatch = getLoginResult.stdout?.match(/user_token.*?value=['"]([^'"]+)['"]/i);
+          const csrfToken = csrfMatch?.[1] || '';
+          // Submit login form
+          const loginResult = await executeTool({
+            tool: 'curl',
+            args: `-s -c /tmp/dvwa_cookies.txt -b /tmp/dvwa_cookies.txt -X POST ${authBaseUrl}/login.php -d "username=${loginCred.username}&password=${loginCred.password}&Login=Login&user_token=${csrfToken}" -D -`,
+            timeout: 15,
+          });
+          // Extract PHPSESSID from Set-Cookie header
+          const sessionMatch = loginResult.stdout?.match(/PHPSESSID=([^;\s]+)/i);
+          if (sessionMatch?.[1]) {
+            cookieStr = `PHPSESSID=${sessionMatch[1]}; security=low`;
+            loginCred.sessionCookie = cookieStr;
+            addLog(state, {
+              phase: "vuln_detection", type: "info",
+              title: `✅ Auth Handoff: DVWA session acquired for ${loginCred.username}`,
+              detail: `Got PHPSESSID. Passing as cookie to SQLMap/XSStrike with security=low.`,
+            });
+          }
+        }
+        // Generic form-based login: try to POST and extract Set-Cookie
+        else if (webCreds[0]?.loginPath) {
+          const loginCred = webCreds[0];
+          const { executeTool } = await import("./scan-server-executor");
+          const loginResult = await executeTool({
+            tool: 'curl',
+            args: `-s -X POST ${authBaseUrl}${loginCred.loginPath} -d "username=${loginCred.username}&password=${loginCred.password}" -D -`,
+            timeout: 15,
+          });
+          const setCookieMatch = loginResult.stdout?.match(/Set-Cookie:\s*([^\n]+)/i);
+          if (setCookieMatch?.[1]) {
+            cookieStr = setCookieMatch[1].split(';')[0].trim();
+            loginCred.sessionCookie = cookieStr;
+            addLog(state, {
+              phase: "vuln_detection", type: "info",
+              title: `✅ Auth Handoff: Session cookie acquired for ${loginCred.username}`,
+              detail: `Got cookie from ${loginCred.loginPath}. Passing to SQLMap/XSStrike.`,
+            });
+          }
+        }
+      } catch (authHandoffErr: any) {
+        addLog(state, {
+          phase: "vuln_detection", type: "warning",
+          title: `Auth Handoff Error: ${webApp.hostname}`,
+          detail: `Failed to acquire session token for authenticated injection scanning: ${authHandoffErr.message}. Continuing unauthenticated.`,
+        });
+      }
+    }
 
     // ── SQLMap: Deep SQL Injection Testing ──
     try {
@@ -5060,7 +5242,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         const sqlmapRisk = isTrainingLabSqlmap ? 3 : 2;
         const sqlmapLevel = isTrainingLabSqlmap ? 5 : 3;
         const sqlmapTimeout = isTrainingLabSqlmap ? 180 : 120;
-        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 SQLMap: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for SQL injection${isTrainingLabSqlmap ? ' (training lab: risk=3, level=5, deep enum)' : ''}` });
+        addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 SQLMap: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for SQL injection${isTrainingLabSqlmap ? ' (training lab: risk=3, level=5, deep enum)' : ''}\nTarget URLs: ${injectableUrls.slice(0, 5).map(u => u.url).join(', ')}${injectableUrls.length > 5 ? ` (+${injectableUrls.length - 5} more)` : ''}\nCookie: ${cookieStr ? cookieStr.substring(0, 40) + '...' : '(none)'}` });
+        console.log(`[SQLMap] Engagement #${state.engagementId}: ${injectableUrls.length} URLs, cookie=${cookieStr ? 'yes' : 'no'}, risk=${sqlmapRisk}, level=${sqlmapLevel}`);
 
         const sqlmapResults = await batchSqlmapScan(injectableUrls, {
           engagementId: state.engagementId,
@@ -5110,7 +5293,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
       }
     } catch (sqlmapErr: any) {
-      addLog(state, { phase: "vuln_detection", type: "warning", title: `SQLMap Error: ${webApp.hostname}`, detail: sqlmapErr.message });
+      console.error(`[SQLMap] Engagement #${state.engagementId} error on ${webApp.hostname}: ${sqlmapErr.message}\n${sqlmapErr.stack?.substring(0, 500)}`);
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `SQLMap Error: ${webApp.hostname}`, detail: `${sqlmapErr.message}\nStack: ${sqlmapErr.stack?.substring(0, 200) || 'N/A'}` });
     }
 
     // ── XSStrike/Dalfox: Advanced XSS Testing ──
@@ -5174,7 +5358,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
       }
     } catch (xssErr: any) {
-      addLog(state, { phase: "vuln_detection", type: "warning", title: `XSS Scan Error: ${webApp.hostname}`, detail: xssErr.message });
+      console.error(`[XSStrike] Engagement #${state.engagementId} error on ${webApp.hostname}: ${xssErr.message}\n${xssErr.stack?.substring(0, 500)}`);
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `XSS Scan Error: ${webApp.hostname}`, detail: `${xssErr.message}\nStack: ${xssErr.stack?.substring(0, 200) || 'N/A'}` });
     }
   }
 
@@ -5290,7 +5475,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             phase: "credential_testing",
           });
         } catch (e: any) {
-          addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error`, detail: e.message });
+          console.error(`[CredTest] ${cmd.tool} error on ${asset.hostname}: ${e.message}\n${e.stack?.substring(0, 300)}`);
+          addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error: ${asset.hostname}`, detail: `${e.message}\nCommand: ${cmd.tool} ${cmd.args?.substring(0, 100)}\nStack: ${e.stack?.substring(0, 150) || 'N/A'}` });
         }
       }
      }
@@ -6098,9 +6284,10 @@ ${(() => {
 
         try {
           // Step 1: Generate the actual exploit code via LLM
-          const { generateExploit } = await import("./functional-exploit-generator");
+          const { generateFunctionalExploit } = await import("./functional-exploit-generator");
           const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
-          const generatedExploit = await generateExploit({
+          console.log(`[Exploit] Generating exploit for ${cve || service} on ${target}:${port}`);
+          const generatedExploit = await generateFunctionalExploit({
             cve: cve || '',
             title: vulnForExploit?.title || `${service} exploit`,
             description: vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`,
@@ -7215,7 +7402,9 @@ export async function executeEngagement(
       clearInterval(heartbeatInterval);
       return;
     }
-    const idleMs = Date.now() - lastActivityAt;
+    // Read from shared heartbeat ref (updated by phase executors during long ops)
+    const currentLastActivity = (state as any)._heartbeatRef?.lastActivityAt || lastActivityAt;
+    const idleMs = Date.now() - currentLastActivity;
     if (idleMs > STALL_FORCE_MS) {
       addLog(state, {
         phase: state.phase, type: 'warning',
@@ -7223,6 +7412,7 @@ export async function executeEngagement(
         detail: `No activity for ${Math.round(idleMs / 60_000)} minutes. Phase may be stuck on an LLM call or external tool. The pipeline will attempt to continue.`,
       });
       lastActivityAt = Date.now(); // Reset to avoid spamming
+      if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
     } else if (idleMs > STALL_WARNING_MS) {
       console.warn(`[Heartbeat] Engagement #${engagementId} phase ${state.phase}: idle for ${Math.round(idleMs / 1000)}s`);
     }
@@ -7255,9 +7445,8 @@ export async function executeEngagement(
   }, PERIODIC_PERSIST_INTERVAL_MS);
   periodicPersistTimers.set(engagementId, periodicPersistInterval);
 
-  // Wrap addLog to update lastActivityAt
-  const origAddLog = addLog;
-  const trackActivity = () => { lastActivityAt = Date.now(); };
+  // Share lastActivityAt via state so phase executors can update it during long-running operations
+  (state as any)._heartbeatRef = { lastActivityAt };
 
   try {
     // Phase 1: Recon (skip if starting from a later phase)

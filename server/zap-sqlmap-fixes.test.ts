@@ -102,8 +102,7 @@ describe("ZAP Active Scan 400 Retry", () => {
 
   it("should retry active scan with accessUrl when 400 error occurs (post-AJAX spider)", () => {
     // Second retry location: after AJAX spider
-    expect(zapScannerSource).toContain("Active scan 400 after AJAX spider — retrying with accessUrl seed");
-    expect(zapScannerSource).toContain("Active scan retry succeeded after AJAX spider + accessUrl seed");
+ expect(zapScannerSource).toContain("Active scan 400 after AJAX spider on");   expect(zapScannerSource).toContain("Active scan retry succeeded after AJAX spider + accessUrl seed");
   });
 
   it("should seed common sub-paths during retry", () => {
@@ -180,8 +179,8 @@ describe("Training Lab Injectable Endpoints", () => {
 });
 
 describe("ZAP Timeout Increase for Training Labs", () => {
-  it("should use 12 minutes for training labs instead of 5", () => {
-    expect(orchestratorSource).toContain("zapTimeoutMinutes = state.trainingLabMode ? 12 : 5");
+  it("should use 25 minutes for training labs instead of 5", () => {
+    expect(orchestratorSource).toContain("zapTimeoutMinutes = state.trainingLabMode ? 25 : 5");
   });
 
   it("should use the dynamic timeout in the polling loop", () => {
@@ -231,5 +230,199 @@ describe("Integration: Juice Shop Specific Fixes", () => {
     expect(orchestratorSource).toContain("admin@juice-sh.op");
     expect(orchestratorSource).toContain("admin123");
     expect(orchestratorSource).toContain("/rest/user/login");
+  });
+});
+
+describe("Hackazon Seed URLs", () => {
+  it("should define seed URLs for Hackazon in the TRAINING_LAB_SEED_URLS map", () => {
+    const seedUrlSection = orchestratorSource.substring(
+      orchestratorSource.indexOf("TRAINING_LAB_SEED_URLS"),
+      orchestratorSource.indexOf("TRAINING_LAB_SEED_URLS") + 3000
+    );
+    expect(seedUrlSection).toContain("'hackazon'");
+    // Key Hackazon endpoints
+    expect(seedUrlSection).toContain("/user/login");
+    expect(seedUrlSection).toContain("/user/register");
+    expect(seedUrlSection).toContain("/search?searchString=test");
+    expect(seedUrlSection).toContain("/product/view?id=1");
+    expect(seedUrlSection).toContain("/category/view?id=1");
+    expect(seedUrlSection).toContain("/wishlist");
+    expect(seedUrlSection).toContain("/cart");
+    expect(seedUrlSection).toContain("/checkout");
+    expect(seedUrlSection).toContain("/api/product");
+    expect(seedUrlSection).toContain("/admin");
+  });
+
+  it("should have Hackazon seed URLs covering API, admin, and user paths", () => {
+    const seedUrlSection = orchestratorSource.substring(
+      orchestratorSource.indexOf("TRAINING_LAB_SEED_URLS"),
+      orchestratorSource.indexOf("TRAINING_LAB_SEED_URLS") + 3000
+    );
+    // API endpoints
+    expect(seedUrlSection).toContain("/api/category");
+    expect(seedUrlSection).toContain("/api/user");
+    expect(seedUrlSection).toContain("/rest/product");
+    expect(seedUrlSection).toContain("/rest/category");
+    // Admin paths
+    expect(seedUrlSection).toContain("/admin/user");
+    expect(seedUrlSection).toContain("/admin/product");
+    // Account paths
+    expect(seedUrlSection).toContain("/account");
+    expect(seedUrlSection).toContain("/account/orders");
+    expect(seedUrlSection).toContain("/account/profile");
+  });
+});
+
+describe("Training Lab Auth Handoff (ZAP → SQLMap/XSStrike)", () => {
+  it("should have auth handoff section in the orchestrator", () => {
+    expect(orchestratorSource).toContain("Training Lab Auth Handoff");
+    expect(orchestratorSource).toContain("acquire session token for authenticated SQLMap/XSStrike scanning");
+  });
+
+  it("should only trigger auth handoff in training lab mode when no cookie exists", () => {
+    expect(orchestratorSource).toContain("state.trainingLabMode && !cookieStr && webCreds.length > 0");
+  });
+
+  it("should handle Juice Shop JWT auth via /rest/user/login", () => {
+    expect(orchestratorSource).toContain("juiceshop");
+    expect(orchestratorSource).toContain("juice-shop");
+    expect(orchestratorSource).toContain("/rest/user/login");
+    expect(orchestratorSource).toContain("Content-Type: application/json");
+    expect(orchestratorSource).toContain("authentication?.token");
+    expect(orchestratorSource).toContain("token=");
+  });
+
+  it("should handle DVWA PHP session auth with CSRF token extraction", () => {
+    expect(orchestratorSource).toContain("hostname.includes('dvwa')");
+    expect(orchestratorSource).toContain("PHPSESSID");
+    expect(orchestratorSource).toContain("user_token");
+    expect(orchestratorSource).toContain("security=low");
+    expect(orchestratorSource).toContain("dvwa_cookies.txt");
+  });
+
+  it("should handle generic form-based login as fallback", () => {
+    expect(orchestratorSource).toContain("Generic form-based login");
+    expect(orchestratorSource).toContain("webCreds[0]?.loginPath");
+    expect(orchestratorSource).toContain("Set-Cookie:");
+  });
+
+  it("should store acquired session cookie on the credential for future use", () => {
+    expect(orchestratorSource).toContain("loginCred.sessionCookie = cookieStr");
+  });
+
+  it("should log auth handoff success and errors", () => {
+    expect(orchestratorSource).toContain("Auth Handoff: Acquiring Juice Shop JWT");
+    expect(orchestratorSource).toContain("Auth Handoff: JWT acquired");
+    expect(orchestratorSource).toContain("Auth Handoff: DVWA session acquired");
+    expect(orchestratorSource).toContain("Auth Handoff Error");
+    expect(orchestratorSource).toContain("Failed to acquire session token");
+  });
+
+  it("should use executeTool to run curl on the scan server (not local)", () => {
+    // Auth handoff must run via scan server since it has network access to the lab
+    const authSection = orchestratorSource.substring(
+      orchestratorSource.indexOf("Training Lab Auth Handoff"),
+      orchestratorSource.indexOf("Training Lab Auth Handoff") + 5000
+    );
+    expect(authSection).toContain("executeTool");
+    expect(authSection).toContain("tool: 'curl'");
+  });
+
+  it("should pass the acquired cookie to both SQLMap and XSStrike", () => {
+    // The cookieStr variable is used by both SQLMap and XSStrike
+    expect(orchestratorSource).toContain("cookie: cookieStr || undefined");
+    // Should appear at least twice (once for SQLMap, once for XSStrike)
+    const matches = orchestratorSource.match(/cookie: cookieStr \|\| undefined/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── Training Lab ZAP URL Resolver Tests ──
+
+describe("Training Lab ZAP URL Resolver", () => {
+  it("should define TRAINING_LAB_ZAP_URL_MAP with Juice Shop reverse proxy URL", () => {
+    expect(orchestratorSource).toContain("TRAINING_LAB_ZAP_URL_MAP");
+    expect(orchestratorSource).toContain("juiceshop.lab.aceofcloud.io");
+    expect(orchestratorSource).toContain("https://scan.aceofcloud.io/lab/juice-shop");
+  });
+
+  it("should define resolveTrainingLabZapUrl function", () => {
+    expect(orchestratorSource).toContain("function resolveTrainingLabZapUrl");
+    // Should only resolve in training lab mode
+    expect(orchestratorSource).toContain("if (!state.trainingLabMode) return null");
+  });
+
+  it("should store resolvedZapUrl on the asset for downstream use", () => {
+    expect(orchestratorSource).toContain("(webApp as any).resolvedZapUrl = targetUrl");
+  });
+
+  it("should use resolvedZapUrl for SQLMap/XSStrike target URL", () => {
+    expect(orchestratorSource).toContain("const resolvedUrl = (webApp as any).resolvedZapUrl");
+    expect(orchestratorSource).toContain("const targetUrl = resolvedUrl ||");
+  });
+
+  it("should build scanTargets array from reverse proxy URL when lab is mapped", () => {
+    expect(orchestratorSource).toContain("const scanTargets: Array<{ targetUrl: string; dedupKey: string }> = []");
+    expect(orchestratorSource).toContain("labZapUrl.zapBaseUrl");
+    expect(orchestratorSource).toContain("for (const { targetUrl, dedupKey } of scanTargets)");
+  });
+
+  it("should log URL rewrite when using reverse proxy", () => {
+    expect(orchestratorSource).toContain("Training Lab URL Rewrite");
+    expect(orchestratorSource).toContain("Docker DNS limitation");
+  });
+
+  it("should use original hostname for auth handoff curl (not reverse proxy URL)", () => {
+    // Auth handoff uses authBaseUrl (original hostname) because scan server can resolve it
+    expect(orchestratorSource).toContain("const authBaseUrl = `http://${webApp.hostname}`");
+    // The curl calls should use authBaseUrl, not targetUrl
+    expect(orchestratorSource).toContain("${authBaseUrl}/rest/user/login");
+    expect(orchestratorSource).toContain("${authBaseUrl}/login.php");
+  });
+
+  it("should skip per-port scanning when lab has skipPortScan=true", () => {
+    expect(orchestratorSource).toContain("skipPortScan: true");
+    // Should use single scan target from reverse proxy URL
+    expect(orchestratorSource).toContain("labZapUrl && !scannedTargetUrls.has");
+  });
+});
+
+// ── AJAX Spider Duration Cap & Timeout Increase Tests ──
+
+describe("AJAX Spider Duration Cap", () => {
+  it("should set AJAX spider maxDuration before starting AJAX spider", () => {
+    expect(zapScannerSource).toContain("setOptionMaxDuration");
+    expect(zapScannerSource).toContain("ajaxSpider/action/setOptionMaxDuration");
+  });
+
+  it("should cap AJAX spider maxDuration at 5 minutes", () => {
+    expect(zapScannerSource).toContain("Math.min(ajaxConfig.maxDuration || 5, 5)");
+  });
+
+  it("should set AJAX spider maxCrawlDepth and numberOfBrowsers", () => {
+    expect(zapScannerSource).toContain("setOptionMaxCrawlDepth");
+    expect(zapScannerSource).toContain("setOptionNumberOfBrowsers");
+    expect(zapScannerSource).toContain("setOptionClickDefaultElems");
+  });
+
+  it("should set default 5-minute duration when no LLM config", () => {
+    expect(zapScannerSource).toContain('Integer: "5"');
+    expect(zapScannerSource).toContain("Set default maxDuration=5min (no LLM config)");
+  });
+
+  it("should log AJAX spider configuration", () => {
+    expect(zapScannerSource).toContain("[ZAP AJAX Spider]");
+    expect(zapScannerSource).toContain("Set maxDuration=");
+  });
+});
+
+describe("Orchestrator ZAP Timeout Increase", () => {
+  it("should use 25-minute timeout for training labs", () => {
+    expect(orchestratorSource).toContain("state.trainingLabMode ? 25 : 5");
+  });
+
+  it("should use 5-minute timeout for non-training lab engagements", () => {
+    expect(orchestratorSource).toContain("state.trainingLabMode ? 25 : 5");
   });
 });
