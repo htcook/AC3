@@ -1253,12 +1253,13 @@ export async function startScan(params: {
       : params.soapWsdlUrl ? { type: "soap", url: params.soapWsdlUrl }
       : undefined,
   });
-  // Boost playbook for training lab targets (LOW threshold + INSANE strength)
+  // For training lab targets, use the focused fast playbook instead of boosting the generic one.
+  // The fast playbook disables slow time-based rules and adds activeScanOverrides for speed.
   let effectivePlaybook = playbook;
   if (params.trainingLabMode) {
-    const { boostPlaybookForTrainingLab } = await import("./zap-attack-playbooks");
-    effectivePlaybook = boostPlaybookForTrainingLab(playbook);
-    console.log(`[ZAP Training Lab] Boosted ${playbook.name}: ${playbook.enabledRules.length} → ${effectivePlaybook.enabledRules.length} rules, all at LOW/INSANE`);
+    const { buildTrainingLabPlaybook } = await import("./zap-attack-playbooks");
+    effectivePlaybook = buildTrainingLabPlaybook();
+    console.log(`[ZAP Training Lab] Using focused fast playbook: ${effectivePlaybook.enabledRules.length} rules (was ${playbook.enabledRules.length}), threads=${effectivePlaybook.activeScanOverrides?.threadPerHost}, maxRuleDuration=${effectivePlaybook.activeScanOverrides?.maxRuleDurationInMins}min`);
   }
   console.log(`[ZAP Playbook] Selected: ${effectivePlaybook.name} with ${effectivePlaybook.enabledRules.length} rules for tech: [${technologies.join(", ")}]`);
 
@@ -1563,15 +1564,31 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
         }
 
         // Active mode: apply playbook rules before starting active scan
+        // CRITICAL: Use buildTrainingLabPlaybook for training lab scans to get the
+        // focused fast playbook with correct activeScanOverrides. Previously this
+        // used selectPlaybook("full") which lost the training lab boost.
         const storedPlaybook = scan.llmScanConfig ? (() => {
           try {
             const storedConfig = JSON.parse(scan.llmScanConfig);
             const techs = storedConfig.technologies || [];
+            // Check if this was a training lab scan by looking at the scan name
+            const isTrainingLab = scan.scanName?.includes('EngOps-') && (
+              scan.targetUrl?.includes('juice-shop') ||
+              scan.targetUrl?.includes('dvwa') ||
+              scan.targetUrl?.includes('lab.aceofcloud') ||
+              scan.targetUrl?.includes('testfire') ||
+              scan.targetUrl?.includes('vulnweb') ||
+              scan.targetUrl?.includes('hackazon')
+            );
+            if (isTrainingLab) {
+              const { buildTrainingLabPlaybook, boostPlaybookForTrainingLab } = require("./zap-attack-playbooks");
+              return buildTrainingLabPlaybook();
+            }
             return selectPlaybook("full", techs);
           } catch { return null; }
         })() : null;
         if (storedPlaybook) {
-          console.log(`[ZAP Playbook] Applying ${storedPlaybook.name} (${storedPlaybook.enabledRules.length} rules) before active scan`);
+          console.log(`[ZAP Playbook] Applying ${storedPlaybook.name} (${storedPlaybook.enabledRules.length} rules, overrides: ${JSON.stringify(storedPlaybook.activeScanOverrides || {})}) before active scan`);
           const zapApiCfg = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey };
           const pbResult = await applyPlaybookToZap(storedPlaybook, zapApiCfg, zapRequest);
           if (pbResult.errors.length > 0) {
@@ -1706,15 +1723,28 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
         }
 
         // Apply playbook rules before starting active scan after AJAX spider
+        // CRITICAL: Use buildTrainingLabPlaybook for training lab scans (same fix as above)
         const storedPlaybook2 = scan.llmScanConfig ? (() => {
           try {
             const storedConfig = JSON.parse(scan.llmScanConfig);
             const techs = storedConfig.technologies || [];
+            const isTrainingLab = scan.scanName?.includes('EngOps-') && (
+              scan.targetUrl?.includes('juice-shop') ||
+              scan.targetUrl?.includes('dvwa') ||
+              scan.targetUrl?.includes('lab.aceofcloud') ||
+              scan.targetUrl?.includes('testfire') ||
+              scan.targetUrl?.includes('vulnweb') ||
+              scan.targetUrl?.includes('hackazon')
+            );
+            if (isTrainingLab) {
+              const { buildTrainingLabPlaybook } = require("./zap-attack-playbooks");
+              return buildTrainingLabPlaybook();
+            }
             return selectPlaybook("full", techs);
           } catch { return null; }
         })() : null;
         if (storedPlaybook2) {
-          console.log(`[ZAP Playbook] Applying ${storedPlaybook2.name} (${storedPlaybook2.enabledRules.length} rules) before active scan (post-AJAX)`);
+          console.log(`[ZAP Playbook] Applying ${storedPlaybook2.name} (${storedPlaybook2.enabledRules.length} rules, overrides: ${JSON.stringify(storedPlaybook2.activeScanOverrides || {})}) before active scan (post-AJAX)`);
           const zapApiCfg2 = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey };
           const pbResult2 = await applyPlaybookToZap(storedPlaybook2, zapApiCfg2, zapRequest);
           if (pbResult2.errors.length > 0) {

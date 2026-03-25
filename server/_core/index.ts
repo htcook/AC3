@@ -282,6 +282,153 @@ async function startServer() {
     }
   });
 
+  // Temporary Docker network investigation endpoint
+  app.get('/api/_test/docker-network', async (req, res) => {
+    try {
+      const { executeTool } = await import('../lib/scan-server-executor');
+      const results: Record<string, any> = {};
+
+      // 1. List all Docker containers
+      const containers = await executeTool({ tool: 'docker', args: 'ps --format "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Networks}}"', timeoutSeconds: 15 });
+      results.containers = containers.stdout;
+
+      // 2. List Docker networks
+      const networks = await executeTool({ tool: 'docker', args: 'network ls --format "{{.ID}}\t{{.Name}}\t{{.Driver}}"', timeoutSeconds: 15 });
+      results.networks = networks.stdout;
+
+      // 3. Inspect each network for connected containers
+      const networkNames = networks.stdout.split('\n').map((l: string) => l.split('\t')[1]).filter(Boolean);
+      results.networkDetails = {};
+      for (const net of networkNames) {
+        const detail = await executeTool({ tool: 'docker', args: `network inspect ${net} --format "{{range .Containers}}{{.Name}}: {{.IPv4Address}}{{println}}{{end}}"`, timeoutSeconds: 15 });
+        if (detail.stdout.trim()) results.networkDetails[net] = detail.stdout;
+      }
+
+      // 4. Check /etc/hosts on scan server
+      const hosts = await executeTool({ tool: 'grep', args: '-i "lab\\|juice\\|dvwa\\|hackazon\\|172\\." /etc/hosts', timeoutSeconds: 10 });
+      results.hostsEntries = hosts.stdout;
+
+      // 5. Nginx lab config
+      const nginx = await executeTool({ tool: 'bash', args: '-c "cat /etc/nginx/sites-enabled/* 2>/dev/null | grep -B2 -A10 juice-shop || cat /etc/nginx/conf.d/*.conf 2>/dev/null | grep -B2 -A10 juice-shop || echo No nginx lab config"', timeoutSeconds: 15 });
+      results.nginxConfig = nginx.stdout;
+
+      // 6. Find ZAP container and test connectivity to Juice Shop
+      const zapFind = await executeTool({ tool: 'docker', args: 'ps --filter "ancestor=zaproxy/zap-stable" --format "{{.ID}} {{.Names}}"', timeoutSeconds: 10 });
+      results.zapContainer = zapFind.stdout;
+      if (zapFind.stdout.trim()) {
+        const zapId = zapFind.stdout.trim().split(' ')[0];
+        // Test various connectivity options from ZAP container
+        const tests = [
+          { name: 'juiceshop:3000', cmd: `docker exec ${zapId} curl -sI --max-time 5 http://juiceshop:3000/ 2>&1` },
+          { name: 'juice-shop:3000', cmd: `docker exec ${zapId} curl -sI --max-time 5 http://juice-shop:3000/ 2>&1` },
+          { name: 'host.docker.internal:3000', cmd: `docker exec ${zapId} curl -sI --max-time 5 http://host.docker.internal:3000/ 2>&1` },
+          { name: '172.17.0.1:3000', cmd: `docker exec ${zapId} curl -sI --max-time 5 http://172.17.0.1:3000/ 2>&1` },
+          { name: 'ZAP /etc/hosts', cmd: `docker exec ${zapId} cat /etc/hosts 2>&1` },
+          { name: 'ZAP ip addr', cmd: `docker exec ${zapId} ip addr 2>&1 || docker exec ${zapId} ifconfig 2>&1` },
+        ];
+        results.zapConnectivity = {};
+        for (const t of tests) {
+          const r = await executeTool({ tool: 'bash', args: `-c "${t.cmd}"`, timeoutSeconds: 10 });
+          results.zapConnectivity[t.name] = r.stdout || r.stderr;
+        }
+      }
+
+      // 7. Find Juice Shop container IP
+      const jsFind = await executeTool({ tool: 'bash', args: '-c "docker ps -a --format \"{{.ID}} {{.Names}} {{.Image}} {{.Networks}}\" | grep -i juice"', timeoutSeconds: 10 });
+      results.juiceShopContainer = jsFind.stdout;
+      if (jsFind.stdout.trim()) {
+        const jsId = jsFind.stdout.trim().split(' ')[0];
+        const jsNetworks = await executeTool({ tool: 'docker', args: `inspect ${jsId} --format "{{json .NetworkSettings.Networks}}"`, timeoutSeconds: 10 });
+        results.juiceShopNetworks = jsNetworks.stdout;
+        const jsIP = await executeTool({ tool: 'docker', args: `inspect ${jsId} --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"`, timeoutSeconds: 10 });
+        results.juiceShopIP = jsIP.stdout;
+      }
+
+      // 8. Test ZAP API connectivity and what URLs ZAP can access
+      results.zapApiTests = {};
+      try {
+        // Import ZAP scanner to use its zapRequest function
+        const zapBaseUrl = process.env.ZAP_BASE_URL || 'http://localhost:8080';
+        const zapApiKey = process.env.ZAP_API_KEY || '';
+        results.zapConfig = { baseUrl: zapBaseUrl, apiKey: zapApiKey ? '***' : 'empty' };
+
+        // Test ZAP API health
+        const { HttpProxyAgent } = await import('http-proxy-agent');
+        const httpMod = await import('http');
+        
+        const testZapUrl = async (name: string, url: string) => {
+          try {
+            const agent = new HttpProxyAgent(zapBaseUrl);
+            const apiUrl = `http://zap/JSON/core/action/accessUrl/?apikey=${zapApiKey}&url=${encodeURIComponent(url)}&followRedirects=true`;
+            return await new Promise<string>((resolve) => {
+              const req = httpMod.default.get(apiUrl, { agent, timeout: 15000 }, (res: any) => {
+                let data = '';
+                res.on('data', (chunk: string) => data += chunk);
+                res.on('end', () => resolve(`${res.statusCode}: ${data.substring(0, 200)}`));
+              });
+              req.on('error', (e: any) => resolve(`Error: ${e.message}`));
+              req.on('timeout', () => { req.destroy(); resolve('Timeout'); });
+            });
+          } catch (e: any) { return `Exception: ${e.message}`; }
+        };
+
+        // Test various URLs from ZAP's perspective
+        const urlTests = [
+          ['localhost:3001', 'http://127.0.0.1:3001/'],
+          ['juiceshop.lab:80', 'http://juiceshop.lab.aceofcloud.io/'],
+          ['juiceshop.lab:3001', 'http://juiceshop.lab.aceofcloud.io:3001/'],
+          ['localhost:3001/rest', 'http://127.0.0.1:3001/rest/products/search?q=test'],
+          ['scan.aceofcloud.io/lab/juice-shop', 'https://scan.aceofcloud.io/lab/juice-shop/'],
+          ['dvwa.lab:8083', 'http://dvwa.lab.aceofcloud.io:8083/'],
+          ['localhost:8083', 'http://127.0.0.1:8083/'],
+        ];
+        for (const [name, url] of urlTests) {
+          results.zapApiTests[name] = await testZapUrl(name, url);
+        }
+
+        // Also test ZAP's site tree
+        const siteTreeUrl = `http://zap/JSON/core/view/sites/?apikey=${zapApiKey}`;
+        const siteTree = await new Promise<string>((resolve) => {
+          const agent = new HttpProxyAgent(zapBaseUrl);
+          const req = httpMod.default.get(siteTreeUrl, { agent, timeout: 10000 }, (res: any) => {
+            let data = '';
+            res.on('data', (chunk: string) => data += chunk);
+            res.on('end', () => resolve(data.substring(0, 1000)));
+          });
+          req.on('error', (e: any) => resolve(`Error: ${e.message}`));
+        });
+        results.zapSiteTree = siteTree;
+
+        // Check ZAP version
+        const versionUrl = `http://zap/JSON/core/view/version/?apikey=${zapApiKey}`;
+        const version = await new Promise<string>((resolve) => {
+          const agent = new HttpProxyAgent(zapBaseUrl);
+          const req = httpMod.default.get(versionUrl, { agent, timeout: 10000 }, (res: any) => {
+            let data = '';
+            res.on('data', (chunk: string) => data += chunk);
+            res.on('end', () => resolve(data));
+          });
+          req.on('error', (e: any) => resolve(`Error: ${e.message}`));
+        });
+        results.zapVersion = version;
+      } catch (e: any) {
+        results.zapApiTests = { error: e.message };
+      }
+
+      // 9. Check if ZAP process is running on scan server
+      const zapProcess = await executeTool({ tool: 'bash', args: '-c "ps aux | grep -i zap | grep -v grep"', timeoutSeconds: 10 });
+      results.zapProcess = zapProcess.stdout;
+
+      // 10. Check what's listening on port 8080 (default ZAP port)
+      const port8080 = await executeTool({ tool: 'bash', args: '-c "ss -tlnp | grep -E \":8080|:8090\""', timeoutSeconds: 10 });
+      results.zapPorts = port8080.stdout;
+
+      res.json({ ok: true, results });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // SAML 2.0 protocol endpoints (metadata, ACS, SSO initiation)

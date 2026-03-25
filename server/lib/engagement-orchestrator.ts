@@ -4900,12 +4900,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
         state.stats.zapScansRun++;
 
-        // Poll for scan completion — training labs get 12 minutes (complex SPAs need more time)
+        // Poll for scan completion — training labs get 45 minutes (focused fast playbook needs ~15-20 min
+        // but we allow extra buffer for proxy latency and large site trees)
         const zapScanId = zapScanResult?.scanId;
         if (zapScanId) {
           const { pollScanProgress } = await import("./zap-scanner");
           let zapDone = false;
-          const zapTimeoutMinutes = state.trainingLabMode ? 25 : 5;
+          const zapTimeoutMinutes = state.trainingLabMode ? 45 : 5;
           const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
           while (!zapDone && Date.now() < zapTimeout) {
             try {
@@ -4958,7 +4959,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 const { eq } = await import("drizzle-orm");
                 await db.update(webAppScans).set({
                   status: "error",
-                  errorMessage: `ZAP scan timed out after ${zapTimeoutMinutes} minutes of polling (stuck in spider→active transition)`,
+                  errorMessage: `ZAP scan timed out after ${zapTimeoutMinutes} minutes of polling`,
                   completedAt: new Date(),
                 }).where(eq(webAppScans.id, zapScanId));
               }

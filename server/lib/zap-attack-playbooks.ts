@@ -712,6 +712,17 @@ export interface ZapPlaybookConfig {
   }>;
   /** Context technology filter — only scan for these technologies */
   contextTechnologies?: string[];
+  /** Active scan configuration overrides */
+  activeScanOverrides?: Partial<{
+    /** Threads per host (default 2, max ~20) */
+    threadPerHost: number;
+    /** Max duration per rule in minutes (default 0 = unlimited) */
+    maxRuleDurationInMins: number;
+    /** Max total scan duration in minutes (default 0 = unlimited) */
+    maxScanDurationInMins: number;
+    /** Delay between requests in ms */
+    delayInMs: number;
+  }>;
   /** Additional ZAP API calls to make before scanning */
   preflightApiCalls?: Array<{
     endpoint: string;
@@ -1218,7 +1229,32 @@ export async function applyPlaybookToZap(
     }
   }
 
-  // 5. Create context with technology filter if specified
+  // 5. Apply active scan overrides (thread count, rule duration, scan duration)
+  if (playbook.activeScanOverrides) {
+    const aso = playbook.activeScanOverrides;
+    const overrideCalls: Array<{ endpoint: string; params: Record<string, string>; label: string }> = [];
+    if (aso.threadPerHost !== undefined) {
+      overrideCalls.push({ endpoint: "/JSON/ascan/action/setOptionThreadPerHost/", params: { Integer: String(aso.threadPerHost) }, label: `threadPerHost=${aso.threadPerHost}` });
+    }
+    if (aso.maxRuleDurationInMins !== undefined) {
+      overrideCalls.push({ endpoint: "/JSON/ascan/action/setOptionMaxRuleDurationInMins/", params: { Integer: String(aso.maxRuleDurationInMins) }, label: `maxRuleDurationInMins=${aso.maxRuleDurationInMins}` });
+    }
+    if (aso.maxScanDurationInMins !== undefined) {
+      overrideCalls.push({ endpoint: "/JSON/ascan/action/setOptionMaxScanDurationInMins/", params: { Integer: String(aso.maxScanDurationInMins) }, label: `maxScanDurationInMins=${aso.maxScanDurationInMins}` });
+    }
+    if (aso.delayInMs !== undefined) {
+      overrideCalls.push({ endpoint: "/JSON/ascan/action/setOptionDelayInMs/", params: { Integer: String(aso.delayInMs) }, label: `delayInMs=${aso.delayInMs}` });
+    }
+    for (const call of overrideCalls) {
+      try {
+        await zapRequest(call.endpoint, call.params, zapConfig);
+      } catch (err: any) {
+        errors.push(`Failed to set ${call.label}: ${err.message}`);
+      }
+    }
+  }
+
+  // 6. Create context with technology filter if specified
   if (playbook.contextTechnologies?.length) {
     try {
       const contextName = `playbook_${playbook.name}_${Date.now()}`;
@@ -1406,6 +1442,14 @@ export function boostPlaybookForTrainingLab(playbook: ZapPlaybookConfig): ZapPla
     enabledRules: [...boostedRules, ...additionalRules],
     // Remove disabled rules that overlap with boost rules (don't disable what we're boosting)
     disabledRuleIds: playbook.disabledRuleIds.filter(id => !boostIds.has(id)),
+    // Active scan overrides: faster scanning with capped rule duration
+    activeScanOverrides: {
+      threadPerHost: 10,          // 5x default for faster scanning
+      maxRuleDurationInMins: 3,   // Cap each rule at 3 min (was 10)
+      maxScanDurationInMins: 35,  // Hard cap at 35 min total
+      delayInMs: 0,               // No delay for training labs
+      ...(playbook.activeScanOverrides || {}), // Preserve any existing overrides
+    },
     // Add extra preflight calls for maximum detection
     preflightApiCalls: [
       ...(playbook.preflightApiCalls || []),
@@ -1413,8 +1457,6 @@ export function boostPlaybookForTrainingLab(playbook: ZapPlaybookConfig): ZapPla
       { endpoint: "/JSON/ascan/action/setOptionTargetParamsInjectable/", params: { Integer: "15" } },
       // Enable scanning of URL path, query string, POST data, and HTTP headers
       { endpoint: "/JSON/ascan/action/setOptionTargetParamsEnabledRPC/", params: { Integer: "15" } },
-      // Increase max scan duration per rule (default 0 = unlimited, but ensure it's set)
-      { endpoint: "/JSON/ascan/action/setOptionMaxRuleDurationInMins/", params: { Integer: "10" } },
       // Scan headers for injection points
       { endpoint: "/JSON/ascan/action/setOptionScanHeadersAllRequests/", params: { Boolean: "true" } },
       // Handle anti-CSRF tokens
@@ -1425,51 +1467,135 @@ export function boostPlaybookForTrainingLab(playbook: ZapPlaybookConfig): ZapPla
 }
 
 /**
- * Build a comprehensive "all-in" playbook for training labs.
- * Enables every injection, XSS, auth, and RCE rule at maximum sensitivity.
+ * Build a focused, fast playbook for training labs.
+ * 
+ * Strategy: Enable only the FASTEST, highest-value rules at maximum sensitivity.
+ * Time-based rules (blind SQLi, blind SSTI, blind OS cmd injection, padding oracle)
+ * are DISABLED because they are extremely slow through reverse proxies and
+ * are better handled by dedicated tools (SQLMap for blind SQLi).
+ * 
+ * This playbook should complete in ~15-20 minutes instead of 60+ minutes.
  */
 export function buildTrainingLabPlaybook(): ZapPlaybookConfig {
-  // Enable ALL rules that could find vulns in training apps
-  const allRuleIds = [
-    ...MISSED_VULN_BOOST_RULES.sqli,
-    ...MISSED_VULN_BOOST_RULES.xss,
-    ...MISSED_VULN_BOOST_RULES.csrf,
-    ...MISSED_VULN_BOOST_RULES.cmdInjection,
-    ...MISSED_VULN_BOOST_RULES.ssti,
-    ...MISSED_VULN_BOOST_RULES.xxe,
-    ...MISSED_VULN_BOOST_RULES.ssrf,
-    // Additional auth/session rules
-    40013, // Session Fixation
-    40023, // Username Enumeration
+  // ── FAST HIGH-VALUE RULES (error-based, reflected, direct detection) ──
+  const fastHighValueRules = [
+    // SQL Injection — generic (error-based, UNION-based — fast)
+    40018, // SQL Injection (generic, RDBMS-independent) — THE most important rule
+    // XSS — reflected and persistent
+    40012, // Cross Site Scripting (Reflected) — fast, high hit rate
+    40014, // Cross Site Scripting (Persistent) — slower but critical
+    // Command Injection — error-based (fast)
+    90020, // Remote OS Command Injection — fast, direct detection
+    // Path Traversal & File Inclusion
+    6,     // Path Traversal — fast, high hit rate on training labs
+    7,     // Remote File Inclusion — fast for PHP targets
+    // SSTI — direct detection (not blind)
+    90035, // Server Side Template Injection — direct detection, medium speed
+    // XXE
+    90023, // XML External Entity (XXE, OAST) — medium speed
+    90017, // XML External Entity (XXE) — medium speed
+    // SSRF
+    40046, // Server Side Request Forgery — medium speed
+    // CSRF
+    20012, // CSRF Token Missing — fast (passive-like check)
+    // NoSQL Injection
+    40033, // NoSQL Injection - MongoDB — medium speed, relevant for Juice Shop
+    // Code Injection
+    90019, // Code Injection (PHP/ASP) — medium speed
+    // Info Disclosure (all fast)
+    40034, // .env Information Leak
+    40032, // .htaccess Information Leak
+    40035, // Hidden File Finder
+    10095, // Backup File Disclosure
+    0,     // Directory Browsing
+    // Auth & Session (fast checks)
     10058, // GET for POST
-    90024, // Padding Oracle
-    // Additional info disclosure for training labs
-    40034, // .env leak
-    40035, // .htaccess leak
-    10095, // Backup file disclosure
-    10003, // Vulnerable JS library
+    20019, // External Redirect
+    40003, // CRLF Injection
+    40040, // CORS Misconfiguration
+    90028, // Insecure HTTP Method
+    // Additional fast checks
+    40009, // Server Side Include
+    40008, // Parameter Tampering
+    20014, // HTTP Parameter Pollution
+    40031, // Out of Band XSS
   ];
 
-  const uniqueIds = [...new Set(allRuleIds)];
+  // ── SLOW RULES TO SKIP (handled by SQLMap/dedicated tools or too slow through proxy) ──
+  // 40019: SQL Injection - MySQL (Time Based) — SQLMap handles this better
+  // 40020: SQL Injection - Hypersonic (Time Based)
+  // 40021: SQL Injection - Oracle (Time Based)
+  // 40022: SQL Injection - PostgreSQL (Time Based)
+  // 40027: SQL Injection - MsSQL (Time Based)
+  // 90039: NoSQL Injection - MongoDB (Time Based)
+  // 90037: Remote OS Command Injection (Time Based)
+  // 90036: Server Side Template Injection (Blind/OAST)
+  // 90024: Padding Oracle — extremely slow
+  // 30001: Buffer Overflow — irrelevant for web apps
+  // 30002: Format String Error — irrelevant for web apps
+  // 30003: Integer Overflow Error — irrelevant for web apps
+  // 10104: User Agent Fuzzer — low value
+
+  const uniqueIds = [...new Set(fastHighValueRules)];
 
   return {
-    name: "training_lab_comprehensive",
-    description: "Maximum sensitivity scan for intentionally vulnerable training targets. ALL injection, XSS, auth, and RCE rules enabled at LOW threshold + INSANE strength.",
+    name: "training_lab_fast_focused",
+    description: "Fast, focused scan for training labs. Only error-based/reflected detection rules enabled at maximum sensitivity. Time-based rules disabled (handled by SQLMap). Target: complete in 15-20 min.",
     enabledRules: uniqueIds.map(id => ({
       id,
       threshold: "LOW" as const,
       strength: "INSANE" as const,
     })),
-    disabledRuleIds: [], // Don't disable anything
+    disabledRuleIds: [
+      // Explicitly disable all time-based/slow rules
+      40019, 40020, 40021, 40022, 40027, // Time-based SQLi variants
+      90039, // Time-based NoSQL injection
+      90037, // Time-based OS command injection
+      90036, // Blind SSTI
+      90024, // Padding Oracle
+      30001, 30002, 30003, // Buffer overflow, format string, integer overflow
+      10104, // User Agent Fuzzer
+      40044, // Billion Laughs (DoS)
+      40043, // Log4Shell (needs OAST callback server)
+      40045, // Spring4Shell (irrelevant for most training labs)
+      40047, // Text4Shell
+      40048, // Next.js RCE
+      20018, // PHP-CGI CVE
+      20015, // Heartbleed
+      40013, // Session Fixation (slow)
+      40023, // Username Enumeration (slow)
+      42, 41, 43, // Source Code Disclosure variants (medium value, slow)
+      10045, // /WEB-INF disclosure
+      40028, 40029, // ELMAH/Trace.axd (ASP.NET specific)
+      90034, // Cloud Metadata (not relevant for training labs)
+      40042, 10048, // Spring Actuator (not relevant for most training labs)
+      90025, // Expression Language Injection (Java-specific)
+      90021, // XPath Injection (slow)
+      10107, // HttPoxy
+      20016, // Cross-Domain (Flash/Silverlight)
+      10106, 10047, // HTTP Only Site, HTTPS via HTTP (low value)
+      10051, // Relative Path Confusion
+      90027, // Cookie Slack Detector
+      40025, // Proxy Disclosure
+    ],
+    activeScanOverrides: {
+      threadPerHost: 10,          // 5x default — faster scanning through proxy
+      maxRuleDurationInMins: 3,   // Cap each rule at 3 min (was 10)
+      maxScanDurationInMins: 35,  // Hard cap at 35 min total
+      delayInMs: 0,               // No delay for training labs (they can handle it)
+    },
     preflightApiCalls: [
+      // Scan all parameter locations (URL path, query, POST body, headers)
       { endpoint: "/JSON/ascan/action/setOptionTargetParamsInjectable/", params: { Integer: "15" } },
       { endpoint: "/JSON/ascan/action/setOptionTargetParamsEnabledRPC/", params: { Integer: "15" } },
-      { endpoint: "/JSON/ascan/action/setOptionMaxRuleDurationInMins/", params: { Integer: "10" } },
+      // Scan headers for injection points
       { endpoint: "/JSON/ascan/action/setOptionScanHeadersAllRequests/", params: { Boolean: "true" } },
+      // Handle anti-CSRF tokens
       { endpoint: "/JSON/ascan/action/setOptionHandleAntiCSRFTokens/", params: { Boolean: "true" } },
+      // Inject plugin ID in header for debugging
       { endpoint: "/JSON/ascan/action/setOptionInjectPluginIdInHeader/", params: { Boolean: "true" } },
     ],
-    timeMultiplier: 3.0,
+    timeMultiplier: 2.0,
     killChainPhase: "exploitation",
   };
 }
