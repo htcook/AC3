@@ -710,6 +710,11 @@ export const engagementAutomationRouter = router({
           description: 'Classic training lab with 14 vulnerability exercises including SQL injection, XSS, command injection, CSRF, and file upload.',
           expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'Command Injection', 'CSRF', 'File Upload', 'File Inclusion', 'Brute Force', 'Insecure CAPTCHA'],
         },
+        'juiceshop.lab.aceofcloud.io': {
+          name: 'OWASP Juice Shop (AceOfCloud Lab)',
+          description: 'Self-hosted OWASP Juice Shop instance with 42+ vulnerability challenges including SQL injection, XSS, SSTI, XXE, SSRF, NoSQL injection, and broken authentication.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'NoSQL Injection', 'SSTI', 'XXE', 'SSRF', 'Broken Authentication', 'CSRF', 'Directory Traversal', 'Sensitive Data Exposure', 'Unvalidated Redirect'],
+        },
       };
 
       const labProfile = TRAINING_LABS[input.target.toLowerCase()] || {
@@ -894,6 +899,11 @@ export const engagementAutomationRouter = router({
           name: 'DVWA (AceOfCloud Lab)',
           description: 'Self-hosted DVWA instance for internal training.',
           expectedVulns: ['SQL Injection', 'XSS', 'Command Injection', 'CSRF', 'File Upload', 'File Inclusion'],
+        },
+        'juiceshop.lab.aceofcloud.io': {
+          name: 'OWASP Juice Shop (AceOfCloud Lab)',
+          description: 'Self-hosted OWASP Juice Shop instance with 42+ vulnerability challenges including SQL injection, XSS, SSTI, XXE, SSRF, NoSQL injection, and broken authentication.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'NoSQL Injection', 'SSTI', 'XXE', 'SSRF', 'Broken Authentication', 'CSRF', 'Directory Traversal', 'Sensitive Data Exposure', 'Unvalidated Redirect'],
         },
       };
 
