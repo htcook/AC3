@@ -4180,6 +4180,69 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     });
   }
 
+  // ── Inject training lab default credentials for authenticated scanning ──
+  if (state.trainingLabMode) {
+    const TRAINING_LAB_CREDS: Record<string, Array<{ username: string; password: string; service: string; loginPath?: string }>> = {
+      dvwa: [
+        { username: "admin", password: "password", service: "http-form", loginPath: "/login.php" },
+        { username: "gordonb", password: "abc123", service: "http-form", loginPath: "/login.php" },
+        { username: "1337", password: "charley", service: "http-form", loginPath: "/login.php" },
+        { username: "pablo", password: "lettering", service: "http-form", loginPath: "/login.php" },
+        { username: "smithy", password: "password", service: "http-form", loginPath: "/login.php" },
+      ],
+      'juice-shop': [
+        { username: "admin@juice-sh.op", password: "admin123", service: "http-post", loginPath: "/rest/user/login" },
+        { username: "jim@juice-sh.op", password: "ncc-1701", service: "http-post", loginPath: "/rest/user/login" },
+        { username: "bender@juice-sh.op", password: "OhG0dPlease1nsertLiquworHere!", service: "http-post", loginPath: "/rest/user/login" },
+      ],
+      webgoat: [
+        { username: "guest", password: "guest", service: "http-form", loginPath: "/WebGoat/login" },
+      ],
+      bwapp: [
+        { username: "bee", password: "bug", service: "http-form", loginPath: "/login.php" },
+      ],
+      mutillidae: [
+        { username: "admin", password: "admin", service: "http-form", loginPath: "/index.php?page=login.php" },
+      ],
+    };
+
+    // Detect which training lab this is
+    const targetHostnames = state.assets.map(a => a.hostname.toLowerCase());
+    for (const [labName, creds] of Object.entries(TRAINING_LAB_CREDS)) {
+      const matchesLab = targetHostnames.some(h => h.includes(labName.replace('-', '')));
+      if (matchesLab) {
+        let injectedCount = 0;
+        for (const asset of state.assets) {
+          if (!Array.isArray(asset.confirmedCredentials)) asset.confirmedCredentials = [];
+          for (const cred of creds) {
+            // Avoid duplicates
+            const exists = asset.confirmedCredentials.some(
+              (c: any) => c.username === cred.username && c.password === cred.password
+            );
+            if (!exists) {
+              asset.confirmedCredentials.push({
+                ...cred,
+                protocol: 'https',
+                port: 443,
+                source: 'training_lab_defaults',
+                testedAt: Date.now(),
+                status: 'confirmed',
+              } as any);
+              injectedCount++;
+            }
+          }
+        }
+        if (injectedCount > 0) {
+          addLog(state, {
+            phase: "vuln_detection", type: "info",
+            title: `🔑 Training Lab Creds Injected: ${labName} (${injectedCount} credentials)`,
+            detail: `Pre-loaded ${injectedCount} known default credentials for ${labName} to enable authenticated ZAP crawling and scanning.`,
+          });
+        }
+      }
+    }
+  }
+
   // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
@@ -4574,6 +4637,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             scanName: `EngOps-${state.engagementId}-${webApp.hostname}`,
             llmConfig: llmConfig,
             discoveredTechnologies: techHints,
+            trainingLabMode: state.trainingLabMode || false,
           });
         } catch (zapStartErr: any) {
           // ZAP server may not be reachable — log and continue

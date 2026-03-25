@@ -1005,3 +1005,115 @@ export function analyzeProtocolAuditDeterministic(
 }> {
   return generateProtocolFindings(protocol, structuredData);
 }
+
+/**
+ * Deterministic replacement for analyzeSqlmapFindings LLM call.
+ * Same return type as the LLM version in sqlmap-scanner.ts.
+ * Maps SQLMap finding types to risk summaries, exploit chains, and remediation.
+ */
+export function analyzeSqlmapFindingsDeterministic(
+  findings: Array<{
+    type: string;
+    severity: string;
+    title: string;
+    description: string;
+    url: string;
+    parameter?: string;
+    payload?: string;
+    dbms?: string;
+  }>,
+  targetUrl: string,
+): {
+  riskSummary: string;
+  exploitChains: string[];
+  recommendations: string[];
+} {
+  const riskSummary = generateRiskSummary(
+    findings.map(f => ({
+      severity: f.severity,
+      description: `${f.title}: ${f.description}`,
+    })),
+    "SQLMap",
+    targetUrl,
+  );
+
+  // Build exploit chains from SQLi findings
+  const exploitChains: string[] = [];
+  const seenChains = new Set<string>();
+
+  for (const f of findings) {
+    const typeLower = (f.type || "").toLowerCase();
+    const param = f.parameter || "unknown";
+    const dbms = f.dbms || "unknown";
+
+    // Union-based SQLi → data exfiltration chain
+    if (typeLower.includes("union") && !seenChains.has("union-exfil")) {
+      exploitChains.push(
+        `Union-based SQLi on '${param}' (${dbms}) → enumerate databases → dump tables → exfiltrate credentials/PII`,
+      );
+      seenChains.add("union-exfil");
+    }
+
+    // Boolean/time-blind SQLi → blind data extraction
+    if ((typeLower.includes("blind") || typeLower.includes("boolean") || typeLower.includes("time")) && !seenChains.has("blind-exfil")) {
+      exploitChains.push(
+        `Blind SQLi on '${param}' → bit-by-bit data extraction → credential harvesting (slower but stealthy)`,
+      );
+      seenChains.add("blind-exfil");
+    }
+
+    // Error-based SQLi → info disclosure + data extraction
+    if (typeLower.includes("error") && !seenChains.has("error-exfil")) {
+      exploitChains.push(
+        `Error-based SQLi on '${param}' → database version/schema disclosure → targeted data extraction`,
+      );
+      seenChains.add("error-exfil");
+    }
+
+    // Stacked queries → RCE potential
+    if (typeLower.includes("stacked") && !seenChains.has("stacked-rce")) {
+      exploitChains.push(
+        `Stacked queries on '${param}' (${dbms}) → INSERT/UPDATE/DELETE arbitrary data → potential OS command execution via xp_cmdshell/sys_exec`,
+      );
+      seenChains.add("stacked-rce");
+    }
+
+    // Auth bypass
+    if ((typeLower.includes("auth") || f.title.toLowerCase().includes("login") || f.title.toLowerCase().includes("auth")) && !seenChains.has("auth-bypass")) {
+      exploitChains.push(
+        `SQLi on authentication parameter '${param}' → bypass login → admin access → full application compromise`,
+      );
+      seenChains.add("auth-bypass");
+    }
+  }
+
+  // If we found injectable params but no specific chains, add generic ones
+  if (exploitChains.length === 0 && findings.length > 0) {
+    exploitChains.push(
+      `SQL injection detected on ${targetUrl} → database enumeration → credential/data exfiltration`,
+    );
+  }
+
+  // Build remediation recommendations
+  const recommendations = [
+    "Use parameterized queries (prepared statements) for all database interactions — never concatenate user input into SQL strings",
+    "Implement input validation with strict allowlists for expected data types, lengths, and character sets",
+    "Apply the principle of least privilege to database accounts — web app DB users should not have DBA/admin rights",
+    "Deploy a Web Application Firewall (WAF) with SQL injection rule sets as a defense-in-depth measure",
+    "Enable database query logging and monitoring to detect exploitation attempts in real-time",
+  ];
+
+  // Add DBMS-specific recommendations
+  const dbmsTypes = new Set(findings.map(f => (f.dbms || "").toLowerCase()).filter(Boolean));
+  if (dbmsTypes.has("mysql") || dbmsTypes.has("mariadb")) {
+    recommendations.push("MySQL: Disable FILE privilege and LOAD_FILE() for web application database users");
+  }
+  if (dbmsTypes.has("mssql") || dbmsTypes.has("microsoft sql server")) {
+    recommendations.push("MSSQL: Disable xp_cmdshell and remove sysadmin role from application accounts");
+  }
+  if (dbmsTypes.has("postgresql")) {
+    recommendations.push("PostgreSQL: Restrict COPY command access and disable lo_import/lo_export for web users");
+  }
+
+  return { riskSummary, exploitChains, recommendations: recommendations.slice(0, 8) };
+}

@@ -1349,3 +1349,127 @@ export function getPlaybookSummary(playbook: ZapPlaybookConfig): string {
     `Time multiplier: ${playbook.timeMultiplier}x\n` +
     `Kill chain phase: ${playbook.killChainPhase}`;
 }
+
+
+// ─── Training Lab Boost ─────────────────────────────────────────────────────
+// When scanning intentionally vulnerable apps (DVWA, Juice Shop, etc.),
+// override thresholds to LOW and strength to INSANE for maximum detection.
+// This catches vulns that MEDIUM threshold would miss due to low-confidence signals.
+
+/** Rule IDs for the consistently missed vulnerability categories */
+const MISSED_VULN_BOOST_RULES = {
+  // SQL Injection (all variants)
+  sqli: [40018, 40019, 40020, 40021, 40022, 40027, 40033, 90039],
+  // XSS (reflected, stored, out-of-band)
+  xss: [40012, 40014, 40031],
+  // CSRF
+  csrf: [20012],
+  // Command Injection
+  cmdInjection: [90020, 90037],
+  // SSTI
+  ssti: [90035, 90036],
+  // File Inclusion (LFI/RFI)
+  fileInclusion: [6, 7],
+  // XXE
+  xxe: [90017, 90023],
+  // Path Traversal
+  pathTraversal: [6],
+  // SSRF
+  ssrf: [40046],
+};
+
+/**
+ * Boost a playbook config for training lab targets.
+ * Sets ALL injection/xss/auth rules to LOW threshold + INSANE strength,
+ * and enables ALL rule variants regardless of detected technology.
+ */
+export function boostPlaybookForTrainingLab(playbook: ZapPlaybookConfig): ZapPlaybookConfig {
+  // Collect all boost rule IDs
+  const boostIds = new Set(Object.values(MISSED_VULN_BOOST_RULES).flat());
+
+  // Boost existing rules
+  const boostedRules = playbook.enabledRules.map(rule => {
+    if (boostIds.has(rule.id)) {
+      return { ...rule, threshold: "LOW" as const, strength: "INSANE" as const };
+    }
+    return rule;
+  });
+
+  // Add missing boost rules that aren't already in the playbook
+  const existingIds = new Set(boostedRules.map(r => r.id));
+  const additionalRules = [...boostIds]
+    .filter(id => !existingIds.has(id))
+    .map(id => ({ id, threshold: "LOW" as const, strength: "INSANE" as const }));
+
+  return {
+    ...playbook,
+    enabledRules: [...boostedRules, ...additionalRules],
+    // Remove disabled rules that overlap with boost rules (don't disable what we're boosting)
+    disabledRuleIds: playbook.disabledRuleIds.filter(id => !boostIds.has(id)),
+    // Add extra preflight calls for maximum detection
+    preflightApiCalls: [
+      ...(playbook.preflightApiCalls || []),
+      // Scan all HTTP methods, not just GET/POST
+      { endpoint: "/JSON/ascan/action/setOptionTargetParamsInjectable/", params: { Integer: "15" } },
+      // Enable scanning of URL path, query string, POST data, and HTTP headers
+      { endpoint: "/JSON/ascan/action/setOptionTargetParamsEnabledRPC/", params: { Integer: "15" } },
+      // Increase max scan duration per rule (default 0 = unlimited, but ensure it's set)
+      { endpoint: "/JSON/ascan/action/setOptionMaxRuleDurationInMins/", params: { Integer: "10" } },
+      // Scan headers for injection points
+      { endpoint: "/JSON/ascan/action/setOptionScanHeadersAllRequests/", params: { Boolean: "true" } },
+      // Handle anti-CSRF tokens
+      { endpoint: "/JSON/ascan/action/setOptionHandleAntiCSRFTokens/", params: { Boolean: "true" } },
+    ],
+    timeMultiplier: playbook.timeMultiplier * 1.5, // Allow more time for INSANE strength
+  };
+}
+
+/**
+ * Build a comprehensive "all-in" playbook for training labs.
+ * Enables every injection, XSS, auth, and RCE rule at maximum sensitivity.
+ */
+export function buildTrainingLabPlaybook(): ZapPlaybookConfig {
+  // Enable ALL rules that could find vulns in training apps
+  const allRuleIds = [
+    ...MISSED_VULN_BOOST_RULES.sqli,
+    ...MISSED_VULN_BOOST_RULES.xss,
+    ...MISSED_VULN_BOOST_RULES.csrf,
+    ...MISSED_VULN_BOOST_RULES.cmdInjection,
+    ...MISSED_VULN_BOOST_RULES.ssti,
+    ...MISSED_VULN_BOOST_RULES.xxe,
+    ...MISSED_VULN_BOOST_RULES.ssrf,
+    // Additional auth/session rules
+    40013, // Session Fixation
+    40023, // Username Enumeration
+    10058, // GET for POST
+    90024, // Padding Oracle
+    // Additional info disclosure for training labs
+    40034, // .env leak
+    40035, // .htaccess leak
+    10095, // Backup file disclosure
+    10003, // Vulnerable JS library
+  ];
+
+  const uniqueIds = [...new Set(allRuleIds)];
+
+  return {
+    name: "training_lab_comprehensive",
+    description: "Maximum sensitivity scan for intentionally vulnerable training targets. ALL injection, XSS, auth, and RCE rules enabled at LOW threshold + INSANE strength.",
+    enabledRules: uniqueIds.map(id => ({
+      id,
+      threshold: "LOW" as const,
+      strength: "INSANE" as const,
+    })),
+    disabledRuleIds: [], // Don't disable anything
+    preflightApiCalls: [
+      { endpoint: "/JSON/ascan/action/setOptionTargetParamsInjectable/", params: { Integer: "15" } },
+      { endpoint: "/JSON/ascan/action/setOptionTargetParamsEnabledRPC/", params: { Integer: "15" } },
+      { endpoint: "/JSON/ascan/action/setOptionMaxRuleDurationInMins/", params: { Integer: "10" } },
+      { endpoint: "/JSON/ascan/action/setOptionScanHeadersAllRequests/", params: { Boolean: "true" } },
+      { endpoint: "/JSON/ascan/action/setOptionHandleAntiCSRFTokens/", params: { Boolean: "true" } },
+      { endpoint: "/JSON/ascan/action/setOptionInjectPluginIdInHeader/", params: { Boolean: "true" } },
+    ],
+    timeMultiplier: 3.0,
+    killChainPhase: "exploitation",
+  };
+}

@@ -1192,6 +1192,8 @@ export async function startScan(params: {
   discoveredTechnologies?: string[];
   /** Target preset name for self-learning feedback (e.g. 'juice-shop', 'dvwa') */
   targetPreset?: string;
+  /** Whether this is a training lab scan — boosts all rules to maximum sensitivity */
+  trainingLabMode?: boolean;
 }): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any; playbookApplied?: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1246,7 +1248,14 @@ export async function startScan(params: {
       : params.soapWsdlUrl ? { type: "soap", url: params.soapWsdlUrl }
       : undefined,
   });
-  console.log(`[ZAP Playbook] Selected: ${playbook.name} with ${playbook.enabledRules.length} rules for tech: [${technologies.join(", ")}]`);
+  // Boost playbook for training lab targets (LOW threshold + INSANE strength)
+  let effectivePlaybook = playbook;
+  if (params.trainingLabMode) {
+    const { boostPlaybookForTrainingLab } = await import("./zap-attack-playbooks");
+    effectivePlaybook = boostPlaybookForTrainingLab(playbook);
+    console.log(`[ZAP Training Lab] Boosted ${playbook.name}: ${playbook.enabledRules.length} → ${effectivePlaybook.enabledRules.length} rules, all at LOW/INSANE`);
+  }
+  console.log(`[ZAP Playbook] Selected: ${effectivePlaybook.name} with ${effectivePlaybook.enabledRules.length} rules for tech: [${technologies.join(", ")}]`);
 
   // Determine effective scan type based on mode
   const effectiveScanType = params.scanMode === "passive" ? "spider_only" : params.scanType;
@@ -1363,9 +1372,9 @@ export async function startScan(params: {
     }
 
     // Apply playbook rules to ZAP scan policy BEFORE scanning
-    if (playbook && params.scanMode === "active") {
-      console.log(`[ZAP Playbook] Pre-applying ${playbook.name} (${playbook.enabledRules.length} enabled, ${(playbook.disabledRuleIds || []).length} disabled)`);
-      const pbResult = await applyPlaybookToZap(playbook, zapApiCfg, zapRequest);
+    if (effectivePlaybook && params.scanMode === "active") {
+      console.log(`[ZAP Playbook] Pre-applying ${effectivePlaybook.name} (${effectivePlaybook.enabledRules.length} enabled, ${(effectivePlaybook.disabledRuleIds || []).length} disabled)`);
+      const pbResult = await applyPlaybookToZap(effectivePlaybook, zapApiCfg, zapRequest);
       console.log(`[ZAP Playbook] Applied: ${pbResult.applied ? 'success' : 'partial'}, ${pbResult.errors.length} errors`);
     }
 
@@ -1401,7 +1410,7 @@ export async function startScan(params: {
       status: "spidering",
       llmConfig,
       specImportResult,
-      playbookApplied: playbook?.name,
+      playbookApplied: effectivePlaybook?.name,
     };
   } catch (err: any) {
     await db.update(webAppScans).set({

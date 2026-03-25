@@ -354,7 +354,7 @@ export async function startSqlmapScan(config: SqlmapConfig): Promise<SqlmapScanR
   try {
     result = await executeTool({
       tool: "bash",
-      args: `-c "sqlmap ${fullArgs} 2>&1"`,
+      args: `-c "python3 /opt/sqlmap-latest/sqlmap.py ${fullArgs} 2>&1 || sqlmap ${fullArgs} 2>&1"`,
       target: config.targetUrl,
       timeoutSeconds: timeout + 60,
       engagementId: config.engagementId,
