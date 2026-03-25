@@ -260,6 +260,13 @@
       "when": 1774294897259,
       "tag": "0036_charming_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1774472015563,
+      "tag": "0037_bouncy_silverclaw",
+      "breakpoints": true
     }
   ]
 }
