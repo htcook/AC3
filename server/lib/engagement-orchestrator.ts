@@ -427,6 +427,18 @@ export function normalizeOpsState(state: any): EngagementOpsState {
     if (!Array.isArray(asset.zapFindings)) asset.zapFindings = [];
     if (!Array.isArray(asset.exploitAttempts)) asset.exploitAttempts = [];
     if (!Array.isArray(asset.confirmedCredentials)) asset.confirmedCredentials = [];
+    // Normalize toolResult sub-fields (findings can become non-iterable after JSON round-trip)
+    for (const tr of asset.toolResults) {
+      if (tr.findings && !Array.isArray(tr.findings)) {
+        try {
+          tr.findings = Array.isArray(tr.findings) ? tr.findings : Object.values(tr.findings);
+        } catch {
+          tr.findings = [];
+        }
+      } else if (!tr.findings) {
+        tr.findings = [];
+      }
+    }
   }
 
   return state as EngagementOpsState;

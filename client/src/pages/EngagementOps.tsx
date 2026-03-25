@@ -1917,7 +1917,7 @@ export default function EngagementOps() {
           {(() => {
             const toolCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0);
             const credTests = (ops?.assets || []).flatMap((a: any) => (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing'));
-            const credFound = credTests.filter((tr: any) => tr.findings?.length > 0).length;
+            const credFound = credTests.filter((tr: any) => Array.isArray(tr.findings) && tr.findings.length > 0).length;
             const synthCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length, 0);
             const tabGroups: TabGroup[] = [
               {
@@ -2424,9 +2424,9 @@ export default function EngagementOps() {
                                   <span className="text-[9px] text-muted-foreground ml-auto">{new Date(tr.executedAt).toLocaleTimeString()}</span>
                                 </div>
                                 <p className="text-[10px] text-muted-foreground font-mono truncate mb-1" title={tr.command}>{tr.command}</p>
-                               {(tr.findings || []).length > 0 && (
+                               {(Array.isArray(tr.findings) ? tr.findings.length : 0) > 0 && (
                                    <div className="space-y-0.5">
-                                     {[...(tr.findings || [])].sort((a: any, b: any) => {
+                                     {[...(Array.isArray(tr.findings) ? tr.findings : [])].sort((a: any, b: any) => {
                                        const parseCve = (cve?: string) => { if (!cve) return { year: 0, num: 0 }; const m = cve.match(/CVE-(\d{4})-(\d+)/i); return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 }; };
                                        const ac = parseCve(a.cve), bc = parseCve(b.cve);
                                        if (bc.year !== ac.year) return bc.year - ac.year;
@@ -2445,12 +2445,12 @@ export default function EngagementOps() {
                                         {f.cve && <span className="text-muted-foreground font-mono">{f.cve}</span>}
                                       </div>
                                     ))}
-{(tr.findings || []).length > 8 && (
-                                       <p className="text-[9px] text-muted-foreground">+{(tr.findings || []).length - 8} more findings</p>
+{(Array.isArray(tr.findings) ? tr.findings.length : 0) > 8 && (
+                                       <p className="text-[9px] text-muted-foreground">+{(Array.isArray(tr.findings) ? tr.findings.length : 0) - 8} more findings</p>
                                     )}
                                   </div>
                                 )}
-                                {(tr.findings || []).length === 0 && tr.outputPreview && (
+                                {(Array.isArray(tr.findings) ? tr.findings.length : 0) === 0 && tr.outputPreview && (
                                   <pre className="text-[9px] text-muted-foreground/70 font-mono whitespace-pre-wrap max-h-20 overflow-hidden">{tr.outputPreview.slice(0, 300)}</pre>
                                 )}
                               </div>
@@ -2549,10 +2549,10 @@ export default function EngagementOps() {
                     for (const a of assets) {
                       const techs: string[] = [];
                       // From passive recon
-                      if (a.passiveRecon?.technologies) techs.push(...a.passiveRecon.technologies);
+                      if (Array.isArray(a.passiveRecon?.technologies)) techs.push(...a.passiveRecon.technologies);
                       // From httpx tool results
                       for (const tr of (a.toolResults || [])) {
-                        if (tr.tool === 'httpx' && tr.findings) {
+                        if (tr.tool === 'httpx' && Array.isArray(tr.findings)) {
                           for (const f of tr.findings) {
                             const fStr = typeof f === 'string' ? f : (f?.title || '');
                             if (fStr.includes('Tech:') || fStr.includes('tech:') || fStr.includes('Technology:')) {
@@ -2599,7 +2599,7 @@ export default function EngagementOps() {
                     const cdnWafMap = new Map<string, Set<string>>();
                     for (const a of assets) {
                       for (const tr of (a.toolResults || [])) {
-                        if (tr.tool === 'httpx' && tr.findings) {
+                        if (tr.tool === 'httpx' && Array.isArray(tr.findings)) {
                           for (const f of tr.findings) {
                             const fStr = typeof f === 'string' ? f : (f?.title || '');
                             if (fStr.includes('CDN:') || fStr.includes('WAF:') || fStr.includes('cdn:') || fStr.includes('waf:') || fStr.includes('CDN/WAF:')) {
@@ -2701,7 +2701,7 @@ export default function EngagementOps() {
                                 <Badge variant="secondary" className="ml-auto text-[9px] h-4">{httpxResults.length} runs</Badge>
                               </div>
                               <p className="text-[10px] text-muted-foreground">
-                                {httpxResults.reduce((sum: number, tr: any) => sum + (tr.findings?.length || tr.findingCount || 0), 0)} findings &mdash; HTTP probing, tech & CDN/WAF
+                                {httpxResults.reduce((sum: number, tr: any) => sum + (Array.isArray(tr.findings) ? tr.findings.length : (tr.findingCount || 0)), 0)} findings &mdash; HTTP probing, tech & CDN/WAF
                               </p>
                             </CardContent>
                           </Card>
@@ -2871,7 +2871,7 @@ export default function EngagementOps() {
                                     const svcs = new Set((a.knownPorts || []).filter((p: any) => typeof p === 'object' && p.service).map((p: any) => p.service)).size;
                                     const tech = (a.passiveRecon?.technologies || []).length;
                                     const tools = (a.toolResults || []).length;
-                                    const findings = (a.toolResults || []).reduce((sum: number, tr: any) => sum + (tr.findings?.length || 0), 0);
+                                    const findings = (a.toolResults || []).reduce((sum: number, tr: any) => sum + (Array.isArray(tr.findings) ? tr.findings.length : 0), 0);
                                     return (
                                       <tr
                                         key={i}
@@ -2946,9 +2946,9 @@ export default function EngagementOps() {
                                         $ {tr.command}
                                       </div>
                                     )}
-                                    {tr.findings && (tr.findings || []).length > 0 && (
+                                    {Array.isArray(tr.findings) && tr.findings.length > 0 && (
                                       <div className="space-y-0.5">
-                                        {[...(tr.findings || [])].sort((a: any, b: any) => {
+                                        {[...(Array.isArray(tr.findings) ? tr.findings : [])].sort((a: any, b: any) => {
                                           if (typeof a === 'string' || typeof b === 'string') return 0;
                                           const parseCve = (cve?: string) => { if (!cve) return { year: 0, num: 0 }; const m = cve.match(/CVE-(\d{4})-(\d+)/i); return m ? { year: parseInt(m[1]), num: parseInt(m[2]) } : { year: 0, num: 0 }; };
                                           const ac = parseCve(a?.cve), bc = parseCve(b?.cve);
@@ -2963,7 +2963,7 @@ export default function EngagementOps() {
                                             </div>
                                           );
                                         })}
-                                        {(tr.findings || []).length > 5 && <p className="text-[9px] text-muted-foreground">+{(tr.findings || []).length - 5} more findings</p>}
+                                        {(Array.isArray(tr.findings) ? tr.findings.length : 0) > 5 && <p className="text-[9px] text-muted-foreground">+{(Array.isArray(tr.findings) ? tr.findings.length : 0) - 5} more findings</p>}
                                       </div>
                                     )}
                                   </div>
@@ -3099,8 +3099,8 @@ export default function EngagementOps() {
                       (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing').map((tr: any) => ({ ...tr, asset: a }))
                     );
                     const totalTests = allCredTests.length;
-                    const successfulTests = allCredTests.filter((t: any) => t.findings?.length > 0);
-                    const failedTests = allCredTests.filter((t: any) => !t.findings?.length);
+                    const successfulTests = allCredTests.filter((t: any) => Array.isArray(t.findings) && t.findings.length > 0);
+                    const failedTests = allCredTests.filter((t: any) => !Array.isArray(t.findings) || t.findings.length === 0);
                     const uniqueAssets = new Set(allCredTests.map((t: any) => t.asset.hostname)).size;
                     const uniqueServices = new Set(allCredTests.map((t: any) => {
                       const m = t.command?.match(/hydra.*?\s(\S+)\s*$/); return m ? m[1] : t.tool;
@@ -3109,7 +3109,7 @@ export default function EngagementOps() {
                     const oemCreds: any[] = [];
                     if (ops?.passiveReconResults) {
                       Object.values(ops.passiveReconResults).forEach((d: any) => {
-                        if (d?.oemCredentials) oemCreds.push(...d.oemCredentials);
+                        if (Array.isArray(d?.oemCredentials)) oemCreds.push(...d.oemCredentials);
                       });
                     }
 
@@ -3248,7 +3248,7 @@ export default function EngagementOps() {
                           <CardContent className="space-y-2">
                             {(ops?.assets || []).filter((a: any) => (a.toolResults || []).some((tr: any) => tr.phase === 'credential_testing')).map((asset: any, ai: number) => {
                               const assetCredTests = (asset.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing');
-                              const assetFound = assetCredTests.some((t: any) => t.findings?.length > 0);
+                              const assetFound = assetCredTests.some((t: any) => Array.isArray(t.findings) && t.findings.length > 0);
                               return (
                                 <div key={ai} className={`p-3 rounded-lg border ${assetFound ? 'bg-red-500/5 border-red-500/10' : 'bg-background/50 border-border/20'}`}>
                                   <div className="flex items-center justify-between mb-2">
@@ -3265,7 +3265,7 @@ export default function EngagementOps() {
                                     {assetCredTests.map((test: any, ti: number) => {
                                       const svcMatch = test.command?.match(/hydra.*?\s(\S+)\s*$/);
                                       const service = svcMatch ? svcMatch[1] : test.tool;
-                                      const hasFindings = test.findings?.length > 0;
+                                      const hasFindings = Array.isArray(test.findings) && test.findings.length > 0;
                                       return (
                                         <div key={ti} className="flex items-center gap-2 text-xs">
                                           {hasFindings ? <XCircle className="h-3 w-3 text-red-400 flex-none" /> : <CheckCircle2 className="h-3 w-3 text-emerald-400 flex-none" />}
@@ -4376,7 +4376,7 @@ export default function EngagementOps() {
                           className="w-full text-xs bg-background border border-border rounded px-2 py-1.5"
                         >
                           <option value="">All vulns (auto-select best)</option>
-                          {[...asset.vulns].map((v, origIdx) => ({ ...v, origIdx })).sort((a: any, b: any) => {
+                          {[...(Array.isArray(asset.vulns) ? asset.vulns : [])].map((v, origIdx) => ({ ...v, origIdx })).sort((a: any, b: any) => {
                             const parseCve = (cve?: string) => {
                               if (!cve) return { year: 0, num: 0 };
                               const m = cve.match(/CVE-(\d{4})-(\d+)/i);
