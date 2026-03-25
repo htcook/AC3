@@ -938,20 +938,8 @@ export default function EngagementOps() {
     onError: (e) => toast.error(`Snapshot failed: ${e.message}`),
   });
 
-  // ── Resume Engagement ──
+  // ── Resume Engagement (state only — queries moved after `ops` is defined) ──
   const [showResumeDialog, setShowResumeDialog] = useState(false);
-  const resumeCapabilityQ = trpc.liveTrigger.checkResumeCapability.useQuery(
-    { engagementId },
-    { enabled: engagementId > 0 && (ops?.phase === 'error' || (ops?.phase !== 'idle' && !ops?.isRunning)) }
-  );
-  const resumeMut = trpc.liveTrigger.triggerExecution.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Engagement resumed from ${data.resumedFrom || 'last phase'}`);
-      setShowResumeDialog(false);
-      opsStateQ.refetch();
-    },
-    onError: (e) => toast.error(`Resume failed: ${e.message}`),
-  });
 
   // ── WebSocket live feed ──
   const wsChannels = useMemo(
@@ -1114,6 +1102,20 @@ export default function EngagementOps() {
     return { ...base, log: [...base.log, ...newEntries] };
   }, [opsStateQ.data, wsLogBuffer]);
   const engagement = engagementQ.data;
+
+  // ── Resume Engagement (queries — must be after `ops` is defined) ──
+  const resumeCapabilityQ = trpc.liveTrigger.checkResumeCapability.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0 && (ops?.phase === 'error' || (ops?.phase !== 'idle' && !ops?.isRunning)) }
+  );
+  const resumeMut = trpc.liveTrigger.triggerExecution.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Engagement resumed from ${data.resumedFrom || 'last phase'}`);
+      setShowResumeDialog(false);
+      opsStateQ.refetch();
+    },
+    onError: (e) => toast.error(`Resume failed: ${e.message}`),
+  });
 
   // Auto-scroll feed — scroll the viewport container, not the page
   useEffect(() => {
