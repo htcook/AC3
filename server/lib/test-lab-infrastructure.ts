@@ -80,6 +80,8 @@ export interface LabTarget {
   name: string;
   type: LabEnvironmentType;
   url: string;
+  /** Internal URL for tools running ON the scan server (e.g. http://localhost:3000) */
+  internalUrl?: string;
   internalIp?: string;
   platform: "linux" | "windows" | "macos";
   arch: "x64" | "x86" | "arm64";

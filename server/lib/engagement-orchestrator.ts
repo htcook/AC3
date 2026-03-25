@@ -3394,12 +3394,25 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             let webServer = '';
             let tlsInfo = '';
 
+            // Track which ports returned 200 (live web app) vs 404/error
+            const httpxLivePorts: Array<{ port: number; statusCode: number; title: string }> = [];
+
             if (httpxResult.stdout) {
               for (const line of httpxResult.stdout.split('\n')) {
                 const trimmed = line.trim();
                 if (!trimmed) continue;
                 try {
                   const obj = JSON.parse(trimmed);
+                  // Track per-port status codes for downstream ZAP/SQLMap port filtering
+                  if (obj.status_code && obj.port) {
+                    httpxLivePorts.push({ port: obj.port, statusCode: obj.status_code, title: obj.title || '' });
+                  } else if (obj.status_code && obj.url) {
+                    try {
+                      const parsedUrl = new URL(obj.url);
+                      const portNum = parsedUrl.port ? parseInt(parsedUrl.port) : (parsedUrl.protocol === 'https:' ? 443 : 80);
+                      httpxLivePorts.push({ port: portNum, statusCode: obj.status_code, title: obj.title || '' });
+                    } catch {}
+                  }
                   // Technology detection
                   if (obj.tech && Array.isArray(obj.tech)) {
                     for (const tech of obj.tech) {
@@ -3518,6 +3531,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               // Store extracted response headers for downstream ZAP config
               if (Object.keys(responseHeaders).length > 0) {
                 (asset as any).httpxResponseHeaders = { ...(asset as any).httpxResponseHeaders, ...responseHeaders };
+              }
+              // Store per-port httpx status codes for downstream ZAP/SQLMap filtering
+              if (httpxLivePorts.length > 0) {
+                (asset as any).httpxLivePorts = httpxLivePorts;
               }
             }
 
@@ -4529,7 +4546,28 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)
     );
 
-    for (const wp of webPorts) {
+    // ── Training Lab Port Filtering: only scan ports that returned 200 during httpx ──
+    // This prevents wasting time on ports that serve 404 (wrong vhost) or are firewalled.
+    const httpxLivePorts: Array<{ port: number; statusCode: number; title: string }> = (webApp as any).httpxLivePorts || [];
+    const livePortNumbers = httpxLivePorts.filter(p => p.statusCode >= 200 && p.statusCode < 400).map(p => p.port);
+    let filteredWebPorts = webPorts;
+    if (state.trainingLabMode && livePortNumbers.length > 0) {
+      // In training lab mode, only scan ports that actually serve the app (200-399 status)
+      filteredWebPorts = webPorts.filter(wp => livePortNumbers.includes(wp.port));
+      if (filteredWebPorts.length === 0) {
+        // Fallback: if no ports matched, scan all web ports (shouldn't happen)
+        filteredWebPorts = webPorts;
+      } else if (filteredWebPorts.length < webPorts.length) {
+        const skippedPorts = webPorts.filter(wp => !livePortNumbers.includes(wp.port)).map(wp => wp.port);
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `Training Lab Port Filter: ${webApp.hostname}`,
+          detail: `Skipping ports ${skippedPorts.join(', ')} (returned 404/error during httpx). Only scanning live ports: ${filteredWebPorts.map(wp => wp.port).join(', ')}`,
+        });
+      }
+    }
+
+    for (const wp of filteredWebPorts) {
       const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
       // Use hostname for ZAP target URL (not IP) to support multiple assets on same server
       const targetUrl = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
@@ -4689,6 +4727,54 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           });
         }
 
+        // ── Training Lab Seed URLs: pre-seed ZAP with known endpoints for SPA targets ──
+        let zapSeedUrls: string[] | undefined;
+        if (state.trainingLabMode) {
+          const hostname = webApp.hostname.toLowerCase();
+          const TRAINING_LAB_SEED_URLS: Record<string, string[]> = {
+            'juiceshop': [
+              '/', '/#/login', '/#/search', '/#/contact', '/#/complain', '/#/about',
+              '/#/register', '/#/basket', '/#/recycle', '/#/score-board',
+              '/rest/products/search?q=', '/api/Products', '/api/Challenges',
+              '/rest/user/login', '/api/Feedbacks', '/api/Quantitys',
+              '/rest/saveLoginIp', '/profile', '/redirect?to=/', '/api/Complaints',
+              '/ftp', '/encryptionkeys', '/assets/public/images/padding/1px.png',
+              '/rest/memories', '/rest/basket/1', '/rest/track-order/1',
+              '/api/SecurityQuestions', '/api/SecurityAnswers',
+            ],
+            'dvwa': [
+              '/', '/login.php', '/index.php', '/about.php', '/security.php',
+              '/vulnerabilities/sqli/', '/vulnerabilities/sqli_blind/',
+              '/vulnerabilities/xss_r/', '/vulnerabilities/xss_s/', '/vulnerabilities/xss_d/',
+              '/vulnerabilities/exec/', '/vulnerabilities/fi/', '/vulnerabilities/upload/',
+              '/vulnerabilities/csrf/', '/vulnerabilities/brute/',
+              '/vulnerabilities/captcha/', '/vulnerabilities/weak_id/',
+            ],
+            'altoro': [
+              '/', '/login.jsp', '/index.jsp', '/bank/main.jsp', '/bank/transaction.jsp',
+              '/search.jsp', '/feedback.jsp', '/bank/customize.jsp',
+              '/bank/queryxpath.jsp', '/bank/apply.jsp',
+            ],
+            'testphp': [
+              '/', '/login.php', '/listproducts.php?cat=1', '/artists.php?artist=1',
+              '/showimage.php?file=./pictures/1.jpg', '/search.php?test=query',
+              '/comment.php', '/guestbook.php', '/cart.php',
+            ],
+          };
+
+          for (const [labKey, paths] of Object.entries(TRAINING_LAB_SEED_URLS)) {
+            if (hostname.includes(labKey)) {
+              zapSeedUrls = paths.map(p => `${targetUrl}${p}`);
+              addLog(state, {
+                phase: "vuln_detection", type: "info",
+                title: `ZAP Seed URLs: ${labKey} (${zapSeedUrls.length} endpoints)`,
+                detail: `Pre-seeding ZAP with ${zapSeedUrls.length} known endpoints for ${labKey} SPA target to improve spider coverage`,
+              });
+              break;
+            }
+          }
+        }
+
         // Start ZAP scan with WAF-aware settings
         let zapScanResult: any;
         try {
@@ -4701,6 +4787,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             llmConfig: llmConfig,
             discoveredTechnologies: techHints,
             trainingLabMode: state.trainingLabMode || false,
+            seedUrls: zapSeedUrls,
           });
         } catch (zapStartErr: any) {
           // ZAP server may not be reachable — log and continue
@@ -4746,12 +4833,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
         state.stats.zapScansRun++;
 
-        // Poll for scan completion (max 5 minutes)
+        // Poll for scan completion — training labs get 12 minutes (complex SPAs need more time)
         const zapScanId = zapScanResult?.scanId;
         if (zapScanId) {
           const { pollScanProgress } = await import("./zap-scanner");
           let zapDone = false;
-          const zapTimeout = Date.now() + 5 * 60 * 1000;
+          const zapTimeoutMinutes = state.trainingLabMode ? 12 : 5;
+          const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
           while (!zapDone && Date.now() < zapTimeout) {
             try {
               const progress = await pollScanProgress(zapScanId);
@@ -4791,7 +4879,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             addLog(state, {
               phase: "vuln_detection", type: "warning",
               title: `ZAP Timeout: ${targetUrl}`,
-              detail: `ZAP scan #${zapScanId} did not complete within 5 minutes. Marking as timed out and moving on.`,
+              detail: `ZAP scan #${zapScanId} did not complete within ${zapTimeoutMinutes} minutes. Marking as timed out and moving on.`,
             });
             try {
               const { getDb } = await import("../db");
@@ -4801,7 +4889,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 const { eq } = await import("drizzle-orm");
                 await db.update(webAppScans).set({
                   status: "error",
-                  errorMessage: `ZAP scan timed out after 5 minutes of polling (stuck in spider→active transition)`,
+                  errorMessage: `ZAP scan timed out after ${zapTimeoutMinutes} minutes of polling (stuck in spider→active transition)`,
                   completedAt: new Date(),
                 }).where(eq(webAppScans.id, zapScanId));
               }
@@ -4879,6 +4967,75 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       injectableUrls.push(
         { url: `${targetUrl}/`, method: "GET", params: ["id", "search", "q"] },
       );
+    }
+
+    // ── Training Lab Injectable Endpoints: add known vulnerable endpoints for specific labs ──
+    if (state.trainingLabMode) {
+      const hostname = webApp.hostname.toLowerCase();
+      const TRAINING_LAB_INJECTABLE_ENDPOINTS: Record<string, Array<{ path: string; method: string; params: string[] }>> = {
+        'juiceshop': [
+          { path: '/rest/products/search', method: 'GET', params: ['q'] },
+          { path: '/api/Products', method: 'GET', params: ['q'] },
+          { path: '/rest/user/login', method: 'POST', params: ['email', 'password'] },
+          { path: '/api/Feedbacks', method: 'POST', params: ['comment', 'rating'] },
+          { path: '/api/Quantitys', method: 'GET', params: ['q'] },
+          { path: '/rest/saveLoginIp', method: 'GET', params: [] },
+          { path: '/api/Challenges', method: 'GET', params: [] },
+          { path: '/profile', method: 'GET', params: ['username'] },
+          { path: '/redirect', method: 'GET', params: ['to'] },
+          { path: '/api/Complaints', method: 'POST', params: ['message'] },
+        ],
+        'dvwa': [
+          { path: '/vulnerabilities/sqli/', method: 'GET', params: ['id', 'Submit'] },
+          { path: '/vulnerabilities/sqli_blind/', method: 'GET', params: ['id', 'Submit'] },
+          { path: '/vulnerabilities/xss_r/', method: 'GET', params: ['name'] },
+          { path: '/vulnerabilities/xss_s/', method: 'POST', params: ['txtName', 'mtxMessage'] },
+          { path: '/vulnerabilities/exec/', method: 'POST', params: ['ip', 'Submit'] },
+          { path: '/vulnerabilities/fi/', method: 'GET', params: ['page'] },
+          { path: '/vulnerabilities/upload/', method: 'POST', params: ['uploaded', 'Upload'] },
+          { path: '/vulnerabilities/csrf/', method: 'GET', params: ['password_new', 'password_conf'] },
+        ],
+        'altoro': [
+          { path: '/login.jsp', method: 'POST', params: ['uid', 'passw'] },
+          { path: '/bank/transaction.jsp', method: 'GET', params: ['id'] },
+          { path: '/search.jsp', method: 'GET', params: ['query'] },
+          { path: '/feedback.jsp', method: 'POST', params: ['name', 'email', 'subject', 'comments'] },
+        ],
+        'testphp': [
+          { path: '/listproducts.php', method: 'GET', params: ['cat'] },
+          { path: '/artists.php', method: 'GET', params: ['artist'] },
+          { path: '/showimage.php', method: 'GET', params: ['file'] },
+          { path: '/search.php', method: 'GET', params: ['test'] },
+          { path: '/comment.php', method: 'POST', params: ['name', 'comment'] },
+        ],
+        'hackazon': [
+          { path: '/search', method: 'GET', params: ['searchString'] },
+          { path: '/user/login', method: 'POST', params: ['username', 'password'] },
+          { path: '/product/view', method: 'GET', params: ['id'] },
+        ],
+      };
+
+      for (const [labKey, endpoints] of Object.entries(TRAINING_LAB_INJECTABLE_ENDPOINTS)) {
+        if (hostname.includes(labKey)) {
+          let addedCount = 0;
+          for (const ep of endpoints) {
+            const fullUrl = `${targetUrl}${ep.path}`;
+            // Avoid duplicates
+            if (!injectableUrls.some(u => u.url === fullUrl)) {
+              injectableUrls.push({ url: fullUrl, method: ep.method, params: ep.params });
+              addedCount++;
+            }
+          }
+          if (addedCount > 0) {
+            addLog(state, {
+              phase: "vuln_detection", type: "info",
+              title: `Training Lab Endpoints: ${labKey} (+${addedCount} injectable URLs)`,
+              detail: `Added ${addedCount} known vulnerable endpoints for ${labKey} to SQLMap/XSStrike target list`,
+            });
+          }
+          break;
+        }
+      }
     }
 
     // Build cookie string from confirmed credentials for authenticated scanning

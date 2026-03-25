@@ -1194,6 +1194,8 @@ export async function startScan(params: {
   targetPreset?: string;
   /** Whether this is a training lab scan — boosts all rules to maximum sensitivity */
   trainingLabMode?: boolean;
+  /** Seed URLs to pre-load into ZAP's site tree before spidering (for SPA targets) */
+  seedUrls?: string[];
 }): Promise<{ scanId: number; spiderScanId?: string; status: string; llmConfig?: LLMScanConfig; specImportResult?: any; playbookApplied?: string }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1387,6 +1389,21 @@ export async function startScan(params: {
       await zapRequest("/JSON/spider/action/setOptionParseComments/", { Boolean: String(sc.parseComments) }, cfg).catch(() => {});
       await zapRequest("/JSON/spider/action/setOptionParseSitemapXml/", { Boolean: String(sc.parseSitemapXml) }, cfg).catch(() => {});
       await zapRequest("/JSON/spider/action/setOptionPostForm/", { Boolean: String(sc.postForm) }, cfg).catch(() => {});
+    }
+
+    // ── Seed URL Injection: pre-load known endpoints into ZAP's site tree ──
+    // For SPA targets (Angular, React), the traditional spider finds very few URLs.
+    // Pre-seeding with known endpoints ensures ZAP has enough URLs for active scanning.
+    if (params.seedUrls && params.seedUrls.length > 0) {
+      console.log(`[ZAP Seed URLs] Pre-loading ${params.seedUrls.length} seed URLs into ZAP site tree`);
+      const seedResults = await Promise.allSettled(
+        params.seedUrls.map(seedUrl =>
+          zapRequest("/JSON/core/action/accessUrl/", { url: seedUrl, followRedirects: "true" }, cfg)
+            .catch(err => console.warn(`[ZAP Seed] Failed to access ${seedUrl}: ${err.message}`))
+        )
+      );
+      const seeded = seedResults.filter(r => r.status === 'fulfilled').length;
+      console.log(`[ZAP Seed URLs] Successfully seeded ${seeded}/${params.seedUrls.length} URLs`);
     }
 
     // Start spider crawl
@@ -1585,6 +1602,48 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             alertCounts: await getAlertCounts(scanId),
           };
         } catch (activeScanErr: any) {
+          // ── Retry: if active scan fails with 400, seed the site tree with accessUrl and retry ──
+          // ZAP returns 400 when the target URL is not in its site tree (common for SPAs
+          // where the spider finds very few URLs). Pre-seeding with accessUrl adds the URL
+          // to ZAP's site tree, allowing the active scan to start.
+          if (activeScanErr.message?.includes('400')) {
+            console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan 400 — retrying with accessUrl seed`);
+            try {
+              await zapRequest("/JSON/core/action/accessUrl/", { url: scan.targetUrl, followRedirects: "true" }, cfg);
+              // Also try common sub-paths to expand the site tree
+              const commonPaths = ['/', '/api', '/rest', '/login', '/search', '/#'];
+              await Promise.allSettled(
+                commonPaths.map(p =>
+                  zapRequest("/JSON/core/action/accessUrl/", {
+                    url: `${scan.targetUrl}${p}`,
+                    followRedirects: "true",
+                  }, cfg).catch(() => {})
+                )
+              );
+              // Wait a moment for ZAP to process the seeded URLs
+              await new Promise(r => setTimeout(r, 3000));
+              // Retry active scan
+              const retryResult = await zapRequest("/JSON/ascan/action/scan/", {
+                url: scan.targetUrl,
+                recurse: "true",
+              }, cfg);
+              console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry succeeded after accessUrl seed`);
+              await db.update(webAppScans).set({
+                status: "active_scanning",
+                zapActiveScanId: String(retryResult.scan),
+                spiderProgress: 100,
+              }).where(eq(webAppScans.id, scanId));
+              return {
+                status: "active_scanning",
+                spiderProgress: 100,
+                activeScanProgress: 0,
+                urlsFound,
+                alertCounts: await getAlertCounts(scanId),
+              };
+            } catch (retryErr: any) {
+              console.error(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry also failed: ${retryErr.message}`);
+            }
+          }
           console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan: ${activeScanErr.message}`);
           await db.update(webAppScans).set({
             status: "error",
@@ -1681,6 +1740,42 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
             alertCounts: await getAlertCounts(scanId),
           };
         } catch (activeScanErr: any) {
+          // ── Retry: if active scan fails with 400 after AJAX spider, seed site tree and retry ──
+          if (activeScanErr.message?.includes('400')) {
+            console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan 400 after AJAX spider — retrying with accessUrl seed`);
+            try {
+              await zapRequest("/JSON/core/action/accessUrl/", { url: scan.targetUrl, followRedirects: "true" }, cfg);
+              const commonPaths = ['/', '/api', '/rest', '/login', '/search', '/#'];
+              await Promise.allSettled(
+                commonPaths.map(p =>
+                  zapRequest("/JSON/core/action/accessUrl/", {
+                    url: `${scan.targetUrl}${p}`,
+                    followRedirects: "true",
+                  }, cfg).catch(() => {})
+                )
+              );
+              await new Promise(r => setTimeout(r, 3000));
+              const retryResult = await zapRequest("/JSON/ascan/action/scan/", {
+                url: scan.targetUrl,
+                recurse: "true",
+              }, cfg);
+              console.log(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry succeeded after AJAX spider + accessUrl seed`);
+              await db.update(webAppScans).set({
+                status: "active_scanning",
+                zapActiveScanId: String(retryResult.scan),
+                urlsDiscovered: urlsFound,
+              }).where(eq(webAppScans.id, scanId));
+              return {
+                status: "active_scanning",
+                spiderProgress: 100,
+                activeScanProgress: 0,
+                urlsFound,
+                alertCounts: await getAlertCounts(scanId),
+              };
+            } catch (retryErr: any) {
+              console.error(`[ZAP pollScanProgress] Scan #${scanId}: Active scan retry also failed after AJAX spider: ${retryErr.message}`);
+            }
+          }
           console.error(`[ZAP pollScanProgress] Scan #${scanId}: Failed to start active scan after AJAX spider: ${activeScanErr.message}`);
           await db.update(webAppScans).set({
             status: "error",
