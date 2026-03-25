@@ -563,7 +563,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
                   {entry.data.reasoning}
                 </div>
               )}
-              {entry.data?.tools && (
+              {entry.data?.tools && Array.isArray(entry.data.tools) && (
                 <div className="flex flex-wrap gap-1">
                   <span className="text-[10px] text-muted-foreground mr-1">Tools:</span>
                   {(entry.data.tools as string[]).map((tool, i) => (
@@ -1043,13 +1043,63 @@ export default function EngagementOps() {
     // Ensure stats object with all required fields
     const defaultStats = { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 };
     base.stats = { ...defaultStats, ...(base.stats || {}) };
+    // Helper: coerce any non-array to array (handles numeric-keyed objects from JSON round-trip)
+    const ensureArray = (v: any): any[] => {
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === 'object') try { return Object.values(v); } catch { return []; }
+      return [];
+    };
     // Ensure each asset has required sub-arrays (prevents .map/.filter crashes)
     for (const asset of base.assets) {
-      if (!Array.isArray((asset as any).vulns)) (asset as any).vulns = [];
-      if (!Array.isArray((asset as any).toolResults)) (asset as any).toolResults = [];
-      if (!Array.isArray((asset as any).ports)) (asset as any).ports = [];
-      if (!Array.isArray((asset as any).zapFindings)) (asset as any).zapFindings = [];
-      if (!Array.isArray((asset as any).exploitAttempts)) (asset as any).exploitAttempts = [];
+      const a = asset as any;
+      a.vulns = ensureArray(a.vulns);
+      a.pendingVulns = ensureArray(a.pendingVulns);
+      a.toolResults = ensureArray(a.toolResults);
+      a.ports = ensureArray(a.ports);
+      a.zapFindings = ensureArray(a.zapFindings);
+      a.exploitAttempts = ensureArray(a.exploitAttempts);
+      a.confirmedCredentials = ensureArray(a.confirmedCredentials);
+      // Normalize toolResult sub-fields
+      for (const tr of a.toolResults) {
+        tr.findings = ensureArray(tr.findings);
+      }
+      // Normalize passiveRecon sub-arrays
+      if (a.passiveRecon && typeof a.passiveRecon === 'object') {
+        for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'certificates', 'ipAddresses', 'historicalUrls', 'headers', 'cookies']) {
+          if (a.passiveRecon[key] && !Array.isArray(a.passiveRecon[key])) {
+            a.passiveRecon[key] = ensureArray(a.passiveRecon[key]);
+          }
+        }
+      }
+    }
+    // Normalize log entry data sub-arrays
+    for (const entry of base.log) {
+      if (entry.data && typeof entry.data === 'object') {
+        const d = entry.data as any;
+        if (d.tools && !Array.isArray(d.tools)) d.tools = ensureArray(d.tools);
+        if (d.findings && !Array.isArray(d.findings)) d.findings = ensureArray(d.findings);
+      }
+    }
+    // Normalize passiveReconResults sub-arrays
+    if (base.passiveReconResults && typeof base.passiveReconResults === 'object') {
+      for (const domain of Object.keys(base.passiveReconResults)) {
+        const pr = (base.passiveReconResults as any)[domain];
+        if (pr && typeof pr === 'object') {
+          for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'oemCredentials', 'certificates', 'ipAddresses']) {
+            if (pr[key] && !Array.isArray(pr[key])) pr[key] = ensureArray(pr[key]);
+          }
+        }
+      }
+    }
+    // Normalize roeScopeGuard sub-arrays
+    if (base.roeScopeGuard && typeof base.roeScopeGuard === 'object') {
+      const rsg = base.roeScopeGuard as any;
+      if (rsg.authorizedDomains && !Array.isArray(rsg.authorizedDomains)) rsg.authorizedDomains = ensureArray(rsg.authorizedDomains);
+      if (rsg.authorizedIps && !Array.isArray(rsg.authorizedIps)) rsg.authorizedIps = ensureArray(rsg.authorizedIps);
+    }
+    // Normalize skippedDomains (Set serialized as array or object)
+    if (base.skippedDomains && !Array.isArray(base.skippedDomains)) {
+      (base as any).skippedDomains = ensureArray(base.skippedDomains);
     }
     // Ensure boolean/string fields
     if (typeof base.isRunning !== 'boolean') base.isRunning = false;
@@ -3036,7 +3086,7 @@ export default function EngagementOps() {
                             })()}
 
                             {/* Exploitation Bridge Modules (preferred source) */}
-                            {match.exploitBridgeModules && match.exploitBridgeModules.length > 0 && (
+                            {Array.isArray(match.exploitBridgeModules) && match.exploitBridgeModules.length > 0 && (
                               <div className="mb-2">
                                 <h5 className="text-[10px] font-medium text-purple-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                   <Swords className="h-3 w-3" /> Exploitation Bridge Modules
@@ -3511,7 +3561,7 @@ export default function EngagementOps() {
                   )}
 
                   {/* Cloud Assets */}
-                  {cloudMisconfigsQ.data?.assetCloudInfo && cloudMisconfigsQ.data.assetCloudInfo.length > 0 && (
+                  {Array.isArray(cloudMisconfigsQ.data?.assetCloudInfo) && cloudMisconfigsQ.data.assetCloudInfo.length > 0 && (
                     <Card className="bg-card/50 border-cyan-500/20">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm flex items-center gap-2">
@@ -3950,7 +4000,7 @@ export default function EngagementOps() {
                   </div>
 
                   {/* Trend Chart */}
-                  {vulnTrendQ.data && vulnTrendQ.data.length > 0 ? (
+                  {Array.isArray(vulnTrendQ.data) && vulnTrendQ.data.length > 0 ? (
                     <Card className="bg-card/50 border-border/30">
                       <CardContent className="p-4">
                         <div className="h-[250px]">
@@ -3968,7 +4018,7 @@ export default function EngagementOps() {
                   )}
 
                   {/* Snapshot History */}
-                  {vulnTrendQ.data && vulnTrendQ.data.length > 0 && (
+                  {Array.isArray(vulnTrendQ.data) && vulnTrendQ.data.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-medium text-muted-foreground uppercase">Snapshot History</h4>
                       {vulnTrendQ.data.slice().reverse().map((snap: any, i: number) => (
@@ -4036,14 +4086,14 @@ export default function EngagementOps() {
                       <span className="ml-2 text-sm text-muted-foreground">Loading plan history...</span>
                     </div>
                   )}
-                  {planHistoryQ.data && planHistoryQ.data.length === 0 && (
+                  {Array.isArray(planHistoryQ.data) && planHistoryQ.data.length === 0 && (
                     <div className="text-center py-12">
                       <ClipboardList className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">No exploit plans have been reviewed yet.</p>
                       <p className="text-xs text-muted-foreground/60 mt-1">Plans will appear here after the LLM generates an exploit strategy and you approve or reject it.</p>
                     </div>
                   )}
-                  {planHistoryQ.data && planHistoryQ.data.length > 0 && (
+                  {Array.isArray(planHistoryQ.data) && planHistoryQ.data.length > 0 && (
                     <div className="space-y-3">
                       {planHistoryQ.data.map((plan: any) => {
                         const statusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -4280,7 +4330,7 @@ export default function EngagementOps() {
               <StatCard icon={<Coins className="h-4 w-4 text-amber-400" />} label="Total Tokens" value={formatTokenCount(Number(llmCostQ.data?.total_tokens) || 0)} />
               <StatCard icon={<Zap className="h-4 w-4 text-purple-400" />} label="LLM Calls" value={Number(llmCostQ.data?.total_calls) || 0} />
             </div>
-            {llmCostBreakdownQ.data && llmCostBreakdownQ.data.length > 0 && (
+            {Array.isArray(llmCostBreakdownQ.data) && llmCostBreakdownQ.data.length > 0 && (
               <div className="mt-3 space-y-1">
                 <p className="text-[10px] text-muted-foreground font-medium">Cost by Pipeline Stage</p>
                 {llmCostBreakdownQ.data.slice(0, 5).map((item: any) => (
@@ -4947,7 +4997,7 @@ export default function EngagementOps() {
                     />
                   </div>
                 )}
-                {exploitDetailQ.data.mitigations && exploitDetailQ.data.mitigations.length > 0 && (
+                {Array.isArray(exploitDetailQ.data.mitigations) && exploitDetailQ.data.mitigations.length > 0 && (
                   <div>
                     <h4 className="text-xs font-semibold text-muted-foreground mb-1">Mitigations</h4>
                     <ul className="text-xs text-muted-foreground space-y-1">
@@ -5208,7 +5258,7 @@ function AttackChainCard({ chain, index }: { chain: any; index: number }) {
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
             {/* MITRE Techniques */}
-            {chain.mitreTechniques && chain.mitreTechniques.length > 0 && (
+            {Array.isArray(chain.mitreTechniques) && chain.mitreTechniques.length > 0 && (
               <div>
                 <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">MITRE ATT&CK Techniques</h4>
                 <div className="flex flex-wrap gap-1">
@@ -5222,7 +5272,7 @@ function AttackChainCard({ chain, index }: { chain: any; index: number }) {
             )}
 
             {/* Attack Steps */}
-            {chain.steps && chain.steps.length > 0 && (
+            {Array.isArray(chain.steps) && chain.steps.length > 0 && (
               <div>
                 <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Attack Steps ({chain.steps.length})</h4>
                 <div className="space-y-1.5">
@@ -5248,7 +5298,7 @@ function AttackChainCard({ chain, index }: { chain: any; index: number }) {
             )}
 
             {/* Cloud Exploit Paths */}
-            {chain.cloudExploitPaths && chain.cloudExploitPaths.length > 0 && (
+            {Array.isArray(chain.cloudExploitPaths) && chain.cloudExploitPaths.length > 0 && (
               <div>
                 <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <Cloud className="h-3 w-3 text-orange-400" /> Cloud Exploit Paths
@@ -5270,7 +5320,7 @@ function AttackChainCard({ chain, index }: { chain: any; index: number }) {
             )}
 
             {/* Recommendations */}
-            {chain.recommendations && chain.recommendations.length > 0 && (
+            {Array.isArray(chain.recommendations) && chain.recommendations.length > 0 && (
               <div>
                 <h4 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Recommendations</h4>
                 <ul className="space-y-0.5">
@@ -5986,7 +6036,7 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
     });
 
     // Add agents from poller data
-    if (pollerData?.agents && pollerData.agents.length > 0) {
+    if (Array.isArray(pollerData?.agents) && pollerData.agents.length > 0) {
       const agentCount = pollerData.agents.length;
       const startY = Math.max(100, 300 - (agentCount * 60));
       pollerData.agents.forEach((agent: any, idx: number) => {
@@ -6018,7 +6068,7 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
     }
 
     // Add target assets from ops state
-    if (opsData?.assets && opsData.assets.length > 0) {
+    if (Array.isArray(opsData?.assets) && opsData.assets.length > 0) {
       const existingHosts = new Set(
         Array.from(nodeMap.values()).map(n => n.ip || n.label)
       );
@@ -6066,7 +6116,7 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
     }
 
     // If no agents, show targets with initial access from attacker
-    if (!pollerData?.agents?.length && opsData?.assets?.length > 0) {
+    if (!(Array.isArray(pollerData?.agents) && pollerData.agents.length) && Array.isArray(opsData?.assets) && opsData.assets.length > 0) {
       const targetNodes = Array.from(nodeMap.values()).filter(n => n.type === 'target');
       targetNodes.slice(0, 3).forEach(t => {
         edgeList.push({
@@ -6387,7 +6437,7 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
                   <span>{selectedNode.group}</span>
                 </div>
               )}
-              {selectedNode.executors && selectedNode.executors.length > 0 && (
+              {Array.isArray(selectedNode.executors) && selectedNode.executors.length > 0 && (
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Executors:</span>{' '}
                   <span>{selectedNode.executors.join(', ')}</span>
@@ -6645,7 +6695,7 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
       )}
 
       {/* Agents List */}
-      {pollerData?.agents && pollerData.agents.length > 0 && (
+      {Array.isArray(pollerData?.agents) && pollerData.agents.length > 0 && (
         <Card className="border-border/30">
           <CardHeader className="py-3 px-4">
             <div className="flex items-center gap-2">
@@ -6745,7 +6795,7 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
           )}
 
           {/* Poller event log (from server-side) */}
-          {pollerData?.recentEvents && pollerData.recentEvents.length > 0 && (
+          {Array.isArray(pollerData?.recentEvents) && pollerData.recentEvents.length > 0 && (
             <Collapsible>
               <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground mt-3 hover:text-foreground cursor-pointer">
                 <ChevronRight className="h-3 w-3" />
@@ -6768,7 +6818,7 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
       </Card>
 
       {/* Active Pollers Summary */}
-      {activePollers.data && activePollers.data.length > 0 && (
+      {Array.isArray(activePollers.data) && activePollers.data.length > 0 && (
         <Card className="border-border/30">
           <CardHeader className="py-3 px-4">
             <div className="flex items-center gap-2">
