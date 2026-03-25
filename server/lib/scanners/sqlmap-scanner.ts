@@ -20,7 +20,8 @@ import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { analyzeSqlmapFindingsDeterministic, useDeterministicAnalysis } from "../deterministic-scanner-analysis";
 import { getDb } from "../../db";
-import { scanResults } from "../../../drizzle/schema";
+import { scanResults, webAppScans, webAppFindings } from "../../../drizzle/schema";
+import { mapToMitre, findMsfModules } from "../zap-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -399,20 +400,30 @@ export async function startSqlmapScan(config: SqlmapConfig): Promise<SqlmapScanR
   const parsed = parseSqlmapOutput(result.stdout, config.targetUrl);
   const durationSeconds = (Date.now() - startTime) / 1000;
 
-  // Persist findings to scan_results table
+  // Persist findings to scan_results table (fixed column names to match schema)
   const db = await getDb();
   let scanId: number | null = null;
   if (db && parsed.findings.length > 0) {
     try {
       const [inserted] = await db.insert(scanResults).values({
         engagementId: config.engagementId,
-        scanType: "sqlmap",
-        target: config.targetUrl,
+        tool: "sqlmap",
+        target: config.targetUrl.substring(0, 255),
+        command: `sqlmap --url "${config.targetUrl}" --batch --risk ${config.risk || 2} --level ${config.level || 3}`,
         findings: JSON.stringify(parsed.findings),
+        findingCount: parsed.findings.length,
         rawOutput: result.stdout.substring(0, 50000),
-        status: "completed",
-        startedAt: new Date(startTime),
-        completedAt: new Date(),
+        exitCode: result.exitCode ?? 0,
+        durationMs: Math.round(durationSeconds * 1000),
+        timedOut: 0,
+        severitySummary: JSON.stringify({
+          critical: parsed.findings.filter(f => f.severity === 'critical').length,
+          high: parsed.findings.filter(f => f.severity === 'high').length,
+          medium: parsed.findings.filter(f => f.severity === 'medium').length,
+          low: parsed.findings.filter(f => f.severity === 'low').length,
+          info: parsed.findings.filter(f => f.severity === 'info').length,
+        }),
+        phase: 'vuln_detection',
       }).$returningId();
       scanId = inserted?.id ?? null;
     } catch (e: any) {
@@ -572,4 +583,273 @@ Respond in JSON format.`,
   } catch {
     return { riskSummary: "LLM analysis failed to parse.", exploitChains: [], recommendations: [] };
   }
+}
+
+
+// ─── Ingest SQLMap Findings into web_app_findings (same table as ZAP) ──────
+
+/**
+ * Creates a web_app_scans record for SQLMap and ingests findings into web_app_findings
+ * with MITRE ATT&CK mapping, Metasploit module correlation, and proper severity.
+ * This allows SQLMap findings to appear alongside ZAP findings in the unified findings view.
+ */
+export async function ingestSqlmapToWebAppFindings(
+  results: SqlmapScanResult[],
+  engagementId: number,
+  targetHostname: string,
+): Promise<{ webAppScanId: number | null; findingsIngested: number }> {
+  const db = await getDb();
+  if (!db) return { webAppScanId: null, findingsIngested: 0 };
+
+  const allFindings = results.flatMap(r => r.findings);
+  if (allFindings.length === 0) return { webAppScanId: null, findingsIngested: 0 };
+
+  try {
+    // Create a web_app_scans record to link SQLMap findings
+    const targetUrl = results[0]?.target || `https://${targetHostname}`;
+    const totalDuration = results.reduce((sum, r) => sum + r.stats.durationSeconds, 0);
+    const sqliCount = allFindings.filter(f => f.type === "sqli").length;
+
+    const [scanRecord] = await db.insert(webAppScans).values({
+      targetUrl: targetUrl.substring(0, 2048),
+      scanName: `SQLMap-EngOps-${engagementId}-${targetHostname}`,
+      scanType: "sqlmap_blind",
+      status: "completed",
+      startedAt: new Date(Date.now() - totalDuration * 1000),
+      completedAt: new Date(),
+      totalAlerts: allFindings.length,
+      alertCounts: JSON.stringify({
+        high: allFindings.filter(f => f.severity === "critical" || f.severity === "high").length,
+        medium: allFindings.filter(f => f.severity === "medium").length,
+        low: allFindings.filter(f => f.severity === "low").length,
+        info: allFindings.filter(f => f.severity === "info").length,
+      }),
+      scanMode: "active",
+    }).$returningId();
+
+    const webAppScanId = scanRecord?.id;
+    if (!webAppScanId) return { webAppScanId: null, findingsIngested: 0 };
+
+    // Ingest each finding into web_app_findings with MITRE ATT&CK mapping
+    let ingested = 0;
+    for (const finding of allFindings) {
+      const mitre = mapToMitre(finding.cweId, finding.title);
+      const msfModules = findMsfModules(finding.cweId);
+
+      // Map SQLMap severity to ZAP-compatible severity
+      const severityMap: Record<string, string> = {
+        critical: "high",  // web_app_findings uses high as max
+        high: "high",
+        medium: "medium",
+        low: "low",
+        info: "info",
+      };
+
+      // Map SQLMap finding type to confidence
+      const confidenceMap: Record<string, number> = {
+        sqli: 0.95,           // SQLMap-confirmed injection = very high confidence
+        dbms_fingerprint: 0.9,
+        data_extracted: 0.95,
+        os_access: 0.99,
+        waf_detected: 0.8,
+      };
+
+      // Build solution based on finding type
+      const solutionMap: Record<string, string> = {
+        sqli: "Use parameterized queries (prepared statements) for all database interactions. Implement input validation with allowlists. Apply the principle of least privilege to database accounts. Consider using an ORM that automatically parameterizes queries.",
+        dbms_fingerprint: "Suppress detailed error messages in production. Configure custom error pages. Remove version information from HTTP headers.",
+        data_extracted: "Immediately rotate all exposed credentials. Review and restrict database permissions. Implement data loss prevention controls.",
+        os_access: "CRITICAL: OS-level access achieved via SQL injection. Immediately isolate the affected system. Patch the injection vulnerability. Review all database user privileges and remove FILE/EXECUTE permissions.",
+        waf_detected: "WAF detected but bypassed. Review WAF rules and update signatures. Consider implementing application-level input validation in addition to WAF.",
+      };
+
+      try {
+        await db.insert(webAppFindings).values({
+          scanId: webAppScanId,
+          alertName: `[SQLMap] ${finding.title}`.substring(0, 512),
+          severity: severityMap[finding.severity] || "medium",
+          confidence: confidenceMap[finding.type] || 0.7,
+          description: finding.description.substring(0, 4000),
+          solution: (solutionMap[finding.type] || "Review and remediate the identified vulnerability.").substring(0, 4000),
+          referenceLinks: finding.references.join("\n").substring(0, 2000) || null,
+          cweId: finding.cweId,
+          wascId: finding.type === "sqli" ? 19 : null,  // WASC-19 = SQL Injection
+          url: finding.url?.substring(0, 2048) || null,
+          method: null,  // SQLMap doesn't always report method
+          param: finding.parameter?.substring(0, 512) || null,
+          attack: finding.payload?.substring(0, 2000) || null,
+          evidence: finding.dbms
+            ? `DBMS: ${finding.dbms}. Technique: ${finding.technique}`.substring(0, 2000)
+            : `Technique: ${finding.technique}`.substring(0, 2000),
+          zapPluginId: `sqlmap-${finding.type}`,  // Pseudo plugin ID for SQLMap
+          zapAlertRef: finding.id,
+          // MITRE ATT&CK mapping
+          mitreAttackId: mitre?.techniqueId || null,
+          mitreAttackName: mitre?.techniqueName || null,
+          mitreTactic: mitre?.tactic || null,
+          // Exploit correlation
+          exploitAvailable: msfModules.length > 0 ? 1 : 0,
+          exploitModulePath: msfModules.length > 0 ? msfModules[0] : null,
+        });
+        ingested++;
+      } catch (insertErr: any) {
+        console.error(`[SQLMap] Failed to ingest finding to web_app_findings: ${insertErr.message}`);
+      }
+    }
+
+    console.log(`[SQLMap] Ingested ${ingested}/${allFindings.length} findings into web_app_findings (scan #${webAppScanId})`);
+    return { webAppScanId, findingsIngested: ingested };
+  } catch (err: any) {
+    console.error(`[SQLMap] Failed to create web_app_scans record: ${err.message}`);
+    return { webAppScanId: null, findingsIngested: 0 };
+  }
+}
+
+// ─── ZAP → SQLMap Handoff: Extract confirmed injection points ──────────────
+
+/**
+ * Extracts confirmed SQL injection URLs from ZAP's web_app_findings for a given scan.
+ * These are passed to SQLMap for deeper blind SQLi exploitation.
+ */
+export async function extractZapSqliForHandoff(
+  zapScanId: number,
+): Promise<Array<{ url: string; method: string; params: string[] }>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const { eq, like, or } = await import("drizzle-orm");
+    const sqliFindings = await db.select({
+      url: webAppFindings.url,
+      method: webAppFindings.method,
+      param: webAppFindings.param,
+      alertName: webAppFindings.alertName,
+    }).from(webAppFindings)
+      .where(
+        // Match SQL injection findings from ZAP
+        eq(webAppFindings.scanId, zapScanId),
+      );
+
+    // Filter to only SQLi-related findings
+    const sqliRelated = sqliFindings.filter(f =>
+      f.alertName?.toLowerCase().includes('sql injection') ||
+      f.alertName?.toLowerCase().includes('sqli') ||
+      f.alertName?.toLowerCase().includes('sql query')
+    );
+
+    // Deduplicate by URL and collect params
+    const urlMap = new Map<string, { method: string; params: Set<string> }>();
+    for (const finding of sqliRelated) {
+      if (!finding.url) continue;
+      const key = finding.url;
+      if (!urlMap.has(key)) {
+        urlMap.set(key, { method: finding.method || "GET", params: new Set() });
+      }
+      if (finding.param) {
+        urlMap.get(key)!.params.add(finding.param);
+      }
+    }
+
+    const handoffUrls = Array.from(urlMap.entries()).map(([url, data]) => ({
+      url,
+      method: data.method,
+      params: Array.from(data.params),
+    }));
+
+    console.log(`[SQLMap Handoff] Extracted ${handoffUrls.length} SQLi URLs from ZAP scan #${zapScanId} for blind exploitation`);
+    return handoffUrls;
+  } catch (err: any) {
+    console.error(`[SQLMap Handoff] Failed to extract ZAP SQLi findings: ${err.message}`);
+    return [];
+  }
+}
+
+// ─── Blind SQLi Focused Scan ───────────────────────────────────────────────
+
+/**
+ * Runs a focused blind SQLi scan using SQLMap with time-based and boolean-blind techniques.
+ * This complements ZAP's fast playbook which skips time-based rules for speed.
+ *
+ * Strategy:
+ * 1. If ZAP found error-based SQLi, SQLMap confirms and tests blind variants on those same URLs
+ * 2. If no ZAP SQLi findings, SQLMap tests known injectable endpoints with blind techniques
+ * 3. Uses BT techniques (Boolean-blind + Time-blind) as primary, with E (Error) as fallback
+ */
+export async function runBlindSqliPass(config: {
+  engagementId: number;
+  targetHostname: string;
+  targetUrl: string;
+  zapScanId?: number;
+  knownInjectableUrls: Array<{ url: string; method: string; params: string[] }>;
+  cookie?: string;
+  isTrainingLab: boolean;
+}): Promise<{
+  results: SqlmapScanResult[];
+  webAppScanId: number | null;
+  findingsIngested: number;
+  blindSqliFound: number;
+}> {
+  const { engagementId, targetHostname, targetUrl, zapScanId, knownInjectableUrls, cookie, isTrainingLab } = config;
+
+  console.log(`[SQLMap Blind] Starting blind SQLi pass for ${targetHostname} (engagement #${engagementId})`);
+
+  // Step 1: Get ZAP-confirmed SQLi URLs for deeper exploitation
+  let handoffUrls: Array<{ url: string; method: string; params: string[] }> = [];
+  if (zapScanId) {
+    handoffUrls = await extractZapSqliForHandoff(zapScanId);
+    if (handoffUrls.length > 0) {
+      console.log(`[SQLMap Blind] ZAP handoff: ${handoffUrls.length} confirmed SQLi URLs to test with blind techniques`);
+    }
+  }
+
+  // Step 2: Merge ZAP handoff URLs with known injectable endpoints (dedup)
+  const allUrls = [...handoffUrls];
+  const seenUrls = new Set(handoffUrls.map(u => u.url));
+  for (const url of knownInjectableUrls) {
+    if (!seenUrls.has(url.url)) {
+      allUrls.push(url);
+      seenUrls.add(url.url);
+    }
+  }
+
+  if (allUrls.length === 0) {
+    console.log(`[SQLMap Blind] No URLs to test — skipping blind SQLi pass`);
+    return { results: [], webAppScanId: null, findingsIngested: 0, blindSqliFound: 0 };
+  }
+
+  // Step 3: Run SQLMap with blind-focused techniques
+  // For training labs: use all techniques but prioritize blind (BT first, then EUSQ)
+  // For production: use only BT (Boolean + Time) to minimize noise
+  const techniques = isTrainingLab ? "BTEUS" : "BT";
+  const risk = isTrainingLab ? 3 : 2;
+  const level = isTrainingLab ? 5 : 3;
+  const timeoutPerUrl = isTrainingLab ? 180 : 90;
+
+  console.log(`[SQLMap Blind] Testing ${allUrls.length} URLs with techniques=${techniques}, risk=${risk}, level=${level}`);
+
+  const results = await batchSqlmapScan(allUrls, {
+    engagementId,
+    risk: risk as 1 | 2 | 3,
+    level: level as 1 | 2 | 3 | 4 | 5,
+    techniques,
+    cookie: cookie || undefined,
+    timeoutSeconds: timeoutPerUrl,
+    enumerateDbs: true,
+    enumerateTables: isTrainingLab,
+    threads: 3,  // Moderate threading for blind techniques (time-based needs sequential)
+  });
+
+  const allFindings = results.flatMap(r => r.findings);
+  const blindSqliFound = allFindings.filter(f => f.type === "sqli").length;
+
+  console.log(`[SQLMap Blind] Completed: ${allUrls.length} URLs tested, ${blindSqliFound} blind SQLi found, ${allFindings.length} total findings`);
+
+  // Step 4: Ingest findings into web_app_findings for unified view
+  const { webAppScanId, findingsIngested } = await ingestSqlmapToWebAppFindings(
+    results,
+    engagementId,
+    targetHostname,
+  );
+
+  return { results, webAppScanId, findingsIngested, blindSqliFound };
 }

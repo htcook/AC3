@@ -5237,7 +5237,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       });
 
       if (approved) {
-        const { batchSqlmapScan, analyzeSqlmapFindings } = await import("./scanners/sqlmap-scanner");
+        const { batchSqlmapScan, analyzeSqlmapFindings, runBlindSqliPass, ingestSqlmapToWebAppFindings } = await import("./scanners/sqlmap-scanner");
         // Training labs: increase risk/level for deeper SQLi detection (schema dump, credential extraction)
         const isTrainingLabSqlmap = (state as any).trainingLabMode === true;
         const sqlmapRisk = isTrainingLabSqlmap ? 3 : 2;
@@ -5272,6 +5272,14 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           } catch { /* non-fatal */ }
         }
 
+        // Ingest SQLMap findings into web_app_findings for unified view with ZAP
+        try {
+          const { findingsIngested } = await ingestSqlmapToWebAppFindings(sqlmapResults, state.engagementId, webApp.hostname);
+          if (findingsIngested > 0) {
+            addLog(state, { phase: "vuln_detection", type: "info", title: `SQLMap → web_app_findings: ${findingsIngested} ingested`, detail: `${findingsIngested} SQLMap findings written to unified findings table with MITRE ATT&CK mapping` });
+          }
+        } catch { /* non-fatal */ }
+
         const wafResults = sqlmapResults.filter(r => r.wafDetected);
         addLog(state, {
           phase: "vuln_detection", type: "scan_result",
@@ -5282,7 +5290,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
         webApp.toolResults.push({
           tool: 'sqlmap',
-          command: `sqlmap --batch --smart --risk 2 --level 3 ${targetUrl}`,
+          command: `sqlmap --batch --smart --risk ${sqlmapRisk} --level ${sqlmapLevel} ${targetUrl}`,
           exitCode: 0,
           durationMs: sqlmapResults.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
           timedOut: false,
@@ -5292,6 +5300,73 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           executedAt: Date.now(),
           phase: 'vuln_detection',
         });
+
+        // ── Blind SQLi Pass: Complement ZAP's fast playbook (which skips time-based rules) ──
+        // Run a focused blind SQLi pass with Boolean-blind + Time-blind techniques
+        // This catches vulnerabilities that ZAP's error-based-only rules miss
+        if (isTrainingLabSqlmap) {
+          try {
+            // Find the ZAP scan ID for this engagement (for handoff)
+            let zapScanIdForHandoff: number | undefined;
+            try {
+              const { getDb: getDbForHandoff } = await import("../db");
+              const dbForHandoff = await getDbForHandoff();
+              if (dbForHandoff) {
+                const { webAppScans: wasTable } = await import("../../drizzle/schema");
+                const { desc: descOrder, like: likeOp } = await import("drizzle-orm");
+                const recentScans = await dbForHandoff.select({ id: wasTable.id }).from(wasTable)
+                  .where(likeOp(wasTable.scanName, `%EngOps-${state.engagementId}%`))
+                  .orderBy(descOrder(wasTable.id))
+                  .limit(1);
+                zapScanIdForHandoff = recentScans[0]?.id;
+              }
+            } catch { /* non-fatal */ }
+
+            addLog(state, {
+              phase: "vuln_detection", type: "info",
+              title: `🔬 Blind SQLi Pass: ${webApp.hostname}`,
+              detail: `Running focused blind SQLi scan (Boolean-blind + Time-blind) to complement ZAP's fast playbook which skips time-based rules.${zapScanIdForHandoff ? ` ZAP scan #${zapScanIdForHandoff} findings used for handoff.` : ''}`,
+            });
+
+            const blindResult = await runBlindSqliPass({
+              engagementId: state.engagementId,
+              targetHostname: webApp.hostname,
+              targetUrl,
+              zapScanId: zapScanIdForHandoff,
+              knownInjectableUrls: injectableUrls,
+              cookie: cookieStr || undefined,
+              isTrainingLab: true,
+            });
+
+            if (blindResult.blindSqliFound > 0) {
+              webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap Blind] ${blindResult.blindSqliFound} blind SQL injection vulnerabilities`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap blind injection testing (Boolean-blind + Time-blind)' });
+              state.stats.vulnsFound += blindResult.blindSqliFound;
+            }
+
+            addLog(state, {
+              phase: "vuln_detection", type: "scan_result",
+              title: `Blind SQLi Pass Complete: ${webApp.hostname}`,
+              detail: `${blindResult.blindSqliFound} blind SQLi found, ${blindResult.findingsIngested} findings ingested to unified view`,
+              data: { blindSqliFound: blindResult.blindSqliFound, findingsIngested: blindResult.findingsIngested },
+            });
+
+            webApp.toolResults.push({
+              tool: 'sqlmap-blind',
+              command: `sqlmap --batch --technique BT --risk 3 --level 5 ${targetUrl}`,
+              exitCode: 0,
+              durationMs: blindResult.results.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
+              timedOut: false,
+              findingCount: blindResult.blindSqliFound,
+              findings: blindResult.results.flatMap(r => r.findings).filter(f => f.type === 'sqli').map(f => ({ severity: f.severity, title: f.title })),
+              outputPreview: `Blind SQLi pass: ${blindResult.blindSqliFound} blind injections found`,
+              executedAt: Date.now(),
+              phase: 'vuln_detection',
+            });
+          } catch (blindErr: any) {
+            console.error(`[SQLMap Blind] Engagement #${state.engagementId} error: ${blindErr.message}`);
+            addLog(state, { phase: "vuln_detection", type: "warning", title: `Blind SQLi Pass Error: ${webApp.hostname}`, detail: blindErr.message });
+          }
+        }
       }
     } catch (sqlmapErr: any) {
       console.error(`[SQLMap] Engagement #${state.engagementId} error on ${webApp.hostname}: ${sqlmapErr.message}\n${sqlmapErr.stack?.substring(0, 500)}`);
