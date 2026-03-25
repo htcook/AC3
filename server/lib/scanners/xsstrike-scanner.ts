@@ -23,7 +23,8 @@ import { executeTool, type ToolExecResult } from "../scan-server-executor";
 import { invokeLLM } from "../../_core/llm";
 import { throttledLLMCall } from "../llm-throttle";
 import { getDb } from "../../db";
-import { scanResults } from "../../../drizzle/schema";
+import { scanResults, webAppScans, webAppFindings } from "../../../drizzle/schema";
+import { mapToMitre, findMsfModules } from "../zap-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -399,20 +400,30 @@ export async function startXssScan(config: XssConfig): Promise<XssScanResult> {
   const xssFindings = parsed.findings.filter(f => f.type !== "waf_detected");
   const domXssFindings = xssFindings.filter(f => f.type === "dom_xss");
 
-  // Persist findings to scan_results table
+  // Persist findings to scan_results table (fixed column names to match schema)
   const db = await getDb();
   let scanId: number | null = null;
   if (db && parsed.findings.length > 0) {
     try {
       const [inserted] = await db.insert(scanResults).values({
         engagementId: config.engagementId,
-        scanType: activeTool,
-        target: config.targetUrl,
+        tool: activeTool,
+        target: config.targetUrl.substring(0, 255),
+        command: `${activeTool} -u "${config.targetUrl}"${config.parameter ? ` -p ${config.parameter}` : ''}${config.wafBypass ? ' --waf-bypass' : ''}`,
         findings: JSON.stringify(parsed.findings),
+        findingCount: parsed.findings.length,
         rawOutput: result.stdout.substring(0, 50000),
-        status: result.timedOut ? "timeout" : "completed",
-        startedAt: new Date(startTime),
-        completedAt: new Date(),
+        exitCode: result.exitCode ?? 0,
+        durationMs: Math.round(durationSeconds * 1000),
+        timedOut: result.timedOut ? 1 : 0,
+        severitySummary: JSON.stringify({
+          critical: parsed.findings.filter(f => f.severity === 'critical').length,
+          high: parsed.findings.filter(f => f.severity === 'high').length,
+          medium: parsed.findings.filter(f => f.severity === 'medium').length,
+          low: parsed.findings.filter(f => f.severity === 'low').length,
+          info: parsed.findings.filter(f => f.severity === 'info').length,
+        }),
+        phase: 'vuln_detection',
       }).$returningId();
       scanId = inserted?.id ?? null;
     } catch (e: any) {
@@ -562,5 +573,142 @@ Respond in JSON format.`,
     };
   } catch {
     return { riskSummary: "LLM analysis failed to parse.", exploitScenarios: [], recommendations: [] };
+  }
+}
+
+
+// ─── Ingest XSS Findings into web_app_findings (same table as ZAP) ─────────
+
+/**
+ * CWE-to-XSS-type mapping for more precise CWE assignment.
+ * CWE-79 is the generic XSS CWE, but subtypes exist.
+ */
+const XSS_TYPE_CWE: Record<string, number> = {
+  reflected_xss: 79,   // CWE-79: Improper Neutralization of Input During Web Page Generation
+  dom_xss: 79,         // CWE-79 (subtype: DOM-based, sometimes CWE-20)
+  stored_xss: 79,      // CWE-79 (subtype: Persistent/Stored)
+  blind_xss: 79,       // CWE-79 (subtype: Blind)
+  waf_bypass: 693,     // CWE-693: Protection Mechanism Failure
+  waf_detected: 693,   // CWE-693: Protection Mechanism Failure
+};
+
+/**
+ * Creates a web_app_scans record for XSStrike/Dalfox and ingests findings into web_app_findings
+ * with MITRE ATT&CK mapping, Metasploit module correlation, and proper severity.
+ * This allows XSS findings to appear alongside ZAP and SQLMap findings in the unified findings view.
+ */
+export async function ingestXssToWebAppFindings(
+  results: XssScanResult[],
+  engagementId: number,
+  targetHostname: string,
+): Promise<{ webAppScanId: number | null; findingsIngested: number }> {
+  const db = await getDb();
+  if (!db) return { webAppScanId: null, findingsIngested: 0 };
+
+  const allFindings = results.flatMap(r => r.findings);
+  if (allFindings.length === 0) return { webAppScanId: null, findingsIngested: 0 };
+
+  try {
+    // Create a web_app_scans record to link XSS findings
+    const targetUrl = results[0]?.target || `https://${targetHostname}`;
+    const totalDuration = results.reduce((sum, r) => sum + r.stats.durationSeconds, 0);
+    const toolUsed = results.find(r => r.tool !== "none")?.tool || "xsstrike";
+    const xssFindings = allFindings.filter(f => f.type !== "waf_detected");
+
+    const [scanRecord] = await db.insert(webAppScans).values({
+      targetUrl: targetUrl.substring(0, 2048),
+      scanName: `XSS-EngOps-${engagementId}-${targetHostname}`,
+      scanType: `xss_${toolUsed}`,
+      status: "completed",
+      startedAt: new Date(Date.now() - totalDuration * 1000),
+      completedAt: new Date(),
+      totalAlerts: allFindings.length,
+      alertCounts: JSON.stringify({
+        high: allFindings.filter(f => f.severity === "critical" || f.severity === "high").length,
+        medium: allFindings.filter(f => f.severity === "medium").length,
+        low: allFindings.filter(f => f.severity === "low").length,
+        info: allFindings.filter(f => f.severity === "info").length,
+      }),
+      scanMode: "active",
+    }).$returningId();
+
+    const webAppScanId = scanRecord?.id;
+    if (!webAppScanId) return { webAppScanId: null, findingsIngested: 0 };
+
+    // Ingest each finding into web_app_findings with MITRE ATT&CK mapping
+    let ingested = 0;
+    for (const finding of allFindings) {
+      const cweId = XSS_TYPE_CWE[finding.type] || finding.cweId || 79;
+      const mitre = mapToMitre(cweId, finding.title);
+      const msfModules = findMsfModules(cweId);
+
+      // Map XSS severity — DOM and stored XSS are high, reflected is medium
+      const severityMap: Record<string, string> = {
+        critical: "high",
+        high: "high",
+        medium: "medium",
+        low: "low",
+        info: "info",
+      };
+
+      // Map XSS finding type to confidence
+      const confidenceMap: Record<string, number> = {
+        reflected_xss: 0.85,     // Confirmed reflected XSS
+        dom_xss: 0.90,           // DOM-based XSS (harder to detect, higher confidence when found)
+        stored_xss: 0.95,        // Stored XSS (most dangerous, highest confidence)
+        blind_xss: 0.80,         // Blind XSS (callback-based, slightly lower confidence)
+        waf_bypass: 0.75,        // WAF bypass (informational)
+        waf_detected: 0.70,      // WAF detection (informational)
+      };
+
+      // Build solution based on finding type
+      const solutionMap: Record<string, string> = {
+        reflected_xss: "Implement context-aware output encoding for all user-supplied data. Use Content Security Policy (CSP) headers to restrict inline script execution. Apply input validation with allowlists. Use HttpOnly and Secure flags on session cookies to prevent cookie theft via XSS.",
+        dom_xss: "Avoid using dangerous DOM APIs like innerHTML, document.write(), and eval(). Use textContent or createElement() instead. Implement DOMPurify for sanitizing HTML content. Add CSP with strict-dynamic to prevent DOM-based script injection. Review all client-side JavaScript for unsafe sink usage.",
+        stored_xss: "CRITICAL: Stored XSS persists in the application and affects all users who view the affected content. Immediately sanitize all stored user input. Implement server-side output encoding. Use CSP headers. Review all database-stored content that is rendered in HTML. Consider implementing a content sanitization library like DOMPurify on both client and server.",
+        blind_xss: "Blind XSS payloads execute in admin panels or internal tools when viewing user-submitted data. Sanitize all user input before storage and rendering. Implement CSP headers on all internal admin pages. Review all admin/support interfaces that display user content.",
+        waf_bypass: "WAF bypass indicates the current WAF rules are insufficient. Update WAF signatures and rules. Implement application-level input validation in addition to WAF. Consider using a more robust WAF solution. Fix the underlying XSS vulnerability rather than relying solely on WAF.",
+        waf_detected: "A WAF was detected protecting the application. While WAFs provide defense-in-depth, they should not be the sole protection against XSS. Ensure application-level output encoding and input validation are also implemented.",
+      };
+
+      try {
+        await db.insert(webAppFindings).values({
+          scanId: webAppScanId,
+          alertName: `[${toolUsed.toUpperCase()}] ${finding.title}`.substring(0, 512),
+          severity: severityMap[finding.severity] || "medium",
+          confidence: confidenceMap[finding.type] || 0.7,
+          description: `${finding.description}${finding.context ? ` Context: ${finding.context}.` : ''}`.substring(0, 4000),
+          solution: (solutionMap[finding.type] || "Review and remediate the identified XSS vulnerability. Implement output encoding and Content Security Policy.").substring(0, 4000),
+          referenceLinks: finding.references.join("\n").substring(0, 2000) || null,
+          cweId,
+          wascId: finding.type !== "waf_detected" && finding.type !== "waf_bypass" ? 8 : null,  // WASC-8 = Cross-Site Scripting
+          url: finding.url?.substring(0, 2048) || null,
+          method: null,
+          param: finding.parameter?.substring(0, 512) || null,
+          attack: finding.payload?.substring(0, 2000) || null,
+          evidence: finding.context
+            ? `XSS Type: ${finding.type.replace(/_/g, ' ')}. Context: ${finding.context}.${finding.wafName ? ` WAF: ${finding.wafName}` : ''}`.substring(0, 2000)
+            : `XSS Type: ${finding.type.replace(/_/g, ' ')}`.substring(0, 2000),
+          zapPluginId: `${toolUsed}-${finding.type}`,  // Pseudo plugin ID for XSStrike/Dalfox
+          zapAlertRef: finding.id,
+          // MITRE ATT&CK mapping
+          mitreAttackId: mitre?.techniqueId || null,
+          mitreAttackName: mitre?.techniqueName || null,
+          mitreTactic: mitre?.tactic || null,
+          // Exploit correlation
+          exploitAvailable: msfModules.length > 0 ? 1 : 0,
+          exploitModulePath: msfModules.length > 0 ? msfModules[0] : null,
+        });
+        ingested++;
+      } catch (insertErr: any) {
+        console.error(`[XSS] Failed to ingest finding to web_app_findings: ${insertErr.message}`);
+      }
+    }
+
+    console.log(`[XSS] Ingested ${ingested}/${allFindings.length} findings into web_app_findings (scan #${webAppScanId})`);
+    return { webAppScanId, findingsIngested: ingested };
+  } catch (err: any) {
+    console.error(`[XSS] Failed to create web_app_scans record: ${err.message}`);
+    return { webAppScanId: null, findingsIngested: 0 };
   }
 }

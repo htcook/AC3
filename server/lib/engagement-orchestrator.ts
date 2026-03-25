@@ -5385,7 +5385,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       });
 
       if (approved) {
-        const { batchXssScan, analyzeXssFindings } = await import("./scanners/xsstrike-scanner");
+        const { batchXssScan, analyzeXssFindings, ingestXssToWebAppFindings } = await import("./scanners/xsstrike-scanner");
         addLog(state, { phase: "vuln_detection", type: "info", title: `🔍 XSS Scan: ${webApp.hostname}`, detail: `Testing ${injectableUrls.length} URLs for XSS vulnerabilities` });
 
         const xssResults = await batchXssScan(injectableUrls, {
@@ -5411,6 +5411,14 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             addLog(state, { phase: "vuln_detection", type: "scan_result", title: `XSS Analysis: ${webApp.hostname}`, detail: analysis.riskSummary, data: { exploitScenarios: analysis.exploitScenarios.length, recommendations: analysis.recommendations.length } });
           } catch { /* non-fatal */ }
         }
+
+        // Ingest XSS findings into web_app_findings for unified view with ZAP and SQLMap
+        try {
+          const { findingsIngested } = await ingestXssToWebAppFindings(xssResults, state.engagementId, webApp.hostname);
+          if (findingsIngested > 0) {
+            addLog(state, { phase: "vuln_detection", type: "info", title: `XSS → web_app_findings: ${findingsIngested} ingested`, detail: `${findingsIngested} XSS findings written to unified findings table with MITRE ATT&CK mapping` });
+          }
+        } catch { /* non-fatal */ }
 
         const toolUsed = xssResults.find(r => r.tool !== "none")?.tool || "none";
         addLog(state, {
