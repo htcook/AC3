@@ -129,7 +129,10 @@ export default function Engagements() {
     { engagementIds },
     {
       enabled: engagementIds.length > 0,
-      refetchInterval: Object.values(liveOpsStatus || {}).some((s: any) => s?.isRunning) ? 5000 : 30000,
+      refetchInterval: (query: any) => {
+        const data = query?.state?.data;
+        return Object.values(data || {}).some((s: any) => s?.isRunning) ? 5000 : 30000;
+      },
     }
   );
 
@@ -173,7 +176,7 @@ export default function Engagements() {
     onSuccess: (data) => {
       toast.success(`Training lab launched: ${data.labProfile}`);
       setShowTrainingLabDialog(false);
-      engagementsQuery.refetch();
+      refetch();
       // Navigate to the engagement ops page
       navigate(`/engagements/${data.engagementId}/ops`);
     },

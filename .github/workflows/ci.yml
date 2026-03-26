@@ -1,0 +1,113 @@
+name: CI — Type Check, Test, Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. TypeScript type checking (catches missing imports, TDZ errors, etc.)
+  # ─────────────────────────────────────────────
+  typecheck:
+    name: TypeScript Check
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tsc --noEmit
+        run: pnpm check
+
+  # ─────────────────────────────────────────────
+  # 2. Unit tests with Vitest
+  # ─────────────────────────────────────────────
+  test:
+    name: Vitest Tests
+    runs-on: self-hosted
+    timeout-minutes: 20
+    needs: typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+        env:
+          # Provide minimal env vars so tests can import server modules
+          DATABASE_URL: "mysql://test:test@localhost:3306/test"
+          JWT_SECRET: "test-secret-for-ci"
+
+  # ─────────────────────────────────────────────
+  # 3. Vite client build verification
+  # ─────────────────────────────────────────────
+  build:
+    name: Vite Build
+    runs-on: self-hosted
+    timeout-minutes: 30
+    needs: typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build client
+        run: |
+          cd client
+          npx vite build --outDir ../dist/public
+
+      - name: Verify build output
+        run: |
+          echo "Build artifacts:"
+          ls -la dist/public/assets/ | head -20
+          echo ""
+          echo "Bundle sizes:"
+          du -sh dist/public/assets/*.js | sort -rh | head -10
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-build-${{ github.sha }}
+          path: dist/public/
+          retention-days: 7
