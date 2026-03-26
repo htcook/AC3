@@ -45,6 +45,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
+  X,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";

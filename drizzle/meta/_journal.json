@@ -267,6 +267,13 @@
       "when": 1774472015563,
       "tag": "0037_bouncy_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1774483872256,
+      "tag": "0038_chilly_sister_grimm",
+      "breakpoints": true
     }
   ]
 }
