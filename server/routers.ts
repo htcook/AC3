@@ -198,6 +198,7 @@ import { realtimeMonitorRouter } from "./routers/realtime-monitor";
 import { trainingDataReviewRouter } from "./routers/training-data-review";
 import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: commented out for production
 import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
+import { scanforgeRouter } from "./routers/scanforge";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -578,6 +579,8 @@ export const appRouter = router({
   liveTrigger: liveTriggerTempRouter,
   // ─── Campaign Orchestrator (Multi-stage Red Team Campaign Chaining) ──
   campaignOrchestrator: campaignOrchestratorRouter,
+  // ─── ScanForge DAST Engine (Custom Vulnerability Scanner) ──────────────
+  scanforge: scanforgeRouter,
 });
 export type AppRouter = typeof appRouter;
 

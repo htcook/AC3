@@ -25,6 +25,7 @@ import { getScanQueue } from "../queue/scan-queue";
 import { getTemplateEngine } from "../engine/template-engine";
 import { getProtocolRegistry } from "../protocols/registry";
 import { getIntelligenceEngine } from "../intelligence/ti-engine";
+import { getContextEngine } from "../intelligence/context-engine";
 import { ScanOrchestrator } from "../engine/scan-orchestrator";
 import type {
   ScanRequest,
@@ -101,7 +102,7 @@ router.post("/scans", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "At least one target is required" });
     }
 
-    const validTypes: ScanType[] = ["quick", "web", "network", "full", "recon", "compliance"];
+    const validTypes: ScanType[] = ["quick", "web", "network", "full", "recon", "compliance", "cloud", "iot", "ics_ot", "container", "hybrid"];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: `Invalid scan type. Must be one of: ${validTypes.join(", ")}` });
     }
@@ -289,6 +290,7 @@ router.get("/protocols", (_req: Request, res: Response) => {
       name: s.name,
       protocol: s.protocol,
       defaultPorts: s.defaultPorts,
+      environments: s.environments || ["traditional"],
     })),
   });
 });
@@ -320,6 +322,97 @@ router.get("/intelligence", async (req: Request, res: Response) => {
     dfirRecommendedChecks: dfirChecks,
     enrichmentAvailable: true,
   });
+});
+
+// ─── Context Engine ───────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/context/classify — Classify a target's environment using LLM
+ */
+router.post("/context/classify", async (req: Request, res: Response) => {
+  try {
+    const { target, reconData } = req.body;
+    if (!target?.value) {
+      return res.status(400).json({ error: "Target with value is required" });
+    }
+
+    const engine = getContextEngine();
+    await engine.initialize();
+
+    const classification = await engine.classifyTarget(
+      { type: target.type || "domain", value: target.value, ports: target.ports, services: target.services },
+      reconData
+    );
+
+    res.json({ classification });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/context/correlate — Correlate findings into attack paths
+ */
+router.post("/context/correlate", async (req: Request, res: Response) => {
+  try {
+    const { findings, target, classification } = req.body;
+    if (!findings?.length || !target?.value) {
+      return res.status(400).json({ error: "Findings array and target are required" });
+    }
+
+    const engine = getContextEngine();
+    await engine.initialize();
+
+    const result = await engine.correlateFindings(
+      findings,
+      { type: target.type || "domain", value: target.value },
+      classification || { environment: "traditional", confidence: 50 }
+    );
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/context/enrich — Generate enriched narrative for a finding
+ */
+router.post("/context/enrich", async (req: Request, res: Response) => {
+  try {
+    const { finding, classification } = req.body;
+    if (!finding?.id) {
+      return res.status(400).json({ error: "Finding with id is required" });
+    }
+
+    const engine = getContextEngine();
+    await engine.initialize();
+
+    const narrative = await engine.enrichFinding(finding, classification);
+    res.json(narrative);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/v1/context/compliance — Map finding to compliance frameworks
+ */
+router.post("/context/compliance", async (req: Request, res: Response) => {
+  try {
+    const { finding, frameworks } = req.body;
+    if (!finding?.id || !frameworks?.length) {
+      return res.status(400).json({ error: "Finding and frameworks array are required" });
+    }
+
+    const engine = getContextEngine();
+    await engine.initialize();
+
+    const mappings = await engine.mapToCompliance(finding, frameworks);
+    res.json({ mappings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Export ────────────────────────────────────────────────────────────────

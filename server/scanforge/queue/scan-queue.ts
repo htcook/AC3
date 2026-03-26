@@ -64,9 +64,13 @@ export class ScanQueue extends EventEmitter {
   private cleanupTimer: NodeJS.Timeout | null = null;
   private processorFn: ((job: ScanJob) => Promise<void>) | null = null;
 
-  constructor(config: Partial<QueueConfig> = {}) {
+  constructor(config: Partial<QueueConfig> & { maxConcurrent?: number; maxQueueSize?: number } = {}) {
     super();
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    // Support both naming conventions
+    const normalized: Partial<QueueConfig> = { ...config };
+    if (config.maxConcurrent !== undefined) normalized.maxConcurrency = config.maxConcurrent;
+    if (config.maxQueueSize !== undefined) normalized.maxQueueDepth = config.maxQueueSize;
+    this.config = { ...DEFAULT_CONFIG, ...normalized };
     this.startCleanup();
   }
 
@@ -213,6 +217,42 @@ export class ScanQueue extends EventEmitter {
       completed: this.completed.size,
       maxConcurrency: this.config.maxConcurrency,
     };
+  }
+
+  /**
+   * Get queue stats (alias for getStatus with additional fields).
+   */
+  getStats(): {
+    queued: number;
+    running: number;
+    completed: number;
+    failed: number;
+    maxConcurrency: number;
+    totalProcessed: number;
+  } {
+    const status = this.getStatus();
+    const allCompleted = Array.from(this.completed.values());
+    return {
+      ...status,
+      failed: allCompleted.filter(j => j.status === "failed").length,
+      totalProcessed: allCompleted.length,
+    };
+  }
+
+  /**
+   * List jobs by status (alias for filtered getAllJobs).
+   */
+  listJobs(status?: ScanStatus): ScanJob[] {
+    const all = this.getAllJobs();
+    if (!status) return all;
+    return all.filter(j => j.status === status);
+  }
+
+  /**
+   * Cancel a job by ID (alias for cancel).
+   */
+  cancelJob(scanId: string): boolean {
+    return this.cancel(scanId);
   }
 
   /**

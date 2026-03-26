@@ -652,6 +652,16 @@ async function startServer() {
   const { registerEmberBeaconRoutes } = await import("../lib/ember-beacon-routes");
   registerEmberBeaconRoutes(app);
 
+  // ─── ScanForge REST API (unified scan lifecycle management) ──────────────
+  try {
+    const { scanforgeRouter, initializeScanForge } = await import("../scanforge");
+    await initializeScanForge();
+    app.use("/api/v1", scanforgeRouter);
+    console.log("[ScanForge] REST API mounted at /api/v1");
+  } catch (err: any) {
+    console.warn("[ScanForge] Failed to initialize:", err.message);
+  }
+
   // tRPC API
   app.use(
     "/api/trpc",

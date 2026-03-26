@@ -3,7 +3,62 @@
  *
  * Defines the scan lifecycle, result structures, template schema,
  * and protocol scanner interfaces used throughout the ScanForge engine.
+ *
+ * Expanded to support:
+ *   - Cloud infrastructure (AWS/Azure/GCP)
+ *   - IoT devices (MQTT, CoAP, UPnP, Zigbee, BLE)
+ *   - ICS/SCADA/OT (Modbus, DNP3, BACnet, EtherNet/IP, OPC UA)
+ *   - Container/Kubernetes environments
+ *   - Hybrid multi-environment scanning
+ *   - LLM-powered context awareness
+ *   - Federal compliance evidence (NIST 800-115, FedRAMP, DISA STIG)
  */
+
+// ─── Asset Classification ─────────────────────────────────────────────────
+
+export type AssetEnvironment =
+  | "traditional"     // Standard IT infrastructure
+  | "cloud"           // AWS/Azure/GCP workloads
+  | "iot"             // IoT devices and gateways
+  | "ics_ot"          // ICS/SCADA/OT systems
+  | "container"       // Docker/Kubernetes
+  | "hybrid"          // Multi-environment
+  | "unknown";
+
+export type CloudProvider = "aws" | "azure" | "gcp" | "digitalocean" | "unknown";
+
+export interface AssetClassification {
+  /** Primary environment type */
+  environment: AssetEnvironment;
+  /** Cloud provider if applicable */
+  cloudProvider?: CloudProvider;
+  /** Confidence in classification (0-100) */
+  confidence: number;
+  /** LLM reasoning for classification */
+  reasoning?: string;
+  /** Detected technologies/frameworks */
+  technologies?: string[];
+  /** Industry vertical inference */
+  inferredIndustry?: string;
+  /** Asset criticality based on context */
+  inferredCriticality?: "critical" | "high" | "medium" | "low";
+  /** Recommended scan profiles */
+  recommendedProfiles?: string[];
+  /** Detected compliance frameworks applicable */
+  applicableCompliance?: ComplianceFramework[];
+}
+
+export type ComplianceFramework =
+  | "nist_800_115"    // NIST SP 800-115 Technical Guide to Information Security Testing
+  | "nist_800_53"     // NIST SP 800-53 Security and Privacy Controls
+  | "fedramp"         // FedRAMP Security Assessment Framework
+  | "disa_stig"       // DISA Security Technical Implementation Guide
+  | "pci_dss"         // PCI Data Security Standard
+  | "hipaa"           // HIPAA Security Rule
+  | "cis_benchmark"   // CIS Benchmarks
+  | "iec_62443"       // IEC 62443 Industrial Cybersecurity
+  | "nerc_cip"        // NERC CIP for power grid
+  | "nist_csf";       // NIST Cybersecurity Framework
 
 // ─── Scan Lifecycle ────────────────────────────────────────────────────────
 
@@ -23,21 +78,78 @@ export type ScanType =
   | "compliance"     // SCAP/STIG/CIS checks
   | "custom"         // User-selected templates
   | "recon"          // Passive recon only
-  | "protocol";      // Single protocol deep scan
+  | "protocol"       // Single protocol deep scan
+  | "cloud"          // Cloud infrastructure assessment
+  | "iot"            // IoT device scanning
+  | "ics_ot"         // ICS/SCADA/OT assessment
+  | "container"      // Container/K8s scanning
+  | "hybrid";        // Multi-environment comprehensive
 
 export type ScanPriority = "critical" | "high" | "medium" | "low";
 
 export interface ScanTarget {
-  /** Primary target (domain, IP, CIDR, URL) */
+  /** Primary target (domain, IP, CIDR, URL, cloud ARN, device ID) */
   value: string;
   /** Target type for routing to correct scanner */
-  type: "domain" | "ip" | "cidr" | "url";
+  type: "domain" | "ip" | "cidr" | "url" | "cloud_resource" | "iot_device" | "ics_endpoint" | "container";
   /** Discovered ports from recon phase */
   ports?: number[];
   /** Discovered services mapped to ports */
   services?: Record<number, string>;
   /** Asset criticality for risk scoring */
   criticality?: "critical" | "high" | "medium" | "low";
+  /** Asset classification from context engine */
+  classification?: AssetClassification;
+  /** Cloud-specific metadata */
+  cloudMeta?: CloudTargetMeta;
+  /** IoT-specific metadata */
+  iotMeta?: IoTTargetMeta;
+  /** ICS/OT-specific metadata */
+  icsMeta?: ICSTargetMeta;
+  /** Container-specific metadata */
+  containerMeta?: ContainerTargetMeta;
+}
+
+export interface CloudTargetMeta {
+  provider: CloudProvider;
+  region?: string;
+  accountId?: string;
+  resourceType?: string; // e.g., "ec2", "s3", "rds", "lambda"
+  resourceArn?: string;
+  vpcId?: string;
+  securityGroups?: string[];
+  tags?: Record<string, string>;
+}
+
+export interface IoTTargetMeta {
+  deviceType?: string; // e.g., "camera", "sensor", "gateway", "plc"
+  manufacturer?: string;
+  firmware?: string;
+  protocol?: string; // Primary protocol: mqtt, coap, zigbee, ble
+  macAddress?: string;
+  networkSegment?: string;
+}
+
+export interface ICSTargetMeta {
+  protocol?: string; // modbus, dnp3, bacnet, ethernetip, opcua
+  deviceRole?: "hmi" | "plc" | "rtu" | "scada_server" | "historian" | "engineering_workstation";
+  vendor?: string;
+  model?: string;
+  firmwareVersion?: string;
+  safetyLevel?: "sil1" | "sil2" | "sil3" | "sil4";
+  zone?: string; // Purdue model zone
+  purdueLevel?: 0 | 1 | 2 | 3 | 4 | 5;
+}
+
+export interface ContainerTargetMeta {
+  runtime?: "docker" | "containerd" | "crio" | "podman";
+  orchestrator?: "kubernetes" | "swarm" | "ecs" | "nomad" | "none";
+  imageId?: string;
+  imageName?: string;
+  registryUrl?: string;
+  namespace?: string;
+  clusterName?: string;
+  nodeRole?: "master" | "worker" | "etcd";
 }
 
 export interface ScanRequest {
@@ -65,6 +177,10 @@ export interface ScanRequest {
   requestedBy?: string;
   /** Timestamp */
   createdAt: number;
+  /** Context engine override — skip auto-classification */
+  skipContextEngine?: boolean;
+  /** Compliance frameworks to assess against */
+  complianceFrameworks?: ComplianceFramework[];
 }
 
 export interface ScanConfig {
@@ -88,10 +204,16 @@ export interface ScanConfig {
   mode?: "passive" | "active" | "aggressive";
   /** Exclude patterns (regex) */
   excludePatterns?: string[];
+  /** ICS/OT safety mode — prevents disruptive checks */
+  icsSafeMode?: boolean;
+  /** IoT gentle mode — reduced rate limiting for constrained devices */
+  iotGentleMode?: boolean;
+  /** Cloud credential profile for authenticated scanning */
+  cloudCredentialProfile?: string;
 }
 
 export interface ScanAuth {
-  type: "basic" | "bearer" | "cookie" | "form" | "oauth2";
+  type: "basic" | "bearer" | "cookie" | "form" | "oauth2" | "api_key" | "certificate";
   credentials: Record<string, string>;
 }
 
@@ -110,6 +232,10 @@ export interface IntelligenceConfig {
   threatActorIds?: string[];
   /** Use DFIR artifacts for detection */
   useDFIR?: boolean;
+  /** Use active campaign intelligence */
+  useActiveCampaigns?: boolean;
+  /** Use LLM context engine for adaptive scanning */
+  useLLMContext?: boolean;
 }
 
 // ─── Scan Results ──────────────────────────────────────────────────────────
@@ -151,6 +277,16 @@ export interface ScanFinding {
   riskScore?: RiskScore;
   /** Timestamp */
   foundAt: number;
+  /** Asset environment where this was found */
+  environment?: AssetEnvironment;
+  /** Compliance mapping */
+  compliance?: ComplianceMapping[];
+  /** LLM-generated enriched narrative */
+  enrichedNarrative?: string;
+  /** Attack path chain — IDs of related findings */
+  attackPathChain?: string[];
+  /** Attack path role in the chain */
+  attackPathRole?: "initial_access" | "lateral_movement" | "privilege_escalation" | "persistence" | "exfiltration" | "impact";
 }
 
 export interface FindingEvidence {
@@ -164,6 +300,42 @@ export interface FindingEvidence {
   screenshotUrl?: string;
   /** Additional structured data */
   data?: Record<string, any>;
+  /** Federal-compliant evidence chain */
+  complianceEvidence?: ComplianceEvidence;
+}
+
+export interface ComplianceEvidence {
+  /** Test procedure ID (e.g., NIST 800-115 section) */
+  testProcedureId: string;
+  /** Test procedure description */
+  testProcedure: string;
+  /** Expected result per the control */
+  expectedResult: string;
+  /** Actual result observed */
+  actualResult: string;
+  /** Pass/Fail/Not Applicable */
+  status: "pass" | "fail" | "not_applicable" | "not_tested";
+  /** Timestamp of the test */
+  testedAt: number;
+  /** Tester/tool identification */
+  tester: string;
+  /** Raw evidence artifact (hash for integrity) */
+  evidenceHash?: string;
+  /** Chain of custody reference */
+  chainOfCustody?: string;
+}
+
+export interface ComplianceMapping {
+  /** Framework identifier */
+  framework: ComplianceFramework;
+  /** Control ID within the framework */
+  controlId: string;
+  /** Control title */
+  controlTitle: string;
+  /** Compliance status */
+  status: "compliant" | "non_compliant" | "partially_compliant" | "not_applicable";
+  /** Mapping confidence */
+  confidence: number;
 }
 
 export interface RiskScore {
@@ -189,6 +361,10 @@ export interface RiskScore {
   dfirPrecedent?: boolean;
   /** DFIR artifact categories matched */
   dfirCategories?: string[];
+  /** Environment-specific risk modifier */
+  environmentModifier?: number;
+  /** ICS safety impact score */
+  icsSafetyImpact?: number;
 }
 
 // ─── Scan Job (Queue Item) ─────────────────────────────────────────────────
@@ -214,13 +390,19 @@ export interface ScanJob {
   error?: string;
   /** Phase tracking */
   phase?: ScanPhase;
+  /** Context engine classification results */
+  contextClassification?: AssetClassification[];
+  /** Attack paths discovered by correlation engine */
+  attackPaths?: AttackPath[];
 }
 
 export type ScanPhase =
+  | "context"         // LLM context classification (new)
   | "recon"
   | "enumeration"
   | "detection"
   | "verification"
+  | "correlation"     // Attack path correlation (new)
   | "reporting";
 
 export interface ScannerResult {
@@ -234,6 +416,29 @@ export interface ScannerResult {
   findingCount: number;
   /** Error if failed */
   error?: string;
+}
+
+// ─── Attack Path Correlation ───────────────────────────────────────────────
+
+export interface AttackPath {
+  /** Unique path ID */
+  id: string;
+  /** Human-readable name */
+  name: string;
+  /** Description of the attack path */
+  description: string;
+  /** Ordered list of finding IDs in the chain */
+  findingChain: string[];
+  /** MITRE ATT&CK tactics traversed */
+  tacticsTraversed: string[];
+  /** Overall risk score for the path */
+  riskScore: number;
+  /** Likelihood of successful exploitation (0-100) */
+  exploitability: number;
+  /** Potential business impact */
+  businessImpact: string;
+  /** LLM-generated narrative of the attack path */
+  narrative?: string;
 }
 
 // ─── Template Schema ───────────────────────────────────────────────────────
@@ -285,6 +490,10 @@ export interface ScanTemplate {
     /** DFIR relevance description */
     dfirRelevance?: string;
   };
+  /** Environment applicability */
+  environments?: AssetEnvironment[];
+  /** Compliance framework mapping */
+  complianceMapping?: ComplianceMapping[];
 }
 
 export interface TemplateRequest {
@@ -307,7 +516,7 @@ export type MatcherType =
   | "regex"      // Regex match on response
   | "word"       // Word match on response
   | "binary"     // Binary pattern match
-  | "dsl"        // Dynamic expression (e.g., "status_code == 200 && contains(body, 'admin')")
+  | "dsl"        // Dynamic expression
   | "version"    // Version comparison
   | "time"       // Response time threshold
   | "size";      // Response size threshold
@@ -335,10 +544,57 @@ export interface ProtocolScanner {
   protocol: string;
   /** Default port(s) */
   defaultPorts: number[];
+  /** Asset environments this scanner applies to */
+  environments?: AssetEnvironment[];
   /** Execute the scan */
   scan(target: ScanTarget, config?: ScanConfig): Promise<ScanFinding[]>;
   /** Check if the service is running on the target */
   probe(host: string, port: number): Promise<boolean>;
+}
+
+// ─── LLM Context Engine Types ──────────────────────────────────────────────
+
+export interface ContextAnalysis {
+  /** Target being analyzed */
+  target: string;
+  /** Classification result */
+  classification: AssetClassification;
+  /** Recommended scan type */
+  recommendedScanType: ScanType;
+  /** Recommended protocol scanners */
+  recommendedScanners: string[];
+  /** Recommended templates */
+  recommendedTemplateIds: string[];
+  /** Risk factors identified */
+  riskFactors: string[];
+  /** LLM reasoning */
+  reasoning: string;
+  /** Analysis timestamp */
+  analyzedAt: number;
+}
+
+export interface CorrelationResult {
+  /** Attack paths discovered */
+  attackPaths: AttackPath[];
+  /** Findings that could not be correlated */
+  uncorrelatedFindings: string[];
+  /** LLM reasoning for correlations */
+  reasoning: string;
+}
+
+export interface EnrichedNarrative {
+  /** Finding ID */
+  findingId: string;
+  /** Technical narrative */
+  technicalNarrative: string;
+  /** Executive summary */
+  executiveSummary: string;
+  /** Recommended remediation steps (prioritized) */
+  remediationSteps: string[];
+  /** Business impact assessment */
+  businessImpact: string;
+  /** Compliance implications */
+  complianceImplications: string[];
 }
 
 // ─── Event Types (WebSocket) ───────────────────────────────────────────────
@@ -350,6 +606,8 @@ export type ScanEvent =
   | { type: "scan:finding"; scanId: string; finding: ScanFinding }
   | { type: "scan:scanner_complete"; scanId: string; result: ScannerResult }
   | { type: "scan:phase_change"; scanId: string; phase: ScanPhase }
+  | { type: "scan:context_classified"; scanId: string; classification: AssetClassification }
+  | { type: "scan:attack_path"; scanId: string; attackPath: AttackPath }
   | { type: "scan:completed"; scanId: string; summary: ScanSummary }
   | { type: "scan:failed"; scanId: string; error: string }
   | { type: "scan:cancelled"; scanId: string };
@@ -358,9 +616,12 @@ export interface ScanSummary {
   scanId: string;
   totalFindings: number;
   bySeverity: Record<FindingSeverity, number>;
+  byEnvironment?: Record<AssetEnvironment, number>;
   scannersRun: number;
   scannersCompleted: number;
   scannersFailed: number;
   durationMs: number;
   topFindings: ScanFinding[];
+  attackPaths?: AttackPath[];
+  complianceSummary?: Record<ComplianceFramework, { pass: number; fail: number; total: number }>;
 }

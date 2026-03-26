@@ -202,6 +202,13 @@ export class TemplateEngine {
   }
 
   /**
+   * Get all loaded templates.
+   */
+  getAll(): ScanTemplate[] {
+    return Array.from(this.templates.values());
+  }
+
+  /**
    * Get all loaded template IDs.
    */
   listIds(): string[] {

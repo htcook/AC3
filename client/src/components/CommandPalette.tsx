@@ -84,7 +84,7 @@ export function CommandPalette() {
 
   // Quick actions
   const quickActions = useMemo(() => [
-    { id: "new-scan", label: "New Domain Scan", icon: Scan, path: "/domain-intel", description: "Launch a new domain intelligence scan" },
+    { id: "new-scan", label: "New Domain Scan", icon: Scan, path: "/domain-intel", description: "Launch a new domain recon scan" },
     { id: "new-engagement", label: "New Engagement", icon: Briefcase, path: "/engagements/new", description: "Create a new pentest engagement" },
     { id: "toggle-theme", label: `Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`, icon: theme === "dark" ? Sun : Moon, path: "__action:theme", description: "Toggle the UI theme" },
   ], [theme]);

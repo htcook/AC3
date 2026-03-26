@@ -5,18 +5,29 @@
  * engagement pipeline autonomously, pausing only for operator approval on high-risk actions.
  *
  * Phases:
- *   1. Recon & Discovery (passive OSINT, domain intel)
- *   2. Enumeration & Fingerprinting (nmap service/OS detection)
- *   3. Vulnerability Detection (nuclei + ZAP for web apps, WAF-aware)
- *   4. Exploitation (Metasploit modules, exploitation bridge)
- *   5a. Pentest: per-asset unauthorized access demo → evidence → report
- *   5b. Red Team: C2 agent deploy → Caldera callback → pivot → objectives
+ *   1. Domain Recon (passive OSINT, domain intel)
+ *   2. Passive Discovery & Enumeration (DNS, certs, tech fingerprinting — pre-RoE)
+ *   3. Scoping & RoE Review (scope validation, RoE checklist)
+ *   4. Test Plan Generation (NIST 800-115 aligned, LLM-powered)
+ *   4b. Test Plan Approval Gate (customer review)
+ *   5. Active Discovery & Enumeration (nmap service/OS detection)
+ *   6. Vulnerability Scanning (nuclei + ZAP for web apps, WAF-aware)
+ *   7. Penetration Testing / Exploitation (Metasploit modules, exploitation bridge)
+ *   8a. Pentest: per-asset unauthorized access demo → evidence → report
+ *   8b. Red Team: C2 agent deploy → Caldera callback → pivot → objectives
  *
  * All actions are gated by RoE scope enforcement and logged to offensive_audit_log.
  */
 
 import { invokeLLM } from "../_core/llm";
 import { throttledLLMCall } from "./llm-throttle";
+import {
+  executePassiveDiscovery,
+  executeScopingReview,
+  executeTestPlanGeneration,
+  executeTestPlanApproval,
+  getPipelinePhaseOrder,
+} from "./pipeline-phases";
 // ═══ LAZY KNOWLEDGE BASE IMPORTS (memory optimization) ═══
 // All 17 knowledge modules are loaded on-demand via knowledge-lazy.ts
 // to reduce boot-time heap from ~230MB to ~150MB.
@@ -92,12 +103,16 @@ const _serverInstanceId = SERVER_INSTANCE_ID;
 
 export type OpsPhase =
   | "idle"
-  | "recon"
-  | "enumeration"
-  | "vuln_detection"
-  | "exploitation"
-  | "post_exploit"
-  | "reporting"
+  | "recon"                  // Phase 1: Domain Recon (passive OSINT)
+  | "passive_discovery"       // Phase 2: Passive Discovery & Enumeration (pre-RoE)
+  | "scoping"                 // Phase 3: Scoping & RoE Review
+  | "test_plan"               // Phase 4: Test Plan Generation (NIST 800-115 aligned)
+  | "test_plan_approval"      // Phase 4b: Customer Test Plan Approval Gate
+  | "enumeration"             // Phase 5: Active Discovery & Enumeration (nmap, httpx)
+  | "vuln_detection"          // Phase 6: Vulnerability Scanning
+  | "exploitation"            // Phase 7: Penetration Testing / Exploitation
+  | "post_exploit"            // Phase 8: Post-Exploitation (Red Team only)
+  | "reporting"               // Phase 9: Reporting
   | "completed"
   | "paused"
   | "error";
@@ -300,6 +315,31 @@ export interface EngagementOpsState {
   };
   /** When true, attempt every exploit opportunity across all assets — do not stop at first success */
   exhaustiveExploit?: boolean;
+  /** Generated test plan (NIST 800-115 aligned) */
+  testPlan?: {
+    id: string;
+    generatedAt: number;
+    status: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+    approvedAt?: number;
+    approvedBy?: string;
+    sections: Array<{ title: string; content: string }>;
+    attackVectors: string[];
+    dnsAssessment?: any;
+    estimatedDuration?: string;
+    toolsPlanned?: string[];
+  };
+  /** Passive discovery results (pre-RoE) */
+  passiveDiscovery?: {
+    completedAt?: number;
+    subdomains: string[];
+    dnsRecords: Record<string, any[]>;
+    certificates: any[];
+    technologies: string[];
+    cloudProviders: string[];
+    wafDetected?: string;
+    emailAddresses: string[];
+    breachExposure: any[];
+  };
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -1946,7 +1986,7 @@ Rules: pentest=test each asset systematically; red_team=find weakest entry,explo
 async function executeRecon(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "recon";
   state.currentAction = "Running passive reconnaissance...";
-  addLog(state, { phase: "recon", type: "info", title: "🔍 Phase 1: Recon & Discovery", detail: "Starting passive OSINT and domain intelligence scan" });
+  addLog(state, { phase: "recon", type: "info", title: "🔍 Phase 1: Domain Recon", detail: "Starting passive OSINT and domain intelligence gathering" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "recon" });
 
    const domains = (engagement.targetDomain || "").split(/[,;\s]+/).filter(Boolean);
@@ -2987,7 +3027,7 @@ function parseToolOutput(
 async function executeEnumeration(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "enumeration";
   state.currentAction = "Running enumeration & fingerprinting...";
-  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 2: Enumeration & Fingerprinting", detail: "Two-phase approach: Phase A discovery nmap with evasion → Phase B targeted tool deployment" });
+  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 5: Active Discovery & Enumeration", detail: "Two-phase approach: Phase A discovery nmap with evasion → Phase B targeted tool deployment" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "enumeration" });
 
   // ═══ RoE SCOPE GUARD: Filter active scan targets to only authorized assets ═══
@@ -4193,7 +4233,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "vuln_detection";
   state.currentAction = "Running vulnerability detection...";
-  addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 3: Vulnerability Detection", detail: "Running nuclei scans and ZAP web app scans" });
+  addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 6: Vulnerability Scanning", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
   // ── Promote pendingVulns from passive recon into confirmed vulns ──
@@ -6147,7 +6187,7 @@ ${(() => {
   addLog(state, {
     phase: "vuln_detection",
     type: "phase_complete",
-    title: "✅ Phase 3 Complete",
+    title: "✅ Phase 6 Complete",
     detail: `${state.stats.vulnsFound} vulns found, ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
@@ -6156,7 +6196,7 @@ ${(() => {
 async function executeExploitation(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "exploitation";
   state.currentAction = "Running exploitation phase...";
-  addLog(state, { phase: "exploitation", type: "info", title: "⚔️ Phase 4: Exploitation", detail: "Attempting exploitation on vulnerable assets" });
+  addLog(state, { phase: "exploitation", type: "info", title: "⚔️ Phase 7: Penetration Testing / Exploitation", detail: "Attempting exploitation on vulnerable assets" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "exploitation" });
 
   // ── Pre-exploitation memory relief ──
@@ -6372,7 +6412,7 @@ ${(() => {
     addLog(state, {
       phase: "exploitation",
       type: "phase_complete",
-      title: "✅ Phase 4 Complete (Skipped)",
+      title: "✅ Phase 7 Complete (Skipped)",
       detail: "Exploitation phase skipped by operator. 0 exploits attempted.",
     });
     broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
@@ -6706,7 +6746,7 @@ ${(() => {
   addLog(state, {
     phase: "exploitation",
     type: "phase_complete",
-    title: "✅ Phase 4 Complete",
+    title: "✅ Phase 7 Complete",
     detail: `${state.stats.exploitsAttempted} attempts, ${state.stats.exploitsSucceeded} succeeded, ${state.stats.sessionsOpened} sessions`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
@@ -6787,7 +6827,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
   if (state.engagementType === "red_team") {
     // ── Red Team: C2 Agent Deployment ──
     state.currentAction = "Deploying C2 agent...";
-    addLog(state, { phase: "post_exploit", type: "info", title: "🎯 Phase 5: C2 Deployment & Pivot", detail: "Deploying Caldera agent on compromised host for adversary operations" });
+    addLog(state, { phase: "post_exploit", type: "info", title: "🎯 Phase 8: C2 Deployment & Pivot", detail: "Deploying Caldera agent on compromised host for adversary operations" });
 
     const compromised = state.assets.filter(a => a.status === "compromised");
     for (const asset of compromised) {
@@ -7127,7 +7167,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
   } else {
     // ── Pentest: Evidence Collection ──
     state.currentAction = "Collecting evidence of unauthorized access...";
-    addLog(state, { phase: "post_exploit", type: "info", title: "📋 Phase 5: Evidence Collection", detail: "Documenting unauthorized access to data and privileged functions" });
+    addLog(state, { phase: "post_exploit", type: "info", title: "📋 Phase 8: Evidence Collection", detail: "Documenting unauthorized access to data and privileged functions" });
 
     const compromised = state.assets.filter(a => a.status === "compromised");
     for (const asset of compromised) {
@@ -7289,7 +7329,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
     });
   }
   state.progress = 90;
-  addLog(state, { phase: "post_exploit", type: "phase_complete", title: "✅ Phase 5 Complete", detail: state.engagementType === "red_team" ? "C2 agents deployed" : "Evidence collected" });
+  addLog(state, { phase: "post_exploit", type: "phase_complete", title: "✅ Phase 8 Complete", detail: state.engagementType === "red_team" ? "C2 agents deployed" : "Evidence collected" });
 }
 
 // ─── Main Execution Pipeline ────────────────────────────────────────────────
@@ -7298,7 +7338,7 @@ export async function executeEngagement(
   engagementId: number,
   operatorCtx: { id: string; name?: string },
   options?: {
-    startPhase?: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit';
+    startPhase?: 'recon' | 'passive_discovery' | 'scoping' | 'test_plan' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit';
     resume?: boolean; // If true, resume from last saved phase instead of startPhase
     scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
   }
@@ -7352,7 +7392,7 @@ export async function executeEngagement(
         state = recovered;
         // Use explicit startPhase from options if provided (caller already computed next phase)
         // Otherwise advance to the next phase after the recovered one
-        const phaseOrder: OpsPhase[] = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
+        const phaseOrder: OpsPhase[] = ['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
         if (options?.startPhase) {
           startPhase = options.startPhase;
         } else {
@@ -7640,7 +7680,7 @@ export async function executeEngagement(
   (state as any)._heartbeatRef = { lastActivityAt };
 
   try {
-    // Phase 1: Recon (skip if starting from a later phase)
+    // Phase 1: Domain Recon (skip if starting from a later phase)
     if (startPhase === 'recon') {
       const reconGate = safetyEngine.canEnterPhase('recon');
       if (!reconGate.allowed) {
@@ -7652,10 +7692,63 @@ export async function executeEngagement(
       }
     }
 
-    // Phase 2+: Require RoE for active scanning (training lab mode bypasses RoE)
+    // Phase 2: Passive Discovery & Enumeration (pre-RoE, no active scanning)
+    if (['recon', 'passive_discovery'].includes(startPhase)) {
+      try {
+        await executePassiveDiscovery(state, engagement, addLog, broadcastOpsUpdate);
+        state.progress = 15;
+        await phaseCheckpoint('passive_discovery');
+        if (!state.isRunning) return;
+      } catch (err: any) {
+        addLog(state, { phase: 'passive_discovery', type: 'warning', title: 'Passive Discovery Error', detail: err.message });
+      }
+    }
+
+    // Phase 3: Scoping & RoE Review
+    if (['recon', 'passive_discovery', 'scoping'].includes(startPhase)) {
+      try {
+        await executeScopingReview(state, engagement, addLog, broadcastOpsUpdate);
+        state.progress = 20;
+        await phaseCheckpoint('scoping');
+        if (!state.isRunning) return;
+      } catch (err: any) {
+        addLog(state, { phase: 'scoping', type: 'warning', title: 'Scoping Review Error', detail: err.message });
+      }
+    }
+
+    // Phase 4: Test Plan Generation (NIST 800-115 aligned)
+    if (['recon', 'passive_discovery', 'scoping', 'test_plan'].includes(startPhase)) {
+      try {
+        const testPlan = await executeTestPlanGeneration(state, engagement, addLog, broadcastOpsUpdate);
+        state.progress = 25;
+        await phaseCheckpoint('test_plan');
+        if (!state.isRunning) return;
+
+        // Phase 4b: Test Plan Approval Gate
+        await executeTestPlanApproval(state, addLog, broadcastOpsUpdate);
+        // Note: In production, the pipeline would pause here for customer approval.
+        // For now, auto-approve if RoE is signed (operator trust model).
+        if (engagement.roeStatus === 'signed') {
+          state.testPlan!.status = 'approved';
+          state.testPlan!.approvedAt = Date.now();
+          addLog(state, {
+            phase: 'test_plan_approval', type: 'info',
+            title: '✅ Test Plan Auto-Approved',
+            detail: 'RoE is signed — test plan auto-approved under operator trust model. In production, this would await explicit customer approval.',
+          });
+        }
+        state.progress = 30;
+        await phaseCheckpoint('test_plan_approval');
+        if (!state.isRunning) return;
+      } catch (err: any) {
+        addLog(state, { phase: 'test_plan', type: 'warning', title: 'Test Plan Generation Error', detail: err.message });
+      }
+    }
+
+    // Phase 5+: Require RoE for active scanning (training lab mode bypasses RoE)
     if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || (state as any).trainingLabMode === true) {
-      // Phase 2: Enumeration (nmap first — always)
-      if (['recon', 'enumeration'].includes(startPhase)) {
+      // Phase 5: Active Discovery & Enumeration (nmap first — always)
+      if (['recon', 'passive_discovery', 'scoping', 'test_plan', 'enumeration'].includes(startPhase)) {
         const enumGate = safetyEngine.canEnterPhase('enumeration');
         if (!enumGate.allowed) {
           addLog(state, { phase: 'enumeration', type: 'warning', title: '🛡️ Safety: Enumeration Blocked', detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
@@ -7666,8 +7759,8 @@ export async function executeEngagement(
         }
       }
 
-      // Phase 3: Vulnerability Detection (safety gated)
-      if (['recon', 'enumeration', 'vuln_detection'].includes(startPhase)) {
+      // Phase 6: Vulnerability Scanning (safety gated)
+      if (['recon', 'passive_discovery', 'scoping', 'test_plan', 'enumeration', 'vuln_detection'].includes(startPhase)) {
         const vulnGate = safetyEngine.canEnterPhase('vuln_detection');
         if (!vulnGate.allowed) {
           addLog(state, { phase: 'vuln_detection', type: 'warning', title: '🛡️ Safety: Vuln Detection Blocked', detail: `${vulnGate.reason}. Requires safety level '${vulnGate.requiredLevel}' or higher.` });
@@ -8060,7 +8153,7 @@ export async function executeEngagement(
       state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
       state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
 
-      // Phase 4: Exploitation (safety gated)
+      // Phase 7: Exploitation (safety gated)
       const exploitGate = safetyEngine.canEnterPhase('exploitation');
       if (!exploitGate.allowed) {
         addLog(state, { phase: 'exploitation', type: 'warning', title: '🛡️ Safety: Exploitation Blocked', detail: `${exploitGate.reason}. Requires safety level '${exploitGate.requiredLevel}' or higher. ${state.stats.vulnsFound} vulns found but exploitation is not permitted at current safety level.` });
@@ -8072,7 +8165,7 @@ export async function executeEngagement(
         addLog(state, { phase: "exploitation", type: "info", title: "No Exploitable Vulns", detail: "No vulnerabilities found to exploit. Engagement complete." });
       }
 
-      // Phase 5: Post-Exploit (safety gated)
+      // Phase 8: Post-Exploit (safety gated)
       const postExploitGate = safetyEngine.canEnterPhase('post_exploit');
       if (!postExploitGate.allowed) {
         addLog(state, { phase: 'post_exploit', type: 'warning', title: '🛡️ Safety: Post-Exploit Blocked', detail: `${postExploitGate.reason}. Requires safety level '${postExploitGate.requiredLevel}' or higher.` });

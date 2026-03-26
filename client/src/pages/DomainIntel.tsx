@@ -592,7 +592,7 @@ export default function DomainIntel() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Brain className="h-7 w-7 text-purple-400" />
-            Full-Scope Domain Intelligence
+            Full-Scope Domain Recon
           </h1>
           <p className="text-muted-foreground mt-1 max-w-2xl">
             A single unified scan that performs passive reconnaissance, active DNS verification, vulnerability matching, risk scoring, threat actor profiling, and campaign design — all in one pipeline. Every finding includes clear attribution so you can verify it independently.
@@ -788,7 +788,7 @@ export default function DomainIntel() {
               </div>
             </div>
             <div className="space-y-2">
-              <h2 className="text-xl font-bold">Running Full-Scope Domain Intelligence</h2>
+              <h2 className="text-xl font-bold">Running Full-Scope Domain Recon</h2>
               <p className="text-muted-foreground max-w-md">
                 Analyzing <span className="font-mono text-purple-400">{primaryDomain}</span> using {SCAN_METHODS.length} methods across {new Set(SCAN_METHODS.map(m => m.category)).size} categories.
                 This typically takes 60-120 seconds.
@@ -903,7 +903,7 @@ export default function DomainIntel() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Scan className="h-5 w-5 text-purple-400" />
-                  Launch Domain Intelligence Scan
+                  Launch Domain Recon Scan
                 </CardTitle>
                 <CardDescription>
                   Enter a domain to begin. The system automatically discovers company information, products, services, and infrastructure to build an accurate BIA and hybrid risk score.

@@ -11,7 +11,8 @@ import { useLocation } from "wouter";
 import {
   Rocket, Globe, Search, Shield, Brain, Target, Zap, CheckCircle2,
   Clock, AlertTriangle, ArrowRight, Play, ChevronDown, ChevronRight,
-  Loader2, XCircle, BarChart3, FileText, Crosshair, Radio,
+  Loader2, XCircle, BarChart3, FileText, Crosshair, Radio, FileCheck,
+  Radar, Network, Bug, Swords, Key,
 } from "lucide-react";
 
 interface PipelineStep {
@@ -25,10 +26,13 @@ interface PipelineStep {
 }
 
 const INITIAL_STEPS: Omit<PipelineStep, 'status'>[] = [
-  { id: 'intel', title: 'Domain Intelligence', description: 'Passive discovery of assets, DNS, certificates, and infrastructure', icon: Search },
+  { id: 'recon', title: 'Domain Recon', description: 'Passive OSINT — domain intel, breach exposure, DNS records, certificate transparency', icon: Radar },
+  { id: 'passive_discovery', title: 'Passive Discovery & Enumeration', description: 'DNS enumeration, tech fingerprinting, certificate analysis — no active probing', icon: Search },
   { id: 'classify', title: 'Asset Classification', description: 'Categorize discovered assets by type, criticality, and business function', icon: Brain },
   { id: 'risk', title: 'Risk Assessment', description: 'Multi-dimensional business impact scoring with hybrid risk analysis', icon: Shield },
   { id: 'threat', title: 'Threat Modeling', description: 'Map threat actors and TTPs relevant to the target profile', icon: Target },
+  { id: 'scoping', title: 'Scoping & RoE Review', description: 'Validate scope boundaries, review Rules of Engagement checklist', icon: FileCheck },
+  { id: 'test_plan', title: 'Test Plan Generation', description: 'NIST 800-115 aligned test plan with DNS security assessment (SP 800-81r3)', icon: FileText },
   { id: 'campaign', title: 'Campaign Design', description: 'Generate adversary operations and phishing campaigns from findings', icon: Zap },
   { id: 'deploy', title: 'Auto-Deploy', description: 'Create engagement, push adversary abilities, and deploy phishing templates', icon: Rocket },
 ];

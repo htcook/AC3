@@ -21,4 +21,6 @@ export { getTemplateEngine, TemplateEngine } from "./engine/template-engine";
 export { ScanOrchestrator } from "./engine/scan-orchestrator";
 export { getProtocolRegistry, ProtocolRegistry } from "./protocols/registry";
 export { getIntelligenceEngine, IntelligenceEngine } from "./intelligence/ti-engine";
+export { getContextEngine, ContextEngine } from "./intelligence/context-engine";
+export { getFPFNEngine, FPFNPreventionEngine } from "./intelligence/fp-fn-prevention";
 export type * from "./types";

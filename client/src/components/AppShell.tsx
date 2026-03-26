@@ -181,7 +181,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Discovery & Recon",
         items: [
           { href: "/discovery-chain", icon: GitMerge, label: "DISCOVERY CHAIN" },
-          { href: "/domain-intel", icon: Brain, label: "DOMAIN INTEL" },
+          { href: "/domain-intel", icon: Brain, label: "DOMAIN RECON" },
           { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
           { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },

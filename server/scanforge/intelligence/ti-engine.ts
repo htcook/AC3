@@ -343,6 +343,64 @@ export class IntelligenceEngine {
     return [...new Set(checks)];
   }
 
+  /**
+   * Get count of KEV catalog entries.
+   */
+  getKEVCount(): number {
+    return this.kevCatalog.size;
+  }
+
+  /**
+   * Get count of loaded threat actor profiles.
+   */
+  getThreatActorCount(): number {
+    return this.threatActors.length;
+  }
+
+  /**
+   * Refresh TI feeds (KEV, threat actors, EPSS).
+   */
+  async refreshFeeds(): Promise<void> {
+    this.initialized = false;
+    await this.initialize();
+  }
+
+  /**
+   * Calculate a risk score for a target based on TI context.
+   */
+  calculateRiskScore(params: {
+    target: string;
+    industry?: string;
+    services?: string[];
+  }): number {
+    let score = 30; // Base risk
+
+    // Industry risk modifier
+    const highRiskIndustries = ["finance", "healthcare", "government", "critical_infrastructure", "defense"];
+    if (params.industry && highRiskIndustries.includes(params.industry)) {
+      score += 20;
+    }
+
+    // Service exposure risk
+    if (params.services?.length) {
+      const riskyServices = ["smb", "rdp", "telnet", "ftp", "vnc", "redis", "mongodb", "mysql", "postgres"];
+      const riskyCount = params.services.filter(s =>
+        riskyServices.some(r => s.toLowerCase().includes(r))
+      ).length;
+      score += Math.min(30, riskyCount * 10);
+    }
+
+    // Threat actor targeting
+    if (params.industry) {
+      const targetingActors = this.threatActors.filter(a =>
+        a.targetIndustries.includes(params.industry!)
+      );
+      score += Math.min(20, targetingActors.length * 5);
+    }
+
+    return Math.min(100, score);
+  }
+
   // ─── Internal ──────────────────────────────────────────────────────────
 
   private scoreTemplateRelevance(

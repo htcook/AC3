@@ -45,7 +45,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
-  X,
+  X, FileCheck,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -207,8 +207,12 @@ interface OpsState {
 // ─── Phase Config ───────────────────────────────────────────────────────────
 
 const PHASES: Array<{ id: string; label: string; icon: React.ReactNode; color: string }> = [
-  { id: "recon", label: "Recon", icon: <Radar className="h-4 w-4" />, color: "text-blue-400" },
-  { id: "enumeration", label: "Nmap Enum", icon: <Target className="h-4 w-4" />, color: "text-cyan-400" },
+  { id: "recon", label: "Domain Recon", icon: <Radar className="h-4 w-4" />, color: "text-blue-400" },
+  { id: "passive_discovery", label: "Passive Discovery", icon: <Search className="h-4 w-4" />, color: "text-blue-300" },
+  { id: "scoping", label: "Scoping & RoE", icon: <FileCheck className="h-4 w-4" />, color: "text-indigo-400" },
+  { id: "test_plan", label: "Test Plan", icon: <FileText className="h-4 w-4" />, color: "text-indigo-300" },
+  { id: "test_plan_approval", label: "Plan Approval", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-indigo-200" },
+  { id: "enumeration", label: "Active Discovery", icon: <Target className="h-4 w-4" />, color: "text-cyan-400" },
   { id: "vuln_detection", label: "Vuln Scan", icon: <Bug className="h-4 w-4" />, color: "text-yellow-400" },
   { id: "exploitation", label: "Exploit", icon: <Skull className="h-4 w-4" />, color: "text-red-400" },
   { id: "post_exploit", label: "Post-Exploit", icon: <Radio className="h-4 w-4" />, color: "text-purple-400" },
@@ -218,6 +222,7 @@ const PHASES: Array<{ id: string; label: string; icon: React.ReactNode; color: s
 function getPhaseIndex(phase: string): number {
   if (phase === "recon_complete") return 0; // still in recon area
   if (phase === "complete") return PHASES.findIndex(p => p.id === "completed"); // normalize 'complete' → 'completed'
+  if (phase === "test_plan_approval") return PHASES.findIndex(p => p.id === "test_plan_approval");
   const idx = PHASES.findIndex(p => p.id === phase);
   return idx >= 0 ? idx : -1;
 }
@@ -4726,10 +4731,13 @@ export default function EngagementOps() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               {[
-                { id: 'recon' as const, label: 'Reconnaissance', desc: 'Clears all data and starts fresh', icon: <Search className="h-4 w-4" />, preserves: 'Nothing' },
-                { id: 'enumeration' as const, label: 'Enumeration', desc: 'Re-runs nmap scanning and port discovery', icon: <Network className="h-4 w-4" />, preserves: 'Recon data' },
-                { id: 'vuln_detection' as const, label: 'Vulnerability Detection', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'Recon + ports' },
-                { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'Recon + ports + vulns' },
+                { id: 'recon' as const, label: 'Domain Recon', desc: 'Clears all data and starts fresh from passive OSINT', icon: <Radar className="h-4 w-4" />, preserves: 'Nothing' },
+                { id: 'passive_discovery' as const, label: 'Passive Discovery', desc: 'Re-runs passive enumeration (DNS, certs, tech fingerprinting)', icon: <Search className="h-4 w-4" />, preserves: 'Domain recon data' },
+                { id: 'scoping' as const, label: 'Scoping & RoE Review', desc: 'Re-validates scope and RoE checklist', icon: <FileCheck className="h-4 w-4" />, preserves: 'Recon + passive discovery' },
+                { id: 'test_plan' as const, label: 'Test Plan Generation', desc: 'Re-generates the NIST 800-115 aligned test plan', icon: <FileText className="h-4 w-4" />, preserves: 'Recon + passive + scope' },
+                { id: 'enumeration' as const, label: 'Active Discovery', desc: 'Re-runs nmap scanning and active port discovery', icon: <Network className="h-4 w-4" />, preserves: 'Recon + passive + scope + plan' },
+                { id: 'vuln_detection' as const, label: 'Vulnerability Scanning', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'All through active discovery' },
+                { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'All through vuln scan' },
                 { id: 'post_exploit' as const, label: 'Post-Exploitation', desc: 'Re-runs post-exploit analysis and reporting prep', icon: <Key className="h-4 w-4" />, preserves: 'All prior phases' },
               ].map(phase => (
                 <label
@@ -6899,11 +6907,15 @@ function InterruptedEngagementBanner({ engagementId }: { engagementId: number })
   if (dismissed || interrupted.length === 0) return null;
 
   const PHASE_LABELS: Record<string, string> = {
-    recon: 'Phase 1: Recon',
-    enumeration: 'Phase 2: Enumeration',
-    vuln_detection: 'Phase 3: Vuln Detection',
-    exploitation: 'Phase 4: Exploitation',
-    post_exploit: 'Phase 5: Post-Exploit',
+    recon: 'Phase 1: Domain Recon',
+    passive_discovery: 'Phase 2: Passive Discovery',
+    scoping: 'Phase 3: Scoping & RoE',
+    test_plan: 'Phase 4: Test Plan',
+    test_plan_approval: 'Phase 4b: Plan Approval',
+    enumeration: 'Phase 5: Active Discovery',
+    vuln_detection: 'Phase 6: Vuln Scan',
+    exploitation: 'Phase 7: Exploitation',
+    post_exploit: 'Phase 8: Post-Exploit',
   };
 
   return (

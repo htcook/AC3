@@ -23,11 +23,15 @@ import type {
   ScanPhase,
   FindingSeverity,
   RiskScore,
+  AssetClassification,
+  ContextAnalysis,
+  AssetEnvironment,
 } from "../types";
 import { ScanQueue } from "../queue/scan-queue";
 import { getTemplateEngine, TemplateEngine } from "./template-engine";
 import { getProtocolRegistry, ProtocolRegistry } from "../protocols/registry";
 import { getIntelligenceEngine, IntelligenceEngine } from "../intelligence/ti-engine";
+import { getContextEngine, ContextEngine } from "../intelligence/context-engine";
 
 // ─── Phase Configuration ───────────────────────────────────────────────────
 
@@ -53,24 +57,27 @@ export class ScanOrchestrator {
   private templates: TemplateEngine;
   private protocols: ProtocolRegistry;
   private intelligence: IntelligenceEngine;
+  private contextEngine: ContextEngine;
 
   constructor(queue: ScanQueue) {
     this.queue = queue;
     this.templates = getTemplateEngine();
     this.protocols = getProtocolRegistry();
     this.intelligence = getIntelligenceEngine();
+    this.contextEngine = getContextEngine();
 
     // Register as the queue processor
     this.queue.setProcessor(this.processJob.bind(this));
   }
 
   /**
-   * Initialize the orchestrator — load templates and TI feeds.
+   * Initialize the orchestrator — load templates, TI feeds, and context engine.
    */
   async initialize(): Promise<void> {
     await this.templates.loadTemplates();
     await this.intelligence.initialize();
-    console.log(`[ScanOrchestrator] Initialized: ${this.templates.count} templates, ${this.protocols.count} protocol scanners`);
+    await this.contextEngine.initialize();
+    console.log(`[ScanOrchestrator] Initialized: ${this.templates.count} templates, ${this.protocols.count} protocol scanners, context engine ready`);
   }
 
   /**
@@ -83,10 +90,35 @@ export class ScanOrchestrator {
     console.log(`[ScanOrchestrator] Processing scan ${scanId}: type=${job.request.type}, targets=${job.request.targets.length}`);
 
     try {
+      // Phase 0: Context Classification (LLM-powered)
+      // Classify targets before scanning to select optimal scanners
+      if (!job.request.skipContextEngine && job.request.intelligence?.useLLMContext !== false) {
+        await this.runPhase(job, "recon", async () => {
+          await this.phaseContextClassification(job);
+        });
+      }
+
       // Phase 1: Recon
       await this.runPhase(job, "recon", async () => {
         await this.phaseRecon(job);
       });
+
+      // Phase 1.5: Post-Recon Context Refinement
+      // Re-classify with recon data for more accurate results
+      if (!job.request.skipContextEngine && job.request.intelligence?.useLLMContext !== false) {
+        for (const target of job.request.targets) {
+          try {
+            const refined = await this.contextEngine.classifyTarget(target, {
+              ports: target.ports,
+              services: target.services,
+            });
+            target.classification = refined;
+            console.log(`[ScanOrchestrator] Refined classification for ${target.value}: ${refined.environment} (${refined.confidence}% confidence)`);
+          } catch (err: any) {
+            console.debug(`[ScanOrchestrator] Context refinement failed for ${target.value}: ${err.message}`);
+          }
+        }
+      }
 
       // Phase 2: Enumeration (skip for quick scans)
       if (job.request.type !== "quick" && job.request.type !== "recon") {
@@ -106,6 +138,14 @@ export class ScanOrchestrator {
       if (job.request.type !== "quick" && job.request.type !== "recon") {
         await this.runPhase(job, "verification", async () => {
           await this.phaseVerification(job);
+        });
+      }
+
+      // Phase 4.5: Context Correlation (LLM-powered)
+      // Correlate findings into attack paths and generate enriched narratives
+      if (!job.request.skipContextEngine && job.request.intelligence?.useLLMContext !== false && job.findings.length > 0) {
+        await this.runPhase(job, "reporting", async () => {
+          await this.phaseContextCorrelation(job);
         });
       }
 
@@ -373,6 +413,125 @@ export class ScanOrchestrator {
     console.log(`[ScanOrchestrator] Reporting: ${job.findings.length} unique findings after dedup`);
   }
 
+  // ─── Context Engine Phases ─────────────────────────────────────────────
+
+  /**
+   * Phase 0: Context Classification
+   * Uses LLM to classify target environments before scanning.
+   * This enables adaptive scanner selection and safety-aware scanning.
+   */
+  private async phaseContextClassification(job: ScanJob): Promise<void> {
+    for (const target of job.request.targets) {
+      try {
+        const classification = await this.contextEngine.classifyTarget(target);
+        target.classification = classification;
+
+        console.log(`[ScanOrchestrator] Context: ${target.value} → ${classification.environment} (${classification.confidence}% confidence)`);
+
+        // Apply safety constraints based on classification
+        if (classification.environment === "ics_ot") {
+          job.request.config = job.request.config || {};
+          job.request.config.icsSafeMode = true;
+          job.request.config.mode = "passive";
+          console.log(`[ScanOrchestrator] ICS/OT detected — enabling safe mode for ${target.value}`);
+        }
+
+        if (classification.environment === "iot") {
+          job.request.config = job.request.config || {};
+          job.request.config.iotGentleMode = true;
+          job.request.config.rateLimit = Math.min(job.request.config.rateLimit || 5, 5);
+          console.log(`[ScanOrchestrator] IoT detected — enabling gentle mode for ${target.value}`);
+        }
+
+        // Store classification on job
+        if (!job.contextClassification) job.contextClassification = [];
+        job.contextClassification.push(classification);
+      } catch (err: any) {
+        console.debug(`[ScanOrchestrator] Context classification failed for ${target.value}: ${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * Phase 4.5: Context Correlation
+   * Uses LLM to correlate findings into attack paths and generate
+   * enriched narratives for high-severity findings.
+   */
+  private async phaseContextCorrelation(job: ScanJob): Promise<void> {
+    const scanId = job.request.id;
+
+    for (const target of job.request.targets) {
+      const targetFindings = job.findings.filter(f => f.target === target.value);
+      if (targetFindings.length < 2) continue;
+
+      const classification = target.classification || {
+        environment: "traditional" as AssetEnvironment,
+        confidence: 50,
+      };
+
+      try {
+        // Correlate findings into attack paths
+        const correlation = await this.contextEngine.correlateFindings(
+          targetFindings,
+          target,
+          classification
+        );
+
+        // Store attack paths on the job
+        if (!job.attackPaths) job.attackPaths = [];
+        job.attackPaths.push(...correlation.attackPaths);
+
+        // Tag findings with their attack path roles
+        for (const path of correlation.attackPaths) {
+          for (let i = 0; i < path.findingChain.length; i++) {
+            const finding = job.findings.find(f => f.id === path.findingChain[i]);
+            if (finding) {
+              finding.attackPathChain = path.findingChain;
+              if (i === 0) finding.attackPathRole = "initial_access";
+              else if (i === path.findingChain.length - 1) finding.attackPathRole = "impact";
+              else finding.attackPathRole = "lateral_movement";
+            }
+          }
+
+          // Attack path stored on job.attackPaths above
+        }
+
+        console.log(`[ScanOrchestrator] Correlation: ${correlation.attackPaths.length} attack paths for ${target.value}`);
+      } catch (err: any) {
+        console.debug(`[ScanOrchestrator] Correlation failed for ${target.value}: ${err.message}`);
+      }
+
+      // Enrich high-severity findings with LLM narratives
+      const highFindings = targetFindings.filter(
+        f => f.severity === "critical" || f.severity === "high"
+      );
+
+      for (const finding of highFindings.slice(0, 10)) { // Limit to 10 to avoid excessive LLM calls
+        try {
+          const narrative = await this.contextEngine.enrichFinding(finding, classification);
+          finding.enrichedNarrative = narrative.technicalNarrative;
+
+          // Map to compliance frameworks if specified
+          if (job.request.complianceFrameworks?.length) {
+            finding.compliance = await this.contextEngine.mapToCompliance(
+              finding,
+              job.request.complianceFrameworks
+            );
+          }
+
+          // Contextualize risk score
+          const contextualScore = this.contextEngine.contextualizeRisk(finding, classification);
+          finding.riskScore = {
+            composite: contextualScore,
+            cvss: finding.riskScore?.cvss || (finding.severity === "critical" ? 9.0 : 7.5),
+          };
+        } catch (err: any) {
+          console.debug(`[ScanOrchestrator] Enrichment failed for finding ${finding.id}: ${err.message}`);
+        }
+      }
+    }
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────────────
 
   private async runPhase(
@@ -557,6 +716,21 @@ export class ScanOrchestrator {
     if (s.includes("telnet")) return "telnet";
     if (s.includes("rabbitmq") || s.includes("amqp")) return "amqp";
     if (s.includes("kafka")) return "kafka";
+    // Cloud / Container protocols
+    if (s.includes("docker")) return "docker";
+    if (s.includes("kubernetes") || s.includes("k8s")) return "kubernetes";
+    if (s.includes("etcd")) return "etcd";
+    if (s.includes("registry") && s.includes("container")) return "container-registry";
+    // IoT protocols
+    if (s.includes("mqtt")) return "mqtt";
+    if (s.includes("coap")) return "coap";
+    if (s.includes("upnp") || s.includes("ssdp")) return "upnp";
+    // ICS/SCADA/OT protocols
+    if (s.includes("modbus")) return "modbus";
+    if (s.includes("dnp3") || s.includes("dnp")) return "dnp3";
+    if (s.includes("bacnet")) return "bacnet";
+    if (s.includes("ethernet/ip") || s.includes("enip") || s.includes("cip")) return "ethernetip";
+    if (s.includes("opcua") || s.includes("opc-ua") || s.includes("opc ua")) return "opcua";
     return null;
   }
 

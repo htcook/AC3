@@ -10,7 +10,10 @@
  * by the scan orchestrator when matching services are discovered.
  */
 
-import type { ProtocolScanner, ScanTarget, ScanConfig, ScanFinding } from "../types";
+import type { ProtocolScanner, ScanTarget, ScanConfig, ScanFinding, AssetEnvironment } from "../types";
+import { AWSIMDSScanner, CloudStorageScanner, KubernetesAPIScanner, DockerAPIScanner, EtcdScanner, ContainerRegistryScanner } from "./cloud-scanners";
+import { MQTTScanner, CoAPScanner, UPnPScanner } from "./iot-scanners";
+import { ModbusScanner, DNP3Scanner, BACnetScanner, EtherNetIPScanner, OPCUAScanner } from "./ics-scanners";
 
 // ─── Registry ──────────────────────────────────────────────────────────────
 
@@ -43,10 +46,27 @@ export class ProtocolRegistry {
   }
 
   /**
+   * List all registered scanners (alias for getAll).
+   */
+  listAll(): ProtocolScanner[] {
+    return this.getAll();
+  }
+
+  /**
    * Find scanners that handle a given port number.
    */
   getByPort(port: number): ProtocolScanner[] {
     return this.getAll().filter(s => s.defaultPorts.includes(port));
+  }
+
+  /**
+   * Get scanners applicable to a specific environment.
+   */
+  getByEnvironment(env: AssetEnvironment): ProtocolScanner[] {
+    return this.getAll().filter(s => {
+      if (!s.environments || s.environments.length === 0) return env === "traditional";
+      return s.environments.includes(env);
+    });
   }
 
   /**
@@ -174,6 +194,26 @@ function registerBuiltinScanners(registry: ProtocolRegistry): void {
   registry.register(new HTTPSecurityScanner());
   registry.register(new TLSScanner());
   registry.register(new DNSScanner());
+
+  // ─── Cloud Infrastructure Scanners ──────────────────────────────────
+  registry.register(new AWSIMDSScanner());
+  registry.register(new CloudStorageScanner());
+  registry.register(new KubernetesAPIScanner());
+  registry.register(new DockerAPIScanner());
+  registry.register(new EtcdScanner());
+  registry.register(new ContainerRegistryScanner());
+
+  // ─── IoT Protocol Scanners ─────────────────────────────────────────
+  registry.register(new MQTTScanner());
+  registry.register(new CoAPScanner());
+  registry.register(new UPnPScanner());
+
+  // ─── ICS/SCADA/OT Protocol Scanners ────────────────────────────────
+  registry.register(new ModbusScanner());
+  registry.register(new DNP3Scanner());
+  registry.register(new BACnetScanner());
+  registry.register(new EtherNetIPScanner());
+  registry.register(new OPCUAScanner());
 }
 
 // ─── Tool-Wrapped Scanner (Generic) ───────────────────────────────────────
