@@ -46,4 +46,4 @@ jobs:
       - name: Verify deployment
         run: |
           echo "Deployment triggered for app ${{ env.APP_ID }}"
-          doctl apps list --format ID,Spec.Name,ActiveDeployment.Phase,LiveURL
+          doctl apps list --format ID,Spec.Name,DefaultIngress

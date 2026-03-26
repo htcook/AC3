@@ -45,8 +45,7 @@ jobs:
 
       - name: Build client bundle
         run: |
-          cd client
-          npx vite build --outDir ../dist/public
+          npx vite build
           echo "✅ Vite build complete"
 
       - name: Generate build manifest
