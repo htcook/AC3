@@ -93,9 +93,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build client
-        run: |
-          cd client
-          npx vite build --outDir ../dist/public
+        run: npx vite build
 
       - name: Verify build output
         run: |
