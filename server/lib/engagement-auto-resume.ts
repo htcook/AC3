@@ -335,17 +335,30 @@ async function executeAutoResume(engagementId: number): Promise<void> {
     const { getOpsStateWithRecovery, initOpsState, addLog: addOpsLog, broadcastOpsUpdate, persistOpsStateNow } = await import("./engagement-orchestrator");
     let state = await getOpsStateWithRecovery(engagementId);
     
+    // Add a recovery log entry to the state so the operator sees what happened
+    if (state) {
+      addOpsLog(state, {
+        phase: state.phase || 'unknown',
+        type: 'warning',
+        title: '\u26a0\ufe0f Scan Interrupted \u2014 State Recovered',
+        detail: `The server restarted while the scan was running. ${state.assets?.length || 0} assets have been recovered from the last snapshot. You can reset and re-run the scan.`,
+      });
+      await persistOpsStateNow(engagementId, state);
+    }
+    
     // Determine which phases to run based on stored config and current progress
     const storedPhases = (state as any)?.pipelinePhases || { passive: true, active: true, llmAnalysis: true, exploitGeneration: true };
     const currentPhase = interruption.phase;
     
     // Skip phases that have already completed based on current phase
-    // Phase order: recon -> scanning -> exploitation -> completed
+    // Phase order: recon -> enumeration -> vuln_detection -> exploitation -> completed
+    const phaseOrder = ['recon', 'enumeration', 'scanning', 'vuln_detection', 'exploitation', 'post_exploit', 'completed'];
+    const currentIdx = phaseOrder.indexOf(currentPhase);
     const phaseComplete = {
-      passive: ['scanning', 'vuln_detection', 'exploitation', 'completed'].includes(currentPhase),
-      active: ['exploitation', 'completed'].includes(currentPhase),
-      llmAnalysis: ['exploitation', 'completed'].includes(currentPhase),
-      exploitGeneration: currentPhase === 'completed',
+      passive: currentIdx > phaseOrder.indexOf('recon'),
+      active: currentIdx > phaseOrder.indexOf('vuln_detection'),
+      llmAnalysis: currentIdx > phaseOrder.indexOf('vuln_detection'),
+      exploitGeneration: currentIdx >= phaseOrder.indexOf('completed'),
     };
     
     const resumePhases = {

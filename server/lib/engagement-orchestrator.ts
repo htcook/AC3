@@ -2265,6 +2265,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
           const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
           // Score each asset individually using the correct FullHybridScoreInput interface
           for (const asset of domainAssets) {
+            // Update heartbeat so stall detector knows we're alive during long LLM scoring
+            if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
             try {
               const riskSignals = (asset.passiveRecon?.riskSignals || []).map((r: any) => ({
                 severity: r.severity || 'medium',
@@ -4072,11 +4074,17 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       const toolTimeout = cmd.tool === 'nuclei' ? 300 : 180;
       let result: any;
 
-      // httpx pipe commands need executeRawCommand
-      if (cmd.tool === 'httpx' && cmd.command.includes('echo ')) {
-        // Job Queue Bridge: raw commands still go through SSH (pipe commands need shell)
+      // Route pipe/raw commands through executeRawCommandViaQueue (not executeTool)
+      // "raw" tool commands from suggestToolCommands use stdin piping (echo URL | tool)
+      // and would be blocked by ALLOWED_TOOLS whitelist in executeTool.
+      const isPipeCommand = (cmd.tool === 'raw') ||
+        (cmd.tool === 'httpx' && cmd.command.includes('echo ')) ||
+        (cmd.tool === 'nuclei' && cmd.command.includes('echo '));
+      if (isPipeCommand) {
+        // Strip the "raw " prefix if present — the shell command is the args, not "raw <args>"
+        const rawCmd = cmd.command.startsWith('raw ') ? cmd.command.slice(4) : cmd.command;
         const startTimeRaw = Date.now();
-        result = await executeRawCommandViaQueue(cmd.command + ' 2>&1', toolTimeout, { engagementId: state.engagementId });
+        result = await executeRawCommandViaQueue(rawCmd + ' 2>&1', toolTimeout, { engagementId: state.engagementId });
         result.durationMs = Date.now() - startTimeRaw;
       } else {
         const cmdArgs = cmd.command.startsWith(cmd.tool)
@@ -5548,13 +5556,24 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             phase: 'credential_testing',
           });
 
-          addLog(state, {
-            phase: "vuln_detection",
-            type: "scan_result",
-            title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
-            detail: `${findings.length} findings, exit code ${result.exitCode}`,
-            data: { findings, outputPreview: result.stdout.slice(0, 300) },
-          });
+          // Hydra exit code 255 = connection refused/failed — log as warning
+          if (cmd.tool === 'hydra' && result.exitCode === 255) {
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "warning",
+              title: `⚠️ ${cmd.tool} Connection Failed: ${fmtTarget(asset)}`,
+              detail: `Hydra could not connect to the target service (exit code 255). The service may be unreachable, filtered by a firewall, or not accepting connections on the tested port. Command: ${cmd.tool} ${cmd.args.slice(0, 120)}`,
+              data: { findings, exitCode: result.exitCode, stderr: result.stderr?.slice(0, 500) },
+            });
+          } else {
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "scan_result",
+              title: `${cmd.tool} Complete: ${fmtTarget(asset)}`,
+              detail: `${findings.length} findings, exit code ${result.exitCode}`,
+              data: { findings, outputPreview: result.stdout.slice(0, 300) },
+            });
+          }
 
           // Persist credential testing results to database
           await persistScanResult({
@@ -5897,9 +5916,11 @@ ${(() => {
       });
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
 
-      // Score each asset with findings individually using the correct FullHybridScoreInput interface
+       // Score each asset with findings individually using the correct FullHybridScoreInput interface
       const assetsWithFindings = state.assets.filter(a => a.vulns.length > 0 || a.zapFindings.length > 0);
       for (const asset of assetsWithFindings) {
+        // Update heartbeat so stall detector knows we're alive during long LLM scoring
+        if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
         try {
           const assetRiskSignals = [
             ...asset.vulns.map(v => ({
