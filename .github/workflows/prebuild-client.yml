@@ -80,13 +80,10 @@ jobs:
           
           # Only commit if there are changes
           if git diff --cached --quiet; then
-            echo "ℹ️ No changes to .client-assets — skipping commit"
+            echo "No changes to .client-assets — skipping commit"
           else
             CHANGED=$(git diff --cached --stat | tail -1)
-            git commit -m "chore: rebuild .client-assets [skip ci]
-
-Built from ${{ github.sha }}
-Changes: ${CHANGED}"
+            git commit -m "chore: rebuild .client-assets [skip ci] from ${{ github.sha }}"
             git push
-            echo "✅ .client-assets committed and pushed"
+            echo "client-assets committed and pushed"
           fi
