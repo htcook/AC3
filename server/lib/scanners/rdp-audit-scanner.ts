@@ -488,7 +488,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
     if (rawOutput.length > 100 && !useDeterministicAnalysis("rdp")) {
       try {
         const llmResult = await throttledLLMCall(async () => {
-          return invokeLLM({ _caller: "rdp-audit-scanner",
+          return invokeLLM({
             _caller: "rdp-audit-scanner",
             messages: [
               {

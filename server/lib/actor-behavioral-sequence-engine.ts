@@ -644,7 +644,7 @@ async function inferAttackPaths(
   maxPaths: number
 ): Promise<PredictedAttackPath[]> {
   try {
-    const response = await invokeLLM({ _caller: "actor-behavioral-sequence",
+    const response = await invokeLLM({
       _caller: "actor-behavioral-sequence-engine.inferAttackPaths",
       messages: [
         {

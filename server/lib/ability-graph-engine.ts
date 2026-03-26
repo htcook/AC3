@@ -742,7 +742,7 @@ export async function decomposeTechniquesToGraph(params: {
 }): Promise<{ nodes: AbilityNodeData[]; edges: AbilityEdgeData[] }> {
   const graphId = generateGraphId();
 
-  const response = await invokeLLM({ _caller: "ability-graph-engine",
+  const response = await invokeLLM({
     _caller: "ability-graph-engine.decomposeTechniquesToGraph",
     messages: [
       {

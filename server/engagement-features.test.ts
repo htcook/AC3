@@ -69,8 +69,9 @@ describe('Startup Recovery (recoverInterruptedEngagements)', () => {
     const source = readSrc('server/_core/index.ts');
 
     expect(source).toContain('recoverInterruptedEngagements');
-    expect(source).toContain('[StartupRecovery]');
-    expect(source).toContain('No interrupted engagements found');
+    // Startup recovery was consolidated into the auto-resume hook
+    expect(source).toContain('[AutoResume]');
+    expect(source).toContain('auto-resume hook initialized');
   });
 
   it('recovery function notifies owner about interrupted engagements', async () => {

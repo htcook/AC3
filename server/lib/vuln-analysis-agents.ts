@@ -332,7 +332,7 @@ Respond in JSON format with this exact structure:
 }`;
 
   try {
-    const response = await invokeLLM({ _caller: "vuln-analysis-agents",
+    const response = await invokeLLM({
       _caller: "vuln-analysis-agents.analyzeVulnerability",
       messages: [
         { role: "system", content: agentPrompt },

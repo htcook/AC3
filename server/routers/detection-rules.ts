@@ -61,7 +61,7 @@ export const detectionRulesRouter = router({
 
         for (const fmt of formats) {
           const formatLabel = fmt === "sigma" ? "Sigma YAML" : fmt === "splunk_spl" ? "Splunk SPL" : "KQL (Microsoft Sentinel)";
-          const response = await invokeLLM({ _caller: "detection-rules.generate",
+          const response = await invokeLLM({ 
             _caller: "detection-rules.KQL_TEMPLATE",
             messages: [
               { role: "system", content: `You are an expert SIEM detection engineer. Generate a production-ready ${formatLabel} detection rule for the given MITRE ATT&CK technique. Output ONLY the rule content, no explanations or markdown fences.` },
@@ -97,7 +97,7 @@ export const detectionRulesRouter = router({
         try {
           const { invokeLLM } = await import("../_core/llm");
           const formatLabel = input.format === "sigma" ? "Sigma YAML" : input.format === "splunk_spl" ? "Splunk SPL" : "KQL";
-          const response = await invokeLLM({ _caller: "detection-rules.convert",
+          const response = await invokeLLM({ 
             _caller: "detection-rules",
             messages: [
               { role: "system", content: `You are an expert SIEM detection engineer. Generate a production-ready ${formatLabel} detection rule. Output ONLY the rule content.` },

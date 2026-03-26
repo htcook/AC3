@@ -2319,7 +2319,7 @@ export const domainIntelRouter = router({
             let orgProfile = enrichResult.orgProfile;
             let biaProfile = null;
             try {
-              const orgLLMResponse = await invokeLLM({ _caller: "domain-intel.orgAnalysis",
+              const orgLLMResponse = await invokeLLM({ 
                 _caller: "domain-intel-core.orgProfile",
                 _timeoutMs: 180_000, // 3 min for enrichment-class calls
                 messages: [
@@ -2358,7 +2358,7 @@ export const domainIntelRouter = router({
               orgProfile = mergeLLMOrgData(orgProfile, llmOrgData);
 
               // Build BIA profile
-              const biaLLMResponse = await invokeLLM({ _caller: "domain-intel.biaAnalysis",
+              const biaLLMResponse = await invokeLLM({ 
                 _caller: "domain-intel-core.biaProfile",
                 _timeoutMs: 180_000, // 3 min for enrichment-class calls
                 messages: [

@@ -847,6 +847,7 @@ export async function generateCampaignPlan(
   const { invokeLLM } = await import("../_core/llm");
 
   const response = await invokeLLM({
+    _caller: 'campaign-orchestrator.generateCampaignPlan',
     messages: [
       {
         role: "system",

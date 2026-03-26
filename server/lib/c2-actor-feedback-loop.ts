@@ -337,7 +337,7 @@ async function detectNovelVariations(
   }
 
   try {
-    const response = await invokeLLM({ _caller: "c2-actor-feedback",
+    const response = await invokeLLM({
       _caller: "c2-actor-feedback-loop.detectNovelVariations",
       messages: [
         {

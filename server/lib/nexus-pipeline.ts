@@ -147,7 +147,7 @@ export async function executeNexusPipeline(
     const reqResult = await executeStage(
       executionId, 'requirement_analysis', cfg,
       async (attempt) => {
-        const resp = await invokeLLM({ _caller: "nexus-pipeline.classify",
+        const resp = await invokeLLM({ 
           _caller: `nexus-pipeline:requirement-analysis:${callerName}`,
           messages: [
             {
@@ -213,7 +213,7 @@ Output a JSON object with these fields:
     const archResult = await executeStage(
       executionId, 'architecture', cfg,
       async (attempt) => {
-        const resp = await invokeLLM({ _caller: "nexus-pipeline.extract",
+        const resp = await invokeLLM({ 
           _caller: `nexus-pipeline:architecture:${callerName}`,
           messages: [
             {
@@ -269,7 +269,7 @@ Output a JSON object with:
     const codeResult = await executeStage(
       executionId, 'code_generation', cfg,
       async (attempt) => {
-        const resp = await invokeLLM({ _caller: "nexus-pipeline.enrich",
+        const resp = await invokeLLM({ 
           _caller: `nexus-pipeline:code-generation:${callerName}`,
           messages: [
             {
@@ -371,7 +371,7 @@ Output a JSON object with:
         generatedTests = testOutput.tests;
 
         // 4b: LLM-as-Judge evaluation
-        const judgeResp = await invokeLLM({ _caller: "nexus-pipeline.judge",
+        const judgeResp = await invokeLLM({ 
           _caller: `nexus-pipeline:qa-judge:${callerName}`,
           messages: [
             {
@@ -486,7 +486,7 @@ Output a JSON object with:
     const secResult = await executeStage(
       executionId, 'security_review', cfg,
       async (attempt) => {
-        const resp = await invokeLLM({ _caller: "nexus-pipeline.correlate",
+        const resp = await invokeLLM({ 
           _caller: `nexus-pipeline:security-review:${callerName}`,
           messages: [
             {
@@ -580,7 +580,7 @@ Output a JSON object with:
     const intResult = await executeStage(
       executionId, 'integration_test', cfg,
       async (attempt) => {
-        const resp = await invokeLLM({ _caller: "nexus-pipeline.recommend",
+        const resp = await invokeLLM({ 
           _caller: `nexus-pipeline:integration-test:${callerName}`,
           messages: [
             {

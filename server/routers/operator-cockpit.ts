@@ -437,7 +437,7 @@ ${recentEventsSummary || "No recent events."}
 Provide tactical recommendations for the next operational actions.`;
 
       try {
-        const response = await invokeLLM({ _caller: "operator-cockpit",
+        const response = await invokeLLM({ 
           _caller: "operator-cockpit",
           messages: [
             { role: "system", content: systemPrompt },

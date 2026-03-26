@@ -389,7 +389,7 @@ export const dfirLibraryRouter = router({
 
       const contentSlice = (report.rawContent || report.summary || '').slice(0, 8000);
 
-      const response = await invokeLLM({ _caller: "dfir-library",
+      const response = await invokeLLM({ 
         _caller: 'dfir-library.enrichReport',
         messages: [
           {

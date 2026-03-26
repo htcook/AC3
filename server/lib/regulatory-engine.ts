@@ -364,7 +364,7 @@ Return a JSON array of applicable frameworks with confidence scores.
 Only include frameworks you are reasonably confident apply (confidence > 50).
 Use these framework codes: HIPAA, GDPR, CCPA, PCI-DSS, SOX, GLBA, FERPA, COPPA, NERC-CIP, FISMA, FedRAMP, CMMC, DFARS, ITAR, NIST-800-53, ISO-27001, SOC-2, HITRUST, NYDFS-500`;
 
-  const response = await invokeLLM({ _caller: "regulatory-engine",
+  const response = await invokeLLM({ 
     _caller: 'regulatory-engine.detectRegulatoryFrameworks',
     messages: [
       { role: 'system', content: 'You are a regulatory compliance analyst. Return only valid JSON.' },

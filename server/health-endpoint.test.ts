@@ -50,7 +50,7 @@ describe("Health Endpoint & getHealthStatus", () => {
       expect(typeof health.memoryWatchdog.running).toBe("boolean");
       expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(250);
       expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(300);
-      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(420);
+      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(550);
     });
 
     it("should include engagement status", async () => {

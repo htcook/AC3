@@ -415,7 +415,7 @@ export async function matchThreatActorsWithLLM(params: {
     `${a.hostname} (${a.assetType}, tech: ${(a.technologies || []).join(', ')}, risk: ${a.riskBand || 'unknown'})`
   ).join("\n");
   
-  const response = await invokeLLM({ _caller: "threat-actor-matcher",
+  const response = await invokeLLM({
     _caller: "threat-actor-matcher.matchThreatActorsWithLLM",
     messages: [
       {

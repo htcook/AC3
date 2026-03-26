@@ -297,7 +297,7 @@ export const engagementOpsRouter = router({
               { role: 'user' as const, content: 'Say hello in one word' },
             ];
           }
-          const result = await invokeLLM({ _caller: "engagement-ops.attackPlan",
+          const result = await invokeLLM({ 
             _caller: 'engagement-ops:analyzeTarget',
             messages,
             ...opts,
@@ -2213,7 +2213,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                   try {
                     let llmResult;
                     try {
-                      llmResult = await invokeLLM({ _caller: "engagement-ops.vulnAnalysis",
+                      llmResult = await invokeLLM({ 
                         _caller: "engagement-ops-core",
                         messages: [
                           { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON arrays.' },
@@ -2225,7 +2225,7 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                       // Retry with minimal prompt on failure (e.g., 403 from too-large prompt)
                       addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f504} Retrying Vuln Synthesis: ${asset.hostname}`, detail: 'Retrying with reduced prompt...' });
                       const minimalPrompt = `Identify the TOP 10 POTENTIAL (unconfirmed) vulnerabilities for ${asset.hostname} (technologies: ${techs.join(', ') || 'Unknown'}, ports: ${ports.map((p: any) => p.port + '/' + p.service).join(', ')}).\nKey risk signals: ${sampledSignals.slice(0, 10).map((s: any) => s.rationale).join('; ')}\n\nFocus on: SQL Injection, XSS, Broken Auth, Sensitive Data Exposure, Directory Traversal, CRLF Injection, File Inclusion, SSRF, Misconfig.\nReturn JSON with vulnerabilities array containing: title, severity, cve, description, confidence, category.`;
-                      llmResult = await invokeLLM({ _caller: "engagement-ops.vulnFallback",
+                      llmResult = await invokeLLM({ 
                         _caller: "engagement-ops-core",
                         messages: [
                           { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON.' },
@@ -2750,7 +2750,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
         addLog(state, { phase: 'scanning', type: 'info', title: `\u{1f504} Re-synthesizing: ${asset.hostname}`, detail: `Targeting: ${input.targetCategories?.join(', ') || 'all categories'}` });
 
         try {
-          const llmResult = await invokeLLM({ _caller: "engagement-ops.postExploit",
+          const llmResult = await invokeLLM({ 
             _caller: "engagement-ops-core",
             messages: [
               { role: 'system', content: 'You are a vulnerability assessment AI. Return only valid JSON.' },

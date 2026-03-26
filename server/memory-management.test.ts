@@ -73,8 +73,8 @@ describe("Memory Watchdog Thresholds (Manus Container)", () => {
     expect(orchestratorSrc).not.toContain("HEAP_CRITICAL_MB = 4000");
   });
 
-  it("should have RSS_EMERGENCY_MB at 420 (not 24000)", () => {
-    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = 420");
+  it("should have RSS_EMERGENCY_MB at 550 (Manus container tuned)", () => {
+    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = 550");
     expect(orchestratorSrc).not.toContain("RSS_EMERGENCY_MB = 24000");
   });
 
@@ -154,7 +154,7 @@ describe("Orchestrator ZAP Timeout Handling", () => {
   );
 
   it("should mark timed-out ZAP scans as error in DB", () => {
-    expect(orchestratorSrc).toContain("ZAP scan timed out after 5 minutes");
+    expect(orchestratorSrc).toContain("ZAP scan timed out after ${zapTimeoutMinutes} minutes");
   });
 
   it("should log ZAP timeout as warning", () => {

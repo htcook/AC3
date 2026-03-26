@@ -459,7 +459,7 @@ Provide analysis in the following JSON format:
 }`;
 
   try {
-    const response = await invokeLLM({ _caller: "c2-learning-engine",
+    const response = await invokeLLM({
       _caller: "c2-learning-engine.llmAnalyzeExecution",
       messages: [
         { role: "system", content: "You are a red team analyst specializing in C2 framework operations and MITRE ATT&CK technique analysis. Extract actionable intelligence from execution results. Return only valid JSON." },

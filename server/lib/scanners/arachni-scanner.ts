@@ -435,7 +435,7 @@ export async function analyzeArachniFindings(
     `[${f.severity.toUpperCase()}] ${f.name} (${f.module}) — ${f.method} ${f.url}${f.parameter ? ` [param: ${f.parameter}]` : ""}${f.proof ? ` — proof: ${f.proof.slice(0, 80)}` : ""}`
   ).join("\n");
 
-  const response = await throttledLLMCall("arachni-analyst", () => invokeLLM({ _caller: "arachni-scanner",
+  const response = await throttledLLMCall("arachni-analyst", () => invokeLLM({
     _caller: "arachni-scanner.analyzeArachniFindings",
     messages: [
       {

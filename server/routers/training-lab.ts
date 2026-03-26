@@ -2095,7 +2095,7 @@ export const trainingLabRouter = router({
             ).join("\n")}\n\nPlease incorporate this feedback to improve your analysis accuracy.`;
           }
 
-          const result = await invokeLLM({ _caller: "training-lab.evaluate",
+          const result = await invokeLLM({ 
             _caller: "training-lab.portsSummary",
             messages: [
               { role: "system", content: "You are an expert penetration tester providing detailed vulnerability analysis. Always respond with valid JSON." },

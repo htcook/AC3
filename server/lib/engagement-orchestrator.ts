@@ -4561,8 +4561,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       zapBaseUrl: 'https://scan.aceofcloud.io/lab/juice-shop',
       skipPortScan: true, // Only one URL, no per-port scanning needed
     },
-    // DVWA resolves fine from ZAP (dvbank.lab.aceofcloud.io has DNS entry)
+    // DVWA resolves fine from ZAP (dvwa.lab.aceofcloud.io has DNS entry)
     // External labs (demo.testfire.net, testphp.vulnweb.com) resolve fine
+    'altoro.lab.aceofcloud.io': {
+      zapBaseUrl: 'http://altoro.lab.aceofcloud.io/altoromutual',
+      skipPortScan: true, // Altoro Mutual runs under /altoromutual/ context path on Tomcat
+    },
   };
 
   /**
@@ -4755,10 +4759,39 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         );
         const hasConfirmedCreds = webCreds.length > 0;
 
+        // ── Training Lab Default Credentials ──
+        // If hydra failed to confirm creds (e.g., exit code 255), inject known defaults
+        // for training lab targets so ZAP can scan behind the login wall.
+        const TRAINING_LAB_DEFAULT_CREDS: Record<string, { username: string; password: string; loginPath: string }> = {
+          'dvwa': { username: 'admin', password: 'password', loginPath: '/login.php' },
+          'altoro': { username: 'admin', password: 'admin', loginPath: '/altoromutual/login.jsp' },
+          'juiceshop': { username: 'admin@juice-sh.op', password: 'admin123', loginPath: '/#/login' },
+          'hackazon': { username: 'test_user', password: 'test_user', loginPath: '/user/login' },
+          'testphp': { username: 'test', password: 'test', loginPath: '/login.php' },
+        };
+
+        let trainingLabCreds: { username: string; password: string; loginPath: string } | undefined;
+        if (state.trainingLabMode && !hasConfirmedCreds) {
+          const hostname = webApp.hostname.toLowerCase();
+          for (const [labKey, creds] of Object.entries(TRAINING_LAB_DEFAULT_CREDS)) {
+            if (hostname.includes(labKey)) {
+              trainingLabCreds = creds;
+              addLog(state, {
+                phase: "vuln_detection", type: "info",
+                title: `🔑 Training Lab Default Creds: ${labKey}`,
+                detail: `Hydra did not confirm credentials — injecting known defaults (${creds.username}:***) for authenticated ZAP scanning`,
+              });
+              break;
+            }
+          }
+        }
+
         // Pass confirmed credentials as auth hints to the LLM config generator
         const authHints = hasConfirmedCreds
           ? { type: 'form', loginUrl: `${targetUrl}/login`, credentials: { username: webCreds[0].username, password: webCreds[0].password } }
-          : undefined;
+          : trainingLabCreds
+            ? { type: 'form', loginUrl: `${targetUrl}${trainingLabCreds.loginPath}`, credentials: { username: trainingLabCreds.username, password: trainingLabCreds.password } }
+            : undefined;
 
         let llmConfig = await generateLLMScanConfig({
           targetUrl,
@@ -4803,6 +4836,18 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               credentialSources: webCreds.map(c => ({ source: c.source, username: c.username, service: c.service, confirmedAt: c.confirmedAt })),
             },
           });
+        } else if (trainingLabCreds) {
+          addLog(state, {
+            phase: "vuln_detection",
+            type: "info",
+            title: `🔑 Training Lab Credential Handoff: default creds → ZAP`,
+            detail: `Using training lab default credentials (${trainingLabCreds.username}:***) for authenticated scanning of ${targetUrl}. Login path: ${trainingLabCreds.loginPath}`,
+            data: {
+              credentialCount: 1,
+              source: 'training_lab_defaults',
+              loginPath: trainingLabCreds.loginPath,
+            },
+          });
         }
 
         // ── Training Lab Seed URLs: pre-seed ZAP with known endpoints for SPA targets ──
@@ -4832,6 +4877,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               '/', '/login.jsp', '/index.jsp', '/bank/main.jsp', '/bank/transaction.jsp',
               '/search.jsp', '/feedback.jsp', '/bank/customize.jsp',
               '/bank/queryxpath.jsp', '/bank/apply.jsp',
+              '/altoromutual/', '/altoromutual/login.jsp', '/altoromutual/index.jsp',
+              '/altoromutual/bank/main.jsp', '/altoromutual/bank/transaction.jsp',
+              '/altoromutual/search.jsp', '/altoromutual/feedback.jsp',
+              '/altoromutual/bank/customize.jsp', '/altoromutual/bank/queryxpath.jsp',
             ],
             'testphp': [
               '/', '/login.php', '/listproducts.php?cat=1', '/artists.php?artist=1',
@@ -4870,7 +4919,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             scanType: "full",
             scanMode: "active",
             userId: operatorCtx.id,
-            scanName: `EngOps-${state.engagementId}-${webApp.hostname}`,
+            scanName: `EngOps-${state.engagementId}-${webApp.hostname}-run${Date.now()}`,
             llmConfig: llmConfig,
             discoveredTechnologies: techHints,
             trainingLabMode: state.trainingLabMode || false,

@@ -37,7 +37,7 @@ describe("P1: Graceful Shutdown Timeout", () => {
 // ─── P2: Crash-Loop Guard Logic ────────────────────────────────────────────
 
 /** Constants matching the auto-resume module */
-const MAX_INTERRUPTS_BEFORE_BLOCK = 3;
+const MAX_INTERRUPTS_BEFORE_BLOCK = 10;
 const CRASH_LOOP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 interface SnapshotRecord {
@@ -143,22 +143,22 @@ describe("P2: Crash-Loop Guard", () => {
     expect(result.newInterruptCount).toBe(2);
   });
 
-  it("should BLOCK auto-resume on third interrupt within 24h window (crash-loop)", () => {
+  it("should BLOCK auto-resume on 10th interrupt within 24h window (crash-loop)", () => {
     const recentTime = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago
-    const snap = { ...baseSnapshot, interruptCount: 2, lastInterruptedAt: recentTime };
+    const snap = { ...baseSnapshot, interruptCount: 9, lastInterruptedAt: recentTime };
     const result = evaluateCrashLoopGuard(snap, autoResumeEngagement);
     expect(result.shouldAutoResume).toBe(false);
     expect(result.crashLoopBlocked).toBe(true);
-    expect(result.newInterruptCount).toBe(3);
+    expect(result.newInterruptCount).toBe(10);
   });
 
-  it("should BLOCK auto-resume on fourth interrupt within 24h window", () => {
+  it("should BLOCK auto-resume on 11th interrupt within 24h window", () => {
     const recentTime = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(); // 2 hours ago
-    const snap = { ...baseSnapshot, interruptCount: 3, lastInterruptedAt: recentTime };
+    const snap = { ...baseSnapshot, interruptCount: 10, lastInterruptedAt: recentTime };
     const result = evaluateCrashLoopGuard(snap, autoResumeEngagement);
     expect(result.shouldAutoResume).toBe(false);
     expect(result.crashLoopBlocked).toBe(true);
-    expect(result.newInterruptCount).toBe(4);
+    expect(result.newInterruptCount).toBe(11);
   });
 
   it("should NOT block when interrupts are outside the 24h window", () => {
@@ -217,9 +217,9 @@ describe("P2: Auto-Resume Scheduling", () => {
 
   it("should export configuration constants", async () => {
     const mod = await import("./lib/engagement-auto-resume");
-    expect(mod.AUTO_RESUME_CONFIG.MAX_INTERRUPTS_BEFORE_BLOCK).toBe(3);
+    expect(mod.AUTO_RESUME_CONFIG.MAX_INTERRUPTS_BEFORE_BLOCK).toBe(10);
     expect(mod.AUTO_RESUME_CONFIG.CRASH_LOOP_WINDOW_MS).toBe(24 * 60 * 60 * 1000);
-    expect(mod.AUTO_RESUME_CONFIG.AUTO_RESUME_DELAY_MS).toBe(3 * 60 * 1000);
+    expect(mod.AUTO_RESUME_CONFIG.AUTO_RESUME_DELAY_MS).toBe(30 * 1000);
     expect(mod.AUTO_RESUME_CONFIG.CANCEL_GRACE_PERIOD_MS).toBe(30 * 1000);
   });
 
@@ -257,13 +257,13 @@ describe("P2: Schema Fields", () => {
 // ─── P2: Interrupt Counter Edge Cases ──────────────────────────────────────
 
 describe("P2: Interrupt Counter Edge Cases", () => {
-  it("should correctly calculate boundary: exactly 3 interrupts at exactly 24h ago", () => {
+  it("should correctly calculate boundary: exactly 10 interrupts at exactly 24h ago", () => {
     // Exactly at the boundary — 24h ago should be outside the window (>= not >)
     const exactBoundary = new Date(Date.now() - CRASH_LOOP_WINDOW_MS).toISOString();
     const snap: SnapshotRecord = {
       engagementId: 1,
       isRunning: true,
-      interruptCount: 2,
+      interruptCount: 9,
       lastInterruptedAt: exactBoundary,
       stateJson: {
         phase: "enumeration",
@@ -284,7 +284,7 @@ describe("P2: Interrupt Counter Edge Cases", () => {
     const snap: SnapshotRecord = {
       engagementId: 1,
       isRunning: true,
-      interruptCount: 2,
+      interruptCount: 9,
       lastInterruptedAt: justInside,
       stateJson: {
         phase: "enumeration",

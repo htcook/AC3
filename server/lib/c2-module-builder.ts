@@ -274,7 +274,7 @@ async function generateCalderaAbility(spec: ModuleSpec): Promise<GeneratedModule
   }
 
   // LLM-generate the command
-  const response = await invokeLLM({ _caller: "c2-module-builder.generateModule",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.generateCalderaAbility",
     messages: [
       {
@@ -345,7 +345,7 @@ async function generateMsfModule(spec: ModuleSpec): Promise<GeneratedModule> {
   }
 
   const msfType = categoryToMsfType(spec.category);
-  const response = await invokeLLM({ _caller: "c2-module-builder.generateEvasion",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.generateMsfModule",
     messages: [
       {
@@ -383,7 +383,7 @@ async function generateSliverExtension(spec: ModuleSpec): Promise<GeneratedModul
 
   // Sliver extensions are typically Go or BOF
   const lang = spec.language === "bof" ? "bof" : "go";
-  const response = await invokeLLM({ _caller: "c2-module-builder.generatePayload",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.generateSliverExtension",
     messages: [
       {
@@ -425,7 +425,7 @@ async function generateEmpireModule(spec: ModuleSpec): Promise<GeneratedModule> 
   }
 
   const empireType = categoryToEmpireType(spec.category);
-  const response = await invokeLLM({ _caller: "c2-module-builder.generatePersistence",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.generateEmpireModule",
     messages: [
       {
@@ -800,7 +800,7 @@ async function llmRecommendModules(request: DynamicModuleRequest): Promise<Modul
     creds: a.discoveredCredentials?.length || 0,
   }));
 
-  const response = await invokeLLM({ _caller: "c2-module-builder.generateExfil",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.llmRecommendModules",
     messages: [
       {
@@ -965,7 +965,7 @@ async function generateCobaltStrikeModule(spec: ModuleSpec): Promise<GeneratedMo
   // Determine if this should be a BOF or Aggressor script
   const isBof = spec.language === "bof" || spec.category === "credential_access" || spec.category === "discovery";
 
-  const response = await invokeLLM({ _caller: "c2-module-builder.generateLateralMove",
+  const response = await invokeLLM({
     _caller: "c2-module-builder.generateCobaltStrikeModule",
     messages: [
       {
