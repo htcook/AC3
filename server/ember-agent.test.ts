@@ -9,6 +9,9 @@
  *   5. Database schema: table definitions
  */
 import { describe, it, expect } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ─── Core Library Tests ─────────────────────────────────────────────────────
 
@@ -498,7 +501,7 @@ describe("Ember UI Routes and Navigation", () => {
   it("sidebar-nav includes unified Agent Management group with Ember and all C2 frameworks", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     expect(content).toContain("agent-management");
@@ -521,7 +524,7 @@ describe("Ember UI Routes and Navigation", () => {
   it("sidebar-nav grants Agent Management access to operator and team_lead", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     // operator role should have c2-agents access in the ROLE_GROUP_ACCESS (renamed from agent-management)
@@ -537,7 +540,7 @@ describe("Ember UI Routes and Navigation", () => {
   it("App.tsx registers all Ember routes", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/App.tsx",
+      path.join(PROJECT_ROOT, "client/src/App.tsx"),
       "utf-8"
     );
     expect(content).toContain("EmberFleetOverview");
@@ -572,7 +575,7 @@ describe("Ember UI Routes and Navigation", () => {
     ];
     for (const page of pages) {
       const exists = fs.existsSync(
-        `/home/ubuntu/caldera-dashboard/client/src/pages/${page}.tsx`
+        path.join(PROJECT_ROOT, `client/src/pages/${page}.tsx`)
       );
       expect(exists, `${page}.tsx should exist`).toBe(true);
     }
@@ -585,7 +588,7 @@ describe("Ember Database Schema", () => {
   it("schema defines all Ember tables", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/drizzle/schema.ts",
+      path.join(PROJECT_ROOT, "drizzle/schema.ts"),
       "utf-8"
     );
     expect(content).toContain("emberAgents");
@@ -599,7 +602,7 @@ describe("Ember Database Schema", () => {
   it("emberAgents table has required columns", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/drizzle/schema.ts",
+      path.join(PROJECT_ROOT, "drizzle/schema.ts"),
       "utf-8"
     );
     expect(content).toContain("agentId");
@@ -618,21 +621,21 @@ describe("Ember Database Schema", () => {
 describe("Ember Integration in Agents Page", () => {
   it("Agents page imports ember tRPC hooks", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/Agents.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/Agents.tsx"), "utf-8");
     expect(content).toContain("trpc.ember");
     expect(content).toContain("Ember");
   });
 
   it("Agents page has Ember Implants tab", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/Agents.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/Agents.tsx"), "utf-8");
     expect(content).toContain("Ember Implants");
     expect(content).toContain('value="ember"');
   });
 
   it("Agents page shows Ember agent state and profile badges", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/Agents.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/Agents.tsx"), "utf-8");
     expect(content).toContain("EMBER_STATE_COLORS");
     expect(content).toContain("EMBER_PROFILE_COLORS");
     expect(content).toContain("ghost");
@@ -642,7 +645,7 @@ describe("Ember Integration in Agents Page", () => {
 
   it("Agents page has unified stats for both Caldera and Ember", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/Agents.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/Agents.tsx"), "utf-8");
     expect(content).toContain("Caldera Agents");
     expect(content).toContain("Ember Implants");
     expect(content).toContain('value="caldera"');
@@ -651,7 +654,7 @@ describe("Ember Integration in Agents Page", () => {
 
   it("Agents page has kill action for Ember agents", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/Agents.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/Agents.tsx"), "utf-8");
     expect(content).toContain("killAgent");
     expect(content).toContain("Kill Ember Implant");
   });
@@ -660,21 +663,21 @@ describe("Ember Integration in Agents Page", () => {
 describe("Ember Integration in Agent Manager Page", () => {
   it("Agent Manager has Ember Implants tab", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/AgentManager.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/AgentManager.tsx"), "utf-8");
     expect(content).toContain("Ember Implants");
     expect(content).toContain('value="ember"');
   });
 
   it("Agent Manager has EmberImplantTab component", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/AgentManager.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/AgentManager.tsx"), "utf-8");
     expect(content).toContain("function EmberImplantTab");
     expect(content).toContain("<EmberImplantTab />");
   });
 
   it("Agent Manager Ember tab shows stats and evasion indicators", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/AgentManager.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/AgentManager.tsx"), "utf-8");
     expect(content).toContain("Total Implants");
     expect(content).toContain("Cognitive");
     expect(content).toContain("memoryEncryption");
@@ -683,7 +686,7 @@ describe("Ember Integration in Agent Manager Page", () => {
 
   it("Agent Manager Ember tab has deploy and fleet overview links", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/AgentManager.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/AgentManager.tsx"), "utf-8");
     expect(content).toContain('href="/ember/deploy"');
     expect(content).toContain('href="/ember"');
     expect(content).toContain("Deploy Ember");

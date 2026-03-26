@@ -142,7 +142,9 @@ docker-compose.yml
 ecosystem.config.cjs
 deploy/
 do-app-spec.yaml
-.github/
+.github/*
+!.github/workflows/
+!.github/workflows/**
 
 # Analysis/compliance docs (not needed for deployment)
 AC3-*.md

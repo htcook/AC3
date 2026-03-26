@@ -7,6 +7,9 @@
  * 3. C2 callback and blue team win evidence gate wiring
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ─── 1. WebSocket Evidence Integrity Emitters ──────────────────────────
 
@@ -78,7 +81,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
     // Read the orchestrator source to verify imports
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("evidenceGate");
@@ -90,7 +93,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has C2 agent deploy evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: C2 Deploy");
@@ -100,7 +103,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has C2 monitoring complete evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: C2 Monitoring Complete");
@@ -110,7 +113,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has exploitation evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: validate exploitation evidence");
@@ -119,7 +122,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has post-exploit evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: validate post-exploit evidence");
@@ -128,7 +131,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has WAF detection (blue team win) evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: Blue Team Defense (WAF detection)");
@@ -139,7 +142,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has exploit failure (blue team defense) evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: Blue Team Win (exploit failure = defense held)");
@@ -149,7 +152,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has LLM vuln verification evidence gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: validate LLM vuln verification");
@@ -158,7 +161,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has engagement completion chain flush and anchor", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("flushChainToDb");
@@ -168,7 +171,7 @@ describe("Evidence Gate Integration Points in Orchestrator", () => {
   it("orchestrator has pentest evidence collection gate", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      path.join(PROJECT_ROOT, "server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
     expect(source).toContain("Evidence Integrity Gate: validate per-asset pentest evidence");
@@ -181,7 +184,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("ac3-reports imports evidence integrity schema tables", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("evidenceIntegrityAnchors");
@@ -191,7 +194,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("ac3-reports builds chainOfCustodySealSection", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("chainOfCustodySealSection");
@@ -201,7 +204,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("ac3-reports includes seal section in document assembly", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("...chainOfCustodySealSection");
@@ -210,7 +213,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section queries for integrity anchors", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("evidenceIntegrityAnchors");
@@ -220,7 +223,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section includes Merkle root display", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("Merkle Root");
@@ -232,7 +235,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section includes guardrail audit summary", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("Hallucination Guardrail Audit Summary");
@@ -243,7 +246,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section shows verified badge when anchor exists", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("CHAIN OF CUSTODY VERIFIED");
@@ -252,7 +255,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section shows warning when no anchor exists", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("NO INTEGRITY ANCHOR");
@@ -261,7 +264,7 @@ describe("DOCX Chain-of-Custody Seal Section", () => {
   it("seal section includes verification instructions", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/ac3-reports.ts",
+      path.join(PROJECT_ROOT, "server/routers/ac3-reports.ts"),
       "utf-8"
     );
     expect(source).toContain("Verification Instructions");
@@ -276,7 +279,7 @@ describe("Report Pipeline Merkle Anchor Integration", () => {
   it("reports-core imports createMerkleRootAnchor", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/reports-core.ts",
+      path.join(PROJECT_ROOT, "server/routers/reports-core.ts"),
       "utf-8"
     );
     expect(source).toContain("createMerkleRootAnchor");
@@ -286,7 +289,7 @@ describe("Report Pipeline Merkle Anchor Integration", () => {
   it("reports-core creates anchor after pentest pipeline", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/routers/reports-core.ts",
+      path.join(PROJECT_ROOT, "server/routers/reports-core.ts"),
       "utf-8"
     );
     // Verify the anchor creation is in the pipeline completion section
@@ -303,7 +306,7 @@ describe("WebSocket Event Type Consistency", () => {
   it("server-side WsEventType includes all evidence types", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/ws-event-hub.ts",
+      path.join(PROJECT_ROOT, "server/lib/ws-event-hub.ts"),
       "utf-8"
     );
     const evidenceTypes = [
@@ -323,7 +326,7 @@ describe("WebSocket Event Type Consistency", () => {
   it("client-side WsEventType includes all evidence types", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/hooks/useWebSocket.ts",
+      path.join(PROJECT_ROOT, "client/src/hooks/useWebSocket.ts"),
       "utf-8"
     );
     const evidenceTypes = [
@@ -343,7 +346,7 @@ describe("WebSocket Event Type Consistency", () => {
   it("client-side toast handlers exist for critical evidence events", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/hooks/useWebSocket.ts",
+      path.join(PROJECT_ROOT, "client/src/hooks/useWebSocket.ts"),
       "utf-8"
     );
     expect(source).toContain('case "evidence:gate_flagged"');
@@ -355,7 +358,7 @@ describe("WebSocket Event Type Consistency", () => {
   it("useEvidenceIntegrityEvents hook is exported", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/hooks/useWebSocket.ts",
+      path.join(PROJECT_ROOT, "client/src/hooks/useWebSocket.ts"),
       "utf-8"
     );
     expect(source).toContain("export function useEvidenceIntegrityEvents");
@@ -370,7 +373,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("EvidenceIntegrity page imports useEvidenceIntegrityEvents", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain("useEvidenceIntegrityEvents");
@@ -379,7 +382,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("EvidenceIntegrity page has Live Monitor tab", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain('value="live"');
@@ -389,7 +392,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("LiveMonitorPanel component renders event feed", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain("LiveMonitorPanel");
@@ -399,7 +402,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("LiveMonitorPanel has pause/resume and clear controls", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain("isPaused");
@@ -411,7 +414,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("LiveMonitorPanel has live counters for all event types", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain("counters.passed");
@@ -425,7 +428,7 @@ describe("Evidence Integrity Dashboard Live Monitor", () => {
   it("LiveMonitorPanel shows connection status indicator", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EvidenceIntegrity.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/EvidenceIntegrity.tsx"),
       "utf-8"
     );
     expect(source).toContain("statusColor");

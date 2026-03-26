@@ -3,6 +3,9 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 import { describe, it, expect } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ─── JSONL Export Format Tests ──────────────────────────────────────────────
 
@@ -290,7 +293,7 @@ describe("Sidebar Navigation — Data Review & Export", () => {
     // Read the sidebar-nav.ts and check for the path
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     expect(content).toContain("/training-data-review");
@@ -300,7 +303,7 @@ describe("Sidebar Navigation — Data Review & Export", () => {
   it("should have the route registered in App.tsx", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/App.tsx",
+      path.join(PROJECT_ROOT, "client/src/App.tsx"),
       "utf-8"
     );
     expect(content).toContain("training-data-review");

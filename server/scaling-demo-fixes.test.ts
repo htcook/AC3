@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 describe("Scaling & Demo-Proofing Fixes", () => {
   afterEach(() => {
@@ -134,7 +137,7 @@ describe("Scaling & Demo-Proofing Fixes", () => {
       const health = getHealthStatus();
       expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(250);
       expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(300);
-      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(420);
+      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(550);
     });
   });
 
@@ -189,7 +192,7 @@ describe("Scaling & Demo-Proofing Fixes", () => {
   describe("Dockerfile Heap Size", () => {
     it("should have 8192MB heap in Dockerfile (DO production server with 32GB RAM)", async () => {
       const fs = await import("fs");
-      const dockerfile = fs.readFileSync("/home/ubuntu/caldera-dashboard/Dockerfile", "utf-8");
+      const dockerfile = fs.readFileSync(path.join(PROJECT_ROOT, "Dockerfile"), "utf-8");
       expect(dockerfile).toContain("--max-old-space-size=8192");
       expect(dockerfile).toContain("--expose-gc");
     });

@@ -5,6 +5,9 @@
  * role-based access control, and statistics aggregation.
  */
 import { describe, it, expect } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // Test the router module can be imported without errors
 describe("Bug Reports Router", () => {
@@ -41,7 +44,7 @@ describe("Role-Based Navigation", () => {
     // but we can verify the file structure
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     expect(content).toContain("export function getFilteredNavGroups");
@@ -51,7 +54,7 @@ describe("Role-Based Navigation", () => {
   it("defines access for all 8 roles", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     const roles = ["admin", "operator", "analyst", "team_lead", "executive", "client", "soc", "viewer"];
@@ -63,7 +66,7 @@ describe("Role-Based Navigation", () => {
   it("admin has full access", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     expect(content).toContain("admin: 'all'");
@@ -72,7 +75,7 @@ describe("Role-Based Navigation", () => {
   it("bug reports nav item is restricted to admin and team_lead", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts",
+      path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"),
       "utf-8"
     );
     expect(content).toContain('{ label: "Bug Reports", path: "/bug-reports"');
@@ -88,7 +91,7 @@ describe("Hydra HTTP Form Post Mode", () => {
   it("OEM protocol mapping uses http-form-post for web protocols", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/scan-server-executor.ts",
+      path.join(PROJECT_ROOT, "server/lib/scan-server-executor.ts"),
       "utf-8"
     );
     // Verify http/https/web_admin map to form-post, not http-get
@@ -103,7 +106,7 @@ describe("Hydra HTTP Form Post Mode", () => {
   it("generates form data with failure string detection for http-form-post", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/scan-server-executor.ts",
+      path.join(PROJECT_ROOT, "server/lib/scan-server-executor.ts"),
       "utf-8"
     );
     expect(content).toContain("username=^USER^&password=^PASS^");
@@ -117,7 +120,7 @@ describe("Bug Report Notification", () => {
   it("notifyOwner is called when bug report is submitted", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/quick-action-executor.ts",
+      path.join(PROJECT_ROOT, "server/lib/quick-action-executor.ts"),
       "utf-8"
     );
     expect(content).toContain("notifyOwner");
@@ -130,7 +133,7 @@ describe("AC3 Branding", () => {
   it("login page uses AC3 not old branding", async () => {
     const fs = await import("fs");
     const content = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/Login.tsx",
+      path.join(PROJECT_ROOT, "client/src/pages/Login.tsx"),
       "utf-8"
     );
     expect(content).not.toContain("Ace C3");
@@ -141,7 +144,7 @@ describe("AC3 Branding", () => {
   it("package.json uses ac3 name", async () => {
     const fs = await import("fs");
     const pkg = JSON.parse(
-      fs.readFileSync("/home/ubuntu/caldera-dashboard/package.json", "utf-8")
+      fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf-8")
     );
     expect(pkg.name).toBe("ac3");
   });

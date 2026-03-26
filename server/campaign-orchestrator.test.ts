@@ -10,6 +10,9 @@
  *   6. WebSocket event types: campaign orchestrator events registered
  */
 import { describe, it, expect } from "vitest";
+import path from "path";
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. CONDITION EVALUATOR TESTS
@@ -196,7 +199,7 @@ describe("Campaign Orchestrator — Router Structure", () => {
 
   it("router is registered in the main appRouter", async () => {
     const routersFile = await import("fs").then((fs) =>
-      fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers.ts", "utf-8")
+      fs.readFileSync(path.join(PROJECT_ROOT, "server/routers.ts"), "utf-8")
     );
     expect(routersFile).toContain("campaignOrchestratorRouter");
     expect(routersFile).toContain("campaignOrchestrator:");
@@ -210,7 +213,7 @@ describe("Campaign Orchestrator — Router Structure", () => {
 describe("Campaign Orchestrator — UI Integration", () => {
   it("sidebar nav includes Campaign Orchestrator entry", async () => {
     const navFile = await import("fs").then((fs) =>
-      fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/lib/sidebar-nav.ts", "utf-8")
+      fs.readFileSync(path.join(PROJECT_ROOT, "client/src/lib/sidebar-nav.ts"), "utf-8")
     );
     expect(navFile).toContain("Campaign Orchestrator");
     expect(navFile).toContain("/campaign-orchestrator");
@@ -218,7 +221,7 @@ describe("Campaign Orchestrator — UI Integration", () => {
 
   it("App.tsx has lazy import and route for CampaignOrchestrator", async () => {
     const appFile = await import("fs").then((fs) =>
-      fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/App.tsx", "utf-8")
+      fs.readFileSync(path.join(PROJECT_ROOT, "client/src/App.tsx"), "utf-8")
     );
     expect(appFile).toContain('CampaignOrchestrator');
     expect(appFile).toContain('/campaign-orchestrator');
@@ -228,7 +231,7 @@ describe("Campaign Orchestrator — UI Integration", () => {
 
   it("CampaignOrchestrator page file exists", async () => {
     const fs = await import("fs");
-    expect(fs.existsSync("/home/ubuntu/caldera-dashboard/client/src/pages/CampaignOrchestrator.tsx")).toBe(true);
+    expect(fs.existsSync(path.join(PROJECT_ROOT, "client/src/pages/CampaignOrchestrator.tsx"))).toBe(true);
   });
 });
 
@@ -271,7 +274,7 @@ describe("Campaign Orchestrator — Database Schema", () => {
 describe("Campaign Orchestrator — WebSocket Events", () => {
   it("ws-event-hub includes campaign orchestrator event types", async () => {
     const wsFile = await import("fs").then((fs) =>
-      fs.readFileSync("/home/ubuntu/caldera-dashboard/server/lib/ws-event-hub.ts", "utf-8")
+      fs.readFileSync(path.join(PROJECT_ROOT, "server/lib/ws-event-hub.ts"), "utf-8")
     );
     expect(wsFile).toContain("campaign_orch:started");
     expect(wsFile).toContain("campaign_orch:stage_started");
@@ -315,7 +318,7 @@ describe("Campaign-to-Report Pipeline — Schema & Mapping", () => {
 
   it("campaign orchestrator router imports ac3Reports", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "server/routers/campaign-orchestrator.ts"), "utf-8");
     expect(content).toContain("ac3Reports");
     expect(content).toContain("ac3ReportFindings");
     expect(content).toContain("randomUUID");
@@ -323,7 +326,7 @@ describe("Campaign-to-Report Pipeline — Schema & Mapping", () => {
 
   it("generateReport procedure has ATT&CK technique mappings", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "server/routers/campaign-orchestrator.ts"), "utf-8");
     expect(content).toContain("STAGE_TO_TECHNIQUE");
     expect(content).toContain("T1595"); // Active Scanning
     expect(content).toContain("T1566"); // Phishing
@@ -333,7 +336,7 @@ describe("Campaign-to-Report Pipeline — Schema & Mapping", () => {
 
   it("generateReport procedure has NIST control mappings", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "server/routers/campaign-orchestrator.ts"), "utf-8");
     expect(content).toContain("STAGE_TO_CONTROL");
     expect(content).toContain("RA-5"); // Vulnerability Monitoring
     expect(content).toContain("AT-2"); // Literacy Training
@@ -342,7 +345,7 @@ describe("Campaign-to-Report Pipeline — Schema & Mapping", () => {
 
   it("generateReport includes severity derivation logic", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/server/routers/campaign-orchestrator.ts", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "server/routers/campaign-orchestrator.ts"), "utf-8");
     expect(content).toContain("deriveSeverity");
     expect(content).toContain("criticalVulns");
     expect(content).toContain("exploitsSucceeded");
@@ -372,7 +375,7 @@ describe("Template Customization — Router & Schema", () => {
 
   it("EmberTaskTemplates component includes customize integration", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/components/EmberTaskTemplates.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/components/EmberTaskTemplates.tsx"), "utf-8");
     expect(content).toContain("Customize");
     expect(content).toContain("listTemplates");
     expect(content).toContain("CustomizeDialog");
@@ -386,7 +389,7 @@ describe("Template Customization — Router & Schema", () => {
 describe("Campaign Orchestrator UI — Clone & Report Buttons", () => {
   it("CampaignOrchestrator page includes Clone button and dialog", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/CampaignOrchestrator.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/CampaignOrchestrator.tsx"), "utf-8");
     expect(content).toContain("Clone");
     expect(content).toContain("cloneMut");
     expect(content).toContain("cloneOpen");
@@ -396,7 +399,7 @@ describe("Campaign Orchestrator UI — Clone & Report Buttons", () => {
 
   it("CampaignOrchestrator page includes Generate Report button and dialog", async () => {
     const fs = await import("fs");
-    const content = fs.readFileSync("/home/ubuntu/caldera-dashboard/client/src/pages/CampaignOrchestrator.tsx", "utf-8");
+    const content = fs.readFileSync(path.join(PROJECT_ROOT, "client/src/pages/CampaignOrchestrator.tsx"), "utf-8");
     expect(content).toContain("Generate Report");
     expect(content).toContain("generateReportMut");
     expect(content).toContain("reportOpen");
