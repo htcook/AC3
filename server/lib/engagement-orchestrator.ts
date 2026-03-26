@@ -5518,6 +5518,31 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           continue;
         }
 
+        // ── Pre-flight TCP port check: skip hydra if the target port is unreachable ──
+        if (cmd.tool === 'hydra') {
+          const portMatch = cmd.args.match(/-s\s+(\d+)/);
+          const targetPort = portMatch ? Number(portMatch[1]) : (cmd.args.includes('ssh') ? 22 : 80);
+          const targetHost = asset.ip || asset.hostname;
+          const isReachable = await new Promise<boolean>((resolve) => {
+            const net = require('net');
+            const sock = new net.Socket();
+            sock.setTimeout(5000);
+            sock.once('connect', () => { sock.destroy(); resolve(true); });
+            sock.once('timeout', () => { sock.destroy(); resolve(false); });
+            sock.once('error', () => { sock.destroy(); resolve(false); });
+            sock.connect(targetPort, targetHost);
+          });
+          if (!isReachable) {
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "warning",
+              title: `⏭️ Skipped: ${cmd.tool} (port ${targetPort} unreachable)`,
+              detail: `Pre-flight TCP check failed for ${targetHost}:${targetPort}. Service is not accepting connections — skipping credential test to avoid hydra exit code 255.`,
+            });
+            continue;
+          }
+        }
+
         addLog(state, {
           phase: "vuln_detection",
           type: "scan_start",
