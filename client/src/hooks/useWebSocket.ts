@@ -305,8 +305,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         wsRef.current = null;
+
+        // Suppress 'WebSocket closed without opened' — this is normal during
+        // page navigation, server restarts, or proxy timeouts
+        if (event.code === 1006 && reconnectAttemptsRef.current === 0) {
+          // First close without ever opening — silently reconnect
+        }
 
         // Auto-reconnect with exponential backoff
         if (autoReconnect && enabled) {

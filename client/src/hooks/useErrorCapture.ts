@@ -76,6 +76,8 @@ export function useErrorCapture() {
 
       // Don't log tRPC query errors (they're expected during loading states)
       if (message.includes("TRPCClientError") && message.includes("UNAUTHORIZED")) return;
+      // Don't log WebSocket close errors (transient, handled by auto-reconnect)
+      if (message.includes("WebSocket closed") || message.includes("WebSocket closed without opened")) return;
 
       sendErrorToServer({
         source: "unhandled_rejection",

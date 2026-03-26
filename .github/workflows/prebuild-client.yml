@@ -11,6 +11,9 @@ on:
   # Manual trigger for on-demand rebuilds
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: prebuild-${{ github.ref }}
   cancel-in-progress: true
@@ -31,7 +34,8 @@ jobs:
         with:
           # Need full history for commit/push
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT for push access (GITHUB_TOKEN may lack write permissions)
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - uses: pnpm/action-setup@v4
 

@@ -1048,16 +1048,18 @@ export default function EngagementOps() {
       a.zapFindings = ensureArray(a.zapFindings);
       a.exploitAttempts = ensureArray(a.exploitAttempts);
       a.confirmedCredentials = ensureArray(a.confirmedCredentials);
+      a.riskSignals = ensureArray(a.riskSignals);
+      a.knownPorts = ensureArray(a.knownPorts);
+      a.scanHistory = ensureArray(a.scanHistory);
+      a.notes = ensureArray(a.notes);
       // Normalize toolResult sub-fields
       for (const tr of a.toolResults) {
         tr.findings = ensureArray(tr.findings);
       }
       // Normalize passiveRecon sub-arrays
       if (a.passiveRecon && typeof a.passiveRecon === 'object') {
-        for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'certificates', 'ipAddresses', 'historicalUrls', 'headers', 'cookies']) {
-          if (a.passiveRecon[key] && !Array.isArray(a.passiveRecon[key])) {
-            a.passiveRecon[key] = ensureArray(a.passiveRecon[key]);
-          }
+        for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'certificates', 'ipAddresses', 'historicalUrls', 'headers', 'cookies', 'riskSignals', 'oemCredentials', 'knownPorts', 'whoisData', 'socialProfiles']) {
+          a.passiveRecon[key] = ensureArray(a.passiveRecon[key]);
         }
       }
     }
@@ -1065,8 +1067,11 @@ export default function EngagementOps() {
     for (const entry of base.log) {
       if (entry.data && typeof entry.data === 'object') {
         const d = entry.data as any;
-        if (d.tools && !Array.isArray(d.tools)) d.tools = ensureArray(d.tools);
-        if (d.findings && !Array.isArray(d.findings)) d.findings = ensureArray(d.findings);
+        d.tools = ensureArray(d.tools);
+        d.findings = ensureArray(d.findings);
+        d.vulns = ensureArray(d.vulns);
+        d.assets = ensureArray(d.assets);
+        d.ports = ensureArray(d.ports);
       }
     }
     // Normalize passiveReconResults sub-arrays
@@ -1074,8 +1079,8 @@ export default function EngagementOps() {
       for (const domain of Object.keys(base.passiveReconResults)) {
         const pr = (base.passiveReconResults as any)[domain];
         if (pr && typeof pr === 'object') {
-          for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'oemCredentials', 'certificates', 'ipAddresses']) {
-            if (pr[key] && !Array.isArray(pr[key])) pr[key] = ensureArray(pr[key]);
+          for (const key of ['technologies', 'subdomains', 'services', 'dnsRecords', 'oemCredentials', 'certificates', 'ipAddresses', 'riskSignals', 'knownPorts', 'historicalUrls', 'headers', 'cookies', 'whoisData', 'socialProfiles']) {
+            pr[key] = ensureArray(pr[key]);
           }
         }
       }
@@ -2433,18 +2438,24 @@ export default function EngagementOps() {
                             <div className="mb-2">
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk Signals ({(selectedAssetData.passiveRecon?.riskSignals || []).length})</span>
                               <div className="space-y-0.5 mt-0.5">
-                                {(selectedAssetData.passiveRecon?.riskSignals || []).map((r, i) => (
+                                {(selectedAssetData.passiveRecon?.riskSignals || []).map((r: any, i: number) => {
+                                  // Handle multiple formats: string, {signal,severity,source}, {severity,type,rationale}
+                                  const sev = typeof r === 'string' ? 'medium' : (r.severity || 'medium');
+                                  const label = typeof r === 'string' ? r : (r.signal || r.rationale || r.type || String(r));
+                                  const source = typeof r === 'string' ? '' : (r.source || r.type || '');
+                                  return (
                                   <div key={i} className="flex items-center gap-2 text-[10px] px-2 py-0.5 bg-red-500/5 rounded">
                                     <Badge variant="outline" className={`text-[8px] ${
-                                      r.severity === 'critical' ? 'text-red-400 border-red-500/30' :
-                                      r.severity === 'high' ? 'text-orange-400 border-orange-500/30' :
-                                      r.severity === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
+                                      sev === 'critical' ? 'text-red-400 border-red-500/30' :
+                                      sev === 'high' ? 'text-orange-400 border-orange-500/30' :
+                                      sev === 'medium' ? 'text-yellow-400 border-yellow-500/30' :
                                       'text-blue-400 border-blue-500/30'
-                                    }`}>{r.severity}</Badge>
-                                    <span className="text-foreground">{r.signal}</span>
-                                    <span className="text-muted-foreground/50 ml-auto">{r.source}</span>
+                                    }`}>{sev}</Badge>
+                                    <span className="text-foreground">{label}</span>
+                                    {source && <span className="text-muted-foreground/50 ml-auto">{source}</span>}
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}

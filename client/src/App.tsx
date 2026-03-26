@@ -22,6 +22,8 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
         err?.message?.includes("Failed to fetch dynamically imported module") ||
         err?.message?.includes("Loading chunk") ||
         err?.message?.includes("Loading CSS chunk") ||
+        err?.message?.includes("is not a valid JavaScript MIME type") ||
+        err?.message?.includes("before initialization") ||
         err?.name === "ChunkLoadError";
 
       if (isChunkError) {

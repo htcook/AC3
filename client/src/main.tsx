@@ -8,6 +8,19 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+// Global handler for Vite preload errors (stale chunks after deployment)
+// This catches errors that happen outside of React.lazy boundaries
+window.addEventListener('vite:preloadError', (event) => {
+  const reloadKey = '__ac3_chunk_reload';
+  const lastReload = sessionStorage.getItem(reloadKey);
+  const now = Date.now();
+  if (!lastReload || now - parseInt(lastReload, 10) > 30000) {
+    sessionStorage.setItem(reloadKey, String(now));
+    console.warn('[AC3] Vite preload error, reloading...', (event as any).payload);
+    window.location.reload();
+  }
+});
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {

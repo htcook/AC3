@@ -3537,7 +3537,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                 asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), ...techDetected])];
               }
               if (cdnDetected.length > 0) {
-                asset.passiveRecon.riskSignals = [...(asset.passiveRecon.riskSignals || []), ...cdnDetected.map(c => `CDN/WAF: ${c}`)];
+                asset.passiveRecon.riskSignals = [...(asset.passiveRecon.riskSignals || []), ...cdnDetected.map(c => ({ severity: 'low', type: 'cdn_waf', rationale: `CDN/WAF detected: ${c}` }))];
               }
               if (webServer) {
                 asset.passiveRecon.technologies = [...new Set([...(asset.passiveRecon.technologies || []), webServer])];
