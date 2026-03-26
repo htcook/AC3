@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
   Activity, Lock, Eye, Network, Loader2, BarChart3, Bug, Skull, Database, Cpu,
   TrendingUp, Fingerprint, Radar, Info, Search, Radio, Scan, Flag, Undo2, MessageSquare,
-  Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
+  Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
   Box, ClipboardCheck, PackageSearch, GitCompareArrows

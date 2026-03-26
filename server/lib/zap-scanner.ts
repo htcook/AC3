@@ -2820,11 +2820,34 @@ export async function configureZapAuthentication(
 
       if (authPreset) {
         console.log(`[ZAP Auth] Using preset field names for ${targetPreset}: ${usernameField}/${passwordField}`);
-      }
-
+        // For training lab presets, configure ZAP directly with known field names
+        // (we can't fetch the login page from the Manus sandbox)
+        const presetLoginRequestData = `${usernameField}={%username%}&${passwordField}={%password%}`;
+        try {
+          await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+            contextId,
+            authMethodName: "formBasedAuthentication",
+            authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(presetLoginRequestData)}`,
+          }, cfg);
+          console.log(`[ZAP Auth] Configured form-based auth with preset fields: ${loginUrl} (${usernameField}/${passwordField})`);
+        } catch (e: any) {
+          errors.push(`Failed to configure preset form auth: ${e.message}`);
+          // Retry once — ZAP may still be initializing after a server restart
+          try {
+            await new Promise(r => setTimeout(r, 3000));
+            await zapRequest("/JSON/authentication/action/setAuthenticationMethod/", {
+              contextId,
+              authMethodName: "formBasedAuthentication",
+              authMethodConfigParams: `loginUrl=${encodeURIComponent(loginUrl)}&loginRequestData=${encodeURIComponent(presetLoginRequestData)}`,
+            }, cfg);
+            console.log(`[ZAP Auth] Configured form-based auth with preset fields (retry succeeded)`);
+          } catch (e2: any) {
+            errors.push(`Retry preset form auth also failed: ${e2.message}`);
+          }
+        }
+      } else {
+      // Non-preset: fetch the login page to detect form fields dynamically
       try {
-        // Skip fetch for training labs — we can't reach them from the Manus sandbox
-        if (authPreset) throw new Error('Using preset — skip fetch');
         const loginPage = await fetch(loginUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
           signal: AbortSignal.timeout(5000),
@@ -2931,6 +2954,7 @@ export async function configureZapAuthentication(
           errors.push(`Fallback form auth also failed: ${e2.message}`);
         }
       }
+      } // end non-preset else
     } else if (detectedMethod === 'json') {
       // JSON-based authentication (SPA/API login)
       const loginUrl = detectedLoginUrl || `${parsedUrl.origin}/api/login`;
