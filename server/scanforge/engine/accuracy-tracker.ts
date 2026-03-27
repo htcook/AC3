@@ -11,7 +11,7 @@
  *   4. getTemplateEffectiveness() — returns ranked templates for the confidence engine
  */
 
-import { db } from "../../db";
+import { getDbRequired } from "../../db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import {
   scanforgeFindingLog,
@@ -78,7 +78,8 @@ export interface EngagementComparisonReport {
  * Called immediately after each detection during the scan phase.
  */
 export async function logFinding(entry: FindingLogEntry): Promise<number> {
-  const result = await db.insert(scanforgeFindingLog).values({
+  const _db = await getDbRequired();
+  const result = await _db.insert(scanforgeFindingLog).values({
     engagementId: entry.engagementId,
     templateId: entry.templateId,
     templateVersion: entry.templateVersion || "1.0.0",
@@ -110,7 +111,8 @@ export async function logFindingsBatch(entries: FindingLogEntry[]): Promise<void
     findingData: e.findingData || {},
     verdict: "PENDING" as const,
   }));
-  await db.insert(scanforgeFindingLog).values(values);
+  const _db = await getDbRequired();
+  await _db.insert(scanforgeFindingLog).values(values);
 }
 
 // ─── Verdict Assessment ─────────────────────────────────────────────────────
@@ -129,7 +131,8 @@ export async function assessFindings(
   verdictSource: string = "auto-crossref"
 ): Promise<{ assessed: number; tp: number; fp: number; fn: number }> {
   // Get all PENDING ScanForge findings for this engagement
-  const pendingFindings = await db.select()
+  const _db = await getDbRequired();
+  const pendingFindings = await _db.select()
     .from(scanforgeFindingLog)
     .where(and(
       eq(scanforgeFindingLog.engagementId, engagementId),
@@ -156,7 +159,7 @@ export async function assessFindings(
     if (matches.length > 0) {
       // Confirmed by at least one other tool → True Positive
       tp++;
-      await db.update(scanforgeFindingLog)
+      await _db.update(scanforgeFindingLog)
         .set({
           verdict: "TP",
           verdictSource,
@@ -168,7 +171,7 @@ export async function assessFindings(
     } else if (finding.proofVerified) {
       // Proof-verified but no legacy match → still TP (ScanForge found something others missed)
       tp++;
-      await db.update(scanforgeFindingLog)
+      await _db.update(scanforgeFindingLog)
         .set({
           verdict: "TP",
           verdictSource: "proof-verified",
@@ -179,7 +182,7 @@ export async function assessFindings(
     } else {
       // No match and no proof → False Positive (pending manual review)
       fp++;
-      await db.update(scanforgeFindingLog)
+      await _db.update(scanforgeFindingLog)
         .set({
           verdict: "FP",
           verdictSource,
@@ -191,7 +194,7 @@ export async function assessFindings(
   }
 
   // Find False Negatives: legacy findings that ScanForge missed
-  const allScanforgeFindings = await db.select()
+  const allScanforgeFindings = await _db.select()
     .from(scanforgeFindingLog)
     .where(eq(scanforgeFindingLog.engagementId, engagementId));
 
@@ -203,7 +206,7 @@ export async function assessFindings(
     if (!matched) {
       fn++;
       // Log the missed finding as FN
-      await db.insert(scanforgeFindingLog).values({
+      await _db.insert(scanforgeFindingLog).values({
         engagementId,
         templateId: "MISSED",
         target: lf.target,
@@ -230,7 +233,8 @@ export async function assessFindings(
  */
 export async function updateTemplateMetrics(engagementId: string): Promise<void> {
   // Get all assessed findings for this engagement
-  const findings = await db.select()
+  const _db = await getDbRequired();
+  const findings = await _db.select()
     .from(scanforgeFindingLog)
     .where(and(
       eq(scanforgeFindingLog.engagementId, engagementId),
@@ -252,7 +256,7 @@ export async function updateTemplateMetrics(engagementId: string): Promise<void>
   for (const [templateId, stats] of byTemplate) {
     if (templateId === "MISSED") continue; // Skip the FN placeholder entries
 
-    const existing = await db.select()
+    const existing = await _db.select()
       .from(scanforgeTemplateMetrics)
       .where(eq(scanforgeTemplateMetrics.templateId, templateId))
       .limit(1);
@@ -278,7 +282,7 @@ export async function updateTemplateMetrics(engagementId: string): Promise<void>
     const newWindow = [...existingWindow, engagementId].slice(-20);
 
     if (existing.length > 0) {
-      await db.update(scanforgeTemplateMetrics)
+      await _db.update(scanforgeTemplateMetrics)
         .set({
           totalScans,
           truePositives: totalTP,
@@ -293,7 +297,7 @@ export async function updateTemplateMetrics(engagementId: string): Promise<void>
         })
         .where(eq(scanforgeTemplateMetrics.id, existing[0].id));
     } else {
-      await db.insert(scanforgeTemplateMetrics).values({
+      await _db.insert(scanforgeTemplateMetrics).values({
         templateId,
         totalScans,
         truePositives: totalTP,
@@ -320,7 +324,8 @@ export async function generateEngagementReport(
   engagementId: string,
   legacyCounts: { nuclei: number; zap: number }
 ): Promise<EngagementComparisonReport> {
-  const findings = await db.select()
+  const _db = await getDbRequired();
+  const findings = await _db.select()
     .from(scanforgeFindingLog)
     .where(eq(scanforgeFindingLog.engagementId, engagementId));
 
@@ -352,7 +357,7 @@ export async function generateEngagementReport(
   };
 
   // Persist to DB
-  await db.insert(scanforgeEngagementReport).values({
+  await _db.insert(scanforgeEngagementReport).values({
     engagementId,
     scanforgeFindings,
     nucleiFindings: legacyCounts.nuclei,
@@ -376,7 +381,8 @@ export async function generateEngagementReport(
 export async function getTemplateEffectiveness(
   minScans: number = 5
 ): Promise<TemplateEffectiveness[]> {
-  const metrics = await db.select()
+  const _db = await getDbRequired();
+  const metrics = await _db.select()
     .from(scanforgeTemplateMetrics)
     .where(sql`${scanforgeTemplateMetrics.totalScans} >= ${minScans}`)
     .orderBy(desc(scanforgeTemplateMetrics.effectivenessScore));
@@ -400,7 +406,8 @@ export async function getTemplateEffectiveness(
  * Returns the self-tuned threshold, or default 0.5 if no data.
  */
 export async function getCalibratedConfidence(templateId: string): Promise<number> {
-  const rows = await db.select({ calibratedConfidence: scanforgeTemplateMetrics.calibratedConfidence })
+  const _db = await getDbRequired();
+  const rows = await _db.select({ calibratedConfidence: scanforgeTemplateMetrics.calibratedConfidence })
     .from(scanforgeTemplateMetrics)
     .where(eq(scanforgeTemplateMetrics.templateId, templateId))
     .limit(1);
@@ -411,7 +418,8 @@ export async function getCalibratedConfidence(templateId: string): Promise<numbe
  * Get engagement comparison reports for dashboard display.
  */
 export async function getEngagementReports(limit: number = 20) {
-  return db.select()
+  const _db = await getDbRequired();
+  return _db.select()
     .from(scanforgeEngagementReport)
     .orderBy(desc(scanforgeEngagementReport.createdAt))
     .limit(limit);
@@ -421,7 +429,8 @@ export async function getEngagementReports(limit: number = 20) {
  * Get all findings for an engagement (for the reassessment agent).
  */
 export async function getEngagementFindings(engagementId: string) {
-  return db.select()
+  const _db = await getDbRequired();
+  return _db.select()
     .from(scanforgeFindingLog)
     .where(eq(scanforgeFindingLog.engagementId, engagementId))
     .orderBy(desc(scanforgeFindingLog.createdAt));

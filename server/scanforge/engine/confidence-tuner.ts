@@ -16,7 +16,7 @@
  *   draft → review → promoted → production → (deprecated)
  */
 
-import { db } from "../../db";
+import { getDbRequired } from "../../db";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import {
   scanforgeTemplateMetrics,
@@ -100,7 +100,8 @@ export async function runConfidenceTuning(): Promise<TuningReport> {
   };
 
   // Get all templates with metrics
-  const allMetrics = await db.select()
+  const _db = await getDbRequired();
+  const allMetrics = await _db.select()
     .from(scanforgeTemplateMetrics)
     .orderBy(desc(scanforgeTemplateMetrics.lastUpdated));
 
@@ -153,7 +154,7 @@ export async function runConfidenceTuning(): Promise<TuningReport> {
         metrics: { truePositives: tp, falsePositives: fp, falseNegatives: fn, precision, recall, f1 },
       };
 
-      await db.update(scanforgeTemplateMetrics)
+      await _db.update(scanforgeTemplateMetrics)
         .set({
           avgConfidence: newConfidence,
           lastUpdated: new Date(),
@@ -187,7 +188,8 @@ export async function processTemplateLifecycle(): Promise<{
   let deprecated = 0;
 
   // Get all draft templates
-  const drafts = await db.select()
+  const _db = await getDbRequired();
+  const drafts = await _db.select()
     .from(scanforgeGeneratedTemplates)
     .where(eq(scanforgeGeneratedTemplates.status, "draft"));
 
@@ -196,19 +198,19 @@ export async function processTemplateLifecycle(): Promise<{
     
     if (confidence >= CONFIG.REVIEW_TO_PROMOTED_CONFIDENCE) {
       // High confidence — promote directly
-      await db.update(scanforgeGeneratedTemplates)
+      await _db.update(scanforgeGeneratedTemplates)
         .set({ status: "promoted" })
         .where(eq(scanforgeGeneratedTemplates.templateId, draft.templateId));
       promoted++;
     } else if (confidence >= CONFIG.DRAFT_TO_REVIEW_CONFIDENCE) {
       // Medium confidence — move to review
-      await db.update(scanforgeGeneratedTemplates)
+      await _db.update(scanforgeGeneratedTemplates)
         .set({ status: "review" })
         .where(eq(scanforgeGeneratedTemplates.templateId, draft.templateId));
       reviewed++;
     } else if (confidence < 0.2) {
       // Very low confidence — deprecate
-      await db.update(scanforgeGeneratedTemplates)
+      await _db.update(scanforgeGeneratedTemplates)
         .set({ status: "deprecated" })
         .where(eq(scanforgeGeneratedTemplates.templateId, draft.templateId));
       deprecated++;
@@ -216,12 +218,12 @@ export async function processTemplateLifecycle(): Promise<{
   }
 
   // Also check promoted templates that have been running — deprecate if poor performance
-  const promotedTemplates = await db.select()
+  const promotedTemplates = await _db.select()
     .from(scanforgeGeneratedTemplates)
     .where(eq(scanforgeGeneratedTemplates.status, "promoted"));
 
   for (const tmpl of promotedTemplates) {
-    const metrics = await db.select()
+    const metrics = await _db.select()
       .from(scanforgeTemplateMetrics)
       .where(eq(scanforgeTemplateMetrics.templateId, tmpl.templateId))
       .limit(1);
@@ -232,7 +234,7 @@ export async function processTemplateLifecycle(): Promise<{
       const total = tp + fp;
       
       if (total >= 10 && fp / total >= CONFIG.FP_RATE_DEPRECATE) {
-        await db.update(scanforgeGeneratedTemplates)
+        await _db.update(scanforgeGeneratedTemplates)
           .set({ status: "deprecated" })
           .where(eq(scanforgeGeneratedTemplates.templateId, tmpl.templateId));
         deprecated++;
@@ -251,7 +253,8 @@ export async function processTemplateLifecycle(): Promise<{
  * Returns the tuned confidence if available, otherwise the default.
  */
 export async function getTemplateConfidence(templateId: string): Promise<number> {
-  const metrics = await db.select({ avgConfidence: scanforgeTemplateMetrics.avgConfidence })
+  const _db = await getDbRequired();
+  const metrics = await _db.select({ avgConfidence: scanforgeTemplateMetrics.avgConfidence })
     .from(scanforgeTemplateMetrics)
     .where(eq(scanforgeTemplateMetrics.templateId, templateId))
     .limit(1);
@@ -265,7 +268,8 @@ export async function getTemplateConfidence(templateId: string): Promise<number>
 export async function getTemplateConfidenceMap(templateIds: string[]): Promise<Map<string, number>> {
   if (templateIds.length === 0) return new Map();
   
-  const metrics = await db.select({
+  const _db = await getDbRequired();
+  const metrics = await _db.select({
     templateId: scanforgeTemplateMetrics.templateId,
     avgConfidence: scanforgeTemplateMetrics.avgConfidence,
   })
@@ -303,7 +307,8 @@ export async function getScanForgeHealthMetrics(): Promise<{
   topPerformers: Array<{ templateId: string; f1: number; findings: number }>;
   worstPerformers: Array<{ templateId: string; fpRate: number; findings: number }>;
 }> {
-  const allMetrics = await db.select()
+  const _db = await getDbRequired();
+  const allMetrics = await _db.select()
     .from(scanforgeTemplateMetrics);
 
   let totalTP = 0, totalFP = 0, totalFN = 0;
@@ -337,7 +342,7 @@ export async function getScanForgeHealthMetrics(): Promise<{
   }
 
   // Count generated templates by status
-  const generatedCounts = await db.select({
+  const generatedCounts = await _db.select({
     status: scanforgeGeneratedTemplates.status,
     count: sql<number>`count(*)`,
   })
@@ -374,7 +379,8 @@ export async function getScanForgeHealthMetrics(): Promise<{
  * Get the full tuning history for audit trail.
  */
 export async function getTuningHistory(limit: number = 50) {
-  return db.select()
+  const _db = await getDbRequired();
+  return _db.select()
     .from(scanforgeTemplateMetrics)
     .orderBy(desc(scanforgeTemplateMetrics.lastUpdated))
     .limit(limit);

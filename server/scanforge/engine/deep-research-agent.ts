@@ -22,7 +22,7 @@
  */
 
 import { invokeLLM } from "../../_core/llm";
-import { db } from "../../db";
+import { getDbRequired } from "../../db";
 import { eq, desc, sql } from "drizzle-orm";
 import {
   scanforgeResearchLog,
@@ -530,7 +530,8 @@ export async function runTargetedResearch(
 
   // Log all research inputs
   for (const input of inputs) {
-    await db.insert(scanforgeResearchLog).values({
+    const _db1 = await getDbRequired();
+    await _db1.insert(scanforgeResearchLog).values({
       feedSource: input.feedSource,
       researchSubject: input.subject,
       researchType: input.researchType,
@@ -558,7 +559,8 @@ async function analyzeBatch(inputs: ResearchInput[]): Promise<ResearchResult[]> 
 
       // Update research log with actionability
       if (result.actionable) {
-        await db.update(scanforgeResearchLog)
+        const _db2 = await getDbRequired();
+        await _db2.update(scanforgeResearchLog)
           .set({
             actionable: true,
             generatedTemplateIds: result.generatedTemplates.map(t => t.templateId),
@@ -798,7 +800,8 @@ Determine if a new ScanForge detection template should be created based on this 
 // ─── Template Storage ───────────────────────────────────────────────────────
 
 async function storeGeneratedTemplate(template: GeneratedTemplate, feedSource: FeedSource): Promise<void> {
-  await db.insert(scanforgeGeneratedTemplates).values({
+  const _db = await getDbRequired();
+  await _db.insert(scanforgeGeneratedTemplates).values({
     templateId: template.templateId,
     name: template.name,
     generationSource: feedSource,
@@ -816,14 +819,15 @@ async function storeGeneratedTemplate(template: GeneratedTemplate, feedSource: F
  * Writes the template JSON to the definitions directory.
  */
 export async function promoteTemplate(templateId: string): Promise<boolean> {
-  const rows = await db.select()
+  const _db = await getDbRequired();
+  const rows = await _db.select()
     .from(scanforgeGeneratedTemplates)
     .where(eq(scanforgeGeneratedTemplates.templateId, templateId))
     .limit(1);
 
   if (!rows[0] || rows[0].status !== "review") return false;
 
-  await db.update(scanforgeGeneratedTemplates)
+  await _db.update(scanforgeGeneratedTemplates)
     .set({ status: "promoted", promotedToTemplateId: templateId })
     .where(eq(scanforgeGeneratedTemplates.templateId, templateId));
 
@@ -834,7 +838,8 @@ export async function promoteTemplate(templateId: string): Promise<boolean> {
  * Get all draft templates pending review.
  */
 export async function getDraftTemplates(limit: number = 50) {
-  return db.select()
+  const _db = await getDbRequired();
+  return _db.select()
     .from(scanforgeGeneratedTemplates)
     .where(eq(scanforgeGeneratedTemplates.status, "draft"))
     .orderBy(desc(scanforgeGeneratedTemplates.createdAt))
@@ -845,7 +850,8 @@ export async function getDraftTemplates(limit: number = 50) {
  * Get research activity log for dashboard display.
  */
 export async function getResearchLog(limit: number = 100) {
-  return db.select()
+  const _db = await getDbRequired();
+  return _db.select()
     .from(scanforgeResearchLog)
     .orderBy(desc(scanforgeResearchLog.createdAt))
     .limit(limit);

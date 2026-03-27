@@ -18,7 +18,7 @@
 
 import { TemplateEngine } from "./template-engine";
 import { ProofEngine } from "./proof-engine";
-import { EmberScanBridge } from "./ember-bridge";
+import { ScanForgeEmberBridge } from "./ember-bridge";
 import { logFinding, assessFindings, generateEngagementReport } from "./accuracy-tracker";
 import { runTargetedResearch } from "./deep-research-agent";
 import { getTemplateConfidenceMap } from "./confidence-tuner";
@@ -186,9 +186,9 @@ export async function executeScanForgePhase(
     }
 
     // Step 5: Initialize Ember bridge if enabled and agents available
-    let emberBridge: EmberScanBridge | null = null;
+    let emberBridge: ScanForgeEmberBridge | null = null;
     if (config.enableEmberRouting && config.emberAgentIds && config.emberAgentIds.length > 0) {
-      emberBridge = new EmberScanBridge(config.engagementId);
+      emberBridge = new ScanForgeEmberBridge(config.engagementId);
       addLog({
         phase: "vuln_detection",
         type: "info",
