@@ -6231,7 +6231,7 @@ ${(() => {
       title: '🔄 Running finding deduplication & normalization',
       detail: `Analyzing ${state.stats.vulnsFound} findings across ${state.assets.length} assets for duplicates`,
     });
-    const dedupStats = runEngagementDedup(state.assets as any);
+    const dedupStats = await runEngagementDedup(state.assets as any);
     state.dedupStats = dedupStats;
 
     // Recalculate vulns after dedup

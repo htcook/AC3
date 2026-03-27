@@ -44,23 +44,23 @@ function makeVuln(title: string, severity = "medium", cve?: string) {
 // ─── runEngagementDedup ──────────────────────────────────────────────────
 
 describe("runEngagementDedup", () => {
-  it("should return stats for an empty asset list", () => {
-    const result = runEngagementDedup([]);
+  it("should return stats for an empty asset list", async () => {
+    const result = await runEngagementDedup([]);
     expect(result.totalFindingsBeforeDedup).toBe(0);
     expect(result.totalFindingsAfterDedup).toBe(0);
     expect(result.duplicatesRemoved).toBe(0);
     expect(result.processedAt).toBeGreaterThan(0);
   });
 
-  it("should return stats for assets with no vulns", () => {
+  it("should return stats for assets with no vulns", async () => {
     const assets = [makeAsset()];
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     expect(result.totalFindingsBeforeDedup).toBe(0);
     expect(result.totalFindingsAfterDedup).toBe(0);
     expect(result.duplicatesRemoved).toBe(0);
   });
 
-  it("should pass through unique findings without removing them", () => {
+  it("should pass through unique findings without removing them", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -71,14 +71,14 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     expect(result.totalFindingsBeforeDedup).toBe(3);
     // All unique — should keep all 3 (or possibly more after normalization)
     expect(result.totalFindingsAfterDedup).toBeGreaterThanOrEqual(2);
     expect(result.processedAt).toBeGreaterThan(0);
   });
 
-  it("should deduplicate identical findings from different scanners", () => {
+  it("should deduplicate identical findings from different scanners", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -89,14 +89,14 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     expect(result.totalFindingsBeforeDedup).toBe(3);
     // Should merge at least 2 of the 3 (same CVE, same target, same title)
     expect(result.duplicatesRemoved).toBeGreaterThanOrEqual(1);
     expect(result.totalFindingsAfterDedup).toBeLessThan(result.totalFindingsBeforeDedup);
   });
 
-  it("should track duplicates by asset hostname", () => {
+  it("should track duplicates by asset hostname", async () => {
     const assets = [
       makeAsset({
         hostname: "web1.example.com",
@@ -113,13 +113,13 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     expect(result.duplicatesByAsset).toBeDefined();
     expect(typeof result.duplicatesByAsset["web1.example.com"]).toBe("number");
     expect(typeof result.duplicatesByAsset["web2.example.com"]).toBe("number");
   });
 
-  it("should include ZAP findings in dedup processing", () => {
+  it("should include ZAP findings in dedup processing", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -131,12 +131,12 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     // Should have processed both the vuln and the ZAP finding
     expect(result.totalFindingsBeforeDedup).toBe(2);
   });
 
-  it("should include tool result findings in dedup processing", () => {
+  it("should include tool result findings in dedup processing", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -159,12 +159,12 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     // 1 vuln + 1 tool result finding = 2 total
     expect(result.totalFindingsBeforeDedup).toBe(2);
   });
 
-  it("should produce a merge log for deduplicated findings", () => {
+  it("should produce a merge log for deduplicated findings", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -174,7 +174,7 @@ describe("runEngagementDedup", () => {
       }),
     ];
 
-    const result = runEngagementDedup(assets);
+    const result = await runEngagementDedup(assets);
     if (result.duplicatesRemoved > 0) {
       expect(result.mergeLog.length).toBeGreaterThan(0);
       expect(result.mergeLog[0].canonicalTitle).toBeDefined();
@@ -183,7 +183,7 @@ describe("runEngagementDedup", () => {
     }
   });
 
-  it("should write back deduplicated vulns to assets", () => {
+  it("should write back deduplicated vulns to assets", async () => {
     const assets = [
       makeAsset({
         vulns: [
@@ -195,7 +195,7 @@ describe("runEngagementDedup", () => {
     ];
 
     const beforeCount = assets[0].vulns.length;
-    runEngagementDedup(assets);
+    await runEngagementDedup(assets);
     // After dedup, the asset's vulns array should be updated
     expect(assets[0].vulns.length).toBeLessThanOrEqual(beforeCount);
   });

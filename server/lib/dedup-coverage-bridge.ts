@@ -321,7 +321,7 @@ function inferAssetEnvironment(asset: OrchestratorAsset): AssetEnvironment {
  *   5. Writes back the deduplicated vulns to each asset
  *   6. Returns stats for the UI
  */
-export function runEngagementDedup(assets: OrchestratorAsset[]): DedupStats {
+export async function runEngagementDedup(assets: OrchestratorAsset[]): Promise<DedupStats> {
   const dedup = getDeduplicationEngine();
   const normalizer = getNormalizationEngine();
 
