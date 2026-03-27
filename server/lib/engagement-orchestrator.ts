@@ -340,6 +340,41 @@ export interface EngagementOpsState {
     emailAddresses: string[];
     breachExposure: any[];
   };
+  /** Deduplication stats from the dedup/coverage bridge — populated after vuln detection */
+  dedupStats?: {
+    totalFindingsBeforeDedup: number;
+    totalFindingsAfterDedup: number;
+    duplicatesRemoved: number;
+    duplicatesByAsset: Record<string, number>;
+    mergeLog: Array<{
+      canonicalTitle: string;
+      mergedCount: number;
+      sources: string[];
+    }>;
+    normalizedSeverityChanges: number;
+    processedAt: number;
+  };
+  /** Coverage gap report from the dedup/coverage bridge — populated after vuln detection */
+  coverageReport?: {
+    overallScore: number;
+    assetReports: Array<{
+      hostname: string;
+      score: number;
+      gaps: Array<{
+        category: string;
+        description: string;
+        severity: string;
+        recommendation: string;
+        missingChecks: string[];
+      }>;
+      totalGaps: number;
+      criticalGaps: number;
+    }>;
+    totalGaps: number;
+    criticalGaps: number;
+    recommendations: string[];
+    processedAt: number;
+  };
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -6180,15 +6215,70 @@ ${(() => {
     }
   }
 
-  // ── Final stats recalculation before Phase 3 summary ──
+  // ── Final stats recalculation before Phase 6 summary ──
   state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
   state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
+  // ── Deduplication & Coverage Gap Analysis ──
+  // Run the dedup/coverage bridge to merge duplicate findings across Nuclei, ZAP, SQLMap,
+  // and ScanForge results, then analyze coverage gaps per asset environment.
+  try {
+    const { runEngagementDedup, runEngagementCoverageAnalysis } = await import('./dedup-coverage-bridge');
+
+    // Phase 6a: Deduplication & Normalization
+    addLog(state, {
+      phase: 'vuln_detection', type: 'info',
+      title: '🔄 Running finding deduplication & normalization',
+      detail: `Analyzing ${state.stats.vulnsFound} findings across ${state.assets.length} assets for duplicates`,
+    });
+    const dedupStats = runEngagementDedup(state.assets as any);
+    state.dedupStats = dedupStats;
+
+    // Recalculate vulns after dedup
+    state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+
+    addLog(state, {
+      phase: 'vuln_detection', type: 'info',
+      title: `✂️ Dedup complete: ${dedupStats.duplicatesRemoved} duplicates removed`,
+      detail: `${dedupStats.totalFindingsBeforeDedup} → ${dedupStats.totalFindingsAfterDedup} findings | ${dedupStats.normalizedSeverityChanges} severity normalizations`,
+    });
+
+    // Phase 6b: Coverage Gap Analysis
+    addLog(state, {
+      phase: 'vuln_detection', type: 'info',
+      title: '📊 Running coverage gap analysis',
+      detail: 'Checking scan completeness against expected coverage matrix per asset environment',
+    });
+    const coverageReport = runEngagementCoverageAnalysis(state.assets as any);
+    state.coverageReport = coverageReport;
+
+    const coverageEmoji = coverageReport.overallScore >= 80 ? '🟢' : coverageReport.overallScore >= 60 ? '🟡' : '🔴';
+    addLog(state, {
+      phase: 'vuln_detection', type: 'info',
+      title: `${coverageEmoji} Coverage score: ${coverageReport.overallScore}%`,
+      detail: `${coverageReport.totalGaps} gaps found (${coverageReport.criticalGaps} critical) across ${coverageReport.assetReports.length} assets`,
+    });
+
+    broadcastOpsUpdate(state.engagementId, {
+      type: 'stats_update',
+      stats: { ...state.stats },
+      dedupStats,
+      coverageReport,
+    } as any);
+  } catch (dedupErr: any) {
+    console.error('[DedupCoverage] Error running dedup/coverage bridge:', dedupErr.message);
+    addLog(state, {
+      phase: 'vuln_detection', type: 'warning',
+      title: '⚠️ Dedup/coverage analysis failed (non-blocking)',
+      detail: dedupErr.message?.slice(0, 200) || 'Unknown error',
+    });
+  }
 
   addLog(state, {
     phase: "vuln_detection",
     type: "phase_complete",
     title: "✅ Phase 6 Complete",
-    detail: `${state.stats.vulnsFound} vulns found, ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected`,
+    detail: `${state.stats.vulnsFound} vulns found (post-dedup), ${state.stats.zapScansRun} ZAP scans, ${state.stats.wafDetections} WAFs detected`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }

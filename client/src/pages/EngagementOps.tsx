@@ -43,7 +43,7 @@ import {
   Sparkles, ClipboardList, Key, KeyRound,
   Cloud, CloudOff, Brain, GitBranch, Layers, RefreshCw, Gauge,
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
-  ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope,
+  ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck,
 } from "lucide-react";
@@ -59,6 +59,7 @@ import { VulnDetailDrawer, ZapFindingDetailDrawer } from "@/components/FindingDe
 import type { VulnFinding, ZapFinding as ZapFindingType } from "@/components/FindingDetailDrawer";
 import EngagementTerminal from "@/components/EngagementTerminal";
 import TestPlanGate from "@/components/TestPlanGate";
+import { CoverageQuality } from "@/components/CoverageQuality";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -2040,6 +2041,7 @@ export default function EngagementOps() {
                   { value: 'llmsynthesis', label: 'LLM Synthesis', icon: <Brain className="h-3 w-3" />, count: synthCount },
                   { value: 'feedback', label: 'Feedback Loop', icon: <RefreshCw className="h-3 w-3" />, count: feedbackLoopQ.data?.totalScansExecuted || 0 },
                   { value: 'fpsuppression', label: 'FP Suppression', icon: <Filter className="h-3 w-3" /> },
+                  { value: 'coverage', label: 'Coverage & Quality', icon: <Scissors className="h-3 w-3" /> },
                 ],
               },
             ];
@@ -4223,6 +4225,19 @@ export default function EngagementOps() {
             </TabsContent>
             <TabsContent value="c2map" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <C2NetworkMap engagementId={engagementId} />
+            </TabsContent>
+
+            {/* ── Coverage & Quality Tab ── */}
+            <TabsContent value="coverage" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="py-3">
+                  <CoverageQuality
+                    dedupStats={(ops as any)?.dedupStats}
+                    coverageReport={(ops as any)?.coverageReport}
+                    engagementPhase={ops?.phase}
+                  />
+                </div>
+              </ScrollArea>
             </TabsContent>
           </Tabs>
         </div>
