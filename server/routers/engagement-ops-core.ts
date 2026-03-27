@@ -66,7 +66,7 @@ export const engagementOpsRouter = router({
 
     /** Start autonomous execution — one-click pentest/red team */
     execute: protectedProcedure
-      .input(z.object({ engagementId: z.number(), exhaustiveExploit: z.boolean().optional().default(true) }))
+      .input(z.object({ engagementId: z.number(), exhaustiveExploit: z.boolean().optional().default(true), trainingLabMode: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -86,6 +86,14 @@ export const engagementOpsRouter = router({
         }
         // Set exhaustive exploitation mode — when true, attempts every exploit opportunity
         state.exhaustiveExploit = input.exhaustiveExploit;
+        // Set training lab mode if specified — auto-approves all gates including exploitation
+        if (input.trainingLabMode !== undefined) {
+          state.trainingLabMode = input.trainingLabMode;
+        }
+        // Auto-detect training lab mode from engagement labName (set by batchTrainingRun)
+        if (state.trainingLabMode === undefined && (engagement as any).labName) {
+          state.trainingLabMode = true;
+        }
 
         await db.logActivity({
           userId: ctx.user.id,

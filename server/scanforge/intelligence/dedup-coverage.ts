@@ -70,7 +70,7 @@ export interface MergeEntry {
   /** IDs of findings merged into the canonical */
   mergedIds: string[];
   /** Reason for merge */
-  reason: "exact_fingerprint" | "cve_overlap" | "title_similarity" | "template_overlap";
+  reason: "exact_fingerprint" | "cve_overlap" | "cwe_overlap" | "title_similarity" | "fuzzy_title" | "template_overlap";
   /** Confidence delta from merge (positive = confidence increased) */
   confidenceDelta: number;
 }
@@ -240,12 +240,18 @@ export class DeduplicationEngine {
     // Phase 3: Cross-group CVE overlap detection
     const cveDeduped = this.deduplicateByCVEOverlap(mergedFindings, mergeLog);
 
+    // Phase 4: Cross-group CWE overlap detection (catches ZAP vs Nuclei duplicates)
+    const cweDeduped = this.deduplicateByCWEOverlap(cveDeduped, mergeLog);
+
+    // Phase 5: Fuzzy title matching across sources (catches renamed/rephrased findings)
+    const fuzzyDeduped = this.deduplicateByFuzzyTitle(cweDeduped, mergeLog);
+
     return {
-      findings: cveDeduped,
-      duplicatesRemoved: findings.length - cveDeduped.length,
+      findings: fuzzyDeduped,
+      duplicatesRemoved: findings.length - fuzzyDeduped.length,
       mergeLog,
       totalBefore: findings.length,
-      totalAfter: cveDeduped.length,
+      totalAfter: fuzzyDeduped.length,
     };
   }
 
@@ -391,6 +397,151 @@ export class DeduplicationEngine {
     }
 
     return result.filter((_, i) => !removed.has(i));
+  }
+
+  /**
+   * Phase 4: CWE-based cross-source deduplication.
+   * ZAP findings often have CWE IDs but no CVEs, while Nuclei findings have CVEs but not CWEs.
+   * This phase catches duplicates where different scanners report the same weakness (CWE)
+   * on the same target but with different titles.
+   */
+  private deduplicateByCWEOverlap(findings: ScanFinding[], mergeLog: MergeEntry[]): ScanFinding[] {
+    const cweIndex = new Map<string, number[]>();
+
+    // Build CWE → finding index (only for findings with CWEs)
+    for (let i = 0; i < findings.length; i++) {
+      for (const cwe of findings[i].cwes || []) {
+        const indices = cweIndex.get(cwe) || [];
+        indices.push(i);
+        cweIndex.set(cwe, indices);
+      }
+    }
+
+    // Find groups that share CWEs on the same target
+    const toMerge = new Map<number, Set<number>>();
+
+    for (const [_cwe, indices] of cweIndex) {
+      if (indices.length < 2) continue;
+
+      // Only merge if same target AND from different sources
+      const byTarget = new Map<string, number[]>();
+      for (const idx of indices) {
+        const target = findings[idx].target;
+        const group = byTarget.get(target) || [];
+        group.push(idx);
+        byTarget.set(target, group);
+      }
+
+      for (const [_target, targetIndices] of byTarget) {
+        if (targetIndices.length < 2) continue;
+
+        // Only merge if findings come from different sources
+        const sources = new Set(targetIndices.map(idx => findings[idx].source));
+        if (sources.size < 2) continue;
+
+        const canonical = targetIndices[0];
+        for (let i = 1; i < targetIndices.length; i++) {
+          // Don't merge if already marked for merge
+          const mergeSet = toMerge.get(canonical) || new Set();
+          mergeSet.add(targetIndices[i]);
+          toMerge.set(canonical, mergeSet);
+        }
+      }
+    }
+
+    if (toMerge.size === 0) return findings;
+
+    // Perform merges
+    const removed = new Set<number>();
+    const result = [...findings];
+
+    for (const [canonicalIdx, mergeIndices] of toMerge) {
+      if (removed.has(canonicalIdx)) continue;
+
+      for (const mergeIdx of mergeIndices) {
+        if (removed.has(mergeIdx)) continue;
+
+        const merged = this.mergeGroup([result[canonicalIdx], result[mergeIdx]]);
+        result[canonicalIdx] = merged.finding;
+        merged.entry.reason = "cwe_overlap";
+        mergeLog.push(merged.entry);
+        removed.add(mergeIdx);
+      }
+    }
+
+    return result.filter((_, i) => !removed.has(i));
+  }
+
+  /**
+   * Phase 5: Fuzzy title matching across different sources.
+   * Catches cases where ZAP reports "Content Security Policy (CSP) Header Not Set"
+   * and Nuclei reports "Missing CSP Header" — same vulnerability, different wording.
+   * Uses source-prefix stripping + keyword extraction + Jaccard similarity.
+   */
+  private deduplicateByFuzzyTitle(findings: ScanFinding[], mergeLog: MergeEntry[]): ScanFinding[] {
+    const SIMILARITY_THRESHOLD = 0.55; // Jaccard similarity threshold
+
+    // Strip scanner prefixes and normalize titles for comparison
+    const normalizedTitles = findings.map(f => this.stripSourcePrefix(this.normalizeTitle(f.title)));
+    const titleKeywords = normalizedTitles.map(t => new Set(t.split(/\s+/).filter(w => w.length > 2)));
+
+    const toMerge = new Map<number, Set<number>>();
+
+    for (let i = 0; i < findings.length; i++) {
+      for (let j = i + 1; j < findings.length; j++) {
+        // Only fuzzy-match across different sources on the same target
+        if (findings[i].target !== findings[j].target) continue;
+        if (findings[i].source === findings[j].source) continue;
+
+        // Compute Jaccard similarity of keyword sets
+        const setA = titleKeywords[i];
+        const setB = titleKeywords[j];
+        if (setA.size === 0 || setB.size === 0) continue;
+
+        let intersection = 0;
+        for (const word of setA) {
+          if (setB.has(word)) intersection++;
+        }
+        const union = setA.size + setB.size - intersection;
+        const similarity = intersection / union;
+
+        if (similarity >= SIMILARITY_THRESHOLD) {
+          const mergeSet = toMerge.get(i) || new Set();
+          mergeSet.add(j);
+          toMerge.set(i, mergeSet);
+        }
+      }
+    }
+
+    if (toMerge.size === 0) return findings;
+
+    // Perform merges
+    const removed = new Set<number>();
+    const result = [...findings];
+
+    for (const [canonicalIdx, mergeIndices] of toMerge) {
+      if (removed.has(canonicalIdx)) continue;
+
+      for (const mergeIdx of mergeIndices) {
+        if (removed.has(mergeIdx)) continue;
+
+        const merged = this.mergeGroup([result[canonicalIdx], result[mergeIdx]]);
+        result[canonicalIdx] = merged.finding;
+        merged.entry.reason = "fuzzy_title";
+        mergeLog.push(merged.entry);
+        removed.add(mergeIdx);
+      }
+    }
+
+    return result.filter((_, i) => !removed.has(i));
+  }
+
+  /**
+   * Strip scanner source prefixes from titles for cross-source comparison.
+   * Handles [ZAP], [zap], [nuclei], [Nuclei], [nikto], [nmap], [scanforge], etc.
+   */
+  private stripSourcePrefix(title: string): string {
+    return title.replace(/^\[?\w+\]?\s*/i, "").trim();
   }
 
   /**
