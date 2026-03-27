@@ -1,11 +1,12 @@
 /**
- * Coverage & Quality Panel — Displays deduplication stats and coverage gap analysis
- * for an engagement's vulnerability detection phase.
+ * Coverage & Quality Panel — Displays deduplication stats, coverage gap analysis,
+ * and NIST 800-53 / MITRE ATT&CK / CWE compliance enrichment for an engagement.
  *
  * Shows:
- *   1. Dedup summary — how many duplicates were removed, merge log, severity changes
- *   2. Coverage score — overall and per-asset scan completeness
- *   3. Coverage gaps — missing checks with severity, recommendations
+ *   1. Dedup summary — duplicates removed, merge log, severity changes
+ *   2. Compliance Enrichment — NIST controls, MITRE techniques, CWEs mapped to findings
+ *   3. Coverage score — overall and per-asset scan completeness
+ *   4. Coverage gaps — missing checks with NIST/MITRE cross-references
  *
  * @author Harrison Cook — AceofCloud
  */
@@ -27,9 +28,65 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle2, Scissors, ShieldAlert, BarChart3, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Scissors,
+  ShieldAlert,
+  ShieldCheck,
+  BarChart3,
+  Info,
+  Target,
+  Bug,
+  FileWarning,
+} from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────
+
+interface NistControl {
+  controlId: string;
+  controlTitle: string;
+  family: string;
+  familyCode: string;
+  baseline: string;
+}
+
+interface MitreTechnique {
+  techniqueId: string;
+  techniqueName: string;
+  tactic: string;
+  parentId?: string;
+}
+
+interface CweEntry {
+  cweId: string;
+  cweName: string;
+  category: string;
+}
+
+interface FindingEnrichment {
+  cwes: CweEntry[];
+  nistControls: NistControl[];
+  mitreTechniques: MitreTechnique[];
+  nistPriority: string;
+}
+
+interface ComplianceEnrichmentSummary {
+  totalNistControlsImpacted: number;
+  impactedNistFamilies: Array<{ familyCode: string; familyName: string; controlCount: number }>;
+  totalMitreTechniques: number;
+  mitreTechniquesByTactic: Record<string, Array<{ techniqueId: string; techniqueName: string }>>;
+  totalCwes: number;
+  cwesByCategory: Record<string, CweEntry[]>;
+  nistGapSummary: {
+    totalControlsImpacted: number;
+    criticalGaps: NistControl[];
+    coverageScore: number;
+    byFamily: Array<{ familyCode: string; familyName: string; controls: string[]; highestPriority: string }>;
+  };
+  findingEnrichments: Record<string, FindingEnrichment>;
+}
 
 interface DedupStats {
   totalFindingsBeforeDedup: number;
@@ -43,6 +100,7 @@ interface DedupStats {
   }>;
   normalizedSeverityChanges: number;
   processedAt: number;
+  complianceEnrichment?: ComplianceEnrichmentSummary;
 }
 
 interface CoverageReport {
@@ -56,6 +114,8 @@ interface CoverageReport {
       severity: string;
       recommendation: string;
       missingChecks: string[];
+      relatedNistControls?: string[];
+      relatedMitreTechniques?: string[];
     }>;
     totalGaps: number;
     criticalGaps: number;
@@ -101,16 +161,54 @@ function getSeverityBadge(severity: string) {
   );
 }
 
+function getPriorityBadge(priority: string) {
+  const colors: Record<string, string> = {
+    P1: "bg-red-500/20 text-red-400 border-red-500/30",
+    P2: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    P3: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    P4: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  };
+  return (
+    <Badge variant="outline" className={`text-xs ${colors[priority] || colors.P4}`}>
+      {priority}
+    </Badge>
+  );
+}
+
 function formatTimestamp(ts: number): string {
   return new Date(ts).toLocaleString();
+}
+
+const TACTIC_ORDER = [
+  "Initial Access", "Execution", "Persistence", "Privilege Escalation",
+  "Defense Evasion", "Credential Access", "Discovery", "Lateral Movement",
+  "Collection", "Command and Control", "Exfiltration", "Impact",
+];
+
+function getTacticColor(tactic: string): string {
+  const colors: Record<string, string> = {
+    "Initial Access": "text-red-400 border-red-500/30",
+    "Execution": "text-orange-400 border-orange-500/30",
+    "Persistence": "text-yellow-400 border-yellow-500/30",
+    "Privilege Escalation": "text-amber-400 border-amber-500/30",
+    "Defense Evasion": "text-lime-400 border-lime-500/30",
+    "Credential Access": "text-green-400 border-green-500/30",
+    "Discovery": "text-teal-400 border-teal-500/30",
+    "Lateral Movement": "text-cyan-400 border-cyan-500/30",
+    "Collection": "text-blue-400 border-blue-500/30",
+    "Command and Control": "text-indigo-400 border-indigo-500/30",
+    "Exfiltration": "text-violet-400 border-violet-500/30",
+    "Impact": "text-purple-400 border-purple-500/30",
+  };
+  return colors[tactic] || "text-gray-400 border-gray-500/30";
 }
 
 // ─── Component ───────────────────────────────────────────────────────────
 
 export function CoverageQuality({ dedupStats, coverageReport, engagementPhase }: CoverageQualityProps) {
-  // Show placeholder if data isn't available yet
   const hasData = dedupStats || coverageReport;
   const isPreVulnPhase = !engagementPhase || ["idle", "recon", "passive_discovery", "scoping_roe", "test_plan", "enumeration"].includes(engagementPhase);
+  const enrichment = dedupStats?.complianceEnrichment;
 
   if (!hasData) {
     return (
@@ -247,6 +345,268 @@ export function CoverageQuality({ dedupStats, coverageReport, engagementPhase }:
         </Card>
       )}
 
+      {/* ── NIST 800-53 / MITRE ATT&CK / CWE Compliance Enrichment ── */}
+      {enrichment && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <CardTitle className="text-lg">Compliance Mapping</CardTitle>
+            </div>
+            <CardDescription>
+              NIST 800-53 Rev 5 controls, MITRE ATT&CK techniques, and CWE classifications mapped to findings
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Summary Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                <div className="text-2xl font-bold text-emerald-400">{enrichment.totalNistControlsImpacted}</div>
+                <div className="text-xs text-muted-foreground mt-1">NIST 800-53 Controls</div>
+              </div>
+              <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3 text-center">
+                <div className="text-2xl font-bold text-rose-400">{enrichment.totalMitreTechniques}</div>
+                <div className="text-xs text-muted-foreground mt-1">MITRE ATT&CK Techniques</div>
+              </div>
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-center">
+                <div className="text-2xl font-bold text-amber-400">{enrichment.totalCwes}</div>
+                <div className="text-xs text-muted-foreground mt-1">CWE Classifications</div>
+              </div>
+            </div>
+
+            {/* NIST 800-53 Control Families */}
+            {enrichment.impactedNistFamilies.length > 0 && (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="nist-families" className="border-border/50">
+                  <AccordionTrigger className="text-sm hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      NIST 800-53 Control Families ({enrichment.impactedNistFamilies.length} impacted)
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border/50">
+                          <TableHead className="text-xs">Family</TableHead>
+                          <TableHead className="text-xs">Name</TableHead>
+                          <TableHead className="text-xs text-center">Controls</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {enrichment.impactedNistFamilies.map((fam) => (
+                          <TableRow key={fam.familyCode} className="border-border/30">
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs text-emerald-400 border-emerald-500/30 font-mono">
+                                {fam.familyCode}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{fam.familyName}</TableCell>
+                            <TableCell className="text-center">
+                              <span className="text-sm font-bold text-emerald-400">{fam.controlCount}</span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
+            {/* NIST Gap Summary */}
+            {enrichment.nistGapSummary.byFamily.length > 0 && (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="nist-gaps" className="border-border/50">
+                  <AccordionTrigger className="text-sm hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <FileWarning className="h-4 w-4 text-yellow-400" />
+                      NIST Control Gap Analysis
+                      {enrichment.nistGapSummary.criticalGaps.length > 0 && (
+                        <Badge variant="outline" className="text-xs text-red-400 border-red-500/30 ml-2">
+                          {enrichment.nistGapSummary.criticalGaps.length} critical gaps
+                        </Badge>
+                      )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="space-y-3">
+                    {/* Critical Gaps */}
+                    {enrichment.nistGapSummary.criticalGaps.length > 0 && (
+                      <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+                        <div className="text-xs font-medium text-red-400 uppercase tracking-wider">
+                          Critical / High Priority Gaps
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {enrichment.nistGapSummary.criticalGaps.map((ctrl) => (
+                            <Tooltip key={ctrl.controlId}>
+                              <TooltipTrigger>
+                                <Badge variant="outline" className="text-xs text-red-400 border-red-500/30 font-mono cursor-help">
+                                  {ctrl.controlId}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <p className="font-medium">{ctrl.controlTitle}</p>
+                                <p className="text-xs text-muted-foreground">{ctrl.family}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* By Family */}
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border/50">
+                          <TableHead className="text-xs">Family</TableHead>
+                          <TableHead className="text-xs">Controls</TableHead>
+                          <TableHead className="text-xs text-center">Priority</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {enrichment.nistGapSummary.byFamily.map((fam) => (
+                          <TableRow key={fam.familyCode} className="border-border/30">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs font-mono text-emerald-400 border-emerald-500/30">
+                                  {fam.familyCode}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{fam.familyName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {fam.controls.map((ctrl) => (
+                                  <Badge key={ctrl} variant="outline" className="text-xs font-mono text-muted-foreground border-border/50">
+                                    {ctrl}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {getPriorityBadge(fam.highestPriority)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
+            {/* MITRE ATT&CK Techniques by Tactic */}
+            {Object.keys(enrichment.mitreTechniquesByTactic).length > 0 && (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="mitre-tactics" className="border-border/50">
+                  <AccordionTrigger className="text-sm hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-rose-400" />
+                      MITRE ATT&CK Techniques by Tactic ({enrichment.totalMitreTechniques} techniques)
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3">
+                      {TACTIC_ORDER
+                        .filter(tactic => enrichment.mitreTechniquesByTactic[tactic])
+                        .map(tactic => (
+                          <div key={tactic} className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={`text-xs ${getTacticColor(tactic)}`}>
+                                {tactic}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                ({enrichment.mitreTechniquesByTactic[tactic].length} technique{enrichment.mitreTechniquesByTactic[tactic].length !== 1 ? "s" : ""})
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 pl-2">
+                              {enrichment.mitreTechniquesByTactic[tactic].map(tech => (
+                                <Tooltip key={tech.techniqueId}>
+                                  <TooltipTrigger>
+                                    <Badge variant="outline" className="text-xs font-mono text-muted-foreground border-border/50 cursor-help hover:text-foreground transition-colors">
+                                      {tech.techniqueId}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="font-medium">{tech.techniqueName}</p>
+                                    <p className="text-xs text-muted-foreground">{tech.techniqueId}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      {/* Any tactics not in the standard order */}
+                      {Object.keys(enrichment.mitreTechniquesByTactic)
+                        .filter(t => !TACTIC_ORDER.includes(t))
+                        .map(tactic => (
+                          <div key={tactic} className="space-y-1.5">
+                            <Badge variant="outline" className="text-xs text-gray-400 border-gray-500/30">
+                              {tactic}
+                            </Badge>
+                            <div className="flex flex-wrap gap-1.5 pl-2">
+                              {enrichment.mitreTechniquesByTactic[tactic].map(tech => (
+                                <Tooltip key={tech.techniqueId}>
+                                  <TooltipTrigger>
+                                    <Badge variant="outline" className="text-xs font-mono text-muted-foreground border-border/50 cursor-help">
+                                      {tech.techniqueId}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="font-medium">{tech.techniqueName}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+
+            {/* CWE Classifications */}
+            {Object.keys(enrichment.cwesByCategory).length > 0 && (
+              <Accordion type="single" collapsible>
+                <AccordionItem value="cwe-categories" className="border-border/50">
+                  <AccordionTrigger className="text-sm hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Bug className="h-4 w-4 text-amber-400" />
+                      CWE Classifications ({enrichment.totalCwes} weaknesses)
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3">
+                      {Object.entries(enrichment.cwesByCategory)
+                        .sort(([, a], [, b]) => b.length - a.length)
+                        .map(([category, cwes]) => (
+                          <div key={category} className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-amber-400">{category}</span>
+                              <span className="text-xs text-muted-foreground">({cwes.length})</span>
+                            </div>
+                            <div className="space-y-1 pl-2">
+                              {cwes.map(cwe => (
+                                <div key={cwe.cweId} className="flex items-start gap-2 text-xs">
+                                  <Badge variant="outline" className="text-xs font-mono text-amber-400 border-amber-500/30 shrink-0">
+                                    {cwe.cweId}
+                                  </Badge>
+                                  <span className="text-muted-foreground">{cwe.cweName}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Coverage Score ── */}
       {coverageReport && (
         <Card className="border-border/50">
@@ -340,6 +700,21 @@ export function CoverageQuality({ dedupStats, coverageReport, engagementPhase }:
                                   ))}
                                 </div>
                               )}
+                              {/* NIST/MITRE Cross-References */}
+                              {(gap.relatedNistControls?.length || gap.relatedMitreTechniques?.length) ? (
+                                <div className="flex flex-wrap gap-1 pt-1 border-t border-border/20">
+                                  {gap.relatedNistControls?.map(ctrl => (
+                                    <Badge key={ctrl} variant="outline" className="text-xs font-mono text-emerald-400 border-emerald-500/20">
+                                      {ctrl}
+                                    </Badge>
+                                  ))}
+                                  {gap.relatedMitreTechniques?.map(tech => (
+                                    <Badge key={tech} variant="outline" className="text-xs font-mono text-rose-400 border-rose-500/20">
+                                      {tech}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : null}
                               <div className="flex items-start gap-1.5 text-xs text-blue-400">
                                 <Info className="h-3 w-3 mt-0.5 shrink-0" />
                                 {gap.recommendation}

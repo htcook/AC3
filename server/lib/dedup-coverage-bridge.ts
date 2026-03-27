@@ -22,6 +22,15 @@ import {
   getCoverageGapDetector,
 } from "../scanforge/intelligence/dedup-coverage";
 import type { DedupResult, NormalizationResult, CoverageReport, CoverageGap } from "../scanforge/intelligence/dedup-coverage";
+import {
+  enrichFinding as enrichWithNistMitre,
+  generateNistGapSummary,
+  getImpactedNistFamilies,
+  type FindingEnrichment,
+  type NistControl,
+  type MitreTechnique,
+  type CweEntry,
+} from "./nist-mitre-cwe-mapper";
 
 // ─── Types for Orchestrator Integration ──────────────────────────────────
 
@@ -83,6 +92,33 @@ export interface DedupStats {
   }>;
   normalizedSeverityChanges: number;
   processedAt: number;
+  /** NIST/MITRE/CWE enrichment summary across all deduplicated findings */
+  complianceEnrichment?: ComplianceEnrichmentSummary;
+}
+
+/** Compliance enrichment summary for all findings */
+export interface ComplianceEnrichmentSummary {
+  /** Total unique NIST 800-53 controls impacted */
+  totalNistControlsImpacted: number;
+  /** NIST control families impacted, sorted by control count */
+  impactedNistFamilies: Array<{ familyCode: string; familyName: string; controlCount: number }>;
+  /** Total unique MITRE ATT&CK techniques identified */
+  totalMitreTechniques: number;
+  /** MITRE techniques grouped by tactic */
+  mitreTechniquesByTactic: Record<string, Array<{ techniqueId: string; techniqueName: string }>>;
+  /** Total unique CWEs identified */
+  totalCwes: number;
+  /** CWEs grouped by category */
+  cwesByCategory: Record<string, CweEntry[]>;
+  /** NIST gap summary at moderate baseline */
+  nistGapSummary: {
+    totalControlsImpacted: number;
+    criticalGaps: NistControl[];
+    coverageScore: number;
+    byFamily: Array<{ familyCode: string; familyName: string; controls: string[]; highestPriority: string }>;
+  };
+  /** Per-finding enrichment details (finding ID → enrichment) */
+  findingEnrichments: Record<string, FindingEnrichment>;
 }
 
 /** Coverage report returned to the UI */
@@ -97,6 +133,10 @@ export interface EngagementCoverageReport {
       severity: string;
       recommendation: string;
       missingChecks: string[];
+      /** NIST controls related to this gap */
+      relatedNistControls?: string[];
+      /** MITRE techniques related to this gap */
+      relatedMitreTechniques?: string[];
     }>;
     totalGaps: number;
     criticalGaps: number;
@@ -375,6 +415,80 @@ export function runEngagementDedup(assets: OrchestratorAsset[]): DedupStats {
     }
   }
 
+  // ── NIST/MITRE/CWE Enrichment ──
+  // Enrich all deduplicated findings with compliance mappings
+  const allDedupedFindings: Array<{ id: string; cwes?: string[]; techniqueIds?: string[]; severity?: string; title?: string; category?: string }> = [];
+  const findingEnrichments: Record<string, FindingEnrichment> = {};
+
+  for (const asset of assets) {
+    for (const vuln of asset.vulns) {
+      // Extract CWEs from the vuln
+      const cweMatch = vuln.title.match(/CWE-(\d+)/gi);
+      const cwes = cweMatch ? cweMatch.map(m => m.toUpperCase()) : [];
+      if (vuln.cve) {
+        // CVE present but no CWE — we still track it
+      }
+
+      const findingInput = {
+        cwes,
+        techniqueIds: [],
+        severity: vuln.severity,
+        title: vuln.title,
+        category: undefined,
+      };
+
+      allDedupedFindings.push({ id: vuln.id, ...findingInput });
+
+      // Enrich each finding
+      const enrichment = enrichWithNistMitre(findingInput);
+      findingEnrichments[vuln.id] = enrichment;
+    }
+  }
+
+  // Build compliance enrichment summary
+  const nistGapSummary = generateNistGapSummary(allDedupedFindings);
+  const impactedFamilies = getImpactedNistFamilies(allDedupedFindings);
+
+  // Aggregate MITRE techniques by tactic
+  const mitreTechniquesByTactic: Record<string, Array<{ techniqueId: string; techniqueName: string }>> = {};
+  const allMitreSet = new Map<string, MitreTechnique>();
+  const allCweSet = new Map<string, CweEntry>();
+
+  for (const enrichment of Object.values(findingEnrichments)) {
+    for (const tech of enrichment.mitreTechniques) {
+      allMitreSet.set(tech.techniqueId, tech);
+      if (!mitreTechniquesByTactic[tech.tactic]) {
+        mitreTechniquesByTactic[tech.tactic] = [];
+      }
+      if (!mitreTechniquesByTactic[tech.tactic].some(t => t.techniqueId === tech.techniqueId)) {
+        mitreTechniquesByTactic[tech.tactic].push({ techniqueId: tech.techniqueId, techniqueName: tech.techniqueName });
+      }
+    }
+    for (const cwe of enrichment.cwes) {
+      allCweSet.set(cwe.cweId, cwe);
+    }
+  }
+
+  // Group CWEs by category
+  const cwesByCategory: Record<string, CweEntry[]> = {};
+  for (const cwe of allCweSet.values()) {
+    if (!cwesByCategory[cwe.category]) {
+      cwesByCategory[cwe.category] = [];
+    }
+    cwesByCategory[cwe.category].push(cwe);
+  }
+
+  const complianceEnrichment: ComplianceEnrichmentSummary = {
+    totalNistControlsImpacted: nistGapSummary.totalControlsImpacted,
+    impactedNistFamilies: impactedFamilies,
+    totalMitreTechniques: allMitreSet.size,
+    mitreTechniquesByTactic,
+    totalCwes: allCweSet.size,
+    cwesByCategory,
+    nistGapSummary,
+    findingEnrichments,
+  };
+
   return {
     totalFindingsBeforeDedup: totalBefore,
     totalFindingsAfterDedup: totalAfter,
@@ -383,6 +497,7 @@ export function runEngagementDedup(assets: OrchestratorAsset[]): DedupStats {
     mergeLog: allMergeLog,
     normalizedSeverityChanges: totalSeverityChanges,
     processedAt: Date.now(),
+    complianceEnrichment,
   };
 }
 
@@ -450,16 +565,28 @@ export function runEngagementCoverageAnalysis(assets: OrchestratorAsset[]): Enga
 
     // Map CoverageGap to the UI format
     // CoverageGap has: recommendedTemplateIds, recommendedProtocols (not missingChecks)
-    const assetGaps = report.gaps.map(g => ({
-      category: g.category,
-      description: g.description,
-      severity: g.severity,
-      recommendation: g.recommendation,
-      missingChecks: [
-        ...g.recommendedTemplateIds,
-        ...g.recommendedProtocols,
-      ],
-    }));
+    // Enrich each gap with related NIST controls and MITRE techniques
+    const assetGaps = report.gaps.map(g => {
+      // Use the gap category/description to infer related NIST/MITRE mappings
+      const gapEnrichment = enrichWithNistMitre({
+        title: `${g.category}: ${g.description}`,
+        category: g.category,
+        severity: g.severity,
+      });
+
+      return {
+        category: g.category,
+        description: g.description,
+        severity: g.severity,
+        recommendation: g.recommendation,
+        missingChecks: [
+          ...g.recommendedTemplateIds,
+          ...g.recommendedProtocols,
+        ],
+        relatedNistControls: gapEnrichment.nistControls.map(c => c.controlId),
+        relatedMitreTechniques: gapEnrichment.mitreTechniques.map(t => t.techniqueId),
+      };
+    });
 
     const assetCritical = assetGaps.filter(g => g.severity === "critical" || g.severity === "high").length;
 
