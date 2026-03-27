@@ -312,7 +312,7 @@ export async function getSocContext(): Promise<string> {
     const topActors = await db.select({
       name: threatActors.name,
       sophistication: threatActors.sophistication,
-      type: threatActors.type,
+      type: threatActors.actorType,
     }).from(threatActors).where(eq(threatActors.active, true)).limit(10);
 
     // Defense scores for detection coverage context

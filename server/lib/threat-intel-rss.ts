@@ -496,7 +496,7 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
         const actorId = actorName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
         try {
           const [existing] = await db.select({ id: threatGroupEvents.id }).from(threatGroupEvents)
-            .where(sql`${threatGroupEvents.sourceUrl} = ${item.link} AND ${threatGroupEvents.actorId} = ${actorId}`)
+            .where(sql`${threatGroupEvents.tgeSourceUrl} = ${item.link} AND ${threatGroupEvents.tgeActorId} = ${actorId}`)
             .limit(1);
 
           if (!existing) {
@@ -506,17 +506,17 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
             const resolvedActorId = existingActor?.actorId ?? actorId;
 
             await db.insert(threatGroupEvents).values({
-              actorId: resolvedActorId,
+              tgeActorId: resolvedActorId,
               eventType: classifyForUnderground(item, feed) === "ransomware" ? "ransomware_claim" : "attack",
-              title: item.title.substring(0, 500),
-              description: cleanDesc.substring(0, 2000),
-              severity,
-              victimName: "See article",
-              mitreTechniques: cves.length > 0 ? ["T1190"] : ["T1190"],
-              iocs: cves,
-              source: `${feed.name} (RSS)`,
-              sourceUrl: item.link,
-              confidence: feed.tier <= 2 ? 75 : 60,
+              tgeTitle: item.title.substring(0, 500),
+              tgeDescription: cleanDesc.substring(0, 2000),
+              tgeSeverity: severity,
+              tgeVictimName: "See article",
+              tgeMitreTechniques: cves.length > 0 ? ["T1190"] : ["T1190"],
+              tgeIocs: cves,
+              tgeSource: `${feed.name} (RSS)`,
+              tgeSourceUrl: item.link,
+              tgeConfidence: feed.tier <= 2 ? 75 : 60,
               eventDate: pubDate,
             });
             result.threatGroupEventsIngested++;

@@ -459,7 +459,7 @@ export const ksiThreatMapRouter = router({
       const actors = await db.select({
         actorId: threatActors.actorId,
         name: threatActors.name,
-        type: threatActors.type,
+        type: threatActors.actorType,
         origin: threatActors.origin,
         threatLevel: threatActors.threatLevel,
         sophistication: threatActors.sophistication,

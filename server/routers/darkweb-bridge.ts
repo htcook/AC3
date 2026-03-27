@@ -261,21 +261,21 @@ export const darkwebBridgeRouter = router({
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
-          sourceUrl: threatGroupEvents.sourceUrl,
+          source: threatGroupEvents.tgeSource,
+          sourceUrl: threatGroupEvents.tgeSourceUrl,
           actorName: threatActors.name,
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(input?.limit || 50);
 
@@ -310,17 +310,17 @@ export const darkwebBridgeRouter = router({
       // Get recent events grouped by actor as "pulses"
       const events = await db
         .select({
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           actorName: threatActors.name,
-          actorType: threatActors.type, // Drizzle name is "type"
+          actorType: threatActors.actorType, // Drizzle name is "type"
           eventCount: sql<number>`COUNT(*)`,
           latestEvent: sql<string>`MAX(${threatGroupEvents.eventDate})`,
           techniques: threatActors.techniques,
           targetSectors: threatActors.targetSectors,
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
-        .groupBy(threatGroupEvents.actorId, threatActors.name, threatActors.type, threatActors.techniques, threatActors.targetSectors)
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
+        .groupBy(threatGroupEvents.tgeActorId, threatActors.name, threatActors.actorType, threatActors.techniques, threatActors.targetSectors)
         .orderBy(sql`MAX(${threatGroupEvents.eventDate}) DESC`)
         .limit(input?.limit || 25);
 
@@ -428,9 +428,9 @@ export const darkwebBridgeRouter = router({
 
       const conditions: any[] = [];
       if (input?.severity) {
-        conditions.push(eq(threatGroupEvents.severity, input.severity));
+        conditions.push(eq(threatGroupEvents.tgeSeverity, input.severity));
       } else {
-        conditions.push(sql`${threatGroupEvents.severity} IN ('critical', 'high')`);
+        conditions.push(sql`${threatGroupEvents.tgeSeverity} IN ('critical', 'high')`);
       }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -438,21 +438,21 @@ export const darkwebBridgeRouter = router({
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
+          source: threatGroupEvents.tgeSource,
           actorName: threatActors.name,
-          actorType: threatActors.type, // Drizzle name is "type"
+          actorType: threatActors.actorType, // Drizzle name is "type"
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
         .where(where)
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(input?.limit || 25);
@@ -615,19 +615,19 @@ export const darkwebBridgeRouter = router({
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
-          mitreTechniques: threatGroupEvents.mitreTechniques,
-          iocs: threatGroupEvents.iocs,
-          source: threatGroupEvents.source,
-          sourceUrl: threatGroupEvents.sourceUrl,
-          confidence: threatGroupEvents.confidence,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
+          mitreTechniques: threatGroupEvents.tgeMitreTechniques,
+          iocs: threatGroupEvents.tgeIocs,
+          source: threatGroupEvents.tgeSource,
+          sourceUrl: threatGroupEvents.tgeSourceUrl,
+          confidence: threatGroupEvents.tgeConfidence,
           eventDate: threatGroupEvents.eventDate,
           discoveredAt: threatGroupEvents.discoveredAt,
           createdAt: threatGroupEvents.createdAt,
@@ -652,17 +652,17 @@ export const darkwebBridgeRouter = router({
         .select({
           id: threatGroupEvents.id,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
+          source: threatGroupEvents.tgeSource,
         })
         .from(threatGroupEvents)
         .where(and(
-          eq(threatGroupEvents.actorId, event.actorId),
+          eq(threatGroupEvents.tgeActorId, event.actorId),
           sql`${threatGroupEvents.id} != ${input.eventId}`
         ))
         .orderBy(desc(threatGroupEvents.eventDate))

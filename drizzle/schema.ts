@@ -6562,6 +6562,8 @@ export const scanforgeEngagementReport = mysqlTable("scanforge_engagement_report
   templateImprovements: json("template_improvements"),
   /** Coverage gaps identified */
   coverageGaps: json("coverage_gaps"),
+  /** Authenticated scanning context — which targets had credentials and what was used */
+  authContext: json("auth_context"),
   createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
   index("ser_engagement_unique").on(table.engagementId),

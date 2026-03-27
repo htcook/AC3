@@ -442,19 +442,19 @@ export async function recordGroupEvent(event: {
   if (!db) return;
 
   await db.insert(threatGroupEvents).values({
-    actorId: event.actorId,
+    tgeActorId: event.actorId,
     eventType: event.eventType,
-    title: event.title,
-    description: event.description,
-    severity: event.severity ?? "medium",
-    victimName: event.victimName,
-    victimSector: event.victimSector,
-    victimCountry: event.victimCountry,
-    mitreTechniques: event.mitreTechniques,
-    iocs: event.iocs,
-    source: event.source,
-    sourceUrl: event.sourceUrl,
-    confidence: event.confidence ?? 75,
+    tgeTitle: event.title,
+    tgeDescription: event.description,
+    tgeSeverity: event.severity ?? "medium",
+    tgeVictimName: event.victimName,
+    tgeVictimSector: event.victimSector,
+    tgeVictimCountry: event.victimCountry,
+    tgeMitreTechniques: event.mitreTechniques,
+    tgeIocs: event.iocs,
+    tgeSource: event.source,
+    tgeSourceUrl: event.sourceUrl,
+    tgeConfidence: event.confidence ?? 75,
     eventDate: event.eventDate ?? new Date(),
   });
 }
@@ -516,7 +516,7 @@ export async function getGroupDetail(actorId: string) {
     db
       .select()
       .from(threatGroupEvents)
-      .where(eq(threatGroupEvents.actorId, actorId))
+      .where(eq(threatGroupEvents.tgeActorId, actorId))
       .orderBy(desc(threatGroupEvents.eventDate))
       .limit(100),
     db
@@ -660,7 +660,7 @@ export async function autoDiscoverGroup(
       actorId,
       name: groupName,
       aliases: [],
-      type: groupType,
+      actorType: groupType,
       origin: "Unknown",
       description: `Auto-discovered via ${source}. Full profile pending.`,
       motivation: "unknown",
@@ -898,11 +898,11 @@ Identify any recent updates needed: new attacks, new TTPs, new IOCs, infrastruct
   for (const ioc of update.newIocs ?? []) {
     await db.insert(threatActorIocs).values({
       actorId: group.actorId,
-      type: ioc.type,
+      iocType: ioc.type,
       value: ioc.value,
       description: ioc.description,
       source: "llm_monitoring",
-      confidence: "medium",
+      iocConfidence: "medium",
     });
     changes.push(`New IOC: ${ioc.type}=${ioc.value}`);
   }

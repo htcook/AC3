@@ -418,7 +418,7 @@ async function linkToThreatActor(profile: RansomwareGroupProfile) {
     actorId,
     name: profile.groupName,
     aliases: profile.aliases,
-    type: "ransomware" as const,
+    actorType: "ransomware" as const,
     origin: "Unknown",
     description: profile.description,
     motivation: "financial",

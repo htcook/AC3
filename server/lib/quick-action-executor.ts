@@ -159,7 +159,7 @@ async function enrichIoc(params: { indicator: string; type: string }): Promise<A
   return safe(async () => {
     const db = (await getDb())!;
     const iocs = await db.select({
-      type: threatActorIocs.type,
+      type: threatActorIocs.iocType,
       value: threatActorIocs.value,
       threatActorId: threatActorIocs.threatActorId,
     }).from(threatActorIocs)

@@ -159,10 +159,10 @@ export async function crossReferenceIOCs(opts?: {
   let iocQuery = db.select({
     id: threatActorIocs.id,
     actorId: threatActorIocs.actorId,
-    type: threatActorIocs.type,
+    type: threatActorIocs.iocType,
     value: threatActorIocs.value,
     description: threatActorIocs.description,
-    confidence: threatActorIocs.confidence,
+    confidence: threatActorIocs.iocConfidence,
   }).from(threatActorIocs);
 
   if (opts?.actorId) {

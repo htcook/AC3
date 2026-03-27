@@ -76,7 +76,7 @@ export const stixExportRouter = router({
       const conditions: any[] = [];
 
       if (input.type !== "all") {
-        conditions.push(eq(threatActors.type, input.type as any));
+        conditions.push(eq(threatActors.actorType, input.type as any));
       }
       if (input.threatLevel !== "all") {
         conditions.push(eq(threatActors.threatLevel, input.threatLevel as any));

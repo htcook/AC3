@@ -716,7 +716,7 @@ export async function learnFromCatalog(options?: {
   // Query threat actors with techniques
   const conditions: any[] = [isNotNull(threatActors.techniques)];
   if (options?.actorTypes?.length) {
-    conditions.push(inArray(threatActors.type, options.actorTypes as any));
+    conditions.push(inArray(threatActors.actorType, options.actorTypes as any));
   }
   if (options?.threatLevels?.length) {
     conditions.push(inArray(threatActors.threatLevel, options.threatLevels as any));
@@ -1067,7 +1067,7 @@ async function bidirectionalEnrich(extracted: ExtractedAttackSequence): Promise<
   const matchingActors = await db.select({
     actorId: threatActors.actorId,
     name: threatActors.name,
-    type: threatActors.type,
+    type: threatActors.actorType,
     techniques: threatActors.techniques,
     tools: threatActors.tools,
     malware: threatActors.malware,

@@ -497,32 +497,32 @@ export const darkwebIntelRouter = router({
       if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString(), filters: { countries: [], sectors: [], actors: [] } };
       // Build WHERE conditions
       const conditions: any[] = [];
-      if (input?.country) conditions.push(eq(threatGroupEvents.victimCountry, input.country));
-      if (input?.sector) conditions.push(eq(threatGroupEvents.victimSector, input.sector));
+      if (input?.country) conditions.push(eq(threatGroupEvents.tgeVictimCountry, input.country));
+      if (input?.sector) conditions.push(eq(threatGroupEvents.tgeVictimSector, input.sector));
       if (input?.actorName) conditions.push(eq(threatActors.name, input.actorName));
       if (input?.search) {
         const term = `%${input.search}%`;
-        conditions.push(sql`(${threatGroupEvents.victimName} LIKE ${term} OR ${threatGroupEvents.description} LIKE ${term} OR ${threatGroupEvents.title} LIKE ${term})`);
+        conditions.push(sql`(${threatGroupEvents.tgeVictimName} LIKE ${term} OR ${threatGroupEvents.tgeDescription} LIKE ${term} OR ${threatGroupEvents.tgeTitle} LIKE ${term})`);
       }
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
-          sourceUrl: threatGroupEvents.sourceUrl,
+          source: threatGroupEvents.tgeSource,
+          sourceUrl: threatGroupEvents.tgeSourceUrl,
           actorName: threatActors.name,
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
         .where(whereClause)
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(input?.limit || 100);
@@ -554,9 +554,9 @@ export const darkwebIntelRouter = router({
       }));
       // Get filter options
       const [countries, sectors, actors] = await Promise.all([
-        db.selectDistinct({ value: threatGroupEvents.victimCountry }).from(threatGroupEvents).where(sql`${threatGroupEvents.victimCountry} IS NOT NULL AND ${threatGroupEvents.victimCountry} != ''`).orderBy(threatGroupEvents.victimCountry),
-        db.selectDistinct({ value: threatGroupEvents.victimSector }).from(threatGroupEvents).where(sql`${threatGroupEvents.victimSector} IS NOT NULL AND ${threatGroupEvents.victimSector} != ''`).orderBy(threatGroupEvents.victimSector),
-        db.selectDistinct({ value: threatActors.name }).from(threatGroupEvents).leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId)).where(sql`${threatActors.name} IS NOT NULL`).orderBy(threatActors.name),
+        db.selectDistinct({ value: threatGroupEvents.tgeVictimCountry }).from(threatGroupEvents).where(sql`${threatGroupEvents.tgeVictimCountry} IS NOT NULL AND ${threatGroupEvents.tgeVictimCountry} != ''`).orderBy(threatGroupEvents.tgeVictimCountry),
+        db.selectDistinct({ value: threatGroupEvents.tgeVictimSector }).from(threatGroupEvents).where(sql`${threatGroupEvents.tgeVictimSector} IS NOT NULL AND ${threatGroupEvents.tgeVictimSector} != ''`).orderBy(threatGroupEvents.tgeVictimSector),
+        db.selectDistinct({ value: threatActors.name }).from(threatGroupEvents).leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId)).where(sql`${threatActors.name} IS NOT NULL`).orderBy(threatActors.name),
       ]);
       return {
         data,
@@ -578,17 +578,17 @@ export const darkwebIntelRouter = router({
       if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString() };
       const events = await db
         .select({
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           actorName: threatActors.name,
-          actorType: threatActors.type,
+          actorType: threatActors.actorType,
           eventCount: sql<number>`COUNT(*)`,
           latestEvent: sql<string>`MAX(${threatGroupEvents.eventDate})`,
           techniques: threatActors.techniques,
           targetSectors: threatActors.targetSectors,
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
-        .groupBy(threatGroupEvents.actorId, threatActors.name, threatActors.type, threatActors.techniques, threatActors.targetSectors)
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
+        .groupBy(threatGroupEvents.tgeActorId, threatActors.name, threatActors.actorType, threatActors.techniques, threatActors.targetSectors)
         .orderBy(sql`MAX(${threatGroupEvents.eventDate}) DESC`)
         .limit(input?.limit || 25);
       const data = events.map((e) => ({
@@ -679,29 +679,29 @@ export const darkwebIntelRouter = router({
       if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString() };
       const conditions: any[] = [];
       if (input?.severity) {
-        conditions.push(eq(threatGroupEvents.severity, input.severity));
+        conditions.push(eq(threatGroupEvents.tgeSeverity, input.severity));
       } else {
-        conditions.push(sql`${threatGroupEvents.severity} IN ('critical', 'high')`);
+        conditions.push(sql`${threatGroupEvents.tgeSeverity} IN ('critical', 'high')`);
       }
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
+          source: threatGroupEvents.tgeSource,
           actorName: threatActors.name,
-          actorType: threatActors.type,
+          actorType: threatActors.actorType,
         })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
         .where(where)
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(input?.limit || 25);
@@ -780,19 +780,19 @@ export const darkwebIntelRouter = router({
       const events = await db
         .select({
           id: threatGroupEvents.id,
-          actorId: threatGroupEvents.actorId,
+          actorId: threatGroupEvents.tgeActorId,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          description: threatGroupEvents.description,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
-          mitreTechniques: threatGroupEvents.mitreTechniques,
-          iocs: threatGroupEvents.iocs,
-          source: threatGroupEvents.source,
-          sourceUrl: threatGroupEvents.sourceUrl,
-          confidence: threatGroupEvents.confidence,
+          title: threatGroupEvents.tgeTitle,
+          description: threatGroupEvents.tgeDescription,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
+          mitreTechniques: threatGroupEvents.tgeMitreTechniques,
+          iocs: threatGroupEvents.tgeIocs,
+          source: threatGroupEvents.tgeSource,
+          sourceUrl: threatGroupEvents.tgeSourceUrl,
+          confidence: threatGroupEvents.tgeConfidence,
           eventDate: threatGroupEvents.eventDate,
           discoveredAt: threatGroupEvents.discoveredAt,
           createdAt: threatGroupEvents.createdAt,
@@ -809,17 +809,17 @@ export const darkwebIntelRouter = router({
         .select({
           id: threatGroupEvents.id,
           eventType: threatGroupEvents.eventType,
-          title: threatGroupEvents.title,
-          severity: threatGroupEvents.severity,
-          victimName: threatGroupEvents.victimName,
-          victimSector: threatGroupEvents.victimSector,
-          victimCountry: threatGroupEvents.victimCountry,
+          title: threatGroupEvents.tgeTitle,
+          severity: threatGroupEvents.tgeSeverity,
+          victimName: threatGroupEvents.tgeVictimName,
+          victimSector: threatGroupEvents.tgeVictimSector,
+          victimCountry: threatGroupEvents.tgeVictimCountry,
           eventDate: threatGroupEvents.eventDate,
-          source: threatGroupEvents.source,
+          source: threatGroupEvents.tgeSource,
         })
         .from(threatGroupEvents)
         .where(and(
-          eq(threatGroupEvents.actorId, event.actorId),
+          eq(threatGroupEvents.tgeActorId, event.actorId),
           sql`${threatGroupEvents.id} != ${input.eventId}`
         ))
         .orderBy(desc(threatGroupEvents.eventDate))
@@ -1315,19 +1315,19 @@ export const darkwebIntelRouter = router({
           .select({
             id: threatGroupEvents.id,
             eventType: threatGroupEvents.eventType,
-            title: threatGroupEvents.title,
-            severity: threatGroupEvents.severity,
-            victimName: threatGroupEvents.victimName,
-            victimSector: threatGroupEvents.victimSector,
-            victimCountry: threatGroupEvents.victimCountry,
+            title: threatGroupEvents.tgeTitle,
+            severity: threatGroupEvents.tgeSeverity,
+            victimName: threatGroupEvents.tgeVictimName,
+            victimSector: threatGroupEvents.tgeVictimSector,
+            victimCountry: threatGroupEvents.tgeVictimCountry,
             eventDate: threatGroupEvents.eventDate,
-            source: threatGroupEvents.source,
-            sourceUrl: threatGroupEvents.sourceUrl,
-            mitreTechniques: threatGroupEvents.mitreTechniques,
-            iocs: threatGroupEvents.iocs,
+            source: threatGroupEvents.tgeSource,
+            sourceUrl: threatGroupEvents.tgeSourceUrl,
+            mitreTechniques: threatGroupEvents.tgeMitreTechniques,
+            iocs: threatGroupEvents.tgeIocs,
           })
           .from(threatGroupEvents)
-          .where(eq(threatGroupEvents.actorId, actor.actorId))
+          .where(eq(threatGroupEvents.tgeActorId, actor.actorId))
           .orderBy(desc(threatGroupEvents.eventDate))
           .limit(15);
       }

@@ -315,6 +315,7 @@ const AgentLeaderboard = lazyWithRetry(() => import("./pages/AgentLeaderboard"))
 const RealtimeMonitor = lazyWithRetry(() => import("./pages/RealtimeMonitor"));
 const TrainingDataReview = lazyWithRetry(() => import("./pages/TrainingDataReview"));
 const TestPlanReview = lazyWithRetry(() => import("./pages/TestPlanReview"));
+const ScanForgeDashboard = lazyWithRetry(() => import("./pages/ScanForgeDashboard"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1145,6 +1146,9 @@ function Router() {
         </Route>
         <Route path="/test-lab/graduation">
           <ProtectedRoute component={TestLabGraduation} />
+        </Route>
+        <Route path="/scanforge-dashboard">
+          <ProtectedRoute component={ScanForgeDashboard} pageName="ScanForgeDashboard" />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

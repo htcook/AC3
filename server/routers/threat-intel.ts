@@ -250,7 +250,7 @@ export const threatIntelRouter = router({
         actorType: threatActors.actorType,
       })
         .from(threatGroupEvents)
-        .leftJoin(threatActors, eq(threatGroupEvents.actorId, threatActors.actorId))
+        .leftJoin(threatActors, eq(threatGroupEvents.tgeActorId, threatActors.actorId))
         .where(where)
         .orderBy(desc(threatGroupEvents.eventDate))
         .limit(input?.limit || 50);

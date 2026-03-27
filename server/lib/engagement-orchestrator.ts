@@ -95,7 +95,7 @@ import {
 import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
 import { SERVER_INSTANCE_ID } from "./server-instance";
 import { capLLMContext as _capLLMContext } from "./memory-manager";
-import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult } from "../scanforge/engine/engagement-integration";
+import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult, type ScanForgeCredential } from "../scanforge/engine/engagement-integration";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
 const _serverInstanceId = SERVER_INSTANCE_ID;
@@ -4524,7 +4524,18 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         // Training labs: include low severity to catch info disclosure, also increase timeout
         const severityArg = isTrainingLabScan ? '-severity critical,high,medium,low' : '-severity critical,high,medium';
         const timeoutArg = isTrainingLabScan ? '-timeout 15' : '-timeout 10';
-        const nucleiArgs = `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}`;
+        // Inject session cookies into Nuclei for authenticated scanning if credentials are available
+        let authHeaderArg = '';
+        const assetCreds = (asset.confirmedCredentials || []).filter((c: any) =>
+          ['http', 'web', 'form', 'http-get', 'http-post-form'].includes(c.service)
+        );
+        if (assetCreds.length > 0 && assetCreds[0].sessionCookie) {
+          // Use session cookie from prior ZAP/ScanForge auth
+          authHeaderArg = ` -H "Cookie: ${assetCreds[0].sessionCookie}"`;
+        } else if ((asset as any).trainingLabCreds?.sessionCookie) {
+          authHeaderArg = ` -H "Cookie: ${(asset as any).trainingLabCreds.sessionCookie}"`;
+        }
+        const nucleiArgs = `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}${authHeaderArg}`;
         nucleiScanTasks.push({ asset, url, nucleiArgs, target, techTags, assetVulnKeys });
       }
     }
@@ -4700,15 +4711,51 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   try {
     const scanforgeTargets = state.assets
       .filter(a => a.status !== 'pending')
-      .map(a => ({
-        url: a.ports.some(p => [80, 443, 8080, 8443].includes(p.port))
-          ? `${a.ports.some(p => p.port === 443) ? 'https' : 'http'}://${a.hostname}`
-          : `http://${a.hostname}`,
-        ip: a.ip,
-        hostname: a.hostname,
-        isInternal: a.hostname.endsWith('.internal') || a.hostname.endsWith('.local') || a.hostname.includes('.lab.'),
-        technologies: a.passiveRecon?.technologies || [],
-      }));
+      .map(a => {
+        // Collect confirmed credentials for this asset (from Hydra, training lab injection, etc.)
+        const creds: ScanForgeCredential[] = (a.confirmedCredentials || []).map((c: any) => ({
+          username: c.username,
+          password: c.password,
+          service: c.service || 'http',
+          source: c.source || 'hydra',
+          loginPath: c.loginPath || (a as any).trainingLabCreds?.loginPath,
+          confirmedAt: c.confirmedAt ? new Date(c.confirmedAt).getTime() : Date.now(),
+        }));
+
+        // Also include training lab credentials if injected
+        const trainingLabCreds = (a as any).trainingLabCreds;
+        if (trainingLabCreds && !creds.some(c => c.username === trainingLabCreds.username)) {
+          creds.push({
+            username: trainingLabCreds.username,
+            password: trainingLabCreds.password,
+            service: 'http',
+            source: 'training_lab',
+            loginPath: trainingLabCreds.loginPath,
+            confirmedAt: Date.now(),
+          });
+        }
+
+        return {
+          url: a.ports.some(p => [80, 443, 8080, 8443].includes(p.port))
+            ? `${a.ports.some(p => p.port === 443) ? 'https' : 'http'}://${a.hostname}`
+            : `http://${a.hostname}`,
+          ip: a.ip,
+          hostname: a.hostname,
+          isInternal: a.hostname.endsWith('.internal') || a.hostname.endsWith('.local') || a.hostname.includes('.lab.'),
+          technologies: a.passiveRecon?.technologies || [],
+          credentials: creds.length > 0 ? creds : undefined,
+        };
+      });
+
+    // Log credential handoff to ScanForge
+    const targetsWithCreds = scanforgeTargets.filter(t => t.credentials && t.credentials.length > 0);
+    if (targetsWithCreds.length > 0) {
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: `\uD83D\uDD11 ScanForge Credential Handoff: ${targetsWithCreds.length} target(s)`,
+        detail: targetsWithCreds.map(t => `${t.hostname}: ${t.credentials!.map(c => `${c.username} (${c.source})`).join(', ')}`).join(' | '),
+      });
+    }
 
     if (scanforgeTargets.length > 0) {
       addLog(state, {
@@ -4725,6 +4772,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           targetType: state.engagementType === 'red_team' ? 'network' : 'web_app',
           enableProofVerification: true,
           enableEmberRouting: scanforgeTargets.some(t => t.isInternal),
+          enableAuthenticatedScanning: targetsWithCreds.length > 0,
           maxConcurrency: 5,
           timeoutPerTarget: 30000,
         },

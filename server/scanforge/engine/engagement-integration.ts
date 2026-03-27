@@ -22,10 +22,20 @@ import { ScanForgeEmberBridge } from "./ember-bridge";
 import { logFinding, assessFindings, generateEngagementReport } from "./accuracy-tracker";
 import { runTargetedResearch } from "./deep-research-agent";
 import { getTemplateConfidenceMap } from "./confidence-tuner";
+import { AuthScanner, type AuthConfig, type AuthSession } from "./auth-scanner";
 import * as path from "path";
 import * as fs from "fs";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+
+export interface ScanForgeCredential {
+  username: string;
+  password: string;
+  service: string;
+  source: string; // 'hydra' | 'training_lab' | 'manual'
+  loginPath?: string;
+  confirmedAt?: number;
+}
 
 export interface ScanForgeTarget {
   url: string;
@@ -34,6 +44,8 @@ export interface ScanForgeTarget {
   hostname?: string;
   isInternal?: boolean;
   technologies?: string[];
+  /** Discovered credentials from credential testing phase (Hydra, training lab defaults, etc.) */
+  credentials?: ScanForgeCredential[];
 }
 
 export interface ScanForgeEngagementConfig {
@@ -47,6 +59,8 @@ export interface ScanForgeEngagementConfig {
   templateCategories?: string[]; // Filter to specific categories
   maxConcurrency: number;
   timeoutPerTarget: number; // ms
+  /** Enable authenticated scanning using discovered credentials */
+  enableAuthenticatedScanning?: boolean;
 }
 
 export interface ScanForgeFinding {
@@ -197,17 +211,101 @@ export async function executeScanForgePhase(
       });
     }
 
-    // Step 6: Execute templates against targets
+    // Step 6: Establish authenticated sessions for targets with discovered credentials
+    const authScanner = new AuthScanner();
+    const targetAuthSessions: Map<string, { sessionId: string; config: AuthConfig }> = new Map();
+
+    if (config.enableAuthenticatedScanning !== false) {
+      for (const target of config.targets) {
+        const creds = target.credentials || [];
+        const webCreds = creds.filter(c => ['http', 'web', 'form', 'http-get', 'http-post-form'].includes(c.service));
+
+        if (webCreds.length > 0) {
+          const cred = webCreds[0]; // Use the first confirmed web credential
+          const targetUrl = target.url || `http://${target.ip}:${target.port || 80}`;
+          const loginUrl = cred.loginPath
+            ? `${targetUrl}${cred.loginPath.startsWith('/') ? '' : '/'}${cred.loginPath}`
+            : `${targetUrl}/login`;
+
+          const authConfig: AuthConfig = {
+            strategy: 'form_login',
+            loginUrl,
+            credentials: {
+              username: cred.username,
+              password: cred.password,
+            },
+            reAuthAfterRequests: 200, // Re-authenticate after 200 requests
+            reAuthIntervalMs: 5 * 60 * 1000, // Re-authenticate every 5 minutes
+          };
+
+          try {
+            const session = await authScanner.authenticate(authConfig);
+            targetAuthSessions.set(targetUrl, { sessionId: session.id, config: authConfig });
+
+            addLog({
+              phase: 'vuln_detection',
+              type: 'info',
+              title: `🔑 ScanForge Auth: ${target.hostname || target.ip}`,
+              detail: `Authenticated as ${cred.username} via ${cred.source} credentials (${session.cookies.size} cookies) — scanning authenticated attack surface`,
+            });
+          } catch (authErr: any) {
+            addLog({
+              phase: 'vuln_detection',
+              type: 'warning',
+              title: `⚠️ ScanForge Auth Failed: ${target.hostname || target.ip}`,
+              detail: `Could not authenticate as ${cred.username}: ${authErr.message} — falling back to unauthenticated scanning`,
+            });
+          }
+        }
+      }
+
+      if (targetAuthSessions.size > 0) {
+        addLog({
+          phase: 'vuln_detection',
+          type: 'info',
+          title: 'ScanForge Authenticated Scanning Active',
+          detail: `${targetAuthSessions.size} target(s) with authenticated sessions — scanning both authenticated and unauthenticated attack surface`,
+        });
+      }
+    }
+
+    // Step 7: Execute templates against targets
     const internalTargets = config.targets.filter(t => t.isInternal);
     const externalTargets = config.targets.filter(t => !t.isInternal);
 
     // External targets — scan directly from this server
     for (const target of externalTargets) {
       const targetUrl = target.url || `http://${target.ip}:${target.port || 80}`;
+      const authSession = targetAuthSessions.get(targetUrl);
       
       for (const template of templates) {
         try {
+          // Run unauthenticated scan first
           const findings = await executeTemplate(templateEngine, template, targetUrl, confidenceMap);
+
+          // If we have an authenticated session, also run authenticated scan to find additional vulns
+          if (authSession) {
+            try {
+              // Ensure session is still valid before authenticated scan
+              await authScanner.ensureAuthenticated(authSession.sessionId, authSession.config);
+              const authFindings = await executeAuthenticatedTemplate(
+                templateEngine, template, targetUrl, confidenceMap, authScanner, authSession.sessionId
+              );
+              // Only add findings that weren't already found in the unauthenticated scan
+              for (const af of authFindings) {
+                const isDuplicate = findings.some(f =>
+                  f.templateId === af.templateId && f.title === af.title
+                );
+                if (!isDuplicate) {
+                  af.title = `[Auth] ${af.title}`;
+                  af.evidence = `[Authenticated as ${target.credentials?.[0]?.username}] ${af.evidence}`;
+                  findings.push(af);
+                }
+              }
+            } catch (authErr: any) {
+              console.debug(`[ScanForge] Authenticated template execution failed for ${template.id}:`, authErr.message);
+            }
+          }
           
           for (const finding of findings) {
             // Proof-based verification
@@ -327,6 +425,85 @@ export async function executeScanForgePhase(
 }
 
 // ─── Template Execution ─────────────────────────────────────────────────────
+
+/**
+ * Execute a template with authenticated session — uses AuthScanner to inject
+ * session cookies/tokens into every request for authenticated attack surface scanning.
+ */
+async function executeAuthenticatedTemplate(
+  engine: TemplateEngine,
+  template: any,
+  targetUrl: string,
+  confidenceMap: Map<string, number>,
+  authScanner: AuthScanner,
+  sessionId: string,
+): Promise<ScanForgeFinding[]> {
+  const findings: ScanForgeFinding[] = [];
+  const templateId = template.id || template.templateId;
+  const confidenceThreshold = confidenceMap.get(templateId) || 0.5;
+
+  for (const request of (template.requests || [])) {
+    try {
+      const url = `${targetUrl}${request.path || ""}`;
+
+      // Use AuthScanner to make the request with session credentials
+      const result = await authScanner.authenticatedFetch(
+        sessionId,
+        url,
+        request.method || "GET",
+        (request.body && request.method !== "GET") ? request.body : undefined,
+        {
+          "User-Agent": "ScanForge/1.0 (Security Scanner)",
+          ...(request.headers || {}),
+        },
+        10_000
+      );
+
+      // Check matchers
+      let matched = false;
+      const matchResults: string[] = [];
+
+      for (const matcher of (template.matchers || [])) {
+        const matchResult = checkMatcher(matcher, result.status, result.body, result.headers);
+        if (matchResult.matched) {
+          matched = true;
+          matchResults.push(matchResult.evidence);
+        }
+      }
+
+      if (matched) {
+        const severity = template.severity || "medium";
+        const confidence = calculateConfidence(template, matchResults, confidenceThreshold);
+
+        if (confidence >= confidenceThreshold) {
+          findings.push({
+            templateId,
+            templateName: template.name || templateId,
+            target: targetUrl,
+            severity,
+            title: template.name || `${templateId} Detection`,
+            description: template.description || `Vulnerability detected by template ${templateId} (authenticated)`,
+            evidence: matchResults.join(" | "),
+            confidence,
+            verified: false,
+            cve: template.metadata?.cve,
+            cwe: template.metadata?.cwe,
+            cvss: template.metadata?.cvss,
+            remediation: template.remediation,
+            references: template.metadata?.references || [],
+            rawResponse: result.body.slice(0, 500),
+          });
+        }
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        console.debug(`[ScanForge Auth] Request failed for ${templateId}:`, (err as Error).message);
+      }
+    }
+  }
+
+  return findings;
+}
 
 async function executeTemplate(
   engine: TemplateEngine,

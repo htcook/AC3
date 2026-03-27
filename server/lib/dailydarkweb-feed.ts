@@ -54,7 +54,7 @@ const FULCRUMSEC_ACTOR = {
   actorId: "fulcrumsec",
   name: "FULCRUMSEC",
   aliases: ["The Threat Thespians", "FulcrumSec"],
-  type: "cybercrime" as const,
+  actorType: "cybercrime" as const,
   origin: "Unknown",
   description:
     "FULCRUMSEC (also known as The Threat Thespians) is a data extortion group first observed in September 2025. They operate a classic steal-then-threaten model, exfiltrating data and demanding payment to prevent publication. They maintain a dedicated Dark Web Data Leak Site (DLS), underground forum presence, and Telegram channel. Their extortion methods include blackmail, data auctions, direct extortion, double extortion, free data leaks, and detailed kill chain write-ups that expose victim security failures. Notable for targeting cloud infrastructure (AWS) and exploiting web application vulnerabilities.",
@@ -175,7 +175,7 @@ const DAILYDARKWEB_ACTORS = [
     actorId: "ddw-vect",
     name: "Vect",
     aliases: ["Vect Ransomware"],
-    type: "ransomware" as const,
+    actorType: "ransomware" as const,
     origin: "Unknown",
     description: "Emerging ransomware group observed targeting energy sector infrastructure in South America. Claimed Verlat Energy (Peru, hydropower) as a victim in March 2026.",
     motivation: "financial",
@@ -196,7 +196,7 @@ const DAILYDARKWEB_ACTORS = [
     actorId: "ddw-ailock",
     name: "AiLock",
     aliases: ["AiLock Ransomware"],
-    type: "ransomware" as const,
+    actorType: "ransomware" as const,
     origin: "Unknown",
     description: "Ransomware group observed targeting legal sector and multiple global companies. Claimed Aaronson Rappaport & Demanor and multiple other organizations as victims in March 2026.",
     motivation: "financial",
@@ -217,7 +217,7 @@ const DAILYDARKWEB_ACTORS = [
     actorId: "ddw-handala",
     name: "Handala Hack Team",
     aliases: ["Handala", "Handala Hackers"],
-    type: "hacktivist" as const,
+    actorType: "hacktivist" as const,
     origin: "Iran (suspected)",
     description: "Pro-Palestinian hacktivist group conducting data breaches and disruptive attacks primarily targeting Israeli organizations and Middle Eastern energy companies. Named after the Handala character, a symbol of Palestinian resistance.",
     motivation: "ideological",
@@ -251,7 +251,7 @@ const DAILYDARKWEB_ACTORS = [
     actorId: "ddw-ruskinet",
     name: "RuskiNet Group",
     aliases: ["RuskiNet"],
-    type: "hacktivist" as const,
+    actorType: "hacktivist" as const,
     origin: "Russia",
     description: "Pro-Russian hacktivist group targeting Israeli organizations. Claimed breach of Har Hevron Regional Council and 4 other Israeli organizations in June 2025.",
     motivation: "ideological",
@@ -390,7 +390,7 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
   if (!existing) {
     await db.insert(threatActors).values({
       actorId: FULCRUMSEC_ACTOR.actorId, name: FULCRUMSEC_ACTOR.name, aliases: FULCRUMSEC_ACTOR.aliases,
-      type: FULCRUMSEC_ACTOR.type, origin: FULCRUMSEC_ACTOR.origin, description: FULCRUMSEC_ACTOR.description,
+      actorType: FULCRUMSEC_ACTOR.actorType, origin: FULCRUMSEC_ACTOR.origin, description: FULCRUMSEC_ACTOR.description,
       motivation: FULCRUMSEC_ACTOR.motivation, firstSeen: FULCRUMSEC_ACTOR.firstSeen, lastActive: FULCRUMSEC_ACTOR.lastActive,
       threatLevel: FULCRUMSEC_ACTOR.threatLevel, sophistication: FULCRUMSEC_ACTOR.sophistication,
       targetSectors: FULCRUMSEC_ACTOR.targetSectors, targetRegions: FULCRUMSEC_ACTOR.targetRegions,
@@ -412,8 +412,8 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
       .where(sql`${threatActorIocs.actorId} = ${ioc.actorId} AND ${threatActorIocs.value} = ${ioc.value}`).limit(1);
     if (!existingIoc) {
       await db.insert(threatActorIocs).values({
-        actorId: ioc.actorId, type: ioc.type, value: ioc.value, description: ioc.description,
-        firstSeen: ioc.firstSeen, confidence: ioc.confidence, source: ioc.source,
+        actorId: ioc.actorId, iocType: ioc.type, value: ioc.value, description: ioc.description,
+        iocFirstSeen: ioc.firstSeen, iocConfidence: ioc.confidence, source: ioc.source,
       });
       iocsInserted++;
     }
@@ -421,13 +421,13 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
 
   for (const evt of FULCRUMSEC_EVENTS) {
     const [existingEvt] = await db.select().from(threatGroupEvents)
-      .where(sql`${threatGroupEvents.actorId} = ${evt.actorId} AND ${threatGroupEvents.title} = ${evt.title}`).limit(1);
+      .where(sql`${threatGroupEvents.tgeActorId} = ${evt.actorId} AND ${threatGroupEvents.tgeTitle} = ${evt.title}`).limit(1);
     if (!existingEvt) {
       await db.insert(threatGroupEvents).values({
-        actorId: evt.actorId, eventType: evt.eventType, title: evt.title, description: evt.description,
-        severity: evt.severity, victimName: evt.victimName, victimSector: evt.victimSector,
-        victimCountry: evt.victimCountry, mitreTechniques: evt.mitreTechniques, iocs: evt.iocs,
-        source: evt.source, sourceUrl: evt.sourceUrl, confidence: evt.confidence, eventDate: new Date(evt.eventDate),
+        tgeActorId: evt.actorId, eventType: evt.eventType, tgeTitle: evt.title, tgeDescription: evt.description,
+        tgeSeverity: evt.severity, tgeVictimName: evt.victimName, tgeVictimSector: evt.victimSector,
+        tgeVictimCountry: evt.victimCountry, tgeMitreTechniques: evt.mitreTechniques, tgeIocs: evt.iocs,
+        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate),
       });
       eventsInserted++;
     }
@@ -483,7 +483,7 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
     const [existing] = await db.select().from(threatActors).where(eq(threatActors.actorId, actor.actorId)).limit(1);
     if (!existing) {
       await db.insert(threatActors).values({
-        actorId: actor.actorId, name: actor.name, aliases: actor.aliases, type: actor.type,
+        actorId: actor.actorId, name: actor.name, aliases: actor.aliases, actorType: actor.actorType,
         origin: actor.origin, description: actor.description, motivation: actor.motivation,
         firstSeen: actor.firstSeen, lastActive: actor.lastActive, threatLevel: actor.threatLevel,
         sophistication: actor.sophistication, targetSectors: actor.targetSectors,
@@ -501,13 +501,13 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
 
   for (const evt of DAILYDARKWEB_EVENTS) {
     const [existingEvt] = await db.select().from(threatGroupEvents)
-      .where(sql`${threatGroupEvents.actorId} = ${evt.actorId} AND ${threatGroupEvents.title} = ${evt.title}`).limit(1);
+      .where(sql`${threatGroupEvents.tgeActorId} = ${evt.actorId} AND ${threatGroupEvents.tgeTitle} = ${evt.title}`).limit(1);
     if (!existingEvt) {
       await db.insert(threatGroupEvents).values({
-        actorId: evt.actorId, eventType: evt.eventType, title: evt.title, description: evt.description,
-        severity: evt.severity, victimName: evt.victimName, victimSector: evt.victimSector,
-        victimCountry: evt.victimCountry, mitreTechniques: evt.mitreTechniques, iocs: evt.iocs,
-        source: evt.source, sourceUrl: evt.sourceUrl, confidence: evt.confidence, eventDate: new Date(evt.eventDate),
+        tgeActorId: evt.actorId, eventType: evt.eventType, tgeTitle: evt.title, tgeDescription: evt.description,
+        tgeSeverity: evt.severity, tgeVictimName: evt.victimName, tgeVictimSector: evt.victimSector,
+        tgeVictimCountry: evt.victimCountry, tgeMitreTechniques: evt.mitreTechniques, tgeIocs: evt.iocs,
+        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate),
       });
       eventsInserted++;
     }

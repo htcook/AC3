@@ -145,9 +145,9 @@ export const threatEnrichmentEngineRouter = router({
 
     // Actor breakdown by type
     const actorsByType = await db.select({
-      type: threatActors.type,
+      type: threatActors.actorType,
       count: count(),
-    }).from(threatActors).groupBy(threatActors.type);
+    }).from(threatActors).groupBy(threatActors.actorType);
 
     // Actor breakdown by threat level
     const actorsByThreatLevel = await db.select({
@@ -157,9 +157,9 @@ export const threatEnrichmentEngineRouter = router({
 
     // IOC breakdown by type
     const iocsByType = await db.select({
-      type: threatActorIocs.type,
+      type: threatActorIocs.iocType,
       count: count(),
-    }).from(threatActorIocs).groupBy(threatActorIocs.type);
+    }).from(threatActorIocs).groupBy(threatActorIocs.iocType);
 
     // TTP coverage by tactic
     const ttpsByTactic = await db.select({

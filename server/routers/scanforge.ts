@@ -22,6 +22,12 @@ import type {
   ScanRequest,
   ScanPriority,
 } from "../scanforge/types";
+import { getScanForgeHealthMetrics, getTuningHistory } from "../scanforge/engine/confidence-tuner";
+import { getTemplateEffectiveness, getEngagementReports, getEngagementFindings } from "../scanforge/engine/accuracy-tracker";
+import { getDraftTemplates, getResearchLog, promoteTemplate } from "../scanforge/engine/deep-research-agent";
+import { getDbRequired } from "../db";
+import { scanforgeGeneratedTemplates, scanforgeResearchLog, scanforgeEngagementReport, scanforgeFindingLog, scanforgeTemplateMetrics } from "../../drizzle/schema";
+import { eq, desc, sql, count } from "drizzle-orm";
 
 // ── Singleton Instances ──────────────────────────────────────────────────
 const scanQueue = getScanQueue({ maxConcurrent: 5, maxQueueSize: 100 });
@@ -496,4 +502,195 @@ export const scanforgeRouter = router({
 
       return scanPlan;
     }),
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DASHBOARD PROCEDURES — ScanForge Analytics & Self-Improvement Engine
+  // ══════════════════════════════════════════════════════════════════════
+
+  // ── Health Metrics (Overview) ────────────────────────────────────────
+  healthMetrics: protectedProcedure.query(async () => {
+    try {
+      return await getScanForgeHealthMetrics();
+    } catch {
+      // Return empty metrics if tables don't have data yet
+      return {
+        totalTemplates: templateEngine.getAll().length,
+        activeTemplates: 0,
+        deprecatedTemplates: 0,
+        avgPrecision: 0,
+        avgRecall: 0,
+        avgF1: 0,
+        totalFindings: 0,
+        truePositives: 0,
+        falsePositives: 0,
+        falseNegatives: 0,
+        topPerformers: [],
+        worstPerformers: [],
+      };
+    }
+  }),
+
+  // ── Template Effectiveness Rankings ─────────────────────────────────
+  templateEffectiveness: protectedProcedure
+    .input(z.object({ minScans: z.number().min(1).default(1) }).optional())
+    .query(async ({ input }) => {
+      try {
+        return await getTemplateEffectiveness(input?.minScans || 1);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Engagement Comparison Reports ───────────────────────────────────
+  engagementReports: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ input }) => {
+      try {
+        return await getEngagementReports(input?.limit || 20);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Engagement Finding Details ──────────────────────────────────────
+  engagementFindingDetails: protectedProcedure
+    .input(z.object({ engagementId: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        return await getEngagementFindings(input.engagementId);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Generated Templates (Draft/Review/Promoted) ────────────────────
+  generatedTemplates: protectedProcedure
+    .input(z.object({
+      status: z.enum(["draft", "review", "approved", "rejected", "promoted"]).optional(),
+      limit: z.number().min(1).max(200).default(50),
+    }).optional())
+    .query(async ({ input }) => {
+      try {
+        const _db = await getDbRequired();
+        let query = _db.select().from(scanforgeGeneratedTemplates);
+        if (input?.status) {
+          query = query.where(eq(scanforgeGeneratedTemplates.status, input.status)) as any;
+        }
+        return await (query as any)
+          .orderBy(desc(scanforgeGeneratedTemplates.createdAt))
+          .limit(input?.limit || 50);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Promote Generated Template ─────────────────────────────────────
+  promoteGeneratedTemplate: protectedProcedure
+    .input(z.object({ templateId: z.string() }))
+    .mutation(async ({ input }) => {
+      const success = await promoteTemplate(input.templateId);
+      if (!success) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Template ${input.templateId} not found or not in promotable state`,
+        });
+      }
+      return { success: true };
+    }),
+
+  // ── Research Activity Log ──────────────────────────────────────────
+  researchLog: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(500).default(100),
+      feedSource: z.string().optional(),
+      researchType: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      try {
+        const _db = await getDbRequired();
+        let conditions: any[] = [];
+        if (input?.feedSource) {
+          conditions.push(eq(scanforgeResearchLog.feedSource, input.feedSource));
+        }
+        if (input?.researchType) {
+          conditions.push(eq(scanforgeResearchLog.researchType, input.researchType));
+        }
+        let query = _db.select().from(scanforgeResearchLog);
+        for (const cond of conditions) {
+          query = query.where(cond) as any;
+        }
+        return await (query as any)
+          .orderBy(desc(scanforgeResearchLog.createdAt))
+          .limit(input?.limit || 100);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Confidence Tuning History ───────────────────────────────────────
+  tuningHistory: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(50) }).optional())
+    .query(async ({ input }) => {
+      try {
+        return await getTuningHistory(input?.limit || 50);
+      } catch {
+        return [];
+      }
+    }),
+
+  // ── Dashboard Summary (aggregated counts) ──────────────────────────
+  dashboardSummary: protectedProcedure.query(async () => {
+    try {
+      const _db = await getDbRequired();
+      const [findingCount] = await _db.select({ count: sql<number>`count(*)` }).from(scanforgeFindingLog);
+      const [templateMetricCount] = await _db.select({ count: sql<number>`count(*)` }).from(scanforgeTemplateMetrics);
+      const [reportCount] = await _db.select({ count: sql<number>`count(*)` }).from(scanforgeEngagementReport);
+      const [generatedCount] = await _db.select({ count: sql<number>`count(*)` }).from(scanforgeGeneratedTemplates);
+      const [researchCount] = await _db.select({ count: sql<number>`count(*)` }).from(scanforgeResearchLog);
+
+      // Verdict distribution
+      const verdicts = await _db.select({
+        verdict: scanforgeFindingLog.verdict,
+        count: sql<number>`count(*)`,
+      }).from(scanforgeFindingLog).groupBy(scanforgeFindingLog.verdict);
+
+      // Generated template status distribution
+      const genStatuses = await _db.select({
+        status: scanforgeGeneratedTemplates.status,
+        count: sql<number>`count(*)`,
+      }).from(scanforgeGeneratedTemplates).groupBy(scanforgeGeneratedTemplates.status);
+
+      // Research type distribution
+      const researchTypes = await _db.select({
+        type: scanforgeResearchLog.researchType,
+        count: sql<number>`count(*)`,
+      }).from(scanforgeResearchLog).groupBy(scanforgeResearchLog.researchType);
+
+      return {
+        totalFindings: findingCount?.count || 0,
+        totalTemplateMetrics: templateMetricCount?.count || 0,
+        totalReports: reportCount?.count || 0,
+        totalGeneratedTemplates: generatedCount?.count || 0,
+        totalResearchEntries: researchCount?.count || 0,
+        verdictDistribution: Object.fromEntries(verdicts.map(v => [v.verdict, v.count])),
+        generatedTemplateStatuses: Object.fromEntries(genStatuses.map(s => [s.status, s.count])),
+        researchTypeDistribution: Object.fromEntries(researchTypes.map(r => [r.type, r.count])),
+        templateLibrarySize: templateEngine.getAll().length,
+        protocolCount: protocolRegistry.listAll().length,
+      };
+    } catch {
+      return {
+        totalFindings: 0,
+        totalTemplateMetrics: 0,
+        totalReports: 0,
+        totalGeneratedTemplates: 0,
+        totalResearchEntries: 0,
+        verdictDistribution: {},
+        generatedTemplateStatuses: {},
+        researchTypeDistribution: {},
+        templateLibrarySize: templateEngine.getAll().length,
+        protocolCount: protocolRegistry.listAll().length,
+      };
+    }
+  }),
 });

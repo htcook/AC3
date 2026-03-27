@@ -1,0 +1,1 @@
+ALTER TABLE `scanforge_engagement_report` ADD `auth_context` json;

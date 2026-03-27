@@ -22,31 +22,15 @@ export default function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
   const [onlyKev, setOnlyKev] = useState(false);
   const [sortBy, setSortBy] = useState<"priority" | "cvss" | "actors" | "date">("date");
 
-  if (isLoading) return (
-    <Card><CardContent className="flex items-center justify-center py-16">
-      <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-3" />
-      <span className="text-muted-foreground">Correlating CVEs with threat actor intelligence...</span>
-    </CardContent></Card>
-  );
-
-  if (error) return (
-    <Card><CardContent className="py-8 text-center">
-      <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-      <p className="text-sm text-muted-foreground">{error.message}</p>
-    </CardContent></Card>
-  );
-
-  if (!data) return null;
-
   const d = data as any;
-  const allEnrichedCves = (d.enrichedCves || []) as any[];
-  const uniqueActors = (d.uniqueActors || []) as string[];
-  const actorTypeSummary = (d.actorTypeSummary || []) as any[];
-  const severityBreakdown = d.severityBreakdown || {};
-  const kevCount = d.kevCount || 0;
-  const activeExploitCount = d.activeExploitCount || 0;
+  const allEnrichedCves = (d?.enrichedCves || []) as any[];
+  const uniqueActors = (d?.uniqueActors || []) as string[];
+  const actorTypeSummary = (d?.actorTypeSummary || []) as any[];
+  const severityBreakdown = d?.severityBreakdown || {};
+  const kevCount = d?.kevCount || 0;
+  const activeExploitCount = d?.activeExploitCount || 0;
 
-  // Apply filters
+  // Apply filters — must be above early returns to satisfy Rules of Hooks
   const filteredCves = useMemo(() => {
     let cves = [...allEnrichedCves];
     if (severityFilter !== "all") {
@@ -71,6 +55,22 @@ export default function CveActorEnrichmentTab({ scanId }: { scanId: number }) {
     });
     return cves;
   }, [allEnrichedCves, severityFilter, onlyActiveExploits, onlyKev, sortBy]);
+
+  if (isLoading) return (
+    <Card><CardContent className="flex items-center justify-center py-16">
+      <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-3" />
+      <span className="text-muted-foreground">Correlating CVEs with threat actor intelligence...</span>
+    </CardContent></Card>
+  );
+
+  if (error) return (
+    <Card><CardContent className="py-8 text-center">
+      <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+      <p className="text-sm text-muted-foreground">{error.message}</p>
+    </CardContent></Card>
+  );
+
+  if (!data) return null;
 
   const threatLevelColor = (level: string) => {
     switch (level) {

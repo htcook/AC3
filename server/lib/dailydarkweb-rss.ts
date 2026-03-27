@@ -291,7 +291,7 @@ export async function fetchAndIngestFeed(feedUrl: string, feedLabel: string): Pr
 
       // Check for duplicate events
       const [existing] = await db.select().from(threatGroupEvents)
-        .where(sql`${threatGroupEvents.sourceUrl} = ${event.sourceUrl} AND ${threatGroupEvents.actorId} = ${event.actorId}`)
+        .where(sql`${threatGroupEvents.tgeSourceUrl} = ${event.sourceUrl} AND ${threatGroupEvents.tgeActorId} = ${event.actorId}`)
         .limit(1);
 
       if (existing) continue; // Already ingested
@@ -306,19 +306,19 @@ export async function fetchAndIngestFeed(feedUrl: string, feedLabel: string): Pr
       // Insert the event
       try {
         await db.insert(threatGroupEvents).values({
-          actorId: resolvedActorId,
+          tgeActorId: resolvedActorId,
           eventType: event.eventType === "ransomware_claim" ? "attack" : event.eventType,
-          title: event.title.substring(0, 500),
-          description: event.description.substring(0, 2000),
-          severity: event.severity,
-          victimName: event.victims[0]?.name ?? "Unknown",
-          victimSector: event.victims[0]?.sector ?? null,
-          victimCountry: event.victims[0]?.country ?? null,
-          mitreTechniques: event.eventType === "ransomware_claim" ? ["T1486"] : ["T1190"],
-          iocs: [],
-          source: "Daily Dark Web (RSS)",
-          sourceUrl: event.sourceUrl,
-          confidence: 70,
+          tgeTitle: event.title.substring(0, 500),
+          tgeDescription: event.description.substring(0, 2000),
+          tgeSeverity: event.severity,
+          tgeVictimName: event.victims[0]?.name ?? "Unknown",
+          tgeVictimSector: event.victims[0]?.sector ?? null,
+          tgeVictimCountry: event.victims[0]?.country ?? null,
+          tgeMitreTechniques: event.eventType === "ransomware_claim" ? ["T1486"] : ["T1190"],
+          tgeIocs: [],
+          tgeSource: "Daily Dark Web (RSS)",
+          tgeSourceUrl: event.sourceUrl,
+          tgeConfidence: 70,
           eventDate: new Date(event.pubDate),
         });
         result.eventsIngested++;

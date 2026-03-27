@@ -395,10 +395,10 @@ export async function runIntelligenceCrawl(params?: {
                 if (db) {
                   await db.insert(threatActorIocs).values({
                     actorId: mention.actorId!,
-                    type: ioc.type,
+                    iocType: ioc.type,
                     value: ioc.value,
                     description: ioc.description,
-                    confidence: ioc.confidence >= 80 ? "high" : ioc.confidence >= 50 ? "medium" : "low",
+                    iocConfidence: ioc.confidence >= 80 ? "high" : ioc.confidence >= 50 ? "medium" : "low",
                     source: source.id,
                   });
                   result.newIocsFound++;

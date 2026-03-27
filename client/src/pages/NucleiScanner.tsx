@@ -174,7 +174,7 @@ export default function NucleiScanner() {
           <Card className="border-border/50">
             <CardContent className="pt-4 pb-3">
               <p className="text-xs text-muted-foreground">Templates</p>
-              <p className="text-2xl font-bold text-purple-400">{stats?.totalTemplates?.toLocaleString() || "7,900+"}</p>
+              <p className="text-2xl font-bold text-purple-400">{stats?.totalTemplates != null ? stats.totalTemplates.toLocaleString() : "7,900+"}</p>
             </CardContent>
           </Card>
           <Card className="border-border/50">
@@ -229,7 +229,7 @@ export default function NucleiScanner() {
                           Scan #{scan.id}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {scan.targets?.length || 0} target(s) · {scan.stats?.templatesLoaded?.toLocaleString() || 0} templates · {scan.stats?.matchesFound || 0} matches
+                          {scan.targets?.length || 0} target(s) · {scan.stats?.templatesLoaded != null ? scan.stats.templatesLoaded.toLocaleString() : '0'} templates · {scan.stats?.matchesFound || 0} matches
                           {scan.stats?.credentialTemplatesInjected > 0 && (
                             <span className="text-orange-400 ml-1">
                               · <KeyRound className="w-3 h-3 inline" /> {scan.stats.credentialTemplatesInjected} cred templates ({scan.stats.credentialsMatched} creds)
@@ -279,7 +279,7 @@ export default function NucleiScanner() {
                         <p className="text-xs text-muted-foreground mt-0.5">{cat.description}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold text-purple-400">{cat.templateCount.toLocaleString()}</p>
+                        <p className="text-lg font-bold text-purple-400">{(cat.templateCount ?? 0).toLocaleString()}</p>
                         <Badge variant="outline" className={SEVERITY_COLORS[cat.defaultSeverity] || "border-border"}>
                           {cat.defaultSeverity}
                         </Badge>

@@ -236,7 +236,7 @@ export async function ingestMitreAttack(): Promise<IngestionResult> {
           await db.insert(threatActors).values({
             actorId: actorIdSlug,
             name: g.name,
-            type: actorType,
+            actorType: actorType,
             description: desc || `${g.name} is a threat group tracked by MITRE ATT&CK.`,
             aliases: JSON.stringify(g.aliases || []),
             origin: nation,
@@ -325,7 +325,7 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
           await db.insert(threatActors).values({
             actorId: actorIdSlug,
             name: displayName,
-            type: "ransomware",
+            actorType: "ransomware",
             description: desc || `${displayName} is a ransomware group tracked by Ransomware.live.`,
             aliases: JSON.stringify([g.name]),
             motivation: "financial",
@@ -389,21 +389,21 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
 
             // Dedup
             const dup = await db.select({ id: threatGroupEvents.id }).from(threatGroupEvents)
-              .where(sql`${threatGroupEvents.actorId} = ${actorIdSlug} AND ${threatGroupEvents.title} = ${v.post_title || "Unknown"}`)
+              .where(sql`${threatGroupEvents.tgeActorId} = ${actorIdSlug} AND ${threatGroupEvents.tgeTitle} = ${v.post_title || "Unknown"}`)
               .limit(1);
             if (dup.length > 0) continue;
 
             await db.insert(threatGroupEvents).values({
-              actorId: actorIdSlug,
+              tgeActorId: actorIdSlug,
               eventType: "attack",
-              title: v.post_title || "Unknown victim",
-              description: v.description || `Victim posted by ${v.group_name}`,
-              severity: "high",
-              victimName: v.post_title,
-              victimCountry: v.country || null,
-              source: "ransomware.live",
-              sourceUrl: v.post_url || null,
-              confidence: 90,
+              tgeTitle: v.post_title || "Unknown victim",
+              tgeDescription: v.description || `Victim posted by ${v.group_name}`,
+              tgeSeverity: "high",
+              tgeVictimName: v.post_title,
+              tgeVictimCountry: v.country || null,
+              tgeSource: "ransomware.live",
+              tgeSourceUrl: v.post_url || null,
+              tgeConfidence: 90,
               eventDate: v.discovered ? new Date(v.discovered) : new Date(),
             });
             r.eventsIngested++;
@@ -528,7 +528,7 @@ export async function ingestMalpedia(): Promise<IngestionResult> {
           if (!ex.motivation && motivation) updates.motivation = motivation;
           if (!ex.firstSeen && firstSeen) updates.firstSeen = firstSeen;
           if (!ex.stixId && stixId) updates.stixId = stixId;
-          if (ex.type === "unknown" || ex.type === "apt") updates.type = actorType;
+          if (ex.actorType === "unknown" || ex.actorType === "apt") updates.actorType = actorType;
           if (targetSectors.length > 0 && (!ex.targetSectors || JSON.stringify(ex.targetSectors) === "[]")) {
             updates.targetSectors = JSON.stringify(targetSectors);
           }
@@ -553,7 +553,7 @@ export async function ingestMalpedia(): Promise<IngestionResult> {
           await db.insert(threatActors).values({
             actorId: actorIdSlug,
             name: displayName,
-            type: actorType,
+            actorType: actorType,
             origin,
             description,
             motivation,
@@ -677,7 +677,7 @@ export async function ingestCalderaAdversaries(): Promise<IngestionResult> {
           await db.insert(threatActors).values({
             actorId: actorIdSlug,
             name,
-            type: "apt",
+            actorType: "apt",
             description: adv.description || `${name} adversary profile from MITRE Caldera with ${adv.atomic_ordering.length} abilities.`,
             aliases: JSON.stringify([adv.name]),
             sophistication: adv.atomic_ordering.length > 20 ? "advanced" : "intermediate",
