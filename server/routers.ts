@@ -199,6 +199,7 @@ import { trainingDataReviewRouter } from "./routers/training-data-review";
 import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: commented out for production
 import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
 import { scanforgeRouter } from "./routers/scanforge";
+import { complianceExportsRouter } from "./routers/compliance-exports";
 import { testPlanApprovalRouter } from "./routers/test-plan-approval";
 
 // Caldera session cookie name
@@ -583,6 +584,8 @@ export const appRouter = router({
   // ─── ScanForge DAST Engine (Custom Vulnerability Scanner) ──────────────
   scanforge: scanforgeRouter,
   testPlanApproval: testPlanApprovalRouter,
+  // ─── Compliance Exports (NVD CVE Lookup, NIST 800-53 Report, ATT&CK Navigator) ──
+  complianceExports: complianceExportsRouter,
 });
 export type AppRouter = typeof appRouter;
 

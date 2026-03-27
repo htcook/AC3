@@ -11,8 +11,10 @@
  * @author Harrison Cook — AceofCloud
  */
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Accordion,
@@ -40,7 +42,14 @@ import {
   Target,
   Bug,
   FileWarning,
+  Download,
+  FileJson,
+  FileText,
+  Loader2,
+  Search,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { useToast } from "@/hooks/use-toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -130,6 +139,21 @@ interface CoverageQualityProps {
   dedupStats?: DedupStats | null;
   coverageReport?: CoverageReport | null;
   engagementPhase?: string;
+  /** Engagement name for report metadata */
+  engagementName?: string;
+  /** Organization name for report metadata */
+  organizationName?: string;
+  /** Raw findings for export (id, title, severity, cwes, cves, techniqueIds) */
+  findings?: Array<{
+    id: string;
+    title: string;
+    severity: string;
+    cwes?: string[];
+    cves?: string[];
+    techniqueIds?: string[];
+    target?: string;
+    source?: string;
+  }>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -205,10 +229,80 @@ function getTacticColor(tactic: string): string {
 
 // ─── Component ───────────────────────────────────────────────────────────
 
-export function CoverageQuality({ dedupStats, coverageReport, engagementPhase }: CoverageQualityProps) {
+export function CoverageQuality({ dedupStats, coverageReport, engagementPhase, engagementName, organizationName, findings }: CoverageQualityProps) {
   const hasData = dedupStats || coverageReport;
   const isPreVulnPhase = !engagementPhase || ["idle", "recon", "passive_discovery", "scoping_roe", "test_plan", "enumeration"].includes(engagementPhase);
   const enrichment = dedupStats?.complianceEnrichment;
+  const { toast } = useToast();
+
+  // Export state
+  const [nistReportLoading, setNistReportLoading] = useState(false);
+  const [navigatorLoading, setNavigatorLoading] = useState(false);
+  const [cveSearchLoading, setCveSearchLoading] = useState(false);
+  const [cveSearchId, setCveSearchId] = useState("");
+
+  const nistReportMutation = trpc.complianceExports.generateNistReport.useMutation();
+  const navigatorMutation = trpc.complianceExports.generateAttackNavigatorLayer.useMutation();
+  const cveLookup = trpc.complianceExports.lookupCve.useQuery(
+    { cveId: cveSearchId },
+    { enabled: false }
+  );
+
+  // Download helper
+  const downloadJson = (data: any, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleNistReportExport = async () => {
+    if (!findings || findings.length === 0) {
+      toast({ title: "No findings available", description: "Findings data is required to generate the NIST report.", variant: "destructive" });
+      return;
+    }
+    setNistReportLoading(true);
+    try {
+      const report = await nistReportMutation.mutateAsync({
+        findings,
+        baseline: "moderate",
+        organizationName: organizationName || "Organization",
+        engagementName: engagementName || "Security Assessment",
+      });
+      downloadJson(report, `nist-800-53-report-${new Date().toISOString().split("T")[0]}.json`);
+      toast({ title: "NIST 800-53 Report Generated", description: `Report includes ${report.executiveSummary.totalNistControlsImpacted} controls across ${report.executiveSummary.nistFamiliesImpacted} families.` });
+    } catch (err: any) {
+      toast({ title: "Report generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setNistReportLoading(false);
+    }
+  };
+
+  const handleNavigatorExport = async () => {
+    if (!findings || findings.length === 0) {
+      toast({ title: "No findings available", description: "Findings data is required to generate the ATT&CK Navigator layer.", variant: "destructive" });
+      return;
+    }
+    setNavigatorLoading(true);
+    try {
+      const result = await navigatorMutation.mutateAsync({
+        findings,
+        engagementName: engagementName || "Assessment",
+        colorScheme: "severity",
+      });
+      downloadJson(result.layer, `attack-navigator-${new Date().toISOString().split("T")[0]}.json`);
+      toast({ title: "ATT&CK Navigator Layer Exported", description: `Layer includes ${result.summary.totalTechniques} techniques across ${result.summary.tacticCoverage.length} tactics. Import into ATT\u00AE&CK Navigator at mitre-attack.github.io/attack-navigator/` });
+    } catch (err: any) {
+      toast({ title: "Navigator export failed", description: err.message, variant: "destructive" });
+    } finally {
+      setNavigatorLoading(false);
+    }
+  };
 
   if (!hasData) {
     return (
@@ -341,6 +435,66 @@ export function CoverageQuality({ dedupStats, coverageReport, engagementPhase }:
             <p className="text-xs text-muted-foreground">
               Processed at {formatTimestamp(dedupStats.processedAt)}
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Compliance Export Actions ── */}
+      {(enrichment || (findings && findings.length > 0)) && (
+        <Card className="border-border/50 border-sky-500/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-sky-400" />
+              <CardTitle className="text-lg">Compliance Exports</CardTitle>
+            </div>
+            <CardDescription>
+              Download compliance reports and ATT&CK Navigator layers for audit and analysis
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* NIST 800-53 Report */}
+              <Button
+                variant="outline"
+                className="h-auto py-3 px-4 justify-start gap-3 border-emerald-500/30 hover:bg-emerald-500/10"
+                onClick={handleNistReportExport}
+                disabled={nistReportLoading || !findings || findings.length === 0}
+              >
+                {nistReportLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+                ) : (
+                  <FileText className="h-5 w-5 text-emerald-400" />
+                )}
+                <div className="text-left">
+                  <div className="text-sm font-medium">NIST 800-53 Report</div>
+                  <div className="text-xs text-muted-foreground">Structured JSON for audit submission</div>
+                </div>
+              </Button>
+
+              {/* MITRE ATT&CK Navigator Layer */}
+              <Button
+                variant="outline"
+                className="h-auto py-3 px-4 justify-start gap-3 border-rose-500/30 hover:bg-rose-500/10"
+                onClick={handleNavigatorExport}
+                disabled={navigatorLoading || !findings || findings.length === 0}
+              >
+                {navigatorLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-rose-400" />
+                ) : (
+                  <FileJson className="h-5 w-5 text-rose-400" />
+                )}
+                <div className="text-left">
+                  <div className="text-sm font-medium">ATT&CK Navigator Layer</div>
+                  <div className="text-xs text-muted-foreground">Import into MITRE ATT&CK Navigator</div>
+                </div>
+              </Button>
+            </div>
+
+            {(!findings || findings.length === 0) && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Exports require finding data. Complete the vulnerability detection phase to enable exports.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

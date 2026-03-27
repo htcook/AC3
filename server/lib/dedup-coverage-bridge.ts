@@ -31,6 +31,7 @@ import {
   type MitreTechnique,
   type CweEntry,
 } from "./nist-mitre-cwe-mapper";
+import { resolveCvesToCwes } from "./nvd-cve-lookup";
 
 // ─── Types for Orchestrator Integration ──────────────────────────────────
 
@@ -415,6 +416,34 @@ export function runEngagementDedup(assets: OrchestratorAsset[]): DedupStats {
     }
   }
 
+  // ── NVD CVE-to-CWE Resolution ──
+  // Collect all CVE IDs from findings that lack CWE data
+  const cveIdsToResolve: string[] = [];
+  const vulnCveMap: Array<{ vulnId: string; cve: string }> = [];
+
+  for (const asset of assets) {
+    for (const vuln of asset.vulns) {
+      if (vuln.cve) {
+        const cweMatch = vuln.title.match(/CWE-(\d+)/gi);
+        if (!cweMatch || cweMatch.length === 0) {
+          cveIdsToResolve.push(vuln.cve);
+          vulnCveMap.push({ vulnId: vuln.id, cve: vuln.cve });
+        }
+      }
+    }
+  }
+
+  // Resolve CVEs to CWEs via NVD API (with caching + rate limiting)
+  let cveToCweMap = new Map<string, string[]>();
+  if (cveIdsToResolve.length > 0) {
+    try {
+      cveToCweMap = await resolveCvesToCwes(cveIdsToResolve);
+    } catch (err) {
+      // Graceful degradation — continue without NVD data
+      console.warn("[DedupBridge] NVD CVE-to-CWE resolution failed:", err);
+    }
+  }
+
   // ── NIST/MITRE/CWE Enrichment ──
   // Enrich all deduplicated findings with compliance mappings
   const allDedupedFindings: Array<{ id: string; cwes?: string[]; techniqueIds?: string[]; severity?: string; title?: string; category?: string }> = [];
@@ -422,11 +451,16 @@ export function runEngagementDedup(assets: OrchestratorAsset[]): DedupStats {
 
   for (const asset of assets) {
     for (const vuln of asset.vulns) {
-      // Extract CWEs from the vuln
+      // Extract CWEs from the vuln title
       const cweMatch = vuln.title.match(/CWE-(\d+)/gi);
       const cwes = cweMatch ? cweMatch.map(m => m.toUpperCase()) : [];
-      if (vuln.cve) {
-        // CVE present but no CWE — we still track it
+
+      // Merge in NVD-resolved CWEs for findings that have CVEs but no CWEs
+      if (vuln.cve && cwes.length === 0) {
+        const nvdCwes = cveToCweMap.get(vuln.cve.toUpperCase());
+        if (nvdCwes) {
+          cwes.push(...nvdCwes);
+        }
       }
 
       const findingInput = {
