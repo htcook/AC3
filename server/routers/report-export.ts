@@ -43,7 +43,7 @@ export const reportExportRouter = router({
   exportCredentials: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(credentialFindings).orderBy(desc(credentialFindings.createdAt)).limit(5000);
 
       const findings: CredentialFinding[] = rows.map((r: any) => ({
@@ -71,7 +71,7 @@ export const reportExportRouter = router({
   exportTimeline: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(engagementTimelineEvents).orderBy(desc(engagementTimelineEvents.createdAt)).limit(10000);
 
       const events: TimelineEvent[] = rows.map((r: any) => ({
@@ -98,7 +98,7 @@ export const reportExportRouter = router({
   exportOpsec: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(opsecEvents).orderBy(desc(opsecEvents.createdAt)).limit(10000);
 
       const events: OpsecEvent[] = rows.map((r: any) => ({
@@ -124,7 +124,7 @@ export const reportExportRouter = router({
   exportExploits: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(exploitationAttempts).orderBy(desc(exploitationAttempts.createdAt)).limit(5000);
 
       const attempts: ExploitAttempt[] = rows.map((r: any) => ({
@@ -151,7 +151,7 @@ export const reportExportRouter = router({
   exportPrivesc: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(privescFindings).orderBy(desc(privescFindings.createdAt)).limit(5000);
 
       const findings: PrivescFinding[] = rows.map((r: any) => ({
@@ -177,7 +177,7 @@ export const reportExportRouter = router({
   exportLateral: protectedProcedure
     .input(exportOptionsSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const rows = await db.select().from(lateralMovementPaths).orderBy(desc(lateralMovementPaths.createdAt)).limit(5000);
 
       const paths: LateralMovePath[] = rows.map((r: any) => ({
@@ -203,7 +203,7 @@ export const reportExportRouter = router({
   executiveSummary: protectedProcedure
     .input(z.object({ format: z.enum(["csv", "json"]), engagementId: z.string().optional() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
 
       const [creds, exploits, privesc, lateral, opsec, timeline] = await Promise.all([
         db.select().from(credentialFindings).limit(5000),

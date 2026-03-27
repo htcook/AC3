@@ -525,7 +525,7 @@ export const dastScannersRouter = router({
       hostname: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       // Fetch all DAST/service audit results for this engagement
       const rows = await db
         .select()
@@ -645,7 +645,7 @@ export const dastScannersRouter = router({
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const conditions = [eq(scanResults.engagementId, input.engagementId)];
       if (input.tool) {
         conditions.push(eq(scanResults.tool, input.tool));
@@ -689,7 +689,7 @@ export const dastScannersRouter = router({
   getResultDetail: protectedProcedure
     .input(z.object({ scanId: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const [row] = await db
         .select()
         .from(scanResults)
@@ -714,7 +714,7 @@ export const dastScannersRouter = router({
       tool: z.enum(["nikto", "wapiti", "arachni", "ssh-audit", "ftp-audit", "smtp-audit", "snmp-audit", "rdp-audit", "dns-audit", "http-header-audit", "tls-deep-scan"]),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const [row] = await db
         .select()
         .from(scanResults)

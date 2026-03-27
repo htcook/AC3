@@ -50,7 +50,7 @@ export const samlRouter = router({
 
   /** List all configured IdPs */
   listIdps: adminProcedure.query(async () => {
-    const db = getDb();
+    const db = await getDb();
     const configs = await db
       .select({
         id: samlIdpConfigs.id,
@@ -74,7 +74,7 @@ export const samlRouter = router({
   getIdp: adminProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const [config] = await db
         .select()
         .from(samlIdpConfigs)
@@ -111,7 +111,7 @@ export const samlRouter = router({
       wantResponseSigned: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       const [result] = await db.insert(samlIdpConfigs).values({
         name: input.name,
         providerType: input.providerType,
@@ -159,7 +159,7 @@ export const samlRouter = router({
       wantResponseSigned: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const { id, ...updates } = input;
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([, v]) => v !== undefined)
@@ -175,7 +175,7 @@ export const samlRouter = router({
   deleteIdp: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       await db.delete(samlIdpConfigs).where(eq(samlIdpConfigs.id, input.id));
       return { success: true };
     }),
@@ -184,7 +184,7 @@ export const samlRouter = router({
   testIdp: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const [config] = await db
         .select()
         .from(samlIdpConfigs)
@@ -227,7 +227,7 @@ export const samlRouter = router({
       idpId: z.number().optional(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       let query = db
         .select()
         .from(samlAuthEvents)
@@ -242,7 +242,7 @@ export const samlRouter = router({
 
   /** Get active IdPs for login page */
   getActiveIdps: protectedProcedure.query(async () => {
-    const db = getDb();
+    const db = await getDb();
     return db
       .select({
         id: samlIdpConfigs.id,
@@ -257,7 +257,7 @@ export const samlRouter = router({
   initiateSso: protectedProcedure
     .input(z.object({ idpId: z.number(), relayState: z.string().optional() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const [config] = await db
         .select()
         .from(samlIdpConfigs)
@@ -282,7 +282,7 @@ export function registerSAMLRoutes(app: Express) {
 
   // Assertion Consumer Service (ACS) — receives SAML responses via HTTP-POST
   app.post("/api/saml/acs", async (req: Request, res: Response) => {
-    const db = getDb();
+    const db = await getDb();
     const samlResponse = req.body?.SAMLResponse;
     const relayState = req.body?.RelayState;
 
@@ -417,7 +417,7 @@ export function registerSAMLRoutes(app: Express) {
 
   // SSO initiation endpoint (for login page redirect)
   app.get("/api/saml/login/:idpId", async (req: Request, res: Response) => {
-    const db = getDb();
+    const db = await getDb();
     const idpId = parseInt(req.params.idpId, 10);
     if (isNaN(idpId)) return res.status(400).json({ error: "Invalid IdP ID" });
 

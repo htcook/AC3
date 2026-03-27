@@ -271,7 +271,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
   // Store scan record
   let scanId: number | null = null;
   try {
-    const db = getDb();
+    const db = await getDb();
     const [row] = await db.insert(scanResults).values({
       engagementId: config.engagementId,
       scanType: "rdp_audit",
@@ -564,7 +564,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
     // Update scan record
     if (scanId) {
       try {
-        const db = getDb();
+        const db = await getDb();
         await db.update(scanResults).set({
           status: "completed",
           completedAt: Date.now(),
@@ -612,7 +612,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
 
     if (scanId) {
       try {
-        const db = getDb();
+        const db = await getDb();
         await db.update(scanResults).set({
           status: "error",
           completedAt: Date.now(),

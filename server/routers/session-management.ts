@@ -139,7 +139,7 @@ export async function createSessionRecord(params: {
   samlIdpId?: number;
   req: { ip?: string; headers: Record<string, string | string[] | undefined> };
 }): Promise<number> {
-  const db = getDb();
+  const db = await getDb();
   const { sessionToken, userId, loginMethod, samlIdpId, req } = params;
 
   const sessionHash = crypto.createHash("sha256").update(sessionToken).digest("hex");
@@ -188,7 +188,7 @@ export async function createSessionRecord(params: {
 export const sessionRouter = router({
   /** List active sessions for the current user */
   listMySessions: protectedProcedure.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = await getDb();
     const sessions = await db
       .select({
         id: userSessions.id,
@@ -225,7 +225,7 @@ export const sessionRouter = router({
   revokeSession: protectedProcedure
     .input(z.object({ sessionId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       // Verify the session belongs to the current user
       const [session] = await db
         .select()
@@ -252,7 +252,7 @@ export const sessionRouter = router({
   revokeAllOtherSessions: protectedProcedure
     .input(z.object({ currentSessionHash: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       
       if (input.currentSessionHash) {
         // Revoke all except the specified session
@@ -280,7 +280,7 @@ export const sessionRouter = router({
 
   /** Get session stats for the current user */
   getSessionStats: protectedProcedure.query(async ({ ctx }) => {
-    const db = getDb();
+    const db = await getDb();
     const [stats] = await db
       .select({
         activeSessions: sql<number>`COUNT(CASE WHEN ${userSessions.status} = 'active' THEN 1 END)`,
@@ -301,7 +301,7 @@ export const sessionRouter = router({
       userId: z.number().optional(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       let query = db
         .select({
           id: userSessions.id,
@@ -340,7 +340,7 @@ export const sessionRouter = router({
   adminRevokeSession: adminProcedure
     .input(z.object({ sessionId: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       await db
         .update(userSessions)
         .set({ status: "revoked" })
@@ -352,7 +352,7 @@ export const sessionRouter = router({
   adminRevokeAllUserSessions: adminProcedure
     .input(z.object({ userId: z.number() }))
     .mutation(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       await db
         .update(userSessions)
         .set({ status: "revoked" })
@@ -365,7 +365,7 @@ export const sessionRouter = router({
 
   /** Cleanup expired sessions */
   cleanupExpired: adminProcedure.mutation(async () => {
-    const db = getDb();
+    const db = await getDb();
     const result = await db
       .update(userSessions)
       .set({ status: "expired" })

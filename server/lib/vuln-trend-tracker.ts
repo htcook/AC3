@@ -35,7 +35,7 @@ interface SnapshotInput {
  * Record a scan snapshot and compute trend entries
  */
 export async function recordScanSnapshot(input: SnapshotInput) {
-  const db = getDb();
+  const db = await getDb();
   
   // Compute aggregate stats
   let totalVulns = 0, criticalCount = 0, highCount = 0, mediumCount = 0, lowCount = 0;
@@ -168,7 +168,7 @@ export async function recordScanSnapshot(input: SnapshotInput) {
  * Get trend data for an engagement (all snapshots over time)
  */
 export async function getVulnTrend(engagementId: number) {
-  const db = getDb();
+  const db = await getDb();
   
   const snapshots = await db.select()
     .from(vulnScanSnapshots)
@@ -199,7 +199,7 @@ export async function getVulnTrend(engagementId: number) {
  * Get detailed vuln changes between two snapshots
  */
 export async function getVulnDiff(engagementId: number, fromSnapshotId: number, toSnapshotId: number) {
-  const db = getDb();
+  const db = await getDb();
   
   const fromEntries = await db.select()
     .from(vulnTrendEntries)

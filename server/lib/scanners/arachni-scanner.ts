@@ -366,7 +366,7 @@ export async function startArachniScan(config: ArachniConfig): Promise<ArachniSc
   // Store in scan_results
   let scanId: number | null = null;
   try {
-    const db = getDb();
+    const db = await getDb();
     const severitySummary = {
       critical: findings.filter(f => f.severity === "critical").length,
       high: findings.filter(f => f.severity === "high").length,

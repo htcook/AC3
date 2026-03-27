@@ -357,7 +357,7 @@ export async function startWapitiScan(config: WapitiConfig): Promise<WapitiScanR
   // Store in scan_results
   let scanId: number | null = null;
   try {
-    const db = getDb();
+    const db = await getDb();
     const allFindings = [...findings, ...anomalies];
     const severitySummary = {
       critical: allFindings.filter(f => f.severity === "critical").length,

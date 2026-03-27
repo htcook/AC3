@@ -257,7 +257,7 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
   // Store scan record
   let scanId: number | null = null;
   try {
-    const db = getDb();
+    const db = await getDb();
     const [row] = await db.insert(scanResults).values({
       engagementId: config.engagementId,
       scanType: "snmp_audit",
@@ -551,7 +551,7 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
     // Update scan record
     if (scanId) {
       try {
-        const db = getDb();
+        const db = await getDb();
         await db.update(scanResults).set({
           status: "completed",
           completedAt: Date.now(),
@@ -598,7 +598,7 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
 
     if (scanId) {
       try {
-        const db = getDb();
+        const db = await getDb();
         await db.update(scanResults).set({
           status: "error",
           completedAt: Date.now(),
