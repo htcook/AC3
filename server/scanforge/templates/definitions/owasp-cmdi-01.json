@@ -1,0 +1,45 @@
+{
+  "id": "owasp-command-injection",
+  "name": "OS Command Injection",
+  "description": "Tests for OS command injection by injecting shell metacharacters into parameters and detecting command execution indicators in responses. Covers both Unix and Windows command injection patterns.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a03", "command-injection", "rce", "injection", "owasp-top10", "dfir-execution"],
+  "request": {
+    "method": "GET",
+    "path": "/?cmd=;id",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "uid=",
+        "gid=",
+        "groups=",
+        "root:",
+        "bin/bash",
+        "Windows NT",
+        "SYSTEM32",
+        "Program Files"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-78"],
+    "urls": [
+      "https://owasp.org/Top10/A03_2021-Injection/",
+      "https://portswigger.net/web-security/os-command-injection"
+    ]
+  },
+  "remediation": "Never pass user input directly to OS commands. Use language-specific APIs instead of shell commands. If shell commands are unavoidable, use strict allowlists for permitted characters and parameterize inputs.",
+  "attack": {
+    "techniqueIds": ["T1059.004", "T1190"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Command injection provides immediate RCE and is often the first step in establishing a reverse shell. Look for unusual process trees spawned by web server processes in EDR/SIEM logs."
+  }
+}

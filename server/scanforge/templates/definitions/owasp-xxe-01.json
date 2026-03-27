@@ -1,0 +1,45 @@
+{
+  "id": "owasp-xxe-xml-entity-injection",
+  "name": "XML External Entity Injection (XXE)",
+  "description": "Detects XML endpoints that may be vulnerable to XXE by identifying XML content-type acceptance and testing for entity expansion. XXE can lead to file disclosure, SSRF, and denial of service.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a05", "xxe", "xml", "owasp-top10", "dfir-exfiltration"],
+  "request": {
+    "method": "POST",
+    "path": "/",
+    "headers": {
+      "Content-Type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]><root>&xxe;</root>",
+    "followRedirects": false
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "negative_word",
+      "part": "body",
+      "values": ["error", "invalid", "not allowed", "forbidden"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-611"],
+    "urls": [
+      "https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+      "https://portswigger.net/web-security/xxe"
+    ]
+  },
+  "remediation": "Disable external entity processing in all XML parsers. Use JSON instead of XML where possible. If XML is required, use defused XML libraries. Implement input validation to reject DOCTYPE declarations.",
+  "attack": {
+    "techniqueIds": ["T1190", "T1005"]
+  },
+  "intelligence": {
+    "dfirRelevance": "XXE is used for file exfiltration (reading /etc/passwd, config files with credentials), internal port scanning via SSRF, and denial of service via billion laughs attack."
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "owasp-ssti-template-injection",
+  "name": "Server-Side Template Injection (SSTI)",
+  "description": "Tests for server-side template injection by injecting mathematical expressions into parameters and checking if the server evaluates them. Covers Jinja2, Twig, Freemarker, Velocity, Mako, and Smarty template engines.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "http",
+  "tags": ["owasp-a03", "ssti", "rce", "injection", "owasp-top10", "dfir-execution"],
+  "request": {
+    "method": "GET",
+    "path": "/?name={{7*7}}",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "49",
+        "7777777"
+      ],
+      "condition": "or"
+    },
+    {
+      "type": "negative_word",
+      "part": "body",
+      "values": ["{{7*7}}"],
+      "condition": "and"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-94", "CWE-1336"],
+    "urls": [
+      "https://owasp.org/Top10/A03_2021-Injection/",
+      "https://portswigger.net/web-security/server-side-template-injection"
+    ]
+  },
+  "remediation": "Never pass user input directly into template expressions. Use sandboxed template engines. Implement strict input validation. Consider using logic-less templates (Mustache) for user-facing content.",
+  "attack": {
+    "techniqueIds": ["T1059", "T1190"]
+  },
+  "intelligence": {
+    "dfirRelevance": "SSTI provides direct RCE through template engine evaluation. Jinja2 SSTI (Python) and Freemarker SSTI (Java) are commonly exploited in CTFs and real-world attacks to achieve code execution."
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "owasp-idor-sequential-ids",
+  "name": "Broken Access Control (Insecure Direct Object Reference)",
+  "description": "Detects potential IDOR vulnerabilities by identifying sequential/predictable resource identifiers in API responses and checking for missing authorization checks on direct object access patterns.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "http",
+  "tags": ["owasp-a01", "idor", "broken-access-control", "owasp-top10", "dfir-collection"],
+  "request": {
+    "method": "GET",
+    "path": "/api/user/1",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "\"email\"",
+        "\"username\"",
+        "\"password\"",
+        "\"ssn\"",
+        "\"phone\"",
+        "\"address\""
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-639", "CWE-284"],
+    "urls": [
+      "https://owasp.org/Top10/A01_2021-Broken_Access_Control/",
+      "https://portswigger.net/web-security/access-control/idor"
+    ]
+  },
+  "remediation": "Implement server-side authorization checks for every object access. Use indirect references (UUIDs) instead of sequential IDs. Validate that the authenticated user has permission to access the requested resource. Log and alert on unauthorized access attempts.",
+  "attack": {
+    "techniqueIds": ["T1530", "T1213"]
+  },
+  "intelligence": {
+    "dfirRelevance": "IDOR is the most common access control vulnerability. Attackers enumerate sequential IDs to access other users' data. Look for unusual patterns of sequential API calls in access logs."
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "id": "default-creds-common-services",
+  "name": "Default Credentials on Common Services",
+  "description": "Comprehensive detection of default credentials on commonly deployed services including SSH, FTP, MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch, RabbitMQ, Tomcat Manager, and network devices. Tests known default username/password combinations.",
+  "author": "AC3 ScanForge",
+  "severity": "critical",
+  "protocol": "multi",
+  "tags": ["default-creds", "brute-force", "owasp-a07", "owasp-top10", "dfir-credential-access"],
+  "checks": [
+    {
+      "service": "ssh",
+      "port": 22,
+      "credentials": [
+        {"username": "root", "password": "root"},
+        {"username": "root", "password": "toor"},
+        {"username": "root", "password": "password"},
+        {"username": "admin", "password": "admin"},
+        {"username": "admin", "password": "password"},
+        {"username": "ubuntu", "password": "ubuntu"},
+        {"username": "pi", "password": "raspberry"},
+        {"username": "user", "password": "user"}
+      ]
+    },
+    {
+      "service": "ftp",
+      "port": 21,
+      "credentials": [
+        {"username": "anonymous", "password": ""},
+        {"username": "anonymous", "password": "anonymous@"},
+        {"username": "ftp", "password": "ftp"},
+        {"username": "admin", "password": "admin"}
+      ]
+    },
+    {
+      "service": "mysql",
+      "port": 3306,
+      "credentials": [
+        {"username": "root", "password": ""},
+        {"username": "root", "password": "root"},
+        {"username": "root", "password": "mysql"},
+        {"username": "root", "password": "password"},
+        {"username": "admin", "password": "admin"}
+      ]
+    },
+    {
+      "service": "postgresql",
+      "port": 5432,
+      "credentials": [
+        {"username": "postgres", "password": "postgres"},
+        {"username": "postgres", "password": "password"},
+        {"username": "admin", "password": "admin"}
+      ]
+    },
+    {
+      "service": "redis",
+      "port": 6379,
+      "credentials": [
+        {"username": "", "password": ""},
+        {"username": "", "password": "redis"},
+        {"username": "", "password": "password"}
+      ]
+    },
+    {
+      "service": "mongodb",
+      "port": 27017,
+      "credentials": [
+        {"username": "", "password": ""},
+        {"username": "admin", "password": "admin"},
+        {"username": "root", "password": "root"}
+      ]
+    },
+    {
+      "service": "elasticsearch",
+      "port": 9200,
+      "credentials": [
+        {"username": "elastic", "password": "changeme"},
+        {"username": "elastic", "password": "elastic"},
+        {"username": "", "password": ""}
+      ]
+    },
+    {
+      "service": "rabbitmq",
+      "port": 15672,
+      "credentials": [
+        {"username": "guest", "password": "guest"},
+        {"username": "admin", "password": "admin"}
+      ]
+    },
+    {
+      "service": "tomcat",
+      "port": 8080,
+      "credentials": [
+        {"username": "tomcat", "password": "tomcat"},
+        {"username": "admin", "password": "admin"},
+        {"username": "manager", "password": "manager"},
+        {"username": "tomcat", "password": "s3cret"}
+      ]
+    },
+    {
+      "service": "snmp",
+      "port": 161,
+      "credentials": [
+        {"username": "", "password": "public"},
+        {"username": "", "password": "private"},
+        {"username": "", "password": "community"}
+      ]
+    }
+  ],
+  "references": {
+    "cwes": ["CWE-798", "CWE-521", "CWE-1393"],
+    "urls": [
+      "https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
+      "https://www.cisa.gov/news-events/alerts/2024/02/07/cisa-fbi-and-ms-isac-release-advisory-phobos-ransomware"
+    ]
+  },
+  "remediation": "Change all default credentials immediately upon deployment. Implement password complexity requirements. Use key-based authentication for SSH. Disable anonymous access on FTP and databases. Use secrets management solutions for service credentials.",
+  "attack": {
+    "techniqueIds": ["T1078.001", "T1110.001", "T1110.004"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Default credentials are the #1 initial access vector in ransomware attacks. Mirai botnet variants continuously scan for default SSH/Telnet credentials. CISA advisory AA24-038A specifically warns about default credential exploitation in Phobos ransomware campaigns."
+  }
+}

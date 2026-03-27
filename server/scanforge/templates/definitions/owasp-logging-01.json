@@ -1,0 +1,62 @@
+{
+  "id": "owasp-logging-monitoring-failures",
+  "name": "Security Logging and Monitoring Failures",
+  "description": "Detects indicators of insufficient logging and monitoring including exposed log files, verbose error messages with stack traces, missing security event logging, and debug endpoints left enabled in production.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "http",
+  "tags": ["owasp-a09", "logging", "monitoring", "owasp-top10", "compliance"],
+  "request": {
+    "method": "GET",
+    "path": "/debug",
+    "followRedirects": true
+  },
+  "matchers": [
+    {
+      "type": "status",
+      "values": ["200"],
+      "condition": "and"
+    },
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "debug",
+        "profiler",
+        "phpinfo",
+        "server status",
+        "environment variables",
+        "stack trace",
+        "DEBUG = True"
+      ],
+      "condition": "or"
+    }
+  ],
+  "extraPaths": [
+    "/debug/",
+    "/phpinfo.php",
+    "/server-status",
+    "/server-info",
+    "/_debug_toolbar/",
+    "/actuator",
+    "/actuator/env",
+    "/elmah.axd",
+    "/.env",
+    "/wp-config.php.bak",
+    "/config.php.bak"
+  ],
+  "references": {
+    "cwes": ["CWE-778", "CWE-223"],
+    "urls": [
+      "https://owasp.org/Top10/A09_2021-Security_Logging_and_Monitoring_Failures/",
+      "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html"
+    ]
+  },
+  "remediation": "Disable all debug endpoints in production. Remove phpinfo(), server-status, and actuator endpoints or restrict to internal access only. Implement comprehensive security event logging. Set up real-time alerting for suspicious activities.",
+  "attack": {
+    "techniqueIds": ["T1592", "T1082"]
+  },
+  "intelligence": {
+    "dfirRelevance": "Debug endpoints expose environment variables (including secrets), database credentials, and internal architecture details. Exposed .env files are actively scanned by botnets and are a top source of credential theft."
+  }
+}

@@ -237,6 +237,25 @@ export default function Engagements() {
     onError: (err) => toast.error(sanitizeErrorForToast(err)),
   });
 
+  const resetMutation = trpc.engagements.resetEngagement.useMutation({
+    onSuccess: (data) => {
+      const c = data.cleared;
+      toast.success(`Engagement reset — cleared ${c.scanResults ?? 0} scans, ${c.timelineEvents ?? 0} events, ${c.opsSnapshots ?? 0} snapshots, ${c.testPlans ?? 0} test plans`);
+      refetch();
+    },
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
+  });
+
+  const bulkResetMutation = trpc.engagements.bulkResetEngagements.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Reset ${data.results.length} engagement(s) for fresh rerun`);
+      setSelectedIds(new Set());
+      setBulkMode(false);
+      refetch();
+    },
+    onError: (err) => toast.error(sanitizeErrorForToast(err)),
+  });
+
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -259,6 +278,14 @@ export default function Engagements() {
     if (count === 0) return;
     if (confirm(`Delete ${count} engagement(s) and all their related reports and campaign links? This cannot be undone.`)) {
       bulkDeleteMutation.mutate({ ids: Array.from(selectedIds) });
+    }
+  }
+
+  function handleBulkReset() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (confirm(`Reset ${count} engagement(s) for a fresh rerun? This will clear all scan results, timeline events, ops snapshots, and test plans.`)) {
+      bulkResetMutation.mutate({ ids: Array.from(selectedIds) });
     }
   }
 
@@ -753,7 +780,7 @@ export default function Engagements() {
               className="font-display tracking-wider"
             >
               {bulkMode ? <X className="w-3.5 h-3.5 mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
-              {bulkMode ? 'EXIT BULK MODE' : 'BULK DELETE'}
+              {bulkMode ? 'EXIT BULK MODE' : 'BULK ACTIONS'}
             </Button>
             {bulkMode && (
               <>
@@ -767,16 +794,28 @@ export default function Engagements() {
                   {selectedIds.size} SELECTED
                 </span>
                 {selectedIds.size > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkDelete}
-                    disabled={bulkDeleteMutation.isPending}
-                    className="font-display tracking-wider text-destructive hover:text-destructive border-destructive/50 hover:border-destructive"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1" />
-                    {bulkDeleteMutation.isPending ? 'DELETING...' : `DELETE ${selectedIds.size} SELECTED`}
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleBulkReset}
+                      disabled={bulkResetMutation.isPending}
+                      className="font-display tracking-wider text-amber-400 hover:text-amber-300 border-amber-500/50 hover:border-amber-400"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 mr-1 ${bulkResetMutation.isPending ? 'animate-spin' : ''}`} />
+                      {bulkResetMutation.isPending ? 'RESETTING...' : `RESET ${selectedIds.size} SELECTED`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleBulkDelete}
+                      disabled={bulkDeleteMutation.isPending}
+                      className="font-display tracking-wider text-destructive hover:text-destructive border-destructive/50 hover:border-destructive"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      {bulkDeleteMutation.isPending ? 'DELETING...' : `DELETE ${selectedIds.size} SELECTED`}
+                    </Button>
+                  </>
                 )}
               </>
             )}
@@ -1061,6 +1100,19 @@ export default function Engagements() {
                         >
                           <Pencil className="w-3.5 h-3.5 mr-1" />
                           EDIT
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Reset engagement "${engagement.name}" for a fresh rerun?\n\nThis will clear all scan results, timeline events, ops snapshots, and test plans.`)) {
+                              resetMutation.mutate({ id: engagement.id });
+                            }
+                          }}
+                          disabled={resetMutation.isPending}
+                          className="font-display tracking-wider text-amber-400 hover:text-amber-300"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${resetMutation.isPending ? 'animate-spin' : ''}`} />
                         </Button>
                         <Button
                           variant="outline"
