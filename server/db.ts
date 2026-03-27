@@ -2220,9 +2220,19 @@ export async function saveOpsSnapshot(engagementId: number, state: any): Promise
   } catch { /* ignore if module not available */ }
 
   // Serialize the state — strip non-serializable fields (Set → Array already handled in getState)
+  // Serialize Sets to Arrays for JSON storage
+  const completedScansToSave = state.completedScans ? {
+    nucleiCompleted: state.completedScans.nucleiCompleted instanceof Set ? Array.from(state.completedScans.nucleiCompleted) : (state.completedScans.nucleiCompleted || []),
+    zapCompleted: state.completedScans.zapCompleted instanceof Set ? Array.from(state.completedScans.zapCompleted) : (state.completedScans.zapCompleted || []),
+    hydraCompleted: state.completedScans.hydraCompleted instanceof Set ? Array.from(state.completedScans.hydraCompleted) : (state.completedScans.hydraCompleted || []),
+    exploitCompleted: state.completedScans.exploitCompleted instanceof Set ? Array.from(state.completedScans.exploitCompleted) : (state.completedScans.exploitCompleted || []),
+    lastCheckpointAt: state.completedScans.lastCheckpointAt || Date.now(),
+  } : undefined;
+
   const stateToSave = {
     ...state,
     skippedDomains: state.skippedDomains instanceof Set ? Array.from(state.skippedDomains) : (state.skippedDomains || []),
+    completedScans: completedScansToSave,
   };
 
   // Check if snapshot exists for this engagement

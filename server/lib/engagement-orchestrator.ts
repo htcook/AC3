@@ -375,6 +375,19 @@ export interface EngagementOpsState {
     recommendations: string[];
     processedAt: number;
   };
+  /** Phase checkpoint tracking — tracks completed scan targets so resume skips them */
+  completedScans?: {
+    /** Nuclei scan URLs that completed (success or graceful failure) */
+    nucleiCompleted: Set<string>;
+    /** ZAP scan URLs that completed */
+    zapCompleted: Set<string>;
+    /** Hydra targets that completed */
+    hydraCompleted: Set<string>;
+    /** Exploit targets that completed */
+    exploitCompleted: Set<string>;
+    /** Timestamp of last checkpoint */
+    lastCheckpointAt: number;
+  };
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -477,6 +490,35 @@ export function normalizeOpsState(state: any): EngagementOpsState {
     state.skippedDomains = new Set();
   }
 
+  // Rehydrate completedScans from JSON (arrays → Sets)
+  const defaultCompletedScans = {
+    nucleiCompleted: new Set<string>(),
+    zapCompleted: new Set<string>(),
+    hydraCompleted: new Set<string>(),
+    exploitCompleted: new Set<string>(),
+    lastCheckpointAt: Date.now(),
+  };
+  if (state.completedScans) {
+    for (const key of ['nucleiCompleted', 'zapCompleted', 'hydraCompleted', 'exploitCompleted'] as const) {
+      const val = (state.completedScans as any)[key];
+      if (val && !(val instanceof Set)) {
+        try {
+          const arr = Array.isArray(val) ? val : Object.values(val);
+          (state.completedScans as any)[key] = new Set(arr);
+        } catch {
+          (state.completedScans as any)[key] = new Set();
+        }
+      } else if (!val) {
+        (state.completedScans as any)[key] = new Set();
+      }
+    }
+    if (typeof state.completedScans.lastCheckpointAt !== 'number') {
+      state.completedScans.lastCheckpointAt = Date.now();
+    }
+  } else {
+    state.completedScans = defaultCompletedScans;
+  }
+
   // Ensure boolean fields
   if (typeof state.isRunning !== 'boolean') state.isRunning = false;
   if (typeof state.isPaused !== 'boolean') state.isPaused = false;
@@ -577,6 +619,13 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
     log: [],
     approvalGates: [],
     skippedDomains: new Set(),
+    completedScans: {
+      nucleiCompleted: new Set(),
+      zapCompleted: new Set(),
+      hydraCompleted: new Set(),
+      exploitCompleted: new Set(),
+      lastCheckpointAt: Date.now(),
+    },
     exhaustiveExploit: true, // Default: attempt every exploit opportunity, don't stop at first success
     stats: {
       hostsScanned: 0, portsFound: 0, vulnsFound: 0,
@@ -4466,6 +4515,10 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       }
 
       for (const url of nucleiTargetUrls) {
+        // ── Resume optimization: skip already-completed scans ──
+        if (state.completedScans?.nucleiCompleted.has(url)) {
+          continue; // Already scanned in a previous run
+        }
         const tagArgs = techTags.length > 0 ? `-tags ${techTags.join(',')}` : '';
         // Training labs: include low severity to catch info disclosure, also increase timeout
         const severityArg = isTrainingLabScan ? '-severity critical,high,medium,low' : '-severity critical,high,medium';
@@ -4478,10 +4531,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     // Execute nuclei tasks with concurrency semaphore
     const NUCLEI_BATCH_SIZE = 4; // Process in batches matching maxConcurrentNuclei
     const concurrencyMetrics = getScanConcurrencyMetrics();
+    const alreadyCompletedCount = state.completedScans?.nucleiCompleted.size || 0;
+    const resumeNote = alreadyCompletedCount > 0 ? ` (${alreadyCompletedCount} already completed, skipped)` : '';
     addLog(state, {
       phase: "vuln_detection", type: "info",
-      title: `⚡ Parallel Nuclei: ${nucleiScanTasks.length} scans across ${nucleiAssets.length} assets`,
-      detail: `Concurrency limiter: ${concurrencyMetrics.activeTotal}/${concurrencyMetrics.activeTotal + NUCLEI_BATCH_SIZE} slots active, batch size=${NUCLEI_BATCH_SIZE}`,
+      title: `⚡ Parallel Nuclei: ${nucleiScanTasks.length} scans across ${nucleiAssets.length} assets${resumeNote}`,
+      detail: `Concurrency limiter: ${concurrencyMetrics.activeTotal}/${concurrencyMetrics.activeTotal + NUCLEI_BATCH_SIZE} slots active, batch size=${NUCLEI_BATCH_SIZE}${alreadyCompletedCount > 0 ? `. Resume mode: ${alreadyCompletedCount} scans from previous run preserved.` : ''}`,
     });
 
     async function executeNucleiTask(task: typeof nucleiScanTasks[0]) {
@@ -4555,9 +4610,19 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           findings,
           phase: "vuln_detection",
         });
+        // ── Checkpoint: mark this URL as completed so resume skips it ──
+        if (state.completedScans) {
+          state.completedScans.nucleiCompleted.add(url);
+          state.completedScans.lastCheckpointAt = Date.now();
+        }
       } catch (e: any) {
         phase3NucleiErrors++;
         addLog(state, { phase: "vuln_detection", type: "error", title: `Nuclei Error: ${url}`, detail: e.message });
+        // Even on error, mark as completed to avoid re-running on resume
+        if (state.completedScans) {
+          state.completedScans.nucleiCompleted.add(url);
+          state.completedScans.lastCheckpointAt = Date.now();
+        }
       } finally {
         if (release) release();
       }
@@ -4567,8 +4632,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     for (let i = 0; i < nucleiScanTasks.length; i += NUCLEI_BATCH_SIZE) {
       const batch = nucleiScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
       await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
-      // Persist state after each batch completes
-      persistOpsStateDebounced(state.engagementId, 500);
+      // Persist state after each batch completes (saves completedScans checkpoint)
+      persistOpsStateDebounced(state.engagementId, 200);
     }
 
     // Accurate summary: report Phase 3 nuclei findings separately from total
@@ -4734,6 +4799,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       // Skip if we already scanned this exact host+port in this run
       if (scannedTargetUrls.has(dedupKey)) {
         addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Dedup Skip: ${targetUrl}`, detail: "Already scanned in this engagement run" });
+        continue;
+      }
+      // ── Resume optimization: skip ZAP scans completed in a previous run ──
+      if (state.completedScans?.zapCompleted.has(dedupKey)) {
+        addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Resume Skip: ${targetUrl}`, detail: "Already completed in a previous run" });
         continue;
       }
       scannedTargetUrls.add(dedupKey);
@@ -5135,8 +5205,18 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           detail: `Found ${webApp.zapFindings.length} web application findings${wafVendor ? ` (WAF: ${wafVendor})` : ""}`,
           data: { findings: webApp.zapFindings.length, wafVendor },
         });
+        // ── Checkpoint: mark this ZAP target as completed ──
+        if (state.completedScans) {
+          state.completedScans.zapCompleted.add(dedupKey);
+          state.completedScans.lastCheckpointAt = Date.now();
+        }
       } catch (e: any) {
         addLog(state, { phase: "vuln_detection", type: "error", title: `ZAP Scan Error: ${targetUrl}`, detail: e.message });
+        // Even on error, mark as completed to avoid re-running on resume
+        if (state.completedScans) {
+          state.completedScans.zapCompleted.add(dedupKey);
+          state.completedScans.lastCheckpointAt = Date.now();
+        }
       } finally {
         if (zapRelease) zapRelease();
       }
@@ -8789,6 +8869,20 @@ export async function resumeEngagement(
   // Reset error state
   state.error = undefined;
   state.isRunning = false; // Will be set to true by executeEngagement
+
+  // ── Dismiss stale approval gates from previous run ──
+  // After server restart, in-memory resolvers are lost so pending gates can never resolve.
+  // Dismiss them before resuming to prevent the UI from showing orphaned gates.
+  const staleCount = dismissAllStaleApprovals(engagementId, `auto-resume:${operatorCtx.id}`);
+  if (staleCount > 0) {
+    addLog(state, {
+      phase: resumePhase as any,
+      type: 'info',
+      title: `🗑️ Dismissed ${staleCount} stale approval gate(s)`,
+      detail: `Cleared orphaned approval gates from previous run before resuming.`,
+    });
+  }
+  state.isPaused = false;
 
   // Fire off the execution with resume flag
   executeEngagement(engagementId, operatorCtx, {

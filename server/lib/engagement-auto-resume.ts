@@ -311,6 +311,19 @@ async function executeAutoResume(engagementId: number): Promise<void> {
 
     console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase}...`);
 
+    // ── Dismiss stale approval gates from the interrupted run ──
+    // After server restart, in-memory resolvers are lost. Any pending approval gates
+    // are now orphaned and can never resolve. Dismiss them before resuming.
+    try {
+      const { dismissAllStaleApprovals } = await import("./engagement-orchestrator");
+      const staleCount = dismissAllStaleApprovals(engagementId, `auto-resume:server-restart`);
+      if (staleCount > 0) {
+        console.log(`[AutoResume] Dismissed ${staleCount} stale approval gate(s) for engagement #${engagementId}`);
+      }
+    } catch (gateErr: any) {
+      console.warn(`[AutoResume] Failed to dismiss stale gates for #${engagementId}:`, gateErr.message);
+    }
+
     // Notify owner before resuming
     try {
       const { notifyOwner } = await import("../_core/notification");
