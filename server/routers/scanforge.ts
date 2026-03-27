@@ -25,6 +25,8 @@ import type {
 import { getScanForgeHealthMetrics, getTuningHistory } from "../scanforge/engine/confidence-tuner";
 import { getTemplateEffectiveness, getEngagementReports, getEngagementFindings } from "../scanforge/engine/accuracy-tracker";
 import { getDraftTemplates, getResearchLog, promoteTemplate } from "../scanforge/engine/deep-research-agent";
+import { runAutoPromotion, manualPromote, manualReject, getPromotionHistory, getPromotionStats, DEFAULT_PROMOTION_RULES, FAST_TRACK_RULES, evaluateTemplate, type PromotionRules } from "../scanforge/engine/auto-promoter";
+import { scanforgePromotionHistory } from "../../drizzle/schema";
 import { getDbRequired } from "../db";
 import { scanforgeGeneratedTemplates, scanforgeResearchLog, scanforgeEngagementReport, scanforgeFindingLog, scanforgeTemplateMetrics } from "../../drizzle/schema";
 import { eq, desc, sql, count } from "drizzle-orm";
@@ -693,4 +695,82 @@ export const scanforgeRouter = router({
       };
     }
   }),
+
+  // ─── Auto-Promotion Procedures ──────────────────────────────────────────
+
+  /** Run auto-promotion evaluation for all eligible templates */
+  runAutoPromotion: protectedProcedure
+    .input(z.object({
+      engagementId: z.string().optional(),
+      fastTrack: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const rules = input.fastTrack ? FAST_TRACK_RULES : DEFAULT_PROMOTION_RULES;
+      const results = await runAutoPromotion(input.engagementId, rules);
+      return {
+        evaluated: results.length,
+        promoted: results.filter(r => r.decision === "promoted").length,
+        deferred: results.filter(r => r.decision === "deferred").length,
+        rejected: results.filter(r => r.decision === "rejected").length,
+        results,
+      };
+    }),
+
+  /** Manually promote a generated template */
+  manualPromoteTemplate: protectedProcedure
+    .input(z.object({
+      generatedTemplateDbId: z.number(),
+      reason: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await manualPromote(
+        input.generatedTemplateDbId,
+        input.reason,
+        ctx.user?.name ?? "operator",
+      );
+      if (!result) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Generated template not found" });
+      }
+      return result;
+    }),
+
+  /** Manually reject a generated template */
+  manualRejectTemplate: protectedProcedure
+    .input(z.object({
+      generatedTemplateDbId: z.number(),
+      reason: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await manualReject(
+        input.generatedTemplateDbId,
+        input.reason,
+        ctx.user?.name ?? "operator",
+      );
+      return { success: true };
+    }),
+
+  /** Get promotion history for a template or all templates */
+  getPromotionHistory: protectedProcedure
+    .input(z.object({
+      templateId: z.string().optional(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      return getPromotionHistory(input.templateId, input.limit);
+    }),
+
+  /** Get promotion statistics summary */
+  getPromotionStats: protectedProcedure
+    .query(async () => {
+      return getPromotionStats();
+    }),
+
+  /** Get current promotion rules configuration */
+  getPromotionRules: protectedProcedure
+    .query(async () => {
+      return {
+        default: DEFAULT_PROMOTION_RULES,
+        fastTrack: FAST_TRACK_RULES,
+      };
+    }),
 });

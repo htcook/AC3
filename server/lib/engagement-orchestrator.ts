@@ -172,7 +172,7 @@ export interface AssetStatus {
   ip?: string;
   type: "web_app" | "server" | "network_device" | "database" | "api" | "unknown";
   ports: Array<{ port: number; service: string; version?: string }>;
-  vulns: Array<{ id: string; severity: string; title: string; cve?: string }>;
+  vulns: Array<{ id: string; severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string; evidence?: string; source?: string }>;
   /** Passive recon findings deferred until vuln_detection phase — NOT counted as confirmed vulns */
   pendingVulns: Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
@@ -2456,8 +2456,8 @@ function parseToolOutput(
   tool: string,
   stdout: string,
   asset: AssetStatus
-): Array<{ severity: string; title: string; cve?: string }> {
-  const findings: Array<{ severity: string; title: string; cve?: string }> = [];
+): Array<{ severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string }> {
+  const findings: Array<{ severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string }> = [];
   if (!stdout || stdout.length < 10) return findings;
 
   switch (tool) {
@@ -2477,6 +2477,9 @@ function parseToolOutput(
               severity: obj.info.severity,
               title: `[Nuclei] ${obj.info.name}${matchedAt ? ` @ ${matchedAt}` : ''}`,
               cve,
+              description: obj.info.description || undefined,
+              cvss: obj.info.classification?.['cvss-score'] || obj.info.classification?.['cvss_score'] || undefined,
+              cwe: obj.info.classification?.cwe?.[0] || undefined,
             });
           }
         } catch { /* not JSON line — nuclei banner or progress output */ }
@@ -4578,7 +4581,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         for (const f of findings) {
           const key = `${f.severity}::${f.title}::${f.cve || ''}`;
           if (!assetVulnKeys.has(key)) {
-            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` });
+            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, cvss: f.cvss, cwe: f.cwe, source: 'nuclei' } as any);
             assetVulnKeys.add(key);
             state.stats.vulnsFound++;
             newFindings++;
@@ -4792,6 +4795,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 severity: finding.severity,
                 title: `[ScanForge] ${finding.title}`,
                 cve: finding.cve,
+                description: finding.description,
+                cvss: finding.cvss,
+                cwe: finding.cwe,
+                evidence: finding.evidence,
+                source: 'scanforge',
               });
               state.stats.vulnsFound++;
               if (asset.status === 'scanning' || asset.status === 'enumerated') {
@@ -5254,24 +5262,67 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               const progress = await pollScanProgress(zapScanId);
               if (progress.status === "completed" || progress.status === "error") {
                 zapDone = true;
-                // Convert alertCounts to findings for the asset
-                const counts = progress.alertCounts || { high: 0, medium: 0, low: 0, info: 0 };
-                const totalAlerts = counts.high + counts.medium + counts.low;
-                if (totalAlerts > 0) {
-                  if (counts.high > 0) {
-                    webApp.zapFindings.push({ alert: "High-risk web vulnerability", risk: "high", url: targetUrl });
-                    webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by ZAP active scan' });
-                    state.stats.vulnsFound += counts.high;
+                // Fetch detailed individual ZAP findings from webAppFindings table
+                // instead of just summary counts — gives exploit phase real alert data
+                try {
+                  const { getDb } = await import("../db");
+                  const db = await getDb();
+                  if (db) {
+                    const { webAppFindings } = await import("../../drizzle/schema");
+                    const { eq } = await import("drizzle-orm");
+                    const detailedFindings = await db.select().from(webAppFindings).where(eq(webAppFindings.scanId, zapScanId));
+                    let zapVulnCount = 0;
+                    for (const f of detailedFindings) {
+                      const sev = f.severity || 'info';
+                      if (sev === 'info') continue; // Skip informational alerts for exploit phase
+                      const alertTitle = f.alertName || 'Unknown ZAP Finding';
+                      // Push to zapFindings for backward compat
+                      webApp.zapFindings.push({ alert: alertTitle, risk: sev, url: f.url || targetUrl, cweId: f.cweId || undefined });
+                      // Push to main vulns array with full detail for exploit phase
+                      const cweStr = f.cweId ? `CWE-${f.cweId}` : undefined;
+                      webApp.vulns.push({
+                        id: genId(),
+                        severity: sev,
+                        title: `[ZAP] ${alertTitle}`,
+                        description: f.description || undefined,
+                        cwe: cweStr,
+                        evidence: f.evidence || undefined,
+                        source: 'zap',
+                      } as any);
+                      zapVulnCount++;
+                    }
+                    state.stats.vulnsFound += zapVulnCount;
+                    addLog(state, {
+                      phase: "vuln_detection", type: "info",
+                      title: `ZAP Detailed Findings: ${targetUrl}`,
+                      detail: `Extracted ${zapVulnCount} individual findings from ${detailedFindings.length} total alerts (skipped info-level)`,
+                    });
                   }
-                  if (counts.medium > 0) {
-                    webApp.zapFindings.push({ alert: "Medium-risk web vulnerability", risk: "medium", url: targetUrl });
-                    webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by ZAP active scan' });
-                    state.stats.vulnsFound += counts.medium;
+                } catch (detailErr: any) {
+                  // Fallback to summary counts if detailed extraction fails
+                  const counts = progress.alertCounts || { high: 0, medium: 0, low: 0, info: 0 };
+                  const totalAlerts = counts.high + counts.medium + counts.low;
+                  if (totalAlerts > 0) {
+                    if (counts.high > 0) {
+                      webApp.zapFindings.push({ alert: "High-risk web vulnerability", risk: "high", url: targetUrl });
+                      webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings`, source: 'zap' } as any);
+                      state.stats.vulnsFound += counts.high;
+                    }
+                    if (counts.medium > 0) {
+                      webApp.zapFindings.push({ alert: "Medium-risk web vulnerability", risk: "medium", url: targetUrl });
+                      webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings`, source: 'zap' } as any);
+                      state.stats.vulnsFound += counts.medium;
+                    }
+                    if (counts.low > 0) {
+                      webApp.zapFindings.push({ alert: "Low-risk web vulnerability", risk: "low", url: targetUrl });
+                      state.stats.vulnsFound += counts.low;
+                    }
                   }
-                  if (counts.low > 0) {
-                    webApp.zapFindings.push({ alert: "Low-risk web vulnerability", risk: "low", url: targetUrl });
-                    state.stats.vulnsFound += counts.low;
-                  }
+                  addLog(state, {
+                    phase: "vuln_detection", type: "warning",
+                    title: `ZAP Detail Extraction Failed: ${targetUrl}`,
+                    detail: `Fell back to summary counts: ${detailErr.message}`,
+                  });
                 }
               } else {
                 addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}, Status: ${progress.status}` });

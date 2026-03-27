@@ -713,6 +713,173 @@ function ResearchActivityTab() {
   );
 }
 
+// ── Auto-Promotion Tab ────────────────────────────────────────────────────
+function AutoPromotionTab() {
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = trpc.scanforge.getPromotionStats.useQuery();
+  const { data: history, isLoading: historyLoading, refetch: refetchHistory } = trpc.scanforge.getPromotionHistory.useQuery({ limit: 50 });
+  const { data: rules } = trpc.scanforge.getPromotionRules.useQuery();
+  const runPromotion = trpc.scanforge.runAutoPromotion.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Evaluated ${data.evaluated} templates: ${data.promoted} promoted, ${data.deferred} deferred, ${data.rejected} rejected`);
+      refetchStats();
+      refetchHistory();
+    },
+    onError: (err) => toast.error(sanitizeErrorForToast(err.message)),
+  });
+  const manualPromote = trpc.scanforge.manualPromoteTemplate.useMutation({
+    onSuccess: () => { toast.success("Template promoted"); refetchStats(); refetchHistory(); },
+    onError: (err) => toast.error(sanitizeErrorForToast(err.message)),
+  });
+  const manualReject = trpc.scanforge.manualRejectTemplate.useMutation({
+    onSuccess: () => { toast.success("Template rejected"); refetchStats(); refetchHistory(); },
+    onError: (err) => toast.error(sanitizeErrorForToast(err.message)),
+  });
+
+  const [showRules, setShowRules] = useState(false);
+
+  if (statsLoading || historyLoading) {
+    return <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted/20 rounded animate-pulse" />)}</div>;
+  }
+
+  const s = stats || { totalEvaluated: 0, promoted: 0, deferred: 0, rejected: 0, pendingReview: 0, avgPrecisionAtPromotion: 0, avgF1AtPromotion: 0 };
+  const defaultRules = rules?.default;
+  const fastTrackRules = rules?.fastTrack;
+
+  return (
+    <div className="space-y-6">
+      {/* Action Bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button size="sm" className="text-xs gap-1.5" onClick={() => runPromotion.mutate({ fastTrack: false })}
+          disabled={runPromotion.isPending}>
+          <Rocket className="h-3.5 w-3.5" /> {runPromotion.isPending ? "Evaluating..." : "Run Auto-Promotion"}
+        </Button>
+        <Button size="sm" variant="outline" className="text-xs gap-1.5 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10"
+          onClick={() => runPromotion.mutate({ fastTrack: true })} disabled={runPromotion.isPending}>
+          <Zap className="h-3.5 w-3.5" /> Fast-Track Evaluation
+        </Button>
+        <div className="flex-1" />
+        <Button size="sm" variant="ghost" className="text-[10px] gap-1" onClick={() => setShowRules(!showRules)}>
+          {showRules ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {showRules ? "Hide Rules" : "Show Rules"}
+        </Button>
+      </div>
+
+      {/* Promotion KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <MetricCard label="Total Evaluated" value={s.totalEvaluated} icon={<Activity className="h-4 w-4 text-blue-400" />} color="text-blue-400" />
+        <MetricCard label="Promoted" value={s.promoted} icon={<Rocket className="h-4 w-4 text-green-400" />} color="text-green-400" />
+        <MetricCard label="Deferred" value={s.deferred} icon={<Clock className="h-4 w-4 text-yellow-400" />} color="text-yellow-400" />
+        <MetricCard label="Rejected" value={s.rejected} icon={<XCircle className="h-4 w-4 text-red-400" />} color="text-red-400" />
+        <MetricCard label="Pending Review" value={s.pendingReview} icon={<Eye className="h-4 w-4 text-orange-400" />} color="text-orange-400" />
+        <MetricCard label="Avg Precision" value={pct(s.avgPrecisionAtPromotion)} subtitle="at promotion"
+          icon={<Target className="h-4 w-4 text-emerald-400" />} color="text-emerald-400" />
+        <MetricCard label="Avg F1" value={pct(s.avgF1AtPromotion)} subtitle="at promotion"
+          icon={<Gauge className="h-4 w-4 text-primary" />} color="text-primary" />
+      </div>
+
+      {/* Promotion Rules (Collapsible) */}
+      {showRules && defaultRules && fastTrackRules && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[{ title: "Default Rules", rules: defaultRules, color: "text-primary" }, { title: "Fast-Track Rules", rules: fastTrackRules, color: "text-yellow-400" }].map(({ title, rules: r, color }) => (
+            <Card key={title} className="bg-card/80 border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className={`text-sm flex items-center gap-2 ${color}`}>
+                  {title === "Default Rules" ? <Shield className="h-4 w-4" /> : <Zap className="h-4 w-4" />} {title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Engagements</span><span className="font-mono">{r.minEngagements}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Total Scans</span><span className="font-mono">{r.minTotalScans}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Precision</span><span className="font-mono">{pct(r.minPrecision)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Recall</span><span className="font-mono">{pct(r.minRecall)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min F1 Score</span><span className="font-mono">{pct(r.minF1Score)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Max FP Rate</span><span className="font-mono">{pct(r.maxFalsePositiveRate)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Effectiveness</span><span className="font-mono">{r.minEffectivenessScore}/100</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Min Confidence</span><span className="font-mono">{pct(r.minGenerationConfidence)}</span></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Promotion History */}
+      <Card className="bg-card/80 border-border/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <GitMerge className="h-4 w-4 text-primary" /> Promotion History
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Chronological log of all promotion evaluations with decision rationale
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-2 pr-2">
+              {(history || []).map((h: any) => {
+                const decisionColor = h.decision === "promoted" ? "text-green-400 bg-green-500/10 border-green-500/30"
+                  : h.decision === "rejected" ? "text-red-400 bg-red-500/10 border-red-500/30"
+                  : "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
+                const decisionIcon = h.decision === "promoted" ? <Rocket className="h-3 w-3" />
+                  : h.decision === "rejected" ? <XCircle className="h-3 w-3" />
+                  : <Clock className="h-3 w-3" />;
+                const snap = h.metricsSnapshot as any;
+                return (
+                  <div key={h.id} className="p-3 rounded bg-card/60 border border-border/30 hover:border-border/50 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className={`text-[10px] gap-1 ${decisionColor}`}>
+                            {decisionIcon} {h.decision?.toUpperCase()}
+                          </Badge>
+                          <span className="text-xs font-mono text-foreground truncate">{h.templateId}</span>
+                          <Badge variant="outline" className="text-[9px] text-muted-foreground">
+                            {h.previousStatus} → {h.newStatus}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">{h.reason}</p>
+                        {snap && (
+                          <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                            <span className="text-green-400">P: {pct(snap.precision || 0)}</span>
+                            <span className="text-blue-400">R: {pct(snap.recall || 0)}</span>
+                            <span className="text-primary">F1: {pct(snap.f1Score || 0)}</span>
+                            <span className="text-muted-foreground">Scans: {snap.totalScans || 0}</span>
+                            <span className="text-muted-foreground">Engagements: {snap.engagementCount || 0}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {h.evaluatedBy === "auto" ? (
+                          <Badge variant="outline" className="text-[9px] text-blue-400 border-blue-500/30 gap-1">
+                            <Cpu className="h-2.5 w-2.5" /> Auto
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] text-purple-400 border-purple-500/30 gap-1">
+                            <Brain className="h-2.5 w-2.5" /> Manual
+                          </Badge>
+                        )}
+                        <p className="mt-1 text-right">{h.createdAt ? new Date(h.createdAt).toLocaleString() : "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {(history || []).length === 0 && (
+                <div className="text-center py-12">
+                  <Rocket className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">No promotion history yet.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Run auto-promotion or manually promote templates to see history here.</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Dashboard ──────────────────────────────────────────────────────────
 export default function ScanForgeDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -760,6 +927,9 @@ export default function ScanForgeDashboard() {
                 <TabsTrigger value="research" className="text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary gap-1">
                   <Microscope className="h-3.5 w-3.5" /> Research Activity
                 </TabsTrigger>
+                <TabsTrigger value="promotion" className="text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary gap-1">
+                  <Rocket className="h-3.5 w-3.5" /> Auto-Promotion
+                </TabsTrigger>
               </TabsList>
             </div>
             <div className="flex-1 overflow-auto">
@@ -769,6 +939,7 @@ export default function ScanForgeDashboard() {
                 <TabsContent value="engagements" className="mt-0"><EngagementReportsTab /></TabsContent>
                 <TabsContent value="generated" className="mt-0"><GeneratedTemplatesTab /></TabsContent>
                 <TabsContent value="research" className="mt-0"><ResearchActivityTab /></TabsContent>
+                <TabsContent value="promotion" className="mt-0"><AutoPromotionTab /></TabsContent>
               </div>
             </div>
           </Tabs>

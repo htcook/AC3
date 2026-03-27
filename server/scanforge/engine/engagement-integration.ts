@@ -20,6 +20,7 @@ import { TemplateEngine } from "./template-engine";
 import { ProofEngine } from "./proof-engine";
 import { ScanForgeEmberBridge } from "./ember-bridge";
 import { logFinding, assessFindings, generateEngagementReport } from "./accuracy-tracker";
+import { runAutoPromotion } from "./auto-promoter";
 import { runTargetedResearch } from "./deep-research-agent";
 import { getTemplateConfidenceMap } from "./confidence-tuner";
 import { AuthScanner, type AuthConfig, type AuthSession } from "./auth-scanner";
@@ -761,4 +762,29 @@ export async function runPostEngagementAnalysis(
     title: "ScanForge Comparison Report",
     detail: `Overlap: ${comparison.overlap.length} | ScanForge-only: ${comparison.scanforgeOnly.length} | Legacy-only: ${comparison.legacyOnly.length} | Verdicts: TP=${verdicts.tp} FP=${verdicts.fp} FN=${verdicts.fn}`,
   });
+
+  // Run auto-promotion evaluation for all eligible generated templates
+  try {
+    const promotionResults = await runAutoPromotion(engagementId);
+    const promoted = promotionResults.filter(r => r.decision === "promoted");
+    const rejected = promotionResults.filter(r => r.decision === "rejected");
+    const deferred = promotionResults.filter(r => r.decision === "deferred");
+
+    if (promotionResults.length > 0) {
+      addLog({
+        phase: "vuln_detection",
+        type: "info",
+        title: "ScanForge Auto-Promotion Evaluation",
+        detail: `Evaluated ${promotionResults.length} templates: ${promoted.length} promoted, ${deferred.length} deferred, ${rejected.length} rejected` +
+          (promoted.length > 0 ? ` | Promoted: ${promoted.map(p => p.templateId).join(", ")}` : ""),
+      });
+    }
+  } catch (err: any) {
+    addLog({
+      phase: "vuln_detection",
+      type: "warning",
+      title: "ScanForge Auto-Promotion Error",
+      detail: `Auto-promotion evaluation failed: ${err?.message ?? "unknown error"}`,
+    });
+  }
 }

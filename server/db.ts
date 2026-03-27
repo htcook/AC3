@@ -385,7 +385,9 @@ import { engagements, InsertEngagement, Engagement } from "../drizzle/schema";
 export async function createEngagement(engagement: InsertEngagement) {
   const db = await getDbRequired();
   try {
-    const result = await db.insert(engagements).values(engagement);
+    // Default autoResumeOnRestart to 1 (enabled) so engagements auto-resume after server restarts
+    const values = { autoResumeOnRestart: 1, ...engagement };
+    const result = await db.insert(engagements).values(values);
     return result[0].insertId;
   } catch (err: any) {
     // On connection-level errors, reset and retry once

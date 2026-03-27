@@ -6631,3 +6631,39 @@ export const scanforgeResearchLog = mysqlTable("scanforge_research_log", {
 
 export type ScanforgeResearchLogRow = typeof scanforgeResearchLog.$inferSelect;
 export type InsertScanforgeResearchLog = typeof scanforgeResearchLog.$inferInsert;
+
+// ─── ScanForge Template Auto-Promotion ──────────────────────────────────────
+/**
+ * Tracks promotion decisions for generated templates.
+ * Each row represents an evaluation event where the auto-promotion engine
+ * assessed whether a template should be promoted to production.
+ */
+export const scanforgePromotionHistory = mysqlTable("scanforge_promotion_history", {
+  id: int().autoincrement().notNull().primaryKey(),
+  templateId: varchar("template_id", { length: 128 }).notNull(),
+  /** The generated template DB ID */
+  generatedTemplateDbId: int("generated_template_db_id").notNull(),
+  /** Decision: promoted, deferred, rejected */
+  decision: varchar({ length: 32 }).notNull(),
+  /** Reason for the decision */
+  reason: text().notNull(),
+  /** Metrics snapshot at time of evaluation */
+  metricsSnapshot: json("metrics_snapshot").notNull(),
+  /** Promotion rules that were evaluated */
+  rulesEvaluated: json("rules_evaluated").notNull(),
+  /** Which engagement triggered this evaluation */
+  triggerEngagementId: varchar("trigger_engagement_id", { length: 64 }),
+  /** Previous status before this evaluation */
+  previousStatus: varchar("previous_status", { length: 32 }).notNull(),
+  /** New status after this evaluation */
+  newStatus: varchar("new_status", { length: 32 }).notNull(),
+  /** Who/what triggered the evaluation: auto, manual, scheduled */
+  evaluatedBy: varchar("evaluated_by", { length: 64 }).default("auto").notNull(),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("sph_template_idx").on(table.templateId),
+  index("sph_decision_idx").on(table.decision),
+  index("sph_trigger_idx").on(table.triggerEngagementId),
+]);
+export type ScanforgePromotionHistoryRow = typeof scanforgePromotionHistory.$inferSelect;
+export type InsertScanforgePromotionHistory = typeof scanforgePromotionHistory.$inferInsert;

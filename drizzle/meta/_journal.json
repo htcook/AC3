@@ -295,6 +295,13 @@
       "when": 1774629553902,
       "tag": "0041_kind_betty_brant",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1774633339091,
+      "tag": "0042_powerful_captain_universe",
+      "breakpoints": true
     }
   ]
 }
