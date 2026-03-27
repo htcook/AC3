@@ -281,6 +281,13 @@
       "when": 1774573001133,
       "tag": "0039_cooing_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1774621876769,
+      "tag": "0040_slow_wiccan",
+      "breakpoints": true
     }
   ]
 }

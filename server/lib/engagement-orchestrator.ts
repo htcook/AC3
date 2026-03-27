@@ -95,6 +95,7 @@ import {
 import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
 import { SERVER_INSTANCE_ID } from "./server-instance";
 import { capLLMContext as _capLLMContext } from "./memory-manager";
+import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult } from "../scanforge/engine/engagement-integration";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
 const _serverInstanceId = SERVER_INSTANCE_ID;
@@ -4691,6 +4692,84 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
   }
 
+  // ═══ SCANFORGE TEMPLATE-BASED DETECTION PHASE ═══
+  // Runs ScanForge templates in-process alongside Nuclei/ZAP for side-by-side comparison.
+  // ScanForge uses proof-based verification, confidence tuning, and Ember agent routing
+  // for internal targets. Results feed into the accuracy tracker for self-improvement.
+  let scanforgeResult: ScanForgeResult | null = null;
+  try {
+    const scanforgeTargets = state.assets
+      .filter(a => a.status !== 'pending')
+      .map(a => ({
+        url: a.ports.some(p => [80, 443, 8080, 8443].includes(p.port))
+          ? `${a.ports.some(p => p.port === 443) ? 'https' : 'http'}://${a.hostname}`
+          : `http://${a.hostname}`,
+        ip: a.ip,
+        hostname: a.hostname,
+        isInternal: a.hostname.endsWith('.internal') || a.hostname.endsWith('.local') || a.hostname.includes('.lab.'),
+        technologies: a.passiveRecon?.technologies || [],
+      }));
+
+    if (scanforgeTargets.length > 0) {
+      addLog(state, {
+        phase: 'vuln_detection', type: 'scan_start',
+        title: 'ScanForge Engine Starting',
+        detail: `Running ${scanforgeTargets.length} targets through ScanForge template-based detection engine`,
+      });
+
+      scanforgeResult = await executeScanForgePhase(
+        {
+          engagementId: String(state.engagementId),
+          targets: scanforgeTargets,
+          scope: (state.roeScopeGuard?.authorizedDomains || []).join(', '),
+          targetType: state.engagementType === 'red_team' ? 'network' : 'web_app',
+          enableProofVerification: true,
+          enableEmberRouting: scanforgeTargets.some(t => t.isInternal),
+          maxConcurrency: 5,
+          timeoutPerTarget: 30000,
+        },
+        (entry) => addLog(state, { ...entry, phase: entry.phase || 'vuln_detection', type: entry.type || 'info' }),
+        (finding) => {
+          // Normalize ScanForge findings into the engagement vuln format
+          const asset = state.assets.find(a => finding.target.includes(a.hostname));
+          if (asset) {
+            const vulnId = `sf-${finding.templateId}-${Date.now()}`;
+            const exists = asset.vulns.some(v =>
+              v.title.toLowerCase() === finding.title.toLowerCase() ||
+              (v.cve && v.cve === finding.cve)
+            );
+            if (!exists) {
+              asset.vulns.push({
+                id: vulnId,
+                severity: finding.severity,
+                title: `[ScanForge] ${finding.title}`,
+                cve: finding.cve,
+              });
+              state.stats.vulnsFound++;
+              if (asset.status === 'scanning' || asset.status === 'enumerated') {
+                asset.status = 'vulns_found';
+              }
+            }
+          }
+        },
+      );
+
+      addLog(state, {
+        phase: 'vuln_detection', type: 'scan_result',
+        title: 'ScanForge Phase Complete',
+        detail: `ScanForge: ${scanforgeResult.stats.findingsTotal} findings (${scanforgeResult.stats.findingsVerified} verified) | ` +
+          `Templates: ${scanforgeResult.stats.templatesExecuted} | Time: ${(scanforgeResult.stats.executionTimeMs / 1000).toFixed(1)}s`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
+    }
+  } catch (sfErr: any) {
+    addLog(state, {
+      phase: 'vuln_detection', type: 'warning',
+      title: 'ScanForge Phase Error (non-fatal)',
+      detail: `ScanForge scan failed but pipeline continues: ${sfErr.message}`,
+    });
+  }
+
   // ── Training Lab ZAP URL Resolver ──
   // ZAP runs in a Docker container and cannot resolve internal hostnames like
   // juiceshop.lab.aceofcloud.io. For labs hosted on the scan server behind nginx
@@ -8357,6 +8436,35 @@ export async function executeEngagement(
       // ── Recalculate stats before exploitation decision ──
       state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
       state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+
+      // ═══ SCANFORGE POST-SCAN COMPARISON ═══
+      // Compare ScanForge findings with Nuclei/ZAP findings for accuracy tracking
+      if (scanforgeResult && scanforgeResult.stats.findingsTotal > 0) {
+        try {
+          const legacyFindings: Array<{ tool: string; title: string; target: string; severity: string; cve?: string }> = [];
+          for (const asset of state.assets) {
+            for (const v of asset.vulns) {
+              if (!v.title.startsWith('[ScanForge]')) {
+                legacyFindings.push({
+                  tool: v.title.includes('ZAP') || v.title.includes('zap') ? 'zap' : 'nuclei',
+                  title: v.title,
+                  target: asset.hostname,
+                  severity: v.severity,
+                  cve: v.cve,
+                });
+              }
+            }
+          }
+          await runPostEngagementAnalysis(
+            String(state.engagementId),
+            scanforgeResult,
+            legacyFindings,
+            (entry) => addLog(state, { ...entry, phase: entry.phase || 'vuln_detection', type: entry.type || 'info' }),
+          );
+        } catch (compErr: any) {
+          console.warn('[ScanForge Comparison] Post-scan analysis failed:', compErr.message);
+        }
+      }
 
       // Phase 7: Exploitation (safety gated)
       const exploitGate = safetyEngine.canEnterPhase('exploitation');

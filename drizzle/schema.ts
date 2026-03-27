@@ -6468,3 +6468,164 @@ export const testPlans = mysqlTable("test_plans", {
 
 export type TestPlanRow = typeof testPlans.$inferSelect;
 export type InsertTestPlan = typeof testPlans.$inferInsert;
+
+
+// ─── ScanForge Accuracy Tracking ────────────────────────────────────────────
+
+/**
+ * Tracks every ScanForge finding per engagement for accuracy measurement.
+ * After engagement completion, the reassessment agent marks each as TP/FP/FN.
+ */
+export const scanforgeFindingLog = mysqlTable("scanforge_finding_log", {
+  id: int().autoincrement().notNull().primaryKey(),
+  engagementId: varchar("engagement_id", { length: 64 }).notNull(),
+  templateId: varchar("template_id", { length: 128 }).notNull(),
+  templateVersion: varchar("template_version", { length: 32 }).default("1.0.0"),
+  target: varchar({ length: 512 }).notNull(),
+  findingTitle: varchar("finding_title", { length: 512 }).notNull(),
+  severity: varchar({ length: 32 }).notNull(),
+  confidence: float().notNull(),
+  proofVerified: boolean("proof_verified").default(false),
+  /** TP = true positive, FP = false positive, FN = false negative (missed), PENDING = not yet assessed */
+  verdict: varchar({ length: 16 }).default("PENDING").notNull(),
+  /** Which tool confirmed/denied: nuclei, zap, sqlmap, manual, llm-reassessment */
+  verdictSource: varchar("verdict_source", { length: 64 }),
+  verdictReason: text("verdict_reason"),
+  /** Raw finding JSON for replay/analysis */
+  findingData: json("finding_data"),
+  /** Matching findings from other tools (nuclei/ZAP) for comparison */
+  crossToolMatches: json("cross_tool_matches"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  assessedAt: timestamp("assessed_at", { mode: 'string' }),
+}, (table) => [
+  index("sfl_engagement_idx").on(table.engagementId),
+  index("sfl_template_idx").on(table.templateId),
+  index("sfl_verdict_idx").on(table.verdict),
+]);
+
+export type ScanforgeFindingLogRow = typeof scanforgeFindingLog.$inferSelect;
+export type InsertScanforgeFindingLog = typeof scanforgeFindingLog.$inferInsert;
+
+/**
+ * Aggregate accuracy metrics per template, updated after each reassessment.
+ */
+export const scanforgeTemplateMetrics = mysqlTable("scanforge_template_metrics", {
+  id: int().autoincrement().notNull().primaryKey(),
+  templateId: varchar("template_id", { length: 128 }).notNull(),
+  /** Rolling window stats */
+  totalScans: int("total_scans").default(0).notNull(),
+  truePositives: int("true_positives").default(0).notNull(),
+  falsePositives: int("false_positives").default(0).notNull(),
+  falseNegatives: int("false_negatives").default(0).notNull(),
+  /** Computed metrics */
+  precision: float().default(0),
+  recall: float().default(0),
+  f1Score: float("f1_score").default(0),
+  /** Calibrated confidence threshold (self-tuning) */
+  calibratedConfidence: float("calibrated_confidence").default(0.5),
+  /** Effectiveness ranking (0-100) */
+  effectivenessScore: float("effectiveness_score").default(50),
+  /** Last N engagement IDs used for this metric window */
+  engagementWindow: json("engagement_window"),
+  lastUpdated: timestamp("last_updated", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("stm_template_unique").on(table.templateId),
+]);
+
+export type ScanforgeTemplateMetricsRow = typeof scanforgeTemplateMetrics.$inferSelect;
+export type InsertScanforgeTemplateMetrics = typeof scanforgeTemplateMetrics.$inferInsert;
+
+/**
+ * Engagement-level scan quality comparison: ScanForge vs legacy tools.
+ */
+export const scanforgeEngagementReport = mysqlTable("scanforge_engagement_report", {
+  id: int().autoincrement().notNull().primaryKey(),
+  engagementId: varchar("engagement_id", { length: 64 }).notNull(),
+  /** Counts */
+  scanforgeFindings: int("scanforge_findings").default(0),
+  nucleiFindings: int("nuclei_findings").default(0),
+  zapFindings: int("zap_findings").default(0),
+  /** Overlap analysis */
+  sharedFindings: int("shared_findings").default(0),
+  scanforgeOnly: int("scanforge_only").default(0),
+  legacyOnly: int("legacy_only").default(0),
+  /** Quality scores */
+  scanforgePrecision: float("scanforge_precision"),
+  scanforgeRecall: float("scanforge_recall"),
+  scanforgeF1: float("scanforge_f1"),
+  legacyPrecision: float("legacy_precision"),
+  legacyRecall: float("legacy_recall"),
+  legacyF1: float("legacy_f1"),
+  /** LLM reassessment summary */
+  reassessmentSummary: text("reassessment_summary"),
+  /** Recommended template improvements from LLM */
+  templateImprovements: json("template_improvements"),
+  /** Coverage gaps identified */
+  coverageGaps: json("coverage_gaps"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("ser_engagement_unique").on(table.engagementId),
+]);
+
+export type ScanforgeEngagementReportRow = typeof scanforgeEngagementReport.$inferSelect;
+export type InsertScanforgeEngagementReport = typeof scanforgeEngagementReport.$inferInsert;
+
+/**
+ * Auto-generated detection templates from the deep research agent.
+ * Stored separately from hand-crafted templates for review before promotion.
+ */
+export const scanforgeGeneratedTemplates = mysqlTable("scanforge_generated_templates", {
+  id: int().autoincrement().notNull().primaryKey(),
+  templateId: varchar("template_id", { length: 128 }).notNull(),
+  name: varchar({ length: 256 }).notNull(),
+  /** Source that triggered generation: cve_feed, bug_bounty, missed_finding, exploit_analysis, ti_feed */
+  generationSource: varchar("generation_source", { length: 64 }).notNull(),
+  /** The CVE, CWE, or finding that triggered this template */
+  sourceReference: varchar("source_reference", { length: 256 }),
+  /** Full template JSON */
+  templateData: json("template_data").notNull(),
+  /** Status: draft, review, approved, rejected, promoted */
+  status: varchar({ length: 32 }).default("draft").notNull(),
+  /** LLM confidence in the template quality */
+  generationConfidence: float("generation_confidence").default(0.5),
+  /** Review notes from reassessment agent or human */
+  reviewNotes: text("review_notes"),
+  /** If promoted, the production template ID it replaced/augmented */
+  promotedToTemplateId: varchar("promoted_to_template_id", { length: 128 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("sgt_template_id_unique").on(table.templateId),
+  index("sgt_status_idx").on(table.status),
+  index("sgt_source_idx").on(table.generationSource),
+]);
+
+export type ScanforgeGeneratedTemplateRow = typeof scanforgeGeneratedTemplates.$inferSelect;
+export type InsertScanforgeGeneratedTemplate = typeof scanforgeGeneratedTemplates.$inferInsert;
+
+/**
+ * TI feed research log — tracks what the deep research agent has analyzed.
+ */
+export const scanforgeResearchLog = mysqlTable("scanforge_research_log", {
+  id: int().autoincrement().notNull().primaryKey(),
+  /** Feed source: nvd, hackerone, shodan, censys, spicy_tip, abuse_ch, etc. */
+  feedSource: varchar("feed_source", { length: 64 }).notNull(),
+  /** What was researched: CVE ID, CWE, domain, IP, threat actor, etc. */
+  researchSubject: varchar("research_subject", { length: 256 }).notNull(),
+  /** Research type: cve_analysis, exploit_research, trend_analysis, gap_analysis */
+  researchType: varchar("research_type", { length: 64 }).notNull(),
+  /** LLM analysis result */
+  analysisResult: json("analysis_result"),
+  /** Templates generated from this research */
+  generatedTemplateIds: json("generated_template_ids"),
+  /** Whether this research led to actionable improvements */
+  actionable: boolean().default(false),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("srl_feed_idx").on(table.feedSource),
+  index("srl_subject_idx").on(table.researchSubject),
+  index("srl_type_idx").on(table.researchType),
+]);
+
+export type ScanforgeResearchLogRow = typeof scanforgeResearchLog.$inferSelect;
+export type InsertScanforgeResearchLog = typeof scanforgeResearchLog.$inferInsert;
