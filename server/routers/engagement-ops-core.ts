@@ -1126,7 +1126,7 @@ export const engagementOpsRouter = router({
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
 
         // RoE check — bypass for training lab engagements
-        const isTrainingLab = (state as any).trainingLabMode === true;
+        const isTrainingLab = state.trainingLabMode === true;
         if (!isTrainingLab && engagement.roeStatus !== 'signed' && engagement.roeStatus !== 'pending') {
           throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'RoE must be signed before active scanning.' });
         }

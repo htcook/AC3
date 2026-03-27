@@ -349,12 +349,16 @@ async function executeAutoResume(engagementId: number): Promise<void> {
     let state = await getOpsStateWithRecovery(engagementId);
     
     // Add a recovery log entry to the state so the operator sees what happened
+    // IMPORTANT: Use the interruption.phase (original phase from snapshot) instead of state.phase
+    // which may have been set to 'error' by the recovery process. Using 'error' as the log phase
+    // would poison the resumeEngagement phase computation which searches backwards through logs.
     if (state) {
+      const recoveryLogPhase = interruption.phase || state.phase || 'recon';
       addOpsLog(state, {
-        phase: state.phase || 'unknown',
+        phase: recoveryLogPhase as any,
         type: 'warning',
         title: '\u26a0\ufe0f Scan Interrupted \u2014 State Recovered',
-        detail: `The server restarted while the scan was running. ${state.assets?.length || 0} assets have been recovered from the last snapshot. You can reset and re-run the scan.`,
+        detail: `The server restarted while the scan was running. ${state.assets?.length || 0} assets have been recovered from the last snapshot (was in ${recoveryLogPhase} phase). You can reset and re-run the scan.`,
       });
       await persistOpsStateNow(engagementId, state);
     }

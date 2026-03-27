@@ -205,7 +205,7 @@ async function startServer() {
           isRunning: state.isRunning,
           progress: state.progress,
           engagementType: state.engagementType,
-          trainingLabMode: (state as any).trainingLabMode,
+          trainingLabMode: state.trainingLabMode,
           stats: state.stats,
           assets: state.assets,
           log: state.log || state.logs || [],
@@ -226,7 +226,7 @@ async function startServer() {
         logsCount: (state.log || state.logs || []).length,
         assetsCount: state.assets?.length || 0,
         lastLogs: (state.log || state.logs || []).slice(-5).map((l: any) => ({ type: l.type, title: l.title, detail: (l.detail || '').substring(0, 300) })),
-        trainingLabMode: (state as any).trainingLabMode,
+        trainingLabMode: state.trainingLabMode,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -242,7 +242,7 @@ async function startServer() {
       await clearOpsState(engagementId);
       // Initialize fresh ops state and set trainingLabMode BEFORE calling executeEngagement
       let state = initOpsState(engagementId, 'pentest');
-      (state as any).trainingLabMode = true;
+      state.trainingLabMode = true;
       await persistOpsStateNow(engagementId);
       // Pass proper operatorCtx (id + name), not trainingLabMode
       executeEngagement(engagementId, {
@@ -267,7 +267,7 @@ async function startServer() {
       await clearOpsState(engagementId);
       // Initialize fresh ops state and set trainingLabMode BEFORE calling executeEngagement
       let state = initOpsState(engagementId, 'pentest');
-      (state as any).trainingLabMode = true;
+      state.trainingLabMode = true;
       await persistOpsStateNow(engagementId);
       executeEngagement(engagementId, {
         id: 'system-test',

@@ -273,6 +273,8 @@ export interface EngagementOpsState {
   engagementType: "pentest" | "red_team" | "purple_team" | "phishing" | "tabletop";
   phase: OpsPhase;
   progress: number; // 0-100
+  /** When true, auto-approve all gates and enable aggressive scanning (training lab mode) */
+  trainingLabMode?: boolean;
   isRunning: boolean;
   isPaused: boolean;
   startedAt?: number;
@@ -523,6 +525,10 @@ export function normalizeOpsState(state: any): EngagementOpsState {
   // Ensure boolean fields
   if (typeof state.isRunning !== 'boolean') state.isRunning = false;
   if (typeof state.isPaused !== 'boolean') state.isPaused = false;
+  // Preserve trainingLabMode across snapshot round-trips (must stay boolean, not truthy string)
+  if (state.trainingLabMode !== undefined && typeof state.trainingLabMode !== 'boolean') {
+    state.trainingLabMode = Boolean(state.trainingLabMode);
+  }
 
   // Ensure phase
   if (!state.phase) state.phase = 'idle';
@@ -1117,7 +1123,7 @@ async function persistScanResult(opts: {
 function shouldAutoApprove(state: EngagementOpsState, riskTier: string): boolean {
   // Training lab mode: auto-approve ALL gates including red tier (exploitation)
   // Training labs are authorized targets where we want the full pipeline to run unattended
-  if ((state as any).trainingLabMode === true) return true;
+  if (state.trainingLabMode === true) return true;
 
   // ── Precedent-based auto-approval ──
   // If the operator has already manually approved a gate at the same risk tier
@@ -1157,7 +1163,7 @@ async function requestApproval(
   // 3. Signed RoE for yellow/orange tiers
   if (shouldAutoApprove(state, gate.riskTier)) {
     // Determine the reason for auto-approval for audit trail
-    const isTrainingLab = (state as any).trainingLabMode === true;
+    const isTrainingLab = state.trainingLabMode === true;
     const hasPrecedent = !isTrainingLab && state.approvalGates.some(g =>
       g.status === 'approved' && g.resolvedBy && !g.resolvedBy.startsWith('auto-') &&
       ({ yellow: 0, orange: 1, red: 2 }[g.riskTier] ?? -1) >= ({ yellow: 0, orange: 1, red: 2 }[gate.riskTier] ?? -1)
@@ -4504,7 +4510,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
 
       // ── Training lab enhanced scanning: add vuln-category tags for broader coverage ──
-      const isTrainingLabScan = (state as any).trainingLabMode === true;
+      const isTrainingLabScan = state.trainingLabMode === true;
       if (isTrainingLabScan) {
         // Add vulnerability category tags that target common training lab vulns
         const vulnCategoryTags = [
@@ -4664,7 +4670,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     // ── Training Lab: Second Nuclei pass without tags for broad coverage ──
     // The first pass uses technology/vuln-category tags which limits to matching templates.
     // This second pass runs ALL templates at critical+high severity to catch anything missed.
-    if ((state as any).trainingLabMode === true) {
+    if (state.trainingLabMode === true) {
       const broadScanTasks: typeof nucleiScanTasks = [];
       for (const asset of nucleiAssets) {
         const webPorts = asset.ports.filter((p: any) =>
@@ -4817,6 +4823,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           `Templates: ${scanforgeResult.stats.templatesExecuted} | Time: ${(scanforgeResult.stats.executionTimeMs / 1000).toFixed(1)}s`,
       });
       broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
+      // Store scanforgeResult on state so executeEngagement can access it for post-scan comparison
+      (state as any)._scanforgeResult = scanforgeResult;
     }
   } catch (sfErr: any) {
     addLog(state, {
@@ -5641,7 +5649,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (approved) {
         const { batchSqlmapScan, analyzeSqlmapFindings, runBlindSqliPass, ingestSqlmapToWebAppFindings } = await import("./scanners/sqlmap-scanner");
         // Training labs: increase risk/level for deeper SQLi detection (schema dump, credential extraction)
-        const isTrainingLabSqlmap = (state as any).trainingLabMode === true;
+        const isTrainingLabSqlmap = state.trainingLabMode === true;
         const sqlmapRisk = isTrainingLabSqlmap ? 3 : 2;
         const sqlmapLevel = isTrainingLabSqlmap ? 5 : 3;
         const sqlmapTimeout = isTrainingLabSqlmap ? 180 : 120;
@@ -7820,9 +7828,10 @@ export async function executeEngagement(
     state.phase = "error";
     return;
   }
-
+  // Debug: log engagement fields for restart resilience diagnosis
+  console.log(`[ExecuteEngagement] #${engagementId} loaded from DB: roeStatus=${JSON.stringify(engagement.roeStatus)}, trainingLabMode=${state.trainingLabMode}, startPhase=${startPhase}, resume=${options?.resume}`);
   // Check RoE status
-  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && !(state as any).trainingLabMode) {
+  if (engagement.roeStatus !== "signed" && engagement.roeStatus !== "pending" && !state.trainingLabMode) {
     addLog(state, {
       phase: "idle",
       type: "error",
@@ -7868,7 +7877,7 @@ export async function executeEngagement(
 
   // ═══ TRAINING LAB AUTO-ESCALATION ═══
   // Training lab engagements always get full_exploitation since they target intentionally vulnerable apps
-  if ((state as any).trainingLabMode && engagementSafetyLevel !== 'full_exploitation') {
+  if (state.trainingLabMode && engagementSafetyLevel !== 'full_exploitation') {
     const originalLevel = engagementSafetyLevel;
     engagementSafetyLevel = 'full_exploitation';
     addLog(state, {
@@ -8129,7 +8138,7 @@ export async function executeEngagement(
     }
 
     // Phase 5+: Require RoE for active scanning (training lab mode bypasses RoE)
-    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || (state as any).trainingLabMode === true) {
+    if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || state.trainingLabMode === true) {
       // Phase 5: Active Discovery & Enumeration (nmap first — always)
       if (['recon', 'passive_discovery', 'scoping', 'test_plan', 'enumeration'].includes(startPhase)) {
         const enumGate = safetyEngine.canEnterPhase('enumeration');
@@ -8538,6 +8547,8 @@ export async function executeEngagement(
 
       // ═══ SCANFORGE POST-SCAN COMPARISON ═══
       // Compare ScanForge findings with Nuclei/ZAP findings for accuracy tracking
+      // scanforgeResult is stored on state by executeVulnDetection (was previously a scoping bug)
+      const scanforgeResult = (state as any)._scanforgeResult as ScanForgeResult | null;
       if (scanforgeResult && scanforgeResult.stats.findingsTotal > 0) {
         try {
           const legacyFindings: Array<{ tool: string; title: string; target: string; severity: string; cve?: string }> = [];
@@ -9089,9 +9100,23 @@ export async function resumeEngagement(
     return { success: false, message: "Engagement already completed. Start a new execution to re-run." };
   }
 
-  const resumePhase = state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused'
-    ? (state.log.length > 0 ? state.log[state.log.length - 1].phase : 'recon')
-    : state.phase;
+  // Determine the best phase to resume from.
+  // When state.phase is 'error'/'idle'/'paused', search backwards through logs
+  // for the last VALID pipeline phase (not 'error', 'idle', 'paused', 'unknown', 'completed').
+  const validPipelinePhases = new Set(['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']);
+  let resumePhase: string = 'recon';
+  if (state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused') {
+    // Search backwards through log entries for the last valid pipeline phase
+    for (let i = state.log.length - 1; i >= 0; i--) {
+      const logPhase = state.log[i].phase;
+      if (validPipelinePhases.has(logPhase)) {
+        resumePhase = logPhase;
+        break;
+      }
+    }
+  } else if (validPipelinePhases.has(state.phase)) {
+    resumePhase = state.phase;
+  }
 
   // ── Claim Lock: acquire ownership before resuming (force=true for user-initiated) ──
   try {

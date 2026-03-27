@@ -775,7 +775,7 @@ export const engagementAutomationRouter = router({
       if (!state) state = initOpsState(engagementId, input.engagementType);
 
       // Enable training lab mode — auto-approves ALL approval gates including red tier
-      (state as any).trainingLabMode = true;
+      state.trainingLabMode = true;
 
       // Auto-sign the RoE for training lab targets
       state.roeScopeGuard = {
@@ -1006,7 +1006,7 @@ export const engagementAutomationRouter = router({
           const { initOpsState, getOpsState, addLog, persistOpsStateNow, executeEngagement } = await import('../lib/engagement-orchestrator');
           let state = getOpsState(engagementId);
           if (!state) state = initOpsState(engagementId, target.engagementType);
-          (state as any).trainingLabMode = true;
+          state.trainingLabMode = true;
           (state as any).dfirKnowledgeContext = dfirKnowledgeContext;
           state.roeScopeGuard = {
             authorizedDomains: [target.domain],

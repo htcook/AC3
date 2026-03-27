@@ -242,12 +242,22 @@ function scanFindingToVuln(finding: ScanFinding): OrchestratorVuln {
   const sourceStr = (finding as any).source || "unknown";
   const scanner = sourceStr.replace(/^orchestrator-/, "") || "unknown";
   const title = `[${scanner}] ${finding.title}`;
+  // Extract CWE from the finding's cwes array (e.g., ["CWE-693"] → "CWE-693")
+  const cwe = finding.cwes?.[0] || undefined;
+  // Extract description from the finding for richer exploit context
+  const description = finding.description || undefined;
+  // Extract evidence text if available
+  const evidence = finding.evidence?.data ? JSON.stringify(finding.evidence.data) : undefined;
 
   return {
     id: finding.id,
     severity: finding.severity,
     title,
     cve: finding.cves?.[0],
+    cwe,
+    description,
+    evidence,
+    source: scanner,
     corroborationTier: finding.confidence >= 90 ? "confirmed" : finding.confidence >= 70 ? "corroborated" : "tentative",
     evidenceDetail: finding.evidence?.data?.raw as string || finding.description,
   };
