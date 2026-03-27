@@ -14,6 +14,7 @@ import {
   Home, Menu, X, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import { FIPSIndicator } from "./FIPSIndicator";
+import { TransportIndicator } from "./TransportIndicator";
 import { CommandPaletteTrigger } from "./CommandPalette";
 import { useEngagement } from "@/contexts/EngagementContext";
 import { createPortal } from "react-dom";
@@ -656,8 +657,9 @@ function SidebarFooterSection({
 }) {
   return (
     <div className="p-2 border-t">
-      <div className="mb-1">
+      <div className="mb-1 space-y-0.5">
         <FIPSIndicator collapsed={isCollapsed} />
+        <TransportIndicator collapsed={isCollapsed} />
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

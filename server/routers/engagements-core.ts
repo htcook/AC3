@@ -3,7 +3,7 @@ import { protectedProcedure, router, adminProcedure} from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 import { ENV } from "../_core/env";
-import { and, eq, max, min, not, or } from "drizzle-orm";
+import { and, eq, inArray, max, min, not, or } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
 
@@ -482,5 +482,134 @@ export const engagementsRouter = router({
           scanConfig: template.scanConfig,
           phaseConfig: template.phaseConfig,
         };
+      }),
+
+    /**
+     * Reset an engagement for a fresh rerun.
+     * Clears ops snapshots, scan results, timeline events, and test plans.
+     * Resets status to 'planning'.
+     */
+    resetEngagement: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.id);
+        if (!engagement) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: `Engagement #${input.id} not found` });
+        }
+
+        const dbConn = await db.getDb();
+        if (!dbConn) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        }
+
+        const cleared: Record<string, number> = {};
+
+        // 1. Delete ops snapshot
+        try {
+          const r = await dbConn.delete(schema.engagementOpsSnapshots)
+            .where(eq(schema.engagementOpsSnapshots.engagementId, input.id));
+          cleared.opsSnapshots = r[0]?.affectedRows ?? 0;
+        } catch { cleared.opsSnapshots = 0; }
+
+        // 2. Delete scan results
+        try {
+          const r = await dbConn.delete(schema.scanResults)
+            .where(eq(schema.scanResults.engagementId, input.id));
+          cleared.scanResults = r[0]?.affectedRows ?? 0;
+        } catch { cleared.scanResults = 0; }
+
+        // 3. Delete timeline events
+        try {
+          const r = await dbConn.delete(schema.engagementTimelineEvents)
+            .where(eq(schema.engagementTimelineEvents.engagementId, input.id));
+          cleared.timelineEvents = r[0]?.affectedRows ?? 0;
+        } catch { cleared.timelineEvents = 0; }
+
+        // 4. Delete test plans
+        try {
+          const r = await dbConn.delete(schema.testPlans)
+            .where(eq(schema.testPlans.engagementId, input.id));
+          cleared.testPlans = r[0]?.affectedRows ?? 0;
+        } catch { cleared.testPlans = 0; }
+
+        // 5. Reset engagement status to planning
+        await dbConn.update(schema.engagements)
+          .set({ status: 'planning' })
+          .where(eq(schema.engagements.id, input.id));
+
+        // 6. Stop any in-memory orchestrator state
+        try {
+          const { stopEngagement } = await import('../lib/engagement-orchestrator');
+          stopEngagement(input.id);
+        } catch { /* not running */ }
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_reset',
+          details: `Reset engagement #${input.id} (${engagement.name}) for fresh rerun. Cleared: ${JSON.stringify(cleared)}`,
+        });
+
+        return { success: true, engagementId: input.id, cleared };
+      }),
+
+    /**
+     * Bulk reset multiple engagements at once.
+     */
+    bulkResetEngagements: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()).min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const results: Array<{ id: number; cleared: Record<string, number> }> = [];
+
+        const dbConn = await db.getDb();
+        if (!dbConn) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        }
+
+        for (const id of input.ids) {
+          const cleared: Record<string, number> = {};
+
+          try {
+            const r1 = await dbConn.delete(schema.engagementOpsSnapshots)
+              .where(eq(schema.engagementOpsSnapshots.engagementId, id));
+            cleared.opsSnapshots = r1[0]?.affectedRows ?? 0;
+          } catch { cleared.opsSnapshots = 0; }
+
+          try {
+            const r2 = await dbConn.delete(schema.scanResults)
+              .where(eq(schema.scanResults.engagementId, id));
+            cleared.scanResults = r2[0]?.affectedRows ?? 0;
+          } catch { cleared.scanResults = 0; }
+
+          try {
+            const r3 = await dbConn.delete(schema.engagementTimelineEvents)
+              .where(eq(schema.engagementTimelineEvents.engagementId, id));
+            cleared.timelineEvents = r3[0]?.affectedRows ?? 0;
+          } catch { cleared.timelineEvents = 0; }
+
+          try {
+            const r4 = await dbConn.delete(schema.testPlans)
+              .where(eq(schema.testPlans.engagementId, id));
+            cleared.testPlans = r4[0]?.affectedRows ?? 0;
+          } catch { cleared.testPlans = 0; }
+
+          await dbConn.update(schema.engagements)
+            .set({ status: 'planning' })
+            .where(eq(schema.engagements.id, id));
+
+          try {
+            const { stopEngagement } = await import('../lib/engagement-orchestrator');
+            stopEngagement(id);
+          } catch { /* not running */ }
+
+          results.push({ id, cleared });
+        }
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'engagement_bulk_reset',
+          details: `Bulk reset ${input.ids.length} engagement(s): ${input.ids.join(', ')}`,
+        });
+
+        return { success: true, results };
       }),
   });
