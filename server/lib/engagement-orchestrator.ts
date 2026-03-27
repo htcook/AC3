@@ -5680,6 +5680,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     const roeScope_C = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
     const execToolCred = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope: roeScope_C });
 
+     // Log how many hydra targets were already completed on resume
+     const hydraAlreadyDone = state.completedScans.hydraCompleted.size;
+     if (hydraAlreadyDone > 0) {
+       addLog(state, { phase: "vuln_detection", type: "info", title: "🔄 Resume: Hydra Checkpoint", detail: `Skipping ${hydraAlreadyDone} already-completed credential test(s) from previous run` });
+     }
+
      for (const asset of state.assets) {
       if (asset.ports.length === 0) continue;
       // ═══ RoE SCOPE GUARD: Skip out-of-scope assets in credential testing ═══
@@ -5706,6 +5712,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       })).filter(c => c.priority === 3); // Priority 3 = credential testing
 
       for (const cmd of credCmds) {
+        // ── Resume checkpoint: skip already-completed hydra targets ──
+        const hydraKey = `${cmd.tool}:${asset.ip || asset.hostname}:${cmd.purpose}`;
+        if (state.completedScans.hydraCompleted.has(hydraKey)) {
+          continue; // Already ran this credential test in a previous run
+        }
+
         // Request approval for credential testing (orange risk)
         const approved = await requestApproval(state, {
           phase: "vuln_detection",
@@ -5818,7 +5830,14 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             findings,
             phase: "credential_testing",
           });
+
+          // ── Checkpoint: mark this hydra target as completed ──
+          state.completedScans.hydraCompleted.add(hydraKey);
+          state.completedScans.lastCheckpointAt = Date.now();
         } catch (e: any) {
+          // Still mark as completed on error to avoid re-running failed tests
+          state.completedScans.hydraCompleted.add(hydraKey);
+          state.completedScans.lastCheckpointAt = Date.now();
           console.error(`[CredTest] ${cmd.tool} error on ${asset.hostname}: ${e.message}\n${e.stack?.substring(0, 300)}`);
           addLog(state, { phase: "vuln_detection", type: "error", title: `${cmd.tool} Error: ${asset.hostname}`, detail: `${e.message}\nCommand: ${cmd.tool} ${cmd.args?.substring(0, 100)}\nStack: ${e.stack?.substring(0, 150) || 'N/A'}` });
         }
@@ -6624,12 +6643,24 @@ ${(() => {
     });
   }
 
+  // Log how many exploit targets were already completed on resume
+  const exploitAlreadyDone = state.completedScans.exploitCompleted.size;
+  if (exploitAlreadyDone > 0) {
+    addLog(state, { phase: "exploitation", type: "info", title: "🔄 Resume: Exploit Checkpoint", detail: `Skipping ${exploitAlreadyDone} already-completed exploit attempt(s) from previous run` });
+  }
+
   for (const action of actionsToExecute) {
     if (action.type === "exploit_attempt") {
       const { target, cve, service, module } = action.params as any;
       const asset = state.assets.find(a => a.hostname === target || a.ip === target);
       // Default port to first open port on the asset if LLM didn't specify one
       const port = action.params?.port || asset?.ports?.[0]?.port || 443;
+
+      // ── Resume checkpoint: skip already-completed exploit targets ──
+      const exploitKey = `${target}:${port}:${cve || module || 'auto'}`;
+      if (state.completedScans.exploitCompleted.has(exploitKey)) {
+        continue; // Already attempted this exploit in a previous run
+      }
 
       // Request operator approval for exploitation
       const approved = await requestApproval(state, {
@@ -6899,6 +6930,10 @@ ${(() => {
         }
         addLog(state, { phase: "exploitation", type: "error", title: `Exploit Error: ${target}`, detail: e.message });
       }
+
+      // ── Checkpoint: mark this exploit target as completed (success, fail, or error) ──
+      state.completedScans.exploitCompleted.add(exploitKey);
+      state.completedScans.lastCheckpointAt = Date.now();
     }
 
     // For red team: only stop early if exhaustiveExploit is disabled (legacy behavior)

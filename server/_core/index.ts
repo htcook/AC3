@@ -662,6 +662,10 @@ async function startServer() {
     console.warn("[ScanForge] Failed to initialize:", err.message);
   }
 
+  // SSE Event Stream — polling fallback for environments where WebSocket upgrades fail
+  const { registerSSEEventStream } = await import("../lib/sse-event-stream");
+  registerSSEEventStream(app);
+
   // tRPC API
   app.use(
     "/api/trpc",

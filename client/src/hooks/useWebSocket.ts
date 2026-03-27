@@ -3,6 +3,7 @@
  *
  * Connects to the WebSocket event hub at /ws/events and provides:
  * - Auto-reconnection with exponential backoff
+ * - **SSE fallback** when WebSocket fails (Cloud Run / proxy compatibility)
  * - Channel subscription management
  * - Event filtering by type
  * - Connection status tracking
@@ -116,6 +117,7 @@ export interface WsEvent {
 }
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+export type TransportMode = "websocket" | "sse" | "none";
 
 interface UseWebSocketOptions {
   /** Channels to subscribe to (default: ["global"]) */
@@ -229,6 +231,11 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
   }
 }
 
+// ─── SSE Fallback Transport ─────────────────────────────────────────
+
+/** Max WebSocket failures before switching to SSE */
+const WS_FAILURE_THRESHOLD = 3;
+
 // ─── Hook ───────────────────────────────────────────────────────────
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
@@ -244,18 +251,105 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [events, setEvents] = useState<WsEvent[]>([]);
   const [lastEvent, setLastEvent] = useState<WsEvent | null>(null);
+  const [transport, setTransport] = useState<TransportMode>("none");
   const wsRef = useRef<WebSocket | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const wsFailureCountRef = useRef(0);
   const channelsRef = useRef(channels);
-
+  const lastSseIdRef = useRef(0);
 
   // Keep channels ref up to date
   channelsRef.current = channels;
 
+  // ─── Shared event handler ──────────────────────────────────────
+  const handleEvent = useCallback(
+    (event: WsEvent) => {
+      // Filter by type if specified
+      if (filterTypes && filterTypes.length > 0 && !filterTypes.includes(event.type)) {
+        return;
+      }
+
+      setLastEvent(event);
+      setEvents((prev) => {
+        const next = [event, ...prev];
+        return next.length > maxEvents ? next.slice(0, maxEvents) : next;
+      });
+
+      // Show toast for critical events
+      if (showToasts && TOAST_EVENT_TYPES.includes(event.type)) {
+        const toastInfo = getToastInfo(event);
+        if (toastInfo) {
+          if (toastInfo.variant === "destructive") {
+            toast.error(toastInfo.title, { description: toastInfo.description });
+          } else {
+            toast.success(toastInfo.title, { description: toastInfo.description });
+          }
+        }
+      }
+    },
+    [filterTypes, maxEvents, showToasts]
+  );
+
+  // ─── SSE Connect ──────────────────────────────────────────────
+  const connectSSE = useCallback(() => {
+    if (!enabled) return;
+    if (sseRef.current) return;
+
+    try {
+      const channelStr = channelsRef.current.join(",");
+      const url = `/api/events/stream?channels=${encodeURIComponent(channelStr)}`;
+      const sse = new EventSource(url);
+      sseRef.current = sse;
+      setStatus("connecting");
+      setTransport("sse");
+
+      sse.addEventListener("connected", () => {
+        setStatus("connected");
+        console.log("[EventStream] Connected via SSE fallback");
+      });
+
+      sse.addEventListener("message", (msg) => {
+        try {
+          const event: WsEvent = JSON.parse(msg.data);
+          // Track last event ID for reconnect catch-up
+          if (msg.lastEventId) {
+            lastSseIdRef.current = parseInt(msg.lastEventId) || 0;
+          }
+          handleEvent(event);
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+
+      sse.onerror = () => {
+        // EventSource auto-reconnects, but if it keeps failing, show error
+        if (sse.readyState === EventSource.CLOSED) {
+          sseRef.current = null;
+          setStatus("error");
+          // Try to reconnect after a delay
+          if (autoReconnect && enabled) {
+            reconnectTimeoutRef.current = setTimeout(connectSSE, 5000);
+          }
+        }
+      };
+    } catch {
+      setStatus("error");
+    }
+  }, [enabled, autoReconnect, handleEvent]);
+
+  // ─── WebSocket Connect ────────────────────────────────────────
   const connect = useCallback(() => {
     if (!enabled) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    // If WebSocket has failed too many times, switch to SSE
+    if (wsFailureCountRef.current >= WS_FAILURE_THRESHOLD) {
+      console.log(`[EventStream] WebSocket failed ${wsFailureCountRef.current} times, switching to SSE`);
+      connectSSE();
+      return;
+    }
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -263,10 +357,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       setStatus("connecting");
+      setTransport("websocket");
 
       ws.onopen = () => {
         setStatus("connected");
         reconnectAttemptsRef.current = 0;
+        wsFailureCountRef.current = 0; // Reset failure count on successful connect
 
         // Subscribe to channels
         if (channelsRef.current.length > 0) {
@@ -277,29 +373,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onmessage = (msg) => {
         try {
           const event: WsEvent = JSON.parse(msg.data);
-
-          // Filter by type if specified
-          if (filterTypes && filterTypes.length > 0 && !filterTypes.includes(event.type)) {
-            return;
-          }
-
-          setLastEvent(event);
-          setEvents((prev) => {
-            const next = [event, ...prev];
-            return next.length > maxEvents ? next.slice(0, maxEvents) : next;
-          });
-
-          // Show toast for critical events
-          if (showToasts && TOAST_EVENT_TYPES.includes(event.type)) {
-            const toastInfo = getToastInfo(event);
-            if (toastInfo) {
-              if (toastInfo.variant === "destructive") {
-                toast.error(toastInfo.title, { description: toastInfo.description });
-              } else {
-                toast.success(toastInfo.title, { description: toastInfo.description });
-              }
-            }
-          }
+          handleEvent(event);
         } catch {
           // Ignore malformed messages
         }
@@ -308,16 +382,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onclose = (event) => {
         wsRef.current = null;
 
-        // Suppress 'WebSocket closed without opened' — this is normal during
-        // page navigation, server restarts, or proxy timeouts
-        if (event.code === 1006 && reconnectAttemptsRef.current === 0) {
-          // First close without ever opening — silently reconnect
+        // Track consecutive failures (close without ever opening = failure)
+        if (event.code === 1006) {
+          wsFailureCountRef.current++;
+        }
+
+        // If we've hit the threshold, switch to SSE immediately
+        if (wsFailureCountRef.current >= WS_FAILURE_THRESHOLD) {
+          console.log(`[EventStream] WebSocket failed ${wsFailureCountRef.current} times, falling back to SSE`);
+          connectSSE();
+          return;
         }
 
         // Auto-reconnect with exponential backoff
         if (autoReconnect && enabled) {
-          // Show "connecting" during reconnect attempts instead of "disconnected"
-          // to prevent the OFFLINE indicator from flashing on transient drops
           const attempts = reconnectAttemptsRef.current;
           setStatus(attempts < 3 ? "connecting" : "disconnected");
           const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
@@ -330,7 +408,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       ws.onerror = () => {
         // Only show error if we've exhausted quick reconnect attempts
-        // First few failures are normal during server restarts / nmap scans
         if (reconnectAttemptsRef.current >= 3) {
           setStatus("error");
         }
@@ -338,7 +415,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     } catch {
       setStatus("error");
     }
-  }, [enabled, filterTypes, maxEvents, showToasts, autoReconnect, toast]);
+  }, [enabled, autoReconnect, handleEvent, connectSSE]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -349,13 +426,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       wsRef.current.close();
       wsRef.current = null;
     }
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
     setStatus("disconnected");
+    setTransport("none");
   }, []);
 
   const subscribe = useCallback((channel: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: "subscribe", channel }));
     }
+    // SSE doesn't support dynamic subscription — would need to reconnect
+    // with updated channel list. For now, SSE channels are set at connect time.
   }, []);
 
   const unsubscribe = useCallback((channel: string) => {
@@ -379,12 +463,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     };
   }, [enabled, connect, disconnect]);
 
-  // Re-subscribe when channels change
+  // Re-subscribe when channels change (WebSocket only)
   useEffect(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN && channels.length > 0) {
       wsRef.current.send(JSON.stringify({ action: "subscribe", channels }));
     }
-  }, [channels]);
+    // For SSE: reconnect with new channels
+    if (sseRef.current && transport === "sse") {
+      sseRef.current.close();
+      sseRef.current = null;
+      connectSSE();
+    }
+  }, [channels, transport, connectSSE]);
 
   // Memoize event counts by type
   const eventCounts = useMemo(() => {
@@ -400,6 +490,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     events,
     lastEvent,
     eventCounts,
+    transport,
     connect,
     disconnect,
     subscribe,
