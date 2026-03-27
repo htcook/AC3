@@ -6416,3 +6416,55 @@ export const redteamCampaignLogs = mysqlTable("redteam_campaign_logs", {
 ]);
 export type RedteamCampaignLogRow = typeof redteamCampaignLogs.$inferSelect;
 export type InsertRedteamCampaignLog = typeof redteamCampaignLogs.$inferInsert;
+
+
+// ─── Test Plan Approval Gate ──────────────────────────────────────────────
+
+export const testPlans = mysqlTable("test_plans", {
+  id: int().autoincrement().notNull(),
+  planId: varchar("plan_id", { length: 64 }).notNull(),
+  engagementId: int("engagement_id").notNull(),
+  /** pentest | red_team */
+  planType: mysqlEnum("plan_type", ['pentest', 'red_team']).default('pentest').notNull(),
+  /** Plan title */
+  title: varchar({ length: 512 }).notNull(),
+  /** Full plan content (markdown) */
+  content: longtext().notNull(),
+  /** Structured plan data (JSON) */
+  structuredData: json("structured_data"),
+  /** Plan version (increments on regeneration) */
+  version: int().default(1).notNull(),
+  /** Approval status */
+  status: mysqlEnum("status", ['draft', 'pending_review', 'approved', 'rejected', 'revision_requested']).default('draft').notNull(),
+  /** Who generated the plan */
+  generatedBy: int("generated_by"),
+  /** Who reviewed the plan */
+  reviewedBy: int("reviewed_by"),
+  /** Reviewer name (for external reviewers) */
+  reviewerName: varchar("reviewer_name", { length: 255 }),
+  /** Reviewer email (for external reviewers) */
+  reviewerEmail: varchar("reviewer_email", { length: 320 }),
+  /** Review comments */
+  reviewComments: text("review_comments"),
+  /** Rejection reason (if rejected) */
+  rejectionReason: text("rejection_reason"),
+  /** Revision notes (if revision requested) */
+  revisionNotes: text("revision_notes"),
+  /** When the plan was submitted for review */
+  submittedAt: timestamp("submitted_at", { mode: 'string' }),
+  /** When the plan was reviewed */
+  reviewedAt: timestamp("reviewed_at", { mode: 'string' }),
+  /** When the plan was approved */
+  approvedAt: timestamp("approved_at", { mode: 'string' }),
+  /** Digital signature hash (for audit trail) */
+  signatureHash: varchar("signature_hash", { length: 128 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("test_plans_plan_id_unique").on(table.planId),
+  index("test_plans_engagement_id_idx").on(table.engagementId),
+  index("test_plans_status_idx").on(table.status),
+]);
+
+export type TestPlanRow = typeof testPlans.$inferSelect;
+export type InsertTestPlan = typeof testPlans.$inferInsert;

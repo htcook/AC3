@@ -274,6 +274,13 @@
       "when": 1774483872256,
       "tag": "0038_chilly_sister_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1774573001133,
+      "tag": "0039_cooing_korvac",
+      "breakpoints": true
     }
   ]
 }

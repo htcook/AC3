@@ -199,6 +199,7 @@ import { trainingDataReviewRouter } from "./routers/training-data-review";
 import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: commented out for production
 import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
 import { scanforgeRouter } from "./routers/scanforge";
+import { testPlanApprovalRouter } from "./routers/test-plan-approval";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -581,6 +582,7 @@ export const appRouter = router({
   campaignOrchestrator: campaignOrchestratorRouter,
   // ─── ScanForge DAST Engine (Custom Vulnerability Scanner) ──────────────
   scanforge: scanforgeRouter,
+  testPlanApproval: testPlanApprovalRouter,
 });
 export type AppRouter = typeof appRouter;
 

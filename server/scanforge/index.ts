@@ -23,4 +23,9 @@ export { getProtocolRegistry, ProtocolRegistry } from "./protocols/registry";
 export { getIntelligenceEngine, IntelligenceEngine } from "./intelligence/ti-engine";
 export { getContextEngine, ContextEngine } from "./intelligence/context-engine";
 export { getFPFNEngine, FPFNPreventionEngine } from "./intelligence/fp-fn-prevention";
+export {
+  getDeduplicationEngine, DeduplicationEngine,
+  getNormalizationEngine, NormalizationEngine,
+  getCoverageGapDetector, CoverageGapDetector,
+} from "./intelligence/dedup-coverage";
 export type * from "./types";

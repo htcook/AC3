@@ -58,10 +58,11 @@ import { FindingStateBadge } from "@/components/FindingStateBadge";
 import { VulnDetailDrawer, ZapFindingDetailDrawer } from "@/components/FindingDetailDrawer";
 import type { VulnFinding, ZapFinding as ZapFindingType } from "@/components/FindingDetailDrawer";
 import EngagementTerminal from "@/components/EngagementTerminal";
+import TestPlanGate from "@/components/TestPlanGate";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
-type OpsPhase = "idle" | "recon" | "recon_complete" | "enumeration" | "vuln_detection" | "exploitation" | "post_exploit" | "reporting" | "completed" | "paused" | "error";
+type OpsPhase = "idle" | "recon" | "recon_complete" | "passive_discovery" | "scoping" | "test_plan" | "test_plan_approval" | "enumeration" | "vuln_detection" | "exploitation" | "post_exploit" | "reporting" | "completed" | "paused" | "error";
 type ApprovalStatus = "pending" | "approved" | "denied";
 
 interface ApprovalGate {
@@ -1994,6 +1995,7 @@ export default function EngagementOps() {
                   { value: 'scope', label: 'RoE & Scope', icon: <Shield className="h-3 w-3" /> },
                   { value: 'trends', label: 'Trends', icon: <TrendingUp className="h-3 w-3" /> },
                   { value: 'planhistory', label: 'Plan History', icon: <ClipboardList className="h-3 w-3" /> },
+                  { value: 'testplan', label: 'Test Plan', icon: <FileText className="h-3 w-3" /> },
                 ],
               },
               {
@@ -4088,6 +4090,15 @@ export default function EngagementOps() {
                       ))}
                     </div>
                   )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Test Plan Approval Gate Tab ── */}
+            <TabsContent value="testplan" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="space-y-4 py-4">
+                  <TestPlanGate engagementId={engagementId} engagementName={ops?.name || `Engagement #${engagementId}`} />
                 </div>
               </ScrollArea>
             </TabsContent>

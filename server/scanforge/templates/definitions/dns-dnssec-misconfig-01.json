@@ -1,0 +1,69 @@
+{
+  "id": "dns-dnssec-misconfiguration",
+  "name": "DNSSEC Validation and Misconfiguration",
+  "description": "Detects DNSSEC deployment issues including missing signing, expired RRSIG signatures, weak algorithms, incorrect NSEC/NSEC3 configuration, and broken chain of trust. Per NIST SP 800-81r3 Section 3.8, ECDSA P-256/P-384 and Ed25519/Ed448 are preferred over RSA, RRSIG validity should be 5-7 days, and NSEC is preferred over NSEC3.",
+  "author": "AC3 ScanForge",
+  "severity": "medium",
+  "protocol": "dns",
+  "tags": ["dns", "dnssec", "cryptography", "misconfiguration", "nist-800-81r3", "sc-20", "sc-21"],
+  "request": {
+    "rawPayload": "DNSSEC_VALIDATE"
+  },
+  "matchers": [
+    {
+      "type": "word",
+      "part": "body",
+      "values": [
+        "DNSSEC not enabled",
+        "No DNSKEY records found",
+        "No DS records in parent zone",
+        "RRSIG expired",
+        "RRSIG not yet valid",
+        "Algorithm deprecated",
+        "RSA key size below 2048",
+        "Chain of trust broken",
+        "BOGUS DNSSEC validation",
+        "NSEC3 with iteration count above 0"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-295", "CWE-327", "CWE-16"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf",
+      "https://datatracker.ietf.org/doc/html/rfc9276",
+      "https://datatracker.ietf.org/doc/html/rfc8624"
+    ]
+  },
+  "remediation": "Enable DNSSEC signing on all authoritative zones. Use ECDSA P-256 (Algorithm 13) or Ed25519 (Algorithm 15) instead of RSA. Set RRSIG validity periods to 5-7 days to limit the window of compromise. Use NSEC instead of NSEC3 unless organizational policy requires zone walking protection. If NSEC3 is required, set iteration count to 0 per RFC 9276. Ensure DS records are properly published in the parent zone. Plan for post-quantum algorithm migration when specifications become available.",
+  "attack": {
+    "techniqueIds": ["T1557.001"],
+    "tactics": ["Credential Access", "Collection"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Lack of DNSSEC enables DNS cache poisoning and man-in-the-middle attacks. Nation-state actors have exploited missing DNSSEC to redirect DNS queries and intercept credentials in targeted campaigns.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 85
+    },
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-21",
+      "controlTitle": "Secure Name/Address Resolution Service (Recursive or Caching Resolver)",
+      "status": "non_compliant",
+      "confidence": 85
+    }
+  ]
+}

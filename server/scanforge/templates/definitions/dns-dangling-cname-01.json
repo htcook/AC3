@@ -1,0 +1,65 @@
+{
+  "id": "dns-dangling-cname-subdomain-takeover",
+  "name": "Dangling CNAME Record (Subdomain Takeover Risk)",
+  "description": "Detects CNAME records pointing to canonical names whose parent domains have lapsed in registration or whose hosting services have been deprovisioned. Per NIST SP 800-81r3 Section 3.6.1, an attacker can register the expired domain or claim the deprovisioned service to take over resolution and serve malicious content under the trusted domain name.",
+  "author": "AC3 ScanForge",
+  "severity": "high",
+  "protocol": "dns",
+  "tags": ["dns", "cname", "subdomain-takeover", "dangling-record", "nist-800-81r3", "sc-20"],
+  "request": {
+    "rawPayload": "CNAME_ENUM"
+  },
+  "matchers": [
+    {
+      "type": "regex",
+      "part": "body",
+      "values": [
+        "NXDOMAIN",
+        "SERVFAIL",
+        "NoSuchBucket",
+        "There isn't a GitHub Pages site here",
+        "The specified bucket does not exist",
+        "Repository not found",
+        "This UserVoice subdomain is currently available",
+        "The feed has not been found",
+        "This page is reserved for",
+        "Project not found",
+        "Trying to access your account",
+        "This domain is not configured",
+        "404 Blog is not found",
+        "is not a registered InCloud WAF"
+      ],
+      "condition": "or"
+    }
+  ],
+  "references": {
+    "cves": [],
+    "cwes": ["CWE-672", "CWE-284"],
+    "urls": [
+      "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-81r3.pdf",
+      "https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/10-Test_for_Subdomain_Takeover"
+    ]
+  },
+  "remediation": "Remove the dangling CNAME record from the DNS zone immediately. If the target service was intentionally deprovisioned, delete the DNS record. Implement automated DNS record auditing to detect orphaned records. Maintain retired domain delegations in a parked state to prevent re-registration by attackers. Consider using DNS record lifecycle management tools.",
+  "attack": {
+    "techniqueIds": ["T1584.001", "T1583.001"],
+    "tactics": ["Resource Development"]
+  },
+  "intelligence": {
+    "kevRelated": false,
+    "threatActors": [],
+    "dfirRelevance": "Subdomain takeover is a common attack vector used for phishing campaigns, credential harvesting, and cookie theft. Attackers leverage the trust associated with the parent domain to bypass email security controls and browser same-origin policies.",
+    "industries": [],
+    "feeds": []
+  },
+  "environments": ["traditional", "cloud", "hybrid"],
+  "complianceMapping": [
+    {
+      "framework": "nist_800_53",
+      "controlId": "SC-20",
+      "controlTitle": "Secure Name/Address Resolution Service (Authoritative Source)",
+      "status": "non_compliant",
+      "confidence": 90
+    }
+  ]
+}
