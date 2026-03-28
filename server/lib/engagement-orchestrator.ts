@@ -8792,6 +8792,52 @@ export async function executeEngagement(
           ...(state.knowledgeModulesUsed || []),
           ...(state.metadata?.knowledgeModules || []),
         ];
+
+        // ── Detect if bounty training knowledge was injected ──
+        // Load engagement notes from DB since in-memory state may not carry them
+        let engNotes: any = null;
+        try {
+          const { engagements: engTable } = await import('../../drizzle/schema');
+          const { getDbRequired: getDbReq } = await import('../db');
+          const { eq: eqOp } = await import('drizzle-orm');
+          const dbForNotes = await getDbReq();
+          const [engRow] = await dbForNotes.select({ notes: engTable.notes }).from(engTable).where(eqOp(engTable.id, engagementId)).limit(1);
+          if (engRow?.notes) {
+            engNotes = typeof engRow.notes === 'string' ? JSON.parse(engRow.notes) : engRow.notes;
+          }
+        } catch { /* fallback to state notes */ }
+        if (!engNotes) {
+          try {
+            engNotes = typeof (state as any).notes === 'string' ? JSON.parse((state as any).notes) : (state as any).notes;
+          } catch { /* no notes */ }
+        }
+        try {
+          if (engNotes?.bountyKnowledgeInjected) {
+            modulesUsed.push('bounty_training_knowledge');
+            if (engNotes.bountyKnowledge?.topCwes?.length) {
+              modulesUsed.push(`bounty_cwe_patterns_${engNotes.bountyKnowledge.topCwes.length}`);
+            }
+            if (engNotes.bountyKnowledge?.enrichedPatterns?.length) {
+              modulesUsed.push(`bounty_enriched_categories_${engNotes.bountyKnowledge.enrichedPatterns.length}`);
+            }
+            if (engNotes.bountyKnowledge?.totalTrainingSamples) {
+              modulesUsed.push(`bounty_training_samples_${engNotes.bountyKnowledge.totalTrainingSamples}`);
+            }
+          }
+          if (engNotes?.dfirKnowledgeInjected) {
+            modulesUsed.push('dfir_knowledge');
+            modulesUsed.push(`dfir_reports_${engNotes.dfirReportsCount || 0}`);
+          }
+        } catch { /* notes not JSON or missing */ }
+
+        // Also check if this engagement has training lab mode with bounty context
+        if ((state as any).trainingLabMode) {
+          modulesUsed.push('training_lab_mode');
+        }
+        if ((state as any).dfirKnowledgeContext?.length > 0) {
+          modulesUsed.push('dfir_context_injected');
+        }
+
         const uniqueModules = [...new Set(modulesUsed)];
 
         const compResult = await runAccuracyComparison({
@@ -8812,13 +8858,16 @@ export async function executeEngagement(
           const trendEmoji = compResult.f1Delta != null
             ? (compResult.f1Delta > 0.02 ? '📈' : compResult.f1Delta < -0.02 ? '📉' : '➡️')
             : '';
+          const bountyAttr = uniqueModules.includes('bounty_training_knowledge')
+            ? ' | 🎯 Bounty Knowledge Active'
+            : '';
           addLog(state, {
             phase: 'completed', type: 'info',
             title: `✅ Accuracy (DO): F1=${(compResult.f1Score * 100).toFixed(1)}%${deltaStr} ${trendEmoji}`,
             detail: `P=${(compResult.precision * 100).toFixed(1)}% R=${(compResult.recall * 100).toFixed(1)}% | ` +
               `TP=${compResult.truePositives} FP=${compResult.falsePositives} FN=${compResult.falseNegatives} | ` +
-              `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}`,
-            data: { accuracyComparison: compResult },
+              `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}${bountyAttr}`,
+            data: { accuracyComparison: compResult, knowledgeModules: uniqueModules },
           });
           broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
 
@@ -8828,12 +8877,15 @@ export async function executeEngagement(
             const f1Pct = (compResult.f1Score * 100).toFixed(1);
             const pPct = (compResult.precision * 100).toFixed(1);
             const rPct = (compResult.recall * 100).toFixed(1);
+            const bountyNote = uniqueModules.includes('bounty_training_knowledge')
+              ? `\nKnowledge Modules: Bug Bounty Training (${engNotes?.bountyKnowledge?.totalTrainingSamples || 0} samples, ${engNotes?.bountyKnowledge?.topCwes?.length || 0} CWE patterns)`
+              : '';
             await notifyOwner({
               title: `Accuracy Report: ${targetPreset} — F1 ${f1Pct}%${deltaStr}`,
               content: `Engagement #${engagementId} completed on ${targetPreset}.\n` +
                 `F1: ${f1Pct}% | Precision: ${pPct}% | Recall: ${rPct}%\n` +
                 `TP: ${compResult.truePositives} | FP: ${compResult.falsePositives} | FN: ${compResult.falseNegatives}\n` +
-                `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}\n` +
+                `Missed: ${compResult.missedVulns.slice(0, 5).join(', ') || 'none'}${bountyNote}\n` +
                 `View details on the Knowledge Base → Accuracy Feedback tab.`,
             });
           } catch (notifErr: any) {
