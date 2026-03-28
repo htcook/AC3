@@ -309,6 +309,20 @@
       "when": 1774666184365,
       "tag": "0043_normal_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1774671115775,
+      "tag": "0044_solid_grandmaster",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1774673137066,
+      "tag": "0045_motionless_blindfold",
+      "breakpoints": true
     }
   ]
 }

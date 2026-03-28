@@ -733,6 +733,7 @@ export const bugBountyFindings = mysqlTable("bug_bounty_findings", {
 	assetType: varchar("asset_type", { length: 64 }),
 	votes: int(),
 	summary: text(),
+	submittedAt: timestamp("submitted_at", { mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -6691,3 +6692,81 @@ export const userPlatformCredentials = mysqlTable("user_platform_credentials", {
 ]);
 export type UserPlatformCredentialRow = typeof userPlatformCredentials.$inferSelect;
 export type InsertUserPlatformCredential = typeof userPlatformCredentials.$inferInsert;
+
+
+// ─── Bug Bounty Program Scopes (HackerOne Structured Scopes) ───
+export const bugBountyProgramScopes = mysqlTable("bug_bounty_program_scopes", {
+  id: int().autoincrement().notNull().primaryKey(),
+  programId: int("program_id"),
+  platform: varchar({ length: 32 }).notNull(),
+  programHandle: varchar("program_handle", { length: 255 }).notNull(),
+  externalId: varchar("external_id", { length: 128 }),
+  assetType: varchar("asset_type", { length: 64 }).notNull(),
+  assetIdentifier: varchar("asset_identifier", { length: 1024 }).notNull(),
+  eligibleForBounty: tinyint("eligible_for_bounty").default(0),
+  eligibleForSubmission: tinyint("eligible_for_submission").default(1),
+  maxSeverity: varchar("max_severity", { length: 32 }),
+  confidentialityRequirement: varchar("confidentiality_requirement", { length: 32 }),
+  integrityRequirement: varchar("integrity_requirement", { length: 32 }),
+  availabilityRequirement: varchar("availability_requirement", { length: 32 }),
+  instruction: text(),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bbps_program_idx").on(table.programHandle),
+  index("bbps_asset_type_idx").on(table.assetType),
+]);
+
+// ─── Bug Bounty Program Weaknesses (CWE taxonomy per program) ───
+export const bugBountyProgramWeaknesses = mysqlTable("bug_bounty_program_weaknesses", {
+  id: int().autoincrement().notNull().primaryKey(),
+  programId: int("program_id"),
+  platform: varchar({ length: 32 }).notNull(),
+  programHandle: varchar("program_handle", { length: 255 }).notNull(),
+  externalId: varchar("external_id", { length: 128 }),
+  cweId: varchar("cwe_id", { length: 32 }),
+  name: varchar({ length: 512 }).notNull(),
+  description: text(),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("bbpw_program_idx").on(table.programHandle),
+  index("bbpw_cwe_idx").on(table.cweId),
+]);
+
+export const bugBountyLlmTrainingSamples = mysqlTable("bug_bounty_llm_training_samples", {
+  id: int().autoincrement().notNull().primaryKey(),
+  findingId: int("finding_id"),
+  category: mysqlEnum(["vuln_pattern", "exploit_chain", "report_template", "scope_recon", "cwe_analysis", "bounty_strategy", "novel_finding"]).notNull(),
+  qualityScore: decimal("quality_score", { precision: 3, scale: 2 }).default("0.00"),
+  bountyAmount: decimal("bounty_amount", { precision: 12, scale: 2 }).default("0.00"),
+  severityRating: varchar("severity_rating", { length: 32 }),
+  cweId: varchar("cwe_id", { length: 32 }),
+  cveIds: json("cve_ids"),
+  programHandle: varchar("program_handle", { length: 255 }),
+  programName: varchar("program_name", { length: 512 }),
+  assetType: varchar("asset_type", { length: 64 }),
+  assetIdentifier: varchar("asset_identifier", { length: 512 }),
+  systemPrompt: text("system_prompt").notNull(),
+  userPrompt: text("user_prompt").notNull(),
+  assistantResponse: text("assistant_response").notNull(),
+  rawTitle: varchar("raw_title", { length: 512 }),
+  rawSummary: text("raw_summary"),
+  enrichmentStatus: mysqlEnum("enrichment_status", ["raw", "enriched", "reviewed", "exported"]).default("raw"),
+  enrichedNarrative: text("enriched_narrative"),
+  attackTechnique: text("attack_technique"),
+  remediationGuidance: text("remediation_guidance"),
+  mitreTechniques: json("mitre_techniques"),
+  tags: json(),
+  exportedAt: timestamp("exported_at", { mode: 'string' }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("bblts_category_idx").on(table.category),
+  index("bblts_finding_idx").on(table.findingId),
+  index("bblts_quality_idx").on(table.qualityScore),
+  index("bblts_severity_idx").on(table.severityRating),
+  index("bblts_cwe_idx").on(table.cweId),
+  index("bblts_program_idx").on(table.programHandle),
+  index("bblts_enrichment_idx").on(table.enrichmentStatus),
+  index("bblts_bounty_idx").on(table.bountyAmount),
+]);

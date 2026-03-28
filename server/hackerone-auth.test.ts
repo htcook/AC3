@@ -13,12 +13,13 @@ describe("HackerOne API credentials", () => {
     expect(apiKey!.length).toBeGreaterThan(0);
   });
 
-  it("should authenticate successfully against HackerOne API", async () => {
+  it("should authenticate successfully against HackerOne Hacker API", async () => {
     const username = process.env.HACKERONE_API_USERNAME;
     const apiKey = process.env.HACKERONE_API_KEY;
 
-    // Use the /me endpoint as a lightweight auth check
-    const response = await fetch("https://api.hackerone.com/v1/me", {
+    // Use the /v1/hackers/programs endpoint — the correct endpoint for hacker accounts
+    // Note: /v1/me is for the Customer/Organization API, not the Hacker API
+    const response = await fetch("https://api.hackerone.com/v1/hackers/programs", {
       headers: {
         Authorization: `Basic ${Buffer.from(`${username}:${apiKey}`).toString("base64")}`,
         Accept: "application/json",
