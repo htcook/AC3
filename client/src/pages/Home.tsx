@@ -11,7 +11,8 @@ import {
   ShieldCheck, Palette, AlertTriangle, CheckCircle2, ArrowRight, Siren,
   Search, Code2, FileCode, Bug, Gauge, MonitorPlay, Building2, Stethoscope,
   GraduationCap, Landmark, Factory, ShoppingCart, Plane, ChevronDown, ChevronUp,
-  Clock, TrendingUp, Unplug, FlaskConical, Camera, FileCheck2, Atom, Info
+  Clock, TrendingUp, Unplug, FlaskConical, Camera, FileCheck2, Atom, Info,
+  Swords, Mountain, Droplets, Flame, Wind, CircleDot
 } from "lucide-react";
 
 // ─── Collapsible Section ────────────────────────────────────────────
@@ -173,6 +174,7 @@ export default function Home() {
             <span className="font-display text-2xl tracking-wider">AC3</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-wider text-muted-foreground">
+            <a href="#five-rings" className="hover:text-primary transition-colors">FIVE RINGS</a>
             <a href="#how-it-works" className="hover:text-primary transition-colors">HOW IT WORKS</a>
             <a href="#who-its-for" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
             <a href="#capabilities" className="hover:text-primary transition-colors">CAPABILITIES</a>
@@ -296,6 +298,217 @@ export default function Home() {
               </p>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      <div className="w-full h-px bg-primary" />
+
+      {/* ─── Go Rin No Sho — Five Rings About Section ──────────── */}
+      <section id="five-rings" className="py-24 relative overflow-hidden">
+        {/* Subtle background texture */}
+        <div className="absolute inset-0 -z-10 opacity-[0.02]">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `radial-gradient(circle at 20% 50%, oklch(0.82 0.16 180 / 0.3) 0%, transparent 50%),
+                              radial-gradient(circle at 80% 50%, oklch(0.65 0.18 280 / 0.2) 0%, transparent 50%)`
+          }} />
+        </div>
+
+        <div className="container">
+          {/* Section Header */}
+          <div className="max-w-4xl mx-auto text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 border border-primary/30 text-primary text-xs font-display tracking-widest mb-8">
+              <Swords className="w-3.5 h-3.5" />
+              STRATEGIC DOCTRINE
+            </div>
+
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-display leading-[0.95] tracking-tight mb-6">
+              THE FIVE RINGS
+            </h2>
+
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-3">
+              Inspired by Miyamoto Musashi's <span className="text-foreground italic">Go Rin No Sho</span> — the Book of Five Rings — AC3 applies the principles of strategic combat to offensive security.
+            </p>
+            <p className="text-sm text-muted-foreground/70 max-w-2xl mx-auto leading-relaxed">
+              Each ring represents a layer of strategic reasoning that transforms scanning into strategy, and findings into actionable intelligence.
+            </p>
+          </div>
+
+          {/* Five Rings Grid */}
+          <div className="mt-16 space-y-4">
+            {[
+              {
+                kanji: "地",
+                ring: "EARTH",
+                romaji: "Chi",
+                principle: "Establish the ground truth.",
+                color: "from-amber-500/20 to-amber-900/5",
+                borderColor: "border-amber-500/30 hover:border-amber-400/60",
+                accentColor: "text-amber-400",
+                bgAccent: "bg-amber-500/10",
+                glowColor: "amber",
+                icon: Mountain,
+                doctrine: "Know what matters most to the organization before you test anything.",
+                capabilities: [
+                  "Asset discovery and business impact analysis",
+                  "CARVER + Shock prioritization scoring",
+                  "Auto-BIA inference from technical signals",
+                  "16 OSINT connectors mapping the attack surface",
+                ],
+                musashi: "The Way of strategy is the Way of nature. When you appreciate the power of nature, knowing the rhythm of any situation, you will be able to hit the enemy naturally."
+              },
+              {
+                kanji: "水",
+                ring: "WATER",
+                romaji: "Sui",
+                principle: "Adapt to the terrain.",
+                color: "from-cyan-500/20 to-cyan-900/5",
+                borderColor: "border-cyan-500/30 hover:border-cyan-400/60",
+                accentColor: "text-cyan-400",
+                bgAccent: "bg-cyan-500/10",
+                glowColor: "cyan",
+                icon: Droplets,
+                doctrine: "Generate adaptive attack paths that flow around defenses, not through them.",
+                capabilities: [
+                  "Multi-path attack graph generation",
+                  "Pivot logic with branch decision trees",
+                  "Stealth vs. speed vs. impact optimization",
+                  "Success probability estimation per path",
+                ],
+                musashi: "You should not have a favourite weapon. To become over-familiar with one weapon is as much a fault as not knowing it sufficiently well."
+              },
+              {
+                kanji: "火",
+                ring: "FIRE",
+                romaji: "Ka",
+                principle: "Act with purpose.",
+                color: "from-red-500/20 to-red-900/5",
+                borderColor: "border-red-500/30 hover:border-red-400/60",
+                accentColor: "text-red-400",
+                bgAccent: "bg-red-500/10",
+                glowColor: "red",
+                icon: Flame,
+                doctrine: "Convert viable pathways into sequenced, validated operations with clear objectives.",
+                capabilities: [
+                  "Caldera campaign generation and execution",
+                  "Exploit sequencing with validation checkpoints",
+                  "Phishing campaigns with 17 advanced techniques",
+                  "Operation tempo optimization and guardrails",
+                ],
+                musashi: "The primary thing when you take a sword in your hands is your intention to cut the enemy, whatever the means."
+              },
+              {
+                kanji: "風",
+                ring: "WIND",
+                romaji: "Fū",
+                principle: "Know other schools.",
+                color: "from-emerald-500/20 to-emerald-900/5",
+                borderColor: "border-emerald-500/30 hover:border-emerald-400/60",
+                accentColor: "text-emerald-400",
+                bgAccent: "bg-emerald-500/10",
+                glowColor: "emerald",
+                icon: Wind,
+                doctrine: "Align operations to real adversary behavior — not theoretical attacks.",
+                capabilities: [
+                  "1,700+ threat actor profiles with TTP mapping",
+                  "Sector-specific actor likelihood scoring",
+                  "MITRE ATT&CK technique alignment engine",
+                  "Campaign realism scoring against real tradecraft",
+                ],
+                musashi: "If you know the Way broadly you will see it in everything."
+              },
+              {
+                kanji: "空",
+                ring: "VOID",
+                romaji: "Kū",
+                principle: "See beyond the immediate step.",
+                color: "from-violet-500/20 to-violet-900/5",
+                borderColor: "border-violet-500/30 hover:border-violet-400/60",
+                accentColor: "text-violet-400",
+                bgAccent: "bg-violet-500/10",
+                glowColor: "violet",
+                icon: CircleDot,
+                doctrine: "Predict likely outcomes, quantify uncertainty, and recommend the changes that matter most.",
+                capabilities: [
+                  "AI-powered risk forecasting and escalation prediction",
+                  "Executive narrative generation with confidence bounds",
+                  "Mitigation delta analysis — what changes move the needle",
+                  "Compliance mapping across NIST, CMMC, and OWASP",
+                ],
+                musashi: "In the void is virtue, and no evil. Wisdom has existence, principle has existence, the Way has existence, spirit is nothingness."
+              },
+            ].map((ring, index) => (
+              <div
+                key={ring.ring}
+                className={`group relative border-2 ${ring.borderColor} bg-gradient-to-r ${ring.color} transition-all duration-300`}
+              >
+                <div className="flex flex-col lg:flex-row">
+                  {/* Kanji Side */}
+                  <div className="flex-shrink-0 flex items-center justify-center lg:w-48 py-8 lg:py-0 border-b lg:border-b-0 lg:border-r border-inherit">
+                    <div className="text-center">
+                      <div className={`text-7xl lg:text-8xl font-bold ${ring.accentColor} opacity-80 group-hover:opacity-100 transition-opacity leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
+                        {ring.kanji}
+                      </div>
+                      <div className={`font-display text-xs tracking-[0.3em] ${ring.accentColor} mt-2 opacity-60`}>
+                        {ring.romaji.toUpperCase()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Content Side */}
+                  <div className="flex-1 p-6 lg:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <ring.icon className={`w-5 h-5 ${ring.accentColor}`} />
+                          <h3 className={`font-display text-2xl tracking-wider ${ring.accentColor}`}>
+                            {ring.ring}
+                          </h3>
+                        </div>
+                        <p className="text-lg text-foreground/90 font-display tracking-wide">
+                          {ring.principle}
+                        </p>
+                      </div>
+                      <div className={`flex-shrink-0 px-3 py-1 ${ring.bgAccent} border border-current/10 ${ring.accentColor} text-xs font-display tracking-widest`}>
+                        RING {String(index + 1).padStart(2, '0')}
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                      {ring.doctrine}
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-5">
+                      {ring.capabilities.map((cap) => (
+                        <div key={cap} className="flex items-start gap-2 text-sm">
+                          <div className={`w-1.5 h-1.5 ${ring.bgAccent} border ${ring.borderColor.split(' ')[0]} flex-shrink-0 mt-1.5`} />
+                          <span className="text-foreground/70">{cap}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-inherit pt-4">
+                      <p className="text-xs text-muted-foreground/60 italic leading-relaxed">
+                        "{ring.musashi}"
+                        <span className="not-italic ml-2 text-muted-foreground/40">— Musashi</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Attribution Footer */}
+          <div className="mt-12 text-center">
+            <div className="inline-flex flex-col items-center gap-2">
+              <p className="text-sm text-muted-foreground/60">
+                Strategic doctrine adapted from <span className="text-foreground/70 italic">Go Rin No Sho</span> (1645) by Miyamoto Musashi
+              </p>
+              <p className="text-xs text-muted-foreground/40">
+                Platform architecture by Harrison Cook — <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-primary/50 hover:text-primary transition-colors">Ace of Cloud</a>
+              </p>
+            </div>
           </div>
         </div>
       </section>
