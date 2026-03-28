@@ -1167,6 +1167,101 @@ export async function importSoapSpec(params: {
   }
 }
 
+// ─── ZAP Resource Cleanup ──────────────────────────────────────────────────
+
+/**
+ * Clean up stale ZAP scans for a target URL before starting a new scan.
+ * 
+ * Commercial scanners (Burp Suite, Acunetix) enforce strict concurrency limits
+ * (default 1 per machine) and clean up stale scans automatically. ZAP doesn't
+ * do this natively, so we must manage it ourselves.
+ * 
+ * This function:
+ * 1. Lists all running spiders and stops any targeting the same URL
+ * 2. Lists all running active scans and stops any targeting the same URL
+ * 3. Removes completed/stale scan records from ZAP memory to prevent buildup
+ */
+export async function cleanupStaleScansForTarget(
+  targetUrl: string,
+  cfg: ZapConfig = DEFAULT_ZAP_CONFIG
+): Promise<{ stoppedSpiders: number; stoppedAscans: number; errors: string[] }> {
+  const errors: string[] = [];
+  let stoppedSpiders = 0;
+  let stoppedAscans = 0;
+
+  try {
+    // Parse target to match by hostname
+    const targetHost = new URL(targetUrl).hostname;
+
+    // 1. Stop running spiders for the same target
+    try {
+      const spiderScans = await zapRequest("/JSON/spider/view/scans/", {}, cfg);
+      const scans = spiderScans.scans || [];
+      for (const scan of scans) {
+        const state = (scan.state || "").toUpperCase();
+        if (state === "RUNNING" || state === "NOT_STARTED") {
+          // Check if this spider is targeting the same host
+          // ZAP spider scans don't always expose the target URL in the list,
+          // so we stop ALL running/queued spiders to be safe (like Burp's approach)
+          try {
+            await zapRequest("/JSON/spider/action/stop/", { scanId: String(scan.id) }, cfg);
+            stoppedSpiders++;
+            console.log(`[ZAP Cleanup] Stopped stale spider #${scan.id} (state=${state})`);
+          } catch (e: any) {
+            errors.push(`Failed to stop spider #${scan.id}: ${e.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      errors.push(`Failed to list spiders: ${e.message}`);
+    }
+
+    // 2. Stop running active scans for the same target
+    try {
+      const ascanScans = await zapRequest("/JSON/ascan/view/scans/", {}, cfg);
+      const scans = ascanScans.scans || [];
+      for (const scan of scans) {
+        const state = (scan.state || "").toUpperCase();
+        if (state === "RUNNING" || state === "PAUSED") {
+          try {
+            await zapRequest("/JSON/ascan/action/stop/", { scanId: String(scan.id) }, cfg);
+            stoppedAscans++;
+            console.log(`[ZAP Cleanup] Stopped stale active scan #${scan.id} (state=${state})`);
+          } catch (e: any) {
+            errors.push(`Failed to stop ascan #${scan.id}: ${e.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      errors.push(`Failed to list active scans: ${e.message}`);
+    }
+
+    // 3. Remove completed scan records to free ZAP memory
+    // Only do this if we found stale scans — avoids unnecessary API calls
+    if (stoppedSpiders > 0 || stoppedAscans > 0) {
+      try {
+        await zapRequest("/JSON/spider/action/removeAllScans/", {}, cfg);
+        console.log(`[ZAP Cleanup] Removed all spider scan records from ZAP memory`);
+      } catch (e: any) {
+        errors.push(`Failed to remove spider records: ${e.message}`);
+      }
+      try {
+        await zapRequest("/JSON/ascan/action/removeAllScans/", {}, cfg);
+        console.log(`[ZAP Cleanup] Removed all active scan records from ZAP memory`);
+      } catch (e: any) {
+        errors.push(`Failed to remove ascan records: ${e.message}`);
+      }
+    }
+
+    console.log(`[ZAP Cleanup] Target: ${targetUrl} — stopped ${stoppedSpiders} spiders, ${stoppedAscans} active scans, ${errors.length} errors`);
+  } catch (e: any) {
+    errors.push(`Cleanup failed: ${e.message}`);
+    console.error(`[ZAP Cleanup] Fatal error: ${e.message}`);
+  }
+
+  return { stoppedSpiders, stoppedAscans, errors };
+}
+
 /**
  * Start a dual-mode web application scan.
  * 
@@ -1211,6 +1306,20 @@ export async function startScan(params: {
     parsedUrl = new URL(params.targetUrl);
   } catch {
     throw new Error(`Invalid target URL: ${params.targetUrl}`);
+  }
+
+  // ── Pre-scan cleanup: stop stale ZAP scans for this target ──
+  // Following Burp Suite's approach: enforce max 1 concurrent scan per target
+  try {
+    const cleanup = await cleanupStaleScansForTarget(params.targetUrl, cfg);
+    if (cleanup.stoppedSpiders > 0 || cleanup.stoppedAscans > 0) {
+      console.log(`[ZAP startScan] Pre-scan cleanup: stopped ${cleanup.stoppedSpiders} spiders + ${cleanup.stoppedAscans} active scans for ${parsedUrl.hostname}`);
+      // Brief pause to let ZAP release resources after stopping scans
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch (cleanupErr: any) {
+    // Non-fatal — continue with scan even if cleanup fails
+    console.warn(`[ZAP startScan] Pre-scan cleanup failed (non-fatal): ${cleanupErr.message}`);
   }
 
   // ── Deduplication guard: skip if an identical scan already exists ──
