@@ -20,11 +20,13 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
     factory().catch((err: any) => {
       const isChunkError =
         err?.message?.includes("Failed to fetch dynamically imported module") ||
+        err?.message?.includes("Importing a module script failed") ||
         err?.message?.includes("Loading chunk") ||
         err?.message?.includes("Loading CSS chunk") ||
         err?.message?.includes("is not a valid JavaScript MIME type") ||
         err?.message?.includes("before initialization") ||
-        err?.name === "ChunkLoadError";
+        err?.name === "ChunkLoadError" ||
+        (err?.name === "TypeError" && err?.message?.includes("module"));
 
       if (isChunkError) {
         // Only reload once per session to avoid infinite reload loops
