@@ -62,11 +62,19 @@ export const liveTriggerTempRouter = router({
       if (willResume) {
         execOptions.resume = true;
         // Resume from the NEXT phase after the last completed one
-        const lastPhaseIdx = PHASE_ORDER.indexOf(state!.phase as any);
+        // Map non-standard phases to valid PHASE_ORDER entries
+        const PHASE_ALIAS: Record<string, typeof PHASE_ORDER[number]> = {
+          scanning: 'vuln_detection',
+          error: 'recon',
+          idle: 'recon',
+          completed: 'recon',
+        };
+        const normalizedPhase = PHASE_ALIAS[state!.phase] ?? state!.phase;
+        const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
         if (lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1) {
           execOptions.startPhase = PHASE_ORDER[lastPhaseIdx + 1];
         } else {
-          execOptions.startPhase = state!.phase;
+          execOptions.startPhase = PHASE_ORDER.includes(normalizedPhase as any) ? normalizedPhase : 'recon';
         }
       } else if (input.startPhase) {
         execOptions.startPhase = input.startPhase;
@@ -138,10 +146,19 @@ export const liveTriggerTempRouter = router({
       }
 
       // Can resume!
-      const lastPhaseIdx = PHASE_ORDER.indexOf(state.phase as any);
+      // Map non-standard phases (e.g. 'scanning', 'error') to the closest valid PHASE_ORDER entry
+      // so the frontend can pass a valid startPhase to triggerExecution
+      const PHASE_ALIAS: Record<string, typeof PHASE_ORDER[number]> = {
+        scanning: 'vuln_detection',
+        error: 'recon',
+        idle: 'recon',
+        completed: 'recon',
+      };
+      const normalizedPhase = PHASE_ALIAS[state.phase] ?? state.phase;
+      const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
       const nextPhase = lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1
         ? PHASE_ORDER[lastPhaseIdx + 1]
-        : state.phase;
+        : (PHASE_ORDER.includes(normalizedPhase as any) ? normalizedPhase : 'recon');
 
       return {
         canResume: true,

@@ -722,11 +722,12 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for Manus container (~512MB RSS limit)
-    // Boot-time heap is ~230MB due to heavy static imports, so WARNING must be above that
-    const HEAP_WARNING_MB = 250;
-    const HEAP_CRITICAL_MB = 300;
-    const RSS_EMERGENCY_MB = 550; // tsx dev watcher adds ~200MB RSS overhead; idle RSS is ~510MB in Manus container
+    // Thresholds calibrated for DO production container (~1GB+ RAM)
+    // Raised from Manus 512MB limits to prevent unnecessary scan interruptions
+    // For DO App Platform professional-xs (1GB) or higher instances
+    const HEAP_WARNING_MB = parseInt(process.env.MEMORY_HEAP_WARNING_MB || '600', 10);
+    const HEAP_CRITICAL_MB = parseInt(process.env.MEMORY_HEAP_CRITICAL_MB || '800', 10);
+    const RSS_EMERGENCY_MB = parseInt(process.env.MEMORY_RSS_EMERGENCY_MB || '1400', 10);
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
@@ -804,7 +805,7 @@ export function startMemoryWatchdog() {
         global.gc();
       }
     }
-  }, 10_000); // Check every 10 seconds — Manus container can OOM fast
+  }, 15_000); // Check every 15 seconds — DO production has more headroom than Manus container
 }
 
 /** Stop the memory watchdog */
