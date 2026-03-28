@@ -22,6 +22,9 @@ window.addEventListener('vite:preloadError', (event) => {
 
 const queryClient = new QueryClient();
 
+// Public routes that should never auto-redirect to login on auth errors
+const PUBLIC_ROUTES = ["/", "/overview", "/login", "/customer-login"];
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -30,9 +33,16 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  // Don't redirect on public-facing pages (homepage, overview, etc.)
+  const currentPath = window.location.pathname;
+  const isPublicRoute = PUBLIC_ROUTES.includes(currentPath) ||
+    currentPath.startsWith("/portal/") ||
+    currentPath.startsWith("/customer-");
+  if (isPublicRoute) return;
+
   // Redirect to /login (Cyber C2 auth) instead of Manus OAuth portal
   // This preserves the Cyber C2 credential login flow on mobile and desktop
-  if (window.location.pathname !== "/login") {
+  if (currentPath !== "/login") {
     window.location.href = "/login";
   }
 };

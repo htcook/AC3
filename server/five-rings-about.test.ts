@@ -7,7 +7,8 @@ import { resolve } from "path";
  *
  * Validates that the homepage contains the Five Rings section with all
  * required content: kanji characters, ring names, Musashi quotes, capabilities,
- * navigation link, and proper attribution.
+ * navigation link, proper attribution, scroll animations, detail modals,
+ * and mobile hamburger menu.
  */
 
 const homePath = resolve(__dirname, "../client/src/pages/Home.tsx");
@@ -15,6 +16,12 @@ const homeSource = readFileSync(homePath, "utf-8");
 
 const indexHtmlPath = resolve(__dirname, "../client/index.html");
 const indexHtmlSource = readFileSync(indexHtmlPath, "utf-8");
+
+const mainTsxPath = resolve(__dirname, "../client/src/main.tsx");
+const mainTsxSource = readFileSync(mainTsxPath, "utf-8");
+
+const useInViewPath = resolve(__dirname, "../client/src/hooks/useInView.ts");
+const useInViewSource = readFileSync(useInViewPath, "utf-8");
 
 describe("Five Rings (Go Rin No Sho) About Section", () => {
   describe("Section structure", () => {
@@ -176,6 +183,186 @@ describe("Five Rings (Go Rin No Sho) About Section", () => {
 
     it("should have responsive kanji panel width (lg:w-48)", () => {
       expect(homeSource).toContain("lg:w-48");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  NEW: Scroll Animations
+  // ═══════════════════════════════════════════════════════════════
+  describe("Scroll animations", () => {
+    it("should import useInView hook", () => {
+      expect(homeSource).toContain("useInView");
+    });
+
+    it("should have an AnimatedRingCard wrapper component", () => {
+      expect(homeSource).toContain("AnimatedRingCard");
+    });
+
+    it("should wrap ring cards with AnimatedRingCard", () => {
+      expect(homeSource).toContain("<AnimatedRingCard");
+    });
+
+    it("useInView hook should use IntersectionObserver", () => {
+      expect(useInViewSource).toContain("IntersectionObserver");
+    });
+
+    it("useInView hook should be one-shot (unobserve after trigger)", () => {
+      expect(useInViewSource).toContain("observer.unobserve");
+    });
+
+    it("should apply opacity and translateY transitions", () => {
+      expect(homeSource).toContain("opacity: inView ? 1 : 0");
+      expect(homeSource).toContain("translateY");
+    });
+
+    it("should stagger animation delays per card index", () => {
+      expect(homeSource).toContain("transitionDelay");
+      expect(homeSource).toContain("index * 100");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  NEW: Interactive Ring Detail Modals
+  // ═══════════════════════════════════════════════════════════════
+  describe("Ring detail modals", () => {
+    it("should import Dialog components", () => {
+      expect(homeSource).toContain("Dialog");
+      expect(homeSource).toContain("DialogContent");
+      expect(homeSource).toContain("DialogHeader");
+      expect(homeSource).toContain("DialogTitle");
+    });
+
+    it("should have selectedRing state for modal control", () => {
+      expect(homeSource).toContain("selectedRing");
+      expect(homeSource).toContain("setSelectedRing");
+    });
+
+    it("should open modal on ring card click", () => {
+      expect(homeSource).toContain("onClick={() => setSelectedRing(ring)");
+    });
+
+    it("should support keyboard activation (Enter and Space)", () => {
+      expect(homeSource).toContain("onKeyDown");
+      expect(homeSource).toContain("'Enter'");
+      expect(homeSource).toContain("' '");
+    });
+
+    it("should have EXPLORE RING hover hint", () => {
+      expect(homeSource).toContain("EXPLORE RING");
+    });
+
+    it("should have FIVE_RINGS_DATA with extended modal content", () => {
+      expect(homeSource).toContain("FIVE_RINGS_DATA");
+    });
+
+    it("should include strategic objectives in extended data", () => {
+      expect(homeSource).toContain("objective:");
+    });
+
+    it("should include components list in extended data", () => {
+      expect(homeSource).toContain("components:");
+    });
+
+    it("should include outputs list in extended data", () => {
+      expect(homeSource).toContain("outputs:");
+    });
+
+    it("should include strategic questions in extended data", () => {
+      expect(homeSource).toContain("strategicQuestions:");
+    });
+
+    it("should include data flow descriptions in extended data", () => {
+      expect(homeSource).toContain("dataFlow:");
+    });
+
+    it("should include CARVER factors for Earth ring", () => {
+      expect(homeSource).toContain("carverFactors:");
+    });
+
+    it("should include assessment criteria for Water ring", () => {
+      expect(homeSource).toContain("assessmentCriteria:");
+    });
+
+    it("should include operational details for Fire ring", () => {
+      expect(homeSource).toContain("operationalDetails:");
+    });
+
+    it("should include sector examples for Wind ring", () => {
+      expect(homeSource).toContain("sectorExamples:");
+    });
+
+    it("should include reasoning tasks for Void ring", () => {
+      expect(homeSource).toContain("reasoningTasks:");
+    });
+
+    it("should render the Dialog with open state tied to selectedRing", () => {
+      expect(homeSource).toContain("open={!!selectedRing}");
+    });
+
+    it("should display ring-specific detail sections conditionally", () => {
+      expect(homeSource).toContain("'carverFactors' in r");
+      expect(homeSource).toContain("'assessmentCriteria' in r");
+      expect(homeSource).toContain("'operationalDetails' in r");
+      expect(homeSource).toContain("'sectorExamples' in r");
+      expect(homeSource).toContain("'reasoningTasks' in r");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  NEW: Mobile Hamburger Menu
+  // ═══════════════════════════════════════════════════════════════
+  describe("Mobile hamburger menu", () => {
+    it("should import Sheet components for mobile menu", () => {
+      expect(homeSource).toContain("Sheet");
+      expect(homeSource).toContain("SheetTrigger");
+      expect(homeSource).toContain("SheetContent");
+    });
+
+    it("should import Menu icon for hamburger trigger", () => {
+      expect(homeSource).toContain("Menu");
+    });
+
+    it("should have a Sheet-based mobile navigation", () => {
+      expect(homeSource).toContain("<Sheet");
+      expect(homeSource).toContain("<SheetTrigger");
+      expect(homeSource).toContain("<SheetContent");
+    });
+
+    it("should hide desktop nav on mobile (hidden md:flex or similar)", () => {
+      expect(homeSource).toMatch(/hidden\s+(sm|md|lg):flex/);
+    });
+
+    it("should show hamburger only on mobile (md:hidden or similar)", () => {
+      expect(homeSource).toMatch(/(sm|md|lg):hidden/);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  NEW: Homepage Login Redirect Fix
+  // ═══════════════════════════════════════════════════════════════
+  describe("Homepage login redirect fix", () => {
+    it("should define PUBLIC_ROUTES array in main.tsx", () => {
+      expect(mainTsxSource).toContain("PUBLIC_ROUTES");
+    });
+
+    it("should include '/' in PUBLIC_ROUTES", () => {
+      expect(mainTsxSource).toMatch(/PUBLIC_ROUTES.*=.*\[.*"\/"/s);
+    });
+
+    it("should include '/overview' in PUBLIC_ROUTES", () => {
+      expect(mainTsxSource).toContain("/overview");
+    });
+
+    it("should check isPublicRoute before redirecting", () => {
+      expect(mainTsxSource).toContain("isPublicRoute");
+    });
+
+    it("should skip redirect for public routes", () => {
+      expect(mainTsxSource).toContain("if (isPublicRoute) return");
+    });
+
+    it("should skip redirect for portal routes", () => {
+      expect(mainTsxSource).toContain('currentPath.startsWith("/portal/")');
     });
   });
 });

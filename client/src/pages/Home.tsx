@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import ThreatActorFeed from "@/components/ThreatActorFeed";
 import {
@@ -12,8 +12,15 @@ import {
   Search, Code2, FileCode, Bug, Gauge, MonitorPlay, Building2, Stethoscope,
   GraduationCap, Landmark, Factory, ShoppingCart, Plane, ChevronDown, ChevronUp,
   Clock, TrendingUp, Unplug, FlaskConical, Camera, FileCheck2, Atom, Info,
-  Swords, Mountain, Droplets, Flame, Wind, CircleDot
+  Swords, Mountain, Droplets, Flame, Wind, CircleDot, Menu, ArrowUpRight
 } from "lucide-react";
+import { useInView } from "@/hooks/useInView";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 
 // ─── Collapsible Section ────────────────────────────────────────────
 function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: {
@@ -146,8 +153,200 @@ function AnimatedStat({ value, label, suffix = "" }: { value: number; label: str
 // ═════════════════════════════════════════════════════════════════════
 //  HOMEPAGE
 // ═════════════════════════════════════════════════════════════════════
+// ─── Five Rings extended data for detail modals ─────────────────────
+const FIVE_RINGS_DATA = [
+  {
+    kanji: "地", ring: "EARTH", romaji: "Chi",
+    principle: "Establish the ground truth.",
+    color: "from-amber-500/20 to-amber-900/5",
+    borderColor: "border-amber-500/30 hover:border-amber-400/60",
+    accentColor: "text-amber-400",
+    bgAccent: "bg-amber-500/10",
+    glowColor: "amber",
+    icon: Mountain,
+    doctrine: "Know what matters most to the organization before you test anything.",
+    capabilities: [
+      "Asset discovery and business impact analysis",
+      "CARVER + Shock prioritization scoring",
+      "Auto-BIA inference from technical signals",
+      "16 OSINT connectors mapping the attack surface",
+    ],
+    musashi: "The Way of strategy is the Way of nature. When you appreciate the power of nature, knowing the rhythm of any situation, you will be able to hit the enemy naturally.",
+    // Extended modal content
+    objective: "Establish asset truth and business context",
+    components: ["Asset Inventory Normalizer", "Auto-BIA Engine", "CARVER Baseliner"],
+    outputs: ["Asset Criticality Profile", "Business Function Map", "Baseline Priority Queue"],
+    strategicQuestions: [
+      "What asset categories are present?",
+      "Which systems plausibly map to identity, administration, communications, revenue, or customer trust?",
+      "Which systems are choke points versus leaf nodes?",
+      "Which technical signals imply critical business dependence?",
+    ],
+    carverFactors: [
+      { name: "Criticality", weight: "17%", desc: "How important is the target to the mission?" },
+      { name: "Accessibility", weight: "12%", desc: "How easily can the target be reached?" },
+      { name: "Recuperability", weight: "10%", desc: "How quickly can the target recover?" },
+      { name: "Vulnerability", weight: "12%", desc: "How susceptible is the target to attack?" },
+      { name: "Effect", weight: "14%", desc: "What is the impact of a successful attack?" },
+      { name: "Recognizability", weight: "5%", desc: "How easily can the target be identified?" },
+    ],
+    dataFlow: "Discovered assets, subdomains, auth surfaces, DNS records, software technologies, and sector inference are ingested, normalized, and tagged with exposure signals.",
+  },
+  {
+    kanji: "水", ring: "WATER", romaji: "Sui",
+    principle: "Adapt to the terrain.",
+    color: "from-cyan-500/20 to-cyan-900/5",
+    borderColor: "border-cyan-500/30 hover:border-cyan-400/60",
+    accentColor: "text-cyan-400",
+    bgAccent: "bg-cyan-500/10",
+    glowColor: "cyan",
+    icon: Droplets,
+    doctrine: "Generate adaptive attack paths that flow around defenses, not through them.",
+    capabilities: [
+      "Multi-path attack graph generation",
+      "Pivot logic with branch decision trees",
+      "Stealth vs. speed vs. impact optimization",
+      "Success probability estimation per path",
+    ],
+    musashi: "You should not have a favourite weapon. To become over-familiar with one weapon is as much a fault as not knowing it sufficiently well.",
+    objective: "Generate adaptive pathways based on target conditions",
+    components: ["Attack Graph Builder", "Branch Logic Engine", "Path Success Estimator"],
+    outputs: ["Candidate Attack Paths", "Pivot Options", "Stealth vs. Speed Comparison"],
+    strategicQuestions: [
+      "Which attack path is viable with the fewest brittle assumptions?",
+      "What alternative branches exist if controls hold?",
+      "Which path best balances stealth, speed, and mission impact?",
+    ],
+    assessmentCriteria: [
+      { name: "Success Probability", desc: "Likelihood the path reaches its objective" },
+      { name: "Stealth", desc: "How likely the path avoids detection" },
+      { name: "Speed", desc: "Time from initial access to objective" },
+      { name: "Expected Impact", desc: "Business damage if the path succeeds" },
+      { name: "Dependency Assumptions", desc: "How many conditions must hold true" },
+    ],
+    dataFlow: "Earth outputs feed into the attack graph builder, which generates candidate paths with branch decisions, pivot candidates, and success probability estimates.",
+  },
+  {
+    kanji: "火", ring: "FIRE", romaji: "Ka",
+    principle: "Act with purpose.",
+    color: "from-red-500/20 to-red-900/5",
+    borderColor: "border-red-500/30 hover:border-red-400/60",
+    accentColor: "text-red-400",
+    bgAccent: "bg-red-500/10",
+    glowColor: "red",
+    icon: Flame,
+    doctrine: "Convert viable pathways into sequenced, validated operations with clear objectives.",
+    capabilities: [
+      "Caldera campaign generation and execution",
+      "Exploit sequencing with validation checkpoints",
+      "Phishing campaigns with 17 advanced techniques",
+      "Operation tempo optimization and guardrails",
+    ],
+    musashi: "The primary thing when you take a sword in your hands is your intention to cut the enemy, whatever the means.",
+    objective: "Convert viable pathways into executable operation logic",
+    components: ["Caldera Campaign Generator", "Validation Planner", "Timing Optimizer"],
+    outputs: ["Campaign Plan", "Execution Sequence", "Validation Objectives"],
+    strategicQuestions: [
+      "What is the exact objective of the emulation?",
+      "Which sequence validates the hypothesis fastest?",
+      "What are the stop conditions and guardrails?",
+    ],
+    operationalDetails: [
+      "2,600+ exploit modules from Metasploit integration",
+      "1,900+ Caldera emulation abilities",
+      "17 phishing techniques auto-injected based on target intel",
+      "Real-time operation tempo with configurable guardrails",
+    ],
+    dataFlow: "Water's candidate paths are converted into emulation sequences with validation steps and an operation tempo plan.",
+  },
+  {
+    kanji: "風", ring: "WIND", romaji: "Fū",
+    principle: "Know other schools.",
+    color: "from-emerald-500/20 to-emerald-900/5",
+    borderColor: "border-emerald-500/30 hover:border-emerald-400/60",
+    accentColor: "text-emerald-400",
+    bgAccent: "bg-emerald-500/10",
+    glowColor: "emerald",
+    icon: Wind,
+    doctrine: "Align operations to real adversary behavior — not theoretical attacks.",
+    capabilities: [
+      "1,700+ threat actor profiles with TTP mapping",
+      "Sector-specific actor likelihood scoring",
+      "MITRE ATT&CK technique alignment engine",
+      "Campaign realism scoring against real tradecraft",
+    ],
+    musashi: "If you know the Way broadly you will see it in everything.",
+    objective: "Align the plan to realistic adversary behavior",
+    components: ["Threat Actor Registry", "MITRE Alignment Engine", "Sector-Actor Matcher"],
+    outputs: ["Actor Likelihood Map", "TTP Overlay", "Campaign Realism Score"],
+    strategicQuestions: [
+      "Which real-world actors would care about this environment?",
+      "Which ATT&CK patterns fit the sector and target profile?",
+      "Which actor behaviors are common, rare, or implausible here?",
+    ],
+    sectorExamples: [
+      { sector: "Government", actors: "APT29, APT28, Volt Typhoon", targets: "Identity, email, remote access, public-facing apps" },
+      { sector: "Financial Services", actors: "FIN7, Lazarus Group", targets: "Payment systems, web apps, identity, endpoints" },
+      { sector: "Healthcare", actors: "Wizard Spider, Lazarus Group", targets: "Identity, clinical apps, remote access, data repos" },
+    ],
+    dataFlow: "Fire's campaign plan is overlaid with likely actors, actor-matched TTPs, and realism adjustments based on sector intelligence.",
+  },
+  {
+    kanji: "空", ring: "VOID", romaji: "Kū",
+    principle: "See beyond the immediate step.",
+    color: "from-violet-500/20 to-violet-900/5",
+    borderColor: "border-violet-500/30 hover:border-violet-400/60",
+    accentColor: "text-violet-400",
+    bgAccent: "bg-violet-500/10",
+    glowColor: "violet",
+    icon: CircleDot,
+    doctrine: "Predict likely outcomes, quantify uncertainty, and recommend the changes that matter most.",
+    capabilities: [
+      "AI-powered risk forecasting and escalation prediction",
+      "Executive narrative generation with confidence bounds",
+      "Mitigation delta analysis — what changes move the needle",
+      "Compliance mapping across NIST, CMMC, and OWASP",
+    ],
+    musashi: "In the void is virtue, and no evil. Wisdom has existence, principle has existence, the Way has existence, spirit is nothingness.",
+    objective: "Produce predictive reasoning and decision support",
+    components: ["Strategic Reasoner", "Escalation Predictor", "Recommendation Engine"],
+    outputs: ["Risk Forecast", "What-Changes Assessment", "Executive Narrative"],
+    strategicQuestions: [
+      "What is most likely to happen next if the organization is attacked?",
+      "What single control change would most alter the forecast?",
+      "Where is confidence weak and why?",
+    ],
+    reasoningTasks: [
+      "Predict the most likely near-term compromise pattern",
+      "List the top changes that would materially reduce risk",
+      "Estimate which scores and pathways would change given a mitigation",
+      "Compress the full assessment into a business-facing executive summary",
+    ],
+    dataFlow: "All prior ring outputs converge into predicted impact, confidence bounds, an executive summary, and mitigations with delta analysis.",
+  },
+];
+
+// ─── Animated Ring Card wrapper ──────────────────────────────────────
+function AnimatedRingCard({ children, index }: { children: React.ReactNode; index: number }) {
+  const { ref, inView } = useInView({ threshold: 0.1 });
+  return (
+    <div
+      ref={ref}
+      className="transition-all duration-700 ease-out"
+      style={{
+        opacity: inView ? 1 : 0,
+        transform: inView ? 'translateY(0)' : 'translateY(40px)',
+        transitionDelay: `${index * 100}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function Home() {
   const [showUpdates, setShowUpdates] = useState(true);
+  const [selectedRing, setSelectedRing] = useState<typeof FIVE_RINGS_DATA[number] | null>(null);
   const { data: liveStats } = trpc.platformStats.getHomepageStats.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // cache for 5 minutes
     refetchOnWindowFocus: false,
@@ -173,7 +372,8 @@ export default function Home() {
             <Cloud className="w-8 h-8 text-primary" />
             <span className="font-display text-2xl tracking-wider">AC3</span>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-wider text-muted-foreground">
+          {/* Desktop nav links */}
+          <div className="hidden lg:flex items-center gap-6 text-sm font-display tracking-wider text-muted-foreground">
             <a href="#five-rings" className="hover:text-primary transition-colors">FIVE RINGS</a>
             <a href="#how-it-works" className="hover:text-primary transition-colors">HOW IT WORKS</a>
             <a href="#who-its-for" className="hover:text-primary transition-colors">WHO IT'S FOR</a>
@@ -182,17 +382,69 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login">
-              <Button variant="ghost" className="font-display tracking-wider text-sm">
+              <Button variant="ghost" className="hidden sm:inline-flex font-display tracking-wider text-sm">
                 LOG IN
               </Button>
             </Link>
             <Link href="/login?returnTo=%2Fdashboard">
-              <Button className="font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
+              <Button className="hidden sm:inline-flex font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
                 <Lock className="w-3.5 h-3.5 mr-1.5" />
                 COMMAND CENTER
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
+            {/* Mobile hamburger menu */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation menu">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="bg-background border-border w-72">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2 font-display tracking-wider">
+                    <Cloud className="w-5 h-5 text-primary" />
+                    AC3
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="flex flex-col gap-1 mt-4 px-2">
+                  {[
+                    { href: "#five-rings", label: "FIVE RINGS", icon: Swords },
+                    { href: "#how-it-works", label: "HOW IT WORKS", icon: Workflow },
+                    { href: "#who-its-for", label: "WHO IT'S FOR", icon: Users },
+                    { href: "#capabilities", label: "CAPABILITIES", icon: Layers },
+                    { href: "#threat-feed", label: "THREAT FEED", icon: Radar },
+                  ].map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-center gap-3 px-3 py-3 text-sm font-display tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                      onClick={() => {
+                        // Close sheet on nav click by finding and clicking the close button
+                        const closeBtn = document.querySelector('[data-slot="sheet-content"] [data-slot="sheet-close"]') as HTMLButtonElement;
+                        closeBtn?.click();
+                      }}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </a>
+                  ))}
+                  <div className="h-px bg-border my-3" />
+                  <Link href="/login">
+                    <span className="flex items-center gap-3 px-3 py-3 text-sm font-display tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
+                      <Lock className="w-4 h-4" />
+                      LOG IN
+                    </span>
+                  </Link>
+                  <Link href="/login?returnTo=%2Fdashboard">
+                    <Button className="w-full mt-2 font-display tracking-wider bg-primary hover:bg-primary/90 text-sm">
+                      <Lock className="w-3.5 h-3.5 mr-1.5" />
+                      COMMAND CENTER
+                    </Button>
+                  </Link>
+                </nav>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </nav>
@@ -334,168 +586,78 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Five Rings Grid */}
+          {/* Five Rings Grid — Animated + Clickable */}
           <div className="mt-16 space-y-4">
-            {[
-              {
-                kanji: "地",
-                ring: "EARTH",
-                romaji: "Chi",
-                principle: "Establish the ground truth.",
-                color: "from-amber-500/20 to-amber-900/5",
-                borderColor: "border-amber-500/30 hover:border-amber-400/60",
-                accentColor: "text-amber-400",
-                bgAccent: "bg-amber-500/10",
-                glowColor: "amber",
-                icon: Mountain,
-                doctrine: "Know what matters most to the organization before you test anything.",
-                capabilities: [
-                  "Asset discovery and business impact analysis",
-                  "CARVER + Shock prioritization scoring",
-                  "Auto-BIA inference from technical signals",
-                  "16 OSINT connectors mapping the attack surface",
-                ],
-                musashi: "The Way of strategy is the Way of nature. When you appreciate the power of nature, knowing the rhythm of any situation, you will be able to hit the enemy naturally."
-              },
-              {
-                kanji: "水",
-                ring: "WATER",
-                romaji: "Sui",
-                principle: "Adapt to the terrain.",
-                color: "from-cyan-500/20 to-cyan-900/5",
-                borderColor: "border-cyan-500/30 hover:border-cyan-400/60",
-                accentColor: "text-cyan-400",
-                bgAccent: "bg-cyan-500/10",
-                glowColor: "cyan",
-                icon: Droplets,
-                doctrine: "Generate adaptive attack paths that flow around defenses, not through them.",
-                capabilities: [
-                  "Multi-path attack graph generation",
-                  "Pivot logic with branch decision trees",
-                  "Stealth vs. speed vs. impact optimization",
-                  "Success probability estimation per path",
-                ],
-                musashi: "You should not have a favourite weapon. To become over-familiar with one weapon is as much a fault as not knowing it sufficiently well."
-              },
-              {
-                kanji: "火",
-                ring: "FIRE",
-                romaji: "Ka",
-                principle: "Act with purpose.",
-                color: "from-red-500/20 to-red-900/5",
-                borderColor: "border-red-500/30 hover:border-red-400/60",
-                accentColor: "text-red-400",
-                bgAccent: "bg-red-500/10",
-                glowColor: "red",
-                icon: Flame,
-                doctrine: "Convert viable pathways into sequenced, validated operations with clear objectives.",
-                capabilities: [
-                  "Caldera campaign generation and execution",
-                  "Exploit sequencing with validation checkpoints",
-                  "Phishing campaigns with 17 advanced techniques",
-                  "Operation tempo optimization and guardrails",
-                ],
-                musashi: "The primary thing when you take a sword in your hands is your intention to cut the enemy, whatever the means."
-              },
-              {
-                kanji: "風",
-                ring: "WIND",
-                romaji: "Fū",
-                principle: "Know other schools.",
-                color: "from-emerald-500/20 to-emerald-900/5",
-                borderColor: "border-emerald-500/30 hover:border-emerald-400/60",
-                accentColor: "text-emerald-400",
-                bgAccent: "bg-emerald-500/10",
-                glowColor: "emerald",
-                icon: Wind,
-                doctrine: "Align operations to real adversary behavior — not theoretical attacks.",
-                capabilities: [
-                  "1,700+ threat actor profiles with TTP mapping",
-                  "Sector-specific actor likelihood scoring",
-                  "MITRE ATT&CK technique alignment engine",
-                  "Campaign realism scoring against real tradecraft",
-                ],
-                musashi: "If you know the Way broadly you will see it in everything."
-              },
-              {
-                kanji: "空",
-                ring: "VOID",
-                romaji: "Kū",
-                principle: "See beyond the immediate step.",
-                color: "from-violet-500/20 to-violet-900/5",
-                borderColor: "border-violet-500/30 hover:border-violet-400/60",
-                accentColor: "text-violet-400",
-                bgAccent: "bg-violet-500/10",
-                glowColor: "violet",
-                icon: CircleDot,
-                doctrine: "Predict likely outcomes, quantify uncertainty, and recommend the changes that matter most.",
-                capabilities: [
-                  "AI-powered risk forecasting and escalation prediction",
-                  "Executive narrative generation with confidence bounds",
-                  "Mitigation delta analysis — what changes move the needle",
-                  "Compliance mapping across NIST, CMMC, and OWASP",
-                ],
-                musashi: "In the void is virtue, and no evil. Wisdom has existence, principle has existence, the Way has existence, spirit is nothingness."
-              },
-            ].map((ring, index) => (
-              <div
-                key={ring.ring}
-                className={`group relative border-2 ${ring.borderColor} bg-gradient-to-r ${ring.color} transition-all duration-300`}
-              >
-                <div className="flex flex-col lg:flex-row">
-                  {/* Kanji Side */}
-                  <div className="flex-shrink-0 flex items-center justify-center lg:w-48 py-8 lg:py-0 border-b lg:border-b-0 lg:border-r border-inherit">
-                    <div className="text-center">
-                      <div className={`text-7xl lg:text-8xl font-bold ${ring.accentColor} opacity-80 group-hover:opacity-100 transition-opacity leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
-                        {ring.kanji}
-                      </div>
-                      <div className={`font-display text-xs tracking-[0.3em] ${ring.accentColor} mt-2 opacity-60`}>
-                        {ring.romaji.toUpperCase()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content Side */}
-                  <div className="flex-1 p-6 lg:p-8">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <ring.icon className={`w-5 h-5 ${ring.accentColor}`} />
-                          <h3 className={`font-display text-2xl tracking-wider ${ring.accentColor}`}>
-                            {ring.ring}
-                          </h3>
+            {FIVE_RINGS_DATA.map((ring, index) => (
+              <AnimatedRingCard key={ring.ring} index={index}>
+                <div
+                  className={`group relative border-2 ${ring.borderColor} bg-gradient-to-r ${ring.color} transition-all duration-300 cursor-pointer`}
+                  onClick={() => setSelectedRing(ring)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedRing(ring); } }}
+                >
+                  <div className="flex flex-col lg:flex-row">
+                    {/* Kanji Side */}
+                    <div className="flex-shrink-0 flex items-center justify-center lg:w-48 py-8 lg:py-0 border-b lg:border-b-0 lg:border-r border-inherit">
+                      <div className="text-center">
+                        <div className={`text-7xl lg:text-8xl font-bold ${ring.accentColor} opacity-80 group-hover:opacity-100 transition-opacity leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
+                          {ring.kanji}
                         </div>
-                        <p className="text-lg text-foreground/90 font-display tracking-wide">
-                          {ring.principle}
-                        </p>
-                      </div>
-                      <div className={`flex-shrink-0 px-3 py-1 ${ring.bgAccent} border border-current/10 ${ring.accentColor} text-xs font-display tracking-widest`}>
-                        RING {String(index + 1).padStart(2, '0')}
-                      </div>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                      {ring.doctrine}
-                    </p>
-
-                    <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-5">
-                      {ring.capabilities.map((cap) => (
-                        <div key={cap} className="flex items-start gap-2 text-sm">
-                          <div className={`w-1.5 h-1.5 ${ring.bgAccent} border ${ring.borderColor.split(' ')[0]} flex-shrink-0 mt-1.5`} />
-                          <span className="text-foreground/70">{cap}</span>
+                        <div className={`font-display text-xs tracking-[0.3em] ${ring.accentColor} mt-2 opacity-60`}>
+                          {ring.romaji.toUpperCase()}
                         </div>
-                      ))}
+                      </div>
                     </div>
 
-                    <div className="border-t border-inherit pt-4">
-                      <p className="text-xs text-muted-foreground/60 italic leading-relaxed">
-                        "{ring.musashi}"
-                        <span className="not-italic ml-2 text-muted-foreground/40">— Musashi</span>
+                    {/* Content Side */}
+                    <div className="flex-1 p-6 lg:p-8">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                        <div>
+                          <div className="flex items-center gap-3 mb-2">
+                            <ring.icon className={`w-5 h-5 ${ring.accentColor}`} />
+                            <h3 className={`font-display text-2xl tracking-wider ${ring.accentColor}`}>
+                              {ring.ring}
+                            </h3>
+                          </div>
+                          <p className="text-lg text-foreground/90 font-display tracking-wide">
+                            {ring.principle}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className={`flex-shrink-0 px-3 py-1 ${ring.bgAccent} border border-current/10 ${ring.accentColor} text-xs font-display tracking-widest`}>
+                            RING {String(index + 1).padStart(2, '0')}
+                          </div>
+                          <ArrowUpRight className={`w-4 h-4 ${ring.accentColor} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                        {ring.doctrine}
                       </p>
+
+                      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 mb-5">
+                        {ring.capabilities.map((cap) => (
+                          <div key={cap} className="flex items-start gap-2 text-sm">
+                            <div className={`w-1.5 h-1.5 ${ring.bgAccent} border ${ring.borderColor.split(' ')[0]} flex-shrink-0 mt-1.5`} />
+                            <span className="text-foreground/70">{cap}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="border-t border-inherit pt-4 flex items-end justify-between gap-4">
+                        <p className="text-xs text-muted-foreground/60 italic leading-relaxed flex-1">
+                          "{ring.musashi}"
+                          <span className="not-italic ml-2 text-muted-foreground/40">— Musashi</span>
+                        </p>
+                        <span className={`text-xs font-display tracking-wider ${ring.accentColor} opacity-0 group-hover:opacity-80 transition-opacity whitespace-nowrap`}>
+                          EXPLORE RING →
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </AnimatedRingCard>
             ))}
           </div>
 
@@ -510,6 +672,188 @@ export default function Home() {
               </p>
             </div>
           </div>
+
+          {/* ─── Ring Detail Modal ──────────────────────────────────── */}
+          <Dialog open={!!selectedRing} onOpenChange={(open) => !open && setSelectedRing(null)}>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-background border-2 border-border">
+              {selectedRing && (() => {
+                const r = selectedRing;
+                return (
+                  <>
+                    <DialogHeader className="pb-4 border-b border-border">
+                      <div className="flex items-center gap-4">
+                        <div className={`text-6xl font-bold ${r.accentColor} leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
+                          {r.kanji}
+                        </div>
+                        <div>
+                          <DialogTitle className={`font-display text-3xl tracking-wider ${r.accentColor}`}>
+                            {r.ring}
+                            <span className="text-muted-foreground/50 text-lg ml-3 font-normal">/ {r.romaji}</span>
+                          </DialogTitle>
+                          <DialogDescription className="text-foreground/80 text-base font-display tracking-wide mt-1">
+                            {r.principle}
+                          </DialogDescription>
+                        </div>
+                      </div>
+                    </DialogHeader>
+
+                    <div className="space-y-6 pt-4">
+                      {/* Musashi Quote */}
+                      <div className={`p-4 ${r.bgAccent} border ${r.borderColor.split(' ')[0]}`}>
+                        <p className="text-sm italic text-foreground/80 leading-relaxed">
+                          "{r.musashi}"
+                        </p>
+                        <p className="text-xs text-muted-foreground/60 mt-2">— Miyamoto Musashi, Go Rin No Sho</p>
+                      </div>
+
+                      {/* Objective */}
+                      <div>
+                        <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-2">STRATEGIC OBJECTIVE</h4>
+                        <p className="text-foreground/90 leading-relaxed">{r.objective}</p>
+                      </div>
+
+                      {/* Doctrine */}
+                      <div>
+                        <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-2">DOCTRINE</h4>
+                        <p className="text-foreground/80 leading-relaxed">{r.doctrine}</p>
+                      </div>
+
+                      {/* Components & Outputs */}
+                      <div className="grid sm:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">COMPONENTS</h4>
+                          <div className="space-y-2">
+                            {r.components.map((c) => (
+                              <div key={c} className="flex items-center gap-2 text-sm">
+                                <div className={`w-2 h-2 ${r.bgAccent} border ${r.borderColor.split(' ')[0]}`} />
+                                <span className="text-foreground/80">{c}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">OUTPUTS</h4>
+                          <div className="space-y-2">
+                            {r.outputs.map((o) => (
+                              <div key={o} className="flex items-center gap-2 text-sm">
+                                <ArrowRight className={`w-3.5 h-3.5 ${r.accentColor} flex-shrink-0`} />
+                                <span className="text-foreground/80">{o}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Capabilities */}
+                      <div>
+                        <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">CAPABILITIES</h4>
+                        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+                          {r.capabilities.map((cap) => (
+                            <div key={cap} className="flex items-start gap-2 text-sm">
+                              <div className={`w-1.5 h-1.5 ${r.bgAccent} border ${r.borderColor.split(' ')[0]} flex-shrink-0 mt-1.5`} />
+                              <span className="text-foreground/70">{cap}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Strategic Questions */}
+                      <div>
+                        <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">STRATEGIC QUESTIONS THIS RING ANSWERS</h4>
+                        <div className="space-y-2">
+                          {r.strategicQuestions.map((q, i) => (
+                            <div key={i} className="flex items-start gap-3 text-sm">
+                              <span className={`${r.accentColor} font-display text-xs mt-0.5`}>{String(i + 1).padStart(2, '0')}</span>
+                              <span className="text-foreground/80">{q}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Ring-specific detail sections */}
+                      {'carverFactors' in r && r.carverFactors && (
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">CARVER + SHOCK SCORING FACTORS</h4>
+                          <div className="grid gap-2">
+                            {(r as any).carverFactors.map((f: any) => (
+                              <div key={f.name} className="flex items-center gap-3 text-sm p-2 bg-card/50 border border-border/50">
+                                <span className={`${r.accentColor} font-display text-xs w-10 text-right`}>{f.weight}</span>
+                                <span className="text-foreground/90 font-medium w-32">{f.name}</span>
+                                <span className="text-muted-foreground">{f.desc}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {'assessmentCriteria' in r && r.assessmentCriteria && (
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">PATH ASSESSMENT CRITERIA</h4>
+                          <div className="grid gap-2">
+                            {(r as any).assessmentCriteria.map((c: any) => (
+                              <div key={c.name} className="flex items-start gap-3 text-sm p-2 bg-card/50 border border-border/50">
+                                <span className={`${r.accentColor} font-medium w-40 flex-shrink-0`}>{c.name}</span>
+                                <span className="text-muted-foreground">{c.desc}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {'operationalDetails' in r && r.operationalDetails && (
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">OPERATIONAL ARSENAL</h4>
+                          <div className="space-y-2">
+                            {(r as any).operationalDetails.map((d: string, i: number) => (
+                              <div key={i} className="flex items-start gap-2 text-sm">
+                                <Flame className={`w-3.5 h-3.5 ${r.accentColor} flex-shrink-0 mt-0.5`} />
+                                <span className="text-foreground/80">{d}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {'sectorExamples' in r && r.sectorExamples && (
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">SECTOR-ACTOR ALIGNMENT EXAMPLES</h4>
+                          <div className="grid gap-3">
+                            {(r as any).sectorExamples.map((s: any) => (
+                              <div key={s.sector} className="p-3 bg-card/50 border border-border/50">
+                                <div className={`font-display text-sm ${r.accentColor} mb-1`}>{s.sector}</div>
+                                <div className="text-xs text-muted-foreground"><span className="text-foreground/70">Actors:</span> {s.actors}</div>
+                                <div className="text-xs text-muted-foreground mt-1"><span className="text-foreground/70">Targets:</span> {s.targets}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {'reasoningTasks' in r && r.reasoningTasks && (
+                        <div>
+                          <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-3">AI REASONING TASKS</h4>
+                          <div className="space-y-2">
+                            {(r as any).reasoningTasks.map((t: string, i: number) => (
+                              <div key={i} className="flex items-start gap-3 text-sm">
+                                <Brain className={`w-3.5 h-3.5 ${r.accentColor} flex-shrink-0 mt-0.5`} />
+                                <span className="text-foreground/80">{t}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Data Flow */}
+                      <div className="p-4 bg-card/30 border border-border/50">
+                        <h4 className="font-display text-sm tracking-widest text-muted-foreground mb-2">DATA FLOW</h4>
+                        <p className="text-sm text-foreground/70 leading-relaxed">{r.dataFlow}</p>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
         </div>
       </section>
 
