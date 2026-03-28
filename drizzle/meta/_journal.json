@@ -330,6 +330,13 @@
       "when": 1774682346359,
       "tag": "0046_sticky_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1774706977851,
+      "tag": "0047_ancient_violations",
+      "breakpoints": true
     }
   ]
 }
