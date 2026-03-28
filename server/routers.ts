@@ -200,6 +200,7 @@ import { liveTriggerTempRouter } from "./routers/live-trigger-temp"; // TEMP: co
 import { campaignOrchestratorRouter } from "./routers/campaign-orchestrator";
 import { scanforgeRouter } from "./routers/scanforge";
 import { complianceExportsRouter } from "./routers/compliance-exports";
+import { platformCredentialsRouter } from "./routers/platform-credentials";
 import { testPlanApprovalRouter } from "./routers/test-plan-approval";
 
 // Caldera session cookie name
@@ -320,6 +321,7 @@ export const appRouter = router({
   purpleTeam: purpleTeamRouter,
   webhooks: webhooksRouter,
   bugBounty: bugBountyRouter,
+  platformCredentials: platformCredentialsRouter,
   scoring: scoringRouter,
   accuracyEngine: accuracyEngineRouter,
   learningEngine: learningEngineRouter,

@@ -302,6 +302,13 @@
       "when": 1774633339091,
       "tag": "0042_powerful_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1774666184365,
+      "tag": "0043_normal_meteorite",
+      "breakpoints": true
     }
   ]
 }

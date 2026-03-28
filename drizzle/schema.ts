@@ -6667,3 +6667,27 @@ export const scanforgePromotionHistory = mysqlTable("scanforge_promotion_history
 ]);
 export type ScanforgePromotionHistoryRow = typeof scanforgePromotionHistory.$inferSelect;
 export type InsertScanforgePromotionHistory = typeof scanforgePromotionHistory.$inferInsert;
+
+// ─── User Platform Credentials (Bug Bounty API Keys) ───
+export const userPlatformCredentials = mysqlTable("user_platform_credentials", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int("user_id").notNull(),
+  platform: mysqlEnum(["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "custom"]).notNull(),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
+  apiUsername: varchar("api_username", { length: 512 }),
+  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  baseUrl: varchar("base_url", { length: 512 }),
+  isActive: tinyint("is_active").default(1).notNull(),
+  lastVerifiedAt: timestamp("last_verified_at", { mode: 'string' }),
+  lastSyncAt: timestamp("last_sync_at", { mode: 'string' }),
+  syncStatus: mysqlEnum("sync_status", ["idle", "syncing", "success", "failed"]).default("idle"),
+  errorMessage: text("error_message"),
+  metadata: json(),
+  createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("upc_user_idx").on(table.userId),
+  index("upc_platform_idx").on(table.platform),
+]);
+export type UserPlatformCredentialRow = typeof userPlatformCredentials.$inferSelect;
+export type InsertUserPlatformCredential = typeof userPlatformCredentials.$inferInsert;

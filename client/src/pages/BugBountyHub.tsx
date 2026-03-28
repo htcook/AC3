@@ -12,7 +12,8 @@ import { toast } from "sonner";
 import {
   Bug, Search, RefreshCw, Plus, ExternalLink, Shield,
   AlertTriangle, Link2, TrendingUp, Globe, Zap, Target,
-  ChevronRight, Clock, DollarSign, Users, BarChart3
+  ChevronRight, Clock, DollarSign, Users, BarChart3,
+  Key, CheckCircle2, XCircle, Loader2, Trash2, Eye, EyeOff, Unplug
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 
@@ -38,6 +39,15 @@ export default function BugBountyHub() {
   const [showAddProgramDialog, setShowAddProgramDialog] = useState(false);
   const [showAddFindingDialog, setShowAddFindingDialog] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [showAddCredentialDialog, setShowAddCredentialDialog] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [newCredential, setNewCredential] = useState({
+    platform: "hackerone" as "hackerone" | "bugcrowd" | "intigriti" | "synack" | "yeswehack" | "custom",
+    displayName: "",
+    apiUsername: "",
+    apiKey: "",
+    baseUrl: "",
+  });
 
   // Form state
   const [newProgram, setNewProgram] = useState({ platform: "manual" as const, handle: "", name: "", url: "", minBounty: 0, maxBounty: 0 });
@@ -56,6 +66,28 @@ export default function BugBountyHub() {
   const { data: correlations, refetch: refetchCorrelations } = trpc.bugBounty.listCorrelations.useQuery(correlationsInput);
   const syncHistoryInput = useMemo(() => ({ limit: 10 }), []);
   const { data: syncHistory } = trpc.bugBounty.syncHistory.useQuery(syncHistoryInput);
+
+  // Platform Credentials
+  const { data: credentials, refetch: refetchCredentials } = trpc.platformCredentials.list.useQuery(undefined);
+  const addCredential = trpc.platformCredentials.add.useMutation({
+    onSuccess: () => { toast.success("Platform credentials saved"); setShowAddCredentialDialog(false); setNewCredential({ platform: "hackerone", displayName: "", apiUsername: "", apiKey: "", baseUrl: "" }); refetchCredentials(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteCredential = trpc.platformCredentials.delete.useMutation({
+    onSuccess: () => { toast.success("Credentials removed"); refetchCredentials(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const verifyCredential = trpc.platformCredentials.verify.useMutation({
+    onSuccess: (result) => {
+      if (result.valid) toast.success(result.message);
+      else toast.error(result.message);
+      refetchCredentials();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const toggleCredential = trpc.platformCredentials.update.useMutation({
+    onSuccess: () => { refetchCredentials(); },
+  });
 
   // Mutations
   const syncHacktivity = trpc.bugBounty.syncHackerOneHacktivity.useMutation({
@@ -175,6 +207,10 @@ export default function BugBountyHub() {
           <TabsTrigger value="programs">Programs</TabsTrigger>
           <TabsTrigger value="correlations">Correlations</TabsTrigger>
           <TabsTrigger value="sync">Sync History</TabsTrigger>
+          <TabsTrigger value="accounts">
+            <Key className="h-3.5 w-3.5 mr-1" />
+            Linked Accounts
+          </TabsTrigger>
         </TabsList>
 
         {/* Dashboard Tab */}
@@ -529,7 +565,257 @@ export default function BugBountyHub() {
             )}
           </div>
         </TabsContent>
+        {/* Linked Accounts Tab */}
+        <TabsContent value="accounts" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Link your bug bounty platform accounts to enable automatic syncing of findings, programs, and intelligence data.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setShowAddCredentialDialog(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Link Account
+            </Button>
+          </div>
+
+          {/* Platform Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Supported Platforms Info */}
+            {["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack"].map((plat) => {
+              const linked = (credentials || []).filter((c: any) => c.platform === plat);
+              const platformNames: Record<string, string> = {
+                hackerone: "HackerOne",
+                bugcrowd: "Bugcrowd",
+                intigriti: "Intigriti",
+                synack: "Synack",
+                yeswehack: "YesWeHack",
+              };
+              const platformColors: Record<string, string> = {
+                hackerone: "text-emerald-400 border-emerald-500/30",
+                bugcrowd: "text-orange-400 border-orange-500/30",
+                intigriti: "text-blue-400 border-blue-500/30",
+                synack: "text-red-400 border-red-500/30",
+                yeswehack: "text-yellow-400 border-yellow-500/30",
+              };
+              return (
+                <Card key={plat} className={`bg-zinc-900/50 border-zinc-800 ${linked.length > 0 ? "ring-1 ring-emerald-500/20" : ""}`}>
+                  <CardContent className="pt-5 pb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-lg border flex items-center justify-center ${platformColors[plat] || "text-zinc-400 border-zinc-700"}`}>
+                          <Bug className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">{platformNames[plat]}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {linked.length > 0 ? `${linked.length} account${linked.length > 1 ? "s" : ""} linked` : "Not connected"}
+                          </p>
+                        </div>
+                      </div>
+                      {linked.length > 0 ? (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                      ) : (
+                        <Unplug className="h-5 w-5 text-zinc-600" />
+                      )}
+                    </div>
+
+                    {/* Linked accounts for this platform */}
+                    {linked.map((cred: any) => (
+                      <div key={cred.id} className="mt-2 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-medium">{cred.displayName}</p>
+                            {cred.apiUsername && <p className="text-xs text-muted-foreground">User: {cred.apiUsername}</p>}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {cred.syncStatus === "success" && <Badge className="bg-emerald-500/20 text-emerald-400 text-xs">Verified</Badge>}
+                            {cred.syncStatus === "failed" && <Badge className="bg-red-500/20 text-red-400 text-xs">Failed</Badge>}
+                            {cred.syncStatus === "syncing" && <Badge className="bg-blue-500/20 text-blue-400 text-xs">Syncing</Badge>}
+                            {(cred.syncStatus === "idle" || !cred.syncStatus) && <Badge className="bg-zinc-500/20 text-zinc-400 text-xs">Unverified</Badge>}
+                          </div>
+                        </div>
+                        {cred.errorMessage && (
+                          <p className="text-xs text-red-400 mb-2 truncate">{cred.errorMessage}</p>
+                        )}
+                        {cred.lastVerifiedAt && (
+                          <p className="text-xs text-muted-foreground mb-2">Last verified: {new Date(cred.lastVerifiedAt).toLocaleString()}</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7"
+                            onClick={() => verifyCredential.mutate({ id: cred.id })}
+                            disabled={verifyCredential.isPending}
+                          >
+                            {verifyCredential.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                            Verify
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7"
+                            onClick={() => toggleCredential.mutate({ id: cred.id, isActive: !cred.isActive })}
+                          >
+                            {cred.isActive ? "Disable" : "Enable"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7 text-red-400 hover:text-red-300"
+                            onClick={() => { if (confirm("Remove this credential?")) deleteCredential.mutate({ id: cred.id }); }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {linked.length === 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2 text-xs"
+                        onClick={() => {
+                          setNewCredential({ ...newCredential, platform: plat as any, displayName: platformNames[plat] + " Account" });
+                          setShowAddCredentialDialog(true);
+                        }}
+                      >
+                        <Key className="h-3 w-3 mr-1" />
+                        Connect {platformNames[plat]}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            {/* Custom Platform Card */}
+            <Card className="bg-zinc-900/50 border-zinc-800 border-dashed">
+              <CardContent className="pt-5 pb-4 flex flex-col items-center justify-center text-center min-h-[120px]">
+                <Plus className="h-8 w-8 text-zinc-600 mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">Custom Platform</p>
+                <p className="text-xs text-muted-foreground mb-3">Connect any platform with an API</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    setNewCredential({ ...newCredential, platform: "custom", displayName: "" });
+                    setShowAddCredentialDialog(true);
+                  }}
+                >
+                  Add Custom
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
       </Tabs>
+
+      {/* Add Credential Dialog */}
+      <Dialog open={showAddCredentialDialog} onOpenChange={setShowAddCredentialDialog}>
+        <DialogContent className="bg-zinc-900 border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-emerald-400" />
+              Link Platform Account
+            </DialogTitle>
+            <DialogDescription>
+              Enter your API credentials to connect your bug bounty platform account. Credentials are encrypted at rest.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Platform</Label>
+              <Select value={newCredential.platform} onValueChange={(v) => setNewCredential({ ...newCredential, platform: v as any })}>
+                <SelectTrigger className="bg-zinc-800 border-zinc-700 mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hackerone">HackerOne</SelectItem>
+                  <SelectItem value="bugcrowd">Bugcrowd</SelectItem>
+                  <SelectItem value="intigriti">Intigriti</SelectItem>
+                  <SelectItem value="synack">Synack</SelectItem>
+                  <SelectItem value="yeswehack">YesWeHack</SelectItem>
+                  <SelectItem value="custom">Custom Platform</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Display Name</Label>
+              <Input
+                value={newCredential.displayName}
+                onChange={(e) => setNewCredential({ ...newCredential, displayName: e.target.value })}
+                placeholder="My HackerOne Account"
+                className="bg-zinc-800 border-zinc-700 mt-1"
+              />
+            </div>
+            {(newCredential.platform === "hackerone" || newCredential.platform === "custom") && (
+              <div>
+                <Label>API Username / Identifier</Label>
+                <Input
+                  value={newCredential.apiUsername}
+                  onChange={(e) => setNewCredential({ ...newCredential, apiUsername: e.target.value })}
+                  placeholder={newCredential.platform === "hackerone" ? "Your HackerOne API identifier" : "Username or identifier"}
+                  className="bg-zinc-800 border-zinc-700 mt-1"
+                />
+                {newCredential.platform === "hackerone" && (
+                  <p className="text-xs text-muted-foreground mt-1">Found under Settings → API Token in HackerOne</p>
+                )}
+              </div>
+            )}
+            <div>
+              <Label>API Key / Token</Label>
+              <div className="relative">
+                <Input
+                  type={showApiKey ? "text" : "password"}
+                  value={newCredential.apiKey}
+                  onChange={(e) => setNewCredential({ ...newCredential, apiKey: e.target.value })}
+                  placeholder="Enter your API key"
+                  className="bg-zinc-800 border-zinc-700 mt-1 pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+            </div>
+            {newCredential.platform === "custom" && (
+              <div>
+                <Label>Base URL (optional)</Label>
+                <Input
+                  value={newCredential.baseUrl}
+                  onChange={(e) => setNewCredential({ ...newCredential, baseUrl: e.target.value })}
+                  placeholder="https://api.example.com"
+                  className="bg-zinc-800 border-zinc-700 mt-1"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCredentialDialog(false)}>Cancel</Button>
+            <Button
+              onClick={() => addCredential.mutate({
+                platform: newCredential.platform,
+                displayName: newCredential.displayName,
+                apiUsername: newCredential.apiUsername || undefined,
+                apiKey: newCredential.apiKey,
+                baseUrl: newCredential.baseUrl || undefined,
+              })}
+              disabled={addCredential.isPending || !newCredential.displayName || !newCredential.apiKey}
+            >
+              {addCredential.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Key className="h-4 w-4 mr-1" />}
+              {addCredential.isPending ? "Saving..." : "Save & Connect"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Sync Dialog */}
       <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
