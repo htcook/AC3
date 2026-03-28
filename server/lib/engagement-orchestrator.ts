@@ -722,12 +722,11 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for DO production container (~1GB+ RAM)
-    // Raised from Manus 512MB limits to prevent unnecessary scan interruptions
-    // For DO App Platform professional-xs (1GB) or higher instances
-    const HEAP_WARNING_MB = parseInt(process.env.MEMORY_HEAP_WARNING_MB || '600', 10);
-    const HEAP_CRITICAL_MB = parseInt(process.env.MEMORY_HEAP_CRITICAL_MB || '800', 10);
-    const RSS_EMERGENCY_MB = parseInt(process.env.MEMORY_RSS_EMERGENCY_MB || '1400', 10);
+    // Thresholds calibrated for DO professional-m (4GB RAM)
+    // Heap warning at ~1.5GB, critical at ~2GB, RSS emergency at ~3.2GB
+    const HEAP_WARNING_MB = parseInt(process.env.MEMORY_HEAP_WARNING_MB || '1500', 10);
+    const HEAP_CRITICAL_MB = parseInt(process.env.MEMORY_HEAP_CRITICAL_MB || '2000', 10);
+    const RSS_EMERGENCY_MB = parseInt(process.env.MEMORY_RSS_EMERGENCY_MB || '3200', 10);
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {

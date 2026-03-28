@@ -89,24 +89,38 @@ export async function detectInterruptedEngagements(): Promise<InterruptedEngagem
       // Check if this engagement was owned by a DIFFERENT server (hostname).
       // We compare only the hostname prefix (not pid/timestamp/random) to allow
       // the SAME server to resume after a restart (where pid/timestamp change).
-      // This prevents cross-server conflicts (e.g., local dev vs production)
-      // while still allowing single-server restart recovery.
+      // If the snapshot is older than ORPHAN_CLAIM_TIMEOUT_MS, any server can claim it
+      // (handles engagements started from dev server that need to resume on production).
+      const ORPHAN_CLAIM_TIMEOUT_MS = parseInt(process.env.ORPHAN_CLAIM_TIMEOUT_MS || '300000', 10); // 5 min default
       const snapshotOwner = snap.serverInstanceId as string | null;
       if (snapshotOwner) {
         const ownerHostname = snapshotOwner.split("-").slice(0, -3).join("-") || snapshotOwner;
         const ourHostname = SERVER_INSTANCE_ID.split("-").slice(0, -3).join("-") || SERVER_INSTANCE_ID;
         if (ownerHostname !== ourHostname) {
+          // Check if the snapshot is old enough to be considered orphaned
+          const snapshotAge = snap.updatedAt
+            ? Date.now() - new Date(snap.updatedAt).getTime()
+            : Infinity;
+          if (snapshotAge < ORPHAN_CLAIM_TIMEOUT_MS) {
+            console.log(
+              `[AutoResume] Engagement #${engId} is owned by a different server "${ownerHostname}" ` +
+              `(we are "${ourHostname}"). Snapshot is ${Math.round(snapshotAge/1000)}s old (< ${ORPHAN_CLAIM_TIMEOUT_MS/1000}s threshold). ` +
+              `Skipping — not a real interrupt on this server.`
+            );
+            continue;
+          }
           console.log(
-            `[AutoResume] Engagement #${engId} is owned by a different server "${ownerHostname}" ` +
-            `(we are "${ourHostname}"). Skipping — not a real interrupt on this server.`
+            `[AutoResume] Engagement #${engId} was owned by "${ownerHostname}" but snapshot is ` +
+            `${Math.round(snapshotAge/1000)}s old (> ${ORPHAN_CLAIM_TIMEOUT_MS/1000}s threshold). ` +
+            `Claiming orphaned engagement for this server ("${ourHostname}").`
           );
-          continue;
+        } else {
+          console.log(
+            `[AutoResume] Engagement #${engId} was owned by same hostname "${ownerHostname}" ` +
+            `(old instance: "${snapshotOwner}", new instance: "${SERVER_INSTANCE_ID}"). ` +
+            `This is a server restart — proceeding with auto-resume.`
+          );
         }
-        console.log(
-          `[AutoResume] Engagement #${engId} was owned by same hostname "${ownerHostname}" ` +
-          `(old instance: "${snapshotOwner}", new instance: "${SERVER_INSTANCE_ID}"). ` +
-          `This is a server restart — proceeding with auto-resume.`
-        );
       }
 
       // Increment interrupt_count and set last_interrupted_at
