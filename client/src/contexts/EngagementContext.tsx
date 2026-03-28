@@ -10,6 +10,10 @@
  */
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
+
+// Public routes where we should NOT fire authenticated queries
+const PUBLIC_ROUTES = ["/", "/overview", "/login", "/customer-login"];
 
 export interface EngagementInfo {
   id: number;
@@ -74,13 +78,20 @@ function persistEngagement(engagement: EngagementInfo | null) {
 }
 
 export function EngagementProvider({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  const isPublicRoute = PUBLIC_ROUTES.includes(location) ||
+    location.startsWith("/portal/") ||
+    location.startsWith("/customer-");
+
   const [activeEngagement, setActiveEngagementState] = useState<EngagementInfo | null>(
     loadPersistedEngagement
   );
 
   // Fetch all engagements for the dropdown/switcher
+  // Skip on public routes to avoid 401 errors for unauthenticated visitors
   const { data: engagementsList, isLoading } = trpc.engagements.list.useQuery(undefined, {
     staleTime: 60_000,
+    enabled: !isPublicRoute,
   });
 
   const setActiveEngagement = useCallback((engagement: EngagementInfo | null) => {

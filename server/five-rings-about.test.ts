@@ -20,6 +20,15 @@ const indexHtmlSource = readFileSync(indexHtmlPath, "utf-8");
 const mainTsxPath = resolve(__dirname, "../client/src/main.tsx");
 const mainTsxSource = readFileSync(mainTsxPath, "utf-8");
 
+const engagementCtxPath = resolve(__dirname, "../client/src/contexts/EngagementContext.tsx");
+const engagementCtxSource = readFileSync(engagementCtxPath, "utf-8");
+
+const globalAiChatPath = resolve(__dirname, "../client/src/components/GlobalAiChat.tsx");
+const globalAiChatSource = readFileSync(globalAiChatPath, "utf-8");
+
+const sessionMonitorPath = resolve(__dirname, "../client/src/components/SessionTimeoutMonitor.tsx");
+const sessionMonitorSource = readFileSync(sessionMonitorPath, "utf-8");
+
 const useInViewPath = resolve(__dirname, "../client/src/hooks/useInView.ts");
 const useInViewSource = readFileSync(useInViewPath, "utf-8");
 
@@ -363,6 +372,55 @@ describe("Five Rings (Go Rin No Sho) About Section", () => {
 
     it("should skip redirect for portal routes", () => {
       expect(mainTsxSource).toContain('currentPath.startsWith("/portal/")');
+    });
+
+    it("should detect unauthorized by HTTP status code (not just message)", () => {
+      expect(mainTsxSource).toContain("httpStatus === 401");
+    });
+
+    it("should detect unauthorized by error code", () => {
+      expect(mainTsxSource).toContain("'UNAUTHORIZED'");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Public Route Gating — No Protected Queries on Homepage
+  // ═══════════════════════════════════════════════════════════════
+  describe("EngagementContext public route gating", () => {
+    it("should import useLocation from wouter", () => {
+      expect(engagementCtxSource).toContain('import { useLocation } from "wouter"');
+    });
+
+    it("should define PUBLIC_ROUTES", () => {
+      expect(engagementCtxSource).toContain("PUBLIC_ROUTES");
+    });
+
+    it("should check isPublicRoute before firing engagements.list query", () => {
+      expect(engagementCtxSource).toContain("enabled: !isPublicRoute");
+    });
+  });
+
+  describe("GlobalAiChat public route gating", () => {
+    it("should define PUBLIC_ROUTES for route checking", () => {
+      expect(globalAiChatSource).toContain("PUBLIC_ROUTES");
+    });
+
+    it("should gate getConfig query with isPublicRoute", () => {
+      expect(globalAiChatSource).toContain("enabled: !isPublicRoute");
+    });
+
+    it("should gate listSessions query with isPublicRoute", () => {
+      expect(globalAiChatSource).toContain("enabled: isOpen && !isPublicRoute");
+    });
+  });
+
+  describe("SessionTimeoutMonitor public route gating", () => {
+    it("should define SESSION_PUBLIC_ROUTES", () => {
+      expect(sessionMonitorSource).toContain("SESSION_PUBLIC_ROUTES");
+    });
+
+    it("should gate session query with isPublicRoute", () => {
+      expect(sessionMonitorSource).toContain("enabled: !isPublicRoute");
     });
   });
 });

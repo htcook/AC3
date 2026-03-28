@@ -29,19 +29,23 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
-  const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
-  if (!isUnauthorized) return;
-
-  // Don't redirect on public-facing pages (homepage, overview, etc.)
+  // Don't redirect on public-facing pages — prospective customers must see the homepage
   const currentPath = window.location.pathname;
   const isPublicRoute = PUBLIC_ROUTES.includes(currentPath) ||
     currentPath.startsWith("/portal/") ||
     currentPath.startsWith("/customer-");
   if (isPublicRoute) return;
 
+  // Detect unauthorized errors by message OR by HTTP status code
+  const isUnauthorized =
+    error.message === UNAUTHED_ERR_MSG ||
+    (error.data as any)?.httpStatus === 401 ||
+    (error.data as any)?.code === 'UNAUTHORIZED' ||
+    error.message?.includes('UNAUTHORIZED');
+
+  if (!isUnauthorized) return;
+
   // Redirect to /login (Cyber C2 auth) instead of Manus OAuth portal
-  // This preserves the Cyber C2 credential login flow on mobile and desktop
   if (currentPath !== "/login") {
     window.location.href = "/login";
   }

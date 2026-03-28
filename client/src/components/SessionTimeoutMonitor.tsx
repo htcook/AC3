@@ -17,18 +17,27 @@ const WARNING_THRESHOLD_MS = 5 * 60 * 1000;
 // Check interval: every 30 seconds
 const CHECK_INTERVAL_MS = 30 * 1000;
 
+// Public routes where session monitoring is unnecessary
+const SESSION_PUBLIC_ROUTES = ["/", "/overview", "/login", "/customer-login"];
+
 export function SessionTimeoutMonitor() {
   const [showWarning, setShowWarning] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const expiresAtRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Skip session monitoring on public routes
+  const isPublicRoute = SESSION_PUBLIC_ROUTES.includes(location) ||
+    location.startsWith("/portal/") ||
+    location.startsWith("/customer-");
+
   const { data: session } = trpc.calderaAuth.session.useQuery(undefined, {
     refetchInterval: CHECK_INTERVAL_MS,
     refetchIntervalInBackground: false,
+    enabled: !isPublicRoute,
   });
 
   const refreshMutation = trpc.calderaAuth.refreshSession.useMutation();

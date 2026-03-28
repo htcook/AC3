@@ -76,12 +76,19 @@ export function GlobalAiChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [location] = useLocation();
 
+  // Skip all authenticated queries on public routes (homepage, overview, login)
+  const PUBLIC_ROUTES = ["/", "/overview", "/login", "/customer-login"];
+  const isPublicRoute = PUBLIC_ROUTES.includes(location) ||
+    location.startsWith("/portal/") ||
+    location.startsWith("/customer-");
+
   // Fetch role-specific chat configuration
   const configInput = useMemo(() => personaOverride ? { personaOverride } : undefined, [personaOverride]);
   const { data: chatConfig } = trpc.aiChat.getConfig.useQuery(configInput, {
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 30_000,
+    enabled: !isPublicRoute,
   });
 
   // Session list
@@ -89,7 +96,7 @@ export function GlobalAiChat() {
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: 10_000,
-    enabled: isOpen,
+    enabled: isOpen && !isPublicRoute,
   });
 
   const createSessionMut = trpc.aiChat.createSession.useMutation({
