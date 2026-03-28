@@ -1464,8 +1464,8 @@ export default function EngagementOps() {
                           reportType: 'full_engagement',
                           clientType: 'enterprise',
                           title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
-                          preparedFor: engagement?.customerName || undefined,
-                          preparedBy: user?.name || 'AC3',
+                          preparedFor: engagement?.customerName ?? undefined,
+                          preparedBy: user?.name ?? 'AC3',
                         });
                       }}
                       disabled={isGeneratingReport}
@@ -4589,8 +4589,8 @@ export default function EngagementOps() {
                     reportType: 'full_engagement',
                     clientType: 'enterprise',
                     title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
-                    preparedFor: engagement?.customerName || undefined,
-                    preparedBy: user?.name || 'AC3',
+                    preparedFor: engagement?.customerName ?? undefined,
+                    preparedBy: user?.name ?? 'AC3',
                   });
                 }}
                 disabled={isGeneratingReport || generateReportMut.isPending}

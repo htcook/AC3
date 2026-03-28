@@ -64,10 +64,10 @@ export const reportsRouter = router({
         reportType: z.enum(['executive_summary', 'technical_detail', 'compliance', 'phishing_results', 'osint_assessment', 'full_engagement', 'purple_team', 'red_team_assessment', 'detection_gap_analysis', 'pentest_assessment']),
         clientType: z.enum(['msp', 'enterprise', 'saas', 'paas', 'iaas', 'mixed_hosting', 'other']).default('enterprise'),
         title: z.string().min(1),
-        preparedFor: z.string().optional(),
-        preparedBy: z.string().optional(),
+        preparedFor: z.string().nullish(),
+        preparedBy: z.string().nullish(),
         includeSections: z.array(z.string()).optional(),
-        brandingColor: z.string().optional(),
+        brandingColor: z.string().nullish(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Create report record
@@ -881,7 +881,9 @@ Instructions: ${reportPrompt}`,
 </div>
 <script class="no-print">
   // Auto-trigger print dialog for PDF export
-  // window.print();
+  window.addEventListener('load', function() {
+    setTimeout(function() { window.print(); }, 600);
+  });
 </script>
 </body>
 </html>`;
