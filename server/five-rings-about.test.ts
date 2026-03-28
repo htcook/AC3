@@ -92,8 +92,8 @@ describe("Five Rings (Go Rin No Sho) About Section", () => {
       expect(homeSource).toContain("attack graph generation");
     });
 
-    it("should mention Caldera campaign for Fire ring", () => {
-      expect(homeSource).toContain("Caldera campaign generation");
+    it("should mention MITRE ATT&CK Mapped Campaign for Fire ring", () => {
+      expect(homeSource).toContain("MITRE ATT&CK Mapped Campaign generation");
     });
 
     it("should mention threat actor profiles for Wind ring", () => {

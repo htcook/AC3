@@ -237,14 +237,14 @@ const FIVE_RINGS_DATA = [
     icon: Flame,
     doctrine: "Convert viable pathways into sequenced, validated operations with clear objectives.",
     capabilities: [
-      "Caldera campaign generation and execution",
+      "MITRE ATT&CK Mapped Campaign generation and execution",
       "Exploit sequencing with validation checkpoints",
       "Phishing campaigns with 17 advanced techniques",
       "Operation tempo optimization and guardrails",
     ],
     musashi: "The primary thing when you take a sword in your hands is your intention to cut the enemy, whatever the means.",
     objective: "Convert viable pathways into executable operation logic",
-    components: ["Caldera Campaign Generator", "Validation Planner", "Timing Optimizer"],
+    components: ["MITRE ATT&CK Mapped Campaign Generator", "Validation Planner", "Timing Optimizer"],
     outputs: ["Campaign Plan", "Execution Sequence", "Validation Objectives"],
     strategicQuestions: [
       "What is the exact objective of the emulation?",
