@@ -31,8 +31,7 @@ const LOCKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const INVITE_TOKEN_BYTES = 32; // 256-bit FIPS-approved DRBG
 const INVITE_EXPIRY_HOURS = 72;
 const PASSWORD_RESET_EXPIRY_HOURS = 1;
-const CALDERA_SESSION_COOKIE = "caldera_session";
-const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || "caldera-dashboard-secret-key-2024";
+// CALDERA_SESSION_COOKIE and CALDERA_JWT_SECRET imported from ../lib/api-helpers (line 2)
 
 // ─── In-memory rate limiting (per-email failed attempt tracking) ──────────────
 const failedAttempts = new Map<string, { count: number; lastAttempt: number; lockedUntil: number }>();

@@ -25,22 +25,42 @@ export async function createContext(
   }
 
   // Fallback: check caldera_session JWT cookie
+  // Supports both service-account tokens (username-based from auth-core.ts)
+  // and email-account tokens (accountId/email-based from account-auth.ts)
   if (!user) {
     try {
       const token = opts.req.cookies?.['caldera_session'];
       if (token) {
         const decoded = jwt.verify(token, CALDERA_JWT_SECRET) as {
-          username: string;
+          // Service account fields (auth-core.ts)
+          username?: string;
+          // Email account fields (account-auth.ts)
+          accountId?: number;
+          email?: string;
+          displayName?: string;
+          // Common fields
           role: string;
           loginTime: number;
+          authType?: string;
+          sessionId?: string;
         };
+
+        // Resolve identity from whichever JWT format was used
+        const resolvedName = decoded.username || decoded.displayName || decoded.email?.split('@')[0] || 'user';
+        const resolvedId = decoded.accountId ?? -1;
+        const resolvedOpenId = decoded.accountId
+          ? `caldera-account:${decoded.accountId}`
+          : `caldera:${decoded.username || 'unknown'}`;
+        const resolvedEmail = decoded.email || null;
+        const resolvedLoginMethod = decoded.authType || (decoded.accountId ? 'email' : 'caldera');
+
         // Create a synthetic user object that satisfies the User type
         user = {
-          id: -1, // Synthetic ID for Cyber C2-auth users
-          openId: `caldera:${decoded.username}`,
-          name: decoded.username,
-          email: null,
-          loginMethod: 'caldera',
+          id: resolvedId,
+          openId: resolvedOpenId,
+          name: resolvedName,
+          email: resolvedEmail,
+          loginMethod: resolvedLoginMethod,
           role: decoded.role === 'admin' ? 'admin' : 'user',
           createdAt: new Date(decoded.loginTime),
           updatedAt: new Date(),
