@@ -1,13 +1,49 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-// Generate login URL at runtime so redirect URI reflects the current origin.
-// Gracefully handles missing VITE_OAUTH_PORTAL_URL (e.g., in external deployments
-// where Manus OAuth env vars are not injected) by returning a fallback "/login" path.
-export const getLoginUrl = () => {
+/**
+ * Known Manus-hosted domains where Manus OAuth is the correct auth flow.
+ * On any other domain (e.g., aceofcloud.io on DigitalOcean), we use the
+ * local AC3 login page (/login) instead.
+ */
+const MANUS_HOSTED_DOMAINS = [
+  ".manus.space",
+  ".manusvm.computer",
+  ".manus.computer",
+];
+
+/**
+ * Detect whether the current deployment is Manus-hosted.
+ * Returns true only when running on a known Manus domain.
+ */
+const isManusHosted = (): boolean => {
+  try {
+    const hostname = window.location.hostname;
+    return MANUS_HOSTED_DOMAINS.some((d) => hostname.endsWith(d));
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Generate login URL at runtime.
+ *
+ * - On Manus-hosted deployments: returns the Manus OAuth portal URL
+ * - On external deployments (DO, self-hosted): always returns "/login"
+ *   to use the AC3 email/service-account login page.
+ *
+ * This prevents production users from ever seeing the Manus OAuth flow,
+ * even if VITE_OAUTH_PORTAL_URL was baked into the client bundle at build time.
+ */
+export const getLoginUrl = (): string => {
+  // External deployments (DO, self-hosted) always use local AC3 login
+  if (!isManusHosted()) {
+    return "/login";
+  }
+
+  // Manus-hosted: use Manus OAuth if configured
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
 
-  // Guard: if the OAuth portal URL is not configured, fall back to local login route
   if (!oauthPortalUrl) {
     console.warn(
       "[auth] VITE_OAUTH_PORTAL_URL is not set — falling back to /login"

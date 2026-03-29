@@ -76,8 +76,9 @@ export const engagementOpsRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets defined. Add target domains or IP ranges first.' });
         }
 
-        const { executeEngagement, initOpsState, getOpsState } = await import('../lib/engagement-orchestrator');
+        const { executeEngagement, initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) {
           state = initOpsState(input.engagementId, engagement.engagementType);
         }
@@ -162,9 +163,14 @@ export const engagementOpsRouter = router({
         exhaustiveExploit: z.boolean().optional().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { rerunFromPhase, getOpsState } = await import('../lib/engagement-orchestrator');
+        const { rerunFromPhase, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         // Set exhaustive exploitation mode on the existing state
-        const existingState = getOpsState(input.engagementId);
+        // Try in-memory first, then DB recovery (state may be lost after server restart)
+        let existingState = getOpsState(input.engagementId);
+        if (!existingState) existingState = await getOpsStateWithRecovery(input.engagementId);
+        if (!existingState) {
+          existingState = await getOpsStateWithRecovery(input.engagementId);
+        }
         if (existingState) {
           existingState.exhaustiveExploit = input.exhaustiveExploit;
         }
@@ -186,8 +192,9 @@ export const engagementOpsRouter = router({
     skipCurrentDomain: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const { getOpsState, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
         if (!state.isRunning || !state.currentDomain) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'No domain is currently being scanned' });
@@ -339,9 +346,15 @@ export const engagementOpsRouter = router({
     resetOps: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const { getOpsState, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
-        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
+        const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+        // Try in-memory first, then fall back to DB snapshot recovery
+        // (in-memory state is lost after server restart on DO)
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) {
+          state = await getOpsStateWithRecovery(input.engagementId);
+        }
+        if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found. The server may have restarted — try starting a new execution instead.' });
         // Reset to idle (or recon_complete if assets exist)
         const hasAssets = state.assets.length > 0;
         state.phase = hasAssets ? ('recon_complete' as any) : 'idle';
@@ -514,8 +527,9 @@ export const engagementOpsRouter = router({
           targetIpRange: allIps.join(', '),
         });
 
-        const { initOpsState, getOpsState } = await import('../lib/engagement-orchestrator');
+        const { initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
 
         for (const d of allDomains) {
@@ -571,8 +585,9 @@ export const engagementOpsRouter = router({
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
-        const { initOpsState, getOpsState } = await import('../lib/engagement-orchestrator');
+        const { initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
         if (state.isRunning) throw new TRPCError({ code: 'CONFLICT', message: 'Scan already running' });
 
@@ -1102,8 +1117,9 @@ export const engagementOpsRouter = router({
     generateScanPlan: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const { getOpsState, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state — run passive scan first' });
         if (state.assets.length === 0) throw new TRPCError({ code: 'BAD_REQUEST', message: 'No assets discovered yet' });
 
@@ -1117,8 +1133,9 @@ export const engagementOpsRouter = router({
     getScanPlan: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         return { scanPlan: state?.scanPlan || null };
       }),
 
@@ -1129,8 +1146,9 @@ export const engagementOpsRouter = router({
         const engagement = await db.getEngagementById(input.engagementId);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
-        const { getOpsState, initOpsState, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery, initOpsState, generateScanPlan: genPlan } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
 
         // RoE check — bypass for training lab engagements
@@ -1189,8 +1207,9 @@ export const engagementOpsRouter = router({
     loadExploits: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) return { exploits: [], totalVulns: 0 };
 
         const allVulns = state.assets.flatMap(a => a.vulns.map(v => ({ ...v, asset: a.hostname, ip: a.ip })));
@@ -1389,8 +1408,9 @@ export const engagementOpsRouter = router({
     getAttackChains: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId) as any;
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId) as any;
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId) as any;
         if (!state) return { chains: [], summary: null, cloudRiskAssessment: null };
         const chains = state.attackChains || [];
         // Build summary from chains
@@ -1435,8 +1455,9 @@ export const engagementOpsRouter = router({
     getCloudMisconfigs: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId) as any;
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId) as any;
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId) as any;
         if (!state) return { findings: [], detection: null, stats: { total: 0, critical: 0, high: 0, medium: 0, low: 0, providers: [] } };
         const cloudDetection = state.cloudDetection || { assetsFound: 0, storageEndpoints: 0, findings: [] };
         const findings = cloudDetection.findings || [];
@@ -1468,8 +1489,9 @@ export const engagementOpsRouter = router({
     getFeedbackLoopState: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId) as any;
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId) as any;
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId) as any;
         if (!state || !state.scanFeedbackLoop) return null;
         const fb = state.scanFeedbackLoop;
         return {
@@ -1544,6 +1566,7 @@ export const engagementOpsRouter = router({
         } = await import('../lib/engagement-orchestrator');
 
         let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state || input.resetState) {
           const engagement = await db.getEngagementById(input.engagementId);
           if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
@@ -2568,9 +2591,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         includeCleanup: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const { generateFunctionalExploit: genExploit } = await import('../lib/functional-exploit-generator');
-        const state = getOpsState(input.engagementId);
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
         const asset = state.assets.find(a => a.hostname === input.assetHostname);
         if (!asset) throw new TRPCError({ code: 'NOT_FOUND', message: `Asset ${input.assetHostname} not found` });
@@ -2598,9 +2622,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
     validateExploit: protectedProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .mutation(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const { validateExploitCode } = await import('../lib/functional-exploit-generator');
-        const state = getOpsState(input.engagementId);
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
         const exploits = (state as any).generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
@@ -2616,9 +2641,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
     improveExploit: protectedProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .mutation(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const { validateExploitCode, improveExploit: improve } = await import('../lib/functional-exploit-generator');
-        const state = getOpsState(input.engagementId);
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found' });
         const exploits = (state as any).generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
@@ -2638,8 +2664,9 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
     getGeneratedExploits: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) return [];
         return ((state as any).generatedExploits || []).map((e: any, i: number) => ({
           index: i, asset: e.asset, filename: e.exploit.filename, language: e.exploit.language,
@@ -2652,13 +2679,13 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
     getExploitDetail: protectedProcedure
       .input(z.object({ engagementId: z.number(), exploitIndex: z.number() }))
       .query(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(input.engagementId);
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         const exploits = (state as any)?.generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
         return exploits[input.exploitIndex];
       }),
-
     /** Re-synthesize vulnerabilities for a specific asset, optionally targeting specific categories */
     resynthesizeAssetVulns: protectedProcedure
       .input(z.object({
@@ -2668,9 +2695,10 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
         replaceExisting: z.boolean().default(false),
       }))
       .mutation(async ({ input }) => {
-        const { getOpsState, addLog, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery, addLog, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
         const { invokeLLM } = await import('../_core/llm');
-        const state = getOpsState(input.engagementId);
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement state not found' });
 
         const asset = state.assets.find(a => a.hostname === input.hostname);
@@ -2827,9 +2855,10 @@ Return ONLY a JSON object with vulnerabilities array.`;
         dryRun: z.boolean().default(true),
       }))
       .mutation(async ({ input }) => {
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         const { executeExploit } = await import('../lib/exploit-sandbox');
-        const state = getOpsState(input.engagementId);
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         const exploits = (state as any)?.generatedExploits;
         if (!exploits?.[input.exploitIndex]) throw new TRPCError({ code: 'NOT_FOUND', message: 'Exploit not found' });
         const entry = exploits[input.exploitIndex];
@@ -2936,8 +2965,9 @@ Return ONLY a JSON object with vulnerabilities array.`;
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input }) => {
         const { recordScanSnapshot } = await import('../lib/vuln-trend-tracker');
-        const { getOpsState } = await import('../lib/engagement-orchestrator');
-        const state = getOpsState(String(input.engagementId));
+        const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+        let state = getOpsState(String(input.engagementId));
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
         if (!state) throw new Error('No engagement state found');
         const assets = (state.assets || []).map((a: any) => ({
           hostname: a.hostname || a.ip || 'unknown',
@@ -3018,6 +3048,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
         }> = {};
         for (const id of input.engagementIds) {
           let state = getOpsState(id);
+          if (!state) state = await getOpsStateWithRecovery(id);
           if (!state) {
             state = await getOpsStateWithRecovery(id);
           }
@@ -3060,8 +3091,9 @@ Return ONLY a JSON object with vulnerabilities array.`;
     }))
     .mutation(async ({ input }) => {
       const { applySuppressionRules } = await import('../lib/knowledge/fp-suppression-rules');
-      const { getOpsState } = await import('../lib/engagement-orchestrator');
-      const state = getOpsState(input.engagementId);
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
       if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
       const vulnAnalysis = (state as any).vulnAnalysis || [];
@@ -3081,8 +3113,9 @@ Return ONLY a JSON object with vulnerabilities array.`;
   getSuppressionStats: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
     .query(async ({ input }) => {
-      const { getOpsState } = await import('../lib/engagement-orchestrator');
-      const state = getOpsState(input.engagementId);
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
       if (!state) return null;
       return {
         stats: (state as any).fpSuppressionStats || null,
