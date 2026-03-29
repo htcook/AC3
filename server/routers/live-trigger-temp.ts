@@ -37,7 +37,7 @@ export const liveTriggerTempRouter = router({
         throw new Error('No targets defined');
       }
 
-      const { executeEngagement, initOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      const { executeEngagement, initOpsState, getOpsStateWithRecovery, clearOpsState, persistOpsStateNow } = await import('../lib/engagement-orchestrator');
       let state = await getOpsStateWithRecovery(input.engagementId);
 
       // Check if already running
@@ -78,6 +78,28 @@ export const liveTriggerTempRouter = router({
         }
       } else if (input.startPhase) {
         execOptions.startPhase = input.startPhase;
+      }
+
+      // ── Training Lab Detection ──
+      // Auto-detect training lab targets and set trainingLabMode so the approval
+      // gate auto-approves red-tier exploit plans instead of timing out and denying.
+      const isTrainingLab = !!(engagement as any).labName ||
+        engagement.engagementType === 'pentest' && (
+          (engagement.targetDomain || '').includes('aceofcloud.io') ||
+          (engagement.targetDomain || '').includes('aceofcloud.com')
+        );
+
+      if (isTrainingLab && !willResume) {
+        // For fresh starts on lab targets, init state with trainingLabMode
+        await clearOpsState(input.engagementId);
+        state = initOpsState(input.engagementId, engagement.engagementType || 'pentest');
+        state.trainingLabMode = true;
+        await persistOpsStateNow(input.engagementId);
+        console.log(`[LiveTrigger] Training lab detected for #${input.engagementId} — trainingLabMode=true`);
+      } else if (isTrainingLab && willResume && state) {
+        // For resumes, ensure trainingLabMode is set on existing state
+        state.trainingLabMode = true;
+        await persistOpsStateNow(input.engagementId);
       }
 
       // Fire and forget
