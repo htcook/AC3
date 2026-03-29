@@ -1736,8 +1736,6 @@ Return valid JSON per the response_format schema.`;
                 discoveryFlags: { type: 'string' },
                 discoveryRationale: { type: 'string' },
                 httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
-                discoveryFlags: { type: 'string' },
-                discoveryRationale: { type: 'string' },
                 activeTools: {
                   type: 'array',
                   items: {
@@ -1811,11 +1809,9 @@ Return valid JSON per the response_format schema.`;
           hostname: nt.target,
           ip: state.assets.find(a => a.hostname === nt.target)?.ip || nt.target,
           assetType: state.assets.find(a => a.hostname === nt.target)?.type || 'unknown',
-          discoveryFlags: '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
-          discoveryRationale: 'Default discovery with evasion',
+          discoveryFlags: nt.flags || '--rate 1000 --top-ports 1000',
+          discoveryRationale: nt.rationale || 'Default discovery with evasion',
           httpxFlags: '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
-          discoveryFlags: nt.flags,
-          discoveryRationale: nt.rationale,
           activeTools: [
             ...nucleiScans.map(n => ({ tool: 'nuclei', command: `nuclei -u ${n.target} -severity critical,high,medium -tags ${n.templates} -nc -duc -ni -jsonl`, rationale: n.rationale, priority: 1 })),
             ...webScans.map(w => ({ tool: w.tool, command: w.config, rationale: w.rationale, priority: 2 })),
@@ -1899,8 +1895,6 @@ Return valid JSON per the response_format schema.`;
       discoveryFlags: ap.discoveryFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
       discoveryRationale: ap.discoveryRationale || 'Default discovery scan with evasion and --top-ports 1000',
       httpxFlags: ap.httpxFlags || '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
-      discoveryFlags: ap.discoveryFlags,
-      discoveryRationale: ap.discoveryRationale,
       activeTools: (ap.activeTools || []).map((t: any) => ({
         tool: t.tool,
         command: t.command,

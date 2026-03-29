@@ -523,9 +523,10 @@ export class TemplateEngine {
           e = e.replace(headerContains[0], String(has));
         }
 
-        // Simple boolean evaluation
+        // Simple boolean evaluation using indirect eval to avoid esbuild direct-eval warning
         // eslint-disable-next-line no-eval
-        return Boolean(eval(e));
+        const indirectEval = (0, eval);
+        return Boolean(indirectEval(e));
       } catch {
         return false;
       }

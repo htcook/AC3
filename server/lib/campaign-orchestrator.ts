@@ -961,7 +961,6 @@ Return a JSON object with: name, objective, stages (array), estimatedDurationHou
         },
       },
     },
-    _caller: "campaign-orchestrator:generatePlan",
   });
 
   const content = response.choices?.[0]?.message?.content;

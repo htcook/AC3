@@ -31,7 +31,7 @@ import { ENV } from "./_core/env";
 import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./lib/cross-module-enrichment";
 import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-discovery";
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
-import { runWafNgfwAssessment, buildScanForgeCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
+import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -2115,7 +2115,7 @@ export async function runDomainIntelPipeline(
     console.log(`[DomainIntel]   Scan tuning: ${wafNgfwAssessment.scanTuningProfile.aggressiveness} mode, defensive posture: ${wafNgfwAssessment.defensivePostureScore}/100`);
     
     // Log generated ScanForge command for operator reference
-    const discoveryCmd = buildScanForgeCommand(wafNgfwAssessment.scanTuningProfile, [org.primaryDomain]);
+    const discoveryCmd = buildScanForgeDiscoveryCommand(wafNgfwAssessment.scanTuningProfile, [org.primaryDomain]);
     console.log(`[DomainIntel]   Suggested ScanForge: ${discoveryCmd.substring(0, 200)}...`);
     const nucleiCmd = buildNucleiCommand(wafNgfwAssessment.scanTuningProfile, [`https://${org.primaryDomain}`]);
     console.log(`[DomainIntel]   Suggested Nuclei: ${nucleiCmd.substring(0, 200)}...`);
