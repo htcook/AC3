@@ -77,41 +77,41 @@ export async function shouldShadowTest(
     const configs = await db
       .select()
       .from(nexusShadowConfigs)
-      .where(eq(nexusShadowConfigs.enabled, 1));
+      .where(eq(nexusShadowConfigs.nscEnabled, 1));
 
     if (configs.length === 0) return null;
 
     for (const config of configs) {
       // Check caller filter
-      if (config.callerFilter && config.callerFilter.length > 0) {
-        if (!caller.startsWith(config.callerFilter)) continue;
+      if (config.nscCallerFilter && config.nscCallerFilter.length > 0) {
+        if (!caller.startsWith(config.nscCallerFilter)) continue;
       }
 
       // Check priority filter
-      if (config.priorityFilter && config.priorityFilter !== 'all') {
-        if (config.priorityFilter !== priority) continue;
+      if (config.nscPriorityFilter && config.nscPriorityFilter !== 'all') {
+        if (config.nscPriorityFilter !== priority) continue;
       }
 
       // Check concurrency limit
-      if (activeShadowCount >= (config.maxConcurrent || MAX_ACTIVE_DEFAULT)) continue;
+      if (activeShadowCount >= (config.nscMaxConcurrent || MAX_ACTIVE_DEFAULT)) continue;
 
       // Probabilistic gate
       const roll = Math.random() * 100;
-      if (roll > (config.shadowPercentage || 5)) continue;
+      if (roll > (config.nscShadowPercentage || 5)) continue;
 
       // This call should be shadow-tested
       return {
         id: config.id,
-        configName: config.configName,
-        enabled: config.enabled === 1,
-        shadowPercentage: config.shadowPercentage,
-        primaryModel: config.primaryModel,
-        experimentalModel: config.experimentalModel,
-        callerFilter: config.callerFilter || '',
-        priorityFilter: config.priorityFilter || 'all',
-        maxConcurrent: config.maxConcurrent,
-        activeShadowTests: config.activeShadowTests,
-        totalRuns: config.totalRuns,
+        configName: config.nscConfigName,
+        enabled: config.nscEnabled === 1,
+        shadowPercentage: config.nscShadowPercentage,
+        primaryModel: config.nscPrimaryModel,
+        experimentalModel: config.nscExperimentalModel,
+        callerFilter: config.nscCallerFilter || '',
+        priorityFilter: config.nscPriorityFilter || 'all',
+        maxConcurrent: config.nscMaxConcurrent,
+        activeShadowTests: config.nscActiveShadowTests,
+        totalRuns: config.nscTotalRuns,
       };
     }
 
@@ -141,28 +141,28 @@ export async function executeShadowTest(
 
     // Create shadow test record
     const [insertResult] = await db.insert(nexusShadowTests).values({
-      configId: config.id,
-      caller,
-      promptSnippet: extractPromptSnippet(originalParams),
-      primaryModel: config.primaryModel,
-      primaryLatencyMs: null,
-      primaryTokensIn: primaryResult.usage?.prompt_tokens ?? 0,
-      primaryTokensOut: primaryResult.usage?.completion_tokens ?? 0,
-      primaryScore: null,
-      experimentalModel: config.experimentalModel,
-      experimentalLatencyMs: null,
-      experimentalTokensIn: null,
-      experimentalTokensOut: null,
-      experimentalScore: null,
-      status: 'running',
+      nstConfigId: config.id,
+      nstCaller: caller,
+      nstPromptSnippet: extractPromptSnippet(originalParams),
+      nstPrimaryModel: config.primaryModel,
+      nstPrimaryLatencyMs: null,
+      nstPrimaryTokensIn: primaryResult.usage?.prompt_tokens ?? 0,
+      nstPrimaryTokensOut: primaryResult.usage?.completion_tokens ?? 0,
+      nstPrimaryScore: null,
+      nstExperimentalModel: config.experimentalModel,
+      nstExperimentalLatencyMs: null,
+      nstExperimentalTokensIn: null,
+      nstExperimentalTokensOut: null,
+      nstExperimentalScore: null,
+      nstStatus: 'running',
     });
     testId = insertResult.insertId;
 
     // Increment active count in DB
     await db.update(nexusShadowConfigs)
       .set({
-        activeShadowTests: sql`${nexusShadowConfigs.activeShadowTests} + 1`,
-        totalRuns: sql`${nexusShadowConfigs.totalRuns} + 1`,
+        nscActiveShadowTests: sql`${nexusShadowConfigs.nscActiveShadowTests} + 1`,
+        nscTotalRuns: sql`${nexusShadowConfigs.nscTotalRuns} + 1`,
       })
       .where(eq(nexusShadowConfigs.id, config.id));
 
@@ -192,17 +192,17 @@ export async function executeShadowTest(
     // Update shadow test record with results
     await db.update(nexusShadowTests)
       .set({
-        primaryLatencyMs: primaryResult.usage ? Math.round((primaryResult.usage.total_tokens || 0) * 0.05) : null, // estimate
-        experimentalLatencyMs: expLatencyMs,
-        experimentalTokensIn: experimentalResult.usage?.prompt_tokens ?? 0,
-        experimentalTokensOut: experimentalResult.usage?.completion_tokens ?? 0,
-        primaryScore: judgeResult.primaryScore,
-        experimentalScore: judgeResult.experimentalScore,
-        judgeVerdict: judgeResult.verdict,
-        judgeReasoning: judgeResult.reasoning,
-        judgeScore: judgeResult.confidenceScore,
-        status: 'completed',
-        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        nstPrimaryLatencyMs: primaryResult.usage ? Math.round((primaryResult.usage.total_tokens || 0) * 0.05) : null, // estimate
+        nstExperimentalLatencyMs: expLatencyMs,
+        nstExperimentalTokensIn: experimentalResult.usage?.prompt_tokens ?? 0,
+        nstExperimentalTokensOut: experimentalResult.usage?.completion_tokens ?? 0,
+        nstPrimaryScore: judgeResult.primaryScore,
+        nstExperimentalScore: judgeResult.experimentalScore,
+        nstJudgeVerdict: judgeResult.verdict,
+        nstJudgeReasoning: judgeResult.reasoning,
+        nstJudgeScore: judgeResult.confidenceScore,
+        nstStatus: 'completed',
+        nstCompletedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       })
       .where(eq(nexusShadowTests.id, testId));
 
@@ -221,9 +221,9 @@ export async function executeShadowTest(
         if (db) {
           await db.update(nexusShadowTests)
             .set({
-              status: 'error',
-              errorMessage: err.message?.slice(0, 1000),
-              completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              nstStatus: 'error',
+              nstErrorMessage: err.message?.slice(0, 1000),
+              nstCompletedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             })
             .where(eq(nexusShadowTests.id, testId));
         }
@@ -238,7 +238,7 @@ export async function executeShadowTest(
       if (db) {
         await db.update(nexusShadowConfigs)
           .set({
-            activeShadowTests: sql`GREATEST(${nexusShadowConfigs.activeShadowTests} - 1, 0)`,
+            nscActiveShadowTests: sql`GREATEST(${nexusShadowConfigs.nscActiveShadowTests} - 1, 0)`,
           })
           .where(eq(nexusShadowConfigs.id, config.id));
       }
@@ -355,74 +355,74 @@ export async function getShadowTestAnalytics(windowDays: number = 30) {
   // Overall verdict distribution
   const verdicts = await db
     .select({
-      verdict: nexusShadowTests.judgeVerdict,
+      verdict: nexusShadowTests.nstJudgeVerdict,
       count: sql<number>`COUNT(*)`,
-      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.primaryScore})`,
-      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.experimentalScore})`,
-      avgConfidence: sql<number>`AVG(${nexusShadowTests.judgeScore})`,
+      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.nstPrimaryScore})`,
+      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.nstExperimentalScore})`,
+      avgConfidence: sql<number>`AVG(${nexusShadowTests.nstJudgeScore})`,
     })
     .from(nexusShadowTests)
     .where(
       and(
-        eq(nexusShadowTests.status, 'completed'),
-        gte(nexusShadowTests.createdAt, cutoffStr),
+        eq(nexusShadowTests.nstStatus, 'completed'),
+        gte(nexusShadowTests.nstCreatedAt, cutoffStr),
       )
     )
-    .groupBy(nexusShadowTests.judgeVerdict);
+    .groupBy(nexusShadowTests.nstJudgeVerdict);
 
   // Daily trend
   const daily = await db
     .select({
-      day: sql<string>`DATE(${nexusShadowTests.createdAt})`.as('day'),
+      day: sql<string>`DATE(${nexusShadowTests.nstCreatedAt})`.as('day'),
       total: sql<number>`COUNT(*)`,
-      primaryWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'primary_better' THEN 1 ELSE 0 END)`,
-      experimentalWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'experimental_better' THEN 1 ELSE 0 END)`,
-      ties: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'tie' THEN 1 ELSE 0 END)`,
-      errors: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'error' THEN 1 ELSE 0 END)`,
-      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.primaryScore})`,
-      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.experimentalScore})`,
+      primaryWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'primary_better' THEN 1 ELSE 0 END)`,
+      experimentalWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'experimental_better' THEN 1 ELSE 0 END)`,
+      ties: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'tie' THEN 1 ELSE 0 END)`,
+      errors: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'error' THEN 1 ELSE 0 END)`,
+      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.nstPrimaryScore})`,
+      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.nstExperimentalScore})`,
     })
     .from(nexusShadowTests)
-    .where(gte(nexusShadowTests.createdAt, cutoffStr))
-    .groupBy(sql`DATE(${nexusShadowTests.createdAt})`)
+    .where(gte(nexusShadowTests.nstCreatedAt, cutoffStr))
+    .groupBy(sql`DATE(${nexusShadowTests.nstCreatedAt})`)
     .orderBy(sql`day`);
 
   // Top callers by shadow test count
   const topCallers = await db
     .select({
-      caller: nexusShadowTests.caller,
+      caller: nexusShadowTests.nstCaller,
       total: sql<number>`COUNT(*)`,
-      primaryWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'primary_better' THEN 1 ELSE 0 END)`,
-      experimentalWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.judgeVerdict} = 'experimental_better' THEN 1 ELSE 0 END)`,
-      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.primaryScore})`,
-      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.experimentalScore})`,
+      primaryWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'primary_better' THEN 1 ELSE 0 END)`,
+      experimentalWins: sql<number>`SUM(CASE WHEN ${nexusShadowTests.nstJudgeVerdict} = 'experimental_better' THEN 1 ELSE 0 END)`,
+      avgPrimaryScore: sql<number>`AVG(${nexusShadowTests.nstPrimaryScore})`,
+      avgExperimentalScore: sql<number>`AVG(${nexusShadowTests.nstExperimentalScore})`,
     })
     .from(nexusShadowTests)
     .where(
       and(
-        eq(nexusShadowTests.status, 'completed'),
-        gte(nexusShadowTests.createdAt, cutoffStr),
+        eq(nexusShadowTests.nstStatus, 'completed'),
+        gte(nexusShadowTests.nstCreatedAt, cutoffStr),
       )
     )
-    .groupBy(nexusShadowTests.caller)
+    .groupBy(nexusShadowTests.nstCaller)
     .orderBy(desc(sql`COUNT(*)`))
     .limit(15);
 
   // Latency comparison
   const latencyComparison = await db
     .select({
-      avgPrimaryLatency: sql<number>`AVG(${nexusShadowTests.primaryLatencyMs})`,
-      avgExperimentalLatency: sql<number>`AVG(${nexusShadowTests.experimentalLatencyMs})`,
-      avgPrimaryTokensIn: sql<number>`AVG(${nexusShadowTests.primaryTokensIn})`,
-      avgPrimaryTokensOut: sql<number>`AVG(${nexusShadowTests.primaryTokensOut})`,
-      avgExperimentalTokensIn: sql<number>`AVG(${nexusShadowTests.experimentalTokensIn})`,
-      avgExperimentalTokensOut: sql<number>`AVG(${nexusShadowTests.experimentalTokensOut})`,
+      avgPrimaryLatency: sql<number>`AVG(${nexusShadowTests.nstPrimaryLatencyMs})`,
+      avgExperimentalLatency: sql<number>`AVG(${nexusShadowTests.nstExperimentalLatencyMs})`,
+      avgPrimaryTokensIn: sql<number>`AVG(${nexusShadowTests.nstPrimaryTokensIn})`,
+      avgPrimaryTokensOut: sql<number>`AVG(${nexusShadowTests.nstPrimaryTokensOut})`,
+      avgExperimentalTokensIn: sql<number>`AVG(${nexusShadowTests.nstExperimentalTokensIn})`,
+      avgExperimentalTokensOut: sql<number>`AVG(${nexusShadowTests.nstExperimentalTokensOut})`,
     })
     .from(nexusShadowTests)
     .where(
       and(
-        eq(nexusShadowTests.status, 'completed'),
-        gte(nexusShadowTests.createdAt, cutoffStr),
+        eq(nexusShadowTests.nstStatus, 'completed'),
+        gte(nexusShadowTests.nstCreatedAt, cutoffStr),
       )
     );
 
@@ -430,8 +430,8 @@ export async function getShadowTestAnalytics(windowDays: number = 30) {
   const recentTests = await db
     .select()
     .from(nexusShadowTests)
-    .where(gte(nexusShadowTests.createdAt, cutoffStr))
-    .orderBy(desc(nexusShadowTests.createdAt))
+    .where(gte(nexusShadowTests.nstCreatedAt, cutoffStr))
+    .orderBy(desc(nexusShadowTests.nstCreatedAt))
     .limit(20);
 
   return {
