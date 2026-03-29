@@ -157,7 +157,7 @@ export async function runEmberHealthSweep(
   const allAgents = await db
     .select()
     .from(emberAgents)
-    .orderBy(desc(emberAgents.updatedAt));
+    .orderBy(desc(emberAgents.emberUpdatedAt));
 
   const agentHealths: EmberAgentHealth[] = [];
   const stateChanges: EmberHealthSweepResult["stateChanges"] = [];

@@ -722,11 +722,10 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Thresholds calibrated for DO professional-m (4GB RAM)
-    // Heap warning at ~1.5GB, critical at ~2GB, RSS emergency at ~3.2GB
-    const HEAP_WARNING_MB = parseInt(process.env.MEMORY_HEAP_WARNING_MB || '1500', 10);
-    const HEAP_CRITICAL_MB = parseInt(process.env.MEMORY_HEAP_CRITICAL_MB || '2000', 10);
-    const RSS_EMERGENCY_MB = parseInt(process.env.MEMORY_RSS_EMERGENCY_MB || '3200', 10);
+    // Manus container can OOM fast — thresholds tuned for 384MB heap limit
+    const HEAP_WARNING_MB = 250;
+    const HEAP_CRITICAL_MB = 300;
+    const RSS_EMERGENCY_MB = 550;
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
@@ -804,7 +803,7 @@ export function startMemoryWatchdog() {
         global.gc();
       }
     }
-  }, 15_000); // Check every 15 seconds — DO production has more headroom than Manus container
+  }, 10_000); // Check every 10_000ms — Manus container can OOM fast
 }
 
 /** Stop the memory watchdog */

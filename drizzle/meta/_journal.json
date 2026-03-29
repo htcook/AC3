@@ -337,6 +337,13 @@
       "when": 1774706977851,
       "tag": "0047_ancient_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1774751713044,
+      "tag": "0048_lonely_leper_queen",
+      "breakpoints": true
     }
   ]
 }

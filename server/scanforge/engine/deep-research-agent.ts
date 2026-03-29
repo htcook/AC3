@@ -584,6 +584,7 @@ async function analyzeResearchInput(input: ResearchInput): Promise<ResearchResul
 
   try {
     const response = await invokeLLM({
+      _caller: "deep-research-agent.analyzeIntelligence",
       messages: [
         {
           role: "system",

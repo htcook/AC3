@@ -811,6 +811,7 @@ Do NOT make compliance certification claims (e.g., do not claim the plan is "Fed
 Use markdown formatting for the section content.`;
 
   const response = await invokeLLM({
+    _caller: "test-plan-generator.generateSection",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `## Engagement Context\n\n${context}\n\n## Section to Generate\n\nSection: ${sectionDef.title}\n${sectionDef.nistReference ? `NIST Reference: ${sectionDef.nistReference}` : ""}\n${sectionDef.standardsReference ? `Standards Reference: ${sectionDef.standardsReference}` : ""}\n\nInstructions: ${sectionDef.prompt}\n\nGenerate the complete section content in markdown format. Be specific to the targets, technologies, and scope described in the context. Do not include the section title — just the content.` },
@@ -831,6 +832,7 @@ async function generateStructuredData(
 
   try {
     const response = await invokeLLM({
+      _caller: "test-plan-generator.generateStructuredData",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `## Context\n\n${context}\n\n## Task\n\nGenerate structured test plan data as JSON with these fields:\n\n1. estimatedDuration: string (e.g., "10 business days")\n2. attackVectors: array of objects with {id, name, description, targets: string[], methodology, tools: string[], estimatedDuration, riskLevel: "low"|"medium"|"high", mitreTechniques: string[]}\n3. toolInventory: array of {tool, purpose, phase, license}\n4. schedule: array of {phase, startDay: number, endDay: number, activities: string[]}\n5. riskMitigation: array of {risk, mitigation, owner}\n6. successCriteria: string[]\n7. deliverables: array of {name, description, dueDate}\n\nBase attack vectors on the actual assets and services discovered. Include a DNS infrastructure security vector (per NIST SP 800-81r3). Include ${isRedTeam ? "red team specific vectors (C2, persistence, lateral movement, exfiltration)" : "standard pentest vectors"}. Map tools to specific phases.` },

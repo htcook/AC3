@@ -201,6 +201,7 @@ Provide your analysis as JSON with this exact schema:
 
   try {
     const response = await invokeLLM({
+      _caller: "reassessment-agent.analyzeResults",
       messages: [
         { role: "system", content: "You are a vulnerability scanner quality analyst. Always respond with valid JSON matching the requested schema. Be specific and actionable in your recommendations." },
         { role: "user", content: prompt },

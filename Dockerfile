@@ -44,9 +44,12 @@ EXPOSE 8080
 ENV NODE_ENV=production
 
 # Set V8 heap ceiling for predictable OOM behavior in containers
-# 8192MB (8GB) supports 40+ concurrent asset scans on s-8vcpu-32gb-amd droplet (32GB RAM)
+# Default 2048MB (2GB) is tuned for DO App Platform professional-m (4GB RAM)
+# Override via DO App Platform env vars for larger instances:
+#   professional-l (8GB):  NODE_OPTIONS="--max-old-space-size=4096 --expose-gc"
+#   s-8vcpu-32gb (32GB):   NODE_OPTIONS="--max-old-space-size=8192 --expose-gc"
 # --expose-gc allows the memory watchdog to trigger manual garbage collection under pressure
-ENV NODE_OPTIONS="--max-old-space-size=8192 --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=2048 --expose-gc"
 
 # Start the server
 CMD ["node", "dist/index.js"]

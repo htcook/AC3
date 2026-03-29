@@ -54,12 +54,21 @@ export async function getDb() {
       // FIPS 140-3: Enforce FIPS-approved TLS cipher suites on DB connection
       const { getFIPSDatabaseSSLConfig } = await import('./lib/fips-tls');
       const fipsSSL = getFIPSDatabaseSSLConfig();
+      // Pool sizing: 25 connections supports 2-3 concurrent pentesters
+      // Each pentester generates ~5-10 concurrent queries (scan results, phase updates, vuln inserts)
+      // Override via DB_POOL_SIZE env var for different instance sizes
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '25', 10);
       const mysql2 = await import('mysql2');
       const pool = mysql2.createPool({
         uri: dbUrl,
         ...fipsSSL,
         waitForConnections: true,
-        connectionLimit: 10,
+        connectionLimit: poolSize,
+        connectTimeout: 15000,    // 15s connect timeout (TiDB cold-start can be slow)
+        idleTimeout: 30000,       // 30s idle timeout (free connections faster under load)
+        queueLimit: 50,           // Max 50 queued requests before rejecting
+        enableKeepAlive: true,    // Keep connections alive across idle periods
+        keepAliveInitialDelay: 10000, // 10s keepalive ping interval
       });
       _db = drizzle({ client: pool });
       console.log('[Database] FIPS TLS enforced on connection');

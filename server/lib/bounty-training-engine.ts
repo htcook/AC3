@@ -304,6 +304,7 @@ export async function generateScanForgeTemplatesFromFindings(opts: {
 
     try {
       const response = await invokeLLM({
+        _caller: "bounty-training-engine.generateTemplates",
         messages: [
           {
             role: "system",
@@ -378,7 +379,6 @@ Analyze the vulnerability pattern and generate a generalizable detection templat
           },
         },
         _priority: "bulk",
-        _caller: "bounty-training-engine.generateScanForgeTemplates",
       });
 
       const content = response.choices?.[0]?.message?.content;
@@ -471,13 +471,13 @@ export async function enrichTrainingSamples(opts: {
   for (const sample of samples) {
     try {
       const result = await invokeLLM({
+        _caller: "bounty-training-engine.enrichSamples",
         messages: [
           { role: "system", content: `You are a cybersecurity training data curator. Produce JSON with: "enriched_narrative" (2-3 paragraph technical narrative), "attack_technique" (step-by-step discovery methodology for pentesting AI), "remediation_guidance" (specific actionable steps), "improved_response" (better assistant response for LLM training).` },
           { role: "user", content: `Enrich:\n\nCategory: ${sample.category}\nTitle: ${sample.rawTitle}\nSeverity: ${sample.severityRating}\nCWE: ${sample.cweId || "N/A"}\nSummary: ${sample.rawSummary || "N/A"}\n\nOriginal response:\n${sample.assistantResponse.slice(0, 2000)}` },
         ],
         response_format: { type: "json_schema", json_schema: { name: "enrichment", strict: true, schema: { type: "object", properties: { enriched_narrative: { type: "string" }, attack_technique: { type: "string" }, remediation_guidance: { type: "string" }, improved_response: { type: "string" } }, required: ["enriched_narrative", "attack_technique", "remediation_guidance", "improved_response"], additionalProperties: false } } },
         _priority: "bulk",
-        _caller: "bounty-training-engine.enrichTrainingSamples",
       });
       const content = result.choices?.[0]?.message?.content;
       if (content && typeof content === "string") {

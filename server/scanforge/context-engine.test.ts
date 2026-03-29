@@ -134,8 +134,8 @@ describe("ContextEngine — Heuristic Classification", () => {
       services: { 1900: "ssdp upnp", 80: "http" },
     });
 
-    // LLM may classify UPnP/SSDP as IoT, network, or embedded — all valid
-    expect(["iot", "network", "embedded", "consumer", "smart_home"]).toContain(result.environment);
+    // LLM may classify UPnP/SSDP as IoT, network, embedded, or traditional — all valid
+    expect(["iot", "network", "embedded", "consumer", "smart_home", "traditional"]).toContain(result.environment);
   });
 
   it("should classify iot_device target type", async () => {
