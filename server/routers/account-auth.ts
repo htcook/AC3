@@ -171,17 +171,17 @@ export const accountAuthRouter = router({
           return { success: false, message: "Invalid credentials" };
         }
 
-        if (account.status === "suspended") {
+        if (account.accountStatus === "suspended") {
           await logAuthEvent({ action: "login_suspended", email, success: false, detail: "Account suspended", ipAddress, userId: account.id });
           return { success: false, message: "Account has been suspended. Contact your administrator." };
         }
 
-        if (account.status === "deactivated") {
+        if (account.accountStatus === "deactivated") {
           await logAuthEvent({ action: "login_deactivated", email, success: false, detail: "Account deactivated", ipAddress, userId: account.id });
           return { success: false, message: "Account has been deactivated." };
         }
 
-        if (account.status === "invited") {
+        if (account.accountStatus === "invited") {
           await logAuthEvent({ action: "login_not_activated", email, success: false, detail: "Account not yet activated", ipAddress, userId: account.id });
           return { success: false, message: "Please complete your account setup using the invite link sent to your email." };
         }
@@ -230,7 +230,7 @@ export const accountAuthRouter = router({
             accountId: account.id,
             email: account.email,
             displayName: account.displayName,
-            role: account.role,
+            role: account.accountRole,
             loginTime: Date.now(),
             authType: "email",
             sessionId,
@@ -252,9 +252,9 @@ export const accountAuthRouter = router({
         });
 
         ctx.res.cookie(CALDERA_SESSION_COOKIE, token, getCookieOptions(ctx.req, input.rememberMe));
-        await logAuthEvent({ action: "login_success", email, success: true, detail: `Role: ${account.role}`, ipAddress, userId: account.id });
+        await logAuthEvent({ action: "login_success", email, success: true, detail: `Role: ${account.accountRole}`, ipAddress, userId: account.id });
 
-        console.log(`[AccountAuth] Login successful for ${email} (role: ${account.role})`);
+        console.log(`[AccountAuth] Login successful for ${email} (role: ${account.accountRole})`);
         return {
           success: true,
           mfaRequired: false,
@@ -263,7 +263,7 @@ export const accountAuthRouter = router({
             id: account.id,
             email: account.email,
             displayName: account.displayName,
-            role: account.role,
+            role: account.accountRole,
           },
         };
       } catch (err) {
@@ -313,8 +313,8 @@ export const accountAuthRouter = router({
           email,
           passwordHash,
           displayName: input.displayName,
-          role: input.role,
-          status: input.tempPassword ? "active" : "invited",
+          accountRole: input.role,
+          accountStatus: input.tempPassword ? "active" : "invited",
           invitedBy: decoded.accountId || null,
           inviteToken,
           inviteExpiresAt,
@@ -391,7 +391,7 @@ export const accountAuthRouter = router({
           return { success: false, message: "Invalid or expired invite token" };
         }
 
-        if (account.status !== "invited") {
+        if (account.accountStatus !== "invited") {
           return { success: false, message: "This invite has already been used" };
         }
 
@@ -404,7 +404,7 @@ export const accountAuthRouter = router({
         await db.update(calderaAccounts)
           .set({
             passwordHash,
-            status: "active",
+            accountStatus: "active",
             inviteToken: null,
             inviteExpiresAt: null,
             updatedAt: new Date(),
@@ -442,8 +442,8 @@ export const accountAuthRouter = router({
       id: calderaAccounts.id,
       email: calderaAccounts.email,
       displayName: calderaAccounts.displayName,
-      role: calderaAccounts.role,
-      status: calderaAccounts.status,
+      role: calderaAccounts.accountRole,
+      status: calderaAccounts.accountStatus,
       lastLoginAt: calderaAccounts.lastLoginAt,
       createdAt: calderaAccounts.createdAt,
     }).from(calderaAccounts).orderBy(desc(calderaAccounts.createdAt));
@@ -478,8 +478,8 @@ export const accountAuthRouter = router({
       }
 
       const updates: any = { updatedAt: new Date() };
-      if (input.role) updates.role = input.role;
-      if (input.status) updates.status = input.status;
+      if (input.role) updates.accountRole = input.role;
+      if (input.status) updates.accountStatus = input.status;
 
       await db.update(calderaAccounts).set(updates).where(eq(calderaAccounts.id, input.accountId));
 
@@ -793,7 +793,7 @@ export const accountAuthRouter = router({
             accountId: account.id,
             email: account.email,
             displayName: account.displayName,
-            role: account.role,
+            role: account.accountRole,
             loginTime: Date.now(),
             authType: "email",
             mfaVerified: true,
@@ -822,7 +822,7 @@ export const accountAuthRouter = router({
         return {
           success: true,
           message: "Login successful",
-          user: { id: account.id, email: account.email, displayName: account.displayName, role: account.role },
+          user: { id: account.id, email: account.email, displayName: account.displayName, role: account.accountRole },
         };
       } catch (err) {
         console.error("[AccountAuth] MFA verify error:", err);
@@ -876,7 +876,7 @@ export const accountAuthRouter = router({
       createdAt: activeSessions.createdAt,
       userEmail: calderaAccounts.email,
       userDisplayName: calderaAccounts.displayName,
-      userRole: calderaAccounts.role,
+      userRole: calderaAccounts.accountRole,
     })
     .from(activeSessions)
     .leftJoin(calderaAccounts, eq(activeSessions.accountId, calderaAccounts.id))
@@ -1026,7 +1026,7 @@ export const accountAuthRouter = router({
       const db = await getDb();
       const [account] = await db.select().from(calderaAccounts).where(eq(calderaAccounts.id, input.accountId)).limit(1);
       if (!account) throw new TRPCError({ code: "NOT_FOUND" });
-      if (account.status !== "invited") {
+      if (account.accountStatus !== "invited") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Can only resend invites for accounts in 'invited' status" });
       }
 

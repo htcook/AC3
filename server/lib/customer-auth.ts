@@ -70,16 +70,12 @@ export async function createCustomerAccount(params: {
   const id = crypto.randomUUID();
 
   await database.insert(customerAccounts).values({
-    id,
-    tenantId: params.tenantId,
-    engagementId: params.engagementId || null,
-    contactName: params.contactName,
-    email: params.email.toLowerCase().trim(),
+    tenantId: parseInt(params.tenantId),
+    caEmail: params.email.toLowerCase().trim(),
     passwordHash,
-    role: params.role || "viewer",
-    status: "active",
-    createdAt: new Date(),
-    lastLoginAt: null,
+    caName: params.contactName,
+    caRole: (params.role as any) || "viewer",
+    caStatus: "active",
   });
 
   await logCustomerAction({
@@ -114,8 +110,8 @@ export async function authenticateCustomer(email: string, password: string): Pro
     .select()
     .from(customerAccounts)
     .where(and(
-      eq(customerAccounts.email, normalizedEmail),
-      eq(customerAccounts.status, "active")
+      eq(customerAccounts.caEmail, normalizedEmail),
+      eq(customerAccounts.caStatus, "active")
     ))
     .limit(1);
 
@@ -126,8 +122,8 @@ export async function authenticateCustomer(email: string, password: string): Pro
   const passwordValid = await verifyPassword(password, account.passwordHash);
   if (!passwordValid) {
     await logCustomerAction({
-      customerId: account.id,
-      tenantId: account.tenantId,
+      customerId: String(account.id),
+      tenantId: String(account.tenantId),
       action: "login_failed",
       resource: "customer_auth",
       details: { reason: "invalid_password" },
@@ -138,15 +134,15 @@ export async function authenticateCustomer(email: string, password: string): Pro
   // Update last login
   await database
     .update(customerAccounts)
-    .set({ lastLoginAt: new Date() })
+    .set({ caLastLoginAt: new Date().toISOString() })
     .where(eq(customerAccounts.id, account.id));
 
   const payload: CustomerTokenPayload = {
-    customerId: account.id,
-    tenantId: account.tenantId,
-    engagementId: account.engagementId,
-    email: account.email,
-    role: account.role,
+    customerId: String(account.id),
+    tenantId: String(account.tenantId),
+    engagementId: null,
+    email: account.caEmail,
+    role: account.caRole,
     type: "customer",
   };
 
@@ -154,8 +150,8 @@ export async function authenticateCustomer(email: string, password: string): Pro
   const refreshToken = generateRefreshToken(payload);
 
   await logCustomerAction({
-    customerId: account.id,
-    tenantId: account.tenantId,
+    customerId: String(account.id),
+    tenantId: String(account.tenantId),
     action: "login_success",
     resource: "customer_auth",
     details: {},
@@ -166,12 +162,12 @@ export async function authenticateCustomer(email: string, password: string): Pro
     token,
     refreshToken,
     customer: {
-      id: account.id,
-      tenantId: account.tenantId,
-      engagementId: account.engagementId,
-      contactName: account.contactName,
-      email: account.email,
-      role: account.role,
+      id: String(account.id),
+      tenantId: String(account.tenantId),
+      engagementId: null,
+      contactName: account.caName,
+      email: account.caEmail,
+      role: account.caRole,
     },
   };
 }
@@ -193,8 +189,8 @@ export async function refreshCustomerSession(refreshToken: string): Promise<{
       .select()
       .from(customerAccounts)
       .where(and(
-        eq(customerAccounts.id, decoded.customerId),
-        eq(customerAccounts.status, "active")
+        eq(customerAccounts.id, parseInt(decoded.customerId)),
+        eq(customerAccounts.caStatus, "active")
       ))
       .limit(1);
 
@@ -203,11 +199,11 @@ export async function refreshCustomerSession(refreshToken: string): Promise<{
     }
 
     const newPayload: CustomerTokenPayload = {
-      customerId: account.id,
-      tenantId: account.tenantId,
-      engagementId: account.engagementId,
-      email: account.email,
-      role: account.role,
+      customerId: String(account.id),
+      tenantId: String(account.tenantId),
+      engagementId: null,
+      email: account.caEmail,
+      role: account.caRole,
       type: "customer",
     };
 
@@ -241,7 +237,7 @@ export async function changeCustomerPassword(customerId: string, currentPassword
 
   await logCustomerAction({
     customerId,
-    tenantId: account.tenantId,
+    tenantId: String(account.tenantId),
     action: "password_changed",
     resource: "customer_account",
     details: {},
@@ -264,15 +260,13 @@ export async function logCustomerAction(params: {
   try {
     const database = await getDbRequired();
     await database.insert(customerAuditLog).values({
-      id: crypto.randomUUID(),
-      customerId: params.customerId,
-      tenantId: params.tenantId,
-      action: params.action,
-      resource: params.resource,
-      resourceId: params.resourceId || null,
-      details: params.details ? JSON.stringify(params.details) : null,
-      ipAddress: params.ipAddress || null,
-      timestamp: new Date(),
+      customerAccountId: parseInt(params.customerId) || 0,
+      calTenantId: parseInt(params.tenantId) || 0,
+      calAction: params.action,
+      calResource: params.resource,
+      calResourceId: params.resourceId || null,
+      calDetails: params.details ? JSON.stringify(params.details) : null,
+      calIpAddress: params.ipAddress || null,
     });
   } catch (err) {
     // Audit logging should never break the main flow
