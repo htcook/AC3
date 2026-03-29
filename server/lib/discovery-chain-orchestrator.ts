@@ -5,7 +5,7 @@
  * 
  *   Stage 1: AMASS — Subdomain enumeration (passive + active)
  *     ↓ discovered subdomains & IPs
- *   Stage 2: NMAP — Port scanning & service detection
+ *   Stage 2: SCANFORGE — Port scanning & service detection
  *     ↓ open ports & service banners
  *   Stage 3: SERVICE FINGERPRINTER — Protocol-specific probing
  *     ↓ detailed service metadata, security flags, risk indicators
@@ -22,7 +22,7 @@ import type { PipelineFinding, PipelinePhase, ToolModule } from "./unified-pipel
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type ChainStageId = "amass" | "nmap" | "service_fingerprinter" | "nuclei" | "service_audit";
+export type ChainStageId = "amass" | "scanforge-discovery" | "service_fingerprinter" | "nuclei" | "service_audit";
 
 export type ChainStageStatus =
   | "pending"
@@ -74,7 +74,7 @@ export interface ChainStageResult {
 export interface ChainRunConfig {
   /** Target domain(s) to begin discovery from */
   domains: string[];
-  /** Optional seed IPs to include in Nmap scanning */
+  /** Optional seed IPs to include in ScanForge Discovery scanning */
   seedIps?: string[];
   /** Optional seed URLs to include in Nuclei scanning */
   seedUrls?: string[];
@@ -91,7 +91,7 @@ export interface ChainRunConfig {
       timeout?: number;
       maxSubdomains?: number;
     };
-    nmap?: {
+    discovery?: {
       profile?: "quick" | "standard" | "deep" | "stealth" | "service" | "vuln";
       topPorts?: number;
       timeout?: number;
@@ -188,11 +188,11 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
     optional: false,
   },
   {
-    id: "nmap",
+    id: "scanforge-discovery",
     name: "Port Scanning & Service Detection",
     description:
       "Scan discovered hosts for open ports, detect running services and versions, perform OS fingerprinting. Output: host/port/service inventory.",
-    tool: "nmap",
+    tool: "naabu",
     dependsOn: ["amass"],
     estimatedDurationSec: 300,
     optional: false,
@@ -203,7 +203,7 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
     description:
       "Deep-probe discovered services with protocol-specific handlers (SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, databases). Extract banners, versions, security flags, and risk indicators.",
     tool: "service_fingerprinter",
-    dependsOn: ["nmap"],
+    dependsOn: ["scanforge-discovery"],
     estimatedDurationSec: 180,
     optional: true,
   },
@@ -213,7 +213,7 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
     description:
       "Run template-based vulnerability scanning against discovered services. Match CVEs, detect misconfigurations, identify exposures using 8,000+ templates.",
     tool: "nuclei_vuln",
-    dependsOn: ["nmap", "service_fingerprinter"],
+    dependsOn: ["scanforge-discovery", "service_fingerprinter"],
     estimatedDurationSec: 600,
     optional: true,
   },
@@ -223,7 +223,7 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
     description:
       "Auto-trigger protocol-specific security audits based on discovered services: SSH audit (port 22), FTP audit (port 21), SMTP audit (port 25/587), SNMP audit (port 161), RDP audit (port 3389), and web DAST scanners (HTTP/HTTPS ports).",
     tool: "service_fingerprinter" as ToolModule,
-    dependsOn: ["nmap"],
+    dependsOn: ["scanforge-discovery"],
     estimatedDurationSec: 300,
     optional: true,
   },
@@ -232,10 +232,10 @@ export const CHAIN_STAGES: ChainStageDefinition[] = [
 // ─── Data Flow Extractors ───────────────────────────────────────────
 
 /**
- * Extract Nmap targets from Amass results.
+ * Extract ScanForge Discovery targets from Amass results.
  * Produces a deduplicated list of IPs and subdomains to scan.
  */
-export function extractNmapTargetsFromAmass(amassOutput: any): string[] {
+export function extractScanForgeDiscoveryTargetsFromAmass(amassOutput: any): string[] {
   if (!amassOutput) return [];
 
   const targets = new Set<string>();
@@ -268,13 +268,13 @@ export function extractNmapTargetsFromAmass(amassOutput: any): string[] {
 }
 
 /**
- * Extract Service Fingerprinter targets from Nmap results.
+ * Extract Service Fingerprinter targets from ScanForge Discovery results.
  * Maps open ports to protocol-specific fingerprinting targets.
  */
-export function extractFingerprintTargetsFromNmap(
-  nmapOutput: any
+export function extractFingerprintTargetsFromScanForgeDiscovery(
+  discoveryOutput: any
 ): Array<{ host: string; port: number; protocol?: string }> {
-  if (!nmapOutput) return [];
+  if (!discoveryOutput) return [];
 
   const targets: Array<{ host: string; port: number; protocol?: string }> = [];
 
@@ -289,9 +289,9 @@ export function extractFingerprintTargetsFromNmap(
     636: "ldap", 5060: "sip", 123: "ntp",
   };
 
-  // Handle toNmapRawResults format (array of host objects)
-  if (Array.isArray(nmapOutput)) {
-    for (const host of nmapOutput) {
+  // Handle toScanForge DiscoveryRawResults format (array of host objects)
+  if (Array.isArray(discoveryOutput)) {
+    for (const host of discoveryOutput) {
       if (host.ports && Array.isArray(host.ports)) {
         for (const port of host.ports) {
           const protocol = PORT_PROTOCOL_MAP[port.port];
@@ -307,9 +307,9 @@ export function extractFingerprintTargetsFromNmap(
     }
   }
 
-  // Handle NmapScanResult format
-  if (nmapOutput.hosts && Array.isArray(nmapOutput.hosts)) {
-    for (const host of nmapOutput.hosts) {
+  // Handle ScanForge DiscoveryScanResult format
+  if (discoveryOutput.hosts && Array.isArray(discoveryOutput.hosts)) {
+    for (const host of discoveryOutput.hosts) {
       if (host.ports && Array.isArray(host.ports)) {
         for (const port of host.ports) {
           const protocol = PORT_PROTOCOL_MAP[port.port];
@@ -329,20 +329,20 @@ export function extractFingerprintTargetsFromNmap(
 }
 
 /**
- * Extract Nuclei targets from Nmap and Service Fingerprinter results.
+ * Extract Nuclei targets from ScanForge Discovery and Service Fingerprinter results.
  * Produces URLs and host:port pairs for template scanning.
  */
 export function extractNucleiTargetsFromResults(
-  nmapOutput: any,
+  discoveryOutput: any,
   fingerprintOutput: any
 ): string[] {
   const targets = new Set<string>();
 
-  // From Nmap: generate URLs for HTTP/HTTPS services
+  // From ScanForge Discovery: generate URLs for HTTP/HTTPS services
   const httpPorts = new Set([80, 443, 8080, 8443, 8000, 8888, 3000, 5000, 9090, 9443]);
 
-  if (Array.isArray(nmapOutput)) {
-    for (const host of nmapOutput) {
+  if (Array.isArray(discoveryOutput)) {
+    for (const host of discoveryOutput) {
       if (host.ports && Array.isArray(host.ports)) {
         for (const port of host.ports) {
           const hostAddr = host.host || host.ip;
@@ -357,8 +357,8 @@ export function extractNucleiTargetsFromResults(
     }
   }
 
-  if (nmapOutput?.hosts && Array.isArray(nmapOutput.hosts)) {
-    for (const host of nmapOutput.hosts) {
+  if (discoveryOutput?.hosts && Array.isArray(discoveryOutput.hosts)) {
+    for (const host of discoveryOutput.hosts) {
       if (host.ports && Array.isArray(host.ports)) {
         for (const port of host.ports) {
           const hostAddr = host.ip || host.hostname;
@@ -389,16 +389,16 @@ export function extractNucleiTargetsFromResults(
  * Determine which Nuclei template categories to use based on discovered services.
  */
 export function selectNucleiTemplates(
-  nmapOutput: any,
+  discoveryOutput: any,
   fingerprintOutput: any
 ): { categories: string[]; tags: string[] } {
   const categories = new Set<string>(["cves", "vulnerabilities", "misconfiguration"]);
   const tags = new Set<string>();
 
-  // Analyze Nmap services
+  // Analyze ScanForge Discovery services
   const services = new Set<string>();
-  if (Array.isArray(nmapOutput)) {
-    for (const host of nmapOutput) {
+  if (Array.isArray(discoveryOutput)) {
+    for (const host of discoveryOutput) {
       for (const port of host.ports || []) {
         if (port.service) services.add(port.service.toLowerCase());
       }
@@ -614,7 +614,7 @@ function createEmptySummary(): ChainRunSummary {
     totalVulnerabilities: 0,
     totalFindings: 0,
     findingsBySeverity: {},
-    findingsByStage: { amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0 },
+    findingsByStage: { amass: 0, discovery: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0 },
     stagesCompleted: 0,
     stagesTotal: 5,
     stagesFailed: 0,
@@ -628,7 +628,7 @@ export function computeChainSummary(run: ChainRun): ChainRunSummary {
   const allFindings = run.stages.flatMap(s => s.findings);
   const findingsBySeverity: Record<string, number> = {};
   const findingsByStage: Record<ChainStageId, number> = {
-    amass: 0, nmap: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0,
+    amass: 0, discovery: 0, service_fingerprinter: 0, nuclei: 0, service_audit: 0,
   };
   const cves = new Set<string>();
   const techniques = new Set<string>();
@@ -691,7 +691,7 @@ export function computeChainSummary(run: ChainRun): ChainRunSummary {
 function toolToStage(tool: ToolModule): ChainStageId | null {
   switch (tool) {
     case "amass": return "amass";
-    case "nmap": return "nmap";
+    case "scanforge-discovery": return "scanforge-discovery";
     case "service_fingerprinter": return "service_fingerprinter";
     case "nuclei_info":
     case "nuclei_vuln":
@@ -735,8 +735,8 @@ export interface ChainExecutionCallbacks {
     operatorId?: string;
   }) => Promise<{ subdomains: any[]; rawResult: any }>;
 
-  /** Execute Nmap port scanning */
-  executeNmap: (config: {
+  /** Execute ScanForge Discovery port scanning */
+  executeScanForgeDiscovery: (config: {
     targets: string[];
     profile: string;
     topPorts?: number;
@@ -858,78 +858,78 @@ export async function executeChain(
       callbacks.onProgress?.(run);
     }
 
-    // ─── Stage 2: Nmap ────────────────────────────────────────────
-    const nmapStage = run.stages.find(s => s.stageId === "nmap")!;
-    if (nmapStage.status !== "skipped") {
+    // ─── Stage 2: ScanForge Discovery ────────────────────────────────────────────
+    const discoveryStage = run.stages.find(s => s.stageId === "scanforge-discovery")!;
+    if (discoveryStage.status !== "skipped") {
       if (run.cancelled || Date.now() > deadline) {
-        throw new ChainTimeoutError("Chain cancelled or timed out before Nmap stage");
+        throw new ChainTimeoutError("Chain cancelled or timed out before ScanForge Discovery stage");
       }
 
       // Extract targets from Amass output + seed IPs + original domains
-      let nmapTargets: string[] = [...config.domains];
-      if (config.seedIps) nmapTargets.push(...config.seedIps);
+      let discoveryTargets: string[] = [...config.domains];
+      if (config.seedIps) discoveryTargets.push(...config.seedIps);
 
       if (amassStage.rawOutput) {
-        const amassTargets = extractNmapTargetsFromAmass(amassStage.rawOutput);
-        nmapTargets.push(...amassTargets);
+        const amassTargets = extractScanForgeDiscoveryTargetsFromAmass(amassStage.rawOutput);
+        discoveryTargets.push(...amassTargets);
       }
-      nmapTargets = Array.from(new Set(nmapTargets));
+      discoveryTargets = Array.from(new Set(discoveryTargets));
 
       // Scope enforcement
       if (config.engagementId && callbacks.enforceScope) {
         try {
           const scopeResult = await callbacks.enforceScope({
-            targets: nmapTargets,
-            tool: "nmap_chain",
+            targets: discoveryTargets,
+            tool: "scanforge-discovery_chain",
             engagementId: config.engagementId,
             operatorId: config.operatorId || "system",
           });
-          nmapTargets = scopeResult.inScope;
+          discoveryTargets = scopeResult.inScope;
         } catch {
           // Continue with original targets if scope check fails
         }
       }
 
-      nmapStage.status = "running";
-      nmapStage.startedAt = Date.now();
-      nmapStage.inputTargetCount = nmapTargets.length;
-      run.currentStage = "nmap";
+      discoveryStage.status = "running";
+      discoveryStage.startedAt = Date.now();
+      discoveryStage.inputTargetCount = discoveryTargets.length;
+      run.currentStage = "scanforge-discovery";
       callbacks.onProgress?.(run);
 
       try {
-        const nmapConfig = config.stageConfig?.nmap;
-        const nmapResult = await callbacks.executeNmap({
-          targets: nmapTargets,
-          profile: nmapConfig?.profile || "standard",
-          topPorts: nmapConfig?.topPorts,
-          timeout: nmapConfig?.timeout,
+        const scanConfig = config.stageConfig?.discovery;
+        const discoveryResult = await callbacks.executeScanForgeDiscovery({
+          targets: discoveryTargets,
+          profile: scanConfig?.profile || "standard",
+          topPorts: scanConfig?.topPorts,
+          timeout: scanConfig?.timeout,
           engagementId: config.engagementId,
           operatorId: config.operatorId,
         });
 
-        nmapStage.rawOutput = nmapResult.rawResult;
-        nmapStage.outputCount = nmapResult.hosts.length;
-        nmapStage.status = "completed";
-        nmapStage.completedAt = Date.now();
-        nmapStage.durationMs = nmapStage.completedAt - nmapStage.startedAt;
+        discoveryStage.rawOutput = discoveryResult.rawResult;
+        discoveryStage.outputCount = discoveryResult.hosts.length;
+        discoveryStage.status = "completed";
+        discoveryStage.completedAt = Date.now();
+        discoveryStage.durationMs = discoveryStage.completedAt - discoveryStage.startedAt;
 
         // Convert to pipeline findings
-        const { convertNmapFindings } = await import("./unified-pipeline");
-        nmapStage.findings = convertNmapFindings(nmapResult.hosts, "enumeration");
+        const { convertScanForgeFindings } = await import("./unified-pipeline");
+        discoveryStage.findings = convertScanForgeFindings(discoveryResult.hosts, "enumeration");
 
-        callbacks.onStageComplete?.(run, "nmap");
+        callbacks.onStageComplete?.(run, "scanforge-discovery");
       } catch (err: any) {
-        nmapStage.status = "failed";
-        nmapStage.completedAt = Date.now();
-        nmapStage.durationMs = nmapStage.completedAt - nmapStage.startedAt;
-        nmapStage.errors.push(err.message || "Nmap execution failed");
+        discoveryStage.status = "failed";
+        discoveryStage.completedAt = Date.now();
+        discoveryStage.durationMs = discoveryStage.completedAt - discoveryStage.startedAt;
+        discoveryStage.errors.push(err.message || "ScanForge Discovery execution failed");
 
         if (!config.continueOnPartialFailure) {
           throw err;
         }
       }
 
-      updateStageResult(run.id, "nmap", nmapStage);
+      updateStageResult(run.id, "scanforge-discovery", discoveryStage);
       callbacks.onProgress?.(run);
     }
 
@@ -940,15 +940,15 @@ export async function executeChain(
         throw new ChainTimeoutError("Chain cancelled or timed out before Service Fingerprinter stage");
       }
 
-      // Extract targets from Nmap output
+      // Extract targets from ScanForge Discovery output
       let fpTargets: Array<{ host: string; port: number; protocol?: string }> = [];
-      if (nmapStage.rawOutput) {
-        fpTargets = extractFingerprintTargetsFromNmap(nmapStage.rawOutput);
+      if (discoveryStage.rawOutput) {
+        fpTargets = extractFingerprintTargetsFromScanForgeDiscovery(discoveryStage.rawOutput);
       }
 
       if (fpTargets.length === 0) {
         fpStage.status = "skipped";
-        fpStage.errors.push("No fingerprintable services found in Nmap results");
+        fpStage.errors.push("No fingerprintable services found in ScanForge Discovery results");
         updateStageResult(run.id, "service_fingerprinter", fpStage);
       } else {
         fpStage.status = "running";
@@ -1035,9 +1035,9 @@ export async function executeChain(
         throw new ChainTimeoutError("Chain cancelled or timed out before Nuclei stage");
       }
 
-      // Extract targets from Nmap + Fingerprinter
+      // Extract targets from ScanForge Discovery + Fingerprinter
       let nucleiTargets = extractNucleiTargetsFromResults(
-        nmapStage.rawOutput,
+        discoveryStage.rawOutput,
         fpStage.rawOutput
       );
 
@@ -1052,7 +1052,7 @@ export async function executeChain(
         updateStageResult(run.id, "nuclei", nucleiStage);
       } else {
         // Select templates based on discovered services
-        const templateSelection = selectNucleiTemplates(nmapStage.rawOutput, fpStage.rawOutput);
+        const templateSelection = selectNucleiTemplates(discoveryStage.rawOutput, fpStage.rawOutput);
 
         nucleiStage.status = "running";
         nucleiStage.startedAt = Date.now();
@@ -1111,13 +1111,13 @@ export async function executeChain(
         saStage.errors.push("Chain cancelled or timed out before Service Audit stage");
         updateStageResult(run.id, "service_audit", saStage);
       } else {
-        // Extract discovered services from nmap output
-        const { extractServicesFromNmap, convertServiceAuditFindings } = await import("./service-audit-chain-hook");
-        const discoveredServices = extractServicesFromNmap(nmapStage.rawOutput);
+        // Extract discovered services from ScanForge discovery output
+        const { extractServicesFromScanForge, convertServiceAuditFindings } = await import("./service-audit-chain-hook");
+        const discoveredServices = extractServicesFromScanForge(discoveryStage.rawOutput);
 
         if (discoveredServices.length === 0) {
           saStage.status = "skipped";
-          saStage.errors.push("No auditable services found in Nmap results");
+          saStage.errors.push("No auditable services found in ScanForge Discovery results");
           updateStageResult(run.id, "service_audit", saStage);
         } else {
           saStage.status = "running";
@@ -1226,16 +1226,16 @@ export function estimateChainDuration(config: ChainRunConfig): {
 
   const byStage: Record<ChainStageId, number> = {
     amass: skipStages.has("amass") ? 0 : 120 * domainCount,
-    nmap: skipStages.has("nmap") ? 0 : 300 * domainCount,
+    discovery: skipStages.has("scanforge-discovery") ? 0 : 300 * domainCount,
     service_fingerprinter: skipStages.has("service_fingerprinter") ? 0 : 180,
     nuclei: skipStages.has("nuclei") ? 0 : 600,
   };
 
   // Adjust based on profile
-  if (config.stageConfig?.nmap?.profile === "quick") {
-    byStage.nmap = Math.round(byStage.nmap * 0.3);
-  } else if (config.stageConfig?.nmap?.profile === "deep") {
-    byStage.nmap = Math.round(byStage.nmap * 2);
+  if (config.stageConfig?.discovery?.profile === "quick") {
+    byStage.discovery = Math.round(byStage.discovery * 0.3);
+  } else if (config.stageConfig?.discovery?.profile === "deep") {
+    byStage.discovery = Math.round(byStage.discovery * 2);
   }
 
   return {

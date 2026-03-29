@@ -2,7 +2,7 @@
  * AC3 LLM Specialist — Vulnerability Verifier
  *
  * Evaluates scan findings to determine if vulnerabilities are real, contextual, or false positives.
- * Used after nuclei, ZAP, or nmap NSE script findings.
+ * Used after nuclei, ZAP, or ScanForge discovery findings.
  */
 
 import { invokeLLM } from "../../_core/llm";

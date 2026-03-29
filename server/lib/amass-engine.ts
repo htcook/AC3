@@ -7,7 +7,7 @@
  * 
  * Amass is licensed under Apache 2.0 — fully permissible for commercial use.
  * The operator installs Amass on their scan servers; this engine orchestrates
- * execution via SSH (same pattern as nmap-orchestrator.ts).
+ * execution via SSH (same pattern as scanforge-discovery.ts).
  */
 
 import crypto from "crypto";
@@ -212,7 +212,7 @@ export const BUILT_IN_WORDLIST: string[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SSH Command Execution (same pattern as nmap-orchestrator)
+// SSH Command Execution (same pattern as scanforge-discovery)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function executeSSHCommand(

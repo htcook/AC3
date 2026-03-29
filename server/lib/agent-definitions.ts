@@ -230,14 +230,14 @@ When scoping engagements, you structure analysis around:
 
   workflowSteps: JSON.stringify([
     { step: 1, name: "Scope Validation & Target Profiling", description: "Verify RoE boundaries, enumerate in-scope targets, identify technology stacks and entry points", requiredInputs: ["osintReport", "roeDocument", "targetList"], outputs: ["validatedScope", "targetProfiles"], qualityGate: "All targets confirmed in-scope with RoE reference" },
-    { step: 2, name: "Vulnerability Discovery", description: "Automated scanning (Nuclei, ZAP, Nmap) + manual testing for business logic, auth bypass, injection", requiredInputs: ["targetProfiles"], outputs: ["rawFindings", "scanResults"], qualityGate: "All OWASP Top 10 categories tested per web target" },
+    { step: 2, name: "Vulnerability Discovery", description: "Automated scanning (Nuclei, ZAP, ScanForge) + manual testing for business logic, auth bypass, injection", requiredInputs: ["targetProfiles"], outputs: ["rawFindings", "scanResults"], qualityGate: "All OWASP Top 10 categories tested per web target" },
     { step: 3, name: "Vulnerability Validation & Exploitation", description: "Manual verification of each finding, PoC development, controlled exploitation", requiredInputs: ["rawFindings"], outputs: ["confirmedVulnerabilities", "pocEvidence"], qualityGate: "Every Critical/High has working PoC or documented reason for no-exploit" },
     { step: 4, name: "Attack Chain Construction", description: "Chain individual findings into realistic attack paths demonstrating business impact", requiredInputs: ["confirmedVulnerabilities", "targetProfiles"], outputs: ["attackChains", "impactAssessment"], qualityGate: "At least 1 attack chain per Critical finding" },
     { step: 5, name: "Remediation & Reporting", description: "Generate specific remediation guidance, prioritize by risk, compile final report", requiredInputs: ["all previous outputs"], outputs: ["pentestReport", "remediationPlan"], qualityGate: "Every finding has stack-specific remediation, not generic advice" }
   ]),
 
   toolAccess: JSON.stringify([
-    "nmap", "nuclei", "zap", "burp", "sqlmap", "metasploit", "gobuster",
+    "scanforge-discovery", "nuclei", "zap", "burp", "sqlmap", "metasploit", "gobuster",
     "ffuf", "nikto", "wpscan", "testssl", "sslscan", "crackmapexec",
     "impacket", "bloodhound", "kerbrute", "responder", "mimikatz",
     "linpeas", "winpeas", "chisel", "ligolo", "covenant"

@@ -14,8 +14,8 @@
  * - Cache-Control — sensitive data caching
  * - TLS/SSL configuration analysis
  *
- * Uses curl + nmap NSE scripts for comprehensive analysis.
- * Auto-triggers when naabu/nmap discovers port 80 or 443.
+ * Uses curl + Nuclei template scripts for comprehensive analysis.
+ * Auto-triggers when ScanForge discovers port 80 or 443.
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -593,23 +593,23 @@ export async function startHTTPHeaderAudit(config: HTTPHeaderAuditConfig): Promi
     }
   }
 
-  // ── Phase 3: nmap HTTP scripts ────────────────────────────────────────────
+  // ── Phase 3: ScanForge discovery HTTP scripts ────────────────────────────────────────────
   try {
-    const nmapResult = await executeTool({
-      tool: "nmap",
+    const discoveryResult = await executeTool({
+      tool: "naabu",
       args: `-p ${port} --script http-headers,http-server-header,http-security-headers,http-cors -sV ${config.host}`,
       target: config.host,
       timeoutSeconds: timeout,
       engagementId: config.engagementId,
     });
-    rawOutput += `\n=== nmap HTTP scripts ===\n${nmapResult.stdout}\n`;
+    rawOutput += `\n=== ScanForge discovery HTTP scripts ===\n${discoveryResult.stdout}\n`;
 
-    // Supplement headers from nmap if curl failed
+    // Supplement headers from ScanForge discovery if curl failed
     if (headerMap.size === 0) {
-      headerMap = parseHeaders(nmapResult.stdout);
+      headerMap = parseHeaders(discoveryResult.stdout);
     }
   } catch (err: any) {
-    console.warn(`[HTTPHeaderAudit] nmap HTTP scripts failed: ${err.message}`);
+    console.warn(`[HTTPHeaderAudit] ScanForge discovery HTTP scripts failed: ${err.message}`);
   }
 
   // ── Analyze security headers ──────────────────────────────────────────────

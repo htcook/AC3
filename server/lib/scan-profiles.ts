@@ -20,15 +20,15 @@ export interface ScanProfile {
   description: string;
   estimatedTimePerAsset: string;
 
-  // Nmap configuration
-  nmap: {
+  // ScanForge configuration
+  discovery: {
     /** Port range for discovery scan */
     discoveryPorts: string;
     /** Port range for targeted scan */
     targetedPorts: string;
     /** Timing template (T0-T5) */
     timing: string;
-    /** Additional nmap flags */
+    /** Additional discovery flags */
     extraFlags: string[];
     /** Enable OS detection */
     osDetection: boolean;
@@ -115,7 +115,7 @@ export const SCAN_PROFILES: Record<ScanProfileName, ScanProfile> = {
     displayName: "Quick Scan",
     description: "Fast reconnaissance with top-100 ports and critical/high vulnerabilities only. Best for initial triage or time-sensitive assessments.",
     estimatedTimePerAsset: "5-10 minutes",
-    nmap: {
+    discovery: {
       discoveryPorts: "--top-ports 100",
       targetedPorts: "--top-ports 100",
       timing: "-T4",
@@ -165,7 +165,7 @@ export const SCAN_PROFILES: Record<ScanProfileName, ScanProfile> = {
     displayName: "Standard Scan",
     description: "Comprehensive scan with top-1000 ports, all severity levels, and full tool suite. The default for most engagements.",
     estimatedTimePerAsset: "15-30 minutes",
-    nmap: {
+    discovery: {
       discoveryPorts: "--top-ports 1000",
       targetedPorts: "--top-ports 1000",
       timing: "-T3",
@@ -215,7 +215,7 @@ export const SCAN_PROFILES: Record<ScanProfileName, ScanProfile> = {
     displayName: "Deep Scan",
     description: "Exhaustive scan of all 65535 ports with all nuclei templates, directory brute-force, and credential testing. For thorough assessments with no time pressure.",
     estimatedTimePerAsset: "45-90 minutes",
-    nmap: {
+    discovery: {
       discoveryPorts: "-p-",
       targetedPorts: "-p-",
       timing: "-T3",
@@ -265,7 +265,7 @@ export const SCAN_PROFILES: Record<ScanProfileName, ScanProfile> = {
     displayName: "Stealth Scan",
     description: "Low-and-slow scanning with maximum evasion techniques. Fragmentation, decoys, timing delays, and randomization to avoid detection by IDS/IPS/WAF.",
     estimatedTimePerAsset: "30-60 minutes",
-    nmap: {
+    discovery: {
       discoveryPorts: "--top-ports 1000",
       targetedPorts: "--top-ports 1000",
       timing: "-T1",
@@ -348,18 +348,18 @@ export function getAllScanProfiles(): Array<{
 }
 
 /**
- * Build nmap flags from a scan profile for discovery phase.
+ * Build discovery flags from a scan profile for discovery phase.
  */
-export function buildDiscoveryNmapFlags(profile: ScanProfile, target: string): string {
+export function buildDiscoveryScanForgeFlags(profile: ScanProfile, target: string): string {
   const flags = [
-    profile.nmap.discoveryPorts,
-    profile.nmap.timing,
+    profile.discovery.discoveryPorts,
+    profile.discovery.timing,
     "-sV",
-    "--version-intensity", String(profile.nmap.versionIntensity),
+    "--version-intensity", String(profile.discovery.versionIntensity),
   ];
 
-  if (profile.nmap.osDetection) flags.push("-O");
-  if (profile.nmap.scriptScan) flags.push("-sC");
+  if (profile.discovery.osDetection) flags.push("-O");
+  if (profile.discovery.scriptScan) flags.push("-sC");
 
   // Evasion flags
   if (profile.evasion.fragmentation) flags.push("-f", "--mtu", "24");

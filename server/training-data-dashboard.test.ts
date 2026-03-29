@@ -102,7 +102,7 @@ describe("agent-definitions: 10 agents seeded", () => {
 describe("matchCallerToAgent covers new agents", () => {
   it("matches scan-related callers to scan-analyst", async () => {
     const mod = await import("./lib/agent-definitions");
-    const result = mod.matchCallerToAgent("nmap-scan-handler");
+    const result = mod.matchCallerToAgent("discovery-scan-handler");
     expect(result?.agentId).toBe("offensive-scan-analyst-v1");
   });
 

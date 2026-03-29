@@ -188,7 +188,7 @@ When analyzing a finding, provide:
 4. RISK SCORE: 0-10 (varies widely: expired cert 3-4, weak cipher 5-7, padding oracle 8-9)
 5. CHAINABILITY: Can this enable MitM for further attacks?
 6. REMEDIATION: TLS configuration, cipher suite ordering, certificate renewal, key rotation
-7. POC: OpenSSL/nmap command showing the weakness
+7. POC: OpenSSL/discovery command showing the weakness
 8. RELATED CVEs: Known crypto CVEs (Heartbleed, ROBOT, etc.)`,
 
   config: `You are a specialized Misconfiguration Analysis Agent. You are an expert in:

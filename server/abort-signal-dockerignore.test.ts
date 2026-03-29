@@ -25,7 +25,7 @@ describe("AbortSignal — executeToolViaHttp early exit", () => {
 
     const result = await executeToolViaHttp(
       {
-        tool: "nmap",
+        tool: "scanforge-discovery",
         args: "-sV 127.0.0.1",
         timeoutSeconds: 10,
       },

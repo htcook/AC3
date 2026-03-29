@@ -164,7 +164,7 @@ export class ScanOrchestrator {
 
   /**
    * Phase 1: Reconnaissance
-   * - Port scanning via nmap/naabu
+   * - Port scanning via Naabu/Masscan
    * - Service detection
    * - Technology fingerprinting
    */
@@ -175,29 +175,29 @@ export class ScanOrchestrator {
       const startTime = Date.now();
 
       try {
-        // Use existing scan-server-executor for nmap
+        // Use existing scan-server-executor for naabu
         const { executeTool } = await import("../../lib/scan-server-executor");
 
         // Quick port scan
-        const nmapResult = await executeTool({
-          tool: "nmap",
+        const discoveryResult = await executeTool({
+          tool: "naabu",
           args: `-sV -sC --top-ports 1000 -T4 --open ${target.value}`,
           target: target.value,
           timeoutSeconds: 90,
           engagementId: job.request.engagementId,
         });
 
-        // Parse nmap output to discover ports and services
-        const discovered = this.parseNmapOutput(nmapResult.stdout);
+        // Parse discovery output to discover ports and services
+        const discovered = this.parseScanForgeOutput(discoveryResult.stdout);
         target.ports = discovered.ports;
         target.services = discovered.services;
 
         this.queue.addScannerResult(scanId, {
-          scanner: "nmap-recon",
-          status: nmapResult.exitCode === 0 ? "completed" : "failed",
+          scanner: "discovery-recon",
+          status: discoveryResult.exitCode === 0 ? "completed" : "failed",
           durationMs: Date.now() - startTime,
           findingCount: 0,
-          error: nmapResult.exitCode !== 0 ? nmapResult.stderr : undefined,
+          error: discoveryResult.exitCode !== 0 ? discoveryResult.stderr : undefined,
         });
 
         // Technology fingerprinting via httpx (for web targets)
@@ -230,7 +230,7 @@ export class ScanOrchestrator {
       } catch (err: any) {
         console.warn(`[ScanOrchestrator] Recon failed for ${target.value}: ${err.message}`);
         this.queue.addScannerResult(scanId, {
-          scanner: "nmap-recon",
+          scanner: "discovery-recon",
           status: "failed",
           durationMs: Date.now() - startTime,
           findingCount: 0,
@@ -635,7 +635,7 @@ export class ScanOrchestrator {
     }
   }
 
-  private parseNmapOutput(stdout: string): { ports: number[]; services: Record<number, string> } {
+  private parseScanForgeOutput(stdout: string): { ports: number[]; services: Record<number, string> } {
     const ports: number[] = [];
     const services: Record<number, string> = {};
 

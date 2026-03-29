@@ -2,7 +2,7 @@
  * ScanForge Service Detection Engine
  * 
  * Inspired by OpenVAS nasl_builtin_find_service.c — provides native
- * service fingerprinting without relying on nmap for service identification.
+ * service fingerprinting using banner grabbing and protocol probes.
  * 
  * Features:
  * - Banner grabbing on all open ports

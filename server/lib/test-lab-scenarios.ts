@@ -662,7 +662,7 @@ The scoring heavily weights stealth — a detected agent scores 0.`,
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Purpose: Generate training data for the recon specialist LLM
 
-This scenario presents the LLM with raw scan data (nmap, nuclei, directory
+This scenario presents the LLM with raw scan data (ScanForge discovery, nuclei, directory
 enumeration) and requires it to:
 1. Prioritize targets by exploitability
 2. Identify the optimal attack path

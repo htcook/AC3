@@ -2,7 +2,7 @@
  * Webhook-Triggered Scan Automation Router
  * 
  * Allows SOAR platforms and external tools to trigger scans via inbound webhooks,
- * closing the bidirectional integration loop. Supports ZAP DAST, Nmap, Nuclei,
+ * closing the bidirectional integration loop. Supports ZAP DAST, ScanForge, Nuclei,
  * and custom scan profiles with HMAC signature verification.
  */
 import { z } from "zod";
@@ -18,7 +18,7 @@ interface WebhookEndpoint {
   name: string;
   path: string;
   secret: string;
-  scanType: "zap_dast" | "nmap" | "nuclei" | "custom";
+  scanType: "zap_dast" | "scanforge-discovery" | "nuclei" | "custom";
   scanProfile: Record<string, any>;
   enabled: boolean;
   createdBy: string;
@@ -77,19 +77,19 @@ const SCAN_PROFILES: Record<string, Record<string, any>> = {
     name: "ZAP API Scan",
     config: { strength: "MEDIUM", threshold: "MEDIUM", apiDefinition: true, openApiUrl: "" },
   },
-  nmap_discovery: {
-    scanType: "nmap",
-    name: "Nmap Host Discovery",
+  scanforge_discovery: {
+    scanType: "scanforge-discovery",
+    name: "ScanForge Host Discovery",
     config: { scanType: "-sn", timing: "T3", ports: "" },
   },
-  nmap_full: {
-    scanType: "nmap",
-    name: "Nmap Full Port Scan",
+  scanforge_full: {
+    scanType: "scanforge-discovery",
+    name: "ScanForge Full Port Scan",
     config: { scanType: "-sS -sV -sC", timing: "T4", ports: "1-65535", osDetection: true },
   },
-  nmap_vuln: {
-    scanType: "nmap",
-    name: "Nmap Vulnerability Scan",
+  scanforge_vuln: {
+    scanType: "scanforge-discovery",
+    name: "ScanForge Vulnerability Scan",
     config: { scanType: "-sV --script=vuln", timing: "T3", ports: "1-10000" },
   },
   nuclei_default: {
@@ -126,7 +126,7 @@ export const scanWebhooksRouter = router({
   create: protectedProcedure
     .input(z.object({
       name: z.string().min(1).max(100),
-      scanType: z.enum(["zap_dast", "nmap", "nuclei", "custom"]),
+      scanType: z.enum(["zap_dast", "scanforge-discovery", "nuclei", "custom"]),
       profileId: z.string().optional(),
       customProfile: z.record(z.any()).optional(),
       allowedSources: z.array(z.string()).default([]),
@@ -326,7 +326,7 @@ export const scanWebhooksRouter = router({
         Math.max(1, webhookExecutions.filter(e => e.result?.scanDuration).length),
       byType: {
         zap_dast: endpoints.filter(e => e.scanType === "zap_dast").length,
-        nmap: endpoints.filter(e => e.scanType === "nmap").length,
+        discovery: endpoints.filter(e => e.scanType === "scanforge-discovery").length,
         nuclei: endpoints.filter(e => e.scanType === "nuclei").length,
         custom: endpoints.filter(e => e.scanType === "custom").length,
       },

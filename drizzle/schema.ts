@@ -3374,7 +3374,7 @@ export const icsDevices = mysqlTable("ics_devices", {
 	icdHasDefaultCreds: tinyint("icd_has_default_creds").default(0),
 	icdHasKnownVulns: tinyint("icd_has_known_vulns").default(0),
 	icdRiskScore: double("icd_risk_score"),
-	icdDiscoverySource: mysqlEnum("icd_discovery_source", ['shodan','censys','nmap','protocol_scan','manual','caldera']).default('manual'),
+	icdDiscoverySource: mysqlEnum("icd_discovery_source", ['shodan','censys','scanforge-discovery','protocol_scan','manual','caldera']).default('manual'),
 	icdShodanData: json("icd_shodan_data"),
 	icdCensysData: json("icd_censys_data"),
 	icdLastSeen: timestamp("icd_last_seen", { mode: 'string' }),

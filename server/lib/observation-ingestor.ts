@@ -13,7 +13,7 @@
  */
 
 import {
-  adaptNmapResults,
+  adaptScanForgeResults,
   adaptNucleiResults,
   adaptZgrab2Results,
   adaptWebCrawlerResults,
@@ -22,7 +22,7 @@ import {
   deriveSignals,
   generateRiskCards,
   observationToInsert,
-  type NmapRawResult,
+  type ScanForgeRawResult,
   type NucleiRawResult,
   type Zgrab2RawResult,
   type WebCrawlerRawResult,
@@ -308,9 +308,9 @@ async function runIngestionPipeline(
 
 // ─── Scanner-Specific Ingestion Functions ──────────────────────────────────
 
-export async function ingestNmapResults(rawResults: NmapRawResult[]) {
-  const adapterResult = adaptNmapResults(rawResults);
-  return runIngestionPipeline("nmap", adapterResult);
+export async function ingestScanForgeResults(rawResults: ScanForgeRawResult[]) {
+  const adapterResult = adaptScanForgeResults(rawResults);
+  return runIngestionPipeline("scanforge-discovery", adapterResult);
 }
 
 export async function ingestNucleiResults(rawResults: NucleiRawResult[]) {

@@ -38,12 +38,12 @@ async function findDuplicatesByTechnique(
 ): Promise<Map<string, any>> {
   if (techniqueIds.length === 0) return new Map();
   const existing = await db.select().from(ac3ReportFindings)
-    .where(eq(ac3ReportFindings.reportId, reportId));
+    .where(eq(ac3ReportFindings.rfReportId, reportId));
   const dupeMap = new Map<string, any>();
   for (const f of existing) {
-    const techniques = (typeof f.attackTechniques === 'string'
-      ? JSON.parse(f.attackTechniques)
-      : f.attackTechniques) as any[] || [];
+    const techniques = (typeof f.rfAttackTechniques === 'string'
+      ? JSON.parse(f.rfAttackTechniques)
+      : f.rfAttackTechniques) as any[] || [];
     for (const t of techniques) {
       if (t.id && techniqueIds.includes(t.id)) {
         dupeMap.set(t.id, f);
@@ -67,15 +67,15 @@ async function mergeFinding(
   };
 
   // Parse existing JSON fields
-  const existingEvidence = (typeof existingFinding.evidence === 'string'
-    ? JSON.parse(existingFinding.evidence)
-    : existingFinding.evidence) as any[] || [];
-  const existingAssets = (typeof existingFinding.assets === 'string'
-    ? JSON.parse(existingFinding.assets)
-    : existingFinding.assets) as string[] || [];
-  const existingControls = (typeof existingFinding.controls === 'string'
-    ? JSON.parse(existingFinding.controls)
-    : existingFinding.controls) as any[] || [];
+  const existingEvidence = (typeof existingFinding.rfEvidence === 'string'
+    ? JSON.parse(existingFinding.rfEvidence)
+    : existingFinding.rfEvidence) as any[] || [];
+  const existingAssets = (typeof existingFinding.rfAssets === 'string'
+    ? JSON.parse(existingFinding.rfAssets)
+    : existingFinding.rfAssets) as string[] || [];
+  const existingControls = (typeof existingFinding.rfControls === 'string'
+    ? JSON.parse(existingFinding.rfControls)
+    : existingFinding.rfControls) as any[] || [];
 
   // Merge evidence (append new, avoid exact duplicates by reference)
   const existingRefs = new Set(existingEvidence.map((e: any) => e.reference));
@@ -89,17 +89,17 @@ async function mergeFinding(
   const mergedControls = [...existingControls, ...newControls.filter(c => !existingControlIds.has(c.id))];
 
   // Keep highest severity
-  const currentRank = severityRank[existingFinding.severity] || 1;
+  const currentRank = severityRank[existingFinding.rfSeverity] || 1;
   const newRank = severityRank[newSeverity] || 1;
-  const finalSeverity = newRank > currentRank ? newSeverity : existingFinding.severity;
+  const finalSeverity = newRank > currentRank ? newSeverity : existingFinding.rfSeverity;
 
   await db.update(ac3ReportFindings).set({
-    evidence: mergedEvidence,
-    assets: mergedAssets,
-    controls: mergedControls,
-    severity: finalSeverity,
-    updatedAt: Date.now(),
-  }).where(eq(ac3ReportFindings.findingId, existingFinding.findingId));
+    rfEvidence: mergedEvidence,
+    rfAssets: mergedAssets,
+    rfControls: mergedControls,
+    rfSeverity: finalSeverity,
+    rfUpdatedAt: Date.now(),
+  }).where(eq(ac3ReportFindings.rfFindingId, existingFinding.rfFindingId));
 }
 
 // ─── FedRAMP Control Families Reference ─────────────────────────────────────
@@ -203,14 +203,14 @@ function buildFindingNarrativePrompt(finding: any, metadata: any): string {
 ${frameworkLine}
 
 ## Finding Data (Platform Source of Truth - DO NOT modify these)
-- Finding ID: ${finding.findingId}
-- Severity: ${finding.severity} — ${SEVERITY_RUBRIC[finding.severity as keyof typeof SEVERITY_RUBRIC] || ""}
-- Evidence: ${JSON.stringify(finding.evidence || [])}
-- ATT&CK Techniques: ${JSON.stringify(finding.attackTechniques || [])}
-- NIST 800-53 Controls: ${JSON.stringify(finding.controls || [])}
-- Affected Assets: ${JSON.stringify(finding.assets || [])}
-${finding.cvssScore ? `- CVSS Score: ${finding.cvssScore}` : ""}
-${finding.cvssVector ? `- CVSS Vector: ${finding.cvssVector}` : ""}
+- Finding ID: ${finding.rfFindingId}
+- Severity: ${finding.rfSeverity} — ${SEVERITY_RUBRIC[finding.rfSeverity as keyof typeof SEVERITY_RUBRIC] || ""}
+- Evidence: ${JSON.stringify(finding.rfEvidence || [])}
+- ATT&CK Techniques: ${JSON.stringify(finding.rfAttackTechniques || [])}
+- NIST 800-53 Controls: ${JSON.stringify(finding.rfControls || [])}
+- Affected Assets: ${JSON.stringify(finding.rfAssets || [])}
+${finding.rfCvssScore ? `- CVSS Score: ${finding.rfCvssScore}` : ""}
+${finding.rfCvssVector ? `- CVSS Vector: ${finding.rfCvssVector}` : ""}
 ${finding.artifactLabels ? `- Supporting Artifacts: ${finding.artifactLabels}` : ''}
 
 ## Source Context
@@ -233,7 +233,7 @@ Return strict JSON:
 
 function buildExecSummaryPrompt(reportData: any, findings: any[]): string {
   const severityCounts = findings.reduce((acc: any, f: any) => {
-    acc[f.severity] = (acc[f.severity] || 0) + 1;
+    acc[f.rfSeverity] = (acc[f.rfSeverity] || 0) + 1;
     return acc;
   }, {});
   const isFedRAMP = reportData.complianceFramework === 'fedramp';
@@ -264,7 +264,7 @@ ${frameworkLine}
 - Informational: ${severityCounts.informational || 0}
 
 ## Finding Titles
-${findings.map((f, i) => `${i + 1}. [${f.severity.toUpperCase()}] ${f.title}`).join("\n")}
+${findings.map((f, i) => `${i + 1}. [${f.rfSeverity.toUpperCase()}] ${f.rfTitle}`).join("\n")}
 
 ## Requirements
 - Audience: executives, auditors, and security leadership
@@ -292,16 +292,16 @@ ${JSON.stringify(reportData, null, 2)}
 
 ## Findings
 ${JSON.stringify(findings.map(f => ({
-  id: f.findingId,
-  title: f.title,
-  severity: f.severity,
-  summary: f.summary,
-  business_impact: f.businessImpact,
-  technical_details: f.technicalDetails,
-  evidence: f.evidence,
-  attack_techniques: f.attackTechniques,
-  controls: f.controls,
-  remediation: f.remediation,
+  id: f.rfFindingId,
+  title: f.rfTitle,
+  severity: f.rfSeverity,
+  summary: f.rfSummary,
+  business_impact: f.rfBusinessImpact,
+  technical_details: f.rfTechnicalDetails,
+  evidence: f.rfEvidence,
+  attack_techniques: f.rfAttackTechniques,
+  controls: f.rfControls,
+  remediation: f.rfRemediation,
 })), null, 2)}
 
 ## Check for:
@@ -350,7 +350,7 @@ export const ac3ReportsRouter = {
   // List all reports
   listReports: protectedProcedure.query(async () => {
     const db = await getDbRequired();
-    const rows = await db.select().from(ac3Reports).orderBy(desc(ac3Reports.updatedAt));
+    const rows = await db.select().from(ac3Reports).orderBy(desc(ac3Reports.rptUpdatedAt));
     return rows;
   }),
 
@@ -360,12 +360,12 @@ export const ac3ReportsRouter = {
     .query(async ({ input }) => {
       const db = await getDbRequired();
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) return null;
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId))
-        .orderBy(ac3ReportFindings.sortOrder);
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
 
       const artifacts = await db.select().from(ac3ReportArtifacts)
         .where(eq(ac3ReportArtifacts.reportId, input.reportId));
@@ -398,27 +398,27 @@ export const ac3ReportsRouter = {
       const reportId = `rpt-${randomUUID().slice(0, 12)}`;
 
       await db.insert(ac3Reports).values({
-        reportId,
-        name: input.name,
-        status: "draft",
+        rptReportId: reportId,
+        rptName: input.name,
+        rptStatus: "draft",
         complianceFramework: input.complianceFramework ?? 'nist_800_53_r5',
-        clientName: input.clientName ?? null,
-        systemName: input.systemName ?? null,
-        assessmentType: input.assessmentType ?? "penetration_test",
-        fedrampImpactLevel: input.fedrampImpactLevel ?? null,
-        cloudProvider: input.cloudProvider ?? null,
-        serviceModel: input.serviceModel ?? null,
-        assessmentWindowStart: input.assessmentWindowStart ?? null,
-        assessmentWindowEnd: input.assessmentWindowEnd ?? null,
-        reportVersion: "1.0",
-        scopeDomains: input.scopeDomains ?? [],
-        scopeAssets: input.scopeAssets ?? [],
-        approvedVectors: input.approvedVectors ?? [],
-        outOfScope: input.outOfScope ?? [],
-        campaignId: input.campaignId ?? null,
-        createdBy: ctx.user?.name ?? "operator",
-        createdAt: now,
-        updatedAt: now,
+        rptClientName: input.clientName ?? null,
+        rptSystemName: input.systemName ?? null,
+        rptAssessmentType: input.assessmentType ?? "penetration_test",
+        rptFedrampLevel: input.fedrampImpactLevel ?? null,
+        rptCloudProvider: input.cloudProvider ?? null,
+        rptServiceModel: input.serviceModel ?? null,
+        rptWindowStart: input.assessmentWindowStart ?? null,
+        rptWindowEnd: input.assessmentWindowEnd ?? null,
+        rptVersion: "1.0",
+        rptScopeDomains: input.scopeDomains ?? [],
+        rptScopeAssets: input.scopeAssets ?? [],
+        rptApprovedVectors: input.approvedVectors ?? [],
+        rptOutOfScope: input.outOfScope ?? [],
+        rptCampaignId: input.campaignId ?? null,
+        rptCreatedBy: ctx.user?.name ?? "operator",
+        rptCreatedAt: now,
+        rptUpdatedAt: now,
       });
 
       return { reportId, created: true };
@@ -447,26 +447,26 @@ export const ac3ReportsRouter = {
     .mutation(async ({ input }) => {
       const db = await getDbRequired();
       const now = Date.now();
-      const updates: any = { updatedAt: now };
+      const updates: any = { rptUpdatedAt: now };
 
-      if (input.name !== undefined) updates.name = input.name;
-      if (input.clientName !== undefined) updates.clientName = input.clientName;
-      if (input.systemName !== undefined) updates.systemName = input.systemName;
-      if (input.assessmentType !== undefined) updates.assessmentType = input.assessmentType;
-      if (input.fedrampImpactLevel !== undefined) updates.fedrampImpactLevel = input.fedrampImpactLevel;
-      if (input.cloudProvider !== undefined) updates.cloudProvider = input.cloudProvider;
-      if (input.serviceModel !== undefined) updates.serviceModel = input.serviceModel;
-      if (input.assessmentWindowStart !== undefined) updates.assessmentWindowStart = input.assessmentWindowStart;
-      if (input.assessmentWindowEnd !== undefined) updates.assessmentWindowEnd = input.assessmentWindowEnd;
-      if (input.scopeDomains !== undefined) updates.scopeDomains = input.scopeDomains;
-      if (input.scopeAssets !== undefined) updates.scopeAssets = input.scopeAssets;
-      if (input.approvedVectors !== undefined) updates.approvedVectors = input.approvedVectors;
-      if (input.outOfScope !== undefined) updates.outOfScope = input.outOfScope;
-      if (input.status !== undefined) updates.status = input.status;
+      if (input.name !== undefined) updates.rptName = input.name;
+      if (input.clientName !== undefined) updates.rptClientName = input.clientName;
+      if (input.systemName !== undefined) updates.rptSystemName = input.systemName;
+      if (input.assessmentType !== undefined) updates.rptAssessmentType = input.assessmentType;
+      if (input.fedrampImpactLevel !== undefined) updates.rptFedrampLevel = input.fedrampImpactLevel;
+      if (input.cloudProvider !== undefined) updates.rptCloudProvider = input.cloudProvider;
+      if (input.serviceModel !== undefined) updates.rptServiceModel = input.serviceModel;
+      if (input.assessmentWindowStart !== undefined) updates.rptWindowStart = input.assessmentWindowStart;
+      if (input.assessmentWindowEnd !== undefined) updates.rptWindowEnd = input.assessmentWindowEnd;
+      if (input.scopeDomains !== undefined) updates.rptScopeDomains = input.scopeDomains;
+      if (input.scopeAssets !== undefined) updates.rptScopeAssets = input.scopeAssets;
+      if (input.approvedVectors !== undefined) updates.rptApprovedVectors = input.approvedVectors;
+      if (input.outOfScope !== undefined) updates.rptOutOfScope = input.outOfScope;
+      if (input.status !== undefined) updates.rptStatus = input.status;
       if (input.complianceFramework !== undefined) updates.complianceFramework = input.complianceFramework;
 
       await db.update(ac3Reports).set(updates)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
 
       return { updated: true };
     }),
@@ -505,31 +505,31 @@ export const ac3ReportsRouter = {
 
       // Get current finding count for sort order
       const existing = await db.select({ count: sql`COUNT(*)` }).from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
       const sortOrder = Number(existing[0]?.count ?? 0);
 
       await db.insert(ac3ReportFindings).values({
-        findingId,
-        reportId: input.reportId,
-        sortOrder,
-        severity: input.severity,
-        title: input.title,
-        evidence: input.evidence ?? [],
-        attackTechniques: input.attackTechniques ?? [],
-        controls: enrichedControls,
-        assets: input.assets ?? [],
-        cvssScore: input.cvssScore ?? null,
-        cvssVector: input.cvssVector ?? null,
-        summary: input.summary ?? null,
-        businessImpact: input.businessImpact ?? null,
-        technicalDetails: input.technicalDetails ?? null,
-        remediation: input.remediation ?? null,
-        sourceTaskId: input.sourceTaskId ?? null,
-        sourceCampaignId: input.sourceCampaignId ?? null,
-        sourceAgentId: input.sourceAgentId ?? null,
-        narrativeStatus: (input.summary && input.businessImpact) ? "drafted" : "pending",
-        createdAt: now,
-        updatedAt: now,
+        rfFindingId: findingId,
+        rfReportId: input.reportId,
+        rfSortOrder: sortOrder,
+        rfSeverity: input.severity,
+        rfTitle: input.title,
+        rfEvidence: input.evidence ?? [],
+        rfAttackTechniques: input.attackTechniques ?? [],
+        rfControls: enrichedControls,
+        rfAssets: input.assets ?? [],
+        rfCvssScore: input.cvssScore ?? null,
+        rfCvssVector: input.cvssVector ?? null,
+        rfSummary: input.summary ?? null,
+        rfBusinessImpact: input.businessImpact ?? null,
+        rfTechnicalDetails: input.technicalDetails ?? null,
+        rfRemediation: input.remediation ?? null,
+        rfSourceTaskId: input.sourceTaskId ?? null,
+        rfSourceCampaignId: input.sourceCampaignId ?? null,
+        rfSourceAgentId: input.sourceAgentId ?? null,
+        rfNarrativeStatus: (input.summary && input.businessImpact) ? "drafted" : "pending",
+        rfCreatedAt: now,
+        rfUpdatedAt: now,
       });
 
       return { findingId, added: true };
@@ -556,35 +556,35 @@ export const ac3ReportsRouter = {
     .mutation(async ({ input, ctx }) => {
       const db = await getDbRequired();
       const now = Date.now();
-      const updates: any = { updatedAt: now };
+      const updates: any = { rfUpdatedAt: now };
 
-      if (input.severity !== undefined) updates.severity = input.severity;
-      if (input.title !== undefined) updates.title = input.title;
-      if (input.evidence !== undefined) updates.evidence = input.evidence;
-      if (input.attackTechniques !== undefined) updates.attackTechniques = input.attackTechniques;
+      if (input.severity !== undefined) updates.rfSeverity = input.severity;
+      if (input.title !== undefined) updates.rfTitle = input.title;
+      if (input.evidence !== undefined) updates.rfEvidence = input.evidence;
+      if (input.attackTechniques !== undefined) updates.rfAttackTechniques = input.attackTechniques;
       if (input.controls !== undefined) {
-        updates.controls = input.controls.map(c => ({
+        updates.rfControls = input.controls.map(c => ({
           ...c,
           family: c.family || NIST_CONTROL_FAMILIES[c.id.split("-")[0]] || undefined,
         }));
       }
-      if (input.assets !== undefined) updates.assets = input.assets;
-      if (input.cvssScore !== undefined) updates.cvssScore = input.cvssScore;
-      if (input.cvssVector !== undefined) updates.cvssVector = input.cvssVector;
-      if (input.summary !== undefined) updates.summary = input.summary;
-      if (input.businessImpact !== undefined) updates.businessImpact = input.businessImpact;
-      if (input.technicalDetails !== undefined) updates.technicalDetails = input.technicalDetails;
-      if (input.remediation !== undefined) updates.remediation = input.remediation;
+      if (input.assets !== undefined) updates.rfAssets = input.assets;
+      if (input.cvssScore !== undefined) updates.rfCvssScore = input.cvssScore;
+      if (input.cvssVector !== undefined) updates.rfCvssVector = input.cvssVector;
+      if (input.summary !== undefined) updates.rfSummary = input.summary;
+      if (input.businessImpact !== undefined) updates.rfBusinessImpact = input.businessImpact;
+      if (input.technicalDetails !== undefined) updates.rfTechnicalDetails = input.technicalDetails;
+      if (input.remediation !== undefined) updates.rfRemediation = input.remediation;
       if (input.narrativeStatus !== undefined) {
-        updates.narrativeStatus = input.narrativeStatus;
+        updates.rfNarrativeStatus = input.narrativeStatus;
         if (input.narrativeStatus === "reviewed" || input.narrativeStatus === "approved") {
-          updates.reviewedBy = ctx.user?.name ?? "operator";
-          updates.reviewedAt = now;
+          updates.rfReviewedBy = ctx.user?.name ?? "operator";
+          updates.rfReviewedAt = now;
         }
       }
 
       await db.update(ac3ReportFindings).set(updates)
-        .where(eq(ac3ReportFindings.findingId, input.findingId));
+        .where(eq(ac3ReportFindings.rfFindingId, input.findingId));
 
       return { updated: true };
     }),
@@ -595,7 +595,7 @@ export const ac3ReportsRouter = {
     .mutation(async ({ input }) => {
       const db = await getDbRequired();
       await db.delete(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.findingId, input.findingId));
+        .where(eq(ac3ReportFindings.rfFindingId, input.findingId));
       return { deleted: true };
     }),
 
@@ -612,18 +612,18 @@ export const ac3ReportsRouter = {
 
       // Get the finding
       const [finding] = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.findingId, input.findingId));
+        .where(eq(ac3ReportFindings.rfFindingId, input.findingId));
       if (!finding) throw new Error("Finding not found");
 
       // Get the report for context
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, finding.reportId));
+        .where(eq(ac3Reports.rptReportId, finding.rfReportId));
       if (!report) throw new Error("Report not found");
 
       // Load artifacts linked to this finding for cross-reference in narrative
       const findingArtifacts = await db.select().from(ac3ReportArtifacts)
         .where(and(
-          eq(ac3ReportArtifacts.reportId, finding.reportId),
+          eq(ac3ReportArtifacts.reportId, finding.rfReportId),
           eq(ac3ReportArtifacts.findingId, input.findingId)
         ));
       const artifactLabels = findingArtifacts.length > 0
@@ -673,14 +673,14 @@ export const ac3ReportsRouter = {
 
       // Update finding with LLM-drafted narratives
       await db.update(ac3ReportFindings).set({
-        title: narrative.title,
-        summary: narrative.summary,
-        businessImpact: narrative.business_impact,
-        technicalDetails: narrative.technical_details,
-        remediation: narrative.remediation,
-        narrativeStatus: "drafted",
-        updatedAt: now,
-      }).where(eq(ac3ReportFindings.findingId, input.findingId));
+        rfTitle: narrative.title,
+        rfSummary: narrative.summary,
+        rfBusinessImpact: narrative.business_impact,
+        rfTechnicalDetails: narrative.technical_details,
+        rfRemediation: narrative.remediation,
+        rfNarrativeStatus: "drafted",
+        rfUpdatedAt: now,
+      }).where(eq(ac3ReportFindings.rfFindingId, input.findingId));
 
       return { narrative, status: "drafted" };
     }),
@@ -692,12 +692,12 @@ export const ac3ReportsRouter = {
       const db = await getDbRequired();
 
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId))
-        .orderBy(ac3ReportFindings.sortOrder);
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
 
       if (findings.length === 0) throw new Error("No findings to summarize");
 
@@ -743,13 +743,13 @@ export const ac3ReportsRouter = {
         : "moderate";
 
       await db.update(ac3Reports).set({
-        execRiskStatement: summary.risk_statement,
-        execOverallRating: normalizedRating as any,
-        execKeyStrengths: summary.key_strengths,
-        execKeyGaps: summary.key_gaps,
-        execNarrative: summary.narrative,
-        updatedAt: now,
-      }).where(eq(ac3Reports.reportId, input.reportId));
+        rptExecRiskStatement: summary.risk_statement,
+        rptExecRating: normalizedRating as any,
+        rptExecStrengths: summary.key_strengths,
+        rptExecGaps: summary.key_gaps,
+        rptExecNarrative: summary.narrative,
+        rptUpdatedAt: now,
+      }).where(eq(ac3Reports.rptReportId, input.reportId));
 
       return { summary, generated: true };
     }),
@@ -761,12 +761,12 @@ export const ac3ReportsRouter = {
       const db = await getDbRequired();
 
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId))
-        .orderBy(ac3ReportFindings.sortOrder);
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
 
       const prompt = buildQaReviewPrompt(report, findings);
 
@@ -816,12 +816,12 @@ export const ac3ReportsRouter = {
       const qaStatus = review.status === "pass" ? "pass" : "revise";
 
       await db.update(ac3Reports).set({
-        qaStatus: qaStatus as any,
-        qaIssues: review.issues,
-        qaReviewedAt: now,
-        status: qaStatus === "pass" ? "review" : "draft",
-        updatedAt: now,
-      }).where(eq(ac3Reports.reportId, input.reportId));
+        rptQaStatus: qaStatus as any,
+        rptQaIssues: review.issues,
+        rptQaReviewedAt: now,
+        rptStatus: qaStatus === "pass" ? "review" : "draft",
+        rptUpdatedAt: now,
+      }).where(eq(ac3Reports.rptReportId, input.reportId));
 
       return { review, qaStatus };
     }),
@@ -834,19 +834,19 @@ export const ac3ReportsRouter = {
 
       const findings = await db.select().from(ac3ReportFindings)
         .where(and(
-          eq(ac3ReportFindings.reportId, input.reportId),
-          eq(ac3ReportFindings.narrativeStatus, "pending"),
+          eq(ac3ReportFindings.rfReportId, input.reportId),
+          eq(ac3ReportFindings.rfNarrativeStatus, "pending"),
         ));
 
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       // Update report status
       await db.update(ac3Reports).set({
-        status: "generating",
-        updatedAt: Date.now(),
-      }).where(eq(ac3Reports.reportId, input.reportId));
+        rptStatus: "generating",
+        rptUpdatedAt: Date.now(),
+      }).where(eq(ac3Reports.rptReportId, input.reportId));
 
       const results: Array<{ findingId: string; status: string }> = [];
 
@@ -888,26 +888,26 @@ export const ac3ReportsRouter = {
           const now = Date.now();
 
           await db.update(ac3ReportFindings).set({
-            title: narrative.title,
-            summary: narrative.summary,
-            businessImpact: narrative.business_impact,
-            technicalDetails: narrative.technical_details,
-            remediation: narrative.remediation,
-            narrativeStatus: "drafted",
-            updatedAt: now,
-          }).where(eq(ac3ReportFindings.findingId, finding.findingId));
+            rfTitle: narrative.title,
+            rfSummary: narrative.summary,
+            rfBusinessImpact: narrative.business_impact,
+            rfTechnicalDetails: narrative.technical_details,
+            rfRemediation: narrative.remediation,
+            rfNarrativeStatus: "drafted",
+            rfUpdatedAt: now,
+          }).where(eq(ac3ReportFindings.rfFindingId, finding.rfFindingId));
 
-          results.push({ findingId: finding.findingId, status: "drafted" });
+          results.push({ findingId: finding.rfFindingId, status: "drafted" });
         } catch (err: any) {
-          results.push({ findingId: finding.findingId, status: `error: ${err.message}` });
+          results.push({ findingId: finding.rfFindingId, status: `error: ${err.message}` });
         }
       }
 
       // Update report status back to draft
       await db.update(ac3Reports).set({
-        status: "draft",
-        updatedAt: Date.now(),
-      }).where(eq(ac3Reports.reportId, input.reportId));
+        rptStatus: "draft",
+        rptUpdatedAt: Date.now(),
+      }).where(eq(ac3Reports.rptReportId, input.reportId));
 
       return { results, totalProcessed: results.length };
     }),
@@ -917,8 +917,8 @@ export const ac3ReportsRouter = {
     .input(z.object({ reportId: z.string() }))
     .mutation(async ({ input }) => {
       const db = await getDbRequired();
-      await db.delete(ac3ReportFindings).where(eq(ac3ReportFindings.reportId, input.reportId));
-      await db.delete(ac3Reports).where(eq(ac3Reports.reportId, input.reportId));
+      await db.delete(ac3ReportFindings).where(eq(ac3ReportFindings.rfReportId, input.reportId));
+      await db.delete(ac3Reports).where(eq(ac3Reports.rptReportId, input.reportId));
       return { deleted: true };
     }),
 
@@ -939,52 +939,52 @@ export const ac3ReportsRouter = {
       const db = await getDbRequired();
 
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId))
-        .orderBy(ac3ReportFindings.sortOrder);
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
 
       // Build the AC3 report_input.schema.json compatible output
       return {
         metadata: {
-          client_name: report.clientName || "",
-          system_name: report.systemName || "",
-          assessment_type: report.assessmentType || "penetration_test",
+          client_name: report.rptClientName || "",
+          system_name: report.rptSystemName || "",
+          assessment_type: report.rptAssessmentType || "penetration_test",
           fedramp_impact_level: report.fedrampImpactLevel || "moderate",
-          cloud_provider: report.cloudProvider || "",
-          service_model: report.serviceModel || "",
+          cloud_provider: report.rptCloudProvider || "",
+          service_model: report.rptServiceModel || "",
           assessment_window: `${report.assessmentWindowStart ? new Date(report.assessmentWindowStart).toISOString().split("T")[0] : "N/A"} to ${report.assessmentWindowEnd ? new Date(report.assessmentWindowEnd).toISOString().split("T")[0] : "N/A"}`,
           report_version: report.reportVersion || "1.0",
         },
         executive_summary: {
-          risk_statement: report.execRiskStatement || "",
+          risk_statement: report.rptExecRiskStatement || "",
           overall_rating: report.execOverallRating || "moderate",
           key_strengths: report.execKeyStrengths || [],
           key_gaps: report.execKeyGaps || [],
-          narrative: report.execNarrative || "",
+          narrative: report.rptExecNarrative || "",
         },
         scope: {
-          domains: report.scopeDomains || [],
-          assets: report.scopeAssets || [],
-          approved_vectors: report.approvedVectors || [],
-          out_of_scope: report.outOfScope || [],
+          domains: report.rptScopeDomains || [],
+          assets: report.rptScopeAssets || [],
+          approved_vectors: report.rptApprovedVectors || [],
+          out_of_scope: report.rptOutOfScope || [],
         },
         findings: findings.map(f => ({
-          id: f.findingId,
-          title: f.title,
-          severity: f.severity,
-          summary: f.summary || "",
-          business_impact: f.businessImpact || "",
-          technical_details: f.technicalDetails || "",
-          evidence: (f.evidence as any[] || []).map((e: any) => e.reference || e.description),
-          attack_techniques: (f.attackTechniques as any[] || []).map((t: any) => t.id),
-          controls: (f.controls as any[] || []).map((c: any) => c.id),
-          remediation: f.remediation || "",
-          assets: f.assets || [],
-          cvss_score: f.cvssScore || undefined,
-          cvss_vector: f.cvssVector || undefined,
+          id: f.rfFindingId,
+          title: f.rfTitle,
+          severity: f.rfSeverity,
+          summary: f.rfSummary || "",
+          business_impact: f.rfBusinessImpact || "",
+          technical_details: f.rfTechnicalDetails || "",
+          evidence: (f.rfEvidence as any[] || []).map((e: any) => e.reference || e.description),
+          attack_techniques: (f.rfAttackTechniques as any[] || []).map((t: any) => t.id),
+          controls: (f.rfControls as any[] || []).map((c: any) => c.id),
+          remediation: f.rfRemediation || "",
+          assets: f.rfAssets || [],
+          cvss_score: f.rfCvssScore || undefined,
+          cvss_vector: f.rfCvssVector || undefined,
         })),
       };
     }),
@@ -1021,7 +1021,7 @@ export const ac3ReportsRouter = {
 
       // Verify report exists
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       // Get engagement details
@@ -1077,7 +1077,7 @@ export const ac3ReportsRouter = {
       // Get existing finding count for sort order
       const existingFindings = await db.select({ id: ac3ReportFindings.id })
         .from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
       let sortOrder = existingFindings.length;
 
       let imported = 0;
@@ -1117,33 +1117,33 @@ export const ac3ReportsRouter = {
         const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const now = Date.now();
         await db.insert(ac3ReportFindings).values({
-          findingId,
-          reportId: input.reportId,
-          title: event.title,
-          severity,
-          attackTechniques: attackTechniques,
-          controls: controls,
-          evidence: evidence,
-          assets: assets,
-          narrativeStatus: 'pending',
-          sortOrder: sortOrder++,
-          createdAt: now,
-          updatedAt: now,
-          sourceModule: `engagement:${input.engagementId}`,
-          sourceEventId: String(event.id),
+          rfFindingId: findingId,
+          rfReportId: input.reportId,
+          rfTitle: event.title,
+          rfSeverity: severity,
+          rfAttackTechniques: attackTechniques,
+          rfControls: controls,
+          rfEvidence: evidence,
+          rfAssets: assets,
+          rfNarrativeStatus: 'pending',
+          rfSortOrder: sortOrder++,
+          rfCreatedAt: now,
+          rfUpdatedAt: now,
+          rfSourceModule: `engagement:${input.engagementId}`,
+          rfSourceEventId: String(event.id),
         });
         imported++;
 
         // Track newly created finding for subsequent dedup within this batch
         if (event.attackTechnique) {
           dupeMap.set(event.attackTechnique, {
-            findingId,
-            reportId: input.reportId,
-            severity,
-            evidence: evidence,
-            assets: assets,
-            controls: controls,
-            attackTechniques: attackTechniques,
+            rfFindingId: findingId,
+            rfReportId: input.reportId,
+            rfSeverity: severity,
+            rfEvidence: evidence,
+            rfAssets: assets,
+            rfControls: controls,
+            rfAttackTechniques: attackTechniques,
           });
         }
       }
@@ -1197,7 +1197,7 @@ export const ac3ReportsRouter = {
 
       // Verify report exists
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       // Fetch operation with full chain
@@ -1242,7 +1242,7 @@ export const ac3ReportsRouter = {
       // Get existing finding count for sort order
       const existingFindings = await db.select({ id: ac3ReportFindings.id })
         .from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
       let sortOrder = existingFindings.length;
 
       let imported = 0;
@@ -1316,33 +1316,33 @@ export const ac3ReportsRouter = {
         const now = Date.now();
 
         await db.insert(ac3ReportFindings).values({
-          findingId,
-          reportId: input.reportId,
-          title: `${ability.name || abilityId}${tactic ? ` (${tactic})` : ''}`,
-          severity,
-          attackTechniques: attackTechniques,
-          controls: controls,
-          evidence: evidence,
-          assets: assets,
-          narrativeStatus: 'pending',
-          sortOrder: sortOrder++,
-          createdAt: now,
-          updatedAt: now,
-          sourceModule: `caldera:${input.operationId}`,
-          sourceEventId: abilityId,
+          rfFindingId: findingId,
+          rfReportId: input.reportId,
+          rfTitle: `${ability.name || abilityId}${tactic ? ` (${tactic})` : ''}`,
+          rfSeverity: severity,
+          rfAttackTechniques: attackTechniques,
+          rfControls: controls,
+          rfEvidence: evidence,
+          rfAssets: assets,
+          rfNarrativeStatus: 'pending',
+          rfSortOrder: sortOrder++,
+          rfCreatedAt: now,
+          rfUpdatedAt: now,
+          rfSourceModule: `caldera:${input.operationId}`,
+          rfSourceEventId: abilityId,
         });
         imported++;
 
         // Track newly created finding for subsequent dedup within this batch
         if (techniqueId) {
           dupeMap.set(techniqueId, {
-            findingId,
-            reportId: input.reportId,
-            severity,
-            evidence: evidence,
-            assets: assets,
-            controls: controls,
-            attackTechniques: attackTechniques,
+            rfFindingId: findingId,
+            rfReportId: input.reportId,
+            rfSeverity: severity,
+            rfEvidence: evidence,
+            rfAssets: assets,
+            rfControls: controls,
+            rfAttackTechniques: attackTechniques,
           });
         }
       }
@@ -1384,33 +1384,33 @@ export const ac3ReportsRouter = {
 
         const now = Date.now();
         await db.insert(ac3ReportFindings).values({
-          findingId,
-          reportId: input.reportId,
-          title: exec.testName,
-          severity,
-          attackTechniques: [{ id: exec.techniqueId }],
-          controls: [{ id: 'RA-5' }],
-          evidence: evidence,
-          assets: exec.targetHost ? [exec.targetHost] : [],
-          narrativeStatus: 'pending',
-          sortOrder: sortOrder++,
-          createdAt: now,
-          updatedAt: now,
-          sourceModule: `atomic:${exec.calderaOperationId}`,
-          sourceEventId: exec.guid,
+          rfFindingId: findingId,
+          rfReportId: input.reportId,
+          rfTitle: exec.testName,
+          rfSeverity: severity,
+          rfAttackTechniques: [{ id: exec.techniqueId }],
+          rfControls: [{ id: 'RA-5' }],
+          rfEvidence: evidence,
+          rfAssets: exec.targetHost ? [exec.targetHost] : [],
+          rfNarrativeStatus: 'pending',
+          rfSortOrder: sortOrder++,
+          rfCreatedAt: now,
+          rfUpdatedAt: now,
+          rfSourceModule: `atomic:${exec.calderaOperationId}`,
+          rfSourceEventId: exec.guid,
         });
         imported++;
 
         // Track for intra-batch dedup
         if (exec.techniqueId) {
           dupeMap.set(exec.techniqueId, {
-            findingId,
-            reportId: input.reportId,
-            severity,
-            evidence: evidence,
-            assets: exec.targetHost ? [exec.targetHost] : [],
-            controls: [{ id: 'RA-5' }],
-            attackTechniques: [{ id: exec.techniqueId }],
+            rfFindingId: findingId,
+            rfReportId: input.reportId,
+            rfSeverity: severity,
+            rfEvidence: evidence,
+            rfAssets: exec.targetHost ? [exec.targetHost] : [],
+            rfControls: [{ id: 'RA-5' }],
+            rfAttackTechniques: [{ id: exec.techniqueId }],
           });
         }
       }
@@ -1447,7 +1447,7 @@ export const ac3ReportsRouter = {
 
       // Verify report exists
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       // Get engagement details
@@ -1632,7 +1632,7 @@ export const ac3ReportsRouter = {
         const analysis = vuln.analysis || {};
         const agentClass = vuln.agentClass || 'default';
 
-        const severity = mapVulnSeverity(finding.severity, analysis.riskScore);
+        const severity = mapVulnSeverity(finding.rfSeverity, analysis.riskScore);
         if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
 
         // Extract ATT&CK techniques: from attack chains matching this asset, plus CVE-based
@@ -1655,7 +1655,7 @@ export const ac3ReportsRouter = {
           }
         }
         // ── Infer ATT&CK techniques from vulnerability type/title ──
-        const titleLower = (finding.title || '').toLowerCase();
+        const titleLower = (finding.rfTitle || '').toLowerCase();
         const descLower = (analysis.technicalAnalysis || '').toLowerCase();
         const combined = titleLower + ' ' + descLower;
 
@@ -1666,7 +1666,7 @@ export const ac3ReportsRouter = {
           { patterns: [/nikto/i, /scanner/i, /enumerat/i],
             techniques: ['T1595.002', 'T1046'] },
           // Discovery & Scanning
-          { patterns: [/port scan/i, /service detect/i, /nmap/i, /open port/i],
+          { patterns: [/port scan/i, /service detect/i, /scanforge/i, /open port/i],
             techniques: ['T1046'] },
           { patterns: [/dns zone transfer/i, /subdomain/i],
             techniques: ['T1018'] },
@@ -1741,7 +1741,7 @@ export const ac3ReportsRouter = {
         if (analysis.poc) {
           evidence.push({
             type: 'poc',
-            reference: `PoC for ${finding.title || finding.id}`,
+            reference: `PoC for ${finding.rfTitle || finding.id}`,
             description: typeof analysis.poc === 'string' ? analysis.poc.slice(0, 500) : JSON.stringify(analysis.poc).slice(0, 500),
           });
         }
@@ -1785,7 +1785,7 @@ export const ac3ReportsRouter = {
         if (finding.port) findingAssets.push(`${assetName}:${finding.port}`);
 
         findingsToCreate.push({
-          title: finding.title || `Vulnerability on ${assetName}`,
+          title: finding.rfTitle || `Vulnerability on ${assetName}`,
           severity,
           attackTechniques: uniqueTechniques.map(id => ({ id })),
           controls,
@@ -1812,13 +1812,13 @@ export const ac3ReportsRouter = {
       // This prevents collapsing distinct vulnerabilities that happen to share techniques
       // because they target the same asset.
       const existingFindings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
       let sortOrder = existingFindings.length;
 
       // Build title-based dedup map from existing findings
       const titleDupeMap = new Map<string, any>();
       for (const f of existingFindings) {
-        const normalizedTitle = (f.title || '').toLowerCase().trim();
+        const normalizedTitle = (f.rfTitle || '').toLowerCase().trim();
         if (normalizedTitle) titleDupeMap.set(normalizedTitle, f);
       }
 
@@ -1827,12 +1827,12 @@ export const ac3ReportsRouter = {
       let skipped = 0;
 
       for (const f of findingsToCreate) {
-        const normalizedTitle = (f.title || '').toLowerCase().trim();
+        const normalizedTitle = (f.rfTitle || '').toLowerCase().trim();
 
         // Check for duplicate by TITLE first (primary dedup key)
         if (normalizedTitle && titleDupeMap.has(normalizedTitle)) {
           const existingFinding = titleDupeMap.get(normalizedTitle);
-          await mergeFinding(db, existingFinding, f.evidence, f.assets, f.severity, f.controls);
+          await mergeFinding(db, existingFinding, f.rfEvidence, f.rfAssets, f.rfSeverity, f.rfControls);
           merged++;
           continue;
         }
@@ -1840,34 +1840,34 @@ export const ac3ReportsRouter = {
         const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
         const now = Date.now();
         await db.insert(ac3ReportFindings).values({
-          findingId,
-          reportId: input.reportId,
-          title: f.title,
-          severity: f.severity,
-          attackTechniques: f.attackTechniques,
-          controls: f.controls,
-          evidence: f.evidence,
-          assets: f.assets,
-          cvssScore: f.cvssScore || null,
-          remediation: f.remediation || null,
-          narrativeStatus: 'pending',
-          sortOrder: sortOrder++,
-          createdAt: now,
-          updatedAt: now,
-          sourceModule: `ops-snapshot:${input.engagementId}`,
-          sourceEventId: `vuln-${sortOrder}`,
+          rfFindingId: findingId,
+          rfReportId: input.reportId,
+          rfTitle: f.rfTitle,
+          rfSeverity: f.rfSeverity,
+          rfAttackTechniques: f.rfAttackTechniques,
+          rfControls: f.rfControls,
+          rfEvidence: f.rfEvidence,
+          rfAssets: f.rfAssets,
+          rfCvssScore: f.rfCvssScore || null,
+          rfRemediation: f.rfRemediation || null,
+          rfNarrativeStatus: 'pending',
+          rfSortOrder: sortOrder++,
+          rfCreatedAt: now,
+          rfUpdatedAt: now,
+          rfSourceModule: `ops-snapshot:${input.engagementId}`,
+          rfSourceEventId: `vuln-${sortOrder}`,
         });
         imported++;
 
         // Track for intra-batch dedup by title
         titleDupeMap.set(normalizedTitle, {
           findingId,
-          reportId: input.reportId,
-          severity: f.severity,
-          evidence: f.evidence,
-          assets: f.assets,
-          controls: f.controls,
-          attackTechniques: f.attackTechniques,
+          rfReportId: input.reportId,
+          rfSeverity: f.rfSeverity,
+          rfEvidence: f.rfEvidence,
+          rfAssets: f.rfAssets,
+          rfControls: f.rfControls,
+          rfAttackTechniques: f.rfAttackTechniques,
         });
       }
 
@@ -1877,7 +1877,7 @@ export const ac3ReportsRouter = {
 
         // Domains from ROE scope guard
         if (roeScopeGuard.authorizedDomains?.length) {
-          scopeUpdates.scopeDomains = roeScopeGuard.authorizedDomains;
+          scopeUpdates.rptScopeDomains = roeScopeGuard.authorizedDomains;
         }
 
         // Assets from crown jewels + asset hostnames
@@ -1886,7 +1886,7 @@ export const ac3ReportsRouter = {
           ...assets.map((a: any) => a.hostname || a.ip).filter(Boolean),
         ];
         if (scopeAssets.length) {
-          scopeUpdates.scopeAssets = [...new Set(scopeAssets)];
+          scopeUpdates.rptScopeAssets = [...new Set(scopeAssets)];
         }
 
         // Cloud provider from assets
@@ -1911,13 +1911,13 @@ export const ac3ReportsRouter = {
           if (gate.status === 'approved') {
             if (gate.module === 'hydra' || gate.module === 'credential_test') vectorTypes.add('Credential testing');
             else if (gate.module === 'exploit' || gate.riskTier === 'red') vectorTypes.add('Exploitation of public-facing applications');
-            else if (gate.module === 'nmap' || gate.module === 'scan') vectorTypes.add('Network scanning and enumeration');
+            else if (gate.module === 'scanforge-discovery' || gate.module === 'scan') vectorTypes.add('Network scanning and enumeration');
             else if (gate.module === 'zap' || gate.module === 'web_scan') vectorTypes.add('Web application testing');
             else vectorTypes.add(`${gate.module || 'Tool'}-based testing`);
           }
         }
         if (vectorTypes.size) {
-          scopeUpdates.approvedVectors = [...vectorTypes];
+          scopeUpdates.rptApprovedVectors = [...vectorTypes];
         }
 
         // Assessment window from engagement dates
@@ -1931,13 +1931,13 @@ export const ac3ReportsRouter = {
         }
 
         // Client name
-        scopeUpdates.clientName = eng.customerName;
-        scopeUpdates.systemName = eng.name;
+        scopeUpdates.rptClientName = eng.customerName;
+        scopeUpdates.rptSystemName = eng.name;
 
         if (Object.keys(scopeUpdates).length) {
-          scopeUpdates.updatedAt = Date.now();
+          scopeUpdates.rptUpdatedAt = Date.now();
           await db.update(ac3Reports).set(scopeUpdates)
-            .where(eq(ac3Reports.reportId, input.reportId));
+            .where(eq(ac3Reports.rptReportId, input.reportId));
         }
       }
 
@@ -1976,7 +1976,7 @@ export const ac3ReportsRouter = {
         // Auto-derive overall rating from finding severity distribution
         const sevCounts: Record<string, number> = {};
         for (const f of findingsToCreate) {
-          sevCounts[f.severity] = (sevCounts[f.severity] || 0) + 1;
+          sevCounts[f.rfSeverity] = (sevCounts[f.rfSeverity] || 0) + 1;
         }
         if (sevCounts.critical && sevCounts.critical >= 3) execUpdates.execOverallRating = 'critical';
         else if (sevCounts.critical || (sevCounts.high && sevCounts.high >= 5)) execUpdates.execOverallRating = 'high';
@@ -1984,9 +1984,9 @@ export const ac3ReportsRouter = {
         else execUpdates.execOverallRating = 'low';
 
         if (Object.keys(execUpdates).length) {
-          execUpdates.updatedAt = Date.now();
+          execUpdates.rptUpdatedAt = Date.now();
           await db.update(ac3Reports).set(execUpdates)
-            .where(eq(ac3Reports.reportId, input.reportId));
+            .where(eq(ac3Reports.rptReportId, input.reportId));
         }
       }
 
@@ -1995,11 +1995,11 @@ export const ac3ReportsRouter = {
 
       // Get all findings we just created/merged to extract artifacts from
       const allFindings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
 
       for (const finding of allFindings) {
         // Parse evidence array
-        const evidenceArr = parseJsonField(finding.evidence);
+        const evidenceArr = parseJsonField(finding.rfEvidence);
         let artifactIndex = 1;
 
         for (const ev of evidenceArr) {
@@ -2012,25 +2012,25 @@ export const ac3ReportsRouter = {
           let label = '';
           if (ev.type === 'poc' || desc.toLowerCase().includes('poc') || desc.toLowerCase().includes('proof of concept')) {
             artifactType = 'poc';
-            label = `PoC-${finding.findingId}-${artifactIndex}`;
+            label = `PoC-${finding.rfFindingId}-${artifactIndex}`;
           } else if (desc.toLowerCase().includes('exploit') || desc.toLowerCase().includes('payload')) {
             artifactType = 'exploit_output';
-            label = `Exploit-${finding.findingId}-${artifactIndex}`;
-          } else if (desc.toLowerCase().includes('curl') || desc.toLowerCase().includes('nmap') || desc.toLowerCase().includes('nikto') || desc.toLowerCase().includes('hydra')) {
+            label = `Exploit-${finding.rfFindingId}-${artifactIndex}`;
+          } else if (desc.toLowerCase().includes('curl') || desc.toLowerCase().includes('scanforge-discovery') || desc.toLowerCase().includes('nikto') || desc.toLowerCase().includes('hydra')) {
             artifactType = 'tool_output';
-            label = `ToolOutput-${finding.findingId}-${artifactIndex}`;
+            label = `ToolOutput-${finding.rfFindingId}-${artifactIndex}`;
           } else if (desc.toLowerCase().includes('screenshot') || desc.toLowerCase().includes('image')) {
             artifactType = 'screenshot';
-            label = `Screenshot-${finding.findingId}-${artifactIndex}`;
+            label = `Screenshot-${finding.rfFindingId}-${artifactIndex}`;
           } else {
             artifactType = 'evidence';
-            label = `Evidence-${finding.findingId}-${artifactIndex}`;
+            label = `Evidence-${finding.rfFindingId}-${artifactIndex}`;
           }
 
           // Check if artifact already exists for this finding with same label prefix
           const existingArtifacts = await db.select().from(ac3ReportArtifacts)
             .where(and(
-              eq(ac3ReportArtifacts.findingId, finding.findingId),
+              eq(ac3ReportArtifacts.findingId, finding.rfFindingId),
               eq(ac3ReportArtifacts.reportId, input.reportId)
             ));
           const labelPrefix = label.split('-').slice(0, 2).join('-');
@@ -2042,7 +2042,7 @@ export const ac3ReportsRouter = {
           await db.insert(ac3ReportArtifacts).values({
             artifactId,
             reportId: input.reportId,
-            findingId: finding.findingId,
+            findingId: finding.rfFindingId,
             artifactType,
             label,
             description: desc.length > 500 ? desc.slice(0, 497) + '...' : desc,
@@ -2076,7 +2076,7 @@ export const ac3ReportsRouter = {
         for (const [tool, toolGates] of toolGroups) {
           // Find the finding most related to this target
           const relatedFinding = allFindings.find((f: any) => {
-            const assets = parseJsonField(f.assets);
+            const assets = parseJsonField(f.rfAssets);
             return assets.some((a: any) => {
               const assetStr = typeof a === 'string' ? a : (a.hostname || a.ip || '');
               return assetStr.includes(target) || target.includes(assetStr);
@@ -2131,12 +2131,12 @@ export const ac3ReportsRouter = {
       const db = await getDbRequired();
 
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId))
-        .orderBy(ac3ReportFindings.sortOrder);
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId))
+        .orderBy(ac3ReportFindings.rfSortOrder);
 
       const artifacts = await db.select().from(ac3ReportArtifacts)
         .where(eq(ac3ReportArtifacts.reportId, input.reportId));
@@ -2165,12 +2165,12 @@ export const ac3ReportsRouter = {
         new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 200 },
-          children: [new TextRun({ text: report.name || 'AC3 Assessment Report', bold: true, size: 56, color: '1a1a2e' })],
+          children: [new TextRun({ text: report.rptName || 'AC3 Assessment Report', bold: true, size: 56, color: '1a1a2e' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 100 },
-          children: [new TextRun({ text: `${report.assessmentType?.replace(/_/g, ' ').toUpperCase() || 'PENETRATION TEST'} REPORT`, size: 28, color: '666666' })],
+          children: [new TextRun({ text: `${report.rptAssessmentType?.replace(/_/g, ' ').toUpperCase() || 'PENETRATION TEST'} REPORT`, size: 28, color: '666666' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
@@ -2181,16 +2181,16 @@ export const ac3ReportsRouter = {
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: `Prepared for: ${report.clientName || 'Client'}`, size: 22, color: '444444' })],
+          children: [new TextRun({ text: `Prepared for: ${report.rptClientName || 'Client'}`, size: 22, color: '444444' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: `System: ${report.systemName || 'N/A'}`, size: 22, color: '444444' })],
+          children: [new TextRun({ text: `System: ${report.rptSystemName || 'N/A'}`, size: 22, color: '444444' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { after: 200 },
-          children: [new TextRun({ text: `Report ID: ${report.reportId}`, size: 20, color: '888888' })],
+          children: [new TextRun({ text: `Report ID: ${report.rptReportId}`, size: 20, color: '888888' })],
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
@@ -2212,15 +2212,15 @@ export const ac3ReportsRouter = {
       const execSection: docx.Paragraph[] = [
         new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '1. Executive Summary', bold: true })] }),
       ];
-      if (report.execNarrative) {
-        if (report.execRiskStatement) {
+      if (report.rptExecNarrative) {
+        if (report.rptExecRiskStatement) {
           execSection.push(new Paragraph({
             spacing: { after: 200 },
-            children: [new TextRun({ text: 'Overall Risk: ', bold: true }), new TextRun({ text: report.execRiskStatement })],
+            children: [new TextRun({ text: 'Overall Risk: ', bold: true }), new TextRun({ text: report.rptExecRiskStatement })],
           }));
         }
-        if (report.execNarrative) {
-          execSection.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: report.execNarrative })] }));
+        if (report.rptExecNarrative) {
+          execSection.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: report.rptExecNarrative })] }));
         }
         const strengths = (report.execKeyStrengths as string[] || []);
         if (strengths.length > 0) {
@@ -2241,10 +2241,10 @@ export const ac3ReportsRouter = {
       const scopeSection: docx.Paragraph[] = [
         new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '2. Scope & Methodology', bold: true })] }),
       ];
-      const scopeDomains = (report.scopeDomains as string[] || []);
-      const scopeAssets = (report.scopeAssets as string[] || []);
-      const approvedVectors = (report.approvedVectors as string[] || []);
-      const outOfScope = (report.outOfScope as string[] || []);
+      const scopeDomains = (report.rptScopeDomains as string[] || []);
+      const scopeAssets = (report.rptScopeAssets as string[] || []);
+      const approvedVectors = (report.rptApprovedVectors as string[] || []);
+      const outOfScope = (report.rptOutOfScope as string[] || []);
 
       if (scopeDomains.length) {
         scopeSection.push(new Paragraph({ children: [new TextRun({ text: 'In-Scope Domains:', bold: true })] }));
@@ -2270,7 +2270,7 @@ export const ac3ReportsRouter = {
       ];
 
       const severityCounts: Record<string, number> = { critical: 0, high: 0, moderate: 0, low: 0, informational: 0 };
-      findings.forEach(f => { severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1; });
+      findings.forEach(f => { severityCounts[f.rfSeverity] = (severityCounts[f.rfSeverity] || 0) + 1; });
 
       const summaryTable = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
@@ -2309,30 +2309,30 @@ export const ac3ReportsRouter = {
       ];
 
       findings.forEach((f, idx) => {
-        const sColor = severityColor[f.severity] || '000000';
+        const sColor = severityColor[f.rfSeverity] || '000000';
         findingsSection.push(
           new Paragraph({
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 400 },
             children: [
               new TextRun({ text: `${idx + 1}. `, bold: true }),
-              new TextRun({ text: f.title, bold: true }),
-              new TextRun({ text: `  [${f.severity.toUpperCase()}]`, bold: true, color: sColor }),
+              new TextRun({ text: f.rfTitle, bold: true }),
+              new TextRun({ text: `  [${f.rfSeverity.toUpperCase()}]`, bold: true, color: sColor }),
             ],
           }),
         );
 
         // Finding metadata table
         const metaRows: [string, string][] = [
-          ['Finding ID', f.findingId],
-          ['Severity', f.severity.toUpperCase()],
+          ['Finding ID', f.rfFindingId],
+          ['Severity', f.rfSeverity.toUpperCase()],
         ];
-        if (f.cvssScore) metaRows.push(['CVSS Score', `${f.cvssScore}${f.cvssVector ? ` (${f.cvssVector})` : ''}`]);
-        const techniques = (f.attackTechniques as any[] || []);
+        if (f.rfCvssScore) metaRows.push(['CVSS Score', `${f.rfCvssScore}${f.rfCvssVector ? ` (${f.rfCvssVector})` : ''}`]);
+        const techniques = (f.rfAttackTechniques as any[] || []);
         if (techniques.length) metaRows.push(['ATT&CK Techniques', techniques.map((t: any) => `${t.id}${t.name ? ': ' + t.name : ''}`).join(', ')]);
-        const controls = (f.controls as any[] || []);
+        const controls = (f.rfControls as any[] || []);
         if (controls.length) metaRows.push(['NIST 800-53 Controls', controls.map((c: any) => c.id).join(', ')]);
-        const assets = (f.assets as string[] || []);
+        const assets = (f.rfAssets as string[] || []);
         if (assets.length) metaRows.push(['Affected Assets', assets.join(', ')]);
 
         findingsSection.push(new Table({
@@ -2352,25 +2352,25 @@ export const ac3ReportsRouter = {
         }));
 
         // Narrative sections
-        if (f.summary) {
+        if (f.rfSummary) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Summary', bold: true })] }));
-          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.summary })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.rfSummary })] }));
         }
-        if (f.businessImpact) {
+        if (f.rfBusinessImpact) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Business Impact', bold: true })] }));
-          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.businessImpact })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.rfBusinessImpact })] }));
         }
-        if (f.technicalDetails) {
+        if (f.rfTechnicalDetails) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Technical Details', bold: true })] }));
-          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.technicalDetails })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.rfTechnicalDetails })] }));
         }
-        if (f.remediation) {
+        if (f.rfRemediation) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Remediation', bold: true })] }));
-          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.remediation })] }));
+          findingsSection.push(new Paragraph({ children: [new TextRun({ text: f.rfRemediation })] }));
         }
 
         // Evidence
-        const evidence = (f.evidence as any[] || []);
+        const evidence = (f.rfEvidence as any[] || []);
         if (evidence.length) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Evidence', bold: true })] }));
           evidence.forEach((e: any) => {
@@ -2385,7 +2385,7 @@ export const ac3ReportsRouter = {
         }
 
         // Supporting Artifacts (cross-references)
-        const findingArtifacts = artifactsByFinding.get(f.findingId) || [];
+        const findingArtifacts = artifactsByFinding.get(f.rfFindingId) || [];
         if (findingArtifacts.length) {
           findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Supporting Artifacts', bold: true })] }));
           findingArtifacts.forEach((art) => {
@@ -2427,7 +2427,7 @@ export const ac3ReportsRouter = {
               })),
             }),
             ...artifacts.map(art => {
-              const linkedFinding = findings.find(f => f.findingId === art.findingId);
+              const linkedFinding = findings.find(f => f.rfFindingId === art.findingId);
               return new TableRow({
                 children: [
                   new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: art.label, bold: true, color: '0066CC', size: 18 })] })] }),
@@ -2468,7 +2468,7 @@ export const ac3ReportsRouter = {
               ],
             }));
           }
-          const linkedFinding = findings.find(f => f.findingId === art.findingId);
+          const linkedFinding = findings.find(f => f.rfFindingId === art.findingId);
           if (linkedFinding) {
             appendixSection.push(new Paragraph({
               children: [
@@ -2681,7 +2681,7 @@ export const ac3ReportsRouter = {
         : `NIST SP 800-53 Rev 5 Assessment Report`;
       const doc = new Document({
         creator: 'Harrison Cook — AceofCloud',
-        title: report.name || 'AC3 Assessment Report',
+        title: report.rptName || 'AC3 Assessment Report',
         description: frameworkDesc,
         sections: [{
           properties: {
@@ -2708,9 +2708,9 @@ export const ac3ReportsRouter = {
 
       // Store the URL on the report
       await db.update(ac3Reports).set({
-        docxUrl: url,
-        updatedAt: Date.now(),
-      }).where(eq(ac3Reports.reportId, input.reportId));
+        rptDocxUrl: url,
+        rptUpdatedAt: Date.now(),
+      }).where(eq(ac3Reports.rptReportId, input.reportId));
 
       return { url, fileName };
     }),
@@ -2803,7 +2803,7 @@ export const ac3ReportsRouter = {
     .query(async ({ input }) => {
       const db = await getDbRequired();
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error('Report not found');
       return parseJsonField(report.scopeExclusions) as Array<{
         phase: string;
@@ -2833,9 +2833,9 @@ export const ac3ReportsRouter = {
       await db.update(ac3Reports)
         .set({
           scopeExclusions: exclusionsWithTimestamp,
-          updatedAt: Date.now(),
+          rptUpdatedAt: Date.now(),
         })
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       return { updated: true, count: exclusionsWithTimestamp.length };
     }),
 
@@ -2847,11 +2847,11 @@ export const ac3ReportsRouter = {
     .query(async ({ input }) => {
       const db = await getDbRequired();
       const [report] = await db.select().from(ac3Reports)
-        .where(eq(ac3Reports.reportId, input.reportId));
+        .where(eq(ac3Reports.rptReportId, input.reportId));
       if (!report) throw new Error("Report not found");
 
       const findings = await db.select().from(ac3ReportFindings)
-        .where(eq(ac3ReportFindings.reportId, input.reportId));
+        .where(eq(ac3ReportFindings.rfReportId, input.reportId));
 
       const artifacts = await db.select().from(ac3ReportArtifacts)
         .where(eq(ac3ReportArtifacts.reportId, input.reportId));
@@ -2907,12 +2907,12 @@ export const ac3ReportsRouter = {
       const evidenceTypes = new Set<string>();
 
       for (const f of findings) {
-        const techniques = parseJsonField(f.attackTechniques);
+        const techniques = parseJsonField(f.rfAttackTechniques);
         for (const t of techniques) {
           if (t.id) allTechniques.add(t.id);
           if (t.tactic) allTactics.add(t.tactic);
         }
-        const evidence = parseJsonField(f.evidence);
+        const evidence = parseJsonField(f.rfEvidence);
         for (const e of evidence) {
           if (e.type) evidenceTypes.add(e.type);
           if (e.reference) toolsUsed.add(e.reference.split(':')[0]?.trim() || e.reference);
@@ -2979,9 +2979,9 @@ export const ac3ReportsRouter = {
       const techniqueStatus = techniqueBreadth >= 10 ? 'pass' : techniqueBreadth >= 5 ? 'warning' : 'fail';
 
       // ── 3. Evidence Quality ──
-      const findingsWithEvidence = findings.filter(f => parseJsonField(f.evidence).length > 0).length;
+      const findingsWithEvidence = findings.filter(f => parseJsonField(f.rfEvidence).length > 0).length;
       const findingsWithPoC = findings.filter(f => {
-        const ev = parseJsonField(f.evidence);
+        const ev = parseJsonField(f.rfEvidence);
         return ev.some(e => ['poc', 'exploit_output', 'command_output', 'screenshot'].includes(e.type));
       }).length;
       const evidenceRatio = findings.length > 0 ? findingsWithEvidence / findings.length : 0;
@@ -3001,15 +3001,15 @@ export const ac3ReportsRouter = {
 
       // ── 6. Severity Distribution ──
       const severityCounts: Record<string, number> = {};
-      for (const f of findings) severityCounts[f.severity] = (severityCounts[f.severity] || 0) + 1;
+      for (const f of findings) severityCounts[f.rfSeverity] = (severityCounts[f.rfSeverity] || 0) + 1;
       const hasCritOrHigh = (severityCounts['critical'] || 0) + (severityCounts['high'] || 0) > 0;
       const hasMultipleSeverities = Object.keys(severityCounts).length >= 3;
 
       // ── 7. Report Completeness ──
-      const hasExecSummary = !!report.execNarrative;
-      const hasScope = parseJsonField(report.scopeDomains).length > 0 || parseJsonField(report.scopeAssets).length > 0;
+      const hasExecSummary = !!report.rptExecNarrative;
+      const hasScope = parseJsonField(report.rptScopeDomains).length > 0 || parseJsonField(report.rptScopeAssets).length > 0;
       const hasAssessmentWindow = !!report.assessmentWindowStart && !!report.assessmentWindowEnd;
-      const hasClient = !!report.clientName;
+      const hasClient = !!report.rptClientName;
 
       // ── Overall Score ──
       const checks = [

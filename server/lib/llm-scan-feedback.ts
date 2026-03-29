@@ -140,8 +140,8 @@ export const TOOL_INVENTORY: ScanTool[] = [
   },
   // Active scanning
   {
-    name: "nmap",
-    description: "Network scanner for port discovery, service detection, OS fingerprinting, and vulnerability scanning via NSE scripts. Use -sV for service versions, -sC for default scripts, --script for specific NSE scripts.",
+    name: "scanforge-discovery",
+    description: "Network scanner for port discovery, service detection, OS fingerprinting, and vulnerability scanning via Nuclei templates. Use -sV for service versions, -sC for default scripts, --script for specific Nuclei templates.",
     category: "active",
     exampleArgs: [
       "-sV -sC -p 80,443 target.com",
@@ -304,7 +304,7 @@ ${toolDescriptions}
 
 ## Evasion & Bypass Knowledge
 When requesting scans against targets with firewalls or WAFs, consider these techniques:
-- Use packet fragmentation (nmap -f) and timing evasion (nmap -T2) for firewall bypass
+- Use rate limiting (masscan --rate 100) and timing evasion (naabu -rate 50) for firewall bypass
 - For file upload testing, use extension splitting payloads: null byte (%00), newline (%0a), semicolon (%3B), Unicode overlong encoding
 - For WAF bypass: identify vendor first (wafw00f), then use encoding tricks, chunked transfer, or parameter pollution
 - Prefer passive/stealthy tools when the target has active defenses

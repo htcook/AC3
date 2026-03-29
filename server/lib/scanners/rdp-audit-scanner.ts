@@ -12,8 +12,8 @@
  * - RDP version fingerprinting
  * - Restricted Admin Mode check
  *
- * Uses nmap NSE RDP scripts + rdp-sec-check probing.
- * Auto-triggers when naabu/nmap discovers port 3389 or 3388.
+ * Uses Nuclei template RDP scripts + rdp-sec-check probing.
+ * Auto-triggers when naabu discovers port 3389 or 3388.
  */
 
 import { executeTool, executeRawCommand } from "../scan-server-executor";
@@ -37,8 +37,8 @@ export interface RDPAuditConfig {
   timeoutSeconds?: number;
   /** Operator ID */
   operatorId?: number;
-  /** Run nmap RDP NSE scripts */
-  nmapScripts?: boolean;
+  /** Run ScanForge discovery RDP Nuclei templates */
+  detectionTemplates?: boolean;
   /** Test for BlueKeep specifically */
   testBlueKeep?: boolean;
   /** Check encryption levels */
@@ -157,9 +157,9 @@ const RDP_CVES: Array<{
 // ─── Output Parsers ─────────────────────────────────────────────────────────
 
 /**
- * Parse nmap RDP NSE script output.
+ * Parse ScanForge discovery RDP Nuclei template output.
  */
-function parseNmapRDPOutput(output: string): {
+function parseScanForgeRDPOutput(output: string): {
   nlaEnabled: boolean | null;
   encryptionLevel: string | null;
   securityProtocol: string | null;
@@ -286,25 +286,25 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
   }
 
   try {
-    // ── Step 1: Nmap RDP NSE Scripts ──
-    if (config.nmapScripts !== false) {
-      const nmapScripts = [
+    // ── Step 1: ScanForge RDP NSE Scripts ──
+    if (config.detectionTemplates !== false) {
+      const detectionTemplates = [
         "rdp-enum-encryption",
         "rdp-ntlm-info",
         "rdp-vuln-ms12-020",
       ];
 
-      const nmapResult = await executeTool("nmap", [
+      const discoveryResult = await executeTool("naabu", [
         "-sV", "-p", String(port),
-        "--script", nmapScripts.join(","),
+        "--script", detectionTemplates.join(","),
         "--script-timeout", String(timeout),
         "-oN", "-",
         config.host,
       ], { timeoutSeconds: timeout + 30 });
 
-      if (nmapResult.stdout) {
-        rawOutput += `=== NMAP RDP SCRIPTS ===\n${nmapResult.stdout}\n\n`;
-        const parsed = parseNmapRDPOutput(nmapResult.stdout);
+      if (discoveryResult.stdout) {
+        rawOutput += `=== SCANFORGE RDP SCRIPTS ===\n${discoveryResult.stdout}\n\n`;
+        const parsed = parseScanForgeRDPOutput(discoveryResult.stdout);
         nlaEnabled = parsed.nlaEnabled;
         encryptionLevel = parsed.encryptionLevel;
         securityProtocol = parsed.securityProtocol;
@@ -313,7 +313,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
         certificateInfo = parsed.certificate;
 
         // Extract RDP version from service detection
-        const versionMatch = nmapResult.stdout.match(/(\d+\/tcp\s+open\s+ms-wbt-server\s+(.+))/i);
+        const versionMatch = discoveryResult.stdout.match(/(\d+\/tcp\s+open\s+ms-wbt-server\s+(.+))/i);
         if (versionMatch) rdpVersion = versionMatch[2]?.trim() || null;
       }
     }
@@ -321,7 +321,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
     // ── Step 2: BlueKeep-Specific Check ──
     if (config.testBlueKeep !== false && blueKeepVulnerable === null) {
       try {
-        const blueKeepResult = await executeTool("nmap", [
+        const blueKeepResult = await executeTool("naabu", [
           "-p", String(port),
           "--script", "rdp-vuln-ms12-020",
           "--script-args", "vulns.short",
@@ -380,7 +380,7 @@ export async function startRDPAudit(config: RDPAuditConfig): Promise<RDPAuditRes
         recommendation: "Apply Microsoft security update KB4499175 immediately. Enable NLA as a partial mitigation. Block port 3389 from untrusted networks.",
         cve: "CVE-2019-0708",
         cwe: "CWE-416",
-        evidence: "Nmap rdp-vuln-ms12-020 script confirmed VULNERABLE state",
+        evidence: "ScanForge rdp-vuln-ms12-020 script confirmed VULNERABLE state",
       });
     }
 

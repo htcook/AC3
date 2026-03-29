@@ -12,7 +12,7 @@
  *   Dashboard → HTTP POST → DO Scan Service (Express) → local exec → results
  *
  * Endpoints:
- *   POST /api/scan/tool  — Execute a whitelisted tool (nmap, nuclei, etc.)
+ *   POST /api/scan/tool  — Execute a whitelisted tool (ScanForge discovery, nuclei, etc.)
  *   POST /api/scan/raw   — Execute a raw shell command (for piped commands)
  *   GET  /api/tools       — Get installed tool manifest
  *   GET  /health          — Health check
@@ -22,7 +22,7 @@ import type { ToolExecConfig, ToolExecResult } from "./scan-server-executor";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-import { SCAN_SERVICE_URL, SCAN_API_KEY } from "./scan-service-url";
+import { SCAN_SERVICE_URL, SCAN_API_KEY, getActiveScanUrl, LEGACY_SCAN_URL } from "./scan-service-url";
 
 const LOG = "[DO-ScanAPI]";
 

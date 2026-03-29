@@ -438,7 +438,7 @@ describe('Real-Time Engagement Monitor', () => {
 
   const mockEvents: MonitorEvent[] = [
     { id: '1', type: 'llm_decision', engagementId: 1, timestamp: Date.now() - 1000, data: { decision: 'scan_port', confidence: 0.92 } },
-    { id: '2', type: 'agent_delegation', engagementId: 1, timestamp: Date.now() - 2000, data: { agent: 'recon', task: 'nmap_scan' } },
+    { id: '2', type: 'agent_delegation', engagementId: 1, timestamp: Date.now() - 2000, data: { agent: 'recon', task: 'discovery_scan' } },
     { id: '3', type: 'finding_discovered', engagementId: 1, timestamp: Date.now() - 3000, data: { severity: 'high', title: 'SQL Injection' } },
     { id: '4', type: 'llm_decision', engagementId: 2, timestamp: Date.now() - 4000, data: { decision: 'exploit_sqli', confidence: 0.85 } },
     { id: '5', type: 'exploit_attempt', engagementId: 2, timestamp: Date.now() - 5000, data: { technique: 'T1190', success: true } },

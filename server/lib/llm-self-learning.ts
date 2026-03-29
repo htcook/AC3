@@ -519,11 +519,11 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
     { title: "Content Security Policy Bypass", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "medium", cwe: "CWE-693", description: "CSP headers are misconfigured allowing inline script execution.", detectionHint: "Check CSP headers and test bypass techniques", autoDetectable: true },
   ],
 
-  "scanme-nmap": [
-    { title: "Open SSH Service", category: "Network Service", severity: "info", description: "SSH (port 22) is open and accepting connections. Version fingerprint reveals OpenSSH.", detectionHint: "Nmap -sV on port 22", autoDetectable: true },
-    { title: "Open HTTP Service", category: "Network Service", severity: "info", description: "HTTP (port 80) is open running Apache httpd.", detectionHint: "Nmap -sV on port 80", autoDetectable: true },
-    { title: "Open NTP Service", category: "Network Service", severity: "low", description: "NTP (port 123) is open and may be used for amplification attacks.", detectionHint: "Nmap -sU on port 123", autoDetectable: true },
-    { title: "Open DNS Service", category: "Network Service", severity: "low", description: "DNS (port 9929) is open on a non-standard port.", detectionHint: "Nmap -sV on port 9929", autoDetectable: true },
+  "scanme-target": [
+    { title: "Open SSH Service", category: "Network Service", severity: "info", description: "SSH (port 22) is open and accepting connections. Version fingerprint reveals OpenSSH.", detectionHint: "ScanForge -sV on port 22", autoDetectable: true },
+    { title: "Open HTTP Service", category: "Network Service", severity: "info", description: "HTTP (port 80) is open running Apache httpd.", detectionHint: "ScanForge -sV on port 80", autoDetectable: true },
+    { title: "Open NTP Service", category: "Network Service", severity: "low", description: "NTP (port 123) is open and may be used for amplification attacks.", detectionHint: "ScanForge -sU on port 123", autoDetectable: true },
+    { title: "Open DNS Service", category: "Network Service", severity: "low", description: "DNS (port 9929) is open on a non-standard port.", detectionHint: "ScanForge -sV on port 9929", autoDetectable: true },
     { title: "Missing Security Headers", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "HTTP service missing standard security headers (CSP, HSTS, X-Frame-Options).", detectionHint: "Check HTTP response headers", autoDetectable: true },
     { title: "Server Version Disclosure", category: "Information Disclosure", owaspCategory: "A05:2025", severity: "low", description: "Server banner reveals software version information.", detectionHint: "Check Server header in HTTP response", autoDetectable: true },
   ],
@@ -571,7 +571,7 @@ export const GROUND_TRUTH_LIBRARY: Record<string, GroundTruthVuln[]> = {
     { title: "Robots.txt Information Disclosure", category: "Security Misconfiguration", owaspCategory: "A05:2025", severity: "low", description: "Robots.txt reveals hidden directories and sensitive paths.", detectionHint: "Check /robots.txt for disallowed paths", autoDetectable: true },
     // ── A6: Sensitive Data Exposure ──
     { title: "Base64 Encoded Secret", category: "Sensitive Data Exposure", owaspCategory: "A02:2025", severity: "medium", description: "Secret stored as Base64 encoding in cookie — trivially decodable, not encryption.", detectionHint: "Decode Base64 cookie value", autoDetectable: false },
-    { title: "Heartbleed Vulnerability", category: "Sensitive Data Exposure", owaspCategory: "A06:2025", severity: "critical", description: "OpenSSL Heartbleed (CVE-2014-0160) allows reading server memory including private keys and session data.", detectionHint: "Use nmap --script ssl-heartbleed or custom exploit", autoDetectable: false },
+    { title: "Heartbleed Vulnerability", category: "Sensitive Data Exposure", owaspCategory: "A06:2025", severity: "critical", description: "OpenSSL Heartbleed (CVE-2014-0160) allows reading server memory including private keys and session data.", detectionHint: "Use nuclei -t ssl-heartbleed or custom exploit", autoDetectable: false },
     { title: "Clear Text HTTP Credentials", category: "Sensitive Data Exposure", owaspCategory: "A02:2025", severity: "high", description: "Login credentials transmitted over unencrypted HTTP. Sniffable on network.", detectionHint: "Capture login traffic with Wireshark", autoDetectable: false },
     // ── A7: File Access ──
     { title: "Directory Traversal - Files", category: "Broken Access Control", owaspCategory: "A01:2025", severity: "high", description: "File parameter vulnerable to path traversal using ../ sequences to read arbitrary files like /etc/passwd.", detectionHint: "Test with ../../etc/passwd in file parameter", autoDetectable: true },
@@ -986,7 +986,7 @@ const VULN_SYNONYMS: Array<[string[], string]> = [
 ];
 
 /**
- * Strip tool prefixes like [ZAP], [Nuclei], [sqlmap], [nmap], [Nikto], [Gobuster] etc.
+ * Strip tool prefixes like [ZAP], [Nuclei], [sqlmap], [ScanForge], [Nikto], [Gobuster] etc.
  * Also normalizes whitespace and trims.
  */
 function normalizeTitle(title: string): string {

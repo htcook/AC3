@@ -13,9 +13,9 @@
  * - Banner grabbing and OS fingerprinting
  *
  * Uses ssh-audit (https://github.com/jtesta/ssh-audit) when available,
- * falls back to nmap NSE scripts + manual banner analysis.
+ * falls back to Nuclei template scripts + manual banner analysis.
  *
- * Auto-triggers when naabu/nmap discovers port 22 (or custom SSH ports).
+ * Auto-triggers when ScanForge discovers port 22 (or custom SSH ports).
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -39,8 +39,8 @@ export interface SSHAuditConfig {
   operatorId?: number;
   /** Run in verbose mode */
   verbose?: boolean;
-  /** Also run nmap NSE SSH scripts */
-  nmapScripts?: boolean;
+  /** Also run Nuclei template SSH scripts */
+  detectionTemplates?: boolean;
   /** Also attempt auth method enumeration */
   enumAuth?: boolean;
 }
@@ -357,9 +357,9 @@ function parseSSHAuditText(output: string): {
 }
 
 /**
- * Parse nmap SSH NSE script output.
+ * Parse ScanForge discovery SSH Nuclei template output.
  */
-function parseNmapSSHOutput(output: string): {
+function parseScanForgeSSHOutput(output: string): {
   authMethods: string[];
   hostKeys: string[];
   algorithms: SSHAlgorithm[];
@@ -580,42 +580,42 @@ export async function startSSHAudit(config: SSHAuditConfig): Promise<SSHAuditRes
       softwareVersion = textParsed.softwareVersion;
     }
   } catch (err: any) {
-    console.warn(`[SSHAudit] ssh-audit failed: ${err.message}, falling back to nmap`);
+    console.warn(`[SSHAudit] ssh-audit failed: ${err.message}, falling back to banner grab`);
   }
 
-  // ── Phase 2: nmap NSE scripts (supplementary) ────────────────────────────
-  if (config.nmapScripts !== false) {
+  // ── Phase 2: Nuclei template scripts (supplementary) ────────────────────────────
+  if (config.detectionTemplates !== false) {
     try {
-      const nmapResult = await executeTool({
-        tool: "nmap",
+      const discoveryResult = await executeTool({
+        tool: "naabu",
         args: `-p ${port} --script ssh-auth-methods,ssh2-enum-algos,ssh-hostkey,sshv1 -sV ${config.host}`,
         target: config.host,
         timeoutSeconds: timeout,
         engagementId: config.engagementId,
       });
-      rawOutput += `\n=== nmap SSH scripts ===\n${nmapResult.stdout}\n`;
+      rawOutput += `\n=== ScanForge discovery SSH scripts ===\n${discoveryResult.stdout}\n`;
 
-      const nmapParsed = parseNmapSSHOutput(nmapResult.stdout);
-      authMethods = nmapParsed.authMethods;
+      const discoveryParsed = parseScanForgeSSHOutput(discoveryResult.stdout);
+      authMethods = discoveryParsed.authMethods;
 
-      // Merge algorithms (prefer ssh-audit data, supplement with nmap)
+      // Merge algorithms (prefer ssh-audit data, supplement with banner grab)
       if (allAlgorithms.length === 0) {
-        allAlgorithms = nmapParsed.algorithms;
+        allAlgorithms = discoveryParsed.algorithms;
       }
 
-      // Extract banner from nmap if not already found
+      // Extract banner from ScanForge discovery if not already found
       if (!banner) {
-        const nmapBanner = nmapResult.stdout.match(/SSH-\S+/);
-        if (nmapBanner) banner = nmapBanner[0];
+        const serviceBanner = discoveryResult.stdout.match(/SSH-\S+/);
+        if (serviceBanner) banner = serviceBanner[0];
       }
 
-      // Extract version from nmap service detection
+      // Extract version from ScanForge discovery service detection
       if (!softwareVersion) {
-        const versionMatch = nmapResult.stdout.match(/OpenSSH\s+[\d.p]+/i);
+        const versionMatch = discoveryResult.stdout.match(/OpenSSH\s+[\d.p]+/i);
         if (versionMatch) softwareVersion = versionMatch[0];
       }
     } catch (err: any) {
-      console.warn(`[SSHAudit] nmap SSH scripts failed: ${err.message}`);
+      console.warn(`[SSHAudit] ScanForge discovery SSH scripts failed: ${err.message}`);
     }
   }
 

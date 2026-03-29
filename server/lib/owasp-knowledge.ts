@@ -29,7 +29,7 @@ export interface OwaspCategory {
   riskLevel: 'critical' | 'high' | 'medium' | 'low';
   prevalence: string;
   primaryTools: string[];
-  nmapScripts: string[];
+  detectionTemplates: string[];
   nucleiTags: string[];
   otherTools: string[];
   detectionSignals: string[];
@@ -65,7 +65,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'critical',
     prevalence: '100% of tested apps had some form of broken access control. 40 CWEs mapped, 1.8M occurrences, 32K CVEs.',
     primaryTools: ['nuclei', 'ffuf', 'gobuster', 'feroxbuster', 'nikto'],
-    nmapScripts: ['http-enum', 'http-methods', 'http-auth-finder', 'http-open-proxy', 'http-internal-ip-disclosure'],
+    detectionTemplates: ['http-enum', 'http-methods', 'http-auth-finder', 'http-open-proxy', 'http-internal-ip-disclosure'],
     nucleiTags: ['idor', 'ssrf', 'lfi', 'rfi', 'traversal', 'cors', 'redirect', 'auth-bypass', 'exposure'],
     otherTools: ['Burp Suite (AuthMatrix, Authorize)', 'curl (manual IDOR testing)', 'wfuzz'],
     detectionSignals: [
@@ -89,7 +89,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     testingCommands: [
       { tool: 'ffuf', command: 'ffuf -u https://TARGET/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403', purpose: 'Forced browsing to discover hidden endpoints', phase: 'discovery' },
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags idor,ssrf,lfi,traversal,cors,redirect,auth-bypass', purpose: 'Automated OWASP A01 vulnerability detection', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -p 80,443 --script http-enum,http-methods,http-auth-finder TARGET', purpose: 'Enumerate web directories and HTTP methods', phase: 'discovery' },
+      { tool: 'scanforge-discovery', command: 'naabu -p 80,443 --script http-enum,http-methods,http-auth-finder TARGET', purpose: 'Enumerate web directories and HTTP methods', phase: 'discovery' },
       { tool: 'curl', command: 'curl -s -o /dev/null -w "%{http_code}" https://TARGET/admin', purpose: 'Check for unprotected admin endpoints', phase: 'discovery' },
       { tool: 'nikto', command: 'nikto -h https://TARGET -Tuning 4', purpose: 'Check for information disclosure and access control issues', phase: 'vuln-detection' }
     ]
@@ -102,8 +102,8 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     keyCWEs: ['CWE-16 (Configuration)', 'CWE-611 (XXE)', 'CWE-1004 (Sensitive Cookie No HttpOnly)', 'CWE-1032 (OWASP Top 10 2017 A6)', 'CWE-209 (Error Info Leak)'],
     riskLevel: 'high',
     prevalence: 'Previously at #5 in 2021, moved up to #2 in 2025. High incidence across all application types.',
-    primaryTools: ['nikto', 'nmap', 'nuclei', 'testssl.sh'],
-    nmapScripts: ['http-security-headers', 'http-default-accounts', 'http-config-backup', 'ssl-enum-ciphers', 'http-server-header', 'http-trace', 'http-methods', 'http-git', 'http-robots.txt'],
+    primaryTools: ['nikto', 'scanforge-discovery', 'nuclei', 'testssl.sh'],
+    detectionTemplates: ['http-security-headers', 'http-default-accounts', 'http-config-backup', 'ssl-enum-ciphers', 'http-server-header', 'http-trace', 'http-methods', 'http-git', 'http-robots.txt'],
     nucleiTags: ['misconfig', 'exposure', 'default-login', 'debug', 'backup', 'config', 'panel', 'tech'],
     otherTools: ['skipfish', 'testssl.sh', 'sslyze', 'securityheaders.com'],
     detectionSignals: [
@@ -128,7 +128,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     mitreTechniques: ['T1190 (Exploit Public-Facing App)', 'T1592 (Gather Victim Host Information)', 'T1589 (Gather Victim Identity Info)'],
     testingCommands: [
       { tool: 'nikto', command: 'nikto -h https://TARGET -Tuning 2', purpose: 'Scan for misconfigurations and default files', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -p 80,443 --script http-security-headers,http-default-accounts,http-config-backup,http-git,http-trace TARGET', purpose: 'Check security headers, defaults, and exposed configs', phase: 'vuln-detection' },
+      { tool: 'scanforge-discovery', command: 'naabu -p 80,443 --script http-security-headers,http-default-accounts,http-config-backup,http-git,http-trace TARGET', purpose: 'Check security headers, defaults, and exposed configs', phase: 'vuln-detection' },
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags misconfig,exposure,default-login,debug,backup,config', purpose: 'Automated misconfiguration detection', phase: 'vuln-detection' },
       { tool: 'testssl.sh', command: 'testssl.sh --severity HIGH https://TARGET', purpose: 'Check TLS/SSL configuration issues', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -sI https://TARGET | grep -iE "server|x-powered|x-aspnet|x-frame|strict-transport|content-security"', purpose: 'Quick security header check', phase: 'recon' }
@@ -143,7 +143,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'high',
     prevalence: 'New category in 2025. Previously "Vulnerable and Outdated Components" (A06:2021). Average age of CVEs in this category is 3+ years.',
     primaryTools: ['nuclei', 'wpscan', 'searchsploit'],
-    nmapScripts: ['http-wordpress-enum', 'http-drupal-enum', 'http-joomla-brute', 'http-server-header'],
+    detectionTemplates: ['http-wordpress-enum', 'http-drupal-enum', 'http-joomla-brute', 'http-server-header'],
     nucleiTags: ['cve', 'outdated', 'component', 'wordpress', 'joomla', 'drupal', 'apache', 'nginx', 'iis', 'tomcat', 'tech'],
     otherTools: ['npm audit', 'snyk', 'retire.js', 'OWASP Dependency-Check', 'Trivy'],
     detectionSignals: [
@@ -164,7 +164,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     testingCommands: [
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags cve,tech,wordpress,joomla,drupal,apache,nginx,tomcat', purpose: 'Detect known CVEs in identified components', phase: 'vuln-detection' },
       { tool: 'wpscan', command: 'wpscan --url https://TARGET --enumerate vp,vt,u', purpose: 'WordPress vulnerability and plugin enumeration', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -sV -p 80,443 --script http-wordpress-enum,http-drupal-enum TARGET', purpose: 'CMS version and plugin enumeration', phase: 'discovery' },
+      { tool: 'scanforge-discovery', command: 'masscan -pV -p 80,443 --script http-wordpress-enum,http-drupal-enum TARGET', purpose: 'CMS version and plugin enumeration', phase: 'discovery' },
       { tool: 'searchsploit', command: 'searchsploit apache 2.4', purpose: 'Search for known exploits for detected versions', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -s https://TARGET/ | grep -oP "(?<=ver=)[\\d.]+" | sort -u', purpose: 'Extract version numbers from page source', phase: 'recon' }
     ]
@@ -177,8 +177,8 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     keyCWEs: ['CWE-259 (Hard-coded Password)', 'CWE-327 (Broken Crypto Algorithm)', 'CWE-328 (Reversible One-Way Hash)', 'CWE-330 (Insufficient Randomness)', 'CWE-311 (Missing Encryption)', 'CWE-312 (Cleartext Storage)'],
     riskLevel: 'high',
     prevalence: 'Previously #2 in 2021, moved to #4 in 2025. Still highly prevalent in web applications.',
-    primaryTools: ['testssl.sh', 'sslyze', 'nmap'],
-    nmapScripts: ['ssl-enum-ciphers', 'ssl-cert', 'ssl-dh-params', 'ssl-heartbleed', 'ssl-poodle', 'ssl-ccs-injection', 'ssl-known-key', 'ssl-date'],
+    primaryTools: ['testssl.sh', 'sslyze', 'scanforge-discovery'],
+    detectionTemplates: ['ssl-enum-ciphers', 'ssl-cert', 'ssl-dh-params', 'ssl-heartbleed', 'ssl-poodle', 'ssl-ccs-injection', 'ssl-known-key', 'ssl-date'],
     nucleiTags: ['ssl', 'tls', 'weak-crypto', 'heartbleed', 'poodle', 'exposed-panels', 'http'],
     otherTools: ['sslscan', 'openssl s_client', 'Qualys SSL Labs'],
     detectionSignals: [
@@ -203,7 +203,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     mitreTechniques: ['T1557 (Adversary-in-the-Middle)', 'T1040 (Network Sniffing)', 'T1552 (Unsecured Credentials)'],
     testingCommands: [
       { tool: 'testssl.sh', command: 'testssl.sh --severity HIGH --sneaky https://TARGET', purpose: 'Comprehensive TLS/SSL vulnerability assessment', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -p 443 --script ssl-enum-ciphers,ssl-cert,ssl-heartbleed,ssl-poodle,ssl-ccs-injection,ssl-dh-params TARGET', purpose: 'Check for weak ciphers and known TLS vulnerabilities', phase: 'vuln-detection' },
+      { tool: 'scanforge-discovery', command: 'naabu -p 443 --script ssl-enum-ciphers,ssl-cert,ssl-heartbleed,ssl-poodle,ssl-ccs-injection,ssl-dh-params TARGET', purpose: 'Check for weak ciphers and known TLS vulnerabilities', phase: 'vuln-detection' },
       { tool: 'sslyze', command: 'sslyze --regular TARGET:443', purpose: 'SSL/TLS configuration analysis', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -sI http://TARGET | grep -i "location\\|strict-transport"', purpose: 'Check HTTP to HTTPS redirect and HSTS', phase: 'recon' },
       { tool: 'openssl', command: 'openssl s_client -connect TARGET:443 -tls1 2>/dev/null | grep "Protocol"', purpose: 'Test for deprecated TLS 1.0 support', phase: 'vuln-detection' }
@@ -218,7 +218,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'critical',
     prevalence: 'Previously #3 in 2021, moved to #5 in 2025. Still one of the most dangerous categories with direct RCE potential.',
     primaryTools: ['sqlmap', 'nuclei', 'commix', 'XSStrike'],
-    nmapScripts: ['http-sql-injection', 'http-stored-xss', 'http-dombased-xss', 'http-phpself-xss', 'http-shellshock', 'http-vuln-cve2014-3704'],
+    detectionTemplates: ['http-sql-injection', 'http-stored-xss', 'http-dombased-xss', 'http-phpself-xss', 'http-shellshock', 'http-vuln-cve2014-3704'],
     nucleiTags: ['sqli', 'xss', 'ssti', 'rce', 'injection', 'lfi', 'rfi', 'xxe', 'command-injection', 'el-injection'],
     otherTools: ['tplmap (SSTI)', 'commix (OS command)', 'XSStrike (XSS)', 'NoSQLMap', 'Burp Suite'],
     detectionSignals: [
@@ -243,7 +243,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     testingCommands: [
       { tool: 'sqlmap', command: 'sqlmap -u "https://TARGET/page?id=1" --batch --risk=2 --level=3', purpose: 'Automated SQL injection detection and exploitation', phase: 'vuln-detection' },
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags sqli,xss,ssti,rce,injection,xxe,command-injection', purpose: 'Automated injection vulnerability detection', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -p 80,443 --script http-sql-injection,http-stored-xss,http-dombased-xss,http-shellshock TARGET', purpose: 'NSE-based injection detection', phase: 'vuln-detection' },
+      { tool: 'scanforge-discovery', command: 'naabu -p 80,443 --script http-sql-injection,http-stored-xss,http-dombased-xss,http-shellshock TARGET', purpose: 'NSE-based injection detection', phase: 'vuln-detection' },
       { tool: 'commix', command: 'commix --url="https://TARGET/page?cmd=test" --batch', purpose: 'OS command injection testing', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -s "https://TARGET/page?id=1\'" | grep -iE "error|syntax|mysql|ora-|warning"', purpose: 'Quick SQL error detection', phase: 'recon' }
     ]
@@ -257,7 +257,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'medium',
     prevalence: 'Introduced in 2021. Focuses on pre-code design flaws that require threat modeling to identify.',
     primaryTools: ['Manual review', 'nuclei', 'nikto'],
-    nmapScripts: ['http-default-accounts', 'http-auth-finder', 'http-form-brute'],
+    detectionTemplates: ['http-default-accounts', 'http-auth-finder', 'http-form-brute'],
     nucleiTags: ['exposure', 'default-login', 'info-disclosure', 'panel', 'login'],
     otherTools: ['Threat modeling tools', 'Burp Suite (business logic testing)'],
     detectionSignals: [
@@ -291,8 +291,8 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     keyCWEs: ['CWE-287 (Improper Authentication)', 'CWE-384 (Session Fixation)', 'CWE-613 (Insufficient Session Expiration)', 'CWE-640 (Weak Password Recovery)'],
     riskLevel: 'high',
     prevalence: 'Previously "Identification and Authentication Failures" (A07:2021). Renamed to "Authentication Failures" in 2025.',
-    primaryTools: ['hydra', 'medusa', 'nmap', 'nuclei'],
-    nmapScripts: ['http-brute', 'http-form-brute', 'ssh-brute', 'ftp-brute', 'http-auth-finder', 'http-default-accounts', 'ssh-auth-methods'],
+    primaryTools: ['hydra', 'medusa', 'scanforge-discovery', 'nuclei'],
+    detectionTemplates: ['http-brute', 'http-form-brute', 'ssh-brute', 'ftp-brute', 'http-auth-finder', 'http-default-accounts', 'ssh-auth-methods'],
     nucleiTags: ['auth-bypass', 'default-login', 'brute-force', 'token', 'session', 'login'],
     otherTools: ['john', 'hashcat', 'CeWL (custom wordlists)', 'Burp Suite Intruder'],
     detectionSignals: [
@@ -315,7 +315,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     mitreTechniques: ['T1110 (Brute Force)', 'T1078 (Valid Accounts)', 'T1539 (Steal Web Session Cookie)', 'T1556 (Modify Authentication Process)'],
     testingCommands: [
       { tool: 'hydra', command: 'hydra -l admin -P /usr/share/wordlists/rockyou.txt TARGET http-post-form "/login:user=^USER^&pass=^PASS^:F=incorrect" -t 4', purpose: 'Brute force login credentials', phase: 'vuln-detection' },
-      { tool: 'nmap', command: 'nmap -p 22,80,443 --script http-brute,http-form-brute,ssh-brute,http-default-accounts,ssh-auth-methods TARGET', purpose: 'Check for brute-forceable services and default accounts', phase: 'vuln-detection' },
+      { tool: 'scanforge-discovery', command: 'naabu -p 22,80,443 --script http-brute,http-form-brute,ssh-brute,http-default-accounts,ssh-auth-methods TARGET', purpose: 'Check for brute-forceable services and default accounts', phase: 'vuln-detection' },
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags auth-bypass,default-login,token,session', purpose: 'Automated authentication vulnerability detection', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -s -D- "https://TARGET/login" -d "user=admin&pass=admin" | grep -i "set-cookie\\|location"', purpose: 'Test default credentials and session handling', phase: 'vuln-detection' }
     ]
@@ -329,7 +329,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'high',
     prevalence: 'Previously "Software and Data Integrity Failures" (A08:2021). Deserialization attacks can lead to RCE.',
     primaryTools: ['nuclei', 'ysoserial', 'custom scripts'],
-    nmapScripts: [],
+    detectionTemplates: [],
     nucleiTags: ['deserialization', 'rce', 'java', 'upload', 'ci-cd'],
     otherTools: ['ysoserial (Java)', 'phpggc (PHP)', 'Burp Suite (deserialization detection)'],
     detectionSignals: [
@@ -351,7 +351,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     testingCommands: [
       { tool: 'nuclei', command: 'nuclei -u https://TARGET -tags deserialization,rce,java,upload', purpose: 'Detect deserialization and integrity vulnerabilities', phase: 'vuln-detection' },
       { tool: 'curl', command: 'curl -s https://TARGET/ | grep -oP "rO0AB|aced0005|O:\\d+:" | head -5', purpose: 'Check for serialized objects in responses', phase: 'recon' },
-      { tool: 'nmap', command: 'nmap -sV -p 8080,8443,9090 --script http-server-header TARGET', purpose: 'Identify Java application servers (Tomcat, JBoss, WebLogic)', phase: 'discovery' }
+      { tool: 'scanforge-discovery', command: 'masscan -pV -p 8080,8443,9090 --script http-server-header TARGET', purpose: 'Identify Java application servers (Tomcat, JBoss, WebLogic)', phase: 'discovery' }
     ]
   },
   {
@@ -363,7 +363,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'medium',
     prevalence: 'Previously "Security Logging and Monitoring Failures" (A09:2021). Renamed with "Alerting" emphasis in 2025.',
     primaryTools: ['Manual review', 'log analysis tools'],
-    nmapScripts: [],
+    detectionTemplates: [],
     nucleiTags: ['log', 'exposure', 'debug', 'stacktrace'],
     otherTools: ['ELK Stack', 'Splunk', 'Graylog'],
     detectionSignals: [
@@ -395,7 +395,7 @@ const OWASP_CATEGORIES: OwaspCategory[] = [
     riskLevel: 'medium',
     prevalence: 'New category in 2025. Contains 24 CWEs. Focuses on how applications handle unexpected inputs and error conditions.',
     primaryTools: ['fuzzing tools', 'nuclei', 'wfuzz'],
-    nmapScripts: ['http-errors'],
+    detectionTemplates: ['http-errors'],
     nucleiTags: ['error', 'stacktrace', 'debug', 'info-disclosure', 'dos'],
     otherTools: ['wfuzz', 'ffuf', 'Burp Suite (Intruder for fuzzing)'],
     detectionSignals: [
@@ -439,10 +439,10 @@ You MUST design scan plans that cover ALL relevant OWASP Top 10:2025 categories 
   // Build a condensed tool selection matrix
   sections.push(`### OWASP Category → Tool Selection Matrix
 
-| Category | Primary Test | Nmap Scripts | Nuclei Tags |
+| Category | Primary Test | ScanForge Discovery Scripts | Nuclei Tags |
 |----------|-------------|--------------|-------------|
 ${OWASP_CATEGORIES.map(c => 
-    `| ${c.id} ${c.name} | ${c.primaryTools.slice(0, 2).join(', ')} | ${c.nmapScripts.slice(0, 3).join(', ') || 'N/A'} | ${c.nucleiTags.slice(0, 4).join(', ')} |`
+    `| ${c.id} ${c.name} | ${c.primaryTools.slice(0, 2).join(', ')} | ${c.detectionTemplates.slice(0, 3).join(', ') || 'N/A'} | ${c.nucleiTags.slice(0, 4).join(', ')} |`
   ).join('\n')}`);
 
   // Technology-specific OWASP priorities

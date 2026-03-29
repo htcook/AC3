@@ -412,7 +412,7 @@ export const aiChatRouter = router({
           }
 
           // Dynamic technique lookup based on user message keywords
-          const techKeywords = input.message.match(/\b(nmap|burp|metasploit|sqlmap|bloodhound|mimikatz|kerberos|privesc|lateral|persistence|exfiltration|buffer overflow|rop|seh|shellcode|xss|sqli|ssrf|ssti|xxe|lfi|rfi|deserialization|command injection|path traversal|upload bypass|password spray|hash crack|responder|ntlm|smb|ldap|snmp|dns|ad enum|active directory|cobalt strike|sliver|havoc|c2|beacon|implant)\b/gi);
+          const techKeywords = input.message.match(/\b(masscan|naabu|rustscan|burp|metasploit|sqlmap|bloodhound|mimikatz|kerberos|privesc|lateral|persistence|exfiltration|buffer overflow|rop|seh|shellcode|xss|sqli|ssrf|ssti|xxe|lfi|rfi|deserialization|command injection|path traversal|upload bypass|password spray|hash crack|responder|ntlm|smb|ldap|snmp|dns|ad enum|active directory|cobalt strike|sliver|havoc|c2|beacon|implant)\b/gi);
           if (techKeywords && techKeywords.length > 0) {
             const uniqueKw = [...new Set(techKeywords.map(k => k.toLowerCase()))];
             const matchedTechniques: string[] = [];

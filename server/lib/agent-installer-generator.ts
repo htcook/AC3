@@ -75,7 +75,7 @@ export interface AgentCapability {
 
 const CAPABILITY_PROFILES: Record<AgentProfile, AgentCapability[]> = {
   full: [
-    { id: "nmap_scan", name: "Network Scanning", description: "Port scanning and service enumeration via nmap", requiredTools: ["nmap"], category: "recon" },
+    { id: "discovery_scan", name: "Network Scanning", description: "Port scanning and service enumeration via naabu", requiredTools: ["scanforge-discovery"], category: "recon" },
     { id: "vuln_scan", name: "Vulnerability Scanning", description: "CVE detection via nuclei templates", requiredTools: ["nuclei"], category: "recon" },
     { id: "web_scan", name: "Web Application Scanning", description: "OWASP testing via ZAP or nikto", requiredTools: ["zap-cli", "nikto"], category: "recon" },
     { id: "dir_enum", name: "Directory Enumeration", description: "Web path discovery via gobuster", requiredTools: ["gobuster"], category: "recon" },
@@ -86,18 +86,18 @@ const CAPABILITY_PROFILES: Record<AgentProfile, AgentCapability[]> = {
     { id: "c2_beacon", name: "C2 Beaconing", description: "Command and control communication", requiredTools: [], category: "c2" },
   ],
   lightweight: [
-    { id: "nmap_scan", name: "Network Scanning", description: "Port scanning and service enumeration", requiredTools: ["nmap"], category: "recon" },
+    { id: "discovery_scan", name: "Network Scanning", description: "Port scanning and service enumeration", requiredTools: ["scanforge-discovery"], category: "recon" },
     { id: "vuln_scan", name: "Vulnerability Scanning", description: "CVE detection via nuclei", requiredTools: ["nuclei"], category: "recon" },
     { id: "c2_beacon", name: "C2 Beaconing", description: "Command and control communication", requiredTools: [], category: "c2" },
   ],
   stealth: [
     { id: "passive_recon", name: "Passive Reconnaissance", description: "DNS enumeration, certificate transparency, WHOIS", requiredTools: ["dig", "curl"], category: "recon" },
-    { id: "slow_scan", name: "Low-and-Slow Scanning", description: "Rate-limited port scanning to evade detection", requiredTools: ["nmap"], category: "recon" },
+    { id: "slow_scan", name: "Low-and-Slow Scanning", description: "Rate-limited port scanning to evade detection", requiredTools: ["scanforge-discovery"], category: "recon" },
     { id: "c2_beacon", name: "C2 Beaconing", description: "Encrypted C2 with jitter and domain fronting", requiredTools: [], category: "c2" },
     { id: "exfil_dns", name: "DNS Exfiltration", description: "Data exfiltration via DNS queries", requiredTools: ["dig"], category: "exfil" },
   ],
   recon_only: [
-    { id: "nmap_scan", name: "Network Scanning", description: "Port scanning and service enumeration", requiredTools: ["nmap"], category: "recon" },
+    { id: "discovery_scan", name: "Network Scanning", description: "Port scanning and service enumeration", requiredTools: ["scanforge-discovery"], category: "recon" },
     { id: "passive_recon", name: "Passive Reconnaissance", description: "DNS, WHOIS, certificate transparency", requiredTools: ["dig", "curl"], category: "recon" },
     { id: "c2_beacon", name: "C2 Beaconing", description: "Heartbeat only — no active exploitation", requiredTools: [], category: "c2" },
   ],

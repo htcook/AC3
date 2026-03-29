@@ -6,7 +6,7 @@
  * 
  * FP Breakdown:
  *   nikto_header: 65 (35%) — Informational header presence/absence
- *   nmap_service: 30 (16%) — Service banner enumeration (not vulns)
+ *   service_banner: 30 (16%) — Service banner enumeration (not vulns)
  *   nikto_other: 22 (12%) — robots.txt, redirects, ETags, powered-by
  *   nuclei_cve: 19 (10%) — CVEs with empty descriptions (unverified)
  *   shodan_cve: 16 (9%) — Shodan-reported CVEs (unverified against target)
@@ -93,18 +93,18 @@ export const FP_SUPPRESSION_RULES: FPSuppressionRule[] = [
     rationale: "X-Powered-By disclosure is informational. While it aids fingerprinting, it's not directly exploitable.",
   },
   {
-    id: "nmap-service-banner",
-    name: "Nmap Service Banner Enumeration",
-    description: "Suppress nmap service detection findings that report what service is running on a port.",
+    id: "service-banner",
+    name: "ScanForge Discovery Service Banner Enumeration",
+    description: "Suppress httpx service detection findings that report what service is running on a port.",
     category: "service_banner",
     enabledByDefault: true,
     severityFilter: ["info"],
-    sourcePatterns: ["nmap"],
-    titlePatterns: [/\[nmap\] \d+\/tcp\s+\S+\s+/i],
+    sourcePatterns: ["scanforge-discovery"],
+    titlePatterns: [/\[ScanForge\] \d+\/tcp\s+\S+\s+/i],
     agentClassPatterns: [],
     estimatedSuppression: 30,
     tpRisk: "low",
-    rationale: "Nmap service banners are enumeration data, not vulnerabilities.",
+    rationale: "ScanForge Discovery service banners are enumeration data, not vulnerabilities.",
   },
   {
     id: "nikto-robots-txt",

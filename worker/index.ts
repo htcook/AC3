@@ -4,7 +4,7 @@
  * This module is designed to run as a SEPARATE process from the API server.
  * It connects to Redis via BullMQ and processes long-running jobs:
  *   - Passive discovery scans (domain intel pipeline)
- *   - Active scans (nmap, ZAP, exploitation)
+ *   - Active scans (ScanForge discovery, ZAP, exploitation)
  *   - Threat intel feed ingestion (CISA KEV, abuse.ch, OTX)
  *   - Report generation (PDF/DOCX export)
  *   - Scheduled validation runs

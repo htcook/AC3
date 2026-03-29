@@ -88,7 +88,7 @@ export class SMBHandler {
       // 1. SMB Version Detection
       {
         id: "smb-version",
-        command: `timeout ${timeout} nmap -p ${port} --script smb-protocols ${host} 2>/dev/null || echo "TIMEOUT"`,
+        command: `timeout ${timeout} scanforge-discovery -p ${port} --script smb-protocols ${host} 2>/dev/null || echo "TIMEOUT"`,
         parser: "parseSMBVersion",
         timeout,
       },
@@ -96,7 +96,7 @@ export class SMBHandler {
       // 2. SMB Signing Detection
       {
         id: "smb-signing",
-        command: `timeout ${timeout} nmap -p ${port} --script smb-security-mode ${host} 2>/dev/null || echo "TIMEOUT"`,
+        command: `timeout ${timeout} scanforge-discovery -p ${port} --script smb-security-mode ${host} 2>/dev/null || echo "TIMEOUT"`,
         parser: "parseSMBSigning",
         timeout,
       },
@@ -128,7 +128,7 @@ export class SMBHandler {
       // 6. OS Detection via SMB
       {
         id: "smb-os",
-        command: `timeout ${timeout} nmap -p ${port} --script smb-os-discovery ${host} 2>/dev/null || echo "TIMEOUT"`,
+        command: `timeout ${timeout} scanforge-discovery -p ${port} --script smb-os-discovery ${host} 2>/dev/null || echo "TIMEOUT"`,
         parser: "parseSMBOS",
         timeout,
       },
@@ -144,7 +144,7 @@ export class SMBHandler {
       // 8. SMBv1 (EternalBlue) check
       {
         id: "smb-vuln-ms17-010",
-        command: `timeout ${timeout} nmap -p ${port} --script smb-vuln-ms17-010 ${host} 2>/dev/null || echo "TIMEOUT"`,
+        command: `timeout ${timeout} scanforge-discovery -p ${port} --script smb-vuln-ms17-010 ${host} 2>/dev/null || echo "TIMEOUT"`,
         parser: "parseSMBVuln",
         timeout,
       },

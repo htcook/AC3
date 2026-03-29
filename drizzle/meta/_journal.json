@@ -351,6 +351,13 @@
       "when": 1774797967114,
       "tag": "0049_blue_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1774821938789,
+      "tag": "0050_tired_silver_sable",
+      "breakpoints": true
     }
   ]
 }

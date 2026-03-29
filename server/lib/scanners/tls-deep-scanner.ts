@@ -12,8 +12,8 @@
  * - Key exchange strength analysis
  * - Session resumption and renegotiation checks
  *
- * Uses nmap ssl-* NSE scripts + openssl s_client for comprehensive analysis.
- * Auto-triggers when naabu/nmap discovers ports 443, 8443, 993, 995, 465.
+ * Uses ScanForge discovery ssl-* Nuclei templates + openssl s_client for comprehensive analysis.
+ * Auto-triggers when ScanForge discovers ports 443, 8443, 993, 995, 465.
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -200,7 +200,7 @@ export const TLS_VULNERABILITIES: Array<{
   cve: string | null;
   severity: TLSVulnerability["severity"];
   description: string;
-  nmapScript: string | null;
+  detectionTemplate: string | null;
   opensslCheck: string | null;
   recommendation: string;
   references: string[];
@@ -211,7 +211,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2014-0160",
     severity: "critical",
     description: "OpenSSL TLS heartbeat extension memory disclosure. Allows remote attackers to read server memory including private keys, session tokens, and passwords.",
-    nmapScript: "ssl-heartbleed",
+    detectionTemplate: "ssl-heartbleed",
     opensslCheck: null,
     recommendation: "Update OpenSSL to 1.0.1g or later. Revoke and reissue all certificates. Reset all passwords and session tokens.",
     references: ["https://heartbleed.com", "https://nvd.nist.gov/vuln/detail/CVE-2014-0160"],
@@ -222,7 +222,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2014-3566",
     severity: "high",
     description: "Padding Oracle On Downgraded Legacy Encryption. Allows MitM attackers to decrypt SSLv3 traffic one byte at a time.",
-    nmapScript: "ssl-poodle",
+    detectionTemplate: "ssl-poodle",
     opensslCheck: "s_client -ssl3",
     recommendation: "Disable SSLv3 entirely. Configure TLS_FALLBACK_SCSV to prevent protocol downgrade.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2014-3566"],
@@ -233,7 +233,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2014-8730",
     severity: "high",
     description: "TLS implementations that don't verify padding bytes are vulnerable to POODLE-like attacks even with TLS.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Update TLS implementation to properly verify CBC padding. Prefer GCM or AEAD cipher suites.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2014-8730"],
@@ -244,7 +244,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2016-0800",
     severity: "critical",
     description: "Decrypting RSA with Obsolete and Weakened eNcryption. SSLv2 support allows cross-protocol attacks on TLS sessions sharing the same RSA key.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: "s_client -ssl2",
     recommendation: "Disable SSLv2 on all servers sharing the same RSA private key. Ensure no server in the certificate's scope supports SSLv2.",
     references: ["https://drownattack.com", "https://nvd.nist.gov/vuln/detail/CVE-2016-0800"],
@@ -255,7 +255,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2015-4000",
     severity: "high",
     description: "TLS connections using DHE with 512-bit or 1024-bit DH groups can be downgraded by MitM attackers.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Use DH groups of at least 2048 bits. Prefer ECDHE key exchange. Disable DHE_EXPORT cipher suites.",
     references: ["https://weakdh.org", "https://nvd.nist.gov/vuln/detail/CVE-2015-4000"],
@@ -266,7 +266,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2015-0204",
     severity: "high",
     description: "Factoring RSA Export Keys. Allows MitM attackers to force export-grade RSA key exchange, then factor the 512-bit key.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Disable all EXPORT cipher suites. Update OpenSSL/TLS libraries.",
     references: ["https://freakattack.com", "https://nvd.nist.gov/vuln/detail/CVE-2015-0204"],
@@ -277,7 +277,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2017-13099",
     severity: "high",
     description: "Return Of Bleichenbacher's Oracle Threat. RSA encryption key exchange vulnerable to adaptive chosen-ciphertext attack.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Disable RSA key exchange. Use only ECDHE or DHE key exchange. Update TLS implementation.",
     references: ["https://robotattack.org", "https://nvd.nist.gov/vuln/detail/CVE-2017-13099"],
@@ -288,7 +288,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2014-0224",
     severity: "high",
     description: "OpenSSL ChangeCipherSpec injection. Allows MitM attackers to force use of weak keying material.",
-    nmapScript: "ssl-ccs-injection",
+    detectionTemplate: "ssl-ccs-injection",
     opensslCheck: null,
     recommendation: "Update OpenSSL to 0.9.8za, 1.0.0m, or 1.0.1h or later.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2014-0224"],
@@ -299,7 +299,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2016-9244",
     severity: "high",
     description: "F5 BIG-IP TLS session ticket implementation leaks 31 bytes of uninitialized memory per request.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Update F5 BIG-IP firmware. Disable session tickets as a workaround.",
     references: ["https://filippo.io/Ticketbleed/", "https://nvd.nist.gov/vuln/detail/CVE-2016-9244"],
@@ -310,7 +310,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2012-4929",
     severity: "medium",
     description: "Compression Ratio Info-leak Made Easy. TLS-level compression allows attackers to recover secrets via compressed size oracle.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Disable TLS-level compression. Most modern servers already have this disabled.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2012-4929"],
@@ -321,7 +321,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2013-3587",
     severity: "medium",
     description: "Browser Reconnaissance and Exfiltration via Adaptive Compression of Hypertext. HTTP-level compression can leak secrets.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Disable HTTP compression for pages containing secrets. Use CSRF tokens that change per-request. Separate secret content from user-controlled content.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2013-3587"],
@@ -332,7 +332,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2016-2183",
     severity: "medium",
     description: "Birthday attacks on 64-bit block ciphers (3DES, Blowfish). Long-lived connections can be decrypted.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Disable 3DES and Blowfish cipher suites. Use AES-GCM or ChaCha20-Poly1305.",
     references: ["https://sweet32.info", "https://nvd.nist.gov/vuln/detail/CVE-2016-2183"],
@@ -343,7 +343,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2011-3389",
     severity: "medium",
     description: "Browser Exploit Against SSL/TLS. CBC cipher suites in TLS 1.0 vulnerable to chosen-plaintext attack.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Upgrade to TLS 1.2+ with GCM cipher suites. If TLS 1.0 must be supported, prefer RC4 (lesser evil) or implement 1/n-1 record splitting.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2011-3389"],
@@ -354,7 +354,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2013-0169",
     severity: "medium",
     description: "Timing side-channel attack against CBC cipher suites in TLS. Allows plaintext recovery.",
-    nmapScript: null,
+    detectionTemplate: null,
     opensslCheck: null,
     recommendation: "Prefer AEAD cipher suites (GCM, ChaCha20-Poly1305). Update TLS implementation for constant-time CBC processing.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2013-0169"],
@@ -365,7 +365,7 @@ export const TLS_VULNERABILITIES: Array<{
     cve: "CVE-2009-3555",
     severity: "high",
     description: "TLS renegotiation vulnerability allows MitM attackers to inject data into TLS sessions.",
-    nmapScript: "ssl-enum-ciphers",
+    detectionTemplate: "ssl-enum-ciphers",
     opensslCheck: null,
     recommendation: "Enable secure renegotiation (RFC 5746). Update TLS implementation.",
     references: ["https://nvd.nist.gov/vuln/detail/CVE-2009-3555"],
@@ -375,9 +375,9 @@ export const TLS_VULNERABILITIES: Array<{
 // ─── Output Parsers ─────────────────────────────────────────────────────────
 
 /**
- * Parse nmap ssl-enum-ciphers output to extract protocols and cipher suites.
+ * Parse ScanForge discovery ssl-enum-ciphers output to extract protocols and cipher suites.
  */
-export function parseNmapSSLEnum(output: string): {
+export function parseScanForgeSSLEnum(output: string): {
   protocols: TLSProtocol[];
   cipherSuites: TLSCipherSuite[];
 } {
@@ -417,7 +417,7 @@ export function parseNmapSSLEnum(output: string): {
     }
   }
 
-  // Parse cipher suites from nmap output
+  // Parse cipher suites from ScanForge discovery output
   const cipherRegex = /\|\s+(TLS_[A-Z0-9_]+|[A-Z0-9_]+-[A-Z0-9_-]+)\s+/g;
   while ((match = cipherRegex.exec(output)) !== null) {
     const name = match[1];
@@ -973,23 +973,23 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
   let compression = false;
   let secureRenegotiation = true;
 
-  // ── Phase 1: nmap ssl-enum-ciphers ──────────────────────────────────────
+  // ── Phase 1: ScanForge discovery ssl-enum-ciphers ──────────────────────────────────────
   if (config.enumerateCiphers !== false) {
     try {
-      const nmapResult = await executeTool({
-        tool: "nmap",
+      const discoveryResult = await executeTool({
+        tool: "naabu",
         args: `-p ${port} --script ssl-enum-ciphers,ssl-cert -sV ${config.host}`,
         target: config.host,
         timeoutSeconds: Math.min(timeout, 90),
         engagementId: config.engagementId,
       });
-      rawOutput += `=== nmap ssl-enum-ciphers ===\n${nmapResult.stdout}\n`;
+      rawOutput += `=== ScanForge discovery ssl-enum-ciphers ===\n${discoveryResult.stdout}\n`;
 
-      const parsed = parseNmapSSLEnum(nmapResult.stdout);
+      const parsed = parseScanForgeSSLEnum(discoveryResult.stdout);
       protocols = parsed.protocols;
       cipherSuites = parsed.cipherSuites;
     } catch (err: any) {
-      console.warn(`[TLSDeepScan] nmap ssl-enum-ciphers failed: ${err.message}`);
+      console.warn(`[TLSDeepScan] ScanForge discovery ssl-enum-ciphers failed: ${err.message}`);
     }
   }
 
@@ -1010,7 +1010,7 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
         certificate = validateCertificate(parsed.certificate, config.host);
       }
 
-      // Supplement protocol info if nmap didn't find it
+      // Supplement protocol info if ScanForge discovery didn't find it
       if (parsed.protocol && protocols.length === 0) {
         const gradeInfo = PROTOCOL_GRADES[parsed.protocol] || { grade: "unknown" as const, notes: "" };
         protocols.push({
@@ -1063,10 +1063,10 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
 
   // ── Phase 5: Vulnerability checks ─────────────────────────────────────
   if (config.checkCVEs !== false) {
-    // Heartbleed check via nmap
+    // Heartbleed check via ScanForge discovery
     try {
       const hbResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-p ${port} --script ssl-heartbleed ${config.host}`,
         target: config.host,
         timeoutSeconds: 30,
@@ -1083,7 +1083,7 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
         severity: vulnDef.severity,
         description: vulnDef.description,
         affected: isVuln,
-        evidence: isVuln ? "nmap ssl-heartbleed: VULNERABLE" : "nmap ssl-heartbleed: not vulnerable",
+        evidence: isVuln ? "ScanForge ssl-heartbleed: VULNERABLE" : "ScanForge ssl-heartbleed: not vulnerable",
         recommendation: vulnDef.recommendation,
         references: vulnDef.references,
       });
@@ -1091,10 +1091,10 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
       console.warn(`[TLSDeepScan] Heartbleed check failed: ${err.message}`);
     }
 
-    // CCS Injection check via nmap
+    // CCS Injection check via ScanForge discovery
     try {
       const ccsResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-p ${port} --script ssl-ccs-injection ${config.host}`,
         target: config.host,
         timeoutSeconds: 30,
@@ -1111,7 +1111,7 @@ export async function startTLSDeepScan(config: TLSDeepScanConfig): Promise<TLSDe
         severity: vulnDef.severity,
         description: vulnDef.description,
         affected: isVuln,
-        evidence: isVuln ? "nmap ssl-ccs-injection: VULNERABLE" : "nmap ssl-ccs-injection: not vulnerable",
+        evidence: isVuln ? "ScanForge ssl-ccs-injection: VULNERABLE" : "ScanForge ssl-ccs-injection: not vulnerable",
         recommendation: vulnDef.recommendation,
         references: vulnDef.references,
       });

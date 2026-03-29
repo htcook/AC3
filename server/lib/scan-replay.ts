@@ -5,7 +5,7 @@
  * to track remediation progress, verify fixes, and compare results over time.
  * 
  * Features:
- * - Snapshot scan configurations (ZAP, Nmap, Nuclei profiles)
+ * - Snapshot scan configurations (ZAP, ScanForge, Nuclei profiles)
  * - Replay a saved config against the same or different target
  * - Diff engine to compare scan results across runs
  * - Remediation verification workflow
@@ -16,7 +16,7 @@ import crypto from "crypto";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type ScanEngine = "zap" | "nmap" | "nuclei" | "caldera" | "custom";
+export type ScanEngine = "zap" | "scanforge-discovery" | "nuclei" | "caldera" | "custom";
 export type ReplayStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type DiffSeverity = "critical" | "high" | "medium" | "low" | "info";
 
@@ -119,9 +119,9 @@ export function buildZapProfile(params: {
 }
 
 /**
- * Build an Nmap scan profile.
+ * Build an ScanForge scan profile.
  */
-export function buildNmapProfile(params: {
+export function buildScanForgeProfile(params: {
   name: string;
   target: string;
   scanType: "quick" | "full" | "stealth" | "vuln" | "service";
@@ -142,9 +142,9 @@ export function buildNmapProfile(params: {
   };
 
   return {
-    id: `nmap-${crypto.randomBytes(8).toString("hex")}`,
+    id: `discovery-${crypto.randomBytes(8).toString("hex")}`,
     name: params.name,
-    engine: "nmap",
+    engine: "scanforge-discovery",
     config: {
       scanType: params.scanType,
       target: params.target,
@@ -155,7 +155,7 @@ export function buildNmapProfile(params: {
     target: params.target,
     createdBy: params.createdBy,
     createdAt: new Date().toISOString(),
-    tags: ["nmap", params.scanType],
+    tags: ["scanforge-discovery", params.scanType],
   };
 }
 

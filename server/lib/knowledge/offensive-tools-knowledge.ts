@@ -49,7 +49,7 @@ export type ToolCategory =
 
 export const OFFENSIVE_TOOLS: OffensiveTool[] = [
   // ── Reconnaissance ──
-  { name: "Nmap", category: "reconnaissance", description: "Network mapper for host discovery, port scanning, service/OS detection", useCase: "Initial network reconnaissance, port scanning, service enumeration", cliPattern: "nmap -sV -sC -T4 {target}", applicableLabs: ["dvwa", "bwapp", "mutillidae", "crapi", "juice-shop", "webgoat"], tactics: ["TA0043"] },
+  { name: "ScanForge Discovery", category: "reconnaissance", description: "Network mapper for host discovery, port scanning, service/OS detection", useCase: "Initial network reconnaissance, port scanning, service enumeration", cliPattern: "masscan -pV -sC -T4 {target}", applicableLabs: ["dvwa", "bwapp", "mutillidae", "crapi", "juice-shop", "webgoat"], tactics: ["TA0043"] },
   { name: "Masscan", category: "reconnaissance", description: "Fastest Internet port scanner, transmits 10M packets/sec", useCase: "Large-scale port scanning, fast initial recon of wide IP ranges", cliPattern: "masscan {target} -p1-65535 --rate=10000", tactics: ["TA0043"] },
   { name: "Recon-ng", category: "reconnaissance", description: "Full-featured web reconnaissance framework", useCase: "OSINT gathering, domain enumeration, contact harvesting", cliPattern: "recon-ng -w {workspace}", tactics: ["TA0043"] },
   { name: "theHarvester", category: "reconnaissance", description: "E-mail, subdomain, and name harvester from public sources", useCase: "Email harvesting, subdomain enumeration from search engines", cliPattern: "theHarvester -d {domain} -b all", tactics: ["TA0043"] },

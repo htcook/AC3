@@ -55,8 +55,8 @@ describe("Campaign Orchestrator — Condition Evaluator", () => {
 
   it("evaluateCondition handles 'contains' operator for arrays and strings", async () => {
     const { evaluateCondition } = await import("./lib/campaign-orchestrator");
-    expect(evaluateCondition({ field: "tools", operator: "contains", value: "nmap" }, { tools: ["nmap", "nuclei"] })).toBe(true);
-    expect(evaluateCondition({ field: "tools", operator: "contains", value: "metasploit" }, { tools: ["nmap", "nuclei"] })).toBe(false);
+    expect(evaluateCondition({ field: "tools", operator: "contains", value: "scanforge-discovery" }, { tools: ["scanforge-discovery", "nuclei"] })).toBe(true);
+    expect(evaluateCondition({ field: "tools", operator: "contains", value: "metasploit" }, { tools: ["scanforge-discovery", "nuclei"] })).toBe(false);
     expect(evaluateCondition({ field: "name", operator: "contains", value: "recon" }, { name: "external recon" })).toBe(true);
   });
 

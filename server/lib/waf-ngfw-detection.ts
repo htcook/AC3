@@ -3,7 +3,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  * Comprehensive detection of Web Application Firewalls and Next-Generation
  * Firewalls through multi-layer fingerprinting, then generates scan tuning
- * profiles for Nmap, Nuclei, and other active tools.
+ * profiles for ScanForge Discovery, Nuclei, and other active tools.
  *
  * Detection Methods:
  *   1. HTTP Header Fingerprinting — Server, Via, X-headers, cookies
@@ -15,7 +15,7 @@
  *   7. DNS Analysis — CNAME chains to WAF/CDN providers
  *
  * Scan Tuning Outputs:
- *   - Nmap timing template (-T0 to -T4), scan flags, evasion scripts
+ *   - ScanForge Discovery timing template (-T0 to -T4), scan flags, evasion scripts
  *   - Nuclei rate limiting, concurrency, and template selection
  *   - General evasion techniques (fragmentation, encoding, timing)
  *   - WAF bypass suggestions per vendor
@@ -107,8 +107,8 @@ export interface ScanTuningProfile {
   /** Overall aggressiveness recommendation */
   aggressiveness: "stealth" | "cautious" | "normal" | "aggressive";
 
-  /** Nmap configuration */
-  nmap: {
+  /** ScanForge Discovery configuration */
+  discovery: {
     timing: "-T0" | "-T1" | "-T2" | "-T3" | "-T4";
     flags: string[];
     scripts: string[];
@@ -160,7 +160,7 @@ export interface EvasionTechnique {
   id: string;
   name: string;
   description: string;
-  applicableTo: ("nmap" | "nuclei" | "custom" | "burp" | "sqlmap")[];
+  applicableTo: ("scanforge-discovery" | "nuclei" | "custom" | "burp" | "sqlmap")[];
   effectiveness: "high" | "medium" | "low";
   implementationNote: string;
 }
@@ -918,8 +918,8 @@ export function generateScanTuningProfile(
   else if (hasWaf || hasNgfw) aggressiveness = "cautious";
   else if (hasRateLimit) aggressiveness = "cautious";
 
-  // ── Nmap tuning ──
-  const nmapConfig = generateNmapConfig(aggressiveness, primaryWaf, primaryNgfw, rateLimitProfile);
+  // ── ScanForge Discovery tuning ──
+  const scanConfig = generateScanForgeDiscoveryConfig(aggressiveness, primaryWaf, primaryNgfw, rateLimitProfile);
 
   // ── Nuclei tuning ──
   const nucleiConfig = generateNucleiConfig(aggressiveness, primaryWaf, rateLimitProfile);
@@ -946,7 +946,7 @@ export function generateScanTuningProfile(
     warnings.push(`${primaryNgfw.productName} performs DPI — encrypted payloads may be inspected if SSL decryption is enabled.`);
   }
   if (hasNgfw && primaryNgfw?.capabilities.ipsIdsIntegrated) {
-    warnings.push(`${primaryNgfw.productName} has integrated IPS — Nmap scripts and aggressive probes may trigger alerts.`);
+    warnings.push(`${primaryNgfw.productName} has integrated IPS — ScanForge Discovery scripts and aggressive probes may trigger alerts.`);
   }
 
   const wafNames = wafDetections.map(w => w.productName).join(", ");
@@ -959,7 +959,7 @@ export function generateScanTuningProfile(
 
   return {
     aggressiveness,
-    nmap: nmapConfig,
+    discovery: scanConfig,
     nuclei: nucleiConfig,
     evasion,
     wafBypasses,
@@ -968,12 +968,12 @@ export function generateScanTuningProfile(
   };
 }
 
-function generateNmapConfig(
+function generateScanForgeDiscoveryConfig(
   aggressiveness: ScanTuningProfile["aggressiveness"],
   primaryWaf: WafDetection | null,
   primaryNgfw: NgfwDetection | null,
   rateLimit: RateLimitProfile
-): ScanTuningProfile["nmap"] {
+): ScanTuningProfile["scanforge-discovery"] {
   const base = {
     flags: ["-sV", "--version-intensity 5", "-O"],
     scripts: ["default", "vuln", "http-headers"],
@@ -1014,7 +1014,7 @@ function generateNmapConfig(
         fragmentPackets: true,
         decoyScans: true,
         sourcePortRandomize: true,
-        rationale: `Stealth mode: ${primaryWaf?.productName || "WAF"} and/or ${primaryNgfw?.productName || "NGFW"} detected. Using SYN scan with fragmentation, decoys, and slow timing to minimize detection. Nmap scripts limited to 'default' only.`,
+        rationale: `Stealth mode: ${primaryWaf?.productName || "WAF"} and/or ${primaryNgfw?.productName || "NGFW"} detected. Using SYN scan with fragmentation, decoys, and slow timing to minimize detection. ScanForge Discovery scripts limited to 'default' only.`,
       };
 
     case "cautious":
@@ -1175,17 +1175,17 @@ function generateEvasionTechniques(
         id: "ip_fragmentation",
         name: "IP Fragmentation",
         description: "Split packets into smaller fragments to bypass signature-based detection. Many IDS/IPS struggle to reassemble fragmented packets correctly.",
-        applicableTo: ["nmap"],
+        applicableTo: ["scanforge-discovery"],
         effectiveness: primaryNgfw?.capabilities.deepPacketInspection ? "low" : "high",
-        implementationNote: "Use nmap -f or --mtu flags. Note: modern NGFWs with DPI can reassemble fragments.",
+        implementationNote: "Use ScanForge discovery -f or --mtu flags. Note: modern NGFWs with DPI can reassemble fragments.",
       },
       {
         id: "timing_evasion",
         name: "Slow Scan Timing",
         description: "Spread scan probes over extended time periods to stay below IDS/IPS detection thresholds.",
-        applicableTo: ["nmap", "nuclei", "custom"],
+        applicableTo: ["scanforge-discovery", "nuclei", "custom"],
         effectiveness: "high",
-        implementationNote: "Use nmap -T0/-T1 or nuclei rate-limit. Add random jitter between requests.",
+        implementationNote: "Use masscan --rate0/-T1 or nuclei rate-limit. Add random jitter between requests.",
       },
       {
         id: "user_agent_rotation",
@@ -1212,17 +1212,17 @@ function generateEvasionTechniques(
         id: "decoy_scanning",
         name: "Decoy Scanning",
         description: "Generate traffic from spoofed source IPs alongside real scan traffic to obscure the true scanner.",
-        applicableTo: ["nmap"],
+        applicableTo: ["scanforge-discovery"],
         effectiveness: primaryNgfw?.capabilities.statefulInspection ? "low" : "medium",
-        implementationNote: "Use nmap -D RND:5 for 5 random decoys. Requires raw socket access.",
+        implementationNote: "Use ScanForge discovery -D RND:5 for 5 random decoys. Requires raw socket access.",
       },
       {
         id: "source_port_spoofing",
         name: "Source Port Spoofing",
         description: "Use well-known source ports (53/DNS, 80/HTTP, 443/HTTPS) to bypass firewall rules that allow return traffic from these services.",
-        applicableTo: ["nmap"],
+        applicableTo: ["scanforge-discovery"],
         effectiveness: "medium",
-        implementationNote: "Use nmap --source-port 53. Works against poorly configured firewalls.",
+        implementationNote: "Use ScanForge discovery --source-port 53. Works against poorly configured firewalls.",
       },
       {
         id: "ssl_tls_wrapping",
@@ -1460,54 +1460,54 @@ export async function runWafNgfwAssessment(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §9 — NMAP COMMAND BUILDER
+// §9 — SCANFORGE COMMAND BUILDER
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Build a ready-to-use Nmap command from the scan tuning profile.
+ * Build a ready-to-use ScanForge Discovery command from the scan tuning profile.
  */
-export function buildNmapCommand(
+export function buildScanForgeDiscoveryCommand(
   profile: ScanTuningProfile,
   targets: string[],
   ports: string = "1-1000"
 ): string {
-  const parts = ["nmap"];
+  const parts = ["scanforge-discovery"];
 
   // Timing
-  parts.push(profile.nmap.timing);
+  parts.push(profile.discovery.timing);
 
   // Flags
-  parts.push(...profile.nmap.flags);
+  parts.push(...profile.discovery.flags);
 
   // Evasion flags
-  parts.push(...profile.nmap.evasionFlags);
+  parts.push(...profile.discovery.evasionFlags);
 
   // Rate limiting
-  if (profile.nmap.maxRate < 1000) {
-    parts.push(`--max-rate ${profile.nmap.maxRate}`);
+  if (profile.discovery.maxRate < 1000) {
+    parts.push(`--max-rate ${profile.discovery.maxRate}`);
   }
 
   // Scan delay
-  if (profile.nmap.scanDelay !== "0ms") {
-    parts.push(`--scan-delay ${profile.nmap.scanDelay}`);
+  if (profile.discovery.scanDelay !== "0ms") {
+    parts.push(`--scan-delay ${profile.discovery.scanDelay}`);
   }
 
   // Host timeout
-  parts.push(`--host-timeout ${profile.nmap.hostTimeout}`);
+  parts.push(`--host-timeout ${profile.discovery.hostTimeout}`);
 
   // Max retries
-  parts.push(`--max-retries ${profile.nmap.maxRetries}`);
+  parts.push(`--max-retries ${profile.discovery.maxRetries}`);
 
   // Scripts
-  if (profile.nmap.scripts.length > 0) {
-    parts.push(`--script=${profile.nmap.scripts.join(",")}`);
+  if (profile.discovery.scripts.length > 0) {
+    parts.push(`--script=${profile.discovery.scripts.join(",")}`);
   }
 
   // Ports
   parts.push(`-p ${ports}`);
 
   // Output
-  parts.push("-oX nmap_results.xml");
+  parts.push("-oJ discovery_results.json");
 
   // Targets
   parts.push(...targets);

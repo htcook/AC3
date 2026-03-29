@@ -117,7 +117,7 @@ export interface EmberScanConfig {
   };
   /** Custom scripts to execute */
   scripts?: string[];
-  /** NSE scripts for nmap-style scanning */
+  /** NSE scripts for scanforge-discovery-style scanning */
   nseScripts?: string[];
   /** Wordlists for enumeration */
   wordlists?: {
@@ -220,7 +220,7 @@ function buildPortScanTask(req: EmberScanRequest): EmberTask {
   const ports = req.target.ports || "1-1024";
   const intensity = req.config.intensity;
 
-  // Map intensity to nmap timing template
+  // Map intensity to scanforge-discovery timing template
   const timing = intensity <= 2 ? "-T2" : intensity <= 3 ? "-T3" : "-T4";
   const stealth = intensity <= 2 ? "-sS" : "-sT"; // SYN scan for stealth
   const extraFlags = [
@@ -234,9 +234,9 @@ function buildPortScanTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap ${stealth} ${timing} -p ${ports} ${extraFlags} -oX /tmp/sf-scan-${req.requestId}.xml ${hosts}`,
+      command: `naabu -p ${ports} -host ${hosts} -json -o /tmp/sf-scan-${req.requestId}.json`,
       outputFile: `/tmp/sf-scan-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1046",
     timeoutSeconds: req.timeoutSeconds,
@@ -255,9 +255,9 @@ function buildServiceFingerprintTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap -sV --version-intensity 5 -p ${ports} -oX /tmp/sf-svcfp-${req.requestId}.xml ${hosts}`,
+      command: `httpx -probe -tech-detect -status-code -title -json -o /tmp/sf-svcfp-${req.requestId}.json -l <(echo ${hosts})`,
       outputFile: `/tmp/sf-svcfp-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1046",
     timeoutSeconds: req.timeoutSeconds,
@@ -365,9 +365,9 @@ function buildNetworkVulnTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap --script=${nseScripts.join(",")} -p ${req.target.ports || "1-65535"} -oX /tmp/sf-netvuln-${req.requestId}.xml ${hosts}`,
+      command: `scanforge-discovery --script=${nseScripts.join(",")} -p ${req.target.ports || "1-65535"} -oX /tmp/sf-netvuln-${req.requestId}.xml ${hosts}`,
       outputFile: `/tmp/sf-netvuln-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1046",
     timeoutSeconds: req.timeoutSeconds,
@@ -385,9 +385,9 @@ function buildSMBEnumTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap --script=smb-enum-shares,smb-enum-users,smb-os-discovery,smb-vuln-ms17-010,smb-vuln-ms08-067 -p 445,139 -oX /tmp/sf-smb-${req.requestId}.xml ${hosts}`,
+      command: `nuclei -t cves/smb/ -t network/smb/ -target ${hosts} -json -o /tmp/sf-smb-${req.requestId}.json`,
       outputFile: `/tmp/sf-smb-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1135",
     timeoutSeconds: req.timeoutSeconds,
@@ -410,9 +410,9 @@ function buildLDAPEnumTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `${ldapCmd} > /tmp/sf-ldap-${req.requestId}.txt 2>&1; nmap --script=ldap-rootdse,ldap-search -p 389,636 -oX /tmp/sf-ldap-${req.requestId}.xml ${host}`,
+      command: `${ldapCmd} > /tmp/sf-ldap-${req.requestId}.txt 2>&1; nuclei -t network/ldap/ -target ${host} -json -o /tmp/sf-ldap-${req.requestId}.json`,
       outputFile: `/tmp/sf-ldap-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1087.002",
     timeoutSeconds: req.timeoutSeconds,
@@ -430,9 +430,9 @@ function buildDNSEnumTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap --script=dns-brute,dns-zone-transfer,dns-srv-enum,dns-nsec-enum -p 53 -oX /tmp/sf-dns-${req.requestId}.xml ${host}`,
+      command: `nuclei -t dns/ -target ${host} -json -o /tmp/sf-dns-${req.requestId}.json`,
       outputFile: `/tmp/sf-dns-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1018",
     timeoutSeconds: req.timeoutSeconds,
@@ -451,9 +451,9 @@ function buildCertAuditTask(req: EmberScanRequest): EmberTask {
     type: "shell_command",
     priority: req.priority,
     params: {
-      command: `nmap --script=ssl-cert,ssl-enum-ciphers,ssl-known-key,ssl-heartbleed,ssl-poodle,ssl-ccs-injection -p ${ports} -oX /tmp/sf-cert-${req.requestId}.xml ${hosts}`,
+      command: `nuclei -t ssl/ -t cves/ssl/ -target ${hosts} -json -o /tmp/sf-cert-${req.requestId}.json`,
       outputFile: `/tmp/sf-cert-${req.requestId}.xml`,
-      parseFormat: "nmap_xml",
+      parseFormat: "scanforge-discovery_xml",
     },
     attackTechnique: "T1557",
     timeoutSeconds: req.timeoutSeconds,

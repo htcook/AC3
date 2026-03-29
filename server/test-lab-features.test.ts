@@ -171,7 +171,7 @@ describe("Ember OPSEC Integration", () => {
     const { assessEmberTask, resetAgentOpsecState } = await import("./lib/ember-opsec-integration");
     const agentId = "opsec-map-test-" + Date.now();
 
-    const result = await assessEmberTask(agentId, "recon", "nmap scan of 192.168.1.0/24");
+    const result = await assessEmberTask(agentId, "recon", "ScanForge discovery scan of 192.168.1.0/24");
     expect(result).toBeDefined();
     expect(result.taskType).toBe("recon");
     expect(result.preExecutionScore).toBeDefined();
@@ -415,7 +415,7 @@ describe("LLM Training Pipeline", () => {
       model: "recon_analyst",
       engagementId: "test-engagement-001",
       context: "Target: 192.168.1.0/24, internal network scan",
-      decision: "Selected nmap SYN scan based on target profile",
+      decision: "Selected ScanForge discovery SYN scan based on target profile",
       reasoning: "SYN scan is stealthier than full connect scan for internal targets",
       outcome: "success",
       stealthScore: 85,
@@ -573,7 +573,7 @@ describe("Compliance Evidence Auto-Mapper", () => {
             { port: 80, service: "http", protocol: "tcp" },
           ],
           toolResults: [
-            { tool: "nmap", findingCount: 5, findings: [{ title: "Open port 22", severity: "info" }] },
+            { tool: "scanforge-discovery", findingCount: 5, findings: [{ title: "Open port 22", severity: "info" }] },
             { tool: "nuclei", findingCount: 3, findings: [{ title: "SQL Injection", severity: "high" }] },
           ],
           zapFindings: [

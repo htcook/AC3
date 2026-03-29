@@ -694,7 +694,7 @@ ${auditLogEntries.length > 50 ? `... and ${auditLogEntries.length - 50} more ent
 ## ENGAGEMENT OPS DATA (Active Scanning & Discovery)
 ${opsDataContext}
 
-IMPORTANT: You MUST include a "Discovery & Reconnaissance" section that covers all asset discovery results, port/service findings from naabu/nmap/httpx, passive recon data, and technology stack analysis. Include a per-asset summary table with ports, services, technologies, and risk signals.
+IMPORTANT: You MUST include a "Discovery & Reconnaissance" section that covers all asset discovery results, port/service findings from ScanForge/httpx, passive recon data, and technology stack analysis. Include a per-asset summary table with ports, services, technologies, and risk signals.
 
 IMPORTANT: You MUST include a "Tool Execution Evidence" section that documents all security tools executed, their commands, exit codes, and key findings. This provides the forensic evidence chain.
 

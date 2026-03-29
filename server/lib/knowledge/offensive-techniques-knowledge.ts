@@ -168,11 +168,11 @@ ${formatted}
 
 **Evasion Strategy:**
 1. Detect first: Use Wafw00f to identify WAF vendor, then tailor bypass payloads
-2. Fragment packets: Use Fragroute/Nmap -f to split payloads across fragments
+2. Fragment packets: Use Fragroute/Masscan/Naabu -f to split payloads across fragments
 3. Tunnel traffic: If ports are filtered, try DNS tunneling (Dns2tcp/Iodine) or HTTP tunneling
 4. Encode payloads: Use Veil-Evasion for encrypted payloads that bypass signature detection
-5. Timing: Use slow scan rates (Nmap -T1/-T2) to avoid rate-based detection
-6. Source spoofing: Use decoy IPs (Nmap -D) and source port spoofing (--source-port 53/80)`;
+5. Timing: Use slow scan rates (rate-limited scanning) to avoid rate-based detection
+6. Source spoofing: Use decoy IPs (ScanForge Discovery -D) and source port spoofing (--source-port 53/80)`;
 }
 
 export function getSocialEngineeringContext(category?: string): string {
@@ -226,7 +226,7 @@ ${filterSummary}
 2. Narrow by exposed databases, remote access, and IoT/ICS systems
 3. Check for authentication-disabled services (VNC, Samba, FTP anonymous)
 4. Use has_vuln:true filter to find hosts with known CVEs
-5. Cross-reference Shodan findings with nmap results for validation`;
+5. Cross-reference Shodan findings with ScanForge discovery results for validation`;
 }
 
 export function getSubdomainEnumContext(): string {

@@ -17,7 +17,7 @@
 // These are top-level imports but esbuild's __esm pattern defers initialization
 // until first access, achieving the same lazy-load effect without require().
 
-import * as nmapKnowledge from './nmap-knowledge';
+import * as scanforgeKnowledge from './scanforge-knowledge';
 import * as attackChainRetriever from './knowledge/attack-chain-retriever';
 import * as assetOntology from './knowledge/asset-ontology';
 import * as bugbountyKnowledge from './knowledge/bugbounty-knowledge';
@@ -64,18 +64,36 @@ function track(key: string) {
   _loadedModules.add(key);
 }
 
-// ─── nmap-knowledge ────────────────────────────────────────────────────────
+// ─── scanforge-knowledge ──────────────────────────────────────────────────
+// Backward-compatible aliases: old getNmap* names delegate to ScanForge equivalents
 export function getNmapScanPlanContext(...args: any[]) {
-  track('nmap');
-  return nmapKnowledge.getNmapScanPlanContext(...args);
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeScanPlanContext(...args);
 }
 export function getNmapVulnCorrelationContext(...args: any[]) {
-  track('nmap');
-  return nmapKnowledge.getNmapVulnCorrelationContext(...args);
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeVulnCorrelationContext(...args);
 }
 export function getNmapHuntContext(...args: any[]) {
-  track('nmap');
-  return nmapKnowledge.getNmapHuntContext(...args);
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeHuntContext();
+}
+// New ScanForge-native exports
+export function getScanforgeScanPlanContext(...args: any[]) {
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeScanPlanContext(...args);
+}
+export function getScanforgeVulnCorrelationContext(...args: any[]) {
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeVulnCorrelationContext();
+}
+export function getScanforgeHuntContext(...args: any[]) {
+  track('scanforge');
+  return scanforgeKnowledge.getScanforgeHuntContext();
+}
+export function getFullScanforgeContext(...args: any[]) {
+  track('scanforge');
+  return scanforgeKnowledge.getFullScanforgeContext(...args);
 }
 
 // ─── attack-chain-retriever ────────────────────────────────────────────────

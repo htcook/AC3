@@ -2,7 +2,7 @@
  * Discovery Chain Router
  * 
  * tRPC endpoints for the automated discovery chain orchestrator:
- * - Start a new chain run (Amass → Nmap → Service Fingerprinter → Nuclei)
+ * - Start a new chain run (Amass → ScanForge → Service Fingerprinter → Nuclei)
  * - Get chain run status and progress (with DB fallback)
  * - Cancel a running chain
  * - Get chain run history (DB-backed with pagination)
@@ -26,8 +26,8 @@ import {
   executeChain,
   getChainStageDefinitions,
   estimateChainDuration,
-  extractNmapTargetsFromAmass,
-  extractFingerprintTargetsFromNmap,
+  extractScanForgeDiscoveryTargetsFromAmass,
+  extractFingerprintTargetsFromScanForgeDiscovery,
   extractNucleiTargetsFromResults,
   selectNucleiTemplates,
   type ChainRunConfig,
@@ -46,7 +46,7 @@ import {
 
 // ─── Input Schemas ──────────────────────────────────────────────────
 
-const chainStageIdSchema = z.enum(["amass", "nmap", "service_fingerprinter", "nuclei", "service_audit"]);
+const chainStageIdSchema = z.enum(["amass", "scanforge-discovery", "service_fingerprinter", "nuclei", "service_audit"]);
 
 const chainRunConfigSchema = z.object({
   domains: z.array(z.string().min(1)).min(1).max(20),
@@ -60,7 +60,7 @@ const chainRunConfigSchema = z.object({
       timeout: z.number().int().positive().optional(),
       maxSubdomains: z.number().int().positive().optional(),
     }).optional(),
-    nmap: z.object({
+    discovery: z.object({
       profile: z.enum(["quick", "standard", "deep", "stealth", "service", "vuln"]).optional(),
       topPorts: z.number().int().min(1).max(65535).optional(),
       timeout: z.number().int().positive().optional(),
@@ -86,7 +86,7 @@ const chainRunConfigSchema = z.object({
 export const discoveryChainRouter = router({
   /**
    * Start a new discovery chain run.
-   * Sequences: Amass → Nmap → Service Fingerprinter → Nuclei
+   * Sequences: Amass → ScanForge → Service Fingerprinter → Nuclei
    * Uses real tool callbacks and persists results to DB.
    */
   start: protectedProcedure
@@ -475,17 +475,17 @@ export const discoveryChainRouter = router({
 
       const dbStages = await getChainStageResultsDb(input.chainId);
       const amassStage = dbStages.find(s => s.stageId === "amass");
-      const nmapStage = dbStages.find(s => s.stageId === "nmap");
+      const discoveryStage = dbStages.find(s => s.stageId === "scanforge-discovery");
       const fpStage = dbStages.find(s => s.stageId === "service_fingerprinter");
 
       const amassRaw = amassStage?.rawOutput ? JSON.parse(amassStage.rawOutput) : null;
-      const nmapRaw = nmapStage?.rawOutput ? JSON.parse(nmapStage.rawOutput) : null;
+      const discoveryRaw = discoveryStage?.rawOutput ? JSON.parse(discoveryStage.rawOutput) : null;
       const fpRaw = fpStage?.rawOutput ? JSON.parse(fpStage.rawOutput) : null;
 
-      const nmapTargets = amassRaw ? extractNmapTargetsFromAmass(amassRaw) : [];
-      const fpTargets = nmapRaw ? extractFingerprintTargetsFromNmap(nmapRaw) : [];
-      const nucleiTargets = extractNucleiTargetsFromResults(nmapRaw, fpRaw);
-      const templateSelection = selectNucleiTemplates(nmapRaw, fpRaw);
+      const discoveryTargets = amassRaw ? extractScanForgeDiscoveryTargetsFromAmass(amassRaw) : [];
+      const fpTargets = discoveryRaw ? extractFingerprintTargetsFromScanForgeDiscovery(discoveryRaw) : [];
+      const nucleiTargets = extractNucleiTargetsFromResults(discoveryRaw, fpRaw);
+      const templateSelection = selectNucleiTemplates(discoveryRaw, fpRaw);
 
       return {
         initialDomains: dbRun.domains as string[],
@@ -500,18 +500,18 @@ export const discoveryChainRouter = router({
           },
           {
             from: "amass" as const,
-            to: "nmap" as const,
-            targetCount: nmapTargets.length,
-            targets: nmapTargets.slice(0, 50),
+            to: "scanforge-discovery" as const,
+            targetCount: discoveryTargets.length,
+            targets: discoveryTargets.slice(0, 50),
           },
           {
-            from: "nmap" as const,
+            from: "scanforge" as const,
             to: "service_fingerprinter" as const,
             targetCount: fpTargets.length,
             targets: fpTargets.slice(0, 50).map(t => `${t.host}:${t.port}`),
           },
           {
-            from: "nmap+service_fingerprinter" as const,
+            from: "scanforge+service_fingerprinter" as const,
             to: "nuclei" as const,
             targetCount: nucleiTargets.length,
             targets: nucleiTargets.slice(0, 50),
@@ -527,21 +527,21 @@ export const discoveryChainRouter = router({
 
 function buildDataFlow(run: any) {
   const amassStage = run.stages.find((s: any) => s.stageId === "amass");
-  const nmapStage = run.stages.find((s: any) => s.stageId === "nmap");
+  const discoveryStage = run.stages.find((s: any) => s.stageId === "scanforge-discovery");
   const fpStage = run.stages.find((s: any) => s.stageId === "service_fingerprinter");
 
-  const nmapTargets = amassStage?.rawOutput
-    ? extractNmapTargetsFromAmass(amassStage.rawOutput)
+  const discoveryTargets = amassStage?.rawOutput
+    ? extractScanForgeDiscoveryTargetsFromAmass(amassStage.rawOutput)
     : [];
-  const fpTargets = nmapStage?.rawOutput
-    ? extractFingerprintTargetsFromNmap(nmapStage.rawOutput)
+  const fpTargets = discoveryStage?.rawOutput
+    ? extractFingerprintTargetsFromScanForgeDiscovery(discoveryStage.rawOutput)
     : [];
   const nucleiTargets = extractNucleiTargetsFromResults(
-    nmapStage?.rawOutput,
+    discoveryStage?.rawOutput,
     fpStage?.rawOutput
   );
   const templateSelection = selectNucleiTemplates(
-    nmapStage?.rawOutput,
+    discoveryStage?.rawOutput,
     fpStage?.rawOutput
   );
 
@@ -558,18 +558,18 @@ function buildDataFlow(run: any) {
       },
       {
         from: "amass" as const,
-        to: "nmap" as const,
-        targetCount: nmapTargets.length,
-        targets: nmapTargets.slice(0, 50),
+        to: "scanforge-discovery" as const,
+        targetCount: discoveryTargets.length,
+        targets: discoveryTargets.slice(0, 50),
       },
       {
-        from: "nmap" as const,
+        from: "scanforge" as const,
         to: "service_fingerprinter" as const,
         targetCount: fpTargets.length,
         targets: fpTargets.slice(0, 50).map(t => `${t.host}:${t.port}`),
       },
       {
-        from: "nmap+service_fingerprinter" as const,
+        from: "scanforge+service_fingerprinter" as const,
         to: "nuclei" as const,
         targetCount: nucleiTargets.length,
         targets: nucleiTargets.slice(0, 50),

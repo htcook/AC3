@@ -50,6 +50,7 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
+  { date: "Mar 2026", title: "ScanForge Discovery Engine", desc: "Replaced nmap with a purpose-built multi-tool discovery pipeline. Masscan, Naabu, RustScan, and ZMap provide high-speed port discovery while httpx and Nuclei handle service fingerprinting and vulnerability detection — all running on dedicated infrastructure." },
   { date: "Mar 2026", title: "AC3 Report Generator", desc: "Generate professional pentest and red team reports. AI drafts narrative sections while the platform controls severity, evidence, and technique mappings. Includes executive summaries, QA review, and DOCX export." },
   { date: "Mar 2026", title: "DOCX Report Export", desc: "One-click Word document generation with title page, executive summary, findings table, and detailed sections. Branded and ready to deliver." },
   { date: "Mar 2026", title: "Findings Deduplication", desc: "Automatically detects and merges duplicate findings during imports. Combines evidence, keeps the highest severity, and prevents duplicates within a single batch." },
@@ -60,8 +61,8 @@ const RECENT_UPDATES = [
   { date: "Mar 2026", title: "BloodHound Import", desc: "Import BloodHound data to visualize domain relationships and plan lateral movement paths." },
   { date: "Mar 2026", title: "Credential Auto-Rotation", desc: "Automated rotation for compromised credentials discovered during engagements." },
   { date: "Mar 2026", title: "SOAR & SOC Integration", desc: "Export findings, IOCs, and detection rules to SIEM, EDR, SOAR, and ticketing systems." },
-  { date: "Feb 2026", title: "Discovery Chain", desc: "Automated 4-stage pipeline: subdomain enumeration, port scanning, service fingerprinting, and vulnerability scanning — all chained together." },
-  { date: "Feb 2026", title: "Nmap Integration", desc: "8 scan profiles, 80+ NSE scripts, admin port scanning, and CVE extraction — all scope-enforced." },
+  { date: "Feb 2026", title: "Discovery Chain", desc: "Automated 4-stage pipeline: subdomain enumeration, multi-engine port scanning, service fingerprinting with httpx, and vulnerability detection with Nuclei — all chained on dedicated infrastructure." },
+  { date: "Feb 2026", title: "ScanForge Port Discovery", desc: "Multi-engine port scanning with Masscan, Naabu, RustScan, and ZMap — adaptive rate control, WAF-aware tuning, and scope-enforced execution on dedicated infrastructure." },
   { date: "Feb 2026", title: "Unified Pipeline", desc: "All scanning tools feed into a single pipeline with cross-tool correlation and coverage tracking." },
   { date: "Feb 2026", title: "Passive Scan Clarity", desc: "Clear distinction between passive OSINT and active scanning, with prompts to create formal engagements." },
   { date: "Feb 2026", title: "Smarter Sorting", desc: "CVEs sorted by most recent. Threat actors sorted by most recently active. Faster triage." },
@@ -157,6 +158,7 @@ function AnimatedStat({ value, label, suffix = "" }: { value: number; label: str
 const FIVE_RINGS_DATA = [
   {
     kanji: "地", ring: "EARTH", romaji: "Chi",
+    strategicTitle: "GROUND TRUTH",
     principle: "Establish the ground truth.",
     color: "from-amber-500/20 to-amber-900/5",
     borderColor: "border-amber-500/30 hover:border-amber-400/60",
@@ -194,6 +196,7 @@ const FIVE_RINGS_DATA = [
   },
   {
     kanji: "水", ring: "WATER", romaji: "Sui",
+    strategicTitle: "ADAPTIVE FLOW",
     principle: "Adapt to the terrain.",
     color: "from-cyan-500/20 to-cyan-900/5",
     borderColor: "border-cyan-500/30 hover:border-cyan-400/60",
@@ -228,6 +231,7 @@ const FIVE_RINGS_DATA = [
   },
   {
     kanji: "火", ring: "FIRE", romaji: "Ka",
+    strategicTitle: "DECISIVE ACTION",
     principle: "Act with purpose.",
     color: "from-red-500/20 to-red-900/5",
     borderColor: "border-red-500/30 hover:border-red-400/60",
@@ -261,6 +265,7 @@ const FIVE_RINGS_DATA = [
   },
   {
     kanji: "風", ring: "WIND", romaji: "Fū",
+    strategicTitle: "ADVERSARY ALIGNMENT",
     principle: "Know other schools.",
     color: "from-emerald-500/20 to-emerald-900/5",
     borderColor: "border-emerald-500/30 hover:border-emerald-400/60",
@@ -293,6 +298,7 @@ const FIVE_RINGS_DATA = [
   },
   {
     kanji: "空", ring: "VOID", romaji: "Kū",
+    strategicTitle: "STRATEGIC FORESIGHT",
     principle: "See beyond the immediate step.",
     color: "from-violet-500/20 to-violet-900/5",
     borderColor: "border-violet-500/30 hover:border-violet-400/60",
@@ -579,10 +585,10 @@ export default function Home() {
             </h2>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-3">
-              Inspired by Miyamoto Musashi's <span className="text-foreground italic">Go Rin No Sho</span> — the Book of Five Rings — AC3 applies the principles of strategic combat to offensive security.
+              AC3's strategic doctrine is built on the principles of Miyamoto Musashi's <span className="text-foreground italic">Book of Five Rings</span> — a treatise on strategy, adaptability, and decisive action in combat.
             </p>
             <p className="text-sm text-muted-foreground/70 max-w-2xl mx-auto leading-relaxed">
-              Each ring represents a layer of strategic reasoning that transforms scanning into strategy, and findings into actionable intelligence.
+              Each ring represents a layer of strategic reasoning that transforms reconnaissance into strategy, and findings into actionable intelligence.
             </p>
           </div>
 
@@ -591,46 +597,43 @@ export default function Home() {
             {FIVE_RINGS_DATA.map((ring, index) => (
               <AnimatedRingCard key={ring.ring} index={index}>
                 <div
-                  className={`group relative border-2 ${ring.borderColor} bg-gradient-to-r ${ring.color} transition-all duration-300 cursor-pointer`}
+                  className={`group relative border-2 ${ring.borderColor} bg-gradient-to-r ${ring.color} transition-all duration-300 cursor-pointer overflow-hidden`}
                   onClick={() => setSelectedRing(ring)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedRing(ring); } }}
                 >
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Kanji Side */}
-                    <div className="flex-shrink-0 flex items-center justify-center lg:w-48 py-8 lg:py-0 border-b lg:border-b-0 lg:border-r border-inherit">
-                      <div className="text-center">
-                        <div className={`text-7xl lg:text-8xl font-bold ${ring.accentColor} opacity-80 group-hover:opacity-100 transition-opacity leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
-                          {ring.kanji}
+                  {/* Kanji watermark — decorative background element */}
+                  <div className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 select-none pointer-events-none" aria-hidden="true">
+                    <div className={`text-[8rem] lg:text-[10rem] font-bold ${ring.accentColor} opacity-[0.06] group-hover:opacity-[0.10] transition-opacity leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
+                      {ring.kanji}
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="relative flex-1 p-6 lg:p-8">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <ring.icon className={`w-5 h-5 ${ring.accentColor}`} />
+                          <h3 className={`font-display text-2xl tracking-wider ${ring.accentColor}`}>
+                            {ring.strategicTitle}
+                          </h3>
+                          <span className={`text-xs font-display tracking-widest ${ring.accentColor} opacity-50`}>
+                            {ring.ring}
+                          </span>
                         </div>
-                        <div className={`font-display text-xs tracking-[0.3em] ${ring.accentColor} mt-2 opacity-60`}>
-                          {ring.romaji.toUpperCase()}
+                        <p className="text-lg text-foreground/90 font-display tracking-wide">
+                          {ring.principle}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className={`flex-shrink-0 px-3 py-1 ${ring.bgAccent} border border-current/10 ${ring.accentColor} text-xs font-display tracking-widest`}>
+                          RING {String(index + 1).padStart(2, '0')}
                         </div>
+                        <ArrowUpRight className={`w-4 h-4 ${ring.accentColor} opacity-0 group-hover:opacity-100 transition-opacity`} />
                       </div>
                     </div>
-
-                    {/* Content Side */}
-                    <div className="flex-1 p-6 lg:p-8">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <ring.icon className={`w-5 h-5 ${ring.accentColor}`} />
-                            <h3 className={`font-display text-2xl tracking-wider ${ring.accentColor}`}>
-                              {ring.ring}
-                            </h3>
-                          </div>
-                          <p className="text-lg text-foreground/90 font-display tracking-wide">
-                            {ring.principle}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className={`flex-shrink-0 px-3 py-1 ${ring.bgAccent} border border-current/10 ${ring.accentColor} text-xs font-display tracking-widest`}>
-                            RING {String(index + 1).padStart(2, '0')}
-                          </div>
-                          <ArrowUpRight className={`w-4 h-4 ${ring.accentColor} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                        </div>
-                      </div>
 
                       <p className="text-sm text-muted-foreground leading-relaxed mb-5">
                         {ring.doctrine}
@@ -656,7 +659,6 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                </div>
               </AnimatedRingCard>
             ))}
           </div>
@@ -665,7 +667,7 @@ export default function Home() {
           <div className="mt-12 text-center">
             <div className="inline-flex flex-col items-center gap-2">
               <p className="text-sm text-muted-foreground/60">
-                Strategic doctrine adapted from <span className="text-foreground/70 italic">Go Rin No Sho</span> (1645) by Miyamoto Musashi
+                Strategic doctrine adapted from Miyamoto Musashi's <span className="text-foreground/70 italic">Book of Five Rings</span> (1645)
               </p>
               <p className="text-xs text-muted-foreground/40">
                 Platform architecture by Harrison Cook — <a href="https://aceofcloud.com" target="_blank" rel="noopener noreferrer" className="text-primary/50 hover:text-primary transition-colors">Ace of Cloud</a>
@@ -682,13 +684,13 @@ export default function Home() {
                   <>
                     <DialogHeader className="pb-4 border-b border-border">
                       <div className="flex items-center gap-4">
-                        <div className={`text-6xl font-bold ${r.accentColor} leading-none`} style={{ fontFamily: "'Noto Serif JP', serif" }}>
-                          {r.kanji}
+                        <div className={`w-14 h-14 flex items-center justify-center ${r.bgAccent} border-2 ${r.borderColor.split(' ')[0]} flex-shrink-0`}>
+                          <r.icon className={`w-7 h-7 ${r.accentColor}`} />
                         </div>
                         <div>
                           <DialogTitle className={`font-display text-3xl tracking-wider ${r.accentColor}`}>
-                            {r.ring}
-                            <span className="text-muted-foreground/50 text-lg ml-3 font-normal">/ {r.romaji}</span>
+                            {r.strategicTitle}
+                            <span className="text-muted-foreground/40 text-sm ml-3 font-normal tracking-widest">{r.ring}</span>
                           </DialogTitle>
                           <DialogDescription className="text-foreground/80 text-base font-display tracking-wide mt-1">
                             {r.principle}
@@ -703,7 +705,7 @@ export default function Home() {
                         <p className="text-sm italic text-foreground/80 leading-relaxed">
                           "{r.musashi}"
                         </p>
-                        <p className="text-xs text-muted-foreground/60 mt-2">— Miyamoto Musashi, Go Rin No Sho</p>
+                        <p className="text-xs text-muted-foreground/60 mt-2">— Miyamoto Musashi, <span className="italic">The Book of Five Rings</span></p>
                       </div>
 
                       {/* Objective */}

@@ -12,7 +12,7 @@ import { invokeLLM } from "../_core/llm";
 export interface PoCStep {
   /** Human-readable description of what this step does */
   description: string;
-  /** The actual command to run (curl, nmap, etc.) */
+  /** The actual command to run (curl, ScanForge discovery, etc.) */
   command: string;
   /** Expected output pattern that confirms the vulnerability */
   expectedOutput?: string;
@@ -45,7 +45,7 @@ export interface ProofOfConcept {
 
 /**
  * Generate a PoC from a scan finding without LLM (fast, deterministic).
- * Covers the most common finding types from nuclei, nikto, nmap, gobuster.
+ * Covers the most common finding types from nuclei, nikto, ScanForge discovery, gobuster.
  */
 export function generateAutoPoC(finding: {
   id: string;
@@ -207,7 +207,7 @@ export function generateAutoPoC(finding: {
       steps: [
         {
           description: "Verify the service is accessible",
-          command: `nmap -sV -p ${port} ${target}`,
+          command: `masscan -pV -p ${port} ${target}`,
           expectedOutput: "Port shows as open with service version",
           risk: "safe",
         },
@@ -241,7 +241,7 @@ export function generateAutoPoC(finding: {
         },
         {
           description: "Check supported TLS versions",
-          command: `nmap --script ssl-enum-ciphers -p 443 ${target.replace(/^https?:\/\//, '').split(':')[0]}`,
+          command: `nuclei -t ssl-enum-ciphers -p 443 ${target.replace(/^https?:\/\//, '').split(':')[0]}`,
           expectedOutput: "Lists supported TLS versions and cipher suites",
           risk: "safe",
         },
@@ -334,7 +334,7 @@ export async function generateLLMPoC(finding: {
           content: `You are a senior penetration tester generating proof-of-concept (PoC) reproduction steps for security findings.
 Generate practical, copy-paste ready commands that an operator can use to verify the vulnerability.
 Rules:
-- Use curl, nmap, openssl, or standard CLI tools only
+- Use curl, ScanForge discovery, openssl, or standard CLI tools only
 - Each step must be a single command that can be copy-pasted
 - Mark risk level: "safe" (read-only), "low" (minor changes), "medium" (may trigger alerts), "high" (may cause disruption)
 - Be specific about expected output that confirms the vulnerability

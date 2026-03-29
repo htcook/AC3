@@ -501,7 +501,7 @@ export const SKILL_TAXONOMY = {
   ] as const,
 
   pentestTechniques: [
-    "nmap", "web_enum", "smb_enum", "ad_enum", "password_attacks",
+    "scanforge-discovery", "web_enum", "smb_enum", "ad_enum", "password_attacks",
     "file_inclusion", "sqli", "xss", "ssrf", "upload_bypass",
     "deserialization", "privesc_linux", "privesc_windows",
     "command_injection", "path_traversal", "ssti", "xxe",

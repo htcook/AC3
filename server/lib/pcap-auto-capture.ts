@@ -2,12 +2,12 @@
  * PCAP Auto-Capture Hook — Automatic tcpdump During Active Scans
  * ═══════════════════════════════════════════════════════════════
  * Hooks into the engagement orchestrator's enumeration phase to
- * automatically start/stop tcpdump captures alongside nmap scans.
+ * automatically start/stop tcpdump captures alongside ScanForge discovery scans.
  *
  * Architecture:
- *   1. Before nmap starts → start background tcpdump on scan server
- *   2. nmap runs normally
- *   3. After nmap completes → stop tcpdump, analyze captured PCAP
+ *   1. Before ScanForge discovery starts → start background tcpdump on scan server
+ *   2. ScanForge discovery runs normally
+ *   3. After ScanForge discovery completes → stop tcpdump, analyze captured PCAP
  *   4. Feed findings into SSIL observation pipeline
  *
  * The capture runs as a background process on the scan server,
@@ -54,7 +54,7 @@ export interface AutoCaptureSession {
 export interface AutoCaptureConfig {
   /** Enable auto-capture during scans (default: true) */
   enabled: boolean;
-  /** Max capture duration in seconds (default: 660 = nmap timeout + buffer) */
+  /** Max capture duration in seconds (default: 660 = ScanForge discovery timeout + buffer) */
   maxDuration: number;
   /** BPF filter additions beyond target IP */
   additionalFilter?: string;
@@ -71,7 +71,7 @@ export interface AutoCaptureConfig {
 /** Default configuration for auto-capture */
 export const DEFAULT_AUTO_CAPTURE_CONFIG: AutoCaptureConfig = {
   enabled: true,
-  maxDuration: 660, // nmap timeout (600s) + 60s buffer
+  maxDuration: 660, // ScanForge discovery timeout (600s) + 60s buffer
   autoAnalyze: true,
   autoIngest: true,
   snapLen: 0,
@@ -115,12 +115,12 @@ export function getActiveSession(engagementId: number, targetIp: string): AutoCa
 }
 
 // ═══════════════════════════════════════════════════════════════
-// §3 — START CAPTURE (before nmap)
+// §3 — START CAPTURE (before discovery scan)
 // ═══════════════════════════════════════════════════════════════
 
 /**
  * Start a background tcpdump capture on the scan server.
- * Called automatically before nmap begins scanning a target.
+ * Called automatically before ScanForge discovery begins scanning a target.
  *
  * @returns The session ID and PCAP path, or null if capture failed to start
  */
@@ -198,12 +198,12 @@ export async function startAutoCapture(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// §4 — STOP CAPTURE (after nmap)
+// §4 — STOP CAPTURE (after discovery scan)
 // ═══════════════════════════════════════════════════════════════
 
 /**
  * Stop a background tcpdump capture on the scan server.
- * Called automatically after nmap finishes scanning a target.
+ * Called automatically after ScanForge discovery finishes scanning a target.
  *
  * @returns The completed session with packet count, or null if no active session
  */
@@ -328,10 +328,11 @@ export async function analyzeAutoCapture(
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Hook: Call before starting nmap scan on a target.
+ * Hook: Call before starting ScanForge discovery scan on a target.
  * Returns the session ID to pass to the post-scan hook.
  */
-export async function beforeNmapScan(
+export const beforeDiscoveryScan = beforeScanForgeScan;
+export async function beforeScanForgeScan(
   engagementId: number,
   targetIp: string,
   targetHostname: string,
@@ -342,10 +343,11 @@ export async function beforeNmapScan(
 }
 
 /**
- * Hook: Call after nmap scan completes on a target.
+ * Hook: Call after ScanForge discovery scan completes on a target.
  * Stops capture, analyzes PCAP, and returns findings summary.
  */
-export async function afterNmapScan(
+export const afterDiscoveryScan = afterScanForgeScan;
+export async function afterScanForgeScan(
   sessionId: string | null,
   config?: Partial<AutoCaptureConfig>,
 ): Promise<AutoCaptureSession | null> {

@@ -30,7 +30,7 @@ import { desc, eq, sql, and, gte, lte } from "drizzle-orm";
 import { getScanPolicyEngine, type ScanMode, type ScannerName } from "../lib/scan-policy-engine";
 import { getLLMGuardrails, type GuardrailContext } from "../lib/llm-guardrails";
 import {
-  adaptNmapResults,
+  adaptScanForgeResults,
   adaptNucleiResults,
   adaptZgrab2Results,
   adaptWebCrawlerResults,
@@ -39,7 +39,7 @@ import {
   deriveSignals,
   generateRiskCards,
   observationToInsert,
-  type NmapRawResult,
+  type ScanForgeRawResult,
   type NucleiRawResult,
   type Zgrab2RawResult,
   type WebCrawlerRawResult,
@@ -211,7 +211,7 @@ export const ssilRouter = router({
   ingestObservations: adminProcedure
     .input(
       z.object({
-        scanner: z.enum(["nmap", "nuclei", "zgrab2", "web_crawler", "domain_intel", "vuln_scanner"]),
+        scanner: z.enum(["scanforge-discovery", "nuclei", "zgrab2", "web_crawler", "domain_intel", "vuln_scanner"]),
         rawResults: z.array(z.any()),
       })
     )
@@ -219,8 +219,8 @@ export const ssilRouter = router({
       let adapterResult;
 
       switch (input.scanner) {
-        case "nmap":
-          adapterResult = adaptNmapResults(input.rawResults as NmapRawResult[]);
+        case "scanforge-discovery":
+          adapterResult = adaptScanForgeResults(input.rawResults as ScanForgeRawResult[]);
           break;
         case "nuclei":
           adapterResult = adaptNucleiResults(input.rawResults as NucleiRawResult[]);

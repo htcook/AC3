@@ -1,7 +1,7 @@
 /**
  * SSIL Observation Normalizer
  *
- * Transforms raw scanner output from multiple tools (Nmap, Nuclei, ZGrab2,
+ * Transforms raw scanner output from multiple tools (ScanForge, Nuclei, ZGrab2,
  * ZAP, Web Crawler, Domain Intel, Protocol Scanner) into the unified
  * scan_observation schema defined by SSIL.
  *
@@ -127,12 +127,12 @@ export function redactSensitiveHeaders(headers: Record<string, string>): Record<
 // ─── Scanner Adapters ───────────────────────────────────────────────────────
 
 /**
- * Nmap XML → Normalized Observations
+ * ScanForge XML → Normalized Observations
  *
- * Converts Nmap scan results (typically stored in our discovery_results or
+ * Converts ScanForge scan results (typically stored in our discovery_results or
  * protocol_findings tables) into SSIL observations.
  */
-export function adaptNmapResults(rawResults: NmapRawResult[]): AdapterResult {
+export function adaptScanForgeResults(rawResults: ScanForgeRawResult[]): AdapterResult {
   const startTime = Date.now();
   const observations: NormalizedObservation[] = [];
   const errors: string[] = [];
@@ -141,18 +141,18 @@ export function adaptNmapResults(rawResults: NmapRawResult[]): AdapterResult {
     try {
       for (const port of result.ports || []) {
         const obs: NormalizedObservation = {
-          observationId: generateObservationId("nmap", result.host, port.port, "service_banner", port.service || "unknown"),
+          observationId: generateObservationId("scanforge-discovery", result.host, port.port, "service_banner", port.service || "unknown"),
           asset: {
-            assetId: `nmap-${result.host}`,
+            assetId: `discovery-${result.host}`,
             host: result.host,
             port: port.port,
             protocol: port.protocol || "tcp",
             tags: result.tags || [],
           },
           scanner: {
-            name: "nmap",
-            version: result.nmapVersion || "7.94",
-            adapter: "nmap-orchestrated",
+            name: "scanforge-discovery",
+            version: result.serviceVersion || "7.94",
+            adapter: "scanforge-orchestrated",
             mode: "active-low",
           },
           observationType: "service_banner",
@@ -172,7 +172,7 @@ export function adaptNmapResults(rawResults: NmapRawResult[]): AdapterResult {
         observations.push(obs);
       }
     } catch (err: any) {
-      errors.push(`Nmap adapter error for ${result.host}: ${err.message}`);
+      errors.push(`ScanForge adapter error for ${result.host}: ${err.message}`);
     }
   }
 
@@ -1009,7 +1009,7 @@ function generateRecommendations(signals: InsertScanSignal[]): string[] {
 
 // ─── Raw Result Types ───────────────────────────────────────────────────────
 
-export interface NmapRawResult {
+export interface ScanForgeRawResult {
   host: string;
   ports: Array<{
     port: number;
@@ -1022,7 +1022,7 @@ export interface NmapRawResult {
     scripts?: Array<{ id: string; output: string }>;
   }>;
   tags?: string[];
-  nmapVersion?: string;
+  serviceVersion?: string;
   scanRunId?: string;
   policyProfile?: string;
 }

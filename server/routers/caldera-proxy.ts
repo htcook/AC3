@@ -127,7 +127,7 @@ export const calderaProxyRouter = router({
     }),
 
     // Check C2 server health — retries once on failure to reduce false negatives
-    // during heavy nmap scans that temporarily slow the Caldera server
+    // during heavy ScanForge discovery scans that temporarily slow the Caldera server
     checkHealth: protectedProcedure.query(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {

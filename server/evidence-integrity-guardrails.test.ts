@@ -51,8 +51,8 @@ import {
 
 // ─── Test Fixtures ──────────────────────────────────────────────────────────
 
-const NMAP_OUTPUT = `Starting Nmap 7.94 ( https://nmap.org ) at 2026-03-15 10:00 UTC
-Nmap scan report for 192.168.1.100
+const DISCOVERY_OUTPUT = `Starting ScanForge 7.94 ( https://scanforge.io ) at 2026-03-15 10:00 UTC
+ScanForge scan report for 192.168.1.100
 Host is up (0.0012s latency).
 PORT     STATE SERVICE  VERSION
 22/tcp   open  ssh      OpenSSH 8.9p1
@@ -78,11 +78,11 @@ const KNOWN_CVES = ["CVE-2023-44487", "CVE-2022-22965"];
 
 function makeProvenance(overrides?: Partial<EvidenceProvenance>): EvidenceProvenance {
   return {
-    sourceTool: "nmap",
+    sourceTool: "scanforge-discovery",
     collectorHost: "ac3-scanner-01",
     toolOutputTimestamp: new Date().toISOString(),
-    rawOutputHash: sha256(NMAP_OUTPUT),
-    rawOutputSize: Buffer.byteLength(NMAP_OUTPUT, "utf-8"),
+    rawOutputHash: sha256(DISCOVERY_OUTPUT),
+    rawOutputSize: Buffer.byteLength(DISCOVERY_OUTPUT, "utf-8"),
     targetHost: "192.168.1.100",
     sourceIp: "10.0.0.5",
     destinationIp: "192.168.1.100",
@@ -94,7 +94,7 @@ function makeGuardrailContext(overrides?: Partial<GuardrailContext>): GuardrailC
   return {
     specialist: "test-specialist",
     engagementId: "test-eng-1",
-    toolOutputs: { nmap: NMAP_OUTPUT, nuclei: NUCLEI_OUTPUT, zap: ZAP_OUTPUT },
+    toolOutputs: { discovery: DISCOVERY_OUTPUT, nuclei: NUCLEI_OUTPUT, zap: ZAP_OUTPUT },
     knownAssets: KNOWN_ASSETS,
     knownCves: KNOWN_CVES,
     strictness: "moderate",
@@ -248,7 +248,7 @@ describe("Chain of Custody Operations", () => {
     const envelope = createIntegrityEnvelope({
       evidenceId: "ev-001",
       engagementId: engId,
-      content: NMAP_OUTPUT,
+      content: DISCOVERY_OUTPUT,
       provenance: makeProvenance(),
       performedBy: "AC3 Scanner",
     });
@@ -437,15 +437,15 @@ describe("Chain Validation", () => {
 // ─── 5. Provenance Validation ───────────────────────────────────────────────
 
 describe("Provenance Validation", () => {
-  it("validates nmap output against nmap provenance", () => {
-    const result = validateProvenance(NMAP_OUTPUT, makeProvenance({ sourceTool: "nmap" }));
+  it("validates ScanForge discovery output against ScanForge discovery provenance", () => {
+    const result = validateProvenance(DISCOVERY_OUTPUT, makeProvenance({ sourceTool: "scanforge-discovery" }));
     expect(result.valid).toBe(true);
     expect(result.toolSignatureMatch).toBe(true);
     expect(result.timestampConsistent).toBe(true);
   });
 
-  it("rejects non-nmap content claimed as nmap", () => {
-    const result = validateProvenance("This is just random text with no tool signatures", makeProvenance({ sourceTool: "nmap" }));
+  it("rejects non-scan content claimed as scan output", () => {
+    const result = validateProvenance("This is just random text with no tool signatures", makeProvenance({ sourceTool: "scanforge-discovery" }));
     expect(result.toolSignatureMatch).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
   });
@@ -480,16 +480,16 @@ describe("Provenance Validation", () => {
 
   it("detects future timestamps", () => {
     const futureDate = new Date(Date.now() + 3600000).toISOString();
-    const result = validateProvenance(NMAP_OUTPUT, makeProvenance({
-      sourceTool: "nmap",
+    const result = validateProvenance(DISCOVERY_OUTPUT, makeProvenance({
+      sourceTool: "scanforge-discovery",
       toolOutputTimestamp: futureDate,
     }));
     expect(result.timestampConsistent).toBe(false);
   });
 
   it("warns about unknown source/destination IPs", () => {
-    const result = validateProvenance(NMAP_OUTPUT, makeProvenance({
-      sourceTool: "nmap",
+    const result = validateProvenance(DISCOVERY_OUTPUT, makeProvenance({
+      sourceTool: "scanforge-discovery",
       sourceIp: "unknown",
       destinationIp: "unknown",
     }));
@@ -498,13 +498,13 @@ describe("Provenance Validation", () => {
   });
 
   it("detects empty content", () => {
-    const result = validateProvenance("", makeProvenance({ sourceTool: "nmap" }));
+    const result = validateProvenance("", makeProvenance({ sourceTool: "scanforge-discovery" }));
     expect(result.contentFormatValid).toBe(false);
   });
 
   it("detects raw output hash mismatch", () => {
-    const result = validateProvenance(NMAP_OUTPUT, makeProvenance({
-      sourceTool: "nmap",
+    const result = validateProvenance(DISCOVERY_OUTPUT, makeProvenance({
+      sourceTool: "scanforge-discovery",
       rawOutputHash: "0000000000000000000000000000000000000000000000000000000000000000",
     }));
     expect(result.valid).toBe(false);
@@ -516,10 +516,10 @@ describe("Provenance Validation", () => {
 
 describe("Hallucination Detection", () => {
   it("accepts fully grounded content", () => {
-    const content = "Nmap scan found port 80/tcp open on 192.168.1.100 running Apache httpd. CVE-2023-44487 was detected by Nuclei.";
+    const content = "ScanForge scan found port 80/tcp open on 192.168.1.100 running Apache httpd. CVE-2023-44487 was detected by Nuclei.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT, nuclei: NUCLEI_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT, nuclei: NUCLEI_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       knownCves: KNOWN_CVES,
     });
@@ -533,7 +533,7 @@ describe("Hallucination Detection", () => {
     const content = "We discovered a critical vulnerability on 10.99.99.99 which is not in scope.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       knownCves: KNOWN_CVES,
     });
@@ -560,7 +560,7 @@ describe("Hallucination Detection", () => {
     const content = "Port 9999 was found running a custom service that is vulnerable.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
     });
 
@@ -572,7 +572,7 @@ describe("Hallucination Detection", () => {
     const content = "We successfully exploited the target and obtained root access. A meterpreter session was established.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
     });
 
@@ -610,7 +610,7 @@ describe("Hallucination Detection", () => {
     const content = "The security assessment revealed several areas for improvement in the organization's security posture.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
     });
 
@@ -623,7 +623,7 @@ describe("Hallucination Detection", () => {
     const content = "We successfully exploited 10.99.99.99 and obtained root access via CVE-2099-99999 on port 9999.";
     const result = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       knownCves: KNOWN_CVES,
       strictness: "strict",
@@ -637,13 +637,13 @@ describe("Hallucination Detection", () => {
     const content = "Port 9999 was found on 192.168.1.100 running a service.";
     const strict = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       strictness: "strict",
     });
     const lenient = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       strictness: "lenient",
     });
@@ -685,7 +685,7 @@ describe("Evidence Sanitization", () => {
     const content = "The server at 10.99.99.99 was compromised.";
     const check = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       strictness: "strict",
     });
@@ -711,7 +711,7 @@ describe("Evidence Sanitization", () => {
     const content = "CVE-2099-99999 on 10.99.99.99 port 9999.";
     const check = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       knownCves: KNOWN_CVES,
       strictness: "strict",
@@ -726,7 +726,7 @@ describe("Evidence Sanitization", () => {
     const content = "Port 80 on 192.168.1.100 runs Apache.";
     const check = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
     });
 
@@ -740,9 +740,9 @@ describe("Evidence Sanitization", () => {
 describe("Evidence Gate", () => {
   it("passes valid evidence with good provenance", () => {
     const result = evidenceGate({
-      content: NMAP_OUTPUT,
-      provenance: makeProvenance({ sourceTool: "nmap" }),
-      groundTruth: { nmap: NMAP_OUTPUT },
+      content: DISCOVERY_OUTPUT,
+      provenance: makeProvenance({ sourceTool: "scanforge-discovery" }),
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
     });
 
@@ -755,7 +755,7 @@ describe("Evidence Gate", () => {
     const result = evidenceGate({
       content: "random text with no tool signatures",
       provenance: makeProvenance({
-        sourceTool: "nmap",
+        sourceTool: "scanforge-discovery",
         rawOutputHash: "0000000000000000000000000000000000000000000000000000000000000000",
       }),
     });
@@ -768,7 +768,7 @@ describe("Evidence Gate", () => {
     const result = evidenceGate({
       content: "Found CVE-2099-99999 on 10.99.99.99",
       provenance: makeProvenance({ sourceTool: "llm_analysis" }),
-      groundTruth: { nmap: NMAP_OUTPUT },
+      groundTruth: { discovery: DISCOVERY_OUTPUT },
       knownAssets: KNOWN_ASSETS,
       knownCves: KNOWN_CVES,
       strictness: "strict",
@@ -1081,7 +1081,7 @@ describe("LLM Evidence Guardrail — Attack Plan", () => {
 
 describe("Generic LLM Evidence Validation", () => {
   it("validates grounded generic content", () => {
-    const content = "The nmap scan found port 80 open on 192.168.1.100 with Apache httpd.";
+    const content = "The ScanForge discovery scan found port 80 open on 192.168.1.100 with Apache httpd.";
     const result = validateLLMEvidence(content, makeGuardrailContext());
     expect(result.passed).toBe(true);
   });
@@ -1108,15 +1108,15 @@ describe("Report Section Validation", () => {
 describe("Utility Functions", () => {
   it("buildProvenance creates valid provenance record", () => {
     const prov = buildProvenance({
-      tool: "nmap",
+      tool: "scanforge-discovery",
       collectorHost: "scanner-01",
-      rawOutput: NMAP_OUTPUT,
+      rawOutput: DISCOVERY_OUTPUT,
       targetHost: "192.168.1.100",
       sourceIp: "10.0.0.5",
       destinationIp: "192.168.1.100",
     });
 
-    expect(prov.sourceTool).toBe("nmap");
+    expect(prov.sourceTool).toBe("scanforge-discovery");
     expect(prov.rawOutputHash).toHaveLength(64);
     expect(prov.rawOutputSize).toBeGreaterThan(0);
     expect(prov.toolOutputTimestamp).toBeTruthy();

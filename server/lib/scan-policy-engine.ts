@@ -20,7 +20,7 @@ export type ScannerName =
   | "nuclei"
   | "zgrab2"
   | "zap"
-  | "nmap_orchestrated"
+  | "discovery_orchestrated"
   | "custom_dns"
   | "custom_tls"
   | "custom_http_headers"
@@ -294,7 +294,7 @@ const DEFAULT_PROFILES: Record<string, ScanProfile> = {
   aggressive_internal: {
     id: "aggressive_internal",
     description: "For explicitly authorized internal environments only.",
-    allowedScanners: ["zgrab2", "nuclei", "nmap_orchestrated", "zap", "vuln_scanner", "web_crawler", "protocol_scanner"],
+    allowedScanners: ["zgrab2", "nuclei", "discovery_orchestrated", "zap", "vuln_scanner", "web_crawler", "protocol_scanner"],
     allowedModes: ["passive", "active-low", "active-standard", "active-aggressive"],
     disallowed: [],
     rateLimits: {
@@ -341,7 +341,7 @@ const DEFAULT_PROFILES: Record<string, ScanProfile> = {
     description:
       "Federal standard auth testing mode. 0.5 RPS, controlled credential testing with authorization, " +
       "active scanning allowed. For authorized penetration testing of federal environments.",
-    allowedScanners: ["zap", "nuclei", "nmap_orchestrated", "custom_http_headers", "custom_tls", "custom_dns"],
+    allowedScanners: ["zap", "nuclei", "discovery_orchestrated", "custom_http_headers", "custom_tls", "custom_dns"],
     allowedModes: ["passive", "active-low", "active-standard"],
     disallowed: ["exploitation", "payload_injection"],
     rateLimits: {

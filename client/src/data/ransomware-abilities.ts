@@ -244,7 +244,7 @@ const CLOP_ABILITIES: CalderaAbilityDef[] = [
     platforms: {
       linux: {
         sh: {
-          command: 'echo "[SIM] Scanning for MOVEit Transfer instances on port 443"; curl -s -o /dev/null -w "%{http_code}" https://localhost/human.aspx 2>/dev/null || echo "No MOVEit instance found"; nmap -sV -p 443 localhost 2>/dev/null || echo "nmap not available"',
+          command: 'echo "[SIM] Scanning for MOVEit Transfer instances on port 443"; curl -s -o /dev/null -w "%{http_code}" https://localhost/human.aspx 2>/dev/null || echo "No MOVEit instance found"; ScanForge discovery -sV -p 443 localhost 2>/dev/null || echo "ScanForge discovery not available"',
           timeout: 60,
         },
       },
@@ -396,7 +396,7 @@ const ALPHV_ABILITIES: CalderaAbilityDef[] = [
       },
       linux: {
         sh: {
-          command: 'echo "[SIM] RDP brute force simulation"; nmap -p 3389 localhost 2>/dev/null || echo "Port scan complete"; echo "[SIM] Would use hydra/crowbar for credential testing"',
+          command: 'echo "[SIM] RDP brute force simulation"; ScanForge discovery -p 3389 localhost 2>/dev/null || echo "Port scan complete"; echo "[SIM] Would use hydra/crowbar for credential testing"',
           timeout: 30,
         },
       },
@@ -905,7 +905,7 @@ const MEDUSA_ABILITIES: CalderaAbilityDef[] = [
     platforms: {
       linux: {
         sh: {
-          command: 'echo "[SIM] Medusa RDP brute force"; echo "[SIM] hydra -l admin -P wordlist.txt rdp://target"; nmap -p 3389 localhost 2>/dev/null || echo "Scan complete"',
+          command: 'echo "[SIM] Medusa RDP brute force"; echo "[SIM] hydra -l admin -P wordlist.txt rdp://target"; ScanForge discovery -p 3389 localhost 2>/dev/null || echo "Scan complete"',
           timeout: 30,
         },
       },

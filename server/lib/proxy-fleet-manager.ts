@@ -749,7 +749,7 @@ export function generateIpDisclosureData(
     sourceIps.push({
       ip: scanServerIp,
       region: "nyc1" as ProxyRegion,
-      purpose: "Vulnerability scanning (Nuclei, Nmap, ZAP)",
+      purpose: "Vulnerability scanning (Nuclei, ScanForge, ZAP)",
       expectedTraffic: "High-volume scan traffic across all target ports",
       ports: "All TCP ports (1-65535)",
     });
@@ -776,7 +776,7 @@ export function generateIpDisclosureData(
     expectedTrafficPatterns: [
       "DNS resolution queries for target domains",
       "HTTP/HTTPS requests to target web applications",
-      "TCP SYN scans across common ports (nmap)",
+      "TCP SYN scans across common ports (Masscan/Naabu)",
       "Nuclei vulnerability template probes",
       "ZAP active/passive scan requests",
       "SSH connection attempts (credential testing)",

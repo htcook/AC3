@@ -538,7 +538,7 @@ export class DeduplicationEngine {
 
   /**
    * Strip scanner source prefixes from titles for cross-source comparison.
-   * Handles [ZAP], [zap], [nuclei], [Nuclei], [nikto], [nmap], [scanforge], etc.
+   * Handles [ZAP], [zap], [nuclei], [Nuclei], [nikto], [scanforge-discovery], [scanforge], etc.
    */
   private stripSourcePrefix(title: string): string {
     return title.replace(/^\[?\w+\]?\s*/i, "").trim();

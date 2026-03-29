@@ -297,7 +297,7 @@ describe("Ops State Serialization Round-Trip", () => {
         zapFindings: [],
         exploitAttempts: [],
         confirmedCredentials: [],
-        toolResults: [{ tool: 'nmap', command: 'nmap -sV', exitCode: 0, durationMs: 5000, timedOut: false, findingCount: 3, findings: [], outputPreview: 'test', executedAt: Date.now(), phase: 'enumeration' }],
+        toolResults: [{ tool: 'scanforge-discovery', command: 'masscan -pV', exitCode: 0, durationMs: 5000, timedOut: false, findingCount: 3, findings: [], outputPreview: 'test', executedAt: Date.now(), phase: 'enumeration' }],
         status: 'vulns_found',
       }],
       log: [{ id: 'ops-1', timestamp: Date.now(), phase: 'vuln_detection', type: 'scan_result', title: 'Nuclei Complete', detail: 'Found 5 vulns' }],

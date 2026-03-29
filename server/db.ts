@@ -2185,7 +2185,7 @@ export async function getScanResultsByEngagement(engagementId: number): Promise<
     .orderBy(sql`${scanResults.createdAt} DESC`);
 }
 
-/** Get scan results filtered by tool (e.g., "nmap", "nuclei"). */
+/** Get scan results filtered by tool (e.g., "scanforge-discovery", "nuclei"). */
 export async function getScanResultsByTool(engagementId: number, tool: string): Promise<ScanResult[]> {
   const db = await getDb();
   if (!db) return [];

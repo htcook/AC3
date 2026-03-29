@@ -10,7 +10,7 @@
  *   3. Scoping & RoE Review (scope validation, RoE checklist)
  *   4. Test Plan Generation (NIST 800-115 aligned, LLM-powered)
  *   4b. Test Plan Approval Gate (customer review)
- *   5. Active Discovery & Enumeration (nmap service/OS detection)
+ *   5. Active Discovery & Enumeration (ScanForge multi-tool discovery)
  *   6. Vulnerability Scanning (nuclei + ZAP for web apps, WAF-aware)
  *   7. Penetration Testing / Exploitation (Metasploit modules, exploitation bridge)
  *   8a. Pentest: per-asset unauthorized access demo → evidence → report
@@ -32,7 +32,7 @@ import {
 // All 17 knowledge modules are loaded on-demand via knowledge-lazy.ts
 // to reduce boot-time heap from ~230MB to ~150MB.
 import {
-  getNmapScanPlanContext, getNmapVulnCorrelationContext, getNmapHuntContext,
+  getScanforgeScanPlanContext, getScanforgeVulnCorrelationContext, getScanforgeHuntContext,
   getChainsByVulnDescriptions, formatChainsForPrompt,
   inferAssetContext, formatOntologyForPrompt,
   getBugBountyContext, getTriageSystemPrompt, getTrainingExamplesForPrompt,
@@ -109,7 +109,7 @@ export type OpsPhase =
   | "scoping"                 // Phase 3: Scoping & RoE Review
   | "test_plan"               // Phase 4: Test Plan Generation (NIST 800-115 aligned)
   | "test_plan_approval"      // Phase 4b: Customer Test Plan Approval Gate
-  | "enumeration"             // Phase 5: Active Discovery & Enumeration (nmap, httpx)
+  | "enumeration"             // Phase 5: Active Discovery & Enumeration (ScanForge, httpx)
   | "vuln_detection"          // Phase 6: Vulnerability Scanning
   | "exploitation"            // Phase 7: Penetration Testing / Exploitation
   | "post_exploit"            // Phase 8: Post-Exploitation (Red Team only)
@@ -233,14 +233,14 @@ export interface AssetScanPlan {
   hostname: string;
   ip?: string;
   assetType: string;
-  /** Phase A: discovery nmap flags — broad port sweep + service fingerprinting with evasion */
-  discoveryNmapFlags: string;
-  discoveryNmapRationale: string;
+  /** Phase A: discovery discovery flags — broad port sweep + service fingerprinting with evasion */
+  discoveryFlags: string;
+  discoveryRationale: string;
   /** httpx flags for HTTP probing on discovered web ports */
   httpxFlags: string;
-  /** Phase B: targeted nmap flags — deeper scan based on discovery results */
-  nmapFlags: string;
-  nmapRationale: string;
+  /** Phase B: targeted discovery flags — deeper scan based on discovery results */
+  discoveryFlags: string;
+  discoveryRationale: string;
   activeTools: Array<{
     tool: string;
     command: string;
@@ -596,7 +596,7 @@ export async function getOpsStateWithRecovery(engagementId: number): Promise<Eng
  * ═══════════════════════════════════════════════════════════════════════════
  * RoE SCOPE GUARD — Hard enforcement of Rules of Engagement target scope
  * ═══════════════════════════════════════════════════════════════════════════
- * Every target MUST pass this check before any active scanning (nmap, nuclei,
+ * Every target MUST pass this check before any active scanning (ScanForge discovery, nuclei,
  * ZAP, etc.). Passive OSINT can discover assets outside scope, but they are
  * tagged as "out_of_scope" and NEVER actively probed.
  */
@@ -1447,7 +1447,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     phase: state.phase,
     type: 'info',
     title: '🧠 LLM Scan Plan Analysis Starting',
-    detail: `Analyzing ${state.assets.length} discovered assets to determine optimal nmap settings and active scan tools...`,
+    detail: `Analyzing ${state.assets.length} discovered assets to determine optimal ScanForge discovery settings and active scan tools...`,
   });
   broadcastOpsUpdate(engagementId, { type: 'phase_change', phase: 'scan_planning' });
 
@@ -1520,7 +1520,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
   // Compact tool reference — name:purpose only to minimize token count
   const toolRef = [
-    'nmap: port scan/service detection',
+    'ScanForge Discovery (Masscan/Naabu/RustScan): port scan/service detection',
     'nuclei: vuln scanner (-u URL -severity critical,high,medium -nc -duc -ni -jsonl)',
     'nikto: web server scanner (-h URL)',
     'gobuster: dir brute-forcer',
@@ -1552,7 +1552,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
 
   const systemPrompt = `You are a penetration tester planning active scanning for a ${state.engagementType} engagement after passive OSINT.
 
-PHASE A — Discovery: nmap --top-ports 1000 -T3 then httpx on web ports. discoveryNmapFlags = scan type/evasion only (no -p, --top-ports, -T). Cloud/WAF targets: use '-Pn -sV -sC' only, no evasion flags.
+PHASE A — Discovery: ScanForge discovery --top-ports 1000 -T3 then httpx on web ports. discoveryFlags = scan type/evasion only (no -p, --top-ports, -T). Cloud/WAF targets: use '-Pn -sV -sC' only, no evasion flags.
 PHASE B — Targeted tools per asset based on recon: Web→nuclei,nikto,ffuf,feroxbuster,whatweb,testssl; WP→wpscan; SQLi→sqlmap; Cloud→cloud_enum,s3scanner; SMB→enum4linux; LDAP→ldapsearch; DNS→dig; SNMP→onesixtyone; Login→hydra.
 
 Tools:
@@ -1582,7 +1582,7 @@ Return valid JSON per the response_format schema.`;
     return parts.join(' | ');
   }).join('\n');
 
-  const tier1Content = `Assets (${state.assets.length}, ${state.engagementType}):\n${assetLines}\n${domainLines ? '\nDomain Intel:\n' + domainLines + '\n' : ''}\nGenerate two-phase scan plan. Phase A: nmap --top-ports 1000. Phase B: tools per asset.`;
+  const tier1Content = `Assets (${state.assets.length}, ${state.engagementType}):\n${assetLines}\n${domainLines ? '\nDomain Intel:\n' + domainLines + '\n' : ''}\nGenerate two-phase scan plan. Phase A: ScanForge discovery --top-ports 1000. Phase B: tools per asset.`;
 
   // Build Tier 2 enrichment context
   const detectedTech = state.assets.flatMap(a => [
@@ -1602,7 +1602,7 @@ Return valid JSON per the response_format schema.`;
     const bbCtx = getTrainingExamplesForPrompt(2);
     const corpusCtx = getTriageCorpusContext(undefined, 2);
     const cloudCtx = allObs.length > 0 ? buildCloudSecurityContext(allObs) : buildGeneralCloudContext();
-    const nmapCtx = getNmapScanPlanContext({
+    const discoveryCtx = getScanforgeScanPlanContext({
       detectedTech: uniqueTech,
       cloudProvider: state.assets.find(a => a.passiveRecon?.cloudProvider)?.passiveRecon?.cloudProvider,
       hasFirewall: state.assets.some(a => a.wafDetected && a.wafDetected !== 'none'),
@@ -1679,7 +1679,7 @@ Return valid JSON per the response_format schema.`;
       { label: 'bugbounty', content: bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '' },
       { label: 'triage', content: corpusCtx ? '## Triage Examples\n' + corpusCtx : '' },
       { label: 'cloud', content: cloudCtx || '' },
-      { label: 'nmap', content: nmapCtx || '' },
+      { label: 'scanforge-discovery', content: discoveryCtx || '' },
       { label: 'owasp', content: owaspCtx || '' },
       { label: 'threatGroup', content: threatGroupCtx || '' },
       { label: 'threatActor', content: threatActorLearningCtx || '' },
@@ -1733,11 +1733,11 @@ Return valid JSON per the response_format schema.`;
                 hostname: { type: 'string' },
                 ip: { type: 'string' },
                 assetType: { type: 'string' },
-                discoveryNmapFlags: { type: 'string' },
-                discoveryNmapRationale: { type: 'string' },
+                discoveryFlags: { type: 'string' },
+                discoveryRationale: { type: 'string' },
                 httpxFlags: { type: 'string', description: 'httpx flags for HTTP probing on discovered web ports' },
-                nmapFlags: { type: 'string' },
-                nmapRationale: { type: 'string' },
+                discoveryFlags: { type: 'string' },
+                discoveryRationale: { type: 'string' },
                 activeTools: {
                   type: 'array',
                   items: {
@@ -1755,7 +1755,7 @@ Return valid JSON per the response_format schema.`;
                 riskNotes: { type: 'string' },
                 evasionTechniques: { type: 'array', items: { type: 'string' } }
               },
-              required: ['hostname', 'ip', 'assetType', 'discoveryNmapFlags', 'discoveryNmapRationale', 'httpxFlags', 'nmapFlags', 'nmapRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
+              required: ['hostname', 'ip', 'assetType', 'discoveryFlags', 'discoveryRationale', 'httpxFlags', 'discoveryFlags', 'discoveryRationale', 'activeTools', 'riskNotes', 'evasionTechniques'],
               additionalProperties: false
             }
           }
@@ -1804,18 +1804,18 @@ Return valid JSON per the response_format schema.`;
       },
       estimatedDuration: 'Varies by target count',
       riskAssessment: attackPlan.estimated_impact,
-      assetPlans: attackPlan.scan_plan.nmap_targets.map(nt => {
+      assetPlans: attackPlan.scan_plan.discovery_targets.map(nt => {
         const webScans = attackPlan.scan_plan.web_scan_targets.filter(w => w.target === nt.target);
         const nucleiScans = attackPlan.scan_plan.nuclei_targets.filter(n => n.target === nt.target);
         return {
           hostname: nt.target,
           ip: state.assets.find(a => a.hostname === nt.target)?.ip || nt.target,
           assetType: state.assets.find(a => a.hostname === nt.target)?.type || 'unknown',
-          discoveryNmapFlags: '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
-          discoveryNmapRationale: 'Default discovery with evasion',
+          discoveryFlags: '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
+          discoveryRationale: 'Default discovery with evasion',
           httpxFlags: '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
-          nmapFlags: nt.flags,
-          nmapRationale: nt.rationale,
+          discoveryFlags: nt.flags,
+          discoveryRationale: nt.rationale,
           activeTools: [
             ...nucleiScans.map(n => ({ tool: 'nuclei', command: `nuclei -u ${n.target} -severity critical,high,medium -tags ${n.templates} -nc -duc -ni -jsonl`, rationale: n.rationale, priority: 1 })),
             ...webScans.map(w => ({ tool: w.tool, command: w.config, rationale: w.rationale, priority: 2 })),
@@ -1896,11 +1896,11 @@ Return valid JSON per the response_format schema.`;
       hostname: ap.hostname,
       ip: ap.ip,
       assetType: ap.assetType,
-      discoveryNmapFlags: ap.discoveryNmapFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
-      discoveryNmapRationale: ap.discoveryNmapRationale || 'Default discovery scan with evasion and --top-ports 1000',
+      discoveryFlags: ap.discoveryFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64',
+      discoveryRationale: ap.discoveryRationale || 'Default discovery scan with evasion and --top-ports 1000',
       httpxFlags: ap.httpxFlags || '-json -tech-detect -status-code -title -cdn -tls-grab -follow-redirects -content-length -web-server -silent',
-      nmapFlags: ap.nmapFlags,
-      nmapRationale: ap.nmapRationale,
+      discoveryFlags: ap.discoveryFlags,
+      discoveryRationale: ap.discoveryRationale,
       activeTools: (ap.activeTools || []).map((t: any) => ({
         tool: t.tool,
         command: t.command,
@@ -1937,7 +1937,7 @@ Return valid JSON per the response_format schema.`;
       phase: state.phase,
       type: 'tool_match',
       title: `🎯 ${ap.hostname}${ap.ip && ap.ip !== ap.hostname ? ` (${ap.ip})` : ''}`,
-      detail: `Phase A discovery: ${ap.discoveryNmapFlags}\n  Rationale: ${ap.discoveryNmapRationale}\nPhase B targeted: ${ap.nmapFlags}\n  Rationale: ${ap.nmapRationale}\nTools: ${ap.activeTools.map(t => t.tool).join(', ')}\nEvasion: ${ap.evasionTechniques.join(', ')}\nRisk: ${ap.riskNotes}`,
+      detail: `Phase A discovery: ${ap.discoveryFlags}\n  Rationale: ${ap.discoveryRationale}\nPhase B targeted: ${ap.discoveryFlags}\n  Rationale: ${ap.discoveryRationale}\nTools: ${ap.activeTools.map(t => t.tool).join(', ')}\nEvasion: ${ap.evasionTechniques.join(', ')}\nRisk: ${ap.riskNotes}`,
       data: { assetPlan: ap },
     });
   }
@@ -1976,7 +1976,7 @@ async function llmDecide(context: {
       currentPhase: context.phase,
       recentActivity,
       assetSummary,
-      availableTools: ['nmap', 'nuclei', 'zap', 'nikto', 'gobuster', 'ffuf', 'testssl', 'hydra', 'sqlmap'],
+      availableTools: ['scanforge-discovery', 'nuclei', 'zap', 'nikto', 'gobuster', 'ffuf', 'testssl', 'hydra', 'sqlmap'],
       engagement: {
         engagementType: context.engagementType,
         clientName: context.assets[0]?.hostname,
@@ -1987,11 +1987,11 @@ async function llmDecide(context: {
 
     // Map specialist output to legacy format
     const toolToActionType: Record<string, string> = {
-      nmap: 'nmap_scan', nuclei: 'nuclei_scan', zap: 'zap_scan',
+      discovery: 'discovery_scan', nuclei: 'nuclei_scan', zap: 'zap_scan',
       nikto: 'nuclei_scan', gobuster: 'nuclei_scan', ffuf: 'nuclei_scan',
       testssl: 'nuclei_scan', hydra: 'exploit_attempt', sqlmap: 'exploit_attempt',
     };
-    const actionType = toolToActionType[opsResult.recommended_action.tool] || 'nmap_scan';
+    const actionType = toolToActionType[opsResult.recommended_action.tool] || 'discovery_scan';
     const actions: Array<{ type: string; params: Record<string, any> }> = [{
       type: actionType,
       params: {
@@ -2004,7 +2004,7 @@ async function llmDecide(context: {
 
     // Add alternative actions
     for (const alt of opsResult.alternative_actions.slice(0, 2)) {
-      actions.push({ type: 'nmap_scan', params: { reason: alt.action } });
+      actions.push({ type: 'discovery_scan', params: { reason: alt.action } });
     }
 
     return {
@@ -2027,7 +2027,7 @@ async function llmDecide(context: {
     ? `\n\nIMPORTANT: You are in the ${context.phase} phase. You MUST return actions with type "exploit_attempt" for each vulnerability you want to exploit.
 Each exploit_attempt action MUST include params: {target: "hostname", port: number, cve: "CVE-XXXX-XXXXX", service: "service_name", module: "exploit_module_or_technique"}
 Prioritize critical and high severity vulnerabilities. Generate one exploit_attempt action per target/CVE combination.
-Do NOT return scan-type actions (nmap_scan, nuclei_scan) during exploitation — only exploit_attempt, c2_deploy, or complete.`
+Do NOT return scan-type actions (discovery_scan, nuclei_scan) during exploitation — only exploit_attempt, c2_deploy, or complete.`
     : '';
 
    // Inject banking domain knowledge if applicable
@@ -2041,8 +2041,8 @@ Do NOT return scan-type actions (nmap_scan, nuclei_scan) during exploitation —
     }
   } catch (e) { /* non-fatal */ }
   const systemPrompt = `Pentest AI for ${context.engagementType} engagement. Phase: ${context.phase}.
-Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"nmap_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
-Action params: nmap_scan={targets,profile:quick|standard|deep|stealth|service|vuln} nuclei_scan={targets,severity,tags?} zap_scan={targetUrl,scanType:full|active|spider_only,wafAware} exploit_attempt={target,port,cve,service,module?} c2_deploy={target,platform,method} recon={domain} complete={reason}
+Assets:\n${assetSummary}\n\nRecent:\n${recentActivity}\n\nReturn JSON: {"decision":"str","reasoning":"str","actions":[{"type":"discovery_scan|nuclei_scan|zap_scan|exploit_attempt|c2_deploy|recon|skip|complete|wait","params":{...}}]}
+Action params: discovery_scan={targets,profile:quick|standard|deep|stealth|service|vuln} nuclei_scan={targets,severity,tags?} zap_scan={targetUrl,scanType:full|active|spider_only,wafAware} exploit_attempt={target,port,cve,service,module?} c2_deploy={target,platform,method} recon={domain} complete={reason}
 Rules: pentest=test each asset systematically; red_team=find weakest entry,exploit,C2,pivot; WAF-aware scanning; correlate findings across tools; flag high-risk actions; stay in scope.${exploitPhaseInstructions}${bankingOpsCtx}`;
 
   try {
@@ -3090,23 +3090,23 @@ function parseToolOutput(
       if (/NOT\s+ok/i.test(stdout)) findings.push({ severity: "medium", title: "[testssl] TLS configuration issues" });
       break;
     }
-    case "nmap": {
+    case "scanforge-discovery": {
       const portRegex = /^(\d+)\/tcp\s+(open|filtered)\s+(\S+)\s*(.*)/;
       for (const line of stdout.split("\n")) {
         const trimmed = line.trim();
         const portMatch = trimmed.match(portRegex);
         if (portMatch && portMatch[2] === 'open') {
-          findings.push({ severity: "info", title: `[nmap] ${portMatch[1]}/tcp ${portMatch[3]}${portMatch[4] ? ' ' + portMatch[4].trim() : ''}` });
+          findings.push({ severity: "info", title: `[ScanForge] ${portMatch[1]}/tcp ${portMatch[3]}${portMatch[4] ? ' ' + portMatch[4].trim() : ''}` });
         }
         const cveMatch = trimmed.match(/CVE-\d{4}-\d+/g);
         if (cveMatch) {
           for (const cve of cveMatch) {
-            findings.push({ severity: "high", title: `[nmap] ${cve} — ${trimmed.slice(0, 120)}`, cve });
+            findings.push({ severity: "high", title: `[ScanForge] ${cve} — ${trimmed.slice(0, 120)}`, cve });
           }
         }
-        if (/VULNERABLE/i.test(trimmed)) findings.push({ severity: "high", title: `[nmap] ${trimmed.slice(0, 150)}` });
-        if (/message_signing.*disabled/i.test(trimmed)) findings.push({ severity: "medium", title: "[nmap] SMB signing disabled" });
-        if (/Anonymous FTP login allowed/i.test(trimmed)) findings.push({ severity: "high", title: "[nmap] Anonymous FTP login" });
+        if (/VULNERABLE/i.test(trimmed)) findings.push({ severity: "high", title: `[ScanForge] ${trimmed.slice(0, 150)}` });
+        if (/message_signing.*disabled/i.test(trimmed)) findings.push({ severity: "medium", title: "[ScanForge] SMB signing disabled" });
+        if (/Anonymous FTP login allowed/i.test(trimmed)) findings.push({ severity: "high", title: "[ScanForge] Anonymous FTP login" });
       }
       break;
     }
@@ -3120,7 +3120,7 @@ function parseToolOutput(
 async function executeEnumeration(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "enumeration";
   state.currentAction = "Running enumeration & fingerprinting...";
-  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 5: Active Discovery & Enumeration", detail: "Two-phase approach: Phase A discovery nmap with evasion → Phase B targeted tool deployment" });
+  addLog(state, { phase: "enumeration", type: "info", title: "🔎 Phase 5: Active Discovery & Enumeration", detail: "Two-phase approach: Phase A discovery ScanForge discovery with evasion → Phase B targeted tool deployment" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "enumeration" });
 
   // ═══ RoE SCOPE GUARD: Filter active scan targets to only authorized assets ═══
@@ -3133,8 +3133,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       detail: `Excluded: ${skippedAssets.map(a => a.hostname).join(", ")}\nOnly RoE-authorized targets will be actively probed.`,
     });
   }
-  // ═══ DNS PRE-RESOLUTION: Resolve hostnames to IPs before nmap ═══
-  // nmap on the scan server may fail to resolve hostnames (e.g., training labs
+  // ═══ DNS PRE-RESOLUTION: Resolve hostnames to IPs before ScanForge discovery ═══
+  // ScanForge on the scan server may fail to resolve hostnames (e.g., training labs
   // hosted via path-based routing on scan.aceofcloud.io). Pre-resolve here and
   // fall back to scan server IP for known self-hosted labs.
   const dns = await import('dns');
@@ -3143,7 +3143,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   const scanServerHost = process.env.SCAN_SERVER_HOST || '';
   const SCAN_SERVER_DOMAIN = 'scan.aceofcloud.io';
 
-  addLog(state, { phase: 'enumeration', type: 'info', title: `DNS Pre-Resolution: checking ${scopedAssets.length} assets`, detail: `Resolving hostnames to IPs before nmap scan` });
+  addLog(state, { phase: 'enumeration', type: 'info', title: `DNS Pre-Resolution: checking ${scopedAssets.length} assets`, detail: `Resolving hostnames to IPs before ScanForge scan` });
   for (const asset of scopedAssets) {
     if (asset.ip) continue; // Already has an IP
     const hostname = asset.hostname;
@@ -3193,21 +3193,21 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         addLog(state, {
           phase: 'enumeration', type: 'warning',
           title: `⚠️ DNS Resolution Failed: ${hostname}`,
-          detail: `Could not resolve ${hostname} to an IP address. nmap may fail for this target.`,
+          detail: `Could not resolve ${hostname} to an IP address. ScanForge discovery may fail for this target.`,
         });
       }
     }
   }
 
   // Build target list preserving asset identity (avoid IP dedup when multiple assets share an IP)
-  // Each entry maps to a unique asset by hostname, using IP only for nmap execution
+  // Each entry maps to a unique asset by hostname, using IP only for ScanForge discovery execution
   const targets = scopedAssets.map(a => ({
-    scanTarget: a.ip || a.hostname,  // What nmap scans (IP preferred)
+    scanTarget: a.ip || a.hostname,  // What ScanForge scans (IP preferred)
     assetHostname: a.hostname,       // Which asset this belongs to
   }));
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PHASE A: Discovery Nmap with Evasion Tactics
+  // PHASE A: Discovery ScanForge with Evasion Tactics
   // ═══════════════════════════════════════════════════════════════════════════
   if (targets.length > 0) {
     const ep = state.scanPlan?.discoveryEvasionProfile;
@@ -3223,12 +3223,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
     try {
       // Job Queue Bridge: route scan execution through Redis queue when DO workers are available
-      const { getScanServerConfigForNmap } = await import("./scan-server-executor");
-      const { executeNmapScan } = await import("./nmap-orchestrator");
+      const { getScanServerConfigForScanForge } = await import("./scan-server-executor");
+      const { executeScanforgeScan, autoSelectTool } = await import("./scanforge-discovery");
       const roeScope = [...(state.roeScopeGuard?.authorizedDomains || []), ...(state.roeScopeGuard?.authorizedIps || [])];
       const engagementAbortSig = getEngagementAbortSignal(state.engagementId);
       const executeTool = (config: any) => executeToolViaQueue(config, { engagementId: state.engagementId, roeScope, engagementAbortSignal: engagementAbortSig });
-      const serverConfig = await getScanServerConfigForNmap();
+      const serverConfig = await getScanServerConfigForScanForge();
 
       for (const targetEntry of targets) {
         const target = targetEntry.scanTarget;
@@ -3241,34 +3241,24 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           ap => ap.hostname === asset.hostname || ap.ip === target
         );
 
-        // ── Step 1: nmap (port discovery + service fingerprinting) ──────────
+        // ── Step 1: ScanForge Discovery (multi-tool port scanning) ──────────
         const discoveredPorts: Array<{ port: number; protocol: string; service: string; product?: string; version?: string }> = [];
-        // Build nmap flags: always use --top-ports 1000 with -T3 timing for reliable results
-        // CRITICAL: Never use -p- (all 65535 ports) — it takes 30+ min per host and will timeout
-        const baseFlags = (assetPlan?.discoveryNmapFlags || '-Pn -sV -sC -O -f -D RND:5 --data-length 64')
-          .replace(/(?:^|\s)-p\s*(?:\{[^}]+\}|[\d,\-]+)(?=\s|$)/g, '')  // Remove -p with any value (numeric: -p80,443 or placeholder: -p {naabu_ports})
-          .replace(/\s*-p-/g, '')           // Remove -p- (all ports)
-          .replace(/\{[^}]+\}/g, '')        // Remove ALL {placeholder} strings (e.g., {target}, {naabu_ports})
-          .replace(/--top-ports\s+\d+/g, '') // Remove existing --top-ports
-          .replace(/-T\d/g, '')             // Remove timing flags (we force -T3)
-          .replace(/--randomize-hosts/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        const discoveryFlags = `${baseFlags} -T3 --top-ports 1000`;
-        const discoveryRationale = 'Top 1000 ports scan with service fingerprinting';
+        // ScanForge auto-selects the best tool (Masscan/Naabu/RustScan) based on target context
+        const sfTool = autoSelectTool({ targets: [target], stealthLevel: assetPlan?.evasionTechniques?.length ? 'medium' : 'minimal' });
+        const discoveryRationale = `ScanForge ${sfTool} — top ports discovery with service fingerprinting`;
 
         addLog(state, {
           phase: 'enumeration', type: 'scan_start',
-          title: `🔒 nmap: ${fmtTarget(asset, target)}`,
-          detail: `Phase A Step 1 — ${discoveryRationale}\nFlags: ${discoveryFlags}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, normal timing'}`,
+          title: `🔒 scanforge: ${fmtTarget(asset, target)}`,
+          detail: `Phase A Step 1 — ${discoveryRationale}\nEvasion: ${assetPlan?.evasionTechniques?.join(', ') || 'fragmentation, decoys, normal timing'}`,
         });
 
         const startTime = Date.now();
-        // ═══ AUTO-CAPTURE: Start tcpdump before nmap ═══
+        // ═══ AUTO-CAPTURE: Start tcpdump before ScanForge discovery ═══
         let autoCaptureSessionId: string | null = null;
         try {
-          const { beforeNmapScan } = await import('./pcap-auto-capture');
-          autoCaptureSessionId = await beforeNmapScan(
+          const { beforeDiscoveryScan } = await import('./pcap-auto-capture');
+          autoCaptureSessionId = await beforeDiscoveryScan(
             state.engagementId, target, asset.hostname,
             { enabled: !!(state as any).autoCaptureEnabled }
           );
@@ -3276,70 +3266,71 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             addLog(state, {
               phase: 'enumeration', type: 'info',
               title: `📡 Auto-Capture: ${fmtTarget(asset, target)}`,
-              detail: `Background tcpdump started for forensic analysis during nmap scan`,
+              detail: `Background tcpdump started for forensic analysis during discovery scan`,
             });
           }
         } catch (capErr: any) {
           console.warn(`[AutoCapture] Hook failed: ${capErr.message}`);
         }
         try {
-          const nmapArgs = `${discoveryFlags} ${target}`;
-          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `nmap ${fmtTarget(asset, target)}`, detail: `nmap ${nmapArgs}` });
-          const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 600, sudo: true });
+          const sfArgs = sfTool === 'naabu' ? `-host ${target} -top-ports 1000 -json` : sfTool === 'masscan' ? `${target} -p1-1024,3306,3389,5432,5900,6379,8080,8443,27017 --rate 1000 -oJ -` : sfTool === 'rustscan' ? `-a ${target} --range 1-65535 -b 4500 -g` : `-host ${target} -top-ports 1000 -json`;
+          addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `${sfTool} ${fmtTarget(asset, target)}`, detail: `${sfTool} ${sfArgs}` });
+          const discoveryResult = await executeTool({ tool: sfTool, args: sfArgs, timeoutSeconds: 600, sudo: sfTool === 'masscan' || sfTool === 'zmap' });
 
-          // Parse nmap text output into structured port data
-          if (nmapResult.stdout) {
-            const tcpRegex = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
-            let match;
-            while ((match = tcpRegex.exec(nmapResult.stdout)) !== null) {
-              const productVersion = match[3]?.trim() || '';
-              const parts = productVersion.split(/\s+/);
-              discoveredPorts.push({
-                port: parseInt(match[1]),
-                protocol: 'tcp',
-                service: match[2],
-                product: parts.length > 0 ? parts.slice(0, -1).join(' ') || parts[0] : undefined,
-                version: parts.length > 1 ? parts[parts.length - 1] : undefined,
-              });
-            }
-            const udpRegex = /(\d+)\/udp\s+open\s+(\S+)(?:\s+(.*))?/g;
-            while ((match = udpRegex.exec(nmapResult.stdout)) !== null) {
-              const productVersion = match[3]?.trim() || '';
-              const parts = productVersion.split(/\s+/);
-              discoveredPorts.push({
-                port: parseInt(match[1]),
-                protocol: 'udp',
-                service: match[2],
-                product: parts.length > 0 ? parts.slice(0, -1).join(' ') || parts[0] : undefined,
-                version: parts.length > 1 ? parts[parts.length - 1] : undefined,
-              });
-            }
-            // Parse OS detection
-            const osMatch = nmapResult.stdout.match(/OS details:\s*(.+)/i) || nmapResult.stdout.match(/Running:\s*(.+)/i);
-            if (osMatch && asset.passiveRecon) {
-              (asset.passiveRecon as any).osDetected = osMatch[1].trim();
+          // Parse ScanForge JSON output into structured port data
+          if (discoveryResult.stdout) {
+            try {
+              // Import the appropriate parser based on tool
+              const discovery = await import("./scanforge-discovery");
+              const parser = sfTool === 'masscan' ? discovery.parseMasscanOutput
+                : sfTool === 'naabu' ? discovery.parseNaabuOutput
+                : sfTool === 'rustscan' ? discovery.parseRustScanOutput
+                : discovery.parseNaabuOutput;
+              const hosts = parser(discoveryResult.stdout);
+              for (const host of hosts) {
+                for (const p of host.ports) {
+                  discoveredPorts.push({
+                    port: p.port,
+                    protocol: p.protocol,
+                    service: p.service || 'unknown',
+                    product: p.product,
+                    version: p.version,
+                  });
+                }
+              }
+            } catch (parseErr: any) {
+              // Fallback: try line-based parsing for greppable output
+              const portRegex = /(\d+)\/(tcp|udp)\s+open\s+(\S+)/g;
+              let match;
+              while ((match = portRegex.exec(discoveryResult.stdout)) !== null) {
+                discoveredPorts.push({
+                  port: parseInt(match[1]),
+                  protocol: match[2] as any,
+                  service: match[3] || 'unknown',
+                });
+              }
             }
           }
 
           let durationMs = Date.now() - startTime;
 
-          // ── AUTO-RETRY: If nmap found 0 ports and output shows "filtered", retry without evasion flags ──
+          // ── AUTO-RETRY: If ScanForge found 0 ports and output shows "filtered", retry without evasion flags ──
           // Cloud firewalls (CloudFront, AWS, etc.) DROP fragmented/spoofed packets, causing all ports to show as "filtered"
-          const allFiltered = discoveredPorts.length === 0 && nmapResult.stdout && /All \d+ scanned ports.*filtered|\d+\/tcp\s+filtered/.test(nmapResult.stdout);
+          const allFiltered = discoveredPorts.length === 0 && discoveryResult.stdout && /All \d+ scanned ports.*filtered|\d+\/tcp\s+filtered/.test(discoveryResult.stdout);
           const hasEvasionFlags = /\-f\b|\-D\s|--data-length|--source-port|--mtu/.test(discoveryFlags);
 
           if (allFiltered && hasEvasionFlags) {
             addLog(state, {
               phase: 'enumeration', type: 'info',
-              title: `⚠️ nmap Retry: ${fmtTarget(asset, target)} (removing evasion flags)`,
-              detail: `First scan returned all-filtered (likely cloud WAF blocking evasion techniques). Retrying with simple flags: -Pn -sV -sC -T3 --top-ports 1000`,
+              title: `⚠️ scanforge Retry: ${fmtTarget(asset, target)} (removing evasion flags)`,
+              detail: `First scan returned all-filtered (likely cloud WAF blocking evasion techniques). Retrying with naabu (most reliable fallback)`,
             });
 
-            const retryFlags = '-Pn -sV -sC -T3 --top-ports 1000';
-            const retryArgs = `${retryFlags} ${target}`;
+            const retryFlags = `-host ${target} -top-ports 1000 -json`;
+            const retryArgs = retryFlags;
             const retryStart = Date.now();
             try {
-              const retryResult = await executeTool({ tool: 'nmap', args: retryArgs, timeoutSeconds: 600, sudo: true });
+              const retryResult = await executeTool({ tool: sfTool || 'naabu', args: retryArgs, timeoutSeconds: 600, sudo: true });
               if (retryResult.stdout) {
                 const tcpRegex2 = /(\d+)\/tcp\s+open\s+(\S+)(?:\s+(.*))?/g;
                 let m2;
@@ -3356,21 +3347,21 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               durationMs += (Date.now() - retryStart);
               addLog(state, {
                 phase: 'enumeration', type: 'scan_result',
-                title: `nmap Retry Complete: ${fmtTarget(asset, target)}`,
+                title: `scanforge Retry Complete: ${fmtTarget(asset, target)}`,
                 detail: `Retry found ${discoveredPorts.length} services (simple flags worked)`,
               });
 
               // Persist retry result too
               await persistScanResult({
-                engagementId: state.engagementId, tool: 'nmap', target,
-                command: `nmap ${retryArgs}`, stdout: retryResult.stdout || '',
+                engagementId: state.engagementId, tool: sfTool || 'naabu', target,
+                command: `naabu ${retryArgs}`, stdout: retryResult.stdout || '',
                 stderr: retryResult.stderr || '', exitCode: retryResult.exitCode ?? 0,
                 durationMs: Date.now() - retryStart, timedOut: retryResult.timedOut || false,
                 findings: discoveredPorts.map(p => ({ type: 'open_port', port: p.port, protocol: p.protocol, service: p.service, product: p.product, version: p.version })),
                 phase: 'discovery_retry',
               });
             } catch (retryErr: any) {
-              addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Retry Failed: ${fmtTarget(asset, target)}`, detail: retryErr.message });
+              addLog(state, { phase: 'enumeration', type: 'error', title: `scanforge Retry Failed: ${fmtTarget(asset, target)}`, detail: retryErr.message });
             }
           }
 
@@ -3382,7 +3373,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           }));
 
           // ── PASSIVE RECON PORT SEEDING ──────────────────────────────────────
-          // If nmap found 0 ports but passive recon detected web services,
+          // If ScanForge found 0 ports but passive recon detected web services,
           // seed standard web ports (80/443) so the pipeline continues to
           // credential testing and ZAP scanning. This handles training labs
           // behind nginx reverse proxies and CDN-fronted targets.
@@ -3412,26 +3403,26 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               addLog(state, {
                 phase: 'enumeration', type: 'info',
                 title: `🌐 Port Seeding: ${fmtTarget(asset, target)}`,
-                detail: `nmap found 0 open ports but passive recon indicates web services. Seeded ports: ${asset.ports.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue to credential testing and ZAP.`,
+                detail: `ScanForge found 0 open ports but passive recon indicates web services. Seeded ports: ${asset.ports.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue to credential testing and ZAP.`,
               });
 
               state.stats.portsFound += asset.ports.length;
             }
           }
 
-          // Store nmap discovery result
+          // Store ScanForge discovery discovery result
           asset.toolResults.push({
-            tool: 'nmap',
-            command: `nmap ${nmapArgs}`,
-            exitCode: nmapResult.exitCode ?? 0,
+            tool: sfTool || 'naabu',
+            command: `${sfTool} ${sfArgs}`,
+            exitCode: discoveryResult.exitCode ?? 0,
             durationMs,
-            timedOut: nmapResult.timedOut || false,
+            timedOut: discoveryResult.timedOut || false,
             findingCount: discoveredPorts.length,
             findings: discoveredPorts.map(p => ({
               severity: 'info',
               title: `${p.port}/${p.protocol} ${p.service}${p.product ? ` (${p.product})` : ''}`,
             })),
-            outputPreview: (nmapResult.stdout || '').slice(0, 1024),
+            outputPreview: (discoveryResult.stdout || '').slice(0, 1024),
             executedAt: Date.now(),
             phase: 'discovery',
           });
@@ -3443,39 +3434,39 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
           addLog(state, {
             phase: 'enumeration', type: 'scan_result',
-            title: `nmap Complete: ${fmtTarget(asset, target)}`,
+            title: `scanforge Complete: ${fmtTarget(asset, target)}`,
             detail: `${discoveredPorts.length} services fingerprinted in ${Math.round(durationMs / 1000)}s\nPorts: ${discoveredPorts.map(p => `${p.port}/${p.service}${p.product ? ` (${p.product})` : ''}`).join(', ')}`,
             data: { ports: asset.ports, discoveryFlags, evasion: assetPlan?.evasionTechniques },
           });
 
           await persistScanResult({
             engagementId: state.engagementId,
-            tool: 'nmap',
+            tool: sfTool || 'naabu',
             target,
-            command: `nmap ${nmapArgs}`,
-            stdout: nmapResult.stdout || '',
-            stderr: nmapResult.stderr || '',
-            exitCode: nmapResult.exitCode ?? 0,
+            command: `${sfTool} ${sfArgs}`,
+            stdout: discoveryResult.stdout || '',
+            stderr: discoveryResult.stderr || '',
+            exitCode: discoveryResult.exitCode ?? 0,
             durationMs,
-            timedOut: nmapResult.timedOut || false,
+            timedOut: discoveryResult.timedOut || false,
             findings: discoveredPorts.map(p => ({ type: 'open_port', port: p.port, protocol: p.protocol, service: p.service, product: p.product, version: p.version })),
             phase: 'discovery',
           });
         } catch (e: any) {
-          addLog(state, { phase: 'enumeration', type: 'error', title: `nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
+          addLog(state, { phase: 'enumeration', type: 'error', title: `scanforge Failed: ${fmtTarget(asset, target)}`, detail: e.message });
           asset.status = 'enumerated'; // Continue pipeline
         }
 
-        // ═══ AUTO-CAPTURE: Stop tcpdump after nmap ═══
+        // ═══ AUTO-CAPTURE: Stop tcpdump after ScanForge discovery ═══
         if (autoCaptureSessionId) {
           try {
-            const { afterNmapScan } = await import('./pcap-auto-capture');
-            const captureResult = await afterNmapScan(autoCaptureSessionId);
+            const { afterDiscoveryScan } = await import('./pcap-auto-capture');
+            const captureResult = await afterDiscoveryScan(autoCaptureSessionId);
             if (captureResult && captureResult.packetsCaptured) {
               addLog(state, {
                 phase: 'enumeration', type: 'info',
                 title: `📡 Auto-Capture Complete: ${fmtTarget(asset, target)}`,
-                detail: `Captured ${captureResult.packetsCaptured} packets during nmap scan (${Math.round((captureResult.stoppedAt! - captureResult.startedAt) / 1000)}s)${
+                detail: `Captured ${captureResult.packetsCaptured} packets during discovery scan (${Math.round((captureResult.stoppedAt! - captureResult.startedAt) / 1000)}s)${
                   captureResult.analysisSummary ? `\nFindings: ${captureResult.analysisSummary.findings} security findings detected, ${captureResult.analysisSummary.conversations} conversations, protocols: ${captureResult.analysisSummary.protocols.join(', ')}` : ''
                 }`,
                 data: { pcapPath: captureResult.pcapPath, packetsCaptured: captureResult.packetsCaptured, analysisSummary: captureResult.analysisSummary },
@@ -3499,7 +3490,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           ['http', 'https', 'http-proxy', 'http-alt', 'ssl'].includes(p.service) ||
           [80, 443, 8080, 8443, 8000, 3000, 5000, 9443].includes(p.port)
         );
-        // Also probe common web ports even if nmap didn't detect them as open
+        // Also probe common web ports even if ScanForge didn't detect them as open
         const commonWebPorts = [80, 443, 8080, 8443];
         for (const wp of commonWebPorts) {
           if (!webPorts.find(p => p.port === wp)) {
@@ -3724,8 +3715,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           }
         }
 
-         // ── httpx Port Backfill: if nmap found 0 ports but httpx confirmed live services ──
-        // This is critical for cloud-hosted targets where nmap may show all ports as "filtered"
+         // ── httpx Port Backfill: if ScanForge found 0 ports but httpx confirmed live services ──
+        // This is critical for cloud-hosted targets where ScanForge discovery may show all ports as "filtered"
         // but httpx successfully connects to web services on 80/443
         if (asset.ports.length === 0 && webPorts.length > 0) {
           // Check which web ports httpx actually confirmed as live (got a status code response)
@@ -3768,7 +3759,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             addLog(state, {
               phase: 'enumeration', type: 'info',
               title: `🌐 httpx Port Backfill: ${fmtTarget(asset, target)}`,
-              detail: `nmap found 0 open ports (cloud firewall), but httpx confirmed ${confirmedPorts.length} live web services: ${confirmedPorts.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue with httpx-discovered ports.`,
+              detail: `ScanForge found 0 open ports (cloud firewall), but httpx confirmed ${confirmedPorts.length} live web services: ${confirmedPorts.map(p => `${p.port}/${p.service}`).join(', ')}. Pipeline will continue with httpx-discovered ports.`,
             });
           }
         }
@@ -3777,7 +3768,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
           title: `✅ Discovery Complete: ${fmtTarget(asset, target)}`,
-          detail: `nmap: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'} | Final ports: ${asset.ports.length}`,
+          detail: `ScanForge: ${discoveredPorts.length} services | httpx: ${webPorts.length > 0 ? 'probed' : 'skipped (no web ports)'} | Final ports: ${asset.ports.length}`,
         });
       }
     } catch (e: any) {
@@ -3911,12 +3902,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PHASE B: Targeted Nmap + Tool Deployment (using enriched data)
+  // PHASE B: Targeted ScanForge + Tool Deployment (using enriched data)
   // ═══════════════════════════════════════════════════════════════════════════
   addLog(state, {
     phase: "enumeration", type: "info",
     title: "🎯 Phase B: Targeted Tool Deployment",
-    detail: "Running targeted nmap scripts and specialized tools per asset based on combined passive recon + discovery data",
+    detail: "Running targeted ScanForge discovery scripts and specialized tools per asset based on combined passive recon + discovery data",
   });
 
   const hasScanPlan = !!state.scanPlan?.assetPlans?.length;
@@ -3945,11 +3936,11 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       ap => ap.hostname === asset.hostname || ap.ip === target
     );
 
-    // Phase B targeted nmap: run deeper scripts on discovered ports
-    if (assetPlan?.nmapFlags) {
+    // Phase B targeted discovery: run deeper scripts on discovered ports
+    if (assetPlan?.discoveryFlags) {
       // Sanitize LLM-generated flags: replace any -p port specs with actual discovered ports
       const discoveredPortList = asset.ports.map(p => p.port).join(',');
-      let targetedFlags = assetPlan.nmapFlags
+      let targetedFlags = assetPlan.discoveryFlags
         .replace(/(?:^|\s)-p\s*(?:\{[^}]+\}|[\d,\-]+)(?=\s|$)/g, '')  // Remove -p with any value (numeric or placeholder)
         .replace(/\s*-p-/g, '')           // Remove -p- (all ports)
         .replace(/\{[^}]+\}/g, '')        // Remove ALL {placeholder} strings
@@ -3963,51 +3954,51 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       }
       addLog(state, {
         phase: 'enumeration', type: 'scan_start',
-        title: `🎯 Targeted Nmap: ${fmtTarget(asset, target)}`,
-        detail: `Phase B flags: ${targetedFlags}\nRationale: ${assetPlan.nmapRationale}`,
+        title: `🎯 Targeted ScanForge: ${fmtTarget(asset, target)}`,
+        detail: `Phase B flags: ${targetedFlags}\nRationale: ${assetPlan.discoveryRationale}`,
       });
 
       try {
         const startTime = Date.now();
-        const nmapArgs = `${targetedFlags} ${target}`;
-        const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: 300, sudo: true });
+        const discoveryArgs = `${targetedFlags} ${target}`;
+        const discoveryResult = await executeTool({ tool: sfTool || 'naabu', args: discoveryArgs, timeoutSeconds: 300, sudo: true });
         const durationMs = Date.now() - startTime;
 
         // Parse targeted scan findings (vuln scripts, etc.)
-        const findings = parseToolOutput('nmap', nmapResult.stdout || '', asset);
+        const findings = parseToolOutput('scanforge-discovery', discoveryResult.stdout || '', asset);
 
         // Store as toolResult
         asset.toolResults.push({
-          tool: 'nmap',
-          command: `nmap ${nmapArgs}`,
-          exitCode: nmapResult.exitCode ?? 0,
+          tool: sfTool || 'naabu',
+          command: `${sfTool} ${sfArgs}`,
+          exitCode: discoveryResult.exitCode ?? 0,
           durationMs,
-          timedOut: nmapResult.timedOut || false,
+          timedOut: discoveryResult.timedOut || false,
           findingCount: findings.length,
           findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
-          outputPreview: (nmapResult.stdout || '').slice(0, 1024),
+          outputPreview: (discoveryResult.stdout || '').slice(0, 1024),
           executedAt: Date.now(),
           phase: 'targeted_enum',
         });
 
         addLog(state, {
           phase: 'enumeration', type: 'scan_result',
-          title: `Targeted Nmap Complete: ${fmtTarget(asset, target)}`,
+          title: `Targeted ScanForge Complete: ${fmtTarget(asset, target)}`,
           detail: `${findings.length} findings from targeted scripts in ${Math.round(durationMs / 1000)}s`,
-          data: { findings, outputPreview: (nmapResult.stdout || '').slice(0, 500) },
+          data: { findings, outputPreview: (discoveryResult.stdout || '').slice(0, 500) },
         });
 
-        // Persist targeted nmap to database
+        // Persist targeted ScanForge discovery to database
         await persistScanResult({
           engagementId: state.engagementId,
-          tool: 'nmap',
+          tool: sfTool || 'naabu',
           target,
-          command: `nmap ${nmapArgs}`,
-          stdout: nmapResult.stdout || '',
-          stderr: nmapResult.stderr || '',
-          exitCode: nmapResult.exitCode ?? 0,
+          command: `${sfTool} ${sfArgs}`,
+          stdout: discoveryResult.stdout || '',
+          stderr: discoveryResult.stderr || '',
+          exitCode: discoveryResult.exitCode ?? 0,
           durationMs,
-          timedOut: nmapResult.timedOut || false,
+          timedOut: discoveryResult.timedOut || false,
           findings,
           phase: 'targeted_enum',
         });
@@ -4019,7 +4010,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           }
         }
       } catch (e: any) {
-        addLog(state, { phase: 'enumeration', type: 'error', title: `Targeted Nmap Failed: ${fmtTarget(asset, target)}`, detail: e.message });
+        addLog(state, { phase: 'enumeration', type: 'error', title: `Targeted ScanForge Failed: ${fmtTarget(asset, target)}`, detail: e.message });
       }
     }
 
@@ -5023,11 +5014,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         // Use LLM to generate optimal ZAP scan config
         const { generateLLMScanConfig, startScan, configureZapAuthentication } = await import("./zap-scanner");
         // Build comprehensive tech hints from ALL sources:
-        // 1. nmap service versions (e.g., "nginx 1.18.0", "Apache httpd 2.4.51")
+        // 1. service versions (e.g., "nginx 1.18.0", "Apache httpd 2.4.51")
         // 2. httpx-detected technologies (e.g., "PHP", "WordPress", "jQuery")
         // 3. httpx response headers (e.g., "X-Powered-By: PHP/8.1.2", "Set-Cookie: PHPSESSID")
         // 4. Web server from httpx (e.g., "nginx", "Apache")
-        const nmapVersions = webApp.ports.map(p => p.version).filter(Boolean) as string[];
+        const serviceVersions = webApp.ports.map(p => p.version).filter(Boolean) as string[];
         const httpxTechs = webApp.passiveRecon?.technologies || [];
         const httpxHeaders = (webApp as any).httpxResponseHeaders || {};
         const headerHints: string[] = [];
@@ -5037,7 +5028,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         if (httpxHeaders['x-generator']) headerHints.push(`X-Generator: ${httpxHeaders['x-generator']}`);
         if (httpxHeaders['set-cookie']) headerHints.push(`Set-Cookie: ${httpxHeaders['set-cookie'].substring(0, 100)}`);
         if (httpxHeaders['server']) headerHints.push(`Server: ${httpxHeaders['server']}`);
-        const techHints = [...new Set([...nmapVersions, ...httpxTechs, ...headerHints])];
+        const techHints = [...new Set([...serviceVersions, ...httpxTechs, ...headerHints])];
 
         // Check if this asset has confirmed credentials from credential testing
         const webCreds = (webApp.confirmedCredentials || []).filter(c =>
@@ -6170,7 +6161,7 @@ ${(() => {
     ...a.vulns.map(v => v.title),
   ]).filter(Boolean);
   const cloudSecCtx = buildCloudSecurityContext(cloudObs);
-  const nmapVulnCtx = getNmapVulnCorrelationContext();
+  const scanforgeVulnCtx = getScanforgeVulnCorrelationContext();
   const owaspVulnCtx = getOwaspVulnCorrelationContext();
   const threatVulnCtx = getThreatGroupVulnContext();
   // Add offensive techniques for vuln detection phase (file upload bypass, firewall evasion)
@@ -6203,7 +6194,7 @@ ${(() => {
     { label: 'bugBounty', content: bugBountyCtx },
     { label: 'triage', content: triageCtx },
     { label: 'cloud', content: cloudSecCtx || '' },
-    { label: 'nmap', content: nmapVulnCtx },
+    { label: 'scanforge-discovery', content: scanforgeVulnCtx },
     { label: 'owasp', content: owaspVulnCtx },
     { label: 'threat', content: threatVulnCtx },
     { label: 'offensive', content: offTechVulnCtx || '' },
@@ -6318,6 +6309,94 @@ ${(() => {
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
     } catch (e: any) {
       console.warn('[VulnVerifier] Specialist unavailable:', e.message);
+    }
+  }
+
+  // ─── Specialist: ScanForge Reasoning Pipeline ───
+  // Runs triage, enrichment, ATT&CK mapping, FedRAMP alignment, and remediation planning
+  // on high/critical findings after vuln-verifier classification
+  if (highCritVulns.length > 0) {
+    try {
+      const { batchRunScanForgeReasoning } = await import('./llm-specialists/scanforge-reasoning');
+      const reasoningInputs = highCritVulns.slice(0, 8).map(v => {
+        const asset = state.assets.find(a => a.hostname === v.hostname);
+        return {
+          finding: {
+            id: `vuln-${v.hostname}-${v.cve || v.title.substring(0, 30)}`,
+            title: v.title,
+            description: v.title,
+            severity: v.severity,
+            cveIds: v.cve ? [v.cve] : [],
+            evidence: `Found on ${v.hostname} during vulnerability detection phase`,
+            tool: v.title.startsWith('[ZAP]') ? 'ZAP' : 'nuclei',
+            port: asset?.ports?.[0]?.port,
+            service: asset?.ports?.[0]?.service,
+          },
+          asset: {
+            hostname: v.hostname,
+            ip: asset?.ip,
+            exposure: 'external' as const,
+            businessRole: asset?.hostname || 'unknown',
+            services: asset?.ports?.map(p => ({ port: p.port, protocol: p.protocol || 'tcp', service_name: p.service, product: p.product })),
+          },
+          engagement: {
+            type: state.engagementType,
+            clientName: state.assets[0]?.hostname,
+          },
+          skipTriage: false,
+        };
+      });
+
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: '\ud83d\udd2c ScanForge Reasoning Pipeline',
+        detail: `Running triage, enrichment, ATT&CK mapping, and remediation planning on ${reasoningInputs.length} findings...`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      const reasoningResults = await batchRunScanForgeReasoning(reasoningInputs, {
+        concurrency: 2,
+        onProgress: () => {
+          if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+        },
+      });
+
+      for (const r of reasoningResults) {
+        const stateEmoji = r.triage?.state === 'verified' ? '\u2705' : r.triage?.state === 'probable' ? '\ud83d\udfe1' : '\ud83d\udfe0';
+        const attackTechniques = r.attackMapping?.mappings?.map(m => m.techniqueId).join(', ') || 'N/A';
+        const fedrampControls = r.fedramp?.likelyControls?.map(c => c.controlId).join(', ') || 'N/A';
+        const scoreStr = r.hybridScore ? `${r.hybridScore.hybridPriorityScore}/100 (${r.hybridScore.severityBand})` : 'N/A';
+
+        addLog(state, {
+          phase: 'vuln_detection', type: 'llm_decision',
+          title: `${stateEmoji} ScanForge: ${r.enrichment?.titleRefined || r.findingId}`,
+          detail: [
+            `State: ${r.triage?.state || 'unknown'} (${((r.triage?.confidence || 0) * 100).toFixed(0)}% confidence)`,
+            r.triage?.why ? `Rationale: ${r.triage.why}` : '',
+            `Hybrid Score: ${scoreStr}`,
+            `ATT&CK: ${attackTechniques}`,
+            fedrampControls !== 'N/A' ? `FedRAMP Controls: ${fedrampControls}` : '',
+            r.enrichment?.exploitabilityAssessment ? `Exploitability: ${r.enrichment.exploitabilityAssessment}` : '',
+            r.remediation?.immediateActions?.length ? `Immediate Actions: ${r.remediation.immediateActions.join('; ')}` : '',
+            `LLM calls: ${r.llmCallCount}, Time: ${r.processingTimeMs}ms`,
+          ].filter(Boolean).join('\n'),
+          data: { scanforgeReasoning: r },
+        });
+      }
+
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: '\u2705 ScanForge Reasoning Complete',
+        detail: `Processed ${reasoningResults.length} findings. Total LLM calls: ${reasoningResults.reduce((s, r) => s + r.llmCallCount, 0)}`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (e: any) {
+      console.warn('[ScanForgeReasoning] Pipeline error:', e.message);
+      addLog(state, {
+        phase: 'vuln_detection', type: 'warning',
+        title: '\u26a0\ufe0f ScanForge Reasoning Unavailable',
+        detail: e.message,
+      });
     }
   }
 
@@ -6605,7 +6684,7 @@ ${(() => {
   const ontologyContext = formatOntologyForPrompt([...new Set(detectedTech)]);
   const bbContext = getBugBountyContext(vulnDescs, 3);
   const corpusContext = getTriageCorpusContext(undefined, 3);
-  const nmapExploitCtx = getNmapVulnCorrelationContext();
+  const scanforgeExploitCtx = getScanforgeVulnCorrelationContext();
   const owaspExploitCtx = getOwaspVulnCorrelationContext();
   const threatExploitCtx = getThreatGroupVulnContext();
   // Add LOTL and file upload bypass knowledge for exploitation phase
@@ -6631,7 +6710,7 @@ ${(() => {
     { label: 'ontology', content: ontologyContext },
     { label: 'bugBounty', content: bbContext },
     { label: 'corpus', content: corpusContext },
-    { label: 'nmap', content: nmapExploitCtx },
+    { label: 'scanforge-discovery', content: scanforgeExploitCtx },
     { label: 'owasp', content: owaspExploitCtx },
     { label: 'threat', content: threatExploitCtx },
     { label: 'offensive', content: offTechExploitCtx || '' },
@@ -6900,20 +6979,75 @@ ${(() => {
         let shellPayload: string | undefined;
 
         try {
-          // Step 1: Generate the actual exploit code via LLM
+          // Step 0: Look up known exploits from Exploit-DB and Metasploit
+          let exploitDbContext = '';
+          try {
+            const { matchExploitsToFindings } = await import("./exploit-matcher");
+            const exploitMatches = await matchExploitsToFindings([{
+              title: `${service} on ${target}:${port}`,
+              cveIds: cve ? [cve] : [],
+              corroborationTier: 'confirmed',
+              severity: 9.0,
+              description: `Vulnerability in ${service}`,
+            }]);
+            const match = exploitMatches.matches[0];
+            if (match) {
+              const edbEntries = match.exploitDbEntries || [];
+              const msfModules = match.metasploitModules || [];
+              if (edbEntries.length > 0 || msfModules.length > 0) {
+                const parts: string[] = [];
+                if (msfModules.length > 0) {
+                  parts.push(`Metasploit modules (${msfModules.length}): ${msfModules.map(m => `${m.fullname} [${m.rankLabel}]`).join(', ')}`);
+                }
+                if (edbEntries.length > 0) {
+                  parts.push(`Exploit-DB entries (${edbEntries.length}): ${edbEntries.map(e => `EDB-${e.exploitId}: ${e.description} (${e.type}, ${e.platform})`).join('; ')}`);
+                }
+                exploitDbContext = parts.join('\n');
+                console.log(`[Exploit] Found ${msfModules.length} MSF + ${edbEntries.length} EDB exploits for ${cve || service}`);
+                addLog(state, {
+                  phase: 'exploitation', type: 'info',
+                  title: `📚 Exploit-DB/MSF Lookup: ${cve || service}`,
+                  detail: `Found ${msfModules.length} Metasploit module(s) and ${edbEntries.length} Exploit-DB entry(ies) for ${cve || service}.\n${exploitDbContext}`,
+                });
+              }
+            }
+          } catch (edbErr: any) {
+            console.warn(`[Exploit] Exploit-DB/MSF lookup failed:`, edbErr.message);
+          }
+
+          // Step 1: Generate the actual exploit code via LLM (with Exploit-DB context)
           const { generateFunctionalExploit } = await import("./functional-exploit-generator");
           const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
           console.log(`[Exploit] Generating exploit for ${cve || service} on ${target}:${port}`);
           const generatedExploit = await generateFunctionalExploit({
-            cve: cve || '',
-            title: vulnForExploit?.title || `${service} exploit`,
-            description: vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`,
-            cvss: vulnForExploit?.cvss || 9.0,
-            service: service || 'http',
-            port: Number(port),
-            targetIp: target,
-            targetOs: asset?.os || undefined,
-            technologies: asset?.technologies || [],
+            vulnerability: {
+              cve: cve || undefined,
+              title: vulnForExploit?.title || `${service} exploit`,
+              severity: vulnForExploit?.severity || 'critical',
+              description: (vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`) +
+                (exploitDbContext ? `\n\nKnown Exploits:\n${exploitDbContext}` : ''),
+              service: service || 'http',
+              port: Number(port),
+              tool: (vulnForExploit as any)?.source || undefined,
+            },
+            target: {
+              hostname: target,
+              ip: asset?.ip || undefined,
+              os: asset?.os || undefined,
+              technologies: asset?.technologies || [],
+              wafDetected: (asset as any)?.wafDetected || undefined,
+              ports: asset?.ports?.map(p => ({ port: p.port, service: p.service, version: p.version })) || [],
+            },
+            exploitPlan: plan ? {
+              selectedModule: plan.selectedExploit?.modulePath,
+              reasoning: plan.reasoning,
+              evasionRecommendations: plan.evasionTechniques,
+            } : undefined,
+            otherVulns: asset?.vulns
+              ?.filter(v => v.cve !== cve)
+              ?.slice(0, 10)
+              ?.map(v => ({ title: v.title, severity: v.severity, cve: v.cve, port: (v as any).port })),
+            includeEvasion: true,
           });
 
           // Step 2: Execute the exploit on the scan server
@@ -8138,7 +8272,7 @@ export async function executeEngagement(
 
     // Phase 5+: Require RoE for active scanning (training lab mode bypasses RoE)
     if (engagement.roeStatus === "signed" || engagement.roeStatus === "pending" || state.trainingLabMode === true) {
-      // Phase 5: Active Discovery & Enumeration (nmap first — always)
+      // Phase 5: Active Discovery & Enumeration (ScanForge first — always)
       if (['recon', 'passive_discovery', 'scoping', 'test_plan', 'enumeration'].includes(startPhase)) {
         const enumGate = safetyEngine.canEnterPhase('enumeration');
         if (!enumGate.allowed) {
@@ -8787,7 +8921,7 @@ export async function executeEngagement(
 
         // Determine which knowledge modules were used during this engagement
         const modulesUsed = [
-          'nuclei', 'zap', 'nmap',
+          'nuclei', 'zap', 'scanforge-discovery',
           ...(state.knowledgeModulesUsed || []),
           ...(state.metadata?.knowledgeModules || []),
         ];
@@ -9038,6 +9172,320 @@ export async function executeEngagement(
     }
 
     } // end ROE-signed if block
+
+    // ═══ AUTO-REPORT GENERATION ═══
+    // Automatically create a pentest report, import findings, generate narratives & exec summary
+    try {
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: '📝 Auto-Report: Generating pentest report...',
+        detail: 'Creating report, importing findings from ops snapshot, generating narratives with remediation recommendations',
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      const { ac3Reports: reportsTable, ac3ReportFindings: findingsTable } = await import('../../drizzle/schema');
+      const { getDbRequired: getDbReq } = await import('../db');
+      const { eq: eqOp } = await import('drizzle-orm');
+      const { randomUUID } = await import('crypto');
+      const { invokeLLM: callLLM } = await import('../_core/llm');
+      const reportDb = await getDbReq();
+
+      // 1. Create the report
+      const reportId = `rpt-${randomUUID().slice(0, 12)}`;
+      const reportName = `${engagement.name} — Auto-Generated Report`;
+      const now = Date.now();
+
+      await reportDb.insert(reportsTable).values({
+        rptReportId: reportId,
+        rptName: reportName,
+        rptStatus: 'generating',
+        complianceFramework: 'nist_800_53_r5',
+        rptClientName: engagement.customerName || null,
+        rptSystemName: engagement.name,
+        rptAssessmentType: 'penetration_test',
+        rptVersion: '1.0',
+        rptScopeDomains: state.assets.map((a: any) => a.hostname).filter(Boolean),
+        rptScopeAssets: state.assets.map((a: any) => a.hostname || a.ip).filter(Boolean),
+        rptApprovedVectors: [],
+        rptOutOfScope: [],
+        rptCreatedBy: 'auto-pipeline',
+        rptCreatedAt: now,
+        rptUpdatedAt: now,
+        rptWindowStart: state.startedAt || now,
+        rptWindowEnd: state.completedAt || now,
+      });
+
+      // 2. Import findings from the ops snapshot state
+      const vulnAnalysis = state.vulnAnalysis || [];
+      const rptAssets = state.assets || [];
+      let importedCount = 0;
+
+      const mapSev = (sev: string | null, score?: number): string => {
+        if (sev) {
+          const m: Record<string, string> = { critical: 'critical', high: 'high', medium: 'moderate', low: 'low', info: 'informational' };
+          return m[sev] || 'moderate';
+        }
+        if (score !== undefined) {
+          if (score >= 9) return 'critical';
+          if (score >= 7) return 'high';
+          if (score >= 4) return 'moderate';
+          if (score >= 2) return 'low';
+          return 'informational';
+        }
+        return 'moderate';
+      };
+
+      for (const vuln of vulnAnalysis) {
+        try {
+          const finding = vuln.finding || {};
+          const analysis = vuln.analysis || {};
+          const severity = mapSev(finding.severity, analysis.riskScore);
+          const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
+
+          await reportDb.insert(findingsTable).values({
+            rfFindingId: findingId,
+            rfReportId: reportId,
+            rfTitle: finding.title || vuln.title || 'Untitled Finding',
+            rfSeverity: severity as any,
+            rfSummary: analysis.technicalAnalysis || finding.description || '',
+            rfEvidence: JSON.stringify(finding.evidence || []),
+            rfAssets: JSON.stringify([finding.asset || '']),
+            rfAttackTechniques: JSON.stringify(vuln.attackTechniques || []),
+            rfControls: JSON.stringify(vuln.controls || []),
+            rfNarrativeStatus: 'pending',
+            rfSortOrder: importedCount,
+            rfCreatedAt: now,
+            rfUpdatedAt: now,
+          });
+          importedCount++;
+        } catch (fErr: any) {
+          console.warn(`[AutoReport] Failed to import finding: ${fErr.message}`);
+        }
+      }
+
+      // Also import from asset vulns if vulnAnalysis is empty
+      if (importedCount === 0) {
+        for (const rptAsset of rptAssets) {
+          for (const v of (rptAsset.vulns || [])) {
+            try {
+              const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
+              await reportDb.insert(findingsTable).values({
+                rfFindingId: findingId,
+                rfReportId: reportId,
+                rfTitle: v.title || v.cve || 'Untitled Vulnerability',
+                rfSeverity: mapSev(v.severity, v.cvss) as any,
+                rfSummary: v.description || `${v.title} found on ${rptAsset.hostname}`,
+                rfEvidence: JSON.stringify([{ tool: v.source || 'scanner', output: v.description }]),
+                rfAssets: JSON.stringify([rptAsset.hostname || rptAsset.ip]),
+                rfAttackTechniques: JSON.stringify([]),
+                rfControls: JSON.stringify([]),
+                rfNarrativeStatus: 'pending',
+                rfSortOrder: importedCount,
+                rfCreatedAt: now,
+                rfUpdatedAt: now,
+              });
+              importedCount++;
+            } catch (fErr: any) {
+              console.warn(`[AutoReport] Failed to import vuln: ${fErr.message}`);
+            }
+          }
+          for (const zf of (rptAsset.zapFindings || [])) {
+            try {
+              const findingId = `FND-${randomUUID().slice(0, 8).toUpperCase()}`;
+              await reportDb.insert(findingsTable).values({
+                rfFindingId: findingId,
+                rfReportId: reportId,
+                rfTitle: zf.alert || 'ZAP Finding',
+                rfSeverity: mapSev(zf.risk, null) as any,
+                rfSummary: zf.description || zf.alert,
+                rfEvidence: JSON.stringify([{ tool: 'zap', url: zf.url, output: zf.other || zf.solution }]),
+                rfAssets: JSON.stringify([rptAsset.hostname || rptAsset.ip]),
+                rfAttackTechniques: JSON.stringify([]),
+                rfControls: JSON.stringify([]),
+                rfNarrativeStatus: 'pending',
+                rfSortOrder: importedCount,
+                rfCreatedAt: now,
+                rfUpdatedAt: now,
+              });
+              importedCount++;
+            } catch (fErr: any) {
+              console.warn(`[AutoReport] Failed to import ZAP finding: ${fErr.message}`);
+            }
+          }
+        }
+      }
+
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: `📝 Auto-Report: Imported ${importedCount} findings`,
+        detail: `Report ${reportId} created with ${importedCount} findings from ${vulnAnalysis.length} vuln analyses and ${rptAssets.length} assets`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      // 3. Generate narratives with remediation recommendations for each finding
+      if (importedCount > 0) {
+        const pendingFindings = await reportDb.select().from(findingsTable)
+          .where(eqOp(findingsTable.rfReportId, reportId));
+
+        let narrativesGenerated = 0;
+        for (const f of pendingFindings) {
+          try {
+            const narrativeResp = await callLLM({
+              _caller: 'auto-report.generateNarrative',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a senior penetration tester writing a professional security assessment report following NIST 800-53 Rev 5 standards. Write clear, actionable findings with specific remediation steps. Do not include customer-specific identifiable information in the template — keep it generalizable.',
+                },
+                {
+                  role: 'user',
+                  content: `Generate a professional finding narrative for this vulnerability:\n\nTitle: ${f.rfTitle}\nSeverity: ${f.rfSeverity}\nSummary: ${f.rfSummary || 'N/A'}\nAssets: ${f.rfAssets || 'N/A'}\nEvidence: ${typeof f.rfEvidence === 'string' ? (f.rfEvidence as string).slice(0, 500) : JSON.stringify(f.rfEvidence).slice(0, 500)}\n\nProvide:\n1. A clear, professional title\n2. A concise summary (2-3 sentences)\n3. Business impact assessment\n4. Technical details of the vulnerability\n5. Specific, actionable remediation steps with priority`,
+                },
+              ],
+              response_format: {
+                type: 'json_schema',
+                json_schema: {
+                  name: 'finding_narrative',
+                  strict: true,
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string' },
+                      summary: { type: 'string' },
+                      business_impact: { type: 'string' },
+                      technical_details: { type: 'string' },
+                      remediation: { type: 'string' },
+                    },
+                    required: ['title', 'summary', 'business_impact', 'technical_details', 'remediation'],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            });
+
+            const content = narrativeResp.choices?.[0]?.message?.content;
+            if (content) {
+              const narrative = JSON.parse(content);
+              await reportDb.update(findingsTable).set({
+                rfTitle: narrative.title,
+                rfSummary: narrative.summary,
+                rfBusinessImpact: narrative.business_impact,
+                rfTechnicalDetails: narrative.technical_details,
+                rfRemediation: narrative.remediation,
+                rfNarrativeStatus: 'drafted',
+                rfUpdatedAt: Date.now(),
+              }).where(eqOp(findingsTable.rfFindingId, f.rfFindingId));
+              narrativesGenerated++;
+            }
+          } catch (nErr: any) {
+            console.warn(`[AutoReport] Narrative generation failed for ${f.rfFindingId}: ${nErr.message}`);
+          }
+        }
+
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `📝 Auto-Report: Generated ${narrativesGenerated}/${importedCount} narratives with remediation`,
+          detail: 'Each finding now includes business impact, technical details, and specific remediation steps',
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      }
+
+      // 4. Generate executive summary
+      if (importedCount > 0) {
+        try {
+          const allRptFindings = await reportDb.select().from(findingsTable)
+            .where(eqOp(findingsTable.rfReportId, reportId));
+          const [reportRow] = await reportDb.select().from(reportsTable)
+            .where(eqOp(reportsTable.rptReportId, reportId));
+
+          const sevCounts: Record<string, number> = {};
+          for (const f of allRptFindings) {
+            sevCounts[f.rfSeverity || 'moderate'] = (sevCounts[f.rfSeverity || 'moderate'] || 0) + 1;
+          }
+
+          const execResp = await callLLM({
+            _caller: 'auto-report.generateExecSummary',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a senior penetration tester writing an executive summary for a security assessment report. Be concise, professional, and actionable. Do not include customer-specific identifiable information.',
+              },
+              {
+                role: 'user',
+                content: `Generate an executive summary for this penetration test report:\n\nAssessment: ${reportRow?.rptName || engagement.name}\nTarget: ${state.assets.map((a: any) => a.hostname).join(', ')}\nFindings: ${allRptFindings.length} total (${sevCounts.critical || 0} critical, ${sevCounts.high || 0} high, ${sevCounts.moderate || 0} moderate, ${sevCounts.low || 0} low, ${sevCounts.informational || 0} informational)\nExploits: ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} successful\nSessions: ${state.stats.sessionsOpened} opened\n\nTop findings:\n${allRptFindings.slice(0, 10).map((f: any) => `- [${f.rfSeverity}] ${f.rfTitle}`).join('\n')}\n\nProvide:\n1. Risk statement\n2. Overall risk rating (critical/high/moderate/low)\n3. Key strengths observed\n4. Key gaps identified\n5. Executive narrative (2-3 paragraphs)`,
+              },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'executive_summary',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    risk_statement: { type: 'string' },
+                    overall_rating: { type: 'string' },
+                    key_strengths: { type: 'array', items: { type: 'string' } },
+                    key_gaps: { type: 'array', items: { type: 'string' } },
+                    narrative: { type: 'string' },
+                  },
+                  required: ['risk_statement', 'overall_rating', 'key_strengths', 'key_gaps', 'narrative'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const execContent = execResp.choices?.[0]?.message?.content;
+          if (execContent) {
+            const summary = JSON.parse(execContent);
+            const validRatings = ['critical', 'high', 'moderate', 'low', 'informational'];
+            const normalizedRating = validRatings.includes(summary.overall_rating?.toLowerCase())
+              ? summary.overall_rating.toLowerCase()
+              : 'moderate';
+
+            await reportDb.update(reportsTable).set({
+              rptExecRiskStatement: summary.risk_statement,
+              rptExecRating: normalizedRating as any,
+              rptExecStrengths: summary.key_strengths,
+              rptExecGaps: summary.key_gaps,
+              rptExecNarrative: summary.narrative,
+              rptStatus: 'draft',
+              rptUpdatedAt: Date.now(),
+            }).where(eqOp(reportsTable.rptReportId, reportId));
+
+            addLog(state, {
+              phase: 'completed', type: 'info',
+              title: `📝 Auto-Report: Executive summary generated — Overall Risk: ${normalizedRating.toUpperCase()}`,
+              detail: summary.risk_statement.slice(0, 200),
+            });
+          }
+        } catch (execErr: any) {
+          console.warn(`[AutoReport] Exec summary generation failed: ${execErr.message}`);
+        }
+      }
+
+      // Store report ID in state metadata for UI access
+      if (!state.metadata) state.metadata = {} as any;
+      (state.metadata as any).autoReportId = reportId;
+      (state.metadata as any).autoReportFindings = importedCount;
+
+      addLog(state, {
+        phase: 'completed', type: 'phase_complete',
+        title: `📝 Auto-Report Complete: ${reportId}`,
+        detail: `Report "${reportName}" created with ${importedCount} findings, narratives with remediation, and executive summary. View in Reports tab.`,
+        data: { reportId, findingsCount: importedCount },
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+    } catch (reportErr: any) {
+      console.error('[AutoReport] Auto-report generation failed:', reportErr.message);
+      addLog(state, {
+        phase: 'completed', type: 'warning',
+        title: '⚠️ Auto-Report Generation Failed',
+        detail: `${reportErr.message}. You can manually create a report from the Reports tab.`,
+      });
+    }
 
     // Final checkpoint
     await phaseCheckpoint('completed');

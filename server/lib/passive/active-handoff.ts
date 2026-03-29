@@ -6,7 +6,7 @@
  * active scanning by:
  *
  * 1. Analyzing passive observations to identify what needs active verification
- * 2. Generating tool-specific scan configs (Nmap, Nuclei, ZAP, DAST)
+ * 2. Generating tool-specific scan configs (ScanForge, Nuclei, ZAP, DAST)
  * 3. Enforcing Rules of Engagement (RoE) scope restrictions
  * 4. Prioritizing assets by risk score for efficient scanning
  * 5. Tracking provenance: which passive finding triggered which active scan
@@ -26,7 +26,7 @@ export interface RulesOfEngagement {
   /** Hostnames/IPs explicitly excluded */
   excludedAssets: string[];
   /** Allowed scan types */
-  allowedScanTypes: ("nmap" | "nuclei" | "zap" | "dast" | "manual")[];
+  allowedScanTypes: ("scanforge-discovery" | "nuclei" | "zap" | "dast" | "manual")[];
   /** Maximum scan intensity (1-5, where 5 is most aggressive) */
   maxIntensity: number;
   /** Time window restrictions */
@@ -64,15 +64,15 @@ export interface ActiveScanTarget {
   wafDetected: boolean;
 }
 
-export interface NmapScanConfig {
+export interface ScanForgeScanConfig {
   target: string;
-  /** Nmap flags tailored to what passive found */
+  /** ScanForge flags tailored to what passive found */
   flags: string;
   /** Specific ports to focus on (from passive recon) */
   portSpec?: string;
   /** Timeout in seconds */
   timeout: number;
-  /** Rationale for this specific nmap configuration */
+  /** Rationale for this specific ScanForge discovery configuration */
   rationale: string;
 }
 
@@ -122,8 +122,8 @@ export interface ActiveScanPlan {
   totalTargets: number;
   /** Targets sorted by priority */
   targets: ActiveScanTarget[];
-  /** Nmap scan configs per target */
-  nmapConfigs: NmapScanConfig[];
+  /** ScanForge scan configs per target */
+  scanConfigs: ScanForgeScanConfig[];
   /** Nuclei scan configs per target */
   nucleiConfigs: NucleiScanConfig[];
   /** ZAP scan configs (only for web application targets) */
@@ -148,7 +148,7 @@ export interface HandoffProvenance {
   /** What was observed */
   passiveSignal: string;
   /** The active scan tool selected */
-  activeTool: "nmap" | "nuclei" | "zap" | "dast";
+  activeTool: "scanforge-discovery" | "nuclei" | "zap" | "dast";
   /** The target being scanned */
   target: string;
   /** Why this passive finding requires active verification */
@@ -300,9 +300,9 @@ function computeAssetPriority(
 }
 
 /**
- * Determine Nmap scan flags based on passive recon findings.
+ * Determine ScanForge scan flags based on passive recon findings.
  */
-function generateNmapConfig(target: ActiveScanTarget, roe: RulesOfEngagement): NmapScanConfig {
+function generateScanForgeConfig(target: ActiveScanTarget, roe: RulesOfEngagement): ScanForgeScanConfig {
   const flags: string[] = [];
   const rationale: string[] = [];
 
@@ -536,20 +536,20 @@ export function generateActiveScanPlan(
   targets.sort((a, b) => b.priority - a.priority);
 
   // ─── Step 3: Generate tool-specific configs ─────────────────────
-  const nmapConfigs: NmapScanConfig[] = [];
+  const scanConfigs: ScanForgeScanConfig[] = [];
   const nucleiConfigs: NucleiScanConfig[] = [];
   const zapConfigs: ZapScanConfig[] = [];
 
   for (const target of targets) {
-    // Nmap config
-    if (roe.allowedScanTypes.includes("nmap")) {
-      nmapConfigs.push(generateNmapConfig(target, roe));
-      // Provenance: link passive port observations to nmap scan
+    // ScanForge config
+    if (roe.allowedScanTypes.includes("scanforge-discovery")) {
+      scanConfigs.push(generateScanForgeConfig(target, roe));
+      // Provenance: link passive port observations to ScanForge discovery scan
       for (const port of target.knownPorts) {
         provenance.push({
           passiveObservationId: `port-${target.hostname}-${port.port}`,
           passiveSignal: `Port ${port.port}/${port.service} detected via passive recon`,
-          activeTool: "nmap",
+          activeTool: "scanforge-discovery",
           target: target.hostname,
           rationale: `Verify service version and check for vulnerabilities on port ${port.port}`,
         });
@@ -588,10 +588,10 @@ export function generateActiveScanPlan(
   }
 
   // ─── Step 4: Estimate scan duration ─────────────────────────────
-  const nmapMinutes = nmapConfigs.length * 5;
+  const discoveryMinutes = scanConfigs.length * 5;
   const nucleiMinutes = nucleiConfigs.length * 3;
   const zapMinutes = zapConfigs.length * 15;
-  const totalMinutes = nmapMinutes + nucleiMinutes + zapMinutes;
+  const totalMinutes = discoveryMinutes + nucleiMinutes + zapMinutes;
   const estimatedDuration = totalMinutes < 60
     ? `${totalMinutes} minutes`
     : `${Math.round(totalMinutes / 60 * 10) / 10} hours`;
@@ -612,7 +612,7 @@ export function generateActiveScanPlan(
     generatedAt: new Date(),
     totalTargets: targets.length,
     targets,
-    nmapConfigs,
+    scanConfigs,
     nucleiConfigs,
     zapConfigs,
     excludedByRoE,
@@ -643,7 +643,7 @@ export function buildDefaultRoE(
   return {
     scopedAssets: targetDomains,
     excludedAssets: options?.excludedAssets || [],
-    allowedScanTypes: (options?.allowedTools as RulesOfEngagement["allowedScanTypes"]) || ["nmap", "nuclei", "zap", "dast"],
+    allowedScanTypes: (options?.allowedTools as RulesOfEngagement["allowedScanTypes"]) || ["scanforge-discovery", "nuclei", "zap", "dast"],
     maxIntensity: options?.maxIntensity || (engagementType === "red_team" ? 4 : 3),
     socialEngineeringAllowed: engagementType === "red_team",
     dosTestingAllowed: false,
@@ -676,7 +676,7 @@ export function formatScanPlanSummary(plan: ActiveScanPlan): string {
     }
   }
   lines.push("");
-  lines.push(`Scan configs: ${plan.nmapConfigs.length} nmap, ${plan.nucleiConfigs.length} nuclei, ${plan.zapConfigs.length} ZAP`);
+  lines.push(`Scan configs: ${plan.scanConfigs.length} ScanForge discovery, ${plan.nucleiConfigs.length} nuclei, ${plan.zapConfigs.length} ZAP`);
   lines.push(`Provenance records: ${plan.provenance.length}`);
   return lines.join("\n");
 }

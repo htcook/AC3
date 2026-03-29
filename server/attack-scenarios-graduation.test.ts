@@ -153,8 +153,8 @@ describe("Agent Definitions — 10 Specialist Agents", () => {
   });
 
   it("matchCallerToAgent should match scan-related callers to scan-analyst", () => {
-    // 'vulnerability' matches pentester first; use 'nmap-scan-handler' which matches scan-analyst
-    const match = matchCallerToAgent("nmap-scan-handler");
+    // 'vulnerability' matches pentester first; use 'discovery-scan-handler' which matches scan-analyst
+    const match = matchCallerToAgent("discovery-scan-handler");
     expect(match?.agentId).toBe("offensive-scan-analyst-v1");
   });
 

@@ -106,7 +106,7 @@ import { abilityGraphRouter } from "./routers/ability-graph";
 import { aiSecurityValidationRouter } from "./routers/ai-security-validation";
 import { serviceFingerprintRouter } from "./routers/service-fingerprinter";
 import { amassRouter } from "./routers/amass";
-import { nmapRouter } from "./routers/nmap";
+import { scanforgeDiscoveryRouter } from "./routers/scanforge-discovery";
 import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
@@ -397,7 +397,7 @@ export const appRouter = router({
   aiSecurityValidation: aiSecurityValidationRouter,
   serviceFingerprint: serviceFingerprintRouter,
   amass: amassRouter,
-  nmap: nmapRouter,
+  scanforgeDiscovery: scanforgeDiscoveryRouter,
   discoveryChain: discoveryChainRouter,
   crawlPhish: crawlPhishRouter,
   errorLog: errorLogRouter,

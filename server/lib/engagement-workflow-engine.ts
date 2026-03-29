@@ -124,7 +124,7 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
     name: "Reconnaissance",
     description: "Passive and active intelligence gathering. OSINT, DNS enumeration, service discovery, technology fingerprinting.",
     mitrePhases: ["TA0043"],
-    requiredModules: ["domain-intel", "nmap", "projectdiscovery", "shodan", "censys", "service-fingerprinter", "org-enrichment"],
+    requiredModules: ["domain-intel", "scanforge-discovery", "projectdiscovery", "shodan", "censys", "service-fingerprinter", "org-enrichment"],
     successCriteria: [
       "Target attack surface mapped (domains, subdomains, IPs)",
       "Services and versions identified",
@@ -160,7 +160,7 @@ export const PHASE_DEFINITIONS: Record<KillChainPhase, PhaseDefinition> = {
     name: "Vulnerability Analysis",
     description: "Active vulnerability scanning, web app testing, vendor/OEM default credential testing, and generic credential testing against prioritized targets.",
     mitrePhases: ["TA0043"],
-    requiredModules: ["zap-scanner", "nuclei-scanner", "nmap", "credential-attack-engine", "oem-default-creds", "web-crawler", "vuln-scanner-parser"],
+    requiredModules: ["zap-scanner", "nuclei-scanner", "scanforge-discovery", "credential-attack-engine", "oem-default-creds", "web-crawler", "vuln-scanner-parser"],
     successCriteria: [
       "Vulnerability scan completed on all in-scope targets",
       "Web application vulnerabilities identified",
@@ -293,7 +293,7 @@ DECISION FRAMEWORK:
 
 CREDENTIAL TESTING REQUIREMENTS:
 - During vulnerability_analysis phase, ALWAYS test vendor/OEM default credentials before generic wordlists
-- Use the OEM default credential database to match detected technologies (from httpx, nmap version detection, banner grabs) against known vendor defaults
+- Use the OEM default credential database to match detected technologies (from httpx, ScanForge service detection, banner grabs) against known vendor defaults
 - For every login service discovered (SSH, FTP, RDP, web admin panels, databases, SNMP, telnet), first attempt vendor-specific default credentials, then fall back to common wordlists
 - When recommending credential testing actions, explicitly include "OEM default credential test" as a high-priority action
 - Flag any successful default credential login as a CRITICAL finding — default credentials are among the highest-risk vulnerabilities

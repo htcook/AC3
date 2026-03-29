@@ -162,7 +162,7 @@ export const dastScannersRouter = router({
       port: z.number().default(22),
       engagementId: z.number(),
       timeoutSeconds: z.number().default(60),
-      nmapScripts: z.boolean().default(true),
+      detectionTemplates: z.boolean().default(true),
       enumAuth: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -208,7 +208,7 @@ export const dastScannersRouter = router({
       testAnonymous: z.boolean().default(true),
       testDefaultCreds: z.boolean().default(true),
       testBounce: z.boolean().default(true),
-      nmapScripts: z.boolean().default(true),
+      detectionTemplates: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
       if (input.engagementId) {

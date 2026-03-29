@@ -73,7 +73,7 @@ import {
   getGroupsBySector,
   getThreatGroupSummary,
 } from "./threat-group-knowledge";
-import * as nmapKnowledge from "./nmap-knowledge";
+import * as scanforgeKnowledge from "./scanforge-knowledge";
 import * as owaspKnowledge from "./owasp-knowledge";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -319,13 +319,13 @@ ${(() => {
   const cloudRules = matchDetectionRules(['cloud', 'aws', 'azure', 'gcp', 's3', 'blob', 'iam']);
   const cloudPathsStr = cloudPaths.slice(0, 3).map((p: any) => `- ${p.title} (${p.steps?.flatMap((s: any) => s.mitre).join(', ') || 'N/A'}): ${p.steps?.map((s: any) => s.action).join(' → ') || p.initial_condition}`).join('\n');
   const cloudRulesStr = cloudRules.slice(0, 3).map((r: any) => `- ${r.name}: ${r.description} [confidence: ${r.confidence}]`).join('\n');
-  // Inject nmap-based threat hunting context
-  const nmapHuntCtx = nmapKnowledge.getNmapHuntContext();
+  // Inject ScanForge-based threat hunting context
+  const scanforgeHuntCtx = scanforgeKnowledge.getScanforgeHuntContext();
   const owaspHuntCtx = owaspKnowledge.getOwaspHuntContext();
   // Inject threat group intelligence based on sector
   const threatGroupCtx = getThreatGroupHuntContext({ sector: ctx.orgSector });
   const sectorCtx = getSectorThreatContext(ctx.orgSector);
-  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${nmapHuntCtx}\n\n${owaspHuntCtx}\n\n${threatGroupCtx}\n${sectorCtx}\n`;
+  return `\nCLOUD SECURITY INTELLIGENCE:\n${cloudCtx}\n${cloudPathsStr ? `\nCloud Attack Paths:\n${cloudPathsStr}` : ''}\n${cloudRulesStr ? `\nCloud Detection Rules:\n${cloudRulesStr}` : ''}\n\n${scanforgeHuntCtx}\n\n${owaspHuntCtx}\n\n${threatGroupCtx}\n${sectorCtx}\n`;
 })()}
 HYPOTHESIS GENERATION RULES:
 1. Each hypothesis MUST be testable with the available data sources

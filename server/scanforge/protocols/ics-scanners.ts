@@ -40,9 +40,9 @@ export class ModbusScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
 
-      // Modbus device identification using nmap
+      // Modbus device identification using scanforge-discovery
       const modbusResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `--script modbus-discover -p 502,503 ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -83,7 +83,7 @@ export class ModbusScanner implements ProtocolScanner {
         if (!safeMode) {
           // In aggressive mode, attempt to read holding registers
           const readResult = await executeTool({
-            tool: "nmap",
+            tool: "naabu",
             args: `--script modbus-discover --script-args modbus-discover.aggressive=true -p 502 ${host}`,
             target: host,
             timeoutSeconds: 20,
@@ -123,7 +123,7 @@ export class ModbusScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -152,7 +152,7 @@ export class DNP3Scanner implements ProtocolScanner {
 
       // DNP3 service detection
       const dnp3Result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p 20000,20001 --script dnp3-info ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -196,7 +196,7 @@ export class DNP3Scanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -225,7 +225,7 @@ export class BACnetScanner implements ProtocolScanner {
 
       // BACnet device discovery
       const bacnetResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sU -p 47808 --script bacnet-info ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -269,7 +269,7 @@ export class BACnetScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sU -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -298,7 +298,7 @@ export class EtherNetIPScanner implements ProtocolScanner {
 
       // EtherNet/IP device identification
       const enipResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p 44818,2222 --script enip-info ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -338,7 +338,7 @@ export class EtherNetIPScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -371,7 +371,7 @@ export class OPCUAScanner implements ProtocolScanner {
         const { executeTool } = await import("../../lib/scan-server-executor");
 
         const result = await executeTool({
-          tool: "nmap",
+          tool: "naabu",
           args: `-sT -sV -p ${port} ${host}`,
           target: host,
           timeoutSeconds: 20,
@@ -446,7 +446,7 @@ export class OPCUAScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,

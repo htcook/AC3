@@ -13,8 +13,8 @@
  * - Passive mode configuration issues
  * - Write permission checks on sensitive directories
  *
- * Uses nmap NSE FTP scripts + manual FTP probing.
- * Auto-triggers when naabu/nmap discovers port 21 (or custom FTP ports).
+ * Uses Nuclei template FTP scripts + manual FTP probing.
+ * Auto-triggers when naabu discovers port 21 (or custom FTP ports).
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -44,8 +44,8 @@ export interface FTPAuditConfig {
   testBounce?: boolean;
   /** Test directory traversal */
   testTraversal?: boolean;
-  /** Run nmap FTP NSE scripts */
-  nmapScripts?: boolean;
+  /** Run ScanForge discovery FTP Nuclei templates */
+  detectionTemplates?: boolean;
   /** Custom credentials to test: [{user, pass}] */
   credentials?: Array<{ user: string; pass: string }>;
 }
@@ -176,9 +176,9 @@ const DEFAULT_FTP_CREDS: Array<{ user: string; pass: string; description: string
 // ─── Output Parsers ─────────────────────────────────────────────────────────
 
 /**
- * Parse nmap FTP NSE script output.
+ * Parse ScanForge discovery FTP Nuclei template output.
  */
-function parseNmapFTPOutput(output: string): {
+function parseScanForgeFTPOutput(output: string): {
   banner: string | null;
   anonymousAllowed: boolean;
   anonymousFiles: string[];
@@ -398,8 +398,8 @@ export async function startFTPAudit(config: FTPAuditConfig): Promise<FTPAuditRes
   let directoryListing: string[] = [];
   let rawOutput = "";
 
-  // ── Phase 1: nmap FTP NSE scripts ─────────────────────────────────────────
-  if (config.nmapScripts !== false) {
+  // ── Phase 1: ScanForge discovery FTP Nuclei templates ─────────────────────────────────────────
+  if (config.detectionTemplates !== false) {
     try {
       const scripts = [
         "ftp-anon",
@@ -410,23 +410,23 @@ export async function startFTPAudit(config: FTPAuditConfig): Promise<FTPAuditRes
         "ftp-libopie",
       ].join(",");
 
-      const nmapResult = await executeTool({
-        tool: "nmap",
+      const discoveryResult = await executeTool({
+        tool: "naabu",
         args: `-p ${port} --script ${scripts} -sV ${config.host}`,
         target: config.host,
         timeoutSeconds: timeout,
         engagementId: config.engagementId,
       });
-      rawOutput += `=== nmap FTP scripts ===\n${nmapResult.stdout}\n`;
+      rawOutput += `=== ScanForge discovery FTP scripts ===\n${discoveryResult.stdout}\n`;
 
-      const parsed = parseNmapFTPOutput(nmapResult.stdout);
+      const parsed = parseScanForgeFTPOutput(discoveryResult.stdout);
       banner = parsed.banner;
       anonymousAccess = parsed.anonymousAllowed;
       directoryListing = parsed.anonymousFiles;
       bounceVulnerable = parsed.bounceVulnerable;
       tlsSupported = parsed.tlsSupported;
     } catch (err: any) {
-      console.warn(`[FTPAudit] nmap FTP scripts failed: ${err.message}`);
+      console.warn(`[FTPAudit] ScanForge discovery FTP scripts failed: ${err.message}`);
     }
   }
 

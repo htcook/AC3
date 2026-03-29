@@ -529,7 +529,7 @@ export const labEngagementSeedWave2Router = router({
           decision: dec.decision,
           reasoning,
           actions: JSON.stringify([
-            { tool: pick(["nmap", "gobuster", "sqlmap", "nikto", "zap", "metasploit", "hydra", "burpsuite", "bloodhound", "mimikatz", "responder", "impacket", "crackmapexec", "rubeus", "certify", "sharphound"]), args: dec.decision },
+            { tool: pick(["scanforge-discovery", "gobuster", "sqlmap", "nikto", "zap", "metasploit", "hydra", "burpsuite", "bloodhound", "mimikatz", "responder", "impacket", "crackmapexec", "rubeus", "certify", "sharphound"]), args: dec.decision },
             { tool: "opsec-check", args: `stealth_score=${stealthScore}` },
           ]),
           outcome,

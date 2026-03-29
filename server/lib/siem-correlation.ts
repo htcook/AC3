@@ -561,8 +561,8 @@ export interface MitreMapping {
  */
 export function mapToolToMitre(tool: string, action: string): MitreMapping {
   const mappings: Record<string, MitreMapping> = {
-    "nmap:port_scan": { id: "T1046", tactic: "Discovery", technique: "Network Service Discovery" },
-    "nmap:os_detection": { id: "T1082", tactic: "Discovery", technique: "System Information Discovery" },
+    "scanforge:port_scan": { id: "T1046", tactic: "Discovery", technique: "Network Service Discovery" },
+    "scanforge:os_detection": { id: "T1082", tactic: "Discovery", technique: "System Information Discovery" },
     "nuclei:vuln_scan": { id: "T1595.002", tactic: "Reconnaissance", technique: "Active Scanning: Vulnerability Scanning" },
     "zap:active_scan": { id: "T1595.002", tactic: "Reconnaissance", technique: "Active Scanning: Vulnerability Scanning" },
     "zap:spider": { id: "T1595.002", tactic: "Reconnaissance", technique: "Active Scanning: Vulnerability Scanning" },

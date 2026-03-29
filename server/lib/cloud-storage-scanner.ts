@@ -143,7 +143,7 @@ export interface CloudScanSuggestion {
 
 /**
  * Detect cloud hosting from DNS records, headers, and technologies.
- * Called after httpx/nmap discovery to classify assets.
+ * Called after httpx/ScanForge discovery discovery to classify assets.
  */
 export function detectCloudAsset(asset: {
   hostname: string;

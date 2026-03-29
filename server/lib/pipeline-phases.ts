@@ -866,7 +866,7 @@ Return a JSON object with this exact structure:
     // Fallback: generate structured test plan without LLM
     testPlanSections = generateFallbackTestPlan(state, engagement, passiveDiscovery);
     attackVectors = generateFallbackAttackVectors(state, engagement, passiveDiscovery);
-    toolsPlanned = ['nmap', 'nuclei', 'ZAP', 'Metasploit', 'Burp Suite', 'dig', 'dnsrecon', 'subfinder'];
+    toolsPlanned = ['scanforge-discovery', 'nuclei', 'ZAP', 'Metasploit', 'Burp Suite', 'dig', 'dnsrecon', 'subfinder'];
     riskMitigations = [
       'All testing will be conducted within authorized scope defined in the Rules of Engagement',
       'Emergency stop procedures are in place — testing can be halted immediately upon request',
@@ -1082,7 +1082,7 @@ function buildDnsAssessmentPlan(state: any, passiveDiscovery: any): DnsAssessmen
     {
       category: 'Zone Transfer Testing',
       description: 'Attempt AXFR/IXFR against all authoritative nameservers to verify access controls',
-      tools: ['dig AXFR', 'dnsrecon -t axfr', 'nmap --script dns-zone-transfer'],
+      tools: ['dig AXFR', 'dnsrecon -t axfr', 'nuclei -t dns-zone-transfer'],
       nistReference: 'NIST SP 800-81r3 §4.1',
       priority: 'required',
     },
@@ -1110,14 +1110,14 @@ function buildDnsAssessmentPlan(state: any, passiveDiscovery: any): DnsAssessmen
     {
       category: 'Encrypted DNS Transport',
       description: 'Test for DNS-over-TLS (DoT, port 853) and DNS-over-HTTPS (DoH) support on resolvers',
-      tools: ['kdig +tls', 'curl (DoH)', 'nmap -p 853'],
+      tools: ['kdig +tls', 'curl (DoH)', 'naabu -p 853'],
       nistReference: 'NIST SP 800-81r3 §6.1',
       priority: 'recommended',
     },
     {
       category: 'Recursive/Authoritative Separation',
       description: 'Verify that authoritative servers do not also serve recursive queries (dual-function risk)',
-      tools: ['dig +recurse', 'nmap --script dns-recursion'],
+      tools: ['dig +recurse', 'nuclei -t dns-recursion'],
       nistReference: 'NIST SP 800-81r3 §3.2',
       priority: 'recommended',
     },
@@ -1200,7 +1200,7 @@ function generateFallbackTestPlan(
     {
       id: 'tools',
       title: 'Tools & Techniques',
-      content: `### Planned Tools\n- **Reconnaissance**: subfinder, amass, crt.sh, SecurityTrails\n- **DNS**: dig, dnsrecon, dnstwist, dnsviz\n- **Enumeration**: nmap, httpx, masscan\n- **Vulnerability Scanning**: nuclei, OWASP ZAP, nikto\n- **Exploitation**: Metasploit Framework, custom scripts\n${isRedTeam ? '- **C2**: Caldera, custom implants\n- **Post-Exploitation**: BloodHound, Mimikatz, Rubeus' : '- **Evidence Collection**: screenshot tools, data extraction scripts'}`,
+      content: `### Planned Tools\n- **Reconnaissance**: subfinder, amass, crt.sh, SecurityTrails\n- **DNS**: dig, dnsrecon, dnstwist, dnsviz\n- **Enumeration**: ScanForge discovery, httpx, masscan\n- **Vulnerability Scanning**: nuclei, OWASP ZAP, nikto\n- **Exploitation**: Metasploit Framework, custom scripts\n${isRedTeam ? '- **C2**: Caldera, custom implants\n- **Post-Exploitation**: BloodHound, Mimikatz, Rubeus' : '- **Evidence Collection**: screenshot tools, data extraction scripts'}`,
       standardsReference: 'NIST SP 800-115 §4.3',
     },
     {
@@ -1249,7 +1249,7 @@ function generateFallbackAttackVectors(
     name: 'Network Infrastructure Testing',
     description: 'Enumerate and test network services, protocols, and configurations for vulnerabilities',
     targets: domains,
-    tools: ['nmap', 'masscan', 'Metasploit', 'hydra'],
+    tools: ['scanforge-discovery', 'masscan', 'Metasploit', 'hydra'],
     techniques: ['Port Scanning', 'Service Fingerprinting', 'Default Credentials', 'Protocol Exploitation'],
     estimatedDuration: '1-2 days',
     riskLevel: 'high',

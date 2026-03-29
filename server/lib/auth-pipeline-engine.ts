@@ -96,7 +96,7 @@ export const PIPELINE_TEMPLATES: PipelineTemplate[] = [
       },
       {
         id: "fingerprint_services",
-        tool: "nmap",
+        tool: "scanforge-discovery",
         description: "Fingerprint web services, identify TLS configuration, and detect auth-related headers",
         defaultInputs: { scripts: ["http-auth", "http-methods", "http-enum", "ssl-cert", "ssl-enum-ciphers"], timing: "T2" },
         guards: { maxRps: 0.2 },

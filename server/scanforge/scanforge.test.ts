@@ -395,7 +395,7 @@ describe("AC3ScanForgeBridge", () => {
       progress: 100,
       findings: [],
       scannerResults: [
-        { scanner: "nmap", status: "completed", durationMs: 5000, findingCount: 3 },
+        { scanner: "naabu", status: "completed", durationMs: 5000, findingCount: 3 },
         { scanner: "nikto", status: "failed", durationMs: 1000, findingCount: 0, error: "timeout" },
         { scanner: "zap", status: "timeout", durationMs: 30000, findingCount: 1 },
       ],

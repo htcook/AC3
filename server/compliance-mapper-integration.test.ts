@@ -26,8 +26,8 @@ describe("Compliance Evidence Mapper", () => {
           ],
           toolResults: [
             {
-              tool: "nmap",
-              command: "nmap -sV test.example.com",
+              tool: "scanforge-discovery",
+              command: "masscan -pV test.example.com",
               exitCode: 0,
               findingCount: 2,
               outputPreview: "PORT   STATE SERVICE\n80/tcp open  http\n443/tcp open  https",

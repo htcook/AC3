@@ -34,7 +34,7 @@ export interface ScanRequest {
   enableCredentialStuffing?: boolean;
   enableDoS?: boolean;
   enableExfiltration?: boolean;
-  customNmapFlags?: string;
+  customScanForgeFlags?: string;
   customNucleiTemplates?: string[];
 }
 
@@ -115,7 +115,7 @@ export function enforceTrainingRoE(
       });
     }
     // Deep scans with aggressive timing can be DoS-like
-    if (request.scanProfile === "deep" && request.customNmapFlags?.includes("-T5")) {
+    if (request.scanProfile === "deep" && request.customScanForgeFlags?.includes("-T5")) {
       warnings.push({
         rule: "noDoS",
         severity: "warn",
@@ -174,15 +174,15 @@ export function enforceTrainingRoE(
     });
   }
 
-  // ── Rule 7: Nmap flags sanitization for restricted targets ──
-  if (roe.noBruteForce && request.customNmapFlags) {
+  // ── Rule 7: ScanForge flags sanitization for restricted targets ──
+  if (roe.noBruteForce && request.customScanForgeFlags) {
     const dangerousFlags = ["--script=brute", "--script brute", "ssh-brute", "http-brute", "ftp-brute"];
     for (const flag of dangerousFlags) {
-      if (request.customNmapFlags.includes(flag)) {
+      if (request.customScanForgeFlags.includes(flag)) {
         violations.push({
           rule: "noBruteForce",
           severity: "block",
-          message: `Nmap brute-force script "${flag}" is prohibited for ${target.name}.`,
+          message: `ScanForge brute-force script "${flag}" is prohibited for ${target.name}.`,
         });
       }
     }
@@ -209,10 +209,10 @@ export function recordScanLaunch(targetId: string): void {
 }
 
 /**
- * Sanitizes nmap flags based on target RoE.
+ * Sanitizes discovery flags based on target RoE.
  * Removes prohibited flags and returns the cleaned version.
  */
-export function sanitizeNmapFlags(flags: string, roe: TrainingTargetRoE): string {
+export function sanitizeScanForgeFlags(flags: string, roe: TrainingTargetRoE): string {
   let sanitized = flags;
 
   if (roe.noBruteForce) {

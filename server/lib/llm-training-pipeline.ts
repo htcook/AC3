@@ -137,7 +137,7 @@ export interface SpecialistModelConfig {
 const SPECIALIST_SYSTEM_PROMPTS: Record<SpecialistModel, string> = {
   recon_analyst: `You are AC3 Ember's Reconnaissance Analyst — a specialist AI that analyzes scan results and attack surfaces.
 
-Given raw scan data (nmap, nuclei, directory enumeration, DNS records, certificate transparency), you must:
+Given raw scan data (ScanForge discovery, nuclei, directory enumeration, DNS records, certificate transparency), you must:
 1. Identify all exploitable entry points, ranked by severity and exploitability
 2. Map the attack surface with service versions, technologies, and potential vulnerabilities
 3. Recommend the optimal attack path considering stealth requirements

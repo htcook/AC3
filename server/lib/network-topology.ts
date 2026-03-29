@@ -1,12 +1,12 @@
 /**
  * Network Topology Builder — Graph Construction from Scan & PCAP Data
  * ═══════════════════════════════════════════════════════════════════
- * Parses nmap results, traceroute data, and PCAP conversations into
+ * Parses discovery results, traceroute data, and PCAP conversations into
  * an interactive graph model showing discovered hosts, routes, traffic
  * flows, and security findings.
  *
  * Data Sources:
- *   1. nmap scan results → hosts, ports, services, OS fingerprints
+ *   1. discovery scan results → hosts, ports, services, OS fingerprints
  *   2. traceroute (Scapy) → network path hops between scanner and targets
  *   3. PCAP conversations → actual traffic flows with volume data
  *   4. PCAP findings → security annotations on edges/nodes
@@ -62,7 +62,7 @@ export interface TopologyNode {
   hostname?: string;
   /** MAC address (if known from ARP/PCAP) */
   mac?: string;
-  /** Operating system (from nmap fingerprint) */
+  /** Operating system (from ScanForge discovery fingerprint) */
   os?: string;
   /** Open ports */
   ports: Array<{
@@ -165,7 +165,7 @@ export interface NetworkTopology {
   };
   /** Data sources used to build this topology */
   sources: Array<{
-    type: "nmap" | "traceroute" | "pcap" | "asset" | "dns";
+    type: "scanforge-discovery" | "traceroute" | "pcap" | "asset" | "dns";
     description: string;
     recordCount: number;
   }>;
@@ -233,15 +233,15 @@ function getNodeRiskColor(findings: TopologyNode["findings"]): string | null {
 
 /**
  * Build a network topology from engagement data.
- * Combines nmap results, traceroute data, PCAP conversations, and asset metadata.
+ * Combines discovery results, traceroute data, PCAP conversations, and asset metadata.
  */
 export function buildTopology(
   engagementId: number,
   data: {
     /** Scanner IP (our scan server) */
     scannerIp: string;
-    /** nmap results per target */
-    nmapResults?: Array<{
+    /** discovery results per target */
+    discoveryResults?: Array<{
       targetIp: string;
       targetHostname?: string;
       os?: string;
@@ -323,10 +323,10 @@ export function buildTopology(
     visual: { size: 2, color: NODE_COLORS.scanner },
   });
 
-  // ── Step 2: Process nmap results ──────────────────────────────
-  const nmapSources: number = data.nmapResults?.length || 0;
-  if (data.nmapResults) {
-    for (const result of data.nmapResults) {
+  // ── Step 2: Process discovery results ──────────────────────────────
+  const discoverySources: number = data.discoveryResults?.length || 0;
+  if (data.discoveryResults) {
+    for (const result of data.discoveryResults) {
       const node = getOrCreateNode(result.targetIp, {
         label: result.targetHostname || result.targetIp,
         type: "target",
@@ -357,7 +357,7 @@ export function buildTopology(
         source: data.scannerIp,
         target: result.targetIp,
         type: "scan_traffic",
-        label: `nmap scan (${result.ports.length} ports)`,
+        label: `discovery scan (${result.ports.length} ports)`,
         protocol: "tcp",
         bytes: 0,
         packets: 0,
@@ -614,7 +614,7 @@ export function buildTopology(
   const totalBytesObserved = allNodes.reduce((sum, n) => sum + n.totalBytes, 0);
 
   const sources: NetworkTopology["sources"] = [];
-  if (nmapSources > 0) sources.push({ type: "nmap", description: "Port scan results", recordCount: nmapSources });
+  if (discoverySources > 0) sources.push({ type: "scanforge-discovery", description: "Port scan results", recordCount: discoverySources });
   if (data.tracerouteHops?.length) sources.push({ type: "traceroute", description: "Network path hops", recordCount: data.tracerouteHops.length });
   if (data.pcapConversations?.length) sources.push({ type: "pcap", description: "Packet capture conversations", recordCount: data.pcapConversations.length });
   if (data.assets?.length) sources.push({ type: "asset", description: "Engagement asset metadata", recordCount: data.assets.length });
@@ -646,7 +646,7 @@ export function buildTopology(
 
 /**
  * Build topology directly from an engagement's ops state.
- * Extracts nmap results, PCAP captures, and asset data from the state object.
+ * Extracts discovery results, PCAP captures, and asset data from the state object.
  */
 export function buildTopologyFromEngagement(
   engagementId: number,
@@ -679,8 +679,8 @@ export function buildTopologyFromEngagement(
 ): NetworkTopology {
   const scannerIp = state.scanServerIp || "10.0.0.1";
 
-  // Extract nmap results from asset tool results
-  const nmapResults = state.assets
+  // Extract discovery results from asset tool results
+  const discoveryResults = state.assets
     .filter(a => a.ip && a.ports && a.ports.length > 0)
     .map(a => ({
       targetIp: a.ip!,
@@ -694,7 +694,7 @@ export function buildTopologyFromEngagement(
 
   return buildTopology(engagementId, {
     scannerIp,
-    nmapResults,
+    discoveryResults,
     assets: state.assets.map(a => ({
       hostname: a.hostname,
       ip: a.ip,

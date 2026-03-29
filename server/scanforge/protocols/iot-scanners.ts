@@ -27,13 +27,13 @@ export class MQTTScanner implements ProtocolScanner {
     const host = target.value;
     const timeout = (config?.scannerTimeoutSeconds || 15) * 1000;
 
-    // Use the scan server executor for nmap MQTT scripts
+    // Use the scan server executor for scanforge-discovery MQTT scripts
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
 
       // Check for anonymous MQTT access
       const mqttResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `--script mqtt-subscribe -p 1883,8883 ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -111,7 +111,7 @@ export class MQTTScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sT -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -140,7 +140,7 @@ export class CoAPScanner implements ProtocolScanner {
 
       // CoAP resource discovery via .well-known/core
       const coapResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sU -p 5683,5684 --script coap-resources ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,
@@ -181,7 +181,7 @@ export class CoAPScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
       const result = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `-sU -p ${port} --open -T4 ${host}`,
         target: host,
         timeoutSeconds: 10,
@@ -209,9 +209,9 @@ export class UPnPScanner implements ProtocolScanner {
     try {
       const { executeTool } = await import("../../lib/scan-server-executor");
 
-      // UPnP device discovery via nmap
+      // UPnP device discovery via scanforge-discovery
       const upnpResult = await executeTool({
-        tool: "nmap",
+        tool: "naabu",
         args: `--script upnp-info -p 1900,5000,8080,49152 ${host}`,
         target: host,
         timeoutSeconds: config?.scannerTimeoutSeconds || 30,

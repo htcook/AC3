@@ -268,7 +268,7 @@ export interface FallbackResponse {
 const STATIC_FALLBACKS: Record<string, string> = {
   "scan_plan": JSON.stringify({
     phases: [
-      { name: "reconnaissance", tools: ["nmap", "httpx"], priority: 1 },
+      { name: "reconnaissance", tools: ["scanforge-discovery", "httpx"], priority: 1 },
       { name: "vulnerability_scan", tools: ["nuclei", "nikto"], priority: 2 },
       { name: "web_scan", tools: ["zap"], priority: 3 },
     ],

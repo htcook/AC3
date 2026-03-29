@@ -183,19 +183,19 @@ const PREBUILT_CORPUS: CorpusEntry[] = [
     mitre_techniques: ["T1190", "T1505"],
     tags: ["sqli", "mysql", "database", "data_exfiltration"],
   },
-  // ─── Nmap service scan ──────────────────────────────────────────────────
+  // ─── ScanForge Discovery service scan ──────────────────────────────────────────────────
   {
-    id: "CORPUS-NMAP-INFRA-001",
-    tool: "nmap",
+    id: "CORPUS-SCANFORGE-INFRA-001",
+    tool: "scanforge-discovery",
     target: "testphp.vulnweb.com",
     target_type: "infrastructure",
     raw_output_snippet: `22/tcp   open  ssh     OpenSSH 8.2p1\n80/tcp   open  http    nginx 1.19.0\n443/tcp  open  https   nginx 1.19.0\n3306/tcp open  mysql   MySQL 5.7.33\n8080/tcp open  http    Apache Tomcat 9.0.41`,
     parsed_findings: [
-      { severity: "info", title: "[nmap] 22/tcp ssh OpenSSH 8.2p1" },
-      { severity: "info", title: "[nmap] 80/tcp http nginx 1.19.0" },
-      { severity: "info", title: "[nmap] 443/tcp https nginx 1.19.0" },
-      { severity: "info", title: "[nmap] 3306/tcp mysql MySQL 5.7.33" },
-      { severity: "info", title: "[nmap] 8080/tcp http Apache Tomcat 9.0.41" },
+      { severity: "info", title: "[ScanForge] 22/tcp ssh OpenSSH 8.2p1" },
+      { severity: "info", title: "[ScanForge] 80/tcp http nginx 1.19.0" },
+      { severity: "info", title: "[ScanForge] 443/tcp https nginx 1.19.0" },
+      { severity: "info", title: "[ScanForge] 3306/tcp mysql MySQL 5.7.33" },
+      { severity: "info", title: "[ScanForge] 8080/tcp http Apache Tomcat 9.0.41" },
     ],
     expected_triage: {
       hypotheses: [

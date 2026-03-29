@@ -30,10 +30,10 @@ export interface SafetyProfile {
   allowExfilSimulation: boolean;
   allowDosTest: boolean;
   allowLateralMovement: boolean;
-  maxNmapTiming: number;
+  maxScanForgeTiming: number;
   maxRpsPerHost: number;
   requirePhaseApproval: boolean;
-  blockedNmapFlags: string[];
+  blockedScanForgeFlags: string[];
   blockedNucleiTags: string[];
 }
 
@@ -49,9 +49,9 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowedToolCategories: ["passive_recon", "utility"],
     maxConcurrentPerTarget: 1, allowCredentialTesting: false, allowExploitation: false,
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
-    allowLateralMovement: false, maxNmapTiming: 0, maxRpsPerHost: 1,
+    allowLateralMovement: false, maxScanForgeTiming: 0, maxRpsPerHost: 1,
     requirePhaseApproval: false,
-    blockedNmapFlags: ["-sS", "-sT", "-sU", "-sV", "-sC", "-A", "--script", "-O", "-Pn"],
+    blockedScanForgeFlags: ["-sS", "-sT", "-sU", "-sV", "-sC", "-A", "--script", "-O", "-Pn"],
     blockedNucleiTags: ["rce", "sqli", "ssrf", "xss", "lfi", "bruteforce", "default-login", "takeover", "cve"],
   },
   low_impact: {
@@ -61,9 +61,9 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowedToolCategories: ["passive_recon", "active_recon", "vuln_scanning", "utility"],
     maxConcurrentPerTarget: 2, allowCredentialTesting: false, allowExploitation: false,
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
-    allowLateralMovement: false, maxNmapTiming: 3, maxRpsPerHost: 10,
+    allowLateralMovement: false, maxScanForgeTiming: 3, maxRpsPerHost: 10,
     requirePhaseApproval: false,
-    blockedNmapFlags: ["--script=exploit", "--script=brute", "--script=dos"],
+    blockedScanForgeFlags: ["--script=exploit", "--script=brute", "--script=dos"],
     blockedNucleiTags: ["rce", "sqli", "ssrf", "bruteforce", "default-login", "takeover-exploit", "dos"],
   },
   standard: {
@@ -73,9 +73,9 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowedToolCategories: ["passive_recon", "active_recon", "vuln_scanning", "active_scanning", "credential_test", "utility"],
     maxConcurrentPerTarget: 4, allowCredentialTesting: true, allowExploitation: false,
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
-    allowLateralMovement: false, maxNmapTiming: 4, maxRpsPerHost: 50,
+    allowLateralMovement: false, maxScanForgeTiming: 4, maxRpsPerHost: 50,
     requirePhaseApproval: true,
-    blockedNmapFlags: ["--script=dos"],
+    blockedScanForgeFlags: ["--script=dos"],
     blockedNucleiTags: ["dos"],
   },
   full_exploitation: {
@@ -85,16 +85,16 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowedToolCategories: ["passive_recon", "active_recon", "vuln_scanning", "active_scanning", "credential_test", "exploitation", "c2_operations", "post_exploit", "utility"],
     maxConcurrentPerTarget: 8, allowCredentialTesting: true, allowExploitation: true,
     allowC2Deployment: true, allowExfilSimulation: true, allowDosTest: false,
-    allowLateralMovement: true, maxNmapTiming: 5, maxRpsPerHost: 100,
+    allowLateralMovement: true, maxScanForgeTiming: 5, maxRpsPerHost: 100,
     requirePhaseApproval: true,
-    blockedNmapFlags: [],
+    blockedScanForgeFlags: [],
     blockedNucleiTags: ["dos"],
   },
 };
 
 const TOOL_CATEGORY_MAP: Record<string, ToolCategory> = {
   whois: "passive_recon", dig: "passive_recon", subfinder: "passive_recon",
-  nmap: "active_recon", httpx: "active_recon", naabu: "active_recon",
+  discovery: "active_recon", httpx: "active_recon", naabu: "active_recon",
   masscan: "active_recon", gobuster: "active_recon", ffuf: "active_recon",
   whatweb: "active_recon", sslscan: "active_recon", testssl: "active_recon",
   nuclei: "vuln_scanning", nikto: "vuln_scanning", wpscan: "vuln_scanning",
@@ -174,7 +174,7 @@ function estimateBlastRadius(
     riskScore += 5;
   }
 
-  if (tool === "nmap") {
+  if (tool === "scanforge-discovery") {
     if (args.includes("-T5") || args.includes("-T4")) {
       riskScore += 10; riskFactors.push("Aggressive timing may overwhelm target"); mayDisruptService = true;
       mitigations.push("Consider using -T3 or lower for production systems");
@@ -317,15 +317,15 @@ export class SafetyEngine {
       safetyViolations.push("Post-exploitation/lateral movement is disabled at current safety level");
     }
 
-    if (tool === "nmap") {
-      for (const flag of this.profile.blockedNmapFlags) {
+    if (tool === "scanforge-discovery") {
+      for (const flag of this.profile.blockedScanForgeFlags) {
         if (args.includes(flag)) {
-          safetyViolations.push(`Nmap flag '${flag}' is blocked at safety level '${this.profile.label}'`);
+          safetyViolations.push(`ScanForge flag '${flag}' is blocked at safety level '${this.profile.label}'`);
         }
       }
       const timingMatch = args.match(/-T(\d)/);
-      if (timingMatch && parseInt(timingMatch[1]) > this.profile.maxNmapTiming) {
-        safetyViolations.push(`Nmap timing -T${timingMatch[1]} exceeds maximum -T${this.profile.maxNmapTiming}`);
+      if (timingMatch && parseInt(timingMatch[1]) > this.profile.maxScanForgeTiming) {
+        safetyViolations.push(`ScanForge timing -T${timingMatch[1]} exceeds maximum -T${this.profile.maxScanForgeTiming}`);
       }
     }
 

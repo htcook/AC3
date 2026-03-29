@@ -11,8 +11,8 @@
  * - DNS amplification attack potential
  * - Known DNS software CVEs based on version
  *
- * Uses dig/nslookup + nmap NSE scripts for comprehensive analysis.
- * Auto-triggers when naabu/nmap discovers port 53.
+ * Uses dig/nslookup + Nuclei template scripts for comprehensive analysis.
+ * Auto-triggers when ScanForge discovers port 53.
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -531,34 +531,34 @@ export async function startDNSAudit(config: DNSAuditConfig): Promise<DNSAuditRes
     }
   }
 
-  // ── Phase 7: nmap NSE DNS scripts ─────────────────────────────────────────
+  // ── Phase 7: Nuclei template DNS scripts ─────────────────────────────────────────
   try {
-    const nmapResult = await executeTool({
-      tool: "nmap",
+    const discoveryResult = await executeTool({
+      tool: "naabu",
       args: `-p ${port} --script dns-nsid,dns-recursion,dns-service-discovery,dns-cache-snoop -sV ${config.host}`,
       target: config.host,
       timeoutSeconds: timeout,
       engagementId: config.engagementId,
     });
-    rawOutput += `\n=== nmap DNS scripts ===\n${nmapResult.stdout}\n`;
+    rawOutput += `\n=== ScanForge discovery DNS scripts ===\n${discoveryResult.stdout}\n`;
 
-    // Extract version from nmap if not already found
+    // Extract version from ScanForge discovery if not already found
     if (!serverVersion) {
-      const nmapVersion = nmapResult.stdout.match(/BIND\s+[\d.]+/i)
-        || nmapResult.stdout.match(/dnsmasq\s+[\d.]+/i)
-        || nmapResult.stdout.match(/PowerDNS\s+[\d.]+/i);
-      if (nmapVersion) {
-        serverVersion = nmapVersion[0];
+      const serviceVersion = discoveryResult.stdout.match(/BIND\s+[\d.]+/i)
+        || discoveryResult.stdout.match(/dnsmasq\s+[\d.]+/i)
+        || discoveryResult.stdout.match(/PowerDNS\s+[\d.]+/i);
+      if (serviceVersion) {
+        serverVersion = serviceVersion[0];
         serverSoftware = detectSoftware(serverVersion);
       }
     }
 
-    // Check recursion from nmap
+    // Check recursion from ScanForge discovery
     if (recursionEnabled === null) {
-      recursionEnabled = nmapResult.stdout.includes("Recursion: Enabled") || nmapResult.stdout.includes("dns-recursion:");
+      recursionEnabled = discoveryResult.stdout.includes("Recursion: Enabled") || discoveryResult.stdout.includes("dns-recursion:");
     }
   } catch (err: any) {
-    console.warn(`[DNSAudit] nmap DNS scripts failed: ${err.message}`);
+    console.warn(`[DNSAudit] ScanForge discovery DNS scripts failed: ${err.message}`);
   }
 
   // ── Generate findings ─────────────────────────────────────────────────────

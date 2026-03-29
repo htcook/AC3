@@ -25,7 +25,8 @@ Attack stages to consider:
 Initial Access → Credential Access → Privilege Escalation → Persistence → Lateral Movement → Collection → Exfiltration
 
 Available active scan tools:
-• nmap: Port scanning, service detection, OS fingerprinting, NSE scripts
+• ScanForge Discovery (Masscan/Naabu/RustScan): High-speed port scanning, service detection
+• httpx: HTTP probing, tech fingerprinting, response analysis
 • nuclei: Template-based vulnerability scanning (CVEs, misconfigs, exposures)
 • zap: Web application scanning (OWASP Top 10, XSS, SQLi, CSRF)
 • nikto: Web server misconfiguration scanning
@@ -76,7 +77,7 @@ const OUTPUT_SCHEMA = {
         scan_plan: {
           type: "object",
           properties: {
-            nmap_targets: {
+            discovery_targets: {
               type: "array",
               items: {
                 type: "object",
@@ -118,7 +119,7 @@ const OUTPUT_SCHEMA = {
               },
             },
           },
-          required: ["nmap_targets", "nuclei_targets", "web_scan_targets"],
+          required: ["discovery_targets", "nuclei_targets", "web_scan_targets"],
           additionalProperties: false,
         },
         detection_opportunities: {
@@ -175,7 +176,7 @@ export interface AttackPlannerOutput {
     description: string;
   }>;
   scan_plan: {
-    nmap_targets: Array<{ target: string; ports: string; flags: string; rationale: string }>;
+    discovery_targets: Array<{ target: string; ports: string; flags: string; rationale: string }>;
     nuclei_targets: Array<{ target: string; templates: string; rationale: string }>;
     web_scan_targets: Array<{ target: string; tool: string; config: string; rationale: string }>;
   };

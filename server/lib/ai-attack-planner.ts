@@ -143,7 +143,7 @@ const TECHNIQUE_GRAPH: TechniqueNode[] = [
 
   // Discovery
   { id: "T1087.002", name: "Domain Account Discovery", tactic: "discovery", tacticOrder: 8, description: "Enumerate domain accounts and groups", platforms: ["windows"], prerequisites: ["initial-access", "ad-domain"], detectionRisk: "low", tools: ["net.exe", "bloodhound", "adfind"], mitigations: ["Audit logging", "Least privilege"], stealthScore: 6, threatActors: ["apt29", "apt28", "conti", "fin7"] },
-  { id: "T1046", name: "Network Service Discovery", tactic: "discovery", tacticOrder: 8, description: "Scan for network services and open ports", platforms: ["windows", "linux", "macos"], prerequisites: ["initial-access"], detectionRisk: "medium", tools: ["nmap", "masscan"], mitigations: ["Network segmentation", "IDS"], stealthScore: 4, threatActors: ["apt41", "lazarus", "conti"] },
+  { id: "T1046", name: "Network Service Discovery", tactic: "discovery", tacticOrder: 8, description: "Scan for network services and open ports", platforms: ["windows", "linux", "macos"], prerequisites: ["initial-access"], detectionRisk: "medium", tools: ["scanforge-discovery", "masscan"], mitigations: ["Network segmentation", "IDS"], stealthScore: 4, threatActors: ["apt41", "lazarus", "conti"] },
 
   // Lateral Movement
   { id: "T1021.002", name: "SMB/Windows Admin Shares", tactic: "lateral-movement", tacticOrder: 9, description: "Move laterally via SMB admin shares", platforms: ["windows"], prerequisites: ["credential-access", "ad-domain"], detectionRisk: "medium", tools: ["psexec", "smbclient", "impacket"], mitigations: ["Disable admin shares", "Network segmentation", "EDR"], stealthScore: 4, threatActors: ["apt29", "conti", "fin7"] },

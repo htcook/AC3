@@ -2,7 +2,7 @@
  * Scan Server Executor
  *
  * Generic SSH tool executor for the remote scan server. The LLM orchestrator
- * calls this to run any tool (nmap, nuclei, nikto, hydra, gobuster, etc.)
+ * calls this to run any tool (ScanForge discovery, nuclei, nikto, hydra, gobuster, etc.)
  * on the DigitalOcean droplet and get structured results back.
  *
  * Architecture:
@@ -63,7 +63,7 @@ export interface ScanServerStatus {
 // ─── Allowed Tools (whitelist) ──────────────────────────────────────────────
 
 const ALLOWED_TOOLS = new Set([
-  "nmap", "nuclei", "nikto", "gobuster", "hydra", "httpx", "naabu", "subfinder",
+  "scanforge-discovery", "nuclei", "nikto", "gobuster", "hydra", "httpx", "naabu", "subfinder",
   "enum4linux", "smbclient", "ldapsearch", "snmpwalk", "nbtscan",
   "onesixtyone", "dig", "whois", "sqlmap", "wfuzz", "crackmapexec",
   "masscan", "curl", "wget", "cat", "head", "tail", "grep",
@@ -712,9 +712,9 @@ export async function checkScanServerStatus(): Promise<ScanServerStatus> {
 }
 
 /**
- * Get the scan server config for the nmap-orchestrator (backwards compatibility).
+ * Get the scan server config for the scanforge-discovery engine.
  */
-export async function getScanServerConfigForNmap() {
+export async function getScanServerConfigForScanForge() {
   const config = await getScanServerConfig();
   return {
     host: config.host,
@@ -743,7 +743,7 @@ export async function suggestToolCommands(asset: {
   const target = asset.ip || asset.hostname || "";
   const commands: Array<{ tool: string; args: string; purpose: string; priority: number }> = [];
 
-  // Always start with nmap service detection
+  // Always start with ScanForge discovery service detection
   const portList = asset.ports.map(p => p.port).join(",");
 
   // Web services

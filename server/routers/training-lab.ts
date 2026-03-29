@@ -531,20 +531,20 @@ export const TRAINING_TARGETS: TrainingTarget[] = [
     },
   },
   {
-    id: "scanme-nmap",
-    name: "Nmap ScanMe",
+    id: "scanme-target",
+    name: "ScanForge ScanMe",
     url: "http://scanme.nmap.org",
-    description: "Official Nmap authorized scanning target. Ideal for network reconnaissance and port scanning validation.",
+    description: "Official ScanForge authorized scanning target. Ideal for network reconnaissance and port scanning validation.",
     difficulty: "beginner",
     category: "Network",
     knownVulns: ["Open Ports", "Service Detection", "OS Detection"],
     owaspCategories: [],
-    tags: ["network", "nmap", "recon"],
+    tags: ["network", "scanforge-discovery", "recon"],
     roe: {
-      provider: "Nmap Project (Fyodor)",
+      provider: "ScanForge Project (Fyodor)",
       termsUrl: "http://scanme.nmap.org/",
-      summary: "Authorized for port scanning with Nmap or other port scanners. A few scans per day is fine. Do NOT scan 100+ times per day. Do NOT use for SSH brute-force password cracking.",
-      allowed: ["Port scanning", "Service detection", "OS detection", "Nmap scripts"],
+      summary: "Authorized for port scanning with ScanForge or other port scanners. A few scans per day is fine. Do NOT scan 100+ times per day. Do NOT use for SSH brute-force password cracking.",
+      allowed: ["Port scanning", "Service detection", "OS detection", "ScanForge scripts"],
       prohibited: ["SSH brute-force", "Password cracking", "Excessive scanning (>100/day)", "DDoS attacks"],
       rateLimit: "A few scans per day. Do not exceed 100 scans/day.",
       requiresOwnInstance: false,
@@ -875,7 +875,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
   const syncProgress = async () => {
     try {
       // Create lightweight copies — strip outputPreview from toolResults to avoid
-      // serializing hundreds of KB of nmap/nuclei/nikto/gobuster raw output every sync.
+      // serializing hundreds of KB of ScanForge/nuclei/nikto/gobuster raw output every sync.
       const lightAssets = state.assets.map((a: any) => ({
         ...a,
         toolResults: (a.toolResults || []).map((tr: any) => ({
@@ -1056,48 +1056,48 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
     await yieldEventLoop();
     await syncProgress();
 
-    // ── Phase 2: Enumeration (nmap) ──────────────────────────────────
+    // ── Phase 2: Enumeration (ScanForge Discovery) ──────────────────────────────────
     state.phase = "enumeration";
-    addLabLog(state, { phase: "enumeration", type: "info", title: "Phase 2: Enumeration", detail: `Running nmap service detection on ${hostname}` });
+    addLabLog(state, { phase: "enumeration", type: "info", title: "Phase 2: Enumeration", detail: `Running ScanForge discovery service detection on ${hostname}` });
 
     try {
       const { executeToolViaQueue } = await import("../lib/job-queue-bridge");
       
       // For non-standard ports (e.g., 3001, 3002), target those ports specifically
       // instead of scanning top-N ports which might miss them
-      let nmapFlags: string;
+      let discoveryFlags: string;
       if (targetPort && targetPort > 1024) {
         // Non-standard port: scan the specific port + common web ports
-        nmapFlags = scanProfile === "quick"
+        discoveryFlags = scanProfile === "quick"
           ? `-sV -sC -p ${targetPort},80,443 -T4 --open`
           : scanProfile === "deep"
           ? `-sV -sC -p ${targetPort},80,443,8080,8443,8000,3000,5000,9090 -T3 --open -A`
           : `-sV -sC -p ${targetPort},80,443,8080,8443,8000,3000,5000,9090 -T4 --open`;
       } else {
-        nmapFlags = scanProfile === "quick"
+        discoveryFlags = scanProfile === "quick"
           ? `-sV -sC --top-ports 100 -T4 --open`
           : scanProfile === "deep"
           ? `-sV -sC -p- -T3 --open -A`
           : `-sV -sC --top-ports 1000 -T4 --open`;
       }
 
-      // Sanitize nmap flags based on target RoE
+      // Sanitize discovery flags based on target RoE
       if (matchedTarget) {
-        const { sanitizeNmapFlags } = await import("../lib/training-roe-guard");
-        const original = nmapFlags;
-        nmapFlags = sanitizeNmapFlags(nmapFlags, matchedTarget.roe);
-        if (nmapFlags !== original) {
-          addLabLog(state, { phase: "enumeration", type: "info", title: "RoE: Nmap Flags Sanitized", detail: `Adjusted flags to comply with ${matchedTarget.name} RoE` });
+        const { sanitizeScanForgeFlags } = await import("../lib/training-roe-guard");
+        const original = discoveryFlags;
+        discoveryFlags = sanitizeScanForgeFlags(discoveryFlags, matchedTarget.roe);
+        if (discoveryFlags !== original) {
+          addLabLog(state, { phase: "enumeration", type: "info", title: "RoE: ScanForge Flags Sanitized", detail: `Adjusted flags to comply with ${matchedTarget.name} RoE` });
         }
       }
 
-      const nmapTarget = scanHostname;
+      const discoveryTarget = scanHostname;
       // Always add -Pn to skip host discovery (avoids filtered port issues)
-      const nmapFlagsWithPn = nmapFlags.includes('-Pn') ? nmapFlags : `${nmapFlags} -Pn`;
+      const discoveryFlagsWithPn = discoveryFlags.includes('-Pn') ? discoveryFlags : `${discoveryFlags} -Pn`;
 
-      const nmapResult = await executeToolViaQueue({
-        tool: "nmap",
-        args: `${nmapFlagsWithPn} ${nmapTarget}`,
+      const discoveryResult = await executeToolViaQueue({
+        tool: "scanforge-discovery",
+        args: `${discoveryFlagsWithPn} ${discoveryTarget}`,
         target: hostname,
         timeoutSeconds: scanProfile === "deep" ? 600 : 300,
       }, { forceLocal: false });
@@ -1105,10 +1105,10 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       state.stats.toolsRun++;
       state.stats.hostsScanned++;
 
-      // Parse nmap output for ports
+      // Parse discovery output for ports
       const portRegex = /(\d+)\/tcp\s+open\s+(\S+)\s*(.*)/g;
       let match;
-      while ((match = portRegex.exec(nmapResult.stdout)) !== null) {
+      while ((match = portRegex.exec(discoveryResult.stdout)) !== null) {
         const port = parseInt(match[1]);
         if (!state.assets[0].ports.find(p => p.port === port)) {
           state.assets[0].ports.push({
@@ -1121,18 +1121,18 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       }
 
       state.assets[0].toolResults.push({
-        tool: "nmap",
-        command: nmapResult.command,
-        exitCode: nmapResult.exitCode,
-        durationMs: nmapResult.durationMs,
+        tool: "scanforge-discovery",
+        command: discoveryResult.command,
+        exitCode: discoveryResult.exitCode,
+        durationMs: discoveryResult.durationMs,
         findingCount: state.assets[0].ports.length,
         findings: state.assets[0].ports.map(p => ({ severity: "info", title: `Port ${p.port}/${p.service}` })),
-        outputPreview: nmapResult.stdout.replace(/\| fingerprint-strings:[\s\S]*?(?=\n\w|\nNmap|$)/g, '| [fingerprint data omitted]').slice(0, 1500),
+        outputPreview: discoveryResult.stdout.replace(/\| fingerprint-strings:[\s\S]*?(?=\n\w|\nScanForge|$)/g, '| [fingerprint data omitted]').slice(0, 1500),
       });
 
-      addLabLog(state, { phase: "enumeration", type: "scan_result", title: "nmap Complete", detail: `Found ${state.assets[0].ports.length} open ports` });
+      addLabLog(state, { phase: "enumeration", type: "scan_result", title: "ScanForge Discovery Complete", detail: `Found ${state.assets[0].ports.length} open ports` });
     } catch (e: any) {
-      addLabLog(state, { phase: "enumeration", type: "warning", title: "nmap Failed", detail: e.message?.slice(0, 200) || "Unknown error" });
+      addLabLog(state, { phase: "enumeration", type: "warning", title: "ScanForge Discovery Failed", detail: e.message?.slice(0, 200) || "Unknown error" });
     }
 
     // Ensure we have at least the target port for web scanning
@@ -1452,7 +1452,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       const headerIssues = state.assets[0].vulns.filter(v => (v.title || '').includes('[headers]'));
       const niktoFindings = state.assets[0].toolResults.find(t => t.tool === 'nikto');
       const gobusterResults = state.assets[0].toolResults.find(t => t.tool === 'gobuster');
-      const nmapResults = state.assets[0].toolResults.find(t => t.tool === 'nmap');
+      const discoveryResults = state.assets[0].toolResults.find(t => t.tool === 'scanforge-discovery');
       const curlResults = state.assets[0].toolResults.find(t => t.tool === 'curl');
 
       // 3. Build technology-aware inference context
@@ -1505,12 +1505,12 @@ Difficulty: ${matchedTarget.difficulty}`;
         toolEvidence.push(`### Interesting Directories/Endpoints (${interestingPaths.length} of ${discoveredPaths.length} total)\n` +
           interestingPaths.map((p: string) => `- ${p}`).join('\n'));
       }
-      if (nmapResults?.outputPreview) {
-        const nmapClean = nmapResults.outputPreview
+      if (discoveryResults?.outputPreview) {
+        const discoveryClean = discoveryResults.outputPreview
           .replace(/\| fingerprint-strings:[\s\S]*?(?=\n\w|$)/g, '')
           .replace(/SF-Port[\s\S]*?(?=\n\w|$)/g, '')
           .slice(0, 800);
-        if (nmapClean.trim()) toolEvidence.push(`### Nmap Service Detection\n${nmapClean}`);
+        if (discoveryClean.trim()) toolEvidence.push(`### ScanForge Service Detection\n${discoveryClean}`);
       }
       if (curlResults?.outputPreview) {
         toolEvidence.push(`### HTTP Response Headers\n${curlResults.outputPreview.slice(0, 600)}`);
@@ -1640,7 +1640,7 @@ ${learningContext}`;
 
       const llmPayload = {
         messages: [
-          { role: "system" as const, content: "You are an expert red team operator and penetration tester with deep knowledge of OWASP Top 10, MITRE ATT&CK, and common web application vulnerabilities. You analyze reconnaissance data from multiple tools (nmap, httpx, nuclei, nikto, gobuster, curl) and synthesize findings into actionable intelligence. You excel at inferring vulnerabilities from technology fingerprints and correlating evidence across tools. Always respond with valid JSON." },
+          { role: "system" as const, content: "You are an expert red team operator and penetration tester with deep knowledge of OWASP Top 10, MITRE ATT&CK, and common web application vulnerabilities. You analyze reconnaissance data from multiple tools (Masscan/Naabu, httpx, nuclei, nikto, gobuster, curl) and synthesize findings into actionable intelligence. You excel at inferring vulnerabilities from technology fingerprints and correlating evidence across tools. Always respond with valid JSON." },
           { role: "user" as const, content: analysisPrompt },
         ],
         response_format: {

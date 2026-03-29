@@ -199,7 +199,7 @@ describe('Cross-Target Ground Truth Consistency', () => {
   const allTargets = Object.keys(GROUND_TRUTH_LIBRARY);
 
   it('should have at least 6 training targets', () => {
-    // dvwa, juice-shop, webgoat, bwapp, mutillidae, crapi, scanme-nmap
+    // dvwa, juice-shop, webgoat, bwapp, mutillidae, crapi, scanme-target
     expect(allTargets.length).toBeGreaterThanOrEqual(6);
   });
 
@@ -216,8 +216,8 @@ describe('Cross-Target Ground Truth Consistency', () => {
     }
   });
 
-  it('training targets (not scanme-nmap) should all have autoDetectable tags', () => {
-    const trainingTargets = allTargets.filter(t => t !== 'scanme-nmap');
+  it('training targets (not scanme-target) should all have autoDetectable tags', () => {
+    const trainingTargets = allTargets.filter(t => t !== 'scanme-target');
     for (const target of trainingTargets) {
       const vulns = GROUND_TRUTH_LIBRARY[target];
       for (const vuln of vulns) {

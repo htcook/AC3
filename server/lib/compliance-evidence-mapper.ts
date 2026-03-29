@@ -21,7 +21,7 @@ export interface ComplianceEvidence {
   framework: string;
   controlTitle: string;
   evidenceType: "scan_result" | "vuln_finding" | "tool_output" | "config_check" | "credential_test" | "zap_finding" | "owasp_coverage";
-  source: string;        // tool name (nmap, nuclei, hydra, zap, nikto, etc.)
+  source: string;        // tool name (ScanForge discovery, nuclei, hydra, zap, nikto, etc.)
   asset: string;         // hostname or IP
   title: string;         // finding title
   description: string;   // evidence description
@@ -89,11 +89,11 @@ interface MappingRule {
 }
 
 const MAPPING_RULES: MappingRule[] = [
-  // ─── Network Scanning (nmap) ───
+  // ─── Network Scanning (ScanForge) ───
   {
-    id: "nmap-port-scan",
+    id: "scanforge-port-scan",
     name: "Network Port Discovery",
-    matchTool: ["nmap"],
+    matchTool: ["scanforge-discovery"],
     controls: [
       { framework: "SOC2", controlId: "CC6.1", controlTitle: "Logical and Physical Access Controls", family: "Common Criteria", evidenceType: "scan_result", statusLogic: "informational" },
       { framework: "SOC2", controlId: "CC6.6", controlTitle: "Logical Access Security Measures", family: "Common Criteria", evidenceType: "scan_result", statusLogic: "informational" },

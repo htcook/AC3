@@ -50,7 +50,7 @@ const VALID_TRANSITIONS: Record<string, CustodyAction[]> = {
 
 /** Provenance source tool identifiers */
 export type EvidenceSourceTool =
-  | "nmap"
+  | "scanforge-discovery"
   | "nuclei"
   | "zap"
   | "nikto"
@@ -462,12 +462,12 @@ const TOOL_SIGNATURES: Record<EvidenceSourceTool, {
   requiredFields: string[];
   outputFormats: string[];
 }> = {
-  nmap: {
+  discovery: {
     patterns: [
-      /Nmap scan report for/i,
+      /ScanForge scan report for/i,
       /\d+\/tcp\s+(open|closed|filtered)/,
       /PORT\s+STATE\s+SERVICE/i,
-      /Starting Nmap/i,
+      /Starting ScanForge/i,
       /Host is up/i,
     ],
     requiredFields: ["host", "ports"],
@@ -674,7 +674,7 @@ export function validateProvenance(
  * Cross-reference LLM-generated evidence claims against ground truth data.
  *
  * Ground truth sources:
- *   - Raw tool output (nmap, nuclei, ZAP, etc.)
+ *   - Raw tool output (ScanForge discovery, nuclei, ZAP, etc.)
  *   - Caldera API responses (agents, operations)
  *   - Engagement state (assets, ports, vulns)
  *   - Known CVE databases
@@ -796,9 +796,9 @@ export function checkHallucination(params: {
     ...knownAssets.flatMap(a => a.ports || []),
     ...knownServices.map(s => s.port),
   ]);
-  // Extract ports from nmap output in ground truth
+  // Extract ports from ScanForge discovery output in ground truth
   for (const [tool, output] of Object.entries(groundTruth)) {
-    if (tool === "nmap" || tool.includes("nmap")) {
+    if (tool === "scanforge-discovery" || tool.includes("scanforge-discovery")) {
       let m: RegExpExecArray | null;
       const portRe = /(\d{1,5})\/tcp\s+(open|closed|filtered)/g;
       while ((m = portRe.exec(output)) !== null) {
@@ -811,7 +811,7 @@ export function checkHallucination(params: {
     if (knownPorts.has(port)) {
       groundedClaims.push({
         claim: `Port ${port}`,
-        groundTruthSource: "nmap_scan / enumeration",
+        groundTruthSource: "discovery_scan / enumeration",
         confidence: 1.0,
       });
     } else {

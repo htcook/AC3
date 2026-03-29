@@ -191,7 +191,7 @@ export async function detectWaf(targetUrl: string): Promise<WafDetectionResult> 
         suspiciousUrl.searchParams.set("id", "1' OR '1'='1");
         const suspiciousResponse = await fetch(suspiciousUrl.toString(), {
           headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)",
+            "User-Agent": "Mozilla/5.0 (compatible; ScanForge Discovery Engine; https://github.com/projectdiscovery)",
           },
           signal: AbortSignal.timeout(10000),
         });

@@ -10,12 +10,12 @@ import { CVSSv31Calculator, getVulnTypeCVSS, scoreFinding, VULN_TYPE_CVSS_PROFIL
 describe("ScanForgeKB", () => {
   it("should set and get entries for a host", () => {
     const kb = new ScanForgeKB("test-scan-1");
-    kb.set("host/alive", true, "nmap", { host: "192.168.1.1", confidence: 1.0 });
+    kb.set("host/alive", true, "naabu", { host: "192.168.1.1", confidence: 1.0 });
     
     const entry = kb.get("host/alive", "192.168.1.1");
     expect(entry).toBeDefined();
     expect(entry!.value).toBe(true);
-    expect(entry!.source).toBe("nmap");
+    expect(entry!.source).toBe("naabu");
     expect(entry!.confidence).toBe(1.0);
   });
   
@@ -28,7 +28,7 @@ describe("ScanForgeKB", () => {
     expect(entry!.source).toBe("system");
   });
   
-  it("should ingest nmap results and populate KB", () => {
+  it("should ingest scanforge-discovery results and populate KB", () => {
     const kb = new ScanForgeKB("test-scan-3");
     kb.ingestNmapResults("10.0.0.1", {
       ports: [
@@ -124,7 +124,7 @@ describe("ScanForgeKB", () => {
     });
     
     // Seed KB with service data so deps are satisfied
-    kb.set("ports/tcp/80/service", "http", "nmap");
+    kb.set("ports/tcp/80/service", "http", "naabu");
     
     const order = kb.resolveExecutionOrder(["sqli-check", "http-vuln", "service-detect"]);
     // service-detect should come first (priority 10, no deps)
@@ -186,7 +186,7 @@ describe("ScanForgeKB", () => {
     expect(stats.openPortCount).toBe(2);
     expect(stats.serviceCount).toBe(2);
     expect(stats.totalEntries).toBeGreaterThan(0);
-    expect(stats.entriesBySource["nmap"]).toBeGreaterThan(0);
+    expect(stats.entriesBySource["naabu"]).toBeGreaterThan(0);
   });
 });
 

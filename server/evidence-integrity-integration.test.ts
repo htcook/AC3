@@ -56,12 +56,12 @@ function makeProvenance(tool: EvidenceSourceTool, target = "192.168.1.100", rawO
   });
 }
 
-function makeNmapContent(ip: string, ports: number[]): string {
-  let output = `Starting Nmap 7.94 ( https://nmap.org )\nNmap scan report for ${ip}\nHost is up (0.012s latency).\n\nPORT     STATE SERVICE\n`;
+function makeScanForgeContent(ip: string, ports: number[]): string {
+  let output = `Starting ScanForge 7.94 ( https://scanforge.io )\nScanForge scan report for ${ip}\nHost is up (0.012s latency).\n\nPORT     STATE SERVICE\n`;
   for (const p of ports) {
     output += `${p}/tcp  open  unknown\n`;
   }
-  output += `\nNmap done: 1 IP address (1 host up) scanned in 3.42 seconds`;
+  output += `\nScanForge done: 1 IP address (1 host up) scanned in 3.42 seconds`;
   return output;
 }
 
@@ -78,9 +78,9 @@ describe("Orchestrator Evidence Gate Wiring", () => {
     clearChain(ENG_ID);
   });
 
-  it("validates exploitation evidence with nmap provenance", () => {
-    const content = makeNmapContent("192.168.1.50", [22, 80, 443]);
-    const provenance = makeProvenance("nmap", "192.168.1.50", content);
+  it("validates exploitation evidence with ScanForge discovery provenance", () => {
+    const content = makeScanForgeContent("192.168.1.50", [22, 80, 443]);
+    const provenance = makeProvenance("scanforge-discovery", "192.168.1.50", content);
 
     const gate = evidenceGate({
       content,
@@ -113,8 +113,8 @@ describe("Orchestrator Evidence Gate Wiring", () => {
   });
 
   it("creates integrity envelope for each evidence capture", () => {
-    const content = makeNmapContent("192.168.1.100", [80, 443]);
-    const provenance = makeProvenance("nmap", "192.168.1.100");
+    const content = makeScanForgeContent("192.168.1.100", [80, 443]);
+    const provenance = makeProvenance("scanforge-discovery", "192.168.1.100");
 
     // Simulate what the orchestrator does at each capture point
     const envelope = createIntegrityEnvelope({
@@ -138,8 +138,8 @@ describe("Orchestrator Evidence Gate Wiring", () => {
 
   it("chains multiple evidence captures in sequence", () => {
     // Simulate exploitation phase evidence
-    const content1 = makeNmapContent("192.168.1.10", [22, 80]);
-    const prov1 = makeProvenance("nmap", "192.168.1.10");
+    const content1 = makeScanForgeContent("192.168.1.10", [22, 80]);
+    const prov1 = makeProvenance("scanforge-discovery", "192.168.1.10");
     const env1 = createIntegrityEnvelope({
       evidenceId: `exploit-${ENG_ID}-1`,
       engagementId: ENG_ID,
@@ -189,8 +189,8 @@ describe("Orchestrator Evidence Gate Wiring", () => {
   });
 
   it("detects provenance mismatch for wrong tool signature", () => {
-    // Nmap content but claimed to be from nuclei
-    const content = makeNmapContent("192.168.1.100", [80]);
+    // ScanForge content but claimed to be from nuclei
+    const content = makeScanForgeContent("192.168.1.100", [80]);
     const provenance = makeProvenance("nuclei", "192.168.1.100");
 
     const gate = evidenceGate({
@@ -267,7 +267,7 @@ describe("Report Pipeline Anchor Integration", () => {
     const phases = ["recon", "exploitation", "post-exploit", "evidence-collection"];
     for (let i = 0; i < phases.length; i++) {
       const content = JSON.stringify({ phase: phases[i], data: `Phase ${i} evidence data` });
-      const provenance = makeProvenance("nmap", "192.168.1.100");
+      const provenance = makeProvenance("scanforge-discovery", "192.168.1.100");
       createIntegrityEnvelope({
         evidenceId: `${ENG_ID}-phase-${i}`,
         engagementId: ENG_ID,
@@ -300,7 +300,7 @@ describe("Report Pipeline Anchor Integration", () => {
         evidenceId: `${ENG_ID}-${i}`,
         engagementId: ENG_ID,
         content: `Evidence ${i}`,
-        provenance: makeProvenance("nmap"),
+        provenance: makeProvenance("scanforge-discovery"),
         performedBy: "AC3 Orchestrator",
       });
     }
@@ -332,7 +332,7 @@ describe("Report Pipeline Anchor Integration", () => {
       evidenceId: `${ENG_ID}-1`,
       engagementId: ENG_ID,
       content: "Evidence 1",
-      provenance: makeProvenance("nmap"),
+      provenance: makeProvenance("scanforge-discovery"),
       performedBy: "AC3 Orchestrator",
     });
 
@@ -370,7 +370,7 @@ describe("Report Pipeline Anchor Integration", () => {
         evidenceId: `${ENG_ID}-item-${i}`,
         engagementId: ENG_ID,
         content: `Evidence item ${i}: ${JSON.stringify({ scan: i, target: `10.0.0.${i}` })}`,
-        provenance: makeProvenance(i % 2 === 0 ? "nmap" : "nuclei", `10.0.0.${i}`),
+        provenance: makeProvenance(i % 2 === 0 ? "scanforge-discovery" : "nuclei", `10.0.0.${i}`),
         performedBy: "AC3 Orchestrator",
       });
     }
@@ -396,8 +396,8 @@ describe("End-to-End Evidence Chain Flow", () => {
 
   it("full lifecycle: create → gate → envelope → validate → anchor → verify", () => {
     // Step 1: Create evidence content
-    const content = makeNmapContent("10.0.0.50", [22, 80, 443, 8080]);
-    const provenance = makeProvenance("nmap", "10.0.0.50", content);
+    const content = makeScanForgeContent("10.0.0.50", [22, 80, 443, 8080]);
+    const provenance = makeProvenance("scanforge-discovery", "10.0.0.50", content);
 
     // Step 2: Run evidence gate
     const gate = evidenceGate({
@@ -411,7 +411,7 @@ describe("End-to-End Evidence Chain Flow", () => {
 
     // Step 3: Create integrity envelope
     const envelope = createIntegrityEnvelope({
-      evidenceId: `${ENG_ID}-nmap-scan`,
+      evidenceId: `${ENG_ID}-discovery-scan`,
       engagementId: ENG_ID,
       content,
       provenance,
@@ -455,7 +455,7 @@ describe("End-to-End Evidence Chain Flow", () => {
 
   it("multi-tool evidence chain with mixed provenance", () => {
     const tools: Array<{ tool: EvidenceSourceTool; content: string; target: string }> = [
-      { tool: "nmap", content: makeNmapContent("10.0.0.1", [80, 443]), target: "10.0.0.1" },
+      { tool: "scanforge-discovery", content: makeScanForgeContent("10.0.0.1", [80, 443]), target: "10.0.0.1" },
       { tool: "nuclei", content: makeNucleiContent("10.0.0.1", "CVE-2024-1234"), target: "10.0.0.1" },
       { tool: "zap", content: `ZAP Scanning Report\nAlert: SQL Injection\nURL: http://10.0.0.1/login\nRisk: High`, target: "10.0.0.1" },
       { tool: "metasploit", content: `msf6 > use exploit/multi/http/apache_rce\n[*] Session 1 opened`, target: "10.0.0.1" },
@@ -500,7 +500,7 @@ describe("End-to-End Evidence Chain Flow", () => {
         evidenceId: `${ENG_ID}-${i}`,
         engagementId: ENG_ID,
         content: `Evidence ${i}`,
-        provenance: makeProvenance("nmap"),
+        provenance: makeProvenance("scanforge-discovery"),
         performedBy: "AC3 Orchestrator",
       });
     }
@@ -583,7 +583,7 @@ describe("LLM Guardrail Integration", () => {
       specialist: "report-writer",
       knownAssets: [{ hostname: "target.example.com", ip: "10.0.0.50", ports: [80, 443] }],
       knownCves: ["CVE-2024-1234"],
-      toolOutputs: { nmap: makeNmapContent("10.0.0.50", [80, 443]) },
+      toolOutputs: { discovery: makeScanForgeContent("10.0.0.50", [80, 443]) },
     };
 
     const result = validateReportFinding(
@@ -648,7 +648,7 @@ describe("LLM Guardrail Integration", () => {
       specialist: "attack-planner",
       knownAssets: [{ hostname: "target.example.com", ip: "10.0.0.50", ports: [22, 80, 443] }],
       knownCves: ["CVE-2024-1234"],
-      toolOutputs: { nmap: makeNmapContent("10.0.0.50", [22, 80, 443]) },
+      toolOutputs: { discovery: makeScanForgeContent("10.0.0.50", [22, 80, 443]) },
     };
 
     const result = validateAttackPlan(
@@ -660,7 +660,7 @@ describe("LLM Guardrail Integration", () => {
             target: "target.example.com",
             feasibility: "High",
             evidence_tag: "OBSERVED",
-            rationale: "Nmap confirmed open ports, nuclei confirmed CVE",
+            rationale: "ScanForge confirmed open ports, nuclei confirmed CVE",
           },
         ],
         attack_chain: [
@@ -694,7 +694,7 @@ describe("Chain Statistics Integration", () => {
         evidenceId: `${ENG_ID_A}-${i}`,
         engagementId: ENG_ID_A,
         content: `Evidence A-${i}`,
-        provenance: makeProvenance("nmap"),
+        provenance: makeProvenance("scanforge-discovery"),
         performedBy: "AC3 Orchestrator",
       });
     }
@@ -718,7 +718,7 @@ describe("Chain Statistics Integration", () => {
       evidenceId: `${ENG_ID_A}-clear-test`,
       engagementId: ENG_ID_A,
       content: "Test",
-      provenance: makeProvenance("nmap"),
+      provenance: makeProvenance("scanforge-discovery"),
       performedBy: "Test",
     });
 
@@ -739,7 +739,7 @@ describe("Evidence Sanitization Integration", () => {
     // First run hallucination check to get the result
     const hallucinationResult = checkHallucination({
       llmContent: content,
-      groundTruth: { tool: "nmap scan of 10.0.0.50" },
+      groundTruth: { tool: "ScanForge discovery scan of 10.0.0.50" },
       knownAssets,
       knownCves,
       strictness: "strict",
@@ -761,7 +761,7 @@ describe("Evidence Sanitization Integration", () => {
     // Run hallucination check with matching ground truth
     const hallucinationResult = checkHallucination({
       llmContent: content,
-      groundTruth: { nmap: "Nmap scan report for 10.0.0.50\n80/tcp open http" },
+      groundTruth: { discovery: "ScanForge scan report for 10.0.0.50\n80/tcp open http" },
       knownAssets,
       knownCves,
       strictness: "moderate",
@@ -778,9 +778,9 @@ describe("Evidence Sanitization Integration", () => {
 // ─── 7. Provenance Validation Edge Cases ──────────────────────────────
 
 describe("Provenance Validation Edge Cases", () => {
-  it("validates nmap output format", () => {
-    const content = makeNmapContent("192.168.1.1", [22, 80, 443]);
-    const provenance = makeProvenance("nmap", "192.168.1.1", content);
+  it("validates ScanForge discovery output format", () => {
+    const content = makeScanForgeContent("192.168.1.1", [22, 80, 443]);
+    const provenance = makeProvenance("scanforge-discovery", "192.168.1.1", content);
     const result = validateProvenance(content, provenance);
     expect(result.contentFormatValid).toBe(true);
     expect(result.toolSignatureMatch).toBe(true);

@@ -2,7 +2,7 @@
  * Service Audit Pipeline
  *
  * Automated service-specific vulnerability follow-up after port discovery.
- * When naabu/nmap discovers open ports, this pipeline automatically triggers
+ * When ScanForge discovers open ports, this pipeline automatically triggers
  * the appropriate audit module:
  *
  *   Port 21 (FTP)  → FTP Audit (anonymous login, bounce, CVEs, creds)
@@ -11,7 +11,7 @@
  *   Port 8080/8443 → Nikto (web server checks)
  *
  * Architecture:
- *   Port Discovery (naabu/nmap) → this pipeline → scanner modules → scan_results
+ *   Port Discovery (ScanForge) → this pipeline → scanner modules → scan_results
  *
  * The pipeline:
  *   1. Receives discovered services (host, port, service name)
@@ -530,7 +530,7 @@ export async function runServiceAuditPipeline(
 }
 
 /**
- * Convenience function: auto-audit SSH ports from naabu/nmap discovery.
+ * Convenience function: auto-audit SSH ports from ScanForge discovery.
  */
 export async function autoAuditSSHPorts(
   hosts: Array<{ host: string; port: number }>,
@@ -555,7 +555,7 @@ export async function autoAuditSSHPorts(
 }
 
 /**
- * Convenience function: auto-audit FTP ports from naabu/nmap discovery.
+ * Convenience function: auto-audit FTP ports from ScanForge discovery.
  */
 export async function autoAuditFTPPorts(
   hosts: Array<{ host: string; port: number }>,
@@ -580,7 +580,7 @@ export async function autoAuditFTPPorts(
 }
 
 /**
- * Convenience function: auto-audit SMTP ports from naabu/nmap discovery.
+ * Convenience function: auto-audit SMTP ports from ScanForge discovery.
  */
 export async function autoAuditSMTPPorts(
   hosts: Array<{ host: string; port: number }>,
@@ -605,7 +605,7 @@ export async function autoAuditSMTPPorts(
 }
 
 /**
- * Convenience function: auto-audit SNMP ports from naabu/nmap discovery.
+ * Convenience function: auto-audit SNMP ports from ScanForge discovery.
  */
 export async function autoAuditSNMPPorts(
   hosts: Array<{ host: string; port: number }>,
@@ -630,7 +630,7 @@ export async function autoAuditSNMPPorts(
 }
 
 /**
- * Convenience function: auto-audit RDP ports from naabu/nmap discovery.
+ * Convenience function: auto-audit RDP ports from ScanForge discovery.
  */
 export async function autoAuditRDPPorts(
   hosts: Array<{ host: string; port: number }>,
@@ -655,7 +655,7 @@ export async function autoAuditRDPPorts(
 }
 
 /**
- * Convenience function: auto-audit DNS ports from naabu/nmap discovery.
+ * Convenience function: auto-audit DNS ports from ScanForge discovery.
  */
 export async function autoAuditDNSPorts(
   hosts: Array<{ host: string; port: number }>,

@@ -31,7 +31,7 @@ export const scanServerRouter = router({
             // Manifest not available, detect tools manually
             const detectResult = await executeTool({
               tool: 'bash',
-              args: `-c "echo '[' && for t in nmap nuclei nikto hydra httpx subfinder gobuster enum4linux smbclient ldapsearch nbtscan onesixtyone dig whois sqlmap; do which \$t 2>/dev/null && echo \"  {\\\"name\\\": \\\"\$t\\\", \\\"version\\\": \\\"installed\\\", \\\"path\\\": \\\"$(which \$t 2>/dev/null)\\\"}\"; done && echo ']'"`,
+              args: `-c "echo '[' && for t in ScanForge discovery nuclei nikto hydra httpx subfinder gobuster enum4linux smbclient ldapsearch nbtscan onesixtyone dig whois sqlmap; do which \$t 2>/dev/null && echo \"  {\\\"name\\\": \\\"\$t\\\", \\\"version\\\": \\\"installed\\\", \\\"path\\\": \\\"$(which \$t 2>/dev/null)\\\"}\"; done && echo ']'"`,
               timeoutSeconds: 15,
             });
             // Parse tool detection output
@@ -128,7 +128,7 @@ export const scanServerRouter = router({
       try {
         const { executeTool } = await import('../lib/scan-server-executor');
         const versionChecks = [
-          { name: 'nmap', cmd: 'nmap --version | head -1' },
+          { name: 'scanforge-discovery', cmd: 'naabu -version 2>&1 | head -1' },
           { name: 'nuclei', cmd: 'nuclei --version 2>&1 | head -1' },
           { name: 'nikto', cmd: 'nikto -Version 2>&1 | head -1' },
           { name: 'hydra', cmd: 'hydra -h 2>&1 | head -1' },

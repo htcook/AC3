@@ -4,14 +4,14 @@
  * Each template pre-fills the engagement creation form with:
  * - Engagement type, description, notes
  * - Default RoE text (purpose, testing windows, restrictions)
- * - Scan configuration (nmap profiles, nuclei templates, ZAP policy)
+ * - Scan configuration (scanforge-discovery profiles, nuclei templates, ZAP policy)
  * - Phase settings (which phases to enable, auto-advance rules)
  * - Scope type guidance (domains, IPs, subnets, cloud)
  */
 
 export interface ScanConfig {
-  nmapProfile: string;
-  nmapFlags: string;
+  scanProfile: string;
+  discoveryFlags: string;
   nucleiTemplates: string[];
   nucleiSeverity: string[];
   zapPolicy: string;
@@ -80,8 +80,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Confirm all target URLs/domains\n- Verify test accounts provided (if authenticated testing)\n- Confirm WAF whitelisting or test from approved IPs\n- Establish emergency contact and deconfliction process\n- Review any excluded endpoints or functionality",
     scopeGuidance: "Enter the target domain(s) for the web application(s). Include subdomains if they host separate applications. For API-only targets, include the API base URL domain.",
     scanConfig: {
-      nmapProfile: "web-focused",
-      nmapFlags: "-sV -sC --script=http-enum,http-headers,http-methods,http-title,ssl-enum-ciphers -p 80,443,8080,8443,3000,5000,8000,9443",
+      scanProfile: "web-focused",
+      discoveryFlags: "-sV -sC --script=http-enum,http-headers,http-methods,http-title,ssl-enum-ciphers -p 80,443,8080,8443,3000,5000,8000,9443",
       nucleiTemplates: ["cves", "vulnerabilities", "exposures", "misconfiguration", "technologies", "default-logins"],
       nucleiSeverity: ["critical", "high", "medium"],
       zapPolicy: "Default Policy",
@@ -151,8 +151,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Confirm VPN/jump box access credentials\n- Verify test subnet ranges and excluded hosts\n- Confirm domain controller IPs (for AD testing)\n- Identify critical systems to avoid (SCADA, medical devices, etc.)\n- Establish out-of-band communication channel",
     scopeGuidance: "Enter the target IP ranges (CIDR notation) for internal network segments. Exclude any critical infrastructure IPs that should not be tested.",
     scanConfig: {
-      nmapProfile: "internal-comprehensive",
-      nmapFlags: "-sV -sC -O --script=smb-enum-shares,smb-vuln-ms17-010,ldap-rootdse,ms-sql-info -p- --min-rate=1000",
+      scanProfile: "internal-comprehensive",
+      discoveryFlags: "-sV -sC -O --script=smb-enum-shares,smb-vuln-ms17-010,ldap-rootdse,ms-sql-info -p- --min-rate=1000",
       nucleiTemplates: ["cves", "vulnerabilities", "network", "default-logins", "misconfiguration"],
       nucleiSeverity: ["critical", "high", "medium", "low"],
       zapPolicy: "Default Policy",
@@ -222,8 +222,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Confirm C2 infrastructure is staged (Caldera/Sliver)\n- Prepare phishing pretexts and domains\n- Stage payload delivery mechanisms\n- Confirm deconfliction with customer SOC/Blue Team\n- Establish safe words and emergency stop procedures\n- Review TTPs to emulate (if threat-informed)",
     scopeGuidance: "Enter all external-facing domains and IP ranges. For red team, the scope is typically broader — include any internet-facing assets the adversary could target.",
     scanConfig: {
-      nmapProfile: "stealth",
-      nmapFlags: "-sS -sV --version-intensity=2 -T2 --randomize-hosts -p 21,22,25,53,80,110,143,443,445,993,995,1433,3306,3389,5432,8080,8443",
+      scanProfile: "stealth",
+      discoveryFlags: "-sS -sV --version-intensity=2 -T2 --randomize-hosts -p 21,22,25,53,80,110,143,443,445,993,995,1433,3306,3389,5432,8080,8443",
       nucleiTemplates: ["cves", "vulnerabilities", "exposures", "default-logins"],
       nucleiSeverity: ["critical", "high"],
       zapPolicy: "Default Policy",
@@ -295,8 +295,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Confirm phishing domain is registered and aged\n- Set up GoPhish campaign infrastructure\n- Prepare email templates and landing pages\n- Confirm target employee list (HR-approved)\n- Verify SPF/DKIM/DMARC for phishing domain\n- Stage credential harvesting infrastructure\n- Coordinate with customer IT to whitelist if needed",
     scopeGuidance: "Enter the target organization's primary domain. The phishing domain should be entered in the Phishing Domain field. Target employee email addresses will be loaded separately in the campaign wizard.",
     scanConfig: {
-      nmapProfile: "minimal",
-      nmapFlags: "-sV -p 25,80,443,587,993 --script=smtp-enum-users,smtp-open-relay",
+      scanProfile: "minimal",
+      discoveryFlags: "-sV -p 25,80,443,587,993 --script=smtp-enum-users,smtp-open-relay",
       nucleiTemplates: ["technologies", "exposures"],
       nucleiSeverity: ["critical", "high"],
       zapPolicy: "Default Policy",
@@ -364,8 +364,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Confirm cloud provider and account/subscription IDs\n- Verify read-only IAM credentials provided for assessment\n- Confirm regions in scope\n- Identify critical workloads and data classifications\n- Review shared responsibility model boundaries\n- Confirm if testing includes serverless/container workloads",
     scopeGuidance: "Enter the primary domain associated with the cloud infrastructure. Include any cloud-hosted application domains. IP ranges may include cloud-hosted public IPs or load balancer addresses.",
     scanConfig: {
-      nmapProfile: "cloud-external",
-      nmapFlags: "-sV -sC --script=http-headers,ssl-enum-ciphers -p 80,443,8080,8443,22,3389,5432,3306,6379,27017,9200",
+      scanProfile: "cloud-external",
+      discoveryFlags: "-sV -sC --script=http-headers,ssl-enum-ciphers -p 80,443,8080,8443,22,3389,5432,3306,6379,27017,9200",
       nucleiTemplates: ["cves", "vulnerabilities", "exposures", "misconfiguration", "technologies", "cloud"],
       nucleiSeverity: ["critical", "high", "medium"],
       zapPolicy: "Default Policy",
@@ -434,8 +434,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Coordinate with SOC/Blue Team on schedule\n- Prepare ATT&CK technique execution matrix\n- Confirm SIEM and EDR access for blue team\n- Set up shared communication channel (Slack/Teams)\n- Prepare detection gap tracking spreadsheet\n- Review current detection rules and coverage",
     scopeGuidance: "Enter the target domain and IP ranges for the environment being tested. Purple team exercises typically cover both internal and external assets.",
     scanConfig: {
-      nmapProfile: "standard",
-      nmapFlags: "-sV -sC -O -p- --min-rate=500",
+      scanProfile: "standard",
+      discoveryFlags: "-sV -sC -O -p- --min-rate=500",
       nucleiTemplates: ["cves", "vulnerabilities", "misconfiguration", "technologies"],
       nucleiSeverity: ["critical", "high", "medium", "low"],
       zapPolicy: "Default Policy",
@@ -500,8 +500,8 @@ export const ENGAGEMENT_TEMPLATES: EngagementTemplate[] = [
     defaultNotes: "Pre-engagement checklist:\n- Develop incident scenario and injects\n- Confirm participant list and roles\n- Reserve conference room / video call\n- Prepare facilitator guide and timeline\n- Review customer's existing IR plan\n- Prepare evaluation criteria and scoring rubric",
     scopeGuidance: "Enter the organization's primary domain for reference. Tabletop exercises don't require technical scope — the scenario will define the simulated incident scope.",
     scanConfig: {
-      nmapProfile: "none",
-      nmapFlags: "",
+      scanProfile: "none",
+      discoveryFlags: "",
       nucleiTemplates: [],
       nucleiSeverity: [],
       zapPolicy: "Default Policy",

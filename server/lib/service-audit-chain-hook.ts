@@ -1,7 +1,7 @@
 /**
  * Service Audit Chain Hook
  *
- * Extracts discovered services from nmap stage output and converts them
+ * Extracts discovered services from ScanForge discovery stage output and converts them
  * into the format expected by the service audit pipeline.
  * Used as Stage 5 in the discovery chain.
  */
@@ -9,13 +9,13 @@
 import type { DiscoveredService } from "./scanners/service-audit-pipeline";
 
 /**
- * Extract discovered services from nmap raw output for the service audit pipeline.
- * Maps open ports to service names using nmap service detection + port heuristics.
+ * Extract discovered services from ScanForge discovery raw output for the service audit pipeline.
+ * Maps open ports to service names using ScanForge service detection + port heuristics.
  */
-export function extractServicesFromNmap(
-  nmapOutput: any
+export function extractServicesFromScanForge(
+  discoveryOutput: any
 ): DiscoveredService[] {
-  if (!nmapOutput) return [];
+  if (!discoveryOutput) return [];
 
   const services: DiscoveredService[] = [];
 
@@ -54,16 +54,16 @@ export function extractServicesFromNmap(
     }
   }
 
-  // Handle array format (toNmapRawResults)
-  if (Array.isArray(nmapOutput)) {
-    for (const host of nmapOutput) {
+  // Handle array format (toScanForgeRawResults)
+  if (Array.isArray(discoveryOutput)) {
+    for (const host of discoveryOutput) {
       processHost(host);
     }
   }
 
-  // Handle NmapScanResult format
-  if (nmapOutput.hosts && Array.isArray(nmapOutput.hosts)) {
-    for (const host of nmapOutput.hosts) {
+  // Handle ScanForgeScanResult format
+  if (discoveryOutput.hosts && Array.isArray(discoveryOutput.hosts)) {
+    for (const host of discoveryOutput.hosts) {
       processHost(host);
     }
   }

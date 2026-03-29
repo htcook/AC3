@@ -3,7 +3,7 @@
  * 
  * Connects the discovery chain orchestrator to actual tool engines:
  * - Amass → amass-engine.ts executeAmassEnum
- * - Nmap → nmap-orchestrator.ts executeNmapScan
+ * - ScanForge → scanforge-discovery.ts executeScanforgeScan
  * - Service Fingerprinter → service-fingerprinter.ts batchFingerprint
  * - Nuclei → nuclei-scanner (in-memory simulation, same as standalone)
  * 
@@ -57,19 +57,14 @@ async function resolveAmassServer(): Promise<{
   };
 }
 
-async function resolveNmapServer(): Promise<{
+async function resolveScanforgeServer(): Promise<{
   host: string;
   port?: number;
   username: string;
   privateKey?: string;
   privateKeyPath?: string;
-  nmapPath?: string;
 }> {
-  const base = await resolveAmassServer();
-  return {
-    ...base,
-    nmapPath: process.env.NMAP_PATH || undefined,
-  };
+  return resolveAmassServer();
 }
 
 // ─── Callback Factory ────────────────────────────────────────────────────
@@ -120,19 +115,21 @@ export function buildRealCallbacks(options?: {
       };
     },
 
-    // ─── Nmap ──────────────────────────────────────────────────────
+    // ─── ScanForge Discovery ─────────────────────────────────────
     executeNmap: async (config) => {
-      const { executeNmapScan } = await import("./nmap-orchestrator");
-      const server = await resolveNmapServer();
+      const { executeScanforgeScan, autoSelectTool } = await import("./scanforge-discovery");
+      const server = await resolveScanforgeServer();
 
-      const result = await executeNmapScan({
+      const tool = autoSelectTool({ targets: config.targets, profile: config.profile as any });
+      const result = await executeScanforgeScan({
         targets: config.targets,
-        profile: config.profile as any,
+        profile: (config.profile || 'standard') as any,
+        tool,
         engagementId: config.engagementId || 0,
         operatorId: config.operatorId || "chain-orchestrator",
         server,
         timeoutSeconds: config.timeout || 600,
-        topPorts: config.topPorts ? String(config.topPorts) : undefined,
+        ports: config.topPorts ? `1-${config.topPorts}` : undefined,
       });
 
       return {
@@ -154,9 +151,9 @@ export function buildRealCallbacks(options?: {
               service: p.service,
               version: p.version,
               product: p.product,
-              extraInfo: p.extraInfo,
+              extraInfo: undefined,
             })) || [],
-            os: h.os,
+            os: undefined,
           })) || [],
         },
       };

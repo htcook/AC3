@@ -912,7 +912,7 @@ ${complianceAuthorization.auditLogEntries.length > 50 ? '<p style="font-size: 12
 <!-- Discovery & Reconnaissance Summary -->
 ${report.discoveryRecon ? `
 <h2>${complianceAuthorization ? '9' : '8'}. Discovery &amp; Reconnaissance Summary</h2>
-<p>The following section presents aggregated findings from passive reconnaissance (OSINT, Shodan, Censys, crt.sh, SecurityTrails) and active discovery tools (naabu, nmap, httpx) executed across all in-scope assets.</p>
+<p>The following section presents aggregated findings from passive reconnaissance (OSINT, Shodan, Censys, crt.sh, SecurityTrails) and active discovery tools (naabu, ScanForge, httpx) executed across all in-scope assets.</p>
 
 <div class="metrics-grid">
   <div class="metric-card"><div class="metric-value" style="color: #f97316;">${report.discoveryRecon.totalAssets}</div><div class="metric-label">Assets Discovered</div></div>
@@ -975,7 +975,7 @@ ${report.toolEvidence && report.toolEvidence.length > 0 ? `
 ${report.toolEvidence.map((te, idx) => `
 <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 12px 0; page-break-inside: avoid;">
   <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-    <span style="background: ${te.tool === 'nmap' || te.tool === 'nmap-discovery' ? '#eff6ff' : te.tool === 'naabu' ? '#ecfeff' : te.tool === 'httpx' ? '#faf5ff' : te.tool === 'nuclei' ? '#fef2f2' : te.tool === 'zap' ? '#fff7ed' : '#f0fdf4'}; color: ${te.tool === 'nmap' || te.tool === 'nmap-discovery' ? '#2563eb' : te.tool === 'naabu' ? '#0891b2' : te.tool === 'httpx' ? '#7c3aed' : te.tool === 'nuclei' ? '#dc2626' : te.tool === 'zap' ? '#ea580c' : '#16a34a'}; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">${te.tool}</span>
+    <span style="background: ${te.tool === 'scanforge-discovery' || te.tool === 'scanforge-discovery' ? '#eff6ff' : te.tool === 'naabu' ? '#ecfeff' : te.tool === 'httpx' ? '#faf5ff' : te.tool === 'nuclei' ? '#fef2f2' : te.tool === 'zap' ? '#fff7ed' : '#f0fdf4'}; color: ${te.tool === 'scanforge-discovery' || te.tool === 'scanforge-discovery' ? '#2563eb' : te.tool === 'naabu' ? '#0891b2' : te.tool === 'httpx' ? '#7c3aed' : te.tool === 'nuclei' ? '#dc2626' : te.tool === 'zap' ? '#ea580c' : '#16a34a'}; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">${te.tool}</span>
     <span style="font-family: monospace; font-size: 12px; color: #64748b;">${te.asset}</span>
     <span style="margin-left: auto; font-size: 11px; color: ${te.exitCode === 0 ? '#16a34a' : '#dc2626'};">${te.exitCode === 0 ? '✓ Success' : '✗ Exit ' + te.exitCode}${te.duration ? ' | ' + te.duration : ''}</span>
   </div>

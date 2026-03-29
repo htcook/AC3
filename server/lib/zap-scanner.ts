@@ -62,7 +62,7 @@ export interface ZapConfig {
 }
 
 export const DEFAULT_ZAP_CONFIG: ZapConfig = {
-  baseUrl: process.env.ZAP_BASE_URL || "http://localhost:8080",
+  baseUrl: process.env.ZAP_BASE_URL || "http://137.184.71.192:8090",
   apiKey: process.env.ZAP_API_KEY || "",
   spiderMaxDepth: 5,
   spiderMaxChildren: 20,
@@ -636,7 +636,7 @@ function getDefaultScanConfig(
     if (targetUrl.includes('/api/') || targetUrl.includes('/graphql')) allHints.push('API');
   }
 
-  // Server header matching (nmap versions often contain server names)
+  // Server header matching (service versions often contain server names)
   const serverPatterns: Record<string, string> = {
     'apache': 'PHP',       // Apache commonly serves PHP
     'nginx': 'PHP',        // nginx commonly serves PHP

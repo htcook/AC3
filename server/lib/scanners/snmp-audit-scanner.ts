@@ -11,8 +11,8 @@
  * - Default/weak community string detection
  * - SNMP agent version fingerprinting
  *
- * Uses nmap NSE SNMP scripts + snmpwalk/snmpget probing.
- * Auto-triggers when naabu/nmap discovers port 161 (SNMP) or 162 (SNMP Trap).
+ * Uses Nuclei template SNMP scripts + snmpwalk/snmpget probing.
+ * Auto-triggers when naabu discovers port 161 (SNMP) or 162 (SNMP Trap).
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -44,8 +44,8 @@ export interface SNMPAuditConfig {
   mibWalk?: boolean;
   /** Test write access */
   testWriteAccess?: boolean;
-  /** Run nmap SNMP NSE scripts */
-  nmapScripts?: boolean;
+  /** Run ScanForge discovery SNMP Nuclei templates */
+  detectionTemplates?: boolean;
 }
 
 export interface SNMPAuditFinding {
@@ -159,9 +159,9 @@ const SNMP_CVES: Array<{
 // ─── Output Parsers ─────────────────────────────────────────────────────────
 
 /**
- * Parse nmap SNMP NSE script output.
+ * Parse ScanForge discovery SNMP Nuclei template output.
  */
-function parseNmapSNMPOutput(output: string): {
+function parseScanForgeSNMPOutput(output: string): {
   communityStrings: string[];
   systemInfo: Partial<SNMPSystemInfo>;
   interfaces: string[];
@@ -272,9 +272,9 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
   }
 
   try {
-    // ── Step 1: Nmap SNMP NSE Scripts ──
-    if (config.nmapScripts !== false) {
-      const nmapScripts = [
+    // ── Step 1: ScanForge SNMP NSE Scripts ──
+    if (config.detectionTemplates !== false) {
+      const detectionTemplates = [
         "snmp-brute",
         "snmp-info",
         "snmp-interfaces",
@@ -287,17 +287,17 @@ export async function startSNMPAudit(config: SNMPAuditConfig): Promise<SNMPAudit
         "snmp-win32-users",
       ];
 
-      const nmapResult = await executeTool("nmap", [
+      const discoveryResult = await executeTool("naabu", [
         "-sU", "-p", String(port),
-        "--script", nmapScripts.join(","),
+        "--script", detectionTemplates.join(","),
         "--script-timeout", String(timeout),
         "-oN", "-",
         config.host,
       ], { timeoutSeconds: timeout + 30 });
 
-      if (nmapResult.stdout) {
-        rawOutput += `=== NMAP SNMP SCRIPTS ===\n${nmapResult.stdout}\n\n`;
-        const parsed = parseNmapSNMPOutput(nmapResult.stdout);
+      if (discoveryResult.stdout) {
+        rawOutput += `=== SCANFORGE SNMP SCRIPTS ===\n${discoveryResult.stdout}\n\n`;
+        const parsed = parseScanForgeSNMPOutput(discoveryResult.stdout);
 
         for (const cs of parsed.communityStrings) {
           if (!validCommunityStrings.find(v => v.community === cs)) {

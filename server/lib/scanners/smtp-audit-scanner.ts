@@ -12,8 +12,8 @@
  * - SMTP command injection testing
  * - Cleartext credential transmission detection
  *
- * Uses nmap NSE SMTP scripts + manual SMTP probing.
- * Auto-triggers when naabu/nmap discovers port 25, 465, 587, or 2525.
+ * Uses Nuclei template SMTP scripts + manual SMTP probing.
+ * Auto-triggers when naabu discovers port 25, 465, 587, or 2525.
  */
 
 import { executeTool, executeRawCommand, type ToolExecResult } from "../scan-server-executor";
@@ -43,8 +43,8 @@ export interface SMTPAuditConfig {
   testUserEnum?: boolean;
   /** Test STARTTLS */
   testStartTLS?: boolean;
-  /** Run nmap SMTP NSE scripts */
-  nmapScripts?: boolean;
+  /** Run ScanForge discovery SMTP Nuclei templates */
+  detectionTemplates?: boolean;
   /** Domain for SPF/DKIM/DMARC checks */
   domain?: string;
   /** Custom usernames to enumerate */
@@ -197,9 +197,9 @@ const DEFAULT_SMTP_USERS = [
 // ─── Output Parsers ─────────────────────────────────────────────────────────
 
 /**
- * Parse nmap SMTP NSE script output.
+ * Parse ScanForge discovery SMTP Nuclei template output.
  */
-function parseNmapSMTPOutput(output: string): {
+function parseScanForgeSMTPOutput(output: string): {
   banner: string | null;
   openRelay: boolean;
   vrfyEnabled: boolean;
@@ -356,9 +356,9 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
   }
 
   try {
-    // ── Step 1: Nmap SMTP NSE Scripts ──
-    if (config.nmapScripts !== false) {
-      const nmapScripts = [
+    // ── Step 1: ScanForge SMTP NSE Scripts ──
+    if (config.detectionTemplates !== false) {
+      const detectionTemplates = [
         "smtp-commands",
         "smtp-enum-users",
         "smtp-open-relay",
@@ -368,17 +368,17 @@ export async function startSMTPAudit(config: SMTPAuditConfig): Promise<SMTPAudit
         "smtp-vuln-cve2011-1764",
       ];
 
-      const nmapResult = await executeTool("nmap", [
+      const discoveryResult = await executeTool("naabu", [
         "-sV", "-p", String(port),
-        "--script", nmapScripts.join(","),
+        "--script", detectionTemplates.join(","),
         "--script-timeout", String(timeout),
         "-oN", "-",
         config.host,
       ], { timeoutSeconds: timeout + 30 });
 
-      if (nmapResult.stdout) {
-        rawOutput += `=== NMAP SMTP SCRIPTS ===\n${nmapResult.stdout}\n\n`;
-        const parsed = parseNmapSMTPOutput(nmapResult.stdout);
+      if (discoveryResult.stdout) {
+        rawOutput += `=== SCANFORGE SMTP SCRIPTS ===\n${discoveryResult.stdout}\n\n`;
+        const parsed = parseScanForgeSMTPOutput(discoveryResult.stdout);
         if (parsed.banner) banner = parsed.banner;
         openRelay = parsed.openRelay;
         vrfyEnabled = parsed.vrfyEnabled;

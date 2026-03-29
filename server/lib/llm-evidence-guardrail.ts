@@ -438,7 +438,7 @@ export function validateLLMEvidence(
  * Usage:
  *   const result = await withGuardrail(
  *     () => writeReportFinding(input),
- *     { specialist: "report-writer", engagementId: "123", toolOutputs: { nmap: "..." } },
+ *     { specialist: "report-writer", engagementId: "123", toolOutputs: { discovery: "..." } },
  *     (output) => validateReportFinding(output, context),
  *   );
  */

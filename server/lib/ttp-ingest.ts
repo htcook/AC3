@@ -358,7 +358,7 @@ export async function ingestMetasploitModules(): Promise<{
 // Curated list of major Kali Linux tools with categories and ATT&CK mappings
 const KALI_TOOLS_CATALOG = [
   // Information Gathering
-  { name: "nmap", category: "Information Gathering", description: "Network discovery and security auditing", techniques: ["T1046", "T1018", "T1135"] },
+  { name: "scanforge-discovery", category: "Information Gathering", description: "Network discovery and security auditing", techniques: ["T1046", "T1018", "T1135"] },
   { name: "masscan", category: "Information Gathering", description: "Mass IP port scanner", techniques: ["T1046"] },
   { name: "recon-ng", category: "Information Gathering", description: "Web reconnaissance framework", techniques: ["T1589", "T1590", "T1591", "T1592", "T1593"] },
   { name: "theHarvester", category: "Information Gathering", description: "Email, subdomain, and people name harvester", techniques: ["T1589", "T1590", "T1593"] },

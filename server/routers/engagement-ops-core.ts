@@ -239,8 +239,8 @@ export const engagementOpsRouter = router({
           if (mode === 'security') {
             // Test with security-related content
             messages = [
-              { role: 'system', content: 'You are an expert penetration tester and red team operator. You plan nmap scans, nuclei vulnerability scans, exploit payloads, and SQL injection attacks. You use tools like hydra for credential brute-forcing, metasploit for exploitation, and gobuster for directory discovery. ' + padding },
-              { role: 'user', content: 'Recommend nmap flags for scanning a web server behind CloudFlare WAF. Include evasion techniques.' },
+              { role: 'system', content: 'You are an expert penetration tester and red team operator. You plan ScanForge discovery scans, nuclei vulnerability scans, exploit payloads, and SQL injection attacks. You use tools like hydra for credential brute-forcing, metasploit for exploitation, and gobuster for directory discovery. ' + padding },
+              { role: 'user', content: 'Recommend discovery flags for scanning a web server behind CloudFlare WAF. Include evasion techniques.' },
             ];
           } else if (mode === 'json_schema') {
             // Test with json_schema response_format
@@ -264,7 +264,7 @@ export const engagementOpsRouter = router({
           } else if (mode === 'scan_plan') {
             // Test with the ACTUAL scan plan system prompt (trimmed)
             messages = [
-              { role: 'system', content: `You are an expert penetration tester and red team operator planning the active scanning phase of a pentest engagement. Available tools: nmap (port scanner), nuclei (vuln scanner with -u URL format), nikto (web scanner), gobuster (dir brute-forcer), httpx (HTTP probe), hydra (credential brute-forcer), sqlmap (SQL injection), testssl (TLS scanner), whatweb (tech fingerprinter), wpscan (WordPress scanner), cloud_enum (cloud resource enumerator), s3scanner (S3 bucket scanner). EVASION: If WAF/CDN detected do NOT use -f fragmentation or -D decoys. For cloud targets use simple '-Pn -sV -sC'. Respond with JSON matching: { "overallStrategy": "string", "assetPlans": [{ "hostname": "string", "nmapFlags": "string", "activeTools": [{ "tool": "string", "command": "string" }] }] }` + padding },
+              { role: 'system', content: `You are an expert penetration tester and red team operator planning the active scanning phase of a pentest engagement. Available tools: ScanForge discovery (port scanner), nuclei (vuln scanner with -u URL format), nikto (web scanner), gobuster (dir brute-forcer), httpx (HTTP probe), hydra (credential brute-forcer), sqlmap (SQL injection), testssl (TLS scanner), whatweb (tech fingerprinter), wpscan (WordPress scanner), cloud_enum (cloud resource enumerator), s3scanner (S3 bucket scanner). EVASION: If WAF/CDN detected do NOT use -f fragmentation or -D decoys. For cloud targets use simple '-Pn -sV -sC'. Respond with JSON matching: { "overallStrategy": "string", "assetPlans": [{ "hostname": "string", "discoveryFlags": "string", "activeTools": [{ "tool": "string", "command": "string" }] }] }` + padding },
               { role: 'user', content: 'Plan a scan for dashboard-dev.vianovahealth.com (cloud-hosted on AWS, WAF detected: CloudFront). Passive recon found: ports 80/443 open, nginx web server, React frontend. Generate a two-phase scan plan.' },
             ];
             opts.response_format = {
@@ -282,7 +282,7 @@ export const engagementOpsRouter = router({
                         type: 'object',
                         properties: {
                           hostname: { type: 'string' },
-                          nmapFlags: { type: 'string' },
+                          discoveryFlags: { type: 'string' },
                           activeTools: {
                             type: 'array',
                             items: {
@@ -296,7 +296,7 @@ export const engagementOpsRouter = router({
                             },
                           },
                         },
-                        required: ['hostname', 'nmapFlags', 'activeTools'],
+                        required: ['hostname', 'discoveryFlags', 'activeTools'],
                         additionalProperties: false,
                       },
                     },
@@ -1087,7 +1087,7 @@ export const engagementOpsRouter = router({
             state!.currentAction = undefined;
             state!.currentDomain = undefined;
             state!.currentDomainStartedAt = undefined;
-            const doneLog = { id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '\u2705 Strict Passive Discovery Complete', detail: `${state!.assets.length} assets discovered via strict passive OSINT (zero target contact). Click "Start Active Scan" to hand off to LLM for nmap \u2192 service matching \u2192 vuln detection \u2192 exploitation.` };
+            const doneLog = { id: `log-${Date.now()}-done`, timestamp: Date.now(), phase: 'recon' as const, type: 'phase_complete' as const, title: '\u2705 Strict Passive Discovery Complete', detail: `${state!.assets.length} assets discovered via strict passive OSINT (zero target contact). Click "Start Active Scan" to hand off to LLM for ScanForge discovery \u2192 service matching \u2192 vuln detection \u2192 exploitation.` };
             state!.log.push(doneLog);
             broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'recon_complete' });
             broadcastOpsUpdate(input.engagementId, { type: 'log', entry: doneLog });
@@ -1113,7 +1113,7 @@ export const engagementOpsRouter = router({
         return { started: true };
       }),
 
-    /** Generate LLM scan plan — analyzes passive recon results to determine nmap settings and tools per asset */
+    /** Generate LLM scan plan — analyzes passive recon results to determine ScanForge discovery settings and tools per asset */
     generateScanPlan: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -1139,7 +1139,7 @@ export const engagementOpsRouter = router({
         return { scanPlan: state?.scanPlan || null };
       }),
 
-    /** Start LLM-orchestrated active scanning (generates scan plan first, then nmap with plan-specific flags, then tool matching per service) */
+    /** Start LLM-orchestrated active scanning (generates scan plan first, then ScanForge discovery with plan-specific flags, then tool matching per service) */
     startActiveScan: protectedProcedure
       .input(z.object({ engagementId: z.number(), scanProfile: z.enum(['quick', 'standard', 'deep', 'stealth']).optional() }))
       .mutation(async ({ input, ctx }) => {
@@ -1163,7 +1163,7 @@ export const engagementOpsRouter = router({
         state.isRunning = true;
         state.phase = 'enumeration';
 
-        await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (scan plan \u2192 nmap \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
+        await db.logActivity({ userId: ctx.user.id, action: 'active_scan_started', details: `Started LLM-orchestrated active scan (scan plan \u2192 ScanForge discovery \u2192 tool match \u2192 exploit) for engagement #${input.engagementId}` });
 
         // Generate scan plan first if not already generated, then execute
         (async () => {
@@ -1175,8 +1175,8 @@ export const engagementOpsRouter = router({
             console.warn('[EngOps] Scan plan generation failed, proceeding with defaults:', e.message);
           }
 
-          // Execute the active pipeline starting from enumeration (nmap first)
-          // The executeEnumeration phase will use state.scanPlan for nmap flags
+          // Execute the active pipeline starting from enumeration (ScanForge discovery first)
+          // The executeEnumeration phase will use state.scanPlan for discovery flags
           const { executeEngagement, addLog: addOpsLog, broadcastOpsUpdate: broadcast } = await import('../lib/engagement-orchestrator');
           try {
             await executeEngagement(input.engagementId, { id: String(ctx.user.id), name: ctx.user.name || undefined }, { startPhase: 'enumeration', scanProfile: input.scanProfile || 'standard' });
@@ -1397,8 +1397,8 @@ export const engagementOpsRouter = router({
               sourcePortSpoofing: full.evasion.sourcePortSpoofing,
             },
             nucleiSeverity: full.nuclei.severityFilter,
-            nmapPorts: full.nmap.discoveryPorts,
-            nmapTiming: full.nmap.timing,
+            discoveryPorts: full.discovery.discoveryPorts,
+            discoveryTiming: full.discovery.timing,
             concurrency: full.tools.concurrency,
           };
         });
@@ -1841,7 +1841,7 @@ export const engagementOpsRouter = router({
                 addLog(state!, {
                   phase: 'scanning', type: 'success',
                   title: `\u2705 Active Scan Plan Generated: ${activeScanPlan.totalTargets} targets`,
-                  detail: `${activeScanPlan.nmapConfigs.length} nmap, ${activeScanPlan.nucleiConfigs.length} nuclei, ${activeScanPlan.zapConfigs.length} ZAP configs. Est. duration: ${activeScanPlan.stats.estimatedScanDuration}. Risk coverage: ${activeScanPlan.stats.riskCoverage}%. ${activeScanPlan.excludedByRoE.length} targets excluded by RoE.`,
+                  detail: `${activeScanPlan.scanConfigs.length} ScanForge discovery, ${activeScanPlan.nucleiConfigs.length} nuclei, ${activeScanPlan.zapConfigs.length} ZAP configs. Est. duration: ${activeScanPlan.stats.estimatedScanDuration}. Risk coverage: ${activeScanPlan.stats.riskCoverage}%. ${activeScanPlan.excludedByRoE.length} targets excluded by RoE.`,
                 });
                 if (activeScanPlan.excludedByRoE.length > 0) {
                   addLog(state!, {
@@ -1869,10 +1869,10 @@ export const engagementOpsRouter = router({
                 const { executeTool, executeRawCommand } = await import('../lib/scan-server-executor');
 
                 // Build a lookup of handoff-generated configs per target
-                const nmapConfigMap = new Map<string, any>();
+                const scanConfigMap = new Map<string, any>();
                 const nucleiConfigMap = new Map<string, any>();
                 if (activeScanPlan) {
-                  for (const cfg of activeScanPlan.nmapConfigs || []) nmapConfigMap.set(cfg.target, cfg);
+                  for (const cfg of activeScanPlan.scanConfigs || []) scanConfigMap.set(cfg.target, cfg);
                   for (const cfg of activeScanPlan.nucleiConfigs || []) nucleiConfigMap.set(cfg.target, cfg);
                 }
 
@@ -1882,30 +1882,30 @@ export const engagementOpsRouter = router({
                   : state!.assets;
 
                 for (const asset of assetsToScan) {
-                  // Use handoff nmap config if available, otherwise fall back to defaults
-                  const nmapCfg = nmapConfigMap.get(asset.hostname);
-                  const nmapArgs = nmapCfg
-                    ? `${nmapCfg.flags} ${nmapCfg.portSpec ? `-p ${nmapCfg.portSpec}` : '--top-ports 1000'} ${asset.hostname}`
+                  // Use handoff ScanForge discovery config if available, otherwise fall back to defaults
+                  const scanCfg = scanConfigMap.get(asset.hostname);
+                  const discoveryArgs = scanCfg
+                    ? `${scanCfg.flags} ${scanCfg.portSpec ? `-p ${scanCfg.portSpec}` : '--top-ports 1000'} ${asset.hostname}`
                     : `-sV -sC -T4 --top-ports 1000 ${asset.hostname}`;
-                  const nmapTimeout = nmapCfg?.timeout || 300;
+                  const discoveryTimeout = scanCfg?.timeout || 300;
 
-                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nmap: ${asset.hostname}`, detail: nmapCfg ? `Handoff config: ${nmapCfg.rationale}` : 'Service detection and version scan (default config)...' });
+                  addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} ScanForge: ${asset.hostname}`, detail: scanCfg ? `Handoff config: ${scanCfg.rationale}` : 'Service detection and version scan (default config)...' });
                   try {
-                    const nmapResult = await executeTool({ tool: 'nmap', args: nmapArgs, timeoutSeconds: nmapTimeout });
+                    const discoveryResult = await executeTool({ tool: 'scanforge-discovery', args: discoveryArgs, timeoutSeconds: discoveryTimeout });
                     const portRegex = /(\d+)\/tcp\s+open\s+(\S+)\s*(.*)/g;
                     let match;
-                    while ((match = portRegex.exec(nmapResult.stdout)) !== null) {
+                    while ((match = portRegex.exec(discoveryResult.stdout)) !== null) {
                       const port = parseInt(match[1]);
                       if (!asset.ports.find((p: any) => p.port === port)) {
                         asset.ports.push({ port, service: match[2], version: match[3]?.trim() || '' } as any);
                       }
                     }
                     asset.status = 'scanned' as any;
-                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Nmap: ${asset.hostname}`, detail: `${asset.ports.length} open ports` });
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 ScanForge: ${asset.hostname}`, detail: `${asset.ports.length} open ports` });
                   } catch (err: any) {
-                    // Even if nmap fails, mark as scanned (attempted) so it doesn't stay 'pending'
+                    // Even if ScanForge discovery fails, mark as scanned (attempted) so it doesn't stay 'pending'
                     asset.status = 'scanned' as any;
-                    addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Nmap failed: ${asset.hostname}`, detail: err.message });
+                    addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c ScanForge failed: ${asset.hostname}`, detail: err.message });
                   }
 
                   // Use handoff nuclei config if available, otherwise fall back to defaults
@@ -2055,7 +2055,7 @@ export const engagementOpsRouter = router({
                     })),
                     ...a.ports.map((p: any) => ({
                       type: 'service', asset: a.hostname, port: p.port,
-                      service: p.service, version: p.version, tool: 'nmap',
+                      service: p.service, version: p.version, tool: 'scanforge-discovery',
                     })),
                   ]);
                   const feedbackResult = await runFeedbackLoop(
@@ -2083,7 +2083,7 @@ export const engagementOpsRouter = router({
                 const { getOwaspVulnCorrelationContext } = await import('../lib/owasp-knowledge');
                 const { buildKnowledgeContextForLLM } = await import('../lib/pentest-knowledge-base');
                 const { buildAuthKnowledgeContext } = await import('../lib/auth-testing-knowledge');
-                const { getNmapVulnCorrelationContext } = await import('../lib/nmap-knowledge');
+                const { getScanforgeVulnCorrelationContext } = await import('../lib/scanforge-knowledge');
                 const { getThreatGroupVulnContext } = await import('../lib/threat-group-knowledge');
                 const { buildMethodologyContext, buildVulnTestingContext } = await import('../lib/knowledge/bugbounty-methodology-knowledge');
                 const { buildLearningContext, GROUND_TRUTH_LIBRARY } = await import('../lib/llm-self-learning');
@@ -2116,7 +2116,7 @@ export const engagementOpsRouter = router({
                 const owaspCtx = getOwaspVulnCorrelationContext();
                 const pentestCtx = buildKnowledgeContextForLLM('operator', 2000);
                 const authCtx = buildAuthKnowledgeContext();
-                const nmapVulnCtx = getNmapVulnCorrelationContext();
+                const scanforgeVulnCtx = getScanforgeVulnCorrelationContext();
                 const threatCtx = getThreatGroupVulnContext();
                 for (const asset of state!.assets) {
                   if (asset.vulns.length > 0) continue; // Skip assets that already have vulns from active scanning
@@ -2206,7 +2206,7 @@ ${pentestCtx.slice(0, 1500)}
 
 ${authCtx.slice(0, 800)}
 
-${nmapVulnCtx.slice(0, 800)}
+${scanforgeVulnCtx.slice(0, 800)}
 
 ${threatCtx.slice(0, 800)}
 ${learningCtx ? `\n=== SELF-LEARNING CORRECTIONS (from previous scans) ===\n${learningCtx.slice(0, 2000)}\n` : ''}

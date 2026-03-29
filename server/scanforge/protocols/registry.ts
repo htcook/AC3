@@ -105,90 +105,90 @@ function registerBuiltinScanners(registry: ProtocolRegistry): void {
     name: "MySQL Scanner",
     protocol: "mysql",
     defaultPorts: [3306],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script mysql-info,mysql-enum,mysql-vuln-cve2012-2122,mysql-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "PostgreSQL Scanner",
     protocol: "postgresql",
     defaultPorts: [5432],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script pgsql-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "Redis Scanner",
     protocol: "redis",
     defaultPorts: [6379],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script redis-info,redis-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "MongoDB Scanner",
     protocol: "mongodb",
     defaultPorts: [27017],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script mongodb-info,mongodb-databases,mongodb-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "SMB Scanner",
     protocol: "smb",
     defaultPorts: [445, 139],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script smb-vuln*,smb-enum-shares,smb-enum-users,smb-os-discovery -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "LDAP Scanner",
     protocol: "ldap",
     defaultPorts: [389, 636],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script ldap-rootdse,ldap-search,ldap-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "RDP Scanner",
     protocol: "rdp",
     defaultPorts: [3389],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script rdp-vuln-ms12-020,rdp-enum-encryption,rdp-ntlm-info -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "VNC Scanner",
     protocol: "vnc",
     defaultPorts: [5900, 5901],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script vnc-info,vnc-brute -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "AMQP/RabbitMQ Scanner",
     protocol: "amqp",
     defaultPorts: [5672, 15672],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script amqp-info -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new ToolWrappedScanner({
     name: "Telnet Scanner",
     protocol: "telnet",
     defaultPorts: [23],
-    tool: "nmap",
+    tool: "naabu",
     argsTemplate: "--script telnet-brute,telnet-ntlm-info -p {port} {host}",
-    parseOutput: parseNmapScriptOutput,
+    parseOutput: parseScanForgeScriptOutput,
   }));
 
   registry.register(new HTTPSecurityScanner());
@@ -217,7 +217,7 @@ function registerBuiltinScanners(registry: ProtocolRegistry): void {
 }
 
 // ─── Tool-Wrapped Scanner (Generic) ───────────────────────────────────────
-// Wraps existing tools (nmap scripts, nuclei, etc.) as protocol scanners.
+// Wraps existing tools (nuclei templates, etc.) as protocol scanners.
 
 interface ToolWrappedConfig {
   name: string;
@@ -267,7 +267,7 @@ class ToolWrappedScanner implements ProtocolScanner {
   async probe(host: string, port: number): Promise<boolean> {
     const { executeTool } = await import("../../lib/scan-server-executor");
     const result = await executeTool({
-      tool: "nmap",
+      tool: "naabu",
       args: `-sT -p ${port} --open -T4 ${host}`,
       target: host,
       timeoutSeconds: 15,
@@ -632,12 +632,12 @@ class DNSScanner implements ProtocolScanner {
   }
 }
 
-// ─── Nmap Script Output Parser ─────────────────────────────────────────────
+// ─── ScanForge Script Output Parser ─────────────────────────────────────────────
 
-function parseNmapScriptOutput(stdout: string, target: ScanTarget, protocol: string): ScanFinding[] {
+function parseScanForgeScriptOutput(stdout: string, target: ScanTarget, protocol: string): ScanFinding[] {
   const findings: ScanFinding[] = [];
 
-  // Parse nmap script output for vulnerabilities
+  // Parse ScanForge discovery script output for vulnerabilities
   const vulnBlocks = stdout.split(/\|_?\s*/);
 
   for (const block of vulnBlocks) {
@@ -651,9 +651,9 @@ function parseNmapScriptOutput(stdout: string, target: ScanTarget, protocol: str
 
       findings.push({
         id: crypto.randomUUID(),
-        source: `nmap-script:${protocol}`,
+        source: `nuclei-template:${protocol}`,
         title: `${protocol.toUpperCase()} Vulnerability: ${title}`,
-        description: descMatch ? descMatch[1] : `Nmap script detected a vulnerability in ${protocol} service on ${target.value}.`,
+        description: descMatch ? descMatch[1] : `ScanForge script detected a vulnerability in ${protocol} service on ${target.value}.`,
         severity: cveMatch ? "high" : "medium",
         confidence: 85,
         target: target.value,
@@ -669,7 +669,7 @@ function parseNmapScriptOutput(stdout: string, target: ScanTarget, protocol: str
     if (block.includes("Valid credentials") || block.includes("Accounts:")) {
       findings.push({
         id: crypto.randomUUID(),
-        source: `nmap-script:${protocol}`,
+        source: `nuclei-template:${protocol}`,
         title: `${protocol.toUpperCase()} Weak Credentials Detected`,
         description: `Default or weak credentials were found for the ${protocol} service on ${target.value}.`,
         severity: "critical",
@@ -690,7 +690,7 @@ function parseNmapScriptOutput(stdout: string, target: ScanTarget, protocol: str
       if (versionMatch) {
         findings.push({
           id: crypto.randomUUID(),
-          source: `nmap-script:${protocol}`,
+          source: `nuclei-template:${protocol}`,
           title: `${protocol.toUpperCase()} Version Disclosure`,
           description: `The ${protocol} service on ${target.value} discloses its version: ${versionMatch[1].trim()}.`,
           severity: "info",

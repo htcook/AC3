@@ -79,7 +79,7 @@ const PHASES = ["recon", "scanning", "enumeration", "exploitation", "post_exploi
 
 const DECISIONS = [
   { decision: "Initiate passive OSINT reconnaissance on target domain", phase: "recon" },
-  { decision: "Run Nmap SYN scan on discovered IP range", phase: "scanning" },
+  { decision: "Run ScanForge SYN scan on discovered IP range", phase: "scanning" },
   { decision: "Enumerate web application directories with Gobuster", phase: "enumeration" },
   { decision: "Attempt SQL injection on login form parameter", phase: "exploitation" },
   { decision: "Deploy reverse shell payload via file upload vulnerability", phase: "exploitation" },
@@ -112,7 +112,7 @@ const TIMELINE_EVENTS = [
   { eventType: "pivot_established" as const, severity: "high" as const, title: "SSH tunnel to internal network 10.0.0.0/24" },
   { eventType: "data_exfiltrated" as const, severity: "critical" as const, title: "Exfiltrated 2.3MB of sensitive data via DNS tunnel" },
   { eventType: "opsec_alert" as const, severity: "medium" as const, title: "IDS alert triggered — adjusting scan timing" },
-  { eventType: "tool_executed" as const, severity: "info" as const, title: "Nmap service version detection completed" },
+  { eventType: "tool_executed" as const, severity: "info" as const, title: "ScanForge service version detection completed" },
   { eventType: "phase_completed" as const, severity: "info" as const, title: "Exploitation phase completed — 4 shells obtained" },
   { eventType: "objective_completed" as const, severity: "info" as const, title: "Primary objective achieved: domain admin access" },
   { eventType: "finding_discovered" as const, severity: "medium" as const, title: "XSS vulnerability in search parameter" },
@@ -299,7 +299,7 @@ export const labEngagementSeedRouter = router({
           decision: dec.decision,
           reasoning: `${agent.name} analyzed the target environment and determined this action has a ${Math.round(stealthScore * 100)}% stealth rating. Risk assessment: ${outcome === 'success' ? 'acceptable' : outcome === 'failure' ? 'high risk detected' : 'moderate risk'}.`,
           actions: JSON.stringify([
-            { tool: pick(["nmap", "gobuster", "sqlmap", "nikto", "zap", "metasploit", "hydra", "burpsuite"]), args: dec.decision },
+            { tool: pick(["scanforge-discovery", "gobuster", "sqlmap", "nikto", "zap", "metasploit", "hydra", "burpsuite"]), args: dec.decision },
             { tool: "opsec-check", args: `stealth_score=${stealthScore}` },
           ]),
           outcome,

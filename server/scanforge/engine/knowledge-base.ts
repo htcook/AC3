@@ -8,14 +8,14 @@
  * - In-memory Map per scan session (no Redis dependency, runs in-process)
  * - Hierarchical key structure: host/port/service/finding
  * - Template dependency resolution: templates declare what KB keys they need
- * - Auto-population from nmap/service detection results
+ * - Auto-population from ScanForge discovery/service detection results
  * - Persistence to DB for post-engagement analysis
  */
 
 export interface KBEntry {
   key: string;
   value: string | number | boolean | string[];
-  source: string;          // template ID or "nmap" or "service-detect"
+  source: string;          // template ID or "scanforge-discovery" or "service-detect"
   timestamp: number;
   confidence: number;      // 0-1
   ttl?: number;            // seconds before expiry (0 = permanent)
@@ -252,10 +252,10 @@ export class ScanForgeKB {
   // ─── Nmap Result Ingestion ─────────────────────────────────────
   
   /**
-   * Populate KB from nmap scan results
+   * Populate KB from ScanForge discovery scan results
    * This is the primary way to seed the KB before template execution
    */
-  ingestNmapResults(host: string, nmapData: {
+  ingestDiscoveryResults(host: string, discoveryData: {
     ports: Array<{
       port: number;
       proto: string;
@@ -268,14 +268,14 @@ export class ScanForgeKB {
     hostname?: string;
     mac?: string;
   }): void {
-    const source = "nmap";
+    const source = "scanforge-discovery";
     
     this.set(KB_KEYS.HOST_ALIVE, true, source, { host, confidence: 1.0 });
-    if (nmapData.os) this.set(KB_KEYS.HOST_OS, nmapData.os, source, { host, confidence: 0.7 });
-    if (nmapData.hostname) this.set(KB_KEYS.HOST_FQDN, nmapData.hostname, source, { host, confidence: 0.9 });
-    if (nmapData.mac) this.set(KB_KEYS.HOST_MAC, nmapData.mac, source, { host, confidence: 1.0 });
+    if (discoveryData.os) this.set(KB_KEYS.HOST_OS, discoveryData.os, source, { host, confidence: 0.7 });
+    if (discoveryData.hostname) this.set(KB_KEYS.HOST_FQDN, discoveryData.hostname, source, { host, confidence: 0.9 });
+    if (discoveryData.mac) this.set(KB_KEYS.HOST_MAC, discoveryData.mac, source, { host, confidence: 1.0 });
     
-    for (const p of nmapData.ports) {
+    for (const p of discoveryData.ports) {
       this.set(KB_KEYS.PORT_STATE(p.port, p.proto), p.state, source, { host, confidence: 1.0 });
       if (p.service) {
         this.set(KB_KEYS.PORT_SERVICE(p.port, p.proto), p.service, source, { host, confidence: 0.85 });
@@ -477,7 +477,7 @@ export interface KBAwareTemplate {
 }
 
 /**
- * Factory: create a KB instance pre-populated from engagement nmap data
+ * Factory: create a KB instance pre-populated from engagement ScanForge data
  */
 export function createKBFromEngagement(
   scanId: string,
@@ -491,7 +491,7 @@ export function createKBFromEngagement(
   const kb = new ScanForgeKB(scanId);
   
   for (const asset of assets) {
-    kb.ingestNmapResults(asset.ip, {
+    kb.ingestDiscoveryResults(asset.ip, {
       ports: (asset.openPorts || []).map(p => ({
         port: p.port,
         proto: "tcp",

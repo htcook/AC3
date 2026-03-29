@@ -321,7 +321,7 @@ export const packetAnalysisRouter = router({
       const scannerIp = input.scannerIp || process.env.SCAN_SERVER_HOST || "10.0.0.1";
 
       // Extract data from engagement state
-      const nmapResults = state.assets
+      const discoveryResults = state.assets
         .filter((a: any) => a.ip && a.ports?.length > 0)
         .map((a: any) => ({
           targetIp: a.ip,
@@ -335,7 +335,7 @@ export const packetAnalysisRouter = router({
 
       const topology = buildTopology(input.engagementId, {
         scannerIp,
-        nmapResults,
+        discoveryResults,
         assets: state.assets.map((a: any) => ({
           hostname: a.hostname,
           ip: a.ip,

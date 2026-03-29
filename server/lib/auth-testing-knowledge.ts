@@ -43,7 +43,7 @@ export const AUTH_TESTING_PHASES: AuthTestingPhase[] = [
       "Response codes", "Login form parameters",
       "SSO metadata documents", "MFA configuration indicators",
     ],
-    tools: ["ffuf", "nmap", "zap", "burp_suite", "mitmproxy"],
+    tools: ["ffuf", "scanforge-discovery", "zap", "burp_suite", "mitmproxy"],
     guardrails: [
       "Passive observation only — no active probing in this phase",
       "Record all redirect chains for evidence",
@@ -898,9 +898,9 @@ export const AUTH_TOOLING_STACK: AuthToolEntry[] = [
     integration: ["Burp project/export parsing", "HTTP history and site map exports"],
   },
   {
-    name: "Nmap",
+    name: "ScanForge",
     category: "network_enum",
-    license: "Nmap license",
+    license: "ScanForge license",
     useCases: ["http-auth discovery", "TLS/cipher inventory", "Service fingerprinting"],
     integration: ["http-auth", "http-methods", "http-enum", "ssl-cert", "ssl-enum-ciphers"],
   },

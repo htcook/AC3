@@ -608,7 +608,7 @@ export const socIntegrationHubRouter = router({
       const sampleFindings: EngagementFinding[] = [
         { id: "f1", engagementId: 1, title: "SQL Injection in login form", description: "Blind SQL injection via username parameter", severity: "critical", cvss: 9.8, targetHost: "10.0.1.5", targetPort: 443, toolUsed: "sqlmap", cveIds: ["CVE-2024-1234"], mitreTechniques: ["T1190"], timestamp: Date.now() - 86400000 },
         { id: "f2", engagementId: 1, title: "Exposed admin panel", description: "Admin panel accessible without auth", severity: "high", cvss: 7.5, targetHost: "10.0.1.5", targetPort: 8080, toolUsed: "nuclei", mitreTechniques: ["T1078"], timestamp: Date.now() - 43200000 },
-        { id: "f3", engagementId: 1, title: "Outdated TLS 1.0", description: "Server supports deprecated TLS 1.0", severity: "medium", targetHost: "10.0.1.5", targetPort: 443, toolUsed: "nmap", timestamp: Date.now() - 21600000 },
+        { id: "f3", engagementId: 1, title: "Outdated TLS 1.0", description: "Server supports deprecated TLS 1.0", severity: "medium", targetHost: "10.0.1.5", targetPort: 443, toolUsed: "scanforge-discovery", timestamp: Date.now() - 21600000 },
       ];
 
       const sampleAttacks: AttackAction[] = [

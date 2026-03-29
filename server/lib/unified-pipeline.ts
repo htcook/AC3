@@ -73,7 +73,7 @@ export type ToolModule =
   | 'scoring'
   | 'detection_rules'
   | 'amass'
-  | 'nmap'
+  | 'scanforge-discovery'
   | 'service_fingerprinter'
   | 'ssh_audit'
   | 'ftp_audit'
@@ -176,7 +176,7 @@ export interface PipelineRun {
 export const PIPELINE_STAGES: PipelineStageConfig[] = [
   {
     phase: 'recon',
-    tools: ['passive_osint', 'zap_passive', 'nuclei_info', 'atomic_red_team', 'amass', 'nmap'],
+    tools: ['passive_osint', 'zap_passive', 'nuclei_info', 'atomic_red_team', 'amass', 'scanforge-discovery'],
     description: 'Passive discovery and enumeration — map the attack surface without touching the target directly. OSINT connectors gather DNS, certificates, breached credentials, and cloud assets. Web scanner passive spider discovers web application structure. Template scanner info-level templates fingerprint technology stacks. Adversary emulation recon techniques (T1595, T1592) validate what an attacker would see.',
     requiresPriorPhase: false,
     canRunParallel: true,
@@ -184,8 +184,8 @@ export const PIPELINE_STAGES: PipelineStageConfig[] = [
   },
   {
     phase: 'enumeration',
-    tools: ['zap_active', 'nuclei_info', 'api_security', 'passive_osint', 'amass', 'nmap', 'service_fingerprinter'],
-    description: 'Active probing and deep enumeration — crawl web applications, discover API endpoints, enumerate services. Web scanner active/AJAX spider performs deep crawling of JavaScript-heavy apps. Template scanner medium templates enumerate services and configurations. API security engine tests OpenAPI/GraphQL endpoints. Active DNS and banner verification confirms passive findings. Amass active subdomain enumeration discovers additional attack surface via DNS brute-force and zone transfers. Nmap port scanning and service detection identifies open ports. Service fingerprinter performs protocol-specific probing of SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, databases, and other administrative services.',
+    tools: ['zap_active', 'nuclei_info', 'api_security', 'passive_osint', 'amass', 'scanforge-discovery', 'service_fingerprinter'],
+    description: 'Active probing and deep enumeration — crawl web applications, discover API endpoints, enumerate services. Web scanner active/AJAX spider performs deep crawling of JavaScript-heavy apps. Template scanner medium templates enumerate services and configurations. API security engine tests OpenAPI/GraphQL endpoints. Active DNS and banner verification confirms passive findings. Amass active subdomain enumeration discovers additional attack surface via DNS brute-force and zone transfers. ScanForge port scanning and service detection identifies open ports. Service fingerprinter performs protocol-specific probing of SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, databases, and other administrative services.',
     requiresPriorPhase: true,
     canRunParallel: true,
     estimatedDurationMinutes: 20,
@@ -343,84 +343,84 @@ export const TOOL_PHASE_MATRIX: Record<ToolModule, {
     phases: ['recon', 'enumeration'],
     role: 'Subdomain enumeration — passive OSINT, active DNS brute-force, zone transfers, cert transparency scraping. Discovers additional attack surface beyond initial scope.',
     inputsFrom: ['passive_osint'],
-    outputsTo: ['nmap', 'service_fingerprinter', 'zap_passive', 'nuclei_info', 'scoring'],
+    outputsTo: ['scanforge-discovery', 'service_fingerprinter', 'zap_passive', 'nuclei_info', 'scoring'],
   },
-  nmap: {
+  discovery: {
     phases: ['recon', 'enumeration'],
-    role: 'Port scanning and service detection — SYN/TCP/UDP scanning, OS fingerprinting, version detection, NSE script execution. Identifies open ports and running services on discovered hosts.',
+    role: 'Port scanning and service detection — SYN/TCP/UDP scanning, OS fingerprinting, version detection, Nuclei template execution. Identifies open ports and running services on discovered hosts.',
     inputsFrom: ['passive_osint', 'amass'],
     outputsTo: ['service_fingerprinter', 'nuclei_info', 'nuclei_vuln', 'metasploit', 'nvd_kev', 'scoring'],
   },
   service_fingerprinter: {
     phases: ['enumeration'],
     role: 'Protocol-specific service fingerprinting — SSH, SMTP, FTP, SNMP, RDP, SMB, LDAP, Telnet, MySQL, PostgreSQL, MSSQL, Redis, MongoDB, VNC. Extracts banners, versions, security flags, default credential checks, and risk indicators.',
-    inputsFrom: ['nmap', 'passive_osint', 'amass'],
+    inputsFrom: ['scanforge-discovery', 'passive_osint', 'amass'],
     outputsTo: ['nuclei_vuln', 'metasploit', 'nvd_kev', 'corroboration', 'scoring'],
   },
   ssh_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'SSH security audit — weak algorithms, key exchange, auth methods, known CVEs (regreSSHion, Terrapin)',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   ftp_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'FTP security audit — anonymous login, bounce attacks, default creds, TLS support, version CVEs',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   smtp_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'SMTP security audit — open relay, VRFY/EXPN enum, STARTTLS, auth methods, version CVEs',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   snmp_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'SNMP security audit — community string brute, v1/v2c weak auth, info disclosure, MIB walk',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   rdp_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'RDP security audit — NLA check, CredSSP/BlueKeep CVEs, encryption level, NTLMv1 downgrade',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   dns_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'DNS security audit — zone transfer (AXFR), DNSSEC, recursion, version disclosure, cache poisoning, amplification',
-    inputsFrom: ['nmap', 'amass'],
+    inputsFrom: ['scanforge-discovery', 'amass'],
     outputsTo: ['corroboration', 'scoring'],
   },
   http_header_audit: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'HTTP header security audit — HSTS, CSP, X-Frame-Options, CORS, cookie flags, TLS config, server disclosure',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring', 'zap_active'],
   },
   tls_deep_scan: {
     phases: ['enumeration', 'vulnerability_assessment'],
     role: 'SSL/TLS deep scan — cipher suites, certificate chain, OCSP stapling, protocol downgrades (Heartbleed, POODLE, DROWN, ROBOT)',
-    inputsFrom: ['nmap', 'service_fingerprinter'],
+    inputsFrom: ['scanforge-discovery', 'service_fingerprinter'],
     outputsTo: ['corroboration', 'scoring'],
   },
   nikto: {
     phases: ['vulnerability_assessment'],
     role: 'Nikto web server scanner — misconfigurations, dangerous files, outdated software, CGI vulnerabilities',
-    inputsFrom: ['nmap', 'zap_passive'],
+    inputsFrom: ['scanforge-discovery', 'zap_passive'],
     outputsTo: ['corroboration', 'scoring'],
   },
   wapiti: {
     phases: ['vulnerability_assessment'],
     role: 'Wapiti web app scanner — XSS, SQL injection, command injection, file disclosure, SSRF',
-    inputsFrom: ['nmap', 'zap_passive'],
+    inputsFrom: ['scanforge-discovery', 'zap_passive'],
     outputsTo: ['corroboration', 'scoring'],
   },
   arachni: {
     phases: ['vulnerability_assessment'],
     role: 'Arachni web app scanner — comprehensive OWASP testing, DOM-based XSS, path traversal',
-    inputsFrom: ['nmap', 'zap_passive'],
+    inputsFrom: ['scanforge-discovery', 'zap_passive'],
     outputsTo: ['corroboration', 'scoring'],
   },
 };
@@ -649,7 +649,7 @@ export function getPhaseTools(
         }
         break;
       }
-      case 'nmap': {
+      case 'scanforge-discovery': {
         if (phase === 'recon') {
           priority = 75;
           reason = 'Quick port scan for initial service discovery on known hosts';
@@ -1036,10 +1036,10 @@ export const ACTIVE_DISCOVERY_SOURCES = {
     coverageTags: ['subdomain', 'dns', 'ip', 'asn', 'certificate', 'network_topology'],
     description: 'Subdomain enumeration via passive OSINT, cert transparency, DNS brute-force, and zone transfers',
   },
-  nmap: {
+  discovery: {
     coversPriorities: [3, 4, 6],  // Port Enum, Service/Version, OS Fingerprinting
     coverageTags: ['port', 'service', 'version', 'os', 'banner', 'nse_script', 'vulnerability'],
-    description: 'Port scanning, service detection, OS fingerprinting, and NSE script execution',
+    description: 'Port scanning, service detection, OS fingerprinting, and Nuclei template execution',
   },
   service_fingerprinter: {
     coversPriorities: [3, 4, 7],  // Port Enum, Service/Version, Admin Services
@@ -1067,7 +1067,7 @@ export const EXTENDED_SOURCE_WEIGHTS: Record<string, number> = {
   gophish: 0.70,
   bloodhound: 0.85,
   amass: 0.75,
-  nmap: 0.85,
+  discovery: 0.85,
   service_fingerprinter: 0.80,
 };
 
@@ -1116,7 +1116,7 @@ export function generateTimelineEvents(findings: PipelineFinding[]): {
     api_security: 'Lock',
     nvd_kev: 'Database',
     amass: 'Network',
-    nmap: 'Scan',
+    discovery: 'Scan',
     service_fingerprinter: 'Fingerprint',
   };
 
@@ -1147,13 +1147,13 @@ export function generateTimelineEvents(findings: PipelineFinding[]): {
   }));
 }
 
-// ─── Nmap / Amass / Service Fingerprinter Finding Converters ────────
+// ─── ScanForge / Amass / Service Fingerprinter Finding Converters ────────
 
 /**
- * Convert Nmap scan results to pipeline findings format.
+ * Convert ScanForge scan results to pipeline findings format.
  * Produces one finding per open port per host.
  */
-export function convertNmapFindings(
+export function convertScanForgeFindings(
   hosts: Array<{
     host: string;
     ports: Array<{
@@ -1167,7 +1167,7 @@ export function convertNmapFindings(
     }>;
     os: string | null;
     tags: string[];
-    nmapVersion: string;
+    serviceVersion: string;
     scanRunId: string;
     policyProfile: string;
   }>,
@@ -1181,13 +1181,13 @@ export function convertNmapFindings(
         .map(c => c.toUpperCase());
       const hasCve = cveMatches.length > 0;
       findings.push({
-        id: `nmap-${phase}-${host.host}-${port.port}-${port.protocol}`,
+        id: `discovery-${phase}-${host.host}-${port.port}-${port.protocol}`,
         phase,
-        tool: 'nmap' as ToolModule,
+        tool: 'scanforge-discovery' as ToolModule,
         type: hasCve ? 'vulnerability' : 'asset',
         severity: hasCve ? 'medium' : 'info',
         title: hasCve
-          ? `Nmap CVE detected on ${host.host}:${port.port} (${port.service || port.protocol})`
+          ? `ScanForge CVE detected on ${host.host}:${port.port} (${port.service || port.protocol})`
           : `Open port ${port.port}/${port.protocol} on ${host.host} — ${port.service || 'unknown'}`,
         description: port.version
           ? `Service: ${port.service || 'unknown'}, Version: ${port.version}${host.os ? `, OS: ${host.os}` : ''}`

@@ -72,7 +72,7 @@ export interface JobResult {
 export interface ScanJob extends JobMessage {
   type: "scan";
   payload: JobMessage["payload"] & {
-    scanType: "nmap" | "nuclei" | "zap" | "httpx" | "subfinder" | "amass" | "nikto" | "gobuster";
+    scanType: "scanforge-discovery" | "nuclei" | "zap" | "httpx" | "subfinder" | "amass" | "nikto" | "gobuster";
     scanProfile?: string;
     timeoutSeconds?: number;
     sudo?: boolean;

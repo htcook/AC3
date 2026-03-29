@@ -1,0 +1,1 @@
+ALTER TABLE `ics_devices` MODIFY COLUMN `icd_discovery_source` enum('shodan','censys','scanforge-discovery','protocol_scan','manual','caldera') DEFAULT 'manual';

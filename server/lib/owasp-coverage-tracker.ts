@@ -130,7 +130,7 @@ const TOOL_TO_OWASP_COVERAGE: Record<string, string[]> = {
   // Component analysis
   "nuclei -tags cve": ["A03:2025"],
   "nuclei -tags tech": ["A03:2025"],
-  nmap: ["A03:2025", "A04:2025"],
+  discovery: ["A03:2025", "A04:2025"],
   
   // Crypto tools
   "ssl-enum-ciphers": ["A04:2025"],
