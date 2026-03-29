@@ -195,7 +195,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
           { href: "/tools/subfinder", icon: Globe, label: "DISCOVERY TOOLKIT" },
           { href: "/tools/httpx", icon: Globe2, label: "HTTPX PROBER" },
-          { href: "/tools/naabu", icon: Radar, label: "PORT SCANNER (NMAP)" },
+          { href: "/tools/naabu", icon: Radar, label: "PORT SCANNER" },
           { href: "/nuclei-scanner", icon: ScanLine, label: "VULN SCANNING" },
           { href: "/vuln-scanner", icon: Bug, label: "VULN SCANNER" },
           { href: "/dast-scanners", icon: Shield, label: "DAST & SERVICE AUDIT" },

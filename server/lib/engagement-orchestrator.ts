@@ -3267,9 +3267,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           console.warn(`[AutoCapture] Hook failed: ${capErr.message}`);
         }
         try {
-          const sfArgs = sfTool === 'naabu' ? `-host ${target} -top-ports 1000 -json` : sfTool === 'masscan' ? `${target} -p1-1024,3306,3389,5432,5900,6379,8080,8443,27017 --rate 1000 -oJ -` : sfTool === 'rustscan' ? `-a ${target} --range 1-65535 -b 4500 -g` : `-host ${target} -top-ports 1000 -json`;
+          // Naabu v2.5.0: MUST use SYN scan (-s s) with -no-stdin to avoid CONNECT scan hang bug
+          const sfArgs = sfTool === 'naabu' ? `-host ${target} -top-ports 1000 -s s -no-stdin -rate 1000 -retries 1 -json` : sfTool === 'masscan' ? `${target} -p1-1024,3306,3389,5432,5900,6379,8080,8443,27017 --rate 1000 -oJ -` : sfTool === 'rustscan' ? `-a ${target} --range 1-65535 -b 4500 -g` : `-host ${target} -top-ports 1000 -s s -no-stdin -json`;
           addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `${sfTool} ${fmtTarget(asset, target)}`, detail: `${sfTool} ${sfArgs}` });
-          const discoveryResult = await executeTool({ tool: sfTool, args: sfArgs, timeoutSeconds: 600, sudo: sfTool === 'masscan' || sfTool === 'zmap' });
+          const discoveryResult = await executeTool({ tool: sfTool, args: sfArgs, timeoutSeconds: 600, sudo: sfTool === 'masscan' || sfTool === 'zmap' || sfTool === 'naabu' });
 
           // Parse ScanForge JSON output into structured port data
           if (discoveryResult.stdout) {
@@ -3320,7 +3321,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               detail: `First scan returned all-filtered (likely cloud WAF blocking evasion techniques). Retrying with naabu (most reliable fallback)`,
             });
 
-            const retryFlags = `-host ${target} -top-ports 1000 -json`;
+            const retryFlags = `-host ${target} -top-ports 1000 -s s -no-stdin -rate 1000 -retries 1 -json`;
             const retryArgs = retryFlags;
             const retryStart = Date.now();
             try {

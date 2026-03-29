@@ -935,6 +935,14 @@ async function startServer() {
         console.warn("[FIPSAudit] Failed to initialize FIPS audit scheduler:", err);
       });
 
+      // Initialize Bug Bounty Intelligence Pipeline (every 6h: 04:00, 10:00, 16:00, 22:00 UTC)
+      import("../lib/bounty-intel-scheduler").then(({ initBountyIntelSchedule }) => {
+        initBountyIntelSchedule();
+        console.log("[BountyIntel] Bug bounty intelligence pipeline scheduler initialized");
+      }).catch((err) => {
+        console.warn("[BountyIntel] Failed to initialize bounty intel scheduler:", err);
+      });
+
       // Force GC after cron scheduler registration
       if (global.gc) {
         global.gc();

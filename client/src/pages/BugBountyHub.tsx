@@ -112,6 +112,15 @@ export default function BugBountyHub() {
     onSuccess: (d: any) => { toast.success(`Generated ${d.generated} ScanForge templates (${d.skipped} skipped, ${d.failed} failed)`); refetchBridgeStats(); },
     onError: (e: any) => toast.error(e.message),
   });
+  const runIntelPipeline = trpc.bugBounty.runIntelPipeline.useMutation({
+    onSuccess: (d: any) => {
+      const ok = d.stages?.filter((s: any) => s.status === "ok").length || 0;
+      const err = d.stages?.filter((s: any) => s.status === "error").length || 0;
+      toast.success(`Intel pipeline complete: ${ok} stages ok, ${err} errors (${(d.totalDurationMs / 1000).toFixed(1)}s)`);
+      refetchTrainingStats(); refetchBridgeStats(); refetchFindings(); refetchPrograms();
+    },
+    onError: (e: any) => toast.error(`Pipeline failed: ${e.message}`),
+  });
 
   // Platform Credentials
   const { data: credentials, refetch: refetchCredentials } = trpc.platformCredentials.list.useQuery(undefined);
@@ -198,6 +207,10 @@ export default function BugBountyHub() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={() => runIntelPipeline.mutate()} disabled={runIntelPipeline.isPending}>
+            <Brain className={`h-4 w-4 mr-1 ${runIntelPipeline.isPending ? "animate-pulse" : ""}`} />
+            {runIntelPipeline.isPending ? "Running Pipeline..." : "Intel Pipeline"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => runCorrelation.mutate({})} disabled={runCorrelation.isPending}>
             <Zap className="h-4 w-4 mr-1" />
             {runCorrelation.isPending ? "Correlating..." : "Run Correlation"}
@@ -995,6 +1008,25 @@ export default function BugBountyHub() {
         </TabsContent>
         {/* ─── LLM Training Tab ─── */}
         <TabsContent value="training" className="space-y-4">
+          {/* Automated Pipeline Status */}
+          <Card className="bg-emerald-950/30 border-emerald-500/20">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-300">Automated Intel Pipeline Active</p>
+                    <p className="text-xs text-emerald-400/60">Runs every 6h (04:00, 10:00, 16:00, 22:00 UTC) — syncs H1 hacktivity, extracts training data, enriches samples, generates ScanForge templates, and runs cross-correlation</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" onClick={() => runIntelPipeline.mutate()} disabled={runIntelPipeline.isPending}>
+                  {runIntelPipeline.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Activity className="h-4 w-4 mr-1" />}
+                  {runIntelPipeline.isPending ? "Running..." : "Run Now"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Pipeline Controls */}
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => extractH1.mutate({ limit: 100 })} disabled={extractH1.isPending}>

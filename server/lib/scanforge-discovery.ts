@@ -218,17 +218,24 @@ function buildNaabuArgs(config: ScanforgeConfig): string[] {
   } else if (config.profile === 'deep' || config.profile === 'service') {
     args.push('-p', '-'); // All ports
   } else {
-    args.push('-top-ports', '1000');
+    args.push('-tp', '1000'); // naabu v2.5.0 uses -tp for top-ports
   }
 
   const rate = config.rate || 500;
   args.push('-rate', `${rate}`);
 
-  if (config.profile === 'udp') {
-    args.push('-scan-type', 'udp');
-  } else if (config.stealthLevel === 'high' || config.stealthLevel === 'maximum') {
-    args.push('-scan-type', 's'); // SYN scan
-  }
+  // naabu v2.5.0: ALWAYS use SYN scan (-s s) — CONNECT scan hangs on closed ports (known bug #1520)
+  // SYN scan requires root/CAP_NET_RAW which we have on the droplet
+  args.push('-s', 's');
+
+  // Prevent stdin interference when running via SSH
+  args.push('-no-stdin');
+
+  // Skip host discovery for known-alive targets (faster)
+  args.push('-Pn');
+
+  // Reduce retries for speed (default is 3)
+  args.push('-retries', '1');
 
   args.push('-json');
 
@@ -486,6 +493,10 @@ export function parseNaabuOutput(output: string): DiscoveredHost[] {
       const ip = record.ip || record.host;
       if (!ip) continue;
 
+      // Filter out IPv6 noise from naabu SYN scan (e.g., "0:101:800:4500:2c:0:4000:fb06")
+      // These are malformed IPv6 addresses from raw packet artifacts, not real hosts
+      if (ip.includes(':') && !ip.startsWith('[')) continue;
+
       if (!hostMap.has(ip)) {
         hostMap.set(ip, {
           ip,
@@ -694,7 +705,8 @@ export async function executeScanforgeScan(config: ScanforgeConfig): Promise<Sca
       command = `sudo masscan ${safeTargets.join(' ')} ${args.join(' ')} 2>/dev/null`;
       break;
     case 'naabu':
-      command = `naabu -host ${safeTargets.join(',')} ${args.join(' ')} 2>/dev/null`;
+      // SYN scan requires root; clear stale resume file to prevent hangs
+      command = `rm -f /root/.config/naabu/resume.cfg && sudo naabu -host ${safeTargets.join(',')} ${args.join(' ')} 2>/dev/null`;
       break;
     case 'rustscan':
       command = `rustscan -a ${safeTargets.join(',')} ${args.join(' ')} 2>/dev/null`;

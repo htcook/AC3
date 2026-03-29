@@ -89,9 +89,10 @@ export const SCANFORGE_TOOLS: ScanforgeTool[] = [
       'No built-in scripting engine',
       'UDP scanning is slower and less reliable',
       'No OS fingerprinting',
+      'CRITICAL: v2.5.0 CONNECT scan (-s c) has a bug causing 4-minute hangs on closed ports. ALWAYS use SYN scan (-s s -no-stdin) instead.',
     ],
     outputFormat: '-json (JSON lines) or -o (plain text)',
-    defaultPortRange: 'Top 100 (configurable with -p or -top-ports)',
+    defaultPortRange: 'Top 100 (configurable with -p or -tp)',
   },
   {
     name: 'RustScan',
@@ -213,16 +214,16 @@ export const EVASION_PROFILES: EvasionProfile[] = [
     bestFor: ['Shared network environments', 'Cloud targets with bandwidth monitoring', 'Avoiding DoS conditions'],
   },
   {
-    name: 'CONNECT Scan (Non-Raw)',
+    name: 'CONNECT Scan (Non-Raw) — DEPRECATED',
     risk: 'low',
-    description: 'Use full TCP CONNECT instead of SYN scan. Does not require root privileges. Appears as normal TCP connections. Naabu supports -scan-type connect.',
+    description: 'WARNING: Naabu v2.5.0 CONNECT scan (-s c) has a critical bug (GitHub issue #1520) that causes 4-minute hangs on closed ports. DO NOT USE. Always use SYN scan (-s s -no-stdin) instead. SYN scan requires root/CAP_NET_RAW (available on our droplet). CONNECT scan may be fixed in future naabu releases.',
     tools: ['naabu'],
     flags: {
-      naabu: ['-scan-type connect'],
+      naabu: ['-s s -no-stdin'],
     },
     bypassCapability: ['SYN-only IDS rules', 'Raw packet detection', 'Environments blocking raw sockets'],
-    limitations: ['Slower than SYN scanning', 'Leaves connection logs on target', 'More detectable at application layer'],
-    bestFor: ['Environments where raw sockets are blocked', 'Non-root scanning', 'Targets with SYN-specific detection'],
+    limitations: ['v2.5.0 CONNECT scan is BROKEN — hangs for 4 minutes per closed port', 'Leaves connection logs on target', 'More detectable at application layer'],
+    bestFor: ['DO NOT USE CONNECT SCAN — use SYN scan (-s s -no-stdin) for all naabu operations'],
   },
   {
     name: 'Multi-Probe Reliability',
@@ -316,7 +317,7 @@ export const SCAN_PROFILES: ScanProfile[] = [
     name: 'Naabu Standard Scan',
     description: 'Balanced port scan with host discovery. Good default for most engagements.',
     tool: 'naabu',
-    command: 'naabu -host {target} -top-ports 1000 -rate 500 -json',
+    command: 'naabu -host {target} -tp 1000 -rate 500 -s s -no-stdin -Pn -json',
     useCase: 'Standard authorized assessment',
     stealthLevel: 'low',
     estimatedDuration: '1-5 min',
@@ -326,7 +327,7 @@ export const SCAN_PROFILES: ScanProfile[] = [
     name: 'Naabu Full Port Scan',
     description: 'Complete port scan with service detection via built-in probes.',
     tool: 'naabu',
-    command: 'naabu -host {target} -p - -rate 1000 -json',
+    command: 'naabu -host {target} -p - -rate 1000 -s s -no-stdin -Pn -json',
     useCase: 'Comprehensive port enumeration with service hints',
     stealthLevel: 'low',
     estimatedDuration: '3-10 min',
@@ -336,7 +337,7 @@ export const SCAN_PROFILES: ScanProfile[] = [
     name: 'Naabu Stealth Scan',
     description: 'Low-rate SYN scan for monitored environments.',
     tool: 'naabu',
-    command: 'naabu -host {target} -top-ports 1000 -rate 50 -scan-type s -json',
+    command: 'naabu -host {target} -tp 1000 -rate 50 -s s -Pn -json',
     useCase: 'Scanning monitored targets',
     stealthLevel: 'high',
     estimatedDuration: '10-30 min',
@@ -346,7 +347,7 @@ export const SCAN_PROFILES: ScanProfile[] = [
     name: 'Naabu Pipeline (httpx chain)',
     description: 'Port discovery piped to httpx for web service fingerprinting.',
     tool: 'naabu',
-    command: 'naabu -host {target} -top-ports 1000 -silent | httpx -json -title -tech-detect -status-code -follow-redirects',
+    command: 'naabu -host {target} -tp 1000 -s s -no-stdin -Pn -silent | httpx -json -title -tech-detect -status-code -follow-redirects',
     useCase: 'Web service discovery and fingerprinting',
     stealthLevel: 'low',
     estimatedDuration: '2-8 min',
@@ -422,7 +423,7 @@ export const SCAN_PROFILES: ScanProfile[] = [
     name: 'ScanForge Stealth Pipeline',
     description: 'Rate-limited discovery chain for monitored environments.',
     tool: 'pipeline',
-    command: 'naabu -host {target} -top-ports 1000 -rate 50 -silent | httpx -json -title -tech-detect -status-code -rate-limit 10 | nuclei -json -severity medium,high,critical -rate-limit 10',
+    command: 'naabu -host {target} -tp 1000 -rate 50 -s s -no-stdin -Pn -silent | httpx -json -title -tech-detect -status-code -rate-limit 10 | nuclei -json -severity medium,high,critical -rate-limit 10',
     useCase: 'Stealthy automated discovery',
     stealthLevel: 'high',
     estimatedDuration: '30-120 min',
@@ -605,9 +606,9 @@ You have access to four high-speed discovery tools. Select the optimal tool(s) b
 | Small range (/24-/16) | Masscan | Best balance of speed and coverage | \`masscan {target} -p0-65535 --rate 5000 -oJ -\` |
 | Large range (/16+) | Masscan or ZMap | Handles massive ranges efficiently | \`masscan {target} -p{ports} --rate 10000 -oJ -\` |
 | Internet-wide, single port | ZMap | Purpose-built for internet scanning | \`zmap -p {port} -B 100M -O json\` |
-| Pipeline integration | Naabu | Native stdin/stdout chaining | \`naabu -host {target} -top-ports 1000 -silent \\| httpx\` |
-| Stealth required | Naabu or Masscan | Rate limiting + evasion flags | \`naabu -host {target} -rate 50\` |
-| UDP scanning needed | Naabu | Only ScanForge tool with UDP support | \`naabu -host {target} -scan-type udp -top-ports 50\` |
+| Pipeline integration | Naabu | Native stdin/stdout chaining | \`naabu -host {target} -tp 1000 -s s -no-stdin -Pn -silent \| httpx\` |
+| Stealth required | Naabu or Masscan | Rate limiting + evasion flags | \`naabu -host {target} -rate 50 -s s -no-stdin\` |
+| UDP scanning needed | Naabu | Only ScanForge tool with UDP support | \`naabu -host {target} -p 53,67,69,123,161,500,514,1900 -s s -no-stdin -Pn -json\` |
 
 ### Discovery Chain Architecture
 
@@ -876,7 +877,7 @@ export function buildOptimalScanforgeCommand(params: {
     discoveryCmd = `rustscan -a ${target} --range 1-65535 -b ${batchSize} -t ${stealthLevel === 'maximum' ? 5000 : 2000} -g`;
   } else if (stealthLevel === 'high' || stealthLevel === 'maximum') {
     // Naabu for stealth
-    discoveryCmd = `naabu -host ${target} -p ${portList} -rate ${rate} -scan-type s -json`;
+    discoveryCmd = `naabu -host ${target} -p ${portList} -rate ${rate} -s s -no-stdin -Pn -retries 1 -json`;
   } else {
     // Masscan for speed
     const evasionFlags = stealthLevel === 'medium' ? '--source-port 53 --randomize-hosts' : '';

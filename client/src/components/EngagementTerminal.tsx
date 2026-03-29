@@ -64,11 +64,11 @@ const SUGGESTED_COMMANDS = [
   { label: "Env Vars", cmd: "env | sort" },
 ];
 
-const NMAP_SUGGESTIONS = [
-  { label: "Quick Scan", cmd: (h: string) => `nmap -sV -sC -T4 ${h}` },
-  { label: "Full Port Scan", cmd: (h: string) => `nmap -p- -T4 ${h}` },
-  { label: "Vuln Scan", cmd: (h: string) => `nmap --script vuln -T4 ${h}` },
-  { label: "UDP Scan", cmd: (h: string) => `nmap -sU --top-ports 100 -T4 ${h}` },
+const SCANFORGE_SUGGESTIONS = [
+  { label: "Port Scan (Naabu)", cmd: (h: string) => `naabu -host ${h} -tp 1000 -s s -no-stdin -Pn -json` },
+  { label: "Full Port Scan (RustScan)", cmd: (h: string) => `rustscan -a ${h} --range 1-65535 -b 4500 -t 2000 -g` },
+  { label: "Vuln Scan (Nuclei)", cmd: (h: string) => `nuclei -u ${h} -severity medium,high,critical -json` },
+  { label: "Web Probe (httpx)", cmd: (h: string) => `httpx -u ${h} -json -title -tech-detect -status-code -follow-redirects` },
 ];
 
 export default function EngagementTerminal({
@@ -336,7 +336,7 @@ export default function EngagementTerminal({
         {/* ── Quick Commands Bar ── */}
         <div className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900/60 border-b border-zinc-800 overflow-x-auto shrink-0">
           <span className="text-[9px] text-zinc-500 uppercase shrink-0 mr-1">Quick:</span>
-          {(exploitContext ? SUGGESTED_COMMANDS.slice(0, 6) : NMAP_SUGGESTIONS.map(s => ({
+          {(exploitContext ? SUGGESTED_COMMANDS.slice(0, 6) : SCANFORGE_SUGGESTIONS.map(s => ({
             label: s.label,
             cmd: typeof s.cmd === "function" ? s.cmd(selectedAsset || assets[0]?.hostname || "TARGET") : s.cmd,
           }))).map((s) => (

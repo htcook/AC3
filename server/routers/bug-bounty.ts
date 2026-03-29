@@ -1533,4 +1533,13 @@ export const bugBountyRouter = router({
       const { getScanForgeBridgeStats } = await import("../lib/bounty-training-engine");
       return getScanForgeBridgeStats();
     }),
+
+  // ─── Automated Intel Pipeline ───
+
+  // Manually trigger the full bug bounty intelligence pipeline
+  runIntelPipeline: protectedProcedure
+    .mutation(async () => {
+      const { runBountyIntelPipeline } = await import("../lib/bounty-intel-scheduler");
+      return runBountyIntelPipeline("manual");
+    }),
 });
