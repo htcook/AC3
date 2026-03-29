@@ -3,6 +3,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import { createServer } from "http";
+import { sql } from "drizzle-orm";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
@@ -75,25 +76,58 @@ async function startServer() {
     res.status(200).json({ status: 'ok', timestamp: Date.now() });
   });
   app.get('/api/health', async (_req, res) => {
+    const os = await import('os');
+    const mem = process.memoryUsage();
+    const baseHealth: Record<string, any> = {
+      status: 'ok',
+      timestamp: Date.now(),
+      uptime: Math.round(process.uptime()),
+      pid: process.pid,
+      nodeVersion: process.version,
+      hostname: os.hostname(),
+      memory: {
+        heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+        rssMB: Math.round(mem.rss / 1024 / 1024),
+        heapUtilization: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+      },
+      database: { connected: false, latencyMs: -1 },
+      engagements: null,
+    };
+
+    // Helper: race a promise against a timeout
+    const withTimeout = <T>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+      Promise.race([p, new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))]);
+
+    // DB connectivity check with latency measurement (3s timeout)
+    const dbCheck = (async () => {
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      const dbStart = Date.now();
+      await db.execute(sql`SELECT 1`);
+      return { connected: true, latencyMs: Date.now() - dbStart };
+    })();
+    try {
+      baseHealth.database = await withTimeout(dbCheck, 3000, { connected: false, latencyMs: -1, error: 'timeout' });
+      if (!baseHealth.database.connected) baseHealth.status = 'degraded';
+    } catch (err: any) {
+      baseHealth.database = { connected: false, latencyMs: -1, error: err.message?.substring(0, 100) };
+      baseHealth.status = 'degraded';
+    }
+
+    // Engagement orchestrator health (sync call, wrapped in try/catch)
     try {
       const { getHealthStatus } = await import('../lib/engagement-orchestrator');
-      const health = getHealthStatus();
-      res.status(200).json(health);
-    } catch (err: any) {
-      // Fallback if orchestrator import fails
-      res.status(200).json({
-        status: 'ok',
-        timestamp: Date.now(),
-        uptime: process.uptime(),
-        pid: process.pid,
-        nodeVersion: process.version,
-        memory: {
-          heapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-          rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-        },
-        error: err.message,
-      });
+      baseHealth.engagements = getHealthStatus();
+    } catch { /* orchestrator not available */ }
+
+    // Memory pressure check
+    if (baseHealth.memory.heapUtilization > 90) {
+      baseHealth.status = 'degraded';
     }
+
+    const httpStatus = baseHealth.status === 'error' ? 503 : 200;
+    res.status(httpStatus).json(baseHealth);
   });
 
   // ─── Memory Profile Endpoint ──────────────────────────────────────
@@ -666,9 +700,14 @@ async function startServer() {
   const { registerSSEEventStream } = await import("../lib/sse-event-stream");
   registerSSEEventStream(app);
 
-  // tRPC API
+  // ─── Rate Limiting ────────────────────────────────────────────────────
+  const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
+
+  // tRPC API — apply rate limiting before tRPC middleware
   app.use(
     "/api/trpc",
+    apiRateLimiter,
+    trpcAuthRateLimiter,
     createExpressMiddleware({
       router: appRouter,
       createContext,
@@ -762,7 +801,13 @@ async function startServer() {
       // 2. Clean up SSH connection pool
       const { cleanupSSHPool } = await import('../lib/scan-server-executor');
       cleanupSSHPool();
-      // 3. Close the HTTP server
+      // 3. Flush session activity logs
+      try {
+        const { flushSessionEvents } = await import('../lib/session-activity-logger');
+        await flushSessionEvents();
+        console.log('[GracefulShutdown] Session activity logs flushed');
+      } catch { /* logger not initialized */ }
+      // 4. Close the HTTP server
       server.close(() => {
         console.log('[GracefulShutdown] HTTP server closed');
       });
@@ -776,6 +821,16 @@ async function startServer() {
   }
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // ─── Initialize Session Activity Logger ─────────────────────────────
+  import("../lib/session-activity-logger").then(({ initSessionLogger }) => {
+    import("../db").then(({ getDb }) => {
+      initSessionLogger(getDb);
+      console.log("[SessionLogger] Session activity logger initialized");
+    });
+  }).catch((err) => {
+    console.warn("[SessionLogger] Failed to initialize:", err);
+  });
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

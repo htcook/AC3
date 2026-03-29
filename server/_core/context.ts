@@ -2,6 +2,7 @@ import type { CreateExpressContextOptions } from "@trpc/server/adapters/express"
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
 import jwt from "jsonwebtoken";
+import { logSessionEvent, extractRequestInfo } from "../lib/session-activity-logger";
 
 const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
 
@@ -15,6 +16,7 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
+  const { ipAddress, userAgent } = extractRequestInfo(opts.req);
 
   // First try Manus OAuth
   try {
@@ -54,6 +56,19 @@ export async function createContext(
         const resolvedEmail = decoded.email || null;
         const resolvedLoginMethod = decoded.authType || (decoded.accountId ? 'email' : 'caldera');
 
+        // Log session validation with context fallback
+        logSessionEvent({
+          type: "session_context_fallback",
+          userId: resolvedId,
+          email: resolvedEmail || undefined,
+          username: decoded.username,
+          loginMethod: resolvedLoginMethod,
+          ipAddress,
+          userAgent,
+          sessionId: decoded.sessionId,
+          durationMs: Date.now() - decoded.loginTime,
+        });
+
         // Create a synthetic user object that satisfies the User type
         user = {
           id: resolvedId,
@@ -68,7 +83,19 @@ export async function createContext(
         } as User;
       }
     } catch (err) {
-      // Invalid or expired caldera_session token
+      // Log session errors for debugging
+      const token = opts.req.cookies?.['caldera_session'];
+      if (token) {
+        const isExpired = err instanceof jwt.TokenExpiredError;
+        logSessionEvent({
+          type: isExpired ? "session_expired" : "session_error",
+          ipAddress,
+          userAgent,
+          detail: isExpired
+            ? `Token expired at ${(err as jwt.TokenExpiredError).expiredAt?.toISOString()}`
+            : `JWT verification failed: ${(err as Error).message?.substring(0, 200)}`,
+        });
+      }
       user = null;
     }
   }
