@@ -241,10 +241,20 @@ const normalizeToolChoice = (
 // ─── Provider Resolution (Tiered Routing) ───────────────────────────────────────────
 // Routes LLM calls to the appropriate provider based on priority tier:
 //   essential → OpenAI (gpt-4o) for accuracy-critical tasks
-//   standard  → Forge (gemini-2.5-flash) first, OpenAI fallback
-//   bulk      → Forge only for high-volume commodity tasks
+//   standard  → OpenAI on DO (no Forge proxy latency); Forge on Manus
+//   bulk      → Forge on Manus; OpenAI on DO if available, else Forge
 //
-// When OPENAI_API_KEY is not set, all tiers fall back to Forge.
+// Environment detection: if BUILT_IN_FORGE_API_URL is empty or missing,
+// we're on DO/self-hosted and should prefer OpenAI to avoid Forge proxy overhead.
+
+const HAS_FORGE = !!(ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0 && ENV.forgeApiKey && ENV.forgeApiKey.trim().length > 0);
+const IS_EXTERNAL_DEPLOYMENT = !HAS_FORGE || !(ENV.forgeApiUrl || '').includes('manus');
+
+if (IS_EXTERNAL_DEPLOYMENT) {
+  console.log('[LLM Router] External deployment detected — preferring OpenAI direct over Forge proxy');
+} else {
+  console.log('[LLM Router] Manus deployment detected — using Forge as primary provider');
+}
 
 function getForgeConfig(): { apiUrl: string; apiKey: string; model: string; provider: string } {
   const forgeUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
@@ -281,19 +291,27 @@ function resolveProvider(priority: LLMPriority = 'standard'): { apiUrl: string; 
         console.log(`[LLM Router] Priority=essential → OpenAI (gpt-4o)`);
         return openai;
       }
-      // No OpenAI key — fall back to Forge
       console.log(`[LLM Router] Priority=essential but no OpenAI key → Forge fallback`);
       return forge;
 
     case 'bulk':
-      // Always use Forge for commodity tasks to conserve OpenAI tokens
+      // On external deployments (DO), use OpenAI if available to avoid Forge latency
+      if (IS_EXTERNAL_DEPLOYMENT && openai) {
+        console.log(`[LLM Router] Priority=bulk (external) → OpenAI (gpt-4o)`);
+        return openai;
+      }
+      // On Manus, use Forge for commodity tasks to conserve OpenAI tokens
       console.log(`[LLM Router] Priority=bulk → Forge (gemini-2.5-flash)`);
       return forge;
 
     case 'standard':
     default:
-      // Use Forge by default; OpenAI is available as fallback if Forge fails
-      // (fallback logic is handled in the retry loop of invokeLLM)
+      // On external deployments (DO), prefer OpenAI to avoid Forge proxy overhead
+      if (IS_EXTERNAL_DEPLOYMENT && openai) {
+        console.log(`[LLM Router] Priority=standard (external) → OpenAI (gpt-4o)`);
+        return openai;
+      }
+      // On Manus, use Forge by default; OpenAI is fallback if Forge fails
       console.log(`[LLM Router] Priority=standard → Forge (gemini-2.5-flash)`);
       return forge;
   }

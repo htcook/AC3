@@ -6,6 +6,23 @@ import { logSessionEvent, extractRequestInfo } from "../lib/session-activity-log
 
 const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
 
+/**
+ * Detect whether this server is running on a Manus-hosted environment.
+ * On DigitalOcean (or any non-Manus host), we skip the Manus SDK entirely
+ * to avoid a 30-second timeout on every request.
+ *
+ * Detection: OAUTH_SERVER_URL is only set on Manus-hosted deployments.
+ * If it's empty or missing, we're on DO/self-hosted.
+ */
+const OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL ?? "";
+const IS_MANUS_HOSTED = OAUTH_SERVER_URL.length > 0 && OAUTH_SERVER_URL.includes("manus");
+
+if (!IS_MANUS_HOSTED) {
+  console.log("[Auth] Non-Manus deployment detected — Manus SDK auth disabled, using Caldera JWT only");
+} else {
+  console.log("[Auth] Manus-hosted deployment — dual auth enabled (Manus SDK + Caldera JWT fallback)");
+}
+
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
@@ -18,17 +35,23 @@ export async function createContext(
   let user: User | null = null;
   const { ipAddress, userAgent } = extractRequestInfo(opts.req);
 
-  // First try Manus OAuth
-  try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PATH 1: Manus-hosted — try Manus OAuth SDK first, then Caldera JWT fallback
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (IS_MANUS_HOSTED) {
+    try {
+      user = await sdk.authenticateRequest(opts.req);
+    } catch (error) {
+      // Authentication is optional for public procedures.
+      user = null;
+    }
   }
 
-  // Fallback: check caldera_session JWT cookie
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PATH 2: Caldera JWT (always checked on DO; fallback on Manus)
   // Supports both service-account tokens (username-based from auth-core.ts)
   // and email-account tokens (accountId/email-based from account-auth.ts)
+  // ═══════════════════════════════════════════════════════════════════════════
   if (!user) {
     try {
       const token = opts.req.cookies?.['caldera_session'];
@@ -58,7 +81,7 @@ export async function createContext(
 
         // Log session validation with context fallback
         logSessionEvent({
-          type: "session_context_fallback",
+          type: IS_MANUS_HOSTED ? "session_context_fallback" : "session_validated",
           userId: resolvedId,
           email: resolvedEmail || undefined,
           username: decoded.username,

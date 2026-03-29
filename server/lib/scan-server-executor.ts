@@ -91,8 +91,10 @@ const DANGEROUS_CHARS = /[;&|`$(){}]/;
 // Cache the downloaded SSH key so we only fetch once
 let cachedSshKey: string | null = null;
 
-// Fallback RSA key URL stored in S3 (uploaded during provisioning)
-const SCAN_SERVER_KEY_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
+// Fallback RSA key URL — prefer SCAN_SERVER_KEY_URL env var for DO/self-hosted deployments.
+// Falls back to Manus CDN URL only when env var is not set (Manus sandbox).
+const SCAN_SERVER_KEY_URL = process.env.SCAN_SERVER_KEY_URL
+  || "https://files.manuscdn.com/user_upload_by_module/session_file/310419663028432609/hHJfIBSNDxDiefRC";
 
 export async function getScanServerConfig() {
   const host = ENV.SCAN_SERVER_HOST;
