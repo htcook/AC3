@@ -2980,6 +2980,7 @@ export interface InsertExploitationAttempt {
   eaOperatorId?: number;
   eaAttemptedAt: number;
   eaCompletedAt?: number;
+  screenshotUrls?: string[];
 }
 
 export async function insertExploitationAttempt(data: InsertExploitationAttempt) {

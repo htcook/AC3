@@ -431,6 +431,40 @@ export const reportsRouter = router({
               };
             }
 
+            // ─── Fetch exploitation evidence from DB for report ───
+            let exploitationEvidence: any[] = [];
+            try {
+              const dbEvidence = await db.getExploitationAttempts(input.engagementId);
+              if (dbEvidence.length > 0) {
+                exploitationEvidence = dbEvidence.map(e => ({
+                  id: e.id,
+                  targetHost: e.targetHost,
+                  targetPort: e.targetPort,
+                  targetService: e.targetService,
+                  vulnerabilityId: e.vulnerabilityId,
+                  vulnerabilityCve: e.vulnerabilityCve,
+                  exploitSource: e.exploitSource,
+                  exploitModule: e.exploitModule,
+                  status: e.status,
+                  resultType: e.resultType,
+                  resultOutput: e.resultOutput,
+                  shellObtained: e.shellObtained,
+                  accessLevel: e.accessLevel,
+                  evidence: e.evidence,
+                  attackTechnique: e.attackTechnique,
+                  matchConfidence: e.matchConfidence,
+                  opsecRisk: e.opsecRisk,
+                  durationMs: e.durationMs,
+                  attemptedAt: e.attemptedAt,
+                  completedAt: e.completedAt,
+                  screenshotUrls: e.screenshotUrls ? (typeof e.screenshotUrls === 'string' ? JSON.parse(e.screenshotUrls) : e.screenshotUrls) : [],
+                }));
+                console.log(`[Report] Loaded ${exploitationEvidence.length} exploitation evidence records from DB`);
+              }
+            } catch (evidenceErr: any) {
+              console.error('[Report] Failed to load exploitation evidence:', evidenceErr.message);
+            }
+
             const pipelineResult = await runPentestReportPipeline({
               engagement: {
                 id: engagement.id,
@@ -460,6 +494,7 @@ export const reportsRouter = router({
               provenanceRecords,
               activeScanPlan: activeScanPlanMeta,
               calderaEvidenceSnapshot: await collectCalderaEvidenceForReport(engagement),
+              exploitationEvidence,
             });
 
             // Store as S3 file
@@ -568,6 +603,37 @@ export const reportsRouter = router({
             }
           }
         } catch (e) { /* non-fatal */ }
+
+        // ─── Fetch exploitation evidence from DB for legacy report ───
+        let legacyExploitEvidence = '';
+        try {
+          const dbEvidence = await db.getExploitationAttempts(input.engagementId);
+          if (dbEvidence.length > 0) {
+            const succeeded = dbEvidence.filter(e => e.status === 'succeeded');
+            const failed = dbEvidence.filter(e => e.status === 'failed');
+            const blocked = dbEvidence.filter(e => e.status === 'blocked');
+            legacyExploitEvidence = `\n\n## EXPLOITATION EVIDENCE (${dbEvidence.length} attempts — ${succeeded.length} succeeded, ${failed.length} failed, ${blocked.length} blocked)\n`;
+            legacyExploitEvidence += dbEvidence.slice(0, 20).map(e => {
+              let line = `- [${(e.status || 'unknown').toUpperCase()}] ${e.exploitModule || e.exploitSource} → ${e.targetHost}:${e.targetPort || 'N/A'}`;
+              if (e.vulnerabilityCve) line += ` (${e.vulnerabilityCve})`;
+              if (e.accessLevel) line += ` | Access: ${e.accessLevel}`;
+              if (e.resultType) line += ` | Result: ${e.resultType}`;
+              if (e.attackTechnique) line += ` | Technique: ${e.attackTechnique}`;
+              if (e.durationMs) line += ` | Duration: ${e.durationMs}ms`;
+              if (e.resultOutput) line += `\n  Output: ${e.resultOutput.substring(0, 300)}`;
+              if (e.evidence) {
+                const evi = typeof e.evidence === 'string' ? (() => { try { return JSON.parse(e.evidence as string); } catch { return null; } })() : e.evidence;
+                if (evi?.proofLines?.length > 0) line += `\n  Proof: ${evi.proofLines.slice(0, 3).join(' | ')}`;
+                if (evi?.httpResponse?.statusCode) line += `\n  HTTP: ${evi.httpResponse.statusCode} ${evi.httpResponse.url || ''}`;
+              }
+              return line;
+            }).join('\n');
+            legacyExploitEvidence += `\n\nIMPORTANT: You MUST include an "Exploitation Evidence" section in the report that presents each successful exploit with its proof-of-concept output, HTTP response data, access classification, and timestamps. Failed and blocked attempts should be summarized in a table.`;
+            console.log(`[Report/Legacy] Loaded ${dbEvidence.length} exploitation evidence records`);
+          }
+        } catch (evidenceErr: any) {
+          console.error('[Report/Legacy] Failed to load exploitation evidence:', evidenceErr.message);
+        }
 
         const reportPrompt = `Generate a ${blueprint.displayName} for a ${clientTypeLabels[input.clientType] || 'client'}. Target audience: ${blueprint.audience}. Applicable frameworks: ${blueprint.defaultFrameworks.join(', ')}.`;
 
@@ -697,7 +763,7 @@ ${opsDataContext}
 IMPORTANT: You MUST include a "Discovery & Reconnaissance" section that covers all asset discovery results, port/service findings from ScanForge/httpx, passive recon data, and technology stack analysis. Include a per-asset summary table with ports, services, technologies, and risk signals.
 
 IMPORTANT: You MUST include a "Tool Execution Evidence" section that documents all security tools executed, their commands, exit codes, and key findings. This provides the forensic evidence chain.
-
+${legacyExploitEvidence}
 IMPORTANT: You MUST include a "Compliance & Authorization" section in the report that:
 1. States the ROE status, signed date, expiry date, and signer information
 2. Confirms whether all offensive actions were conducted under valid ROE

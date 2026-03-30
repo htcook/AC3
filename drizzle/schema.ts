@@ -3107,6 +3107,7 @@ export const exploitationAttempts = mysqlTable("exploitation_attempts", {
 	eaOperatorId: int("ea_operator_id"),
 	eaAttemptedAt: bigint("ea_attempted_at", { mode: "number" }).notNull(),
 	eaCompletedAt: bigint("ea_completed_at", { mode: "number" }),
+	screenshotUrls: json("screenshot_urls").$type<string[]>(),
 	eaCreatedAt: timestamp("ea_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	expaTenantId: int("expa_tenant_id"),
 });
