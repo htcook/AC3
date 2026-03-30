@@ -60,6 +60,7 @@ import type { VulnFinding, ZapFinding as ZapFindingType } from "@/components/Fin
 import EngagementTerminal from "@/components/EngagementTerminal";
 import TestPlanGate from "@/components/TestPlanGate";
 import { CoverageQuality } from "@/components/CoverageQuality";
+import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -1613,8 +1614,8 @@ export default function EngagementOps() {
           { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400', onClick: () => setActiveTab('discovery') },
           { label: 'Open Ports', value: (ops.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta, onClick: () => setActiveTab('assets') },
           { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel, onClick: () => setActiveTab('assets') },
-          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted`, onClick: () => setActiveTab('exploits') },
-          { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground', onClick: () => setActiveTab('exploits') },
+          { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted`, onClick: () => setActiveTab('evidence') },
+          { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground', onClick: () => setActiveTab('evidence') },
           ...(liveOwaspCoverage ? [{ label: 'OWASP Score', value: liveOwaspCoverage.overallScore, suffix: '%', icon: <ShieldCheck className="h-4 w-4 text-purple-400" />, color: liveOwaspCoverage.overallScore >= 70 ? 'text-green-400' : liveOwaspCoverage.overallScore >= 40 ? 'text-yellow-400' : 'text-red-400', progress: liveOwaspCoverage.overallScore, progressColor: liveOwaspCoverage.overallScore >= 70 ? 'bg-green-500' : liveOwaspCoverage.overallScore >= 40 ? 'bg-yellow-500' : 'bg-red-500', onClick: () => setActiveTab('scope') }] : []),
           { label: 'WAFs Detected', value: ops.stats?.wafDetections || 0, icon: <ShieldAlert className="h-4 w-4 text-orange-400" />, color: (ops.stats?.wafDetections || 0) > 0 ? 'text-orange-400' : 'text-foreground', onClick: () => setActiveTab('discovery') },
         ];
@@ -2020,6 +2021,7 @@ export default function EngagementOps() {
                   { value: 'exploits', label: 'Exploit Match', icon: <Swords className="h-3 w-3" />, count: exploitsQ.data?.exploits?.length || 0 },
                   { value: 'attackchains', label: 'Attack Chains', icon: <GitBranch className="h-3 w-3" />, count: attackChainsQ.data?.chains?.length || 0 },
                   { value: 'genexploits', label: 'Exploit Code', icon: <Bolt className="h-3 w-3" />, count: generatedExploitsQ.data?.length || 0 },
+                  { value: 'evidence', label: 'Evidence', icon: <Shield className="h-3 w-3" />, count: 0 },
                 ],
               },
               {
@@ -3991,6 +3993,13 @@ export default function EngagementOps() {
                     </div>
                   )}
                 </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Exploit Evidence Tab ── */}
+            <TabsContent value="evidence" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <ExploitEvidencePanel engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
 
