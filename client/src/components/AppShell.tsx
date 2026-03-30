@@ -258,6 +258,32 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/sigma-rules", icon: FileCode2, label: "SIGMA RULES" },
         ],
       },
+      {
+        id: "emu-ember",
+        label: "Ember C2 Agent",
+        items: [
+          { href: "/ember", icon: Flame, label: "EMBER FLEET" },
+          { href: "/ember/deploy", icon: Rocket, label: "EMBER DEPLOY" },
+          { href: "/ember/tasks", icon: Terminal, label: "TASK CONSOLE" },
+          { href: "/ember/payloads", icon: Package, label: "PAYLOAD ARMORY" },
+          { href: "/ember/swarm", icon: Network, label: "SWARM CONTROL" },
+          { href: "/ember/intelligence", icon: Brain, label: "EMBER INTEL" },
+          { href: "/ember/capabilities", icon: Zap, label: "CAPABILITIES" },
+          { href: "/ember/cognitive", icon: BrainCircuit, label: "COGNITIVE ENGINE" },
+        ],
+      },
+      {
+        id: "emu-testlab",
+        label: "Test Lab",
+        items: [
+          { href: "/test-lab", icon: FlaskConical, label: "TEST LAB DASHBOARD" },
+          { href: "/test-lab/environments", icon: Server, label: "ENVIRONMENTS" },
+          { href: "/test-lab/scenarios", icon: Target, label: "SCENARIOS" },
+          { href: "/test-lab/implant", icon: Cpu, label: "IMPLANT TESTING" },
+          { href: "/test-lab/training", icon: GraduationCap, label: "LLM TRAINING" },
+          { href: "/test-lab/graduation", icon: Star, label: "GRADUATION" },
+        ],
+      },
     ],
   },
   // ── 4. EXPLOIT OPS ── Phishing, exploits, C2, and offensive tooling

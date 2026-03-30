@@ -34,7 +34,11 @@ export default function TestLabDashboard() {
     );
   }
 
-  const stats = dashboard;
+  const stats = dashboard?.stats;
+  const recentScenarios = dashboard?.recentScenarioRuns;
+  const recentTraining = dashboard?.recentTrainingRuns;
+  const recentImplants = dashboard?.recentImplantTests;
+  const graduationSummary = dashboard?.graduationSummary;
 
   return (
     <div className="p-6 space-y-6">
@@ -75,7 +79,7 @@ export default function TestLabDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Scenarios Run</p>
-                <p className="text-3xl font-bold">{stats?.totalScenarios ?? 0}</p>
+                <p className="text-3xl font-bold">{stats?.scenariosRun ?? 0}</p>
               </div>
               <Target className="h-8 w-8 text-amber-400 opacity-50" />
             </div>
@@ -99,7 +103,7 @@ export default function TestLabDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Implant Tests</p>
-                <p className="text-3xl font-bold">{stats?.totalImplantTests ?? 0}</p>
+                <p className="text-3xl font-bold">{stats?.implantTestsRun ?? 0}</p>
               </div>
               <Skull className="h-8 w-8 text-purple-400 opacity-50" />
             </div>
@@ -108,7 +112,7 @@ export default function TestLabDashboard() {
       </div>
 
       {/* Graduation Summary */}
-      {stats?.graduationSummary && (
+      {graduationSummary && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -119,7 +123,7 @@ export default function TestLabDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {stats.graduationSummary.modelStates?.map((model: any) => (
+              {graduationSummary.modelStates?.map((model: any) => (
                 <div key={model.model} className="p-3 bg-muted/50 rounded-lg text-center">
                   <p className="text-xs text-muted-foreground mb-1">{model.model?.replace(/_/g, " ")}</p>
                   <p className="text-lg font-bold">Tier {model.currentTier ?? 1}</p>
@@ -191,9 +195,9 @@ export default function TestLabDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stats?.recentScenarios?.length ? (
+            {recentScenarios?.length ? (
               <div className="space-y-2">
-                {stats.recentScenarios.slice(0, 5).map((run: any) => (
+                {recentScenarios.slice(0, 5).map((run: any) => (
                   <div key={run.id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
                     <div>
                       <p className="text-sm font-medium">{run.scenarioId}</p>
@@ -219,9 +223,9 @@ export default function TestLabDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stats?.channelSuccessRates && Object.keys(stats.channelSuccessRates).length > 0 ? (
+            {graduationSummary?.channelSuccessRates && Object.keys(graduationSummary.channelSuccessRates).length > 0 ? (
               <div className="space-y-2">
-                {Object.entries(stats.channelSuccessRates).map(([channel, rate]: [string, any]) => (
+                {Object.entries(graduationSummary.channelSuccessRates).map(([channel, rate]: [string, any]) => (
                   <div key={channel} className="flex items-center justify-between p-2 bg-muted/30 rounded">
                     <span className="text-sm">{channel.replace(/_/g, " ")}</span>
                     <div className="flex items-center gap-2">
