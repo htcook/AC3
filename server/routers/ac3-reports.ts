@@ -3054,4 +3054,396 @@ export const ac3ReportsRouter = {
         ],
       };
     }),
+
+  // ─── One-Click Full Post-Exploit Report Generation ─────────────────────────
+
+  /** Chains: create report → import from ops snapshot → generate narratives → exec summary → mark review */
+  generateFullReport: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      reportName: z.string().optional(),
+      clientName: z.string().optional(),
+      assessmentType: z.enum(["penetration_test", "red_team", "purple_team", "vulnerability_assessment", "hybrid"]).optional(),
+      complianceFramework: z.enum(['fedramp', 'nist_800_53_r5']).optional(),
+      fedrampImpactLevel: z.enum(["low", "moderate", "high", "li-saas"]).optional(),
+      severityFilter: z.array(z.string()).optional(),
+      skipNarratives: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbRequired();
+      const stages: Array<{ stage: string; status: 'ok' | 'error'; detail?: string; durationMs: number }> = [];
+      const pipelineStart = Date.now();
+
+      const runStage = async (name: string, fn: () => Promise<any>) => {
+        const start = Date.now();
+        try {
+          const result = await fn();
+          stages.push({ stage: name, status: 'ok', detail: JSON.stringify(result).slice(0, 200), durationMs: Date.now() - start });
+          return result;
+        } catch (err: any) {
+          stages.push({ stage: name, status: 'error', detail: err.message?.slice(0, 200), durationMs: Date.now() - start });
+          return null;
+        }
+      };
+
+      // ── Stage 1: Get engagement details ──
+      const [eng] = await db.select().from(engagements)
+        .where(eq(engagements.id, input.engagementId));
+      if (!eng) throw new Error("Engagement not found");
+
+      // ── Stage 2: Create report ──
+      const reportId = `rpt-${randomUUID().slice(0, 12)}`;
+      const now = Date.now();
+      const reportName = input.reportName || `Post-Exploit Report — ${eng.name}`;
+
+      await runStage('create_report', async () => {
+        await db.insert(ac3Reports).values({
+          rptReportId: reportId,
+          rptName: reportName,
+          rptStatus: 'generating',
+          complianceFramework: input.complianceFramework ?? 'nist_800_53_r5',
+          rptClientName: input.clientName ?? eng.customerName ?? null,
+          rptSystemName: eng.name,
+          rptAssessmentType: input.assessmentType ?? 'penetration_test',
+          rptFedrampLevel: input.fedrampImpactLevel ?? null,
+          rptVersion: '1.0',
+          rptScopeDomains: eng.targetDomain ? [eng.targetDomain] : [],
+          rptScopeAssets: eng.targetIpRange ? [eng.targetIpRange] : [],
+          rptApprovedVectors: [],
+          rptOutOfScope: [],
+          rptCreatedBy: ctx.user?.name ?? 'operator',
+          rptCreatedAt: now,
+          rptUpdatedAt: now,
+        });
+        return { reportId };
+      });
+
+      // ── Stage 3: Import from ops snapshot ──
+      const importResult = await runStage('import_ops_snapshot', async () => {
+        const snapshots = await db.select().from(engagementOpsSnapshots)
+          .where(eq(engagementOpsSnapshots.engagementId, input.engagementId))
+          .orderBy(desc(engagementOpsSnapshots.createdAt));
+        if (snapshots.length === 0) throw new Error('No ops snapshot found');
+
+        const snapshot = snapshots[0];
+        const state = typeof snapshot.stateJson === 'string'
+          ? JSON.parse(snapshot.stateJson)
+          : snapshot.stateJson;
+
+        const vulnAnalysis: any[] = state.vulnAnalysis || [];
+        const attackChains: any[] = state.attackChains || [];
+        const assets: any[] = state.assets || [];
+        const approvalGates: any[] = state.approvalGates || [];
+        const essIntelligence: any = state.essIntelligence || {};
+        const engagementContext: any = state.engagementContext || {};
+        const roeScopeGuard: any = state.roeScopeGuard || {};
+
+        return {
+          vulnCount: vulnAnalysis.length,
+          chainCount: attackChains.length,
+          assetCount: assets.length,
+          gateCount: approvalGates.length,
+          essThreats: essIntelligence.topThreats?.length || 0,
+        };
+      });
+
+      // ── Stage 3b: Actually import findings (reuse the importFromOpsSnapshot logic inline) ──
+      // We call the same logic that importFromOpsSnapshot uses but in-process
+      const findingsImported = await runStage('import_findings', async () => {
+        const snapshots = await db.select().from(engagementOpsSnapshots)
+          .where(eq(engagementOpsSnapshots.engagementId, input.engagementId))
+          .orderBy(desc(engagementOpsSnapshots.createdAt));
+        const snapshot = snapshots[0];
+        const state = typeof snapshot.stateJson === 'string'
+          ? JSON.parse(snapshot.stateJson)
+          : snapshot.stateJson;
+
+        const vulnAnalysis: any[] = state.vulnAnalysis || [];
+        const attackChains: any[] = state.attackChains || [];
+        const assets: any[] = state.assets || [];
+        const approvalGates: any[] = state.approvalGates || [];
+        const essIntelligence: any = state.essIntelligence || {};
+        const engagementContext: any = state.engagementContext || {};
+        const roeScopeGuard: any = state.roeScopeGuard || {};
+
+        // ATT&CK → NIST mapping (reuse from importFromOpsSnapshot)
+        const attackToNist: Record<string, string[]> = {
+          'T1190': ['SC-7', 'SI-4', 'RA-5', 'CA-8'], 'T1133': ['AC-17', 'SC-7', 'IA-2'],
+          'T1078': ['AC-2', 'AC-6', 'IA-2', 'IA-5'], 'T1098': ['AC-2', 'AC-6', 'CM-5'],
+          'T1530': ['AC-3', 'SC-28', 'AC-6', 'AU-6'], 'T1059': ['CM-7', 'SI-3', 'SI-7'],
+          'T1068': ['AC-6', 'CM-6', 'SI-2'], 'T1548': ['AC-6', 'CM-6', 'CM-7'],
+          'T1110': ['AC-7', 'IA-2', 'IA-5'], 'T1003': ['AC-6', 'IA-5', 'SI-4'],
+          'T1021': ['AC-3', 'AC-17', 'SC-7'], 'T1046': ['CM-8', 'SC-7', 'SI-4'],
+          'T1082': ['CM-8', 'SI-4'], 'T1087': ['AC-2', 'AC-6', 'SI-4'],
+          'T1071': ['SC-7', 'SI-4', 'SC-8'], 'T1105': ['SC-7', 'SI-3', 'SI-4'],
+          'T1041': ['SC-7', 'SC-8', 'AC-4', 'SI-4'], 'T1566': ['AT-2', 'SI-3', 'SI-8'],
+          'T1505.003': ['CM-7', 'SI-3', 'SI-7'], 'T1595': ['SC-7', 'SI-4'],
+          'T1592': ['SC-7', 'SI-4'], 'T1552': ['IA-5', 'SC-28', 'AC-3'],
+        };
+        const categoryToNist: Record<string, string[]> = {
+          'config': ['CM-6', 'CM-7', 'SC-7'], 'web': ['SC-7', 'SI-10', 'SI-4'],
+          'crypto': ['SC-8', 'SC-12', 'SC-13'], 'auth': ['IA-2', 'IA-5', 'AC-7'],
+          'access': ['AC-3', 'AC-6', 'AC-2'], 'injection': ['SI-10', 'SI-3', 'SC-7'],
+          'disclosure': ['SC-28', 'AC-3', 'SI-4'], 'default': ['RA-5', 'CA-7', 'CA-8'],
+        };
+
+        function getControls(techniqueIds: string[], agentClass?: string): { id: string }[] {
+          const controlSet = new Set<string>();
+          for (const tid of techniqueIds) {
+            (attackToNist[tid] || []).forEach(c => controlSet.add(c));
+          }
+          if (controlSet.size === 0) {
+            (categoryToNist[agentClass || 'default'] || categoryToNist['default']).forEach(c => controlSet.add(c));
+          }
+          controlSet.add('CA-8');
+          return Array.from(controlSet).map(id => ({ id }));
+        }
+
+        // Build technique index from attack chains
+        const assetTechniqueMap = new Map<string, Set<string>>();
+        for (const chain of attackChains) {
+          for (const phase of (chain.killChainPhases || [])) {
+            for (const step of (phase.steps || [])) {
+              if (step.techniqueId && step.target) {
+                if (!assetTechniqueMap.has(step.target)) assetTechniqueMap.set(step.target, new Set());
+                assetTechniqueMap.get(step.target)!.add(step.techniqueId);
+              }
+            }
+          }
+        }
+
+        // Build CVE score index
+        const cveScoreMap = new Map<string, string>();
+        for (const threat of (essIntelligence.topThreats || [])) {
+          const cvssMatch = threat.riskSummary?.match(/CVSS\s+([\d.]+)\/10/);
+          if (cvssMatch) cveScoreMap.set(threat.cveId, cvssMatch[1]);
+        }
+
+        // Build exploit attempt index
+        const assetExploitMap = new Map<string, any[]>();
+        for (const asset of assets) {
+          const hostname = asset.hostname || asset.ip || '';
+          if (hostname && asset.exploitAttempts) assetExploitMap.set(hostname, asset.exploitAttempts);
+        }
+
+        const mapSeverity = (sev: string | null, riskScore?: number): string => {
+          if (sev) return ({ critical: 'critical', high: 'high', medium: 'moderate', low: 'low', info: 'informational' }[sev] || 'moderate');
+          if (riskScore !== undefined) {
+            if (riskScore >= 9) return 'critical';
+            if (riskScore >= 7) return 'high';
+            if (riskScore >= 4) return 'moderate';
+            if (riskScore >= 2) return 'low';
+            return 'informational';
+          }
+          return 'moderate';
+        };
+
+        let sortOrder = 0;
+        let imported = 0;
+
+        for (const vuln of vulnAnalysis) {
+          const finding = vuln.finding || {};
+          const analysis = vuln.analysis || {};
+          const agentClass = vuln.agentClass || 'default';
+          const severity = mapSeverity(finding.rfSeverity, analysis.riskScore);
+          if (input.severityFilter && !input.severityFilter.includes(severity)) continue;
+
+          const techniqueIds: string[] = [];
+          const assetName = finding.asset || '';
+          if (assetName && assetTechniqueMap.has(assetName)) {
+            assetTechniqueMap.get(assetName)!.forEach(t => techniqueIds.push(t));
+          }
+          if (techniqueIds.length === 0 && (analysis.relatedCves?.length || finding.cve)) {
+            techniqueIds.push('T1190');
+          }
+          const uniqueTechniques = [...new Set(techniqueIds)];
+          const controls = getControls(uniqueTechniques, agentClass);
+
+          const evidence: any[] = [];
+          if (analysis.poc) {
+            evidence.push({ type: 'poc', reference: `PoC for ${finding.rfTitle || finding.id}`, description: (typeof analysis.poc === 'string' ? analysis.poc : JSON.stringify(analysis.poc)).slice(0, 500) });
+          }
+          if (assetName && assetExploitMap.has(assetName)) {
+            for (const exploit of assetExploitMap.get(assetName)!.slice(0, 3)) {
+              evidence.push({ type: 'exploit_attempt', reference: `Exploit: ${exploit.cve || exploit.module || 'unknown'} on ${assetName}`, description: `Module: ${exploit.module}. CVE: ${exploit.cve || 'N/A'}. Success: ${exploit.success}. Output: ${(exploit.exploitOutput || '').slice(0, 200)}` });
+            }
+          }
+
+          let cvssScore = '';
+          for (const cve of (analysis.relatedCves || [])) {
+            const score = cveScoreMap.get(cve);
+            if (score) { cvssScore = score; break; }
+          }
+
+          const findingAssets = [assetName].filter(Boolean);
+          if (finding.port) findingAssets.push(`${assetName}:${finding.port}`);
+
+          const findingId = `AC3-${randomUUID().slice(0, 8).toUpperCase()}`;
+          const ts = Date.now();
+          await db.insert(ac3ReportFindings).values({
+            rfFindingId: findingId,
+            rfReportId: reportId,
+            rfTitle: finding.rfTitle || `Vulnerability on ${assetName}`,
+            rfSeverity: severity,
+            rfAttackTechniques: uniqueTechniques.map(id => ({ id })),
+            rfControls: controls,
+            rfEvidence: evidence,
+            rfAssets: findingAssets,
+            rfCvssScore: cvssScore || null,
+            rfRemediation: Array.isArray(analysis.remediation) ? analysis.remediation.join('\n') : (analysis.remediation || null),
+            rfNarrativeStatus: 'pending',
+            rfSortOrder: sortOrder++,
+            rfCreatedAt: ts,
+            rfUpdatedAt: ts,
+            rfSourceModule: `full-report:${input.engagementId}`,
+            rfSourceEventId: `vuln-${sortOrder}`,
+          });
+          imported++;
+        }
+
+        // Auto-populate scope
+        const scopeUpdates: any = { rptUpdatedAt: Date.now() };
+        if (roeScopeGuard.authorizedDomains?.length) scopeUpdates.rptScopeDomains = roeScopeGuard.authorizedDomains;
+        const scopeAssets = [...(engagementContext.crownJewels || []), ...assets.map((a: any) => a.hostname || a.ip).filter(Boolean)];
+        if (scopeAssets.length) scopeUpdates.rptScopeAssets = [...new Set(scopeAssets)];
+        scopeUpdates.rptClientName = eng.customerName;
+        scopeUpdates.rptSystemName = eng.name;
+        await db.update(ac3Reports).set(scopeUpdates).where(eq(ac3Reports.rptReportId, reportId));
+
+        return { imported, totalVulns: vulnAnalysis.length };
+      });
+
+      // ── Stage 4: Generate LLM narratives for all findings ──
+      let narrativeResults: any = null;
+      if (!input.skipNarratives) {
+        narrativeResults = await runStage('generate_narratives', async () => {
+          const findings = await db.select().from(ac3ReportFindings)
+            .where(and(
+              eq(ac3ReportFindings.rfReportId, reportId),
+              eq(ac3ReportFindings.rfNarrativeStatus, 'pending'),
+            ));
+
+          const [report] = await db.select().from(ac3Reports)
+            .where(eq(ac3Reports.rptReportId, reportId));
+
+          const results: Array<{ findingId: string; status: string }> = [];
+          for (const finding of findings) {
+            try {
+              const prompt = buildFindingNarrativePrompt(finding, report);
+              const response = await invokeLLM({
+                _caller: 'ac3-reports.generateFullReport.narratives',
+                messages: [
+                  { role: 'system', content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
+                  { role: 'user', content: prompt },
+                ],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'finding_narrative',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        title: { type: 'string' },
+                        summary: { type: 'string' },
+                        business_impact: { type: 'string' },
+                        technical_details: { type: 'string' },
+                        remediation: { type: 'string' },
+                      },
+                      required: ['title', 'summary', 'business_impact', 'technical_details', 'remediation'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              });
+              const content = response.choices?.[0]?.message?.content;
+              if (!content) throw new Error('Empty response');
+              const narrative = JSON.parse(content);
+              await db.update(ac3ReportFindings).set({
+                rfTitle: narrative.title,
+                rfSummary: narrative.summary,
+                rfBusinessImpact: narrative.business_impact,
+                rfTechnicalDetails: narrative.technical_details,
+                rfRemediation: narrative.remediation,
+                rfNarrativeStatus: 'drafted',
+                rfUpdatedAt: Date.now(),
+              }).where(eq(ac3ReportFindings.rfFindingId, finding.rfFindingId));
+              results.push({ findingId: finding.rfFindingId, status: 'drafted' });
+            } catch (err: any) {
+              results.push({ findingId: finding.rfFindingId, status: `error: ${err.message}` });
+            }
+          }
+          return { processed: results.length, drafted: results.filter(r => r.status === 'drafted').length };
+        });
+      }
+
+      // ── Stage 5: Generate executive summary ──
+      await runStage('generate_exec_summary', async () => {
+        const findings = await db.select().from(ac3ReportFindings)
+          .where(eq(ac3ReportFindings.rfReportId, reportId))
+          .orderBy(ac3ReportFindings.rfSortOrder);
+        if (findings.length === 0) throw new Error('No findings to summarize');
+
+        const [report] = await db.select().from(ac3Reports)
+          .where(eq(ac3Reports.rptReportId, reportId));
+
+        const prompt = buildExecSummaryPrompt(report, findings);
+        const response = await invokeLLM({
+          _caller: 'ac3-reports.generateFullReport.execSummary',
+          messages: [
+            { role: 'system', content: buildSystemPrompt(report.complianceFramework || 'nist_800_53_r5') },
+            { role: 'user', content: prompt },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'executive_summary',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  risk_statement: { type: 'string' },
+                  overall_rating: { type: 'string' },
+                  key_strengths: { type: 'array', items: { type: 'string' } },
+                  key_gaps: { type: 'array', items: { type: 'string' } },
+                  narrative: { type: 'string' },
+                },
+                required: ['risk_statement', 'overall_rating', 'key_strengths', 'key_gaps', 'narrative'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const content = response.choices?.[0]?.message?.content;
+        if (!content) throw new Error('LLM returned empty response');
+        const summary = JSON.parse(content);
+        const validRatings = ['critical', 'high', 'moderate', 'low', 'informational'];
+        const normalizedRating = validRatings.includes(summary.overall_rating?.toLowerCase())
+          ? summary.overall_rating.toLowerCase() : 'moderate';
+
+        await db.update(ac3Reports).set({
+          rptExecRiskStatement: summary.risk_statement,
+          rptExecRating: normalizedRating as any,
+          rptExecStrengths: summary.key_strengths,
+          rptExecGaps: summary.key_gaps,
+          rptExecNarrative: summary.narrative,
+          rptStatus: 'review',
+          rptUpdatedAt: Date.now(),
+        }).where(eq(ac3Reports.rptReportId, reportId));
+
+        return { rating: normalizedRating, strengthsCount: summary.key_strengths.length, gapsCount: summary.key_gaps.length };
+      });
+
+      // ── Stage 6: Final status update ──
+      await db.update(ac3Reports).set({ rptStatus: 'review', rptUpdatedAt: Date.now() })
+        .where(eq(ac3Reports.rptReportId, reportId));
+
+      return {
+        reportId,
+        reportName,
+        engagementName: eng.name,
+        stages,
+        totalDurationMs: Date.now() - pipelineStart,
+      };
+    }),
 };

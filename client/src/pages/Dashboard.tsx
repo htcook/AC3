@@ -102,12 +102,12 @@ function DashboardInner() {
 
   // Live stats
   const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
   const calderaStats = stats || { totalAdversaries: 0, totalThreatActors: 0, totalAbilities: 0, activeOperations: 0, totalAgents: 0 };
 
-  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, { refetchInterval: 60000 });
+  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 60000 });
 
   // Recent domain intel scans
   const { data: recentScans, isLoading: scansLoading, isError: scansError } = trpc.domainIntel.listScans.useQuery();

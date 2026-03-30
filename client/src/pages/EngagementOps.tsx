@@ -658,7 +658,7 @@ export default function EngagementOps() {
   const [isRunning, setIsRunning] = useState(false);
   const opsStateQ = trpc.engagementOps.getState.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: isRunning ? 3000 : 10000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 8000 : 30000 }
   );
 
   // Track running state for adaptive polling
@@ -669,7 +669,7 @@ export default function EngagementOps() {
   // Exploit matching query — fires when vulns are found
   const exploitsQ = trpc.engagementOps.loadExploits.useQuery(
     { engagementId },
-    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 5000 : 30000 }
+    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 15000 : 60000 }
   );
 
   // ── Mutations ──
@@ -701,25 +701,25 @@ export default function EngagementOps() {
   // Attack chains, cloud misconfigs, and feedback loop queries
   const attackChainsQ = trpc.engagementOps.getAttackChains.useQuery(
     { engagementId },
-    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 8000 : 30000 }
+    { enabled: engagementId > 0 && (opsStateQ.data?.stats?.vulnsFound || 0) > 0, refetchInterval: isRunning ? 20000 : 60000 }
   );
   const cloudMisconfigsQ = trpc.engagementOps.getCloudMisconfigs.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: isRunning ? 8000 : 30000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 20000 : 60000 }
   );
   const feedbackLoopQ = trpc.engagementOps.getFeedbackLoopState.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: isRunning ? 5000 : 30000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 15000 : 60000 }
   );
 
   // LLM Cost tracking for this engagement
   const llmCostQ = trpc.llmTelemetry.engagementCost.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: isRunning ? 10000 : 60000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 30000 : 120000 }
   );
   const llmCostBreakdownQ = trpc.llmTelemetry.engagementCostBreakdown.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: isRunning ? 10000 : 60000 }
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 30000 : 120000 }
   );
 
   const activeScanMut = trpc.engagementOps.startActiveScan.useMutation({
@@ -936,7 +936,7 @@ export default function EngagementOps() {
   // ── Vulnerability Trend Tracking ──
   const vulnTrendQ = trpc.engagementOps.getVulnTrend.useQuery(
     { engagementId },
-    { enabled: engagementId > 0, refetchInterval: 30000 }
+    { enabled: engagementId > 0, refetchInterval: 60000 }
   );
   const recordSnapshotMut = trpc.engagementOps.recordScanSnapshot.useMutation({
     onSuccess: (data) => {
@@ -6047,13 +6047,13 @@ function C2NetworkMap({ engagementId }: { engagementId: number }) {
   // Get C2 poller state for live agent data
   const pollerStateQ = trpc.liveTrigger.getC2PollerState.useQuery(
     { engagementId },
-    { refetchInterval: 5000, enabled: engagementId > 0 }
+    { refetchInterval: 15000, enabled: engagementId > 0 }
   );
 
   // Get engagement ops state for asset data
   const opsStateQ = trpc.liveTrigger.getState.useQuery(
     { engagementId },
-    { refetchInterval: 10000, enabled: engagementId > 0 }
+    { refetchInterval: 30000, enabled: engagementId > 0 }
   );
 
   // WebSocket events for real-time updates
@@ -6564,11 +6564,11 @@ function C2ActivityFeed({ engagementId }: { engagementId: number }) {
   // Query C2 poller state
   const pollerStateQ = trpc.liveTrigger.getC2PollerState.useQuery(
     { engagementId },
-    { refetchInterval: 5000, enabled: engagementId > 0 }
+    { refetchInterval: 15000, enabled: engagementId > 0 }
   );
   const activePollers = trpc.liveTrigger.listC2Pollers.useQuery(
     undefined,
-    { refetchInterval: 10000 }
+    { refetchInterval: 30000 }
   );
 
   // Mutations
@@ -6904,7 +6904,7 @@ function InterruptedEngagementBanner({ engagementId }: { engagementId: number })
 
   const interruptedQ = trpc.liveTrigger.getInterruptedEngagements.useQuery(
     undefined,
-    { refetchInterval: 30000 }
+    { refetchInterval: 60000 }
   );
 
   const dismissMut = trpc.liveTrigger.dismissInterruptions.useMutation({

@@ -100,17 +100,63 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+/**
+ * Fetch wrapper with automatic retry on HTTP 429 (rate limited).
+ * The Manus/Cloudflare proxy enforces 200 requests per 60-second window.
+ * When the limit is hit, we back off exponentially instead of failing.
+ */
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000;
+
+async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  let lastResponse: Response | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await globalThis.fetch(input, {
+      ...(init ?? {}),
+      credentials: "include",
+    });
+    if (response.status !== 429) return response;
+    lastResponse = response;
+
+    // Parse Retry-After or ratelimit-reset header if available
+    const retryAfter = response.headers.get('retry-after');
+    const rlReset = response.headers.get('ratelimit-reset');
+    let waitMs: number;
+    if (retryAfter) {
+      waitMs = (parseInt(retryAfter, 10) || 1) * 1000;
+    } else if (rlReset) {
+      waitMs = (parseInt(rlReset, 10) || 1) * 1000;
+    } else {
+      waitMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+    }
+    // Add jitter (±25%) to prevent thundering herd
+    waitMs = waitMs * (0.75 + Math.random() * 0.5);
+    console.warn(`[AC3] Rate limited (429), retry ${attempt + 1}/${MAX_RETRIES} in ${Math.round(waitMs)}ms`);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+  }
+  // All retries exhausted — return a synthetic JSON error response so tRPC can parse it
+  // instead of the raw HTML "Rate exceeded" body that causes "String doesn't match expected pattern"
+  const syntheticBody = JSON.stringify({
+    error: {
+      json: {
+        message: "Rate limited — too many requests. Please wait a moment and try again.",
+        code: -32029,
+        data: { code: "TOO_MANY_REQUESTS", httpStatus: 429 }
+      }
+    }
+  });
+  return new Response(syntheticBody, {
+    status: 429,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
-      },
+      fetch: fetchWithRetry,
     }),
   ],
 });
