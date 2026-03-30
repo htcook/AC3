@@ -1,0 +1,28 @@
+DO Infrastructure Investigation - March 30, 2026
+
+=== DNS Routing ===
+aceofcloud.io (root) -> 137.184.7.224 (mail droplet - NOT the dashboard)
+  - This resolves to 104.18.26.246 externally (Cloudflare proxy from Manus)
+  - The DO DNS A record points @ to 137.184.7.224 (mail server)
+  
+c3.aceofcloud.io -> CNAME to ace-c3-dashboard-aun7k.ondigitalocean.app (DO App Platform)
+  - This is the DO-hosted version of the dashboard
+  - Resolves to 172.66.0.96 / 162.159.140.98 (Cloudflare via DO)
+  - Health check shows: running, DB connected, Node v22.22.2, hostname: ace-c3-9b648bf8d-bcsc2
+
+dashboard.aceofcloud.io -> CNAME to ace-c3-dashboard-aun7k.ondigitalocean.app (same as c3)
+
+calderadash-vmwwcxqy.manus.space -> 104.19.168.112 (Manus hosting)
+
+=== Key Finding ===
+The dashboard IS already deployed on DO App Platform at c3.aceofcloud.io!
+But aceofcloud.io root domain is pointing to Manus (via Cloudflare proxy at 104.18.26.246)
+NOT to the DO App Platform deployment.
+
+The user's aceofcloud.io is being proxied through Manus/Cloudflare, not through DO.
+c3.aceofcloud.io and dashboard.aceofcloud.io point to the DO App Platform deployment.
+
+=== What needs to happen ===
+Either:
+1. Point aceofcloud.io to the DO App Platform (change DNS or proxy)
+2. Or use c3.aceofcloud.io / dashboard.aceofcloud.io as the primary domain

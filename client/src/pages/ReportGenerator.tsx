@@ -96,23 +96,34 @@ export default function ReportGenerator() {
     }
   };
 
-  const exportHtmlMut = trpc.reports.exportHtml.useMutation({
+  // Track which report is currently exporting PDF (per-report state)
+  const [exportingPdfId, setExportingPdfId] = useState<number | null>(null);
+
+  const exportPdfMut = trpc.reports.exportPdf.useMutation({
     onSuccess: (data) => {
+      setExportingPdfId(null);
       if (data.url) {
-        window.open(data.url, '_blank');
-      } else if (data.html) {
-        const blob = new Blob([data.html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const win = window.open(url, '_blank');
-        if (win) {
-          win.onload = () => {
-            setTimeout(() => win.print(), 500);
-          };
-        }
+        // Direct download via anchor element — no popup blocker issues
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = data.filename || 'report.html';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('Report downloaded successfully');
       }
     },
-    onError: (err) => toast.error('Export failed: ' + err.message),
+    onError: (err) => {
+      setExportingPdfId(null);
+      toast.error('Export failed: ' + err.message);
+    },
   });
+
+  const handleExportPdf = (reportId: number) => {
+    setExportingPdfId(reportId);
+    exportPdfMut.mutate({ reportId });
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -369,10 +380,10 @@ export default function ReportGenerator() {
                   <Button
                     size="sm"
                     className="font-display tracking-wider bg-primary hover:bg-primary/90"
-                    onClick={() => exportHtmlMut.mutate({ reportId: generatedReport.id })}
-                    disabled={exportHtmlMut.isPending}
+                    onClick={() => handleExportPdf(generatedReport.id)}
+                    disabled={exportingPdfId === generatedReport.id}
                   >
-                    {exportHtmlMut.isPending ? (
+                    {exportingPdfId === generatedReport.id ? (
                       <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> EXPORTING...</>
                     ) : (
                       <><FileText className="w-4 h-4 mr-2" /> EXPORT PDF</>
@@ -436,10 +447,14 @@ export default function ReportGenerator() {
                           variant="ghost"
                           size="sm"
                           className="h-7 text-[10px] font-display"
-                          onClick={() => exportHtmlMut.mutate({ reportId: report.id })}
-                          disabled={exportHtmlMut.isPending}
+                          onClick={() => handleExportPdf(report.id)}
+                          disabled={exportingPdfId === report.id}
                         >
-                          <FileText className="w-3.5 h-3.5 mr-1" /> PDF
+                          {exportingPdfId === report.id ? (
+                            <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> PDF</>
+                          ) : (
+                            <><FileText className="w-3.5 h-3.5 mr-1" /> PDF</>
+                          )}
                         </Button>
                       )}
                       {report.status === 'failed' && (

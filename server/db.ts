@@ -2951,3 +2951,73 @@ export function buildHistoricalContextString(ctx: HistoricalScanContext): string
 
   return parts.join('\n');
 }
+
+
+// ─── Exploitation Attempts (Evidence Persistence) ────────────────────────
+import { exploitationAttempts } from "../drizzle/schema";
+
+export interface InsertExploitationAttempt {
+  engagementId: number;
+  targetHost: string;
+  targetPort?: number;
+  targetService?: string;
+  vulnerabilityId?: string;
+  vulnerabilityCve?: string;
+  exploitSource: 'metasploit' | 'nuclei' | 'manual' | 'custom' | 'hydra' | 'netexec' | 'caldera';
+  exploitModule?: string;
+  exploitConfig?: any;
+  eaStatus: 'queued' | 'running' | 'succeeded' | 'failed' | 'error' | 'blocked';
+  resultType?: 'shell' | 'credential' | 'info_leak' | 'dos' | 'rce' | 'file_access' | 'none';
+  resultOutput?: string;
+  shellObtained?: number;
+  eaShellType?: string;
+  eaAccessLevel?: 'none' | 'user' | 'admin' | 'system' | 'root';
+  eaEvidence?: any;
+  eaAttackTechnique?: string;
+  matchConfidence?: number;
+  eaOpsecRisk?: number;
+  durationMs?: number;
+  eaOperatorId?: number;
+  eaAttemptedAt: number;
+  eaCompletedAt?: number;
+}
+
+export async function insertExploitationAttempt(data: InsertExploitationAttempt) {
+  const db = await getDbRequired();
+  const result = await db.insert(exploitationAttempts).values(data as any);
+  return { id: Number(result[0].insertId) };
+}
+
+export async function getExploitationAttempts(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(exploitationAttempts)
+    .where(eq(exploitationAttempts.engagementId, engagementId))
+    .orderBy(desc(exploitationAttempts.eaAttemptedAt));
+}
+
+export async function getExploitationAttemptById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(exploitationAttempts).where(eq(exploitationAttempts.id, id));
+  return rows[0] || null;
+}
+
+export async function updateExploitationAttempt(id: number, updates: Partial<InsertExploitationAttempt>) {
+  const db = await getDbRequired();
+  await db.update(exploitationAttempts).set(updates as any).where(eq(exploitationAttempts.id, id));
+}
+
+export async function getExploitationStats(engagementId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, succeeded: 0, failed: 0, error: 0, withEvidence: 0 };
+  const rows = await db.select().from(exploitationAttempts)
+    .where(eq(exploitationAttempts.engagementId, engagementId));
+  return {
+    total: rows.length,
+    succeeded: rows.filter(r => r.eaStatus === 'succeeded').length,
+    failed: rows.filter(r => r.eaStatus === 'failed').length,
+    error: rows.filter(r => r.eaStatus === 'error').length,
+    withEvidence: rows.filter(r => r.eaEvidence != null).length,
+  };
+}

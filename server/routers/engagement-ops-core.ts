@@ -1562,7 +1562,7 @@ export const engagementOpsRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const {
-          getOpsState, initOpsState, broadcastOpsUpdate, addLog, persistOpsStateNow
+          getOpsState, getOpsStateWithRecovery, initOpsState, broadcastOpsUpdate, addLog, persistOpsStateNow
         } = await import('../lib/engagement-orchestrator');
 
         let state = getOpsState(input.engagementId);
@@ -2324,6 +2324,75 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
               } catch (err: any) {
                 addLog(state!, { phase: 'exploitation', type: 'error', title: '\u274c Exploit generation failed', detail: err.message });
               }
+
+              // Phase 4b: Auto-execute generated exploits and capture evidence
+              const generatedExploits = (state as any).generatedExploits || [];
+              if (generatedExploits.length > 0) {
+                state!.currentAction = `Executing ${generatedExploits.length} exploits and capturing evidence...`;
+                addLog(state!, { phase: 'exploitation', type: 'info', title: '\u{1f52c} Exploit Execution', detail: `Executing ${generatedExploits.length} generated exploits with evidence capture` });
+                broadcastOpsUpdate(input.engagementId, { type: 'progress', progress: state!.progress });
+
+                const { executeExploit } = await import('../lib/exploit-sandbox');
+                let execSucceeded = 0;
+                let execFailed = 0;
+
+                for (let i = 0; i < generatedExploits.length; i++) {
+                  const entry = generatedExploits[i];
+                  const exploit = entry.exploit;
+                  try {
+                    // Find the vuln this exploit targets
+                    const targetAsset = state!.assets.find(a => a.hostname === entry.asset);
+                    const targetVuln = targetAsset?.vulns?.find((v: any) =>
+                      (v.cve && exploit.mitreTechniques?.some((t: string) => v.cve === t)) ||
+                      v.title?.toLowerCase().includes(exploit.description?.toLowerCase().slice(0, 30) || '')
+                    );
+
+                    const result = await executeExploit(input.engagementId, {
+                      exploitId: `${input.engagementId}_auto_${i}`,
+                      code: exploit.code,
+                      language: exploit.language || 'python',
+                      targetHost: entry.asset,
+                      targetPort: targetVuln?.port,
+                      timeoutSeconds: 60,
+                      dryRun: false,
+                      vulnerabilityCve: targetVuln?.cve,
+                      vulnerabilityId: targetVuln?.id?.toString(),
+                      vulnerabilityTitle: targetVuln?.title,
+                      exploitModule: exploit.filename || `exploit_${i}`,
+                      attackTechnique: exploit.mitreTechniques?.[0],
+                      confidence: exploit.confidence,
+                      opsecRisk: exploit.riskAssessment?.opsecRisk,
+                    });
+
+                    // Store result back on the entry for UI access
+                    entry.executionResult = {
+                      status: result.status,
+                      exitCode: result.exitCode,
+                      durationMs: result.durationMs,
+                      dbRecordId: result.dbRecordId,
+                      evidence: result.evidence,
+                    };
+
+                    if (result.status === 'success') {
+                      execSucceeded++;
+                      addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Executed: ${exploit.filename || 'exploit_' + i}`, detail: `${entry.asset} — ${result.evidence?.achievedAccess || 'success'} (${result.durationMs}ms)` });
+                    } else {
+                      execFailed++;
+                      addLog(state!, { phase: 'exploitation', type: 'warning', title: `\u26a0\ufe0f Exploit returned non-zero: ${exploit.filename || 'exploit_' + i}`, detail: `${entry.asset} — exit ${result.exitCode} (${result.durationMs}ms)` });
+                    }
+                  } catch (execErr: any) {
+                    execFailed++;
+                    addLog(state!, { phase: 'exploitation', type: 'error', title: `\u274c Execution failed: exploit_${i}`, detail: execErr.message?.slice(0, 200) });
+                  }
+                }
+
+                // Update stats
+                (state as any).exploitStats = { total: generatedExploits.length, succeeded: execSucceeded, failed: execFailed };
+                addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4ca} Exploitation Complete', detail: `${execSucceeded}/${generatedExploits.length} succeeded, ${execFailed} failed — evidence persisted to DB` });
+              }
+
+              // Persist after exploitation
+              await persistOpsStateNow(input.engagementId).catch(() => {});
             }
 
             // Recalculate stats from actual asset data before marking complete
@@ -2890,6 +2959,26 @@ Return ONLY a JSON object with vulnerabilities array.`;
       .mutation(async ({ input }) => {
         const { validateExploitSyntax } = await import('../lib/exploit-sandbox');
         return validateExploitSyntax(input.code, input.language);
+      }),
+
+    /** Get exploitation evidence from DB for an engagement (for customer triage) */
+    getExploitEvidence: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input }) => {
+        const { getExploitationAttempts, getExploitationStats } = await import('../db');
+        const [attempts, stats] = await Promise.all([
+          getExploitationAttempts(input.engagementId),
+          getExploitationStats(input.engagementId),
+        ]);
+        return { attempts, stats };
+      }),
+
+    /** Get a single exploitation attempt with full evidence */
+    getExploitAttemptDetail: protectedProcedure
+      .input(z.object({ attemptId: z.number() }))
+      .query(async ({ input }) => {
+        const { getExploitationAttemptById } = await import('../db');
+        return getExploitationAttemptById(input.attemptId);
       }),
 
     // ── Vulnerability Trend Tracking ──

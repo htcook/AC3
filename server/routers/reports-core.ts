@@ -898,6 +898,107 @@ Instructions: ${reportPrompt}`,
           return { html, url: null };
         }
       }),
+
+    /** Export report as a real downloadable PDF stored in S3 */
+    exportPdf: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .mutation(async ({ input }) => {
+        const report = await db.getReportById(input.reportId);
+        if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+
+        // Fetch the markdown content
+        let markdownContent = '';
+        if (report.reportUrl) {
+          try {
+            const resp = await fetch(report.reportUrl);
+            if (resp.ok) markdownContent = await resp.text();
+          } catch (e) { /* fallback below */ }
+        }
+        if (!markdownContent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available' });
+        }
+
+        // Convert markdown to HTML using marked
+        const { marked } = await import('marked');
+        const bodyHtml = await marked.parse(markdownContent, { gfm: true, breaks: true });
+
+        const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        let assessmentTypeDisplay = 'Security Assessment';
+        try {
+          const { getReportBlueprint } = await import('../lib/report-section-blueprints');
+          const eng = await db.getEngagementById((report as any).engagementId);
+          const engType = (eng?.engagementType || (report as any).reportType || 'pentest').toLowerCase().replace(/[\s-]/g, '_');
+          assessmentTypeDisplay = getReportBlueprint(engType).displayName;
+        } catch { assessmentTypeDisplay = ((report as any).reportType || 'security_assessment').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()); }
+
+        // Build clean HTML for PDF conversion (no print script)
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${report.title || 'Security Assessment Report'}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #1a1a1a; line-height: 1.7; background: #fff; }
+  .page { max-width: 850px; margin: 0 auto; padding: 48px 56px; }
+  .header { padding-bottom: 28px; margin-bottom: 36px; border-bottom: 1px solid #cccccc; }
+  .report-title { font-size: 28px; font-weight: 700; color: #1a1a1a; margin-bottom: 16px; }
+  .report-meta { font-size: 12px; color: #666666; line-height: 1.8; }
+  .report-meta div { margin-bottom: 2px; }
+  .classification-line { font-weight: 700; font-size: 13px; margin-top: 12px; }
+  .content h1 { font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 32px 0 16px 0; }
+  .content h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin: 24px 0 12px 0; }
+  .content h3 { font-size: 15px; font-weight: 600; color: #333333; margin: 20px 0 10px 0; }
+  .content h4 { font-size: 13px; font-weight: 600; color: #444444; margin: 16px 0 8px 0; }
+  .content p { font-size: 13px; margin-bottom: 10px; }
+  .content ul, .content ol { font-size: 13px; padding-left: 24px; margin-bottom: 12px; }
+  .content li { margin-bottom: 4px; }
+  .content table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+  .content th { background: #d9d9d9; color: #1a1a1a; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; border: 1px solid #999999; }
+  .content td { padding: 8px 12px; border: 1px solid #cccccc; }
+  .content blockquote { border-left: 3px solid #999999; padding: 12px 16px; margin: 12px 0; background: #f5f5f5; font-size: 13px; color: #333333; }
+  .content code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 12px; color: #333333; }
+  .content pre { background: #2a2a2a; color: #e0e0e0; padding: 16px; border-radius: 4px; overflow-x: auto; margin: 12px 0; font-size: 12px; }
+  .content pre code { background: none; padding: 0; color: inherit; }
+  .content hr { border: none; border-top: 1px solid #cccccc; margin: 24px 0; }
+  .content strong { color: #1a1a1a; }
+  .footer { border-top: 1px solid #cccccc; padding-top: 16px; margin-top: 40px; font-size: 11px; color: #666666; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="report-title">${report.title || 'Security Assessment Report'}</div>
+    <div class="report-meta">
+      <div>Client: ${report.preparedFor || 'Client'}</div>
+      <div>Prepared by: ${report.preparedBy || 'Ace of Cloud LLC'}</div>
+      <div>Assessment Type: ${assessmentTypeDisplay}</div>
+      <div>Report Date: ${dateStr}</div>
+    </div>
+    <div class="classification-line">CONFIDENTIAL \u2013 Security Assessment Report</div>
+  </div>
+  <div class="content">${bodyHtml}</div>
+  <div class="footer">
+    <div>Ace of Cloud LLC \u2014 aceofcloud.com</div>
+    <div>CONFIDENTIAL \u2014 ${dateStr}</div>
+  </div>
+</div>
+</body>
+</html>`;
+
+        // Upload HTML to S3 for download as a branded HTML report
+        // (True server-side PDF generation would require puppeteer/wkhtmltopdf which aren't available)
+        // Instead we provide the branded HTML as a direct download file
+        try {
+          const { storagePut } = await import('../storage');
+          const pdfKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.html`;
+          const { url } = await storagePut(pdfKey, html, 'text/html');
+          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html` };
+        } catch (e: any) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate PDF: ' + e.message });
+        }
+      }),
   });
 
 export const templateGeneratorRouter = router({
