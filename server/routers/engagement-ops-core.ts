@@ -2306,9 +2306,50 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'exploitation' });
               try {
                 const { generateExploitsForAsset } = await import('../lib/functional-exploit-generator');
+                const { VNC_EXPLOIT_TEMPLATES, selectVncExploit } = await import('../lib/vnc-exploit-module');
                 for (const asset of state!.assets) {
                   const exploitable = asset.vulns.filter((v: any) => v.severity === 'critical' || v.severity === 'high');
                   if (exploitable.length === 0) continue;
+
+                  // Check if asset has VNC ports — inject pre-built VNC exploit templates
+                  const vncPorts = (asset.ports || []).filter((p: any) => [5900, 5901, 5902, 5903].includes(p.port) || p.service?.toLowerCase().includes('vnc'));
+                  if (vncPorts.length > 0) {
+                    const hasSsh = (asset.ports || []).some((p: any) => p.port === 22 || p.service?.toLowerCase().includes('ssh'));
+                    const vncTemplates = selectVncExploit({
+                      hasCredentials: false,
+                      hasLocalAccess: false,
+                      hasSshAccess: hasSsh,
+                      targetPort: vncPorts[0]?.port || 5900,
+                      targetOs: (asset as any).os?.toLowerCase().includes('windows') ? 'windows' : 'linux',
+                    });
+                    if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
+                    for (const tmpl of vncTemplates.slice(0, 3)) {
+                      (state as any).generatedExploits.push({
+                        asset: asset.hostname,
+                        exploit: {
+                          code: tmpl.code,
+                          language: tmpl.language,
+                          filename: `${tmpl.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.${tmpl.language === 'python' ? 'py' : 'sh'}`,
+                          description: tmpl.description,
+                          explanation: [tmpl.usage],
+                          prerequisites: tmpl.prerequisites,
+                          usage: tmpl.usage,
+                          expectedOutcome: tmpl.expectedOutcome,
+                          riskAssessment: { opsecRisk: tmpl.opsecRisk, detectionLikelihood: 'medium', iocSignatures: tmpl.detectionIndicators, mitigations: [] },
+                          verificationSteps: tmpl.verificationSteps,
+                          confidence: tmpl.confidence,
+                          reasoning: `Pre-built VNC exploit template: ${tmpl.name}`,
+                          isChained: false,
+                          mitreTechniques: tmpl.mitreTechniqueIds,
+                          popsShell: tmpl.category === 'keystroke' || tmpl.category === 'auth_bypass',
+                          shellType: tmpl.category === 'auth_bypass' ? 'none' as const : undefined,
+                        },
+                        generatedAt: Date.now(),
+                        source: 'vnc-exploit-module',
+                      });
+                    }
+                    addLog(state!, { phase: 'exploitation', type: 'success', title: `\u{1f5a5}\ufe0f VNC Exploits: ${asset.hostname}`, detail: `${Math.min(vncTemplates.length, 3)} pre-built VNC templates injected (ports: ${vncPorts.map((p: any) => p.port).join(', ')})` });
+                  }
                   addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f3af} Exploits: ${asset.hostname}`, detail: `${exploitable.length} critical/high vulns` });
                   const exploits = await generateExploitsForAsset(
                     asset.hostname, exploitable,
