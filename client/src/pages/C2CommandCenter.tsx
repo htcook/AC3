@@ -677,29 +677,6 @@ export default function C2CommandCenter() {
           </div>
         </div>
 
-        {/* Quick Access: Bug Bounty Hub */}
-        <Link href="/bug-bounty">
-          <Card className="bg-gradient-to-r from-amber-500/5 via-orange-500/5 to-red-500/5 border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer group">
-            <CardContent className="py-4 px-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 bg-amber-500/10 rounded-lg">
-                    <Bug className="h-5 w-5 text-amber-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-mono font-bold text-white flex items-center gap-2">
-                      BUG BOUNTY HUB
-                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px]">INTEL</Badge>
-                    </div>
-                    <p className="text-xs text-zinc-400 mt-0.5">HackerOne & Bugcrowd live feed — program monitoring, submission tracking, and vulnerability disclosure intelligence</p>
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-zinc-500 group-hover:text-amber-400 transition-colors" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
         {/* Framework Status Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {(Object.keys(FRAMEWORK_META) as C2Framework[]).map((fw) => (

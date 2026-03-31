@@ -154,6 +154,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/campaign-archetypes", icon: Layers, label: "CAMPAIGN ARCHETYPES" },
           { href: "/hunt-ops", icon: Search, label: "HUNT OPS" },
           { href: "/training-lab", icon: FlaskConical, label: "TRAINING LAB" },
+          { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
         ],
       },
       {
