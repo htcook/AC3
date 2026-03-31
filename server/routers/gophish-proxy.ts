@@ -1,4 +1,4 @@
-import { fetchGophishAPI } from "../lib/api-helpers";
+import { fetchGophishAPI, cachedFetch } from "../lib/api-helpers";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as schema from "../../drizzle/schema";
@@ -334,9 +334,10 @@ export const gophishProxyRouter = router({
       }
     }),
 
-    // Aggregated GoPhish stats for dashboard
+    // Aggregated GoPhish stats for dashboard — cached for 30s
     getStats: protectedProcedure.query(async () => {
-      try {
+      return cachedFetch('gophish:stats', async () => {
+        try {
         const [campaigns, templates, pages, groups, smtp] = await Promise.all([
           fetchGophishAPI('/api/campaigns/'),
           fetchGophishAPI('/api/templates/'),
@@ -412,21 +413,22 @@ export const gophishProxyRouter = router({
             stats: c.stats || {},
           })),
         };
-      } catch {
-        return {
-          online: false,
-          totalCampaigns: 0,
-          activeCampaigns: 0,
-          completedCampaigns: 0,
-          totalTemplates: 0,
-          totalLandingPages: 0,
-          totalGroups: 0,
-          totalSendingProfiles: 0,
-          totalTargets: 0,
-          emailMetrics: { sent: 0, opened: 0, clicked: 0, submitted: 0, reported: 0 },
-          recentEvents: [],
-          campaigns: [],
-        };
-      }
+        } catch {
+          return {
+            online: false,
+            totalCampaigns: 0,
+            activeCampaigns: 0,
+            completedCampaigns: 0,
+            totalTemplates: 0,
+            totalLandingPages: 0,
+            totalGroups: 0,
+            totalSendingProfiles: 0,
+            totalTargets: 0,
+            emailMetrics: { sent: 0, opened: 0, clicked: 0, submitted: 0, reported: 0 },
+            recentEvents: [],
+            campaigns: [],
+          };
+        }
+      }, 30_000);
     }),
   });
