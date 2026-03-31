@@ -87,8 +87,8 @@ export async function fetchKevCatalog(): Promise<KevCatalog> {
 
   try {
     const response = await fetchWithRetry(CISA_KEV_URL, {
-      signal: AbortSignal.timeout(30000),
-    });
+      signal: AbortSignal.timeout(8000),
+    }, 1, 1000);
     if (!response.ok) {
       throw new Error(`CISA KEV fetch failed: HTTP ${response.status}`);
     }

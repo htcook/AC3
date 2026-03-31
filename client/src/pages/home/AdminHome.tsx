@@ -68,12 +68,14 @@ export default function AdminHome() {
   // ─── Data queries ─────────────────────────────────────────────────
   const { data: accounts, isLoading: accountsLoading } = trpc.accountAuth.listAccounts.useQuery(undefined, {
     retry: 1,
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const { data: sessions, isLoading: sessionsLoading } = trpc.accountAuth.listSessions.useQuery(undefined, {
     retry: 1,
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   // ─── Mutations ────────────────────────────────────────────────────

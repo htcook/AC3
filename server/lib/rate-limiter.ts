@@ -48,10 +48,10 @@ export const authRateLimiter = rateLimit({
 });
 
 // ─── tRPC API Rate Limiter ──────────────────────────────────────────────────
-// Moderate: 200 requests per minute per IP for tRPC endpoints
+// Moderate: 500 requests per minute per IP for tRPC endpoints
 export const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 200,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitResponse,

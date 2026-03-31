@@ -129,17 +129,14 @@ export const calderaProxyRouter = router({
     // Check C2 server health — retries once on failure to reduce false negatives
     // during heavy ScanForge discovery scans that temporarily slow the Caldera server
     checkHealth: protectedProcedure.query(async () => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
-            headers: { 'KEY': CALDERA_API_KEY },
-            signal: AbortSignal.timeout(10000),
-          });
-          if (response.ok) return true;
-        } catch {
-          // Retry after a short delay on first attempt
-          if (attempt === 0) await new Promise(r => setTimeout(r, 1000));
-        }
+      try {
+        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
+          headers: { 'KEY': CALDERA_API_KEY },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (response.ok) return true;
+      } catch {
+        // Server unreachable — return false immediately, don't retry
       }
       return false;
     }),
