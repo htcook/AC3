@@ -6595,3 +6595,38 @@ export const benchmarkScanPlanRules = mysqlTable("benchmark_scan_plan_rules", {
 	index("bspr_lab_id_idx").on(table.labId),
 	index("bspr_active_idx").on(table.isActive),
 ]);
+
+
+export const knowledgeEntries = mysqlTable("knowledge_entries", {
+	id: int().autoincrement().notNull(),
+	entryId: varchar("entry_id", { length: 64 }).notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	category: varchar({ length: 64 }).notNull(),
+	subcategory: varchar({ length: 64 }),
+	description: text().notNull(),
+	mitreTechniqueIds: json("mitre_technique_ids").$type<string[]>(),
+	phase: varchar({ length: 64 }).notNull(),
+	targetPlatform: varchar("target_platform", { length: 32 }).default('both'),
+	requiredPrivilege: varchar("required_privilege", { length: 32 }),
+	tools: json().$type<Array<{ name: string; command: string; description: string }>>(),
+	code: text(),
+	language: varchar({ length: 32 }),
+	prerequisites: json().$type<string[]>(),
+	detectionIndicators: json("detection_indicators").$type<string[]>(),
+	postExploitActions: json("post_exploit_actions").$type<string[]>(),
+	verificationSteps: json("verification_steps").$type<string[]>(),
+	opsecRisk: int("opsec_risk"),
+	confidence: int(),
+	source: varchar({ length: 255 }),
+	sourceUrl: varchar("source_url", { length: 512 }),
+	tags: json().$type<string[]>(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("ke_entry_id_unique").on(table.entryId),
+	index("ke_category_idx").on(table.category),
+	index("ke_phase_idx").on(table.phase),
+]);

@@ -39,7 +39,17 @@ import {
   CheckCircle2,
   XCircle,
   Filter,
+  Plus,
+  Trash2,
+  Edit3,
+  Database,
+  Key,
+  Monitor,
+  ServerCrash,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 // ─── Category Colors ────────────────────────────────────────────────────────
@@ -51,6 +61,10 @@ const CATEGORY_CONFIG: Record<string, { color: string; bg: string; icon: React.E
   evasion: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: ShieldAlert, label: "Evasion" },
   web_app_testing: { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20", icon: Globe2, label: "Web App Testing" },
   payloads: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", icon: Zap, label: "Payloads" },
+  post_exploitation: { color: "text-pink-400", bg: "bg-pink-500/10 border-pink-500/20", icon: Key, label: "Post-Exploitation" },
+  exploit_template: { color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20", icon: ServerCrash, label: "Exploit Templates" },
+  credential_dumping: { color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20", icon: Key, label: "Credential Dumping" },
+  lateral_movement: { color: "text-teal-400", bg: "bg-teal-500/10 border-teal-500/20", icon: Network, label: "Lateral Movement" },
 };
 
 const PHASE_CONFIG: Record<string, { color: string; icon: React.ElementType; label: string }> = {
@@ -233,9 +247,10 @@ export default function KnowledgeBase() {
             {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <StatCard label="Knowledge Modules" value={stats.totalModules} icon={Layers} color="text-violet-400" />
             <StatCard label="Total Items" value={stats.totalItems.toLocaleString()} icon={FileText} color="text-blue-400" />
+            <StatCard label="User-Added" value={stats.totalUserAdded} icon={Database} color="text-pink-400" />
             <StatCard label="MITRE Techniques" value={stats.totalMitreTechniques} icon={Shield} color="text-red-400" />
             <StatCard label="Injection Points" value={stats.totalInjectionPoints} icon={Cpu} color="text-emerald-400" />
             <StatCard
@@ -255,6 +270,7 @@ export default function KnowledgeBase() {
             <TabsTrigger value="phases">Phase Mapping</TabsTrigger>
             <TabsTrigger value="preview">Context Preview</TabsTrigger>
             <TabsTrigger value="accuracy">Accuracy Feedback</TabsTrigger>
+            <TabsTrigger value="custom">Custom Entries</TabsTrigger>
           </TabsList>
 
           {/* ── Modules Tab ── */}
@@ -884,6 +900,11 @@ export default function KnowledgeBase() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Custom Entries Tab ── */}
+          <TabsContent value="custom" className="mt-6">
+            <CustomEntriesTab />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -1028,5 +1049,574 @@ function ModuleCard({ module, isSelected, onSelect, searchQuery }: {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Custom Entries Tab ──────────────────────────────────────────────────────
+
+function CustomEntriesTab() {
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<any | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const utils = trpc.useUtils();
+
+  const { data, isLoading, refetch } = trpc.knowledgeBase.listUserEntries.useQuery({
+    search: search || undefined,
+    category: catFilter !== "all" ? catFilter : undefined,
+    phase: phaseFilter !== "all" ? phaseFilter : undefined,
+    limit: 100,
+    offset: 0,
+  });
+
+  const deleteMut = trpc.knowledgeBase.deleteEntry.useMutation({
+    onSuccess: () => {
+      toast.success("Entry deleted");
+      refetch();
+      utils.knowledgeBase.getStats.invalidate();
+    },
+    onError: (err) => toast.error("Delete failed", { description: err.message }),
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Description */}
+      <Card className="border-border bg-gradient-to-r from-pink-500/5 to-violet-500/5">
+        <CardContent className="py-4 px-5">
+          <div className="flex items-start gap-3">
+            <Database className="h-5 w-5 text-pink-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Custom Knowledge Entries</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add your own offensive security techniques, exploit procedures, and tradecraft without modifying code.
+                User-added entries are stored in the database and automatically injected into the LLM context during engagements.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search custom entries..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={catFilter} onValueChange={setCatFilter}>
+          <SelectTrigger className="w-44">
+            <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+              <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={phaseFilter} onValueChange={setPhaseFilter}>
+          <SelectTrigger className="w-44">
+            <Layers className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+            <SelectValue placeholder="Phase" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Phases</SelectItem>
+            {Object.entries(PHASE_CONFIG).map(([key, cfg]) => (
+              <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={() => { setEditingEntry(null); setShowForm(true); }} className="gap-1.5">
+          <Plus className="h-4 w-4" /> Add Entry
+        </Button>
+      </div>
+
+      {/* Results count */}
+      <div className="text-xs text-muted-foreground">
+        {data?.total ?? 0} custom entries
+        {search && ` matching "${search}"`}
+      </div>
+
+      {/* Entries List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        </div>
+      ) : data && data.entries.length > 0 ? (
+        <div className="space-y-3">
+          {data.entries.map((entry: any) => {
+            const catConfig = CATEGORY_CONFIG[entry.category] || CATEGORY_CONFIG.offensive;
+            const CatIcon = catConfig.icon;
+            const phaseConfig = PHASE_CONFIG[entry.phase] || { color: "text-gray-400", icon: Layers, label: entry.phase };
+            const isExpanded = expandedId === entry.entryId;
+
+            return (
+              <Card key={entry.entryId} className="border-border hover:border-primary/30 transition-colors">
+                <CardContent className="py-4 px-5">
+                  <div className="flex items-start gap-4">
+                    <div className={`p-2 rounded-lg ${catConfig.bg} border shrink-0 mt-0.5`}>
+                      <CatIcon className={`h-4 w-4 ${catConfig.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-semibold text-sm">{entry.name}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{entry.description}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => { setEditingEntry(entry); setShowForm(true); }}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-red-400 hover:text-red-300"
+                            onClick={() => {
+                              if (confirm(`Delete "${entry.name}"?`)) {
+                                deleteMut.mutate({ entryId: entry.entryId });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="outline" className={`text-[10px] ${catConfig.color}`}>
+                          {catConfig.label}
+                        </Badge>
+                        <Badge variant="outline" className={`text-[10px] ${phaseConfig.color}`}>
+                          {entry.phase.replace(/_/g, " ")}
+                        </Badge>
+                        {entry.targetPlatform && entry.targetPlatform !== "both" && (
+                          <Badge variant="outline" className="text-[10px]">
+                            <Monitor className="h-2.5 w-2.5 mr-1" />
+                            {entry.targetPlatform}
+                          </Badge>
+                        )}
+                        {entry.mitreTechniqueIds?.map((t: string) => (
+                          <Badge key={t} variant="outline" className="text-[10px] text-red-400 border-red-500/30">
+                            {t}
+                          </Badge>
+                        ))}
+                        {entry.opsecRisk != null && (
+                          <Badge variant="outline" className={`text-[10px] ${entry.opsecRisk >= 7 ? "text-red-400 border-red-500/30" : entry.opsecRisk >= 4 ? "text-yellow-400 border-yellow-500/30" : "text-green-400 border-green-500/30"}`}>
+                            OPSEC: {entry.opsecRisk}/10
+                          </Badge>
+                        )}
+                        {entry.confidence != null && (
+                          <Badge variant="outline" className="text-[10px] text-blue-400 border-blue-500/30">
+                            {entry.confidence}% confidence
+                          </Badge>
+                        )}
+                        {entry.tags?.map((tag: string) => (
+                          <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+                        ))}
+                      </div>
+
+                      {/* Expand/collapse for details */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => setExpandedId(isExpanded ? null : entry.entryId)}
+                      >
+                        {isExpanded ? "Hide Details" : "Show Details"} <ChevronRight className={`h-3 w-3 ml-1 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                      </Button>
+
+                      {isExpanded && (
+                        <div className="space-y-3 pt-2 border-t border-border/50">
+                          {entry.tools && entry.tools.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Tools</p>
+                              <div className="space-y-1">
+                                {entry.tools.map((tool: any, i: number) => (
+                                  <div key={i} className="bg-muted/30 rounded p-2 text-xs">
+                                    <span className="font-medium">{tool.name}</span>
+                                    <code className="block mt-1 text-[10px] text-emerald-400 bg-black/30 rounded px-2 py-1 font-mono">{tool.command}</code>
+                                    {tool.description && <p className="text-muted-foreground mt-1 text-[10px]">{tool.description}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {entry.code && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Code {entry.language && `(${entry.language})`}</p>
+                              <pre className="bg-black/30 rounded p-3 text-[10px] font-mono text-emerald-400 overflow-x-auto max-h-48">{entry.code}</pre>
+                            </div>
+                          )}
+                          {entry.prerequisites && entry.prerequisites.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Prerequisites</p>
+                              <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                {entry.prerequisites.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {entry.detectionIndicators && entry.detectionIndicators.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Detection Indicators</p>
+                              <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                {entry.detectionIndicators.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {entry.verificationSteps && entry.verificationSteps.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1">Verification Steps</p>
+                              <ol className="list-decimal list-inside text-xs text-muted-foreground space-y-0.5">
+                                {entry.verificationSteps.map((v: string, i: number) => <li key={i}>{v}</li>)}
+                              </ol>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+                            {entry.source && <span>Source: {entry.source}</span>}
+                            {entry.sourceUrl && <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{entry.sourceUrl}</a>}
+                            <span>ID: {entry.entryId}</span>
+                            <span>Created: {new Date(entry.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <Card className="border-dashed border-2 border-muted-foreground/20">
+          <CardContent className="py-16 text-center">
+            <Database className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-muted-foreground">No custom entries yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Click "Add Entry" to create your first custom technique</p>
+            <Button variant="outline" size="sm" className="mt-4 gap-1.5" onClick={() => { setEditingEntry(null); setShowForm(true); }}>
+              <Plus className="h-3.5 w-3.5" /> Add First Entry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create/Edit Dialog */}
+      <EntryFormDialog
+        open={showForm}
+        onOpenChange={setShowForm}
+        entry={editingEntry}
+        onSuccess={() => {
+          setShowForm(false);
+          setEditingEntry(null);
+          refetch();
+          utils.knowledgeBase.getStats.invalidate();
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Entry Form Dialog ───────────────────────────────────────────────────────
+
+function EntryFormDialog({ open, onOpenChange, entry, onSuccess }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  entry: any | null;
+  onSuccess: () => void;
+}) {
+  const isEditing = !!entry;
+
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("offensive");
+  const [subcategory, setSubcategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [mitreTechniques, setMitreTechniques] = useState("");
+  const [phase, setPhase] = useState("exploitation");
+  const [targetPlatform, setTargetPlatform] = useState("both");
+  const [requiredPrivilege, setRequiredPrivilege] = useState("");
+  const [code, setCode] = useState("");
+  const [language, setLanguage] = useState("");
+  const [prerequisites, setPrerequisites] = useState("");
+  const [detectionIndicators, setDetectionIndicators] = useState("");
+  const [verificationSteps, setVerificationSteps] = useState("");
+  const [opsecRisk, setOpsecRisk] = useState("");
+  const [confidence, setConfidence] = useState("");
+  const [source, setSource] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [tags, setTags] = useState("");
+  const [toolsJson, setToolsJson] = useState("");
+
+  // Reset form when entry changes
+  useEffect(() => {
+    if (entry) {
+      setName(entry.name || "");
+      setCategory(entry.category || "offensive");
+      setSubcategory(entry.subcategory || "");
+      setDescription(entry.description || "");
+      setMitreTechniques((entry.mitreTechniqueIds || []).join(", "));
+      setPhase(entry.phase || "exploitation");
+      setTargetPlatform(entry.targetPlatform || "both");
+      setRequiredPrivilege(entry.requiredPrivilege || "");
+      setCode(entry.code || "");
+      setLanguage(entry.language || "");
+      setPrerequisites((entry.prerequisites || []).join("\n"));
+      setDetectionIndicators((entry.detectionIndicators || []).join("\n"));
+      setVerificationSteps((entry.verificationSteps || []).join("\n"));
+      setOpsecRisk(entry.opsecRisk != null ? String(entry.opsecRisk) : "");
+      setConfidence(entry.confidence != null ? String(entry.confidence) : "");
+      setSource(entry.source || "");
+      setSourceUrl(entry.sourceUrl || "");
+      setTags((entry.tags || []).join(", "));
+      setToolsJson(entry.tools ? JSON.stringify(entry.tools, null, 2) : "");
+    } else {
+      setName(""); setCategory("offensive"); setSubcategory(""); setDescription("");
+      setMitreTechniques(""); setPhase("exploitation"); setTargetPlatform("both");
+      setRequiredPrivilege(""); setCode(""); setLanguage(""); setPrerequisites("");
+      setDetectionIndicators(""); setVerificationSteps(""); setOpsecRisk("");
+      setConfidence(""); setSource(""); setSourceUrl(""); setTags(""); setToolsJson("");
+    }
+  }, [entry, open]);
+
+  const createMut = trpc.knowledgeBase.createEntry.useMutation({
+    onSuccess: () => {
+      toast.success("Entry created");
+      onSuccess();
+    },
+    onError: (err) => toast.error("Create failed", { description: err.message }),
+  });
+
+  const updateMut = trpc.knowledgeBase.updateEntry.useMutation({
+    onSuccess: () => {
+      toast.success("Entry updated");
+      onSuccess();
+    },
+    onError: (err) => toast.error("Update failed", { description: err.message }),
+  });
+
+  const handleSubmit = () => {
+    const splitLines = (s: string) => s.split("\n").map(l => l.trim()).filter(Boolean);
+    const splitComma = (s: string) => s.split(",").map(l => l.trim()).filter(Boolean);
+
+    let parsedTools: any[] | undefined;
+    if (toolsJson.trim()) {
+      try {
+        parsedTools = JSON.parse(toolsJson);
+      } catch {
+        toast.error("Invalid JSON in Tools field");
+        return;
+      }
+    }
+
+    if (isEditing) {
+      updateMut.mutate({
+        entryId: entry.entryId,
+        name: name || undefined,
+        description: description || undefined,
+        mitreTechniqueIds: mitreTechniques ? splitComma(mitreTechniques) : undefined,
+        tools: parsedTools,
+        code: code || undefined,
+        language: language || undefined,
+        prerequisites: prerequisites ? splitLines(prerequisites) : undefined,
+        detectionIndicators: detectionIndicators ? splitLines(detectionIndicators) : undefined,
+        verificationSteps: verificationSteps ? splitLines(verificationSteps) : undefined,
+        opsecRisk: opsecRisk ? Number(opsecRisk) : undefined,
+        confidence: confidence ? Number(confidence) : undefined,
+        tags: tags ? splitComma(tags) : undefined,
+      });
+    } else {
+      if (!name || !description || !phase || !category) {
+        toast.error("Name, description, category, and phase are required");
+        return;
+      }
+      createMut.mutate({
+        name,
+        category,
+        subcategory: subcategory || undefined,
+        description,
+        mitreTechniqueIds: mitreTechniques ? splitComma(mitreTechniques) : undefined,
+        phase,
+        targetPlatform: targetPlatform || undefined,
+        requiredPrivilege: requiredPrivilege || undefined,
+        tools: parsedTools,
+        code: code || undefined,
+        language: language || undefined,
+        prerequisites: prerequisites ? splitLines(prerequisites) : undefined,
+        detectionIndicators: detectionIndicators ? splitLines(detectionIndicators) : undefined,
+        verificationSteps: verificationSteps ? splitLines(verificationSteps) : undefined,
+        opsecRisk: opsecRisk ? Number(opsecRisk) : undefined,
+        confidence: confidence ? Number(confidence) : undefined,
+        source: source || undefined,
+        sourceUrl: sourceUrl || undefined,
+        tags: tags ? splitComma(tags) : undefined,
+      });
+    }
+  };
+
+  const isBusy = createMut.isPending || updateMut.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Knowledge Entry" : "Add Knowledge Entry"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Row 1: Name + Category */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Name *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kerberoasting via Rubeus" disabled={isEditing} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Category *</Label>
+              <Select value={category} onValueChange={setCategory} disabled={isEditing}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Row 2: Phase + Platform */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Phase *</Label>
+              <Select value={phase} onValueChange={setPhase} disabled={isEditing}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PHASE_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Platform</Label>
+              <Select value={targetPlatform} onValueChange={setTargetPlatform}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">Both</SelectItem>
+                  <SelectItem value="windows">Windows</SelectItem>
+                  <SelectItem value="linux">Linux</SelectItem>
+                  <SelectItem value="macos">macOS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Subcategory</Label>
+              <Input value={subcategory} onChange={(e) => setSubcategory(e.target.value)} placeholder="e.g. credential_access" />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description *</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Detailed description of the technique, when to use it, and expected outcomes..." />
+          </div>
+
+          {/* MITRE + Tags */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">MITRE Technique IDs (comma-separated)</Label>
+              <Input value={mitreTechniques} onChange={(e) => setMitreTechniques(e.target.value)} placeholder="T1558.003, T1003.001" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tags (comma-separated)</Label>
+              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="kerberos, active-directory, windows" />
+            </div>
+          </div>
+
+          {/* Code */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
+              <Label className="text-xs">Code / Script</Label>
+              <Input value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="Language (python, bash, powershell...)" className="w-48 h-7 text-xs" />
+            </div>
+            <Textarea value={code} onChange={(e) => setCode(e.target.value)} rows={5} className="font-mono text-xs" placeholder="# Paste exploit code or command sequence here..." />
+          </div>
+
+          {/* Tools JSON */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tools (JSON array)</Label>
+            <Textarea
+              value={toolsJson}
+              onChange={(e) => setToolsJson(e.target.value)}
+              rows={4}
+              className="font-mono text-xs"
+              placeholder={`[{"name": "Rubeus", "command": "Rubeus.exe kerberoast /outfile:hashes.txt", "description": "Kerberoast all SPNs"}]`}
+            />
+          </div>
+
+          {/* Multi-line fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Prerequisites (one per line)</Label>
+              <Textarea value={prerequisites} onChange={(e) => setPrerequisites(e.target.value)} rows={3} placeholder="Domain user credentials&#10;Network access to DC" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Detection Indicators (one per line)</Label>
+              <Textarea value={detectionIndicators} onChange={(e) => setDetectionIndicators(e.target.value)} rows={3} placeholder="Event ID 4769 (TGS request)&#10;Unusual service ticket requests" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Verification Steps (one per line)</Label>
+            <Textarea value={verificationSteps} onChange={(e) => setVerificationSteps(e.target.value)} rows={3} placeholder="1. Run Rubeus kerberoast&#10;2. Verify hashes extracted&#10;3. Attempt offline cracking" />
+          </div>
+
+          {/* Metadata row */}
+          <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">OPSEC Risk (1-10)</Label>
+              <Input type="number" min={1} max={10} value={opsecRisk} onChange={(e) => setOpsecRisk(e.target.value)} placeholder="5" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Confidence (0-100)</Label>
+              <Input type="number" min={0} max={100} value={confidence} onChange={(e) => setConfidence(e.target.value)} placeholder="85" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Source</Label>
+              <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Hacking Articles" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Source URL</Label>
+              <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." />
+            </div>
+          </div>
+
+          {!isEditing && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Required Privilege</Label>
+              <Input value={requiredPrivilege} onChange={(e) => setRequiredPrivilege(e.target.value)} placeholder="e.g. domain_user, local_admin, none" />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <Button onClick={handleSubmit} disabled={isBusy}>
+            {isBusy ? "Saving..." : isEditing ? "Update Entry" : "Create Entry"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

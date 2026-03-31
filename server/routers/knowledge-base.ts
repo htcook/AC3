@@ -73,13 +73,28 @@ import {
   getMethodologiesByCategory,
   getBugBountyStats,
 } from "../lib/knowledge/bugbounty-methodology-knowledge";
+import {
+  CREDENTIAL_DUMP_TECHNIQUES,
+  LATERAL_MOVE_TECHNIQUES,
+  DOMAIN_ESCALATION_TECHNIQUES,
+  SERVICE_EXPLOIT_TECHNIQUES,
+  buildFullPostExploitKnowledgeContext,
+  buildCredentialDumpContext,
+  buildLateralMoveContext,
+} from "../lib/knowledge/post-exploit-credential-knowledge";
+import { VNC_EXPLOIT_TEMPLATES, buildVncExploitContext } from "../lib/vnc-exploit-module";
+import { MSSQL_EXPLOIT_TEMPLATES, buildMssqlExploitContext } from "../lib/mssql-exploit-module";
+import { getDb } from "../db";
+import { knowledgeEntries } from "../../drizzle/schema";
+import { eq, like, and, or, sql, desc } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 // ─── Module Registry ────────────────────────────────────────────────────────
 
 export interface KnowledgeModule {
   id: string;
   name: string;
-  category: "offensive" | "social_engineering" | "recon" | "evasion" | "web_app_testing" | "payloads";
+  category: "offensive" | "social_engineering" | "recon" | "evasion" | "web_app_testing" | "payloads" | "post_exploitation" | "exploit_template";
   description: string;
   version: string;
   itemCount: number;
@@ -298,6 +313,45 @@ function getModuleRegistry(): KnowledgeModule[] {
       status: "active",
     },
     {
+      id: "post-exploit-credentials",
+      name: "Post-Exploit Credential & Lateral Movement Knowledge",
+      category: "post_exploitation" as any,
+      description: `${CREDENTIAL_DUMP_TECHNIQUES.length} credential dumping techniques, ${LATERAL_MOVE_TECHNIQUES.length} lateral movement techniques, ${DOMAIN_ESCALATION_TECHNIQUES.length} domain escalation techniques, and ${SERVICE_EXPLOIT_TECHNIQUES.length} service exploitation techniques. Extracted from Hacking Articles with full tool commands, MITRE mappings, and detection indicators.`,
+      version: "1.0.0",
+      itemCount: CREDENTIAL_DUMP_TECHNIQUES.length + LATERAL_MOVE_TECHNIQUES.length + DOMAIN_ESCALATION_TECHNIQUES.length + SERVICE_EXPLOIT_TECHNIQUES.length,
+      mitreTechniques: ["T1003", "T1003.001", "T1003.002", "T1003.003", "T1003.004", "T1003.005", "T1550.002", "T1021.002", "T1021.003", "T1021.006", "T1187"],
+      injectedInto: ["functional-exploit-generator.ts", "pentest-report-pipeline.ts", "engagement-ops-core.ts"],
+      phases: ["exploitation", "post_exploitation"],
+      platforms: ["windows", "linux"],
+      status: "active",
+    },
+    {
+      id: "vnc-exploit-templates",
+      name: "VNC Exploitation Module",
+      category: "exploit_template" as any,
+      description: `${VNC_EXPLOIT_TEMPLATES.length} pre-built VNC exploit templates covering RFB auth bypass, clipboard hijacking, framebuffer screenshot, keystroke injection, VNC tunneling, and session hijacking. Auto-injected when VNC ports (5900-5903) detected.`,
+      version: "1.0.0",
+      itemCount: VNC_EXPLOIT_TEMPLATES.length,
+      mitreTechniques: ["T1021.005", "T1056.001", "T1113", "T1115", "T1572"],
+      injectedInto: ["functional-exploit-generator.ts", "engagement-ops-core.ts"],
+      phases: ["exploitation", "post_exploitation"],
+      platforms: ["windows", "linux"],
+      status: "active",
+    },
+    {
+      id: "mssql-exploit-templates",
+      name: "MSSQL Exploitation Module",
+      category: "exploit_template" as any,
+      description: `${MSSQL_EXPLOIT_TEMPLATES.length} pre-built MSSQL exploit templates covering xp_cmdshell, linked server abuse, CLR assembly injection, OLE automation, credential extraction, and Impacket-based attacks. Auto-injected when MSSQL ports (1433-1434) detected.`,
+      version: "1.0.0",
+      itemCount: MSSQL_EXPLOIT_TEMPLATES.length,
+      mitreTechniques: ["T1059.001", "T1059.003", "T1505.001", "T1210", "T1557"],
+      injectedInto: ["functional-exploit-generator.ts", "engagement-ops-core.ts"],
+      phases: ["exploitation", "post_exploitation"],
+      platforms: ["windows", "linux"],
+      status: "active",
+    },
+    {
       id: "bugbounty-methodology",
       name: "Bug Bounty Methodology & Tools",
       category: "offensive",
@@ -350,8 +404,8 @@ function getPhaseMapping(): PhaseMapping[] {
     {
       phase: "post_exploitation",
       description: "Post-exploitation, lateral movement, and persistence",
-      modules: ["lotl-resources", "firewall-evasion"],
-      conditions: ["LOTL always injected (platform-filtered)", "Firewall evasion when hasFirewall=true or hasWAF=true"],
+      modules: ["lotl-resources", "firewall-evasion", "post-exploit-credentials", "vnc-exploit-templates", "mssql-exploit-templates"],
+      conditions: ["LOTL always injected (platform-filtered)", "Firewall evasion when hasFirewall=true or hasWAF=true", "Post-exploit credentials always injected", "VNC templates when VNC ports detected", "MSSQL templates when MSSQL ports detected"],
     },
     {
       phase: "reporting",
@@ -453,6 +507,15 @@ export const knowledgeBaseRouter = router({
             buildPhaseToolContext(input.category as any || 'recon'),
           ].filter(Boolean).join('\n\n');
           break;
+        case "post-exploit-credentials":
+          context = buildFullPostExploitKnowledgeContext({ platform: input.platform || 'windows' });
+          break;
+        case "vnc-exploit-templates":
+          context = buildVncExploitContext({});
+          break;
+        case "mssql-exploit-templates":
+          context = buildMssqlExploitContext({});
+          break;
         default:
           context = "Module not found";
       }
@@ -504,16 +567,165 @@ export const knowledgeBaseRouter = router({
     return getPhaseMapping();
   }),
 
+  // ─── User-Added Knowledge CRUD ───────────────────────────────────────────
+
+  /** List user-added knowledge entries with search/filter */
+  listUserEntries: protectedProcedure
+    .input(z.object({
+      search: z.string().optional(),
+      category: z.string().optional(),
+      phase: z.string().optional(),
+      limit: z.number().min(1).max(200).default(100),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const conditions: any[] = [eq(knowledgeEntries.isActive, 1)];
+      if (input.category) conditions.push(eq(knowledgeEntries.category, input.category));
+      if (input.phase) conditions.push(eq(knowledgeEntries.phase, input.phase));
+      if (input.search) {
+        conditions.push(or(
+          like(knowledgeEntries.name, `%${input.search}%`),
+          like(knowledgeEntries.description, `%${input.search}%`)
+        )!);
+      }
+      const db = await getDb();
+      const rows = await db.select().from(knowledgeEntries)
+        .where(and(...conditions))
+        .orderBy(desc(knowledgeEntries.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+      const countResult = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(knowledgeEntries).where(and(...conditions));
+      return { entries: rows, total: countResult[0]?.count || 0 };
+    }),
+
+  /** Create a new user-added knowledge entry */
+  createEntry: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1).max(255),
+      category: z.string().min(1).max(64),
+      subcategory: z.string().max(64).optional(),
+      description: z.string().min(1),
+      mitreTechniqueIds: z.array(z.string()).optional(),
+      phase: z.string().min(1).max(64),
+      targetPlatform: z.string().max(32).optional(),
+      requiredPrivilege: z.string().max(32).optional(),
+      tools: z.array(z.object({ name: z.string(), command: z.string(), description: z.string() })).optional(),
+      code: z.string().optional(),
+      language: z.string().max(32).optional(),
+      prerequisites: z.array(z.string()).optional(),
+      detectionIndicators: z.array(z.string()).optional(),
+      postExploitActions: z.array(z.string()).optional(),
+      verificationSteps: z.array(z.string()).optional(),
+      opsecRisk: z.number().min(1).max(10).optional(),
+      confidence: z.number().min(0).max(100).optional(),
+      source: z.string().max(255).optional(),
+      sourceUrl: z.string().max(512).optional(),
+      tags: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const entryId = `USER-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const db = await getDb();
+      await db.insert(knowledgeEntries).values({
+        entryId,
+        name: input.name,
+        category: input.category,
+        subcategory: input.subcategory || null,
+        description: input.description,
+        mitreTechniqueIds: input.mitreTechniqueIds || null,
+        phase: input.phase,
+        targetPlatform: input.targetPlatform || 'both',
+        requiredPrivilege: input.requiredPrivilege || null,
+        tools: input.tools || null,
+        code: input.code || null,
+        language: input.language || null,
+        prerequisites: input.prerequisites || null,
+        detectionIndicators: input.detectionIndicators || null,
+        postExploitActions: input.postExploitActions || null,
+        verificationSteps: input.verificationSteps || null,
+        opsecRisk: input.opsecRisk || null,
+        confidence: input.confidence || null,
+        source: input.source || 'user',
+        sourceUrl: input.sourceUrl || null,
+        tags: input.tags || null,
+        createdBy: ctx.user.name || ctx.user.openId,
+      });
+      return { entryId, success: true };
+    }),
+
+  /** Update a user-added entry */
+  updateEntry: protectedProcedure
+    .input(z.object({
+      entryId: z.string(),
+      name: z.string().min(1).max(255).optional(),
+      description: z.string().optional(),
+      mitreTechniqueIds: z.array(z.string()).optional(),
+      tools: z.array(z.object({ name: z.string(), command: z.string(), description: z.string() })).optional(),
+      code: z.string().optional(),
+      language: z.string().max(32).optional(),
+      prerequisites: z.array(z.string()).optional(),
+      detectionIndicators: z.array(z.string()).optional(),
+      postExploitActions: z.array(z.string()).optional(),
+      verificationSteps: z.array(z.string()).optional(),
+      opsecRisk: z.number().min(1).max(10).optional(),
+      confidence: z.number().min(0).max(100).optional(),
+      tags: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const updates: any = {};
+      if (input.name) updates.name = input.name;
+      if (input.description) updates.description = input.description;
+      if (input.mitreTechniqueIds) updates.mitreTechniqueIds = input.mitreTechniqueIds;
+      if (input.tools) updates.tools = input.tools;
+      if (input.code !== undefined) updates.code = input.code;
+      if (input.language !== undefined) updates.language = input.language;
+      if (input.prerequisites) updates.prerequisites = input.prerequisites;
+      if (input.detectionIndicators) updates.detectionIndicators = input.detectionIndicators;
+      if (input.postExploitActions) updates.postExploitActions = input.postExploitActions;
+      if (input.verificationSteps) updates.verificationSteps = input.verificationSteps;
+      if (input.opsecRisk !== undefined) updates.opsecRisk = input.opsecRisk;
+      if (input.confidence !== undefined) updates.confidence = input.confidence;
+      if (input.tags) updates.tags = input.tags;
+      const db = await getDb();
+      await db.update(knowledgeEntries).set(updates).where(eq(knowledgeEntries.entryId, input.entryId));
+      return { success: true };
+    }),
+
+  /** Soft-delete a user-added entry */
+  deleteEntry: protectedProcedure
+    .input(z.object({ entryId: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      await db.update(knowledgeEntries).set({ isActive: 0 }).where(eq(knowledgeEntries.entryId, input.entryId));
+      return { success: true };
+    }),
+
+  /** Get all categories with counts (built-in + user-added) */
+  getCategories: protectedProcedure.query(async () => {
+    const modules = getModuleRegistry();
+    const catMap = new Map<string, number>();
+    for (const m of modules) catMap.set(m.category, (catMap.get(m.category) || 0) + 1);
+    const db = await getDb();
+    const dbCats = await db.select({ category: knowledgeEntries.category, count: sql<number>`COUNT(*)` })
+      .from(knowledgeEntries).where(eq(knowledgeEntries.isActive, 1)).groupBy(knowledgeEntries.category);
+    for (const row of dbCats) catMap.set(row.category, (catMap.get(row.category) || 0) + row.count);
+    return Array.from(catMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }),
+
   /** Get summary statistics */
-  getStats: protectedProcedure.query(() => {
+   getStats: protectedProcedure.query(async () => {
     const modules = getModuleRegistry();
     const totalItems = modules.reduce((sum, m) => sum + (Number.isFinite(m.itemCount) ? m.itemCount : 0), 0);
     const totalMitre = new Set(modules.flatMap(m => m.mitreTechniques)).size;
     const totalInjectionPoints = new Set(modules.flatMap(m => m.injectedInto)).size;
+    const db = await getDb();
+    const dbCount = await db.select({ count: sql<number>`COUNT(*)` }).from(knowledgeEntries).where(eq(knowledgeEntries.isActive, 1));
+    const userAddedCount = dbCount[0]?.count || 0;
 
     return {
       totalModules: modules.length,
-      totalItems,
+      totalItems: totalItems + userAddedCount,
+      totalUserAdded: userAddedCount,
       totalMitreTechniques: totalMitre,
       totalInjectionPoints,
       categoryCounts: {
@@ -523,6 +735,8 @@ export const knowledgeBaseRouter = router({
         evasion: modules.filter(m => m.category === "evasion").length,
         web_app_testing: modules.filter(m => m.category === "web_app_testing").length,
         payloads: modules.filter(m => m.category === "payloads").length,
+        post_exploitation: modules.filter(m => m.category === ("post_exploitation" as any)).length,
+        exploit_template: modules.filter(m => m.category === ("exploit_template" as any)).length,
       },
       statusCounts: {
         active: modules.filter(m => m.status === "active").length,
