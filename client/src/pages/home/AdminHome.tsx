@@ -440,6 +440,9 @@ export default function AdminHome() {
         </CardContent>
       </Card>
 
+      {/* CVE Enrichment Batch Job */}
+      <CveEnrichmentCard />
+
       {/* Quick Admin Actions */}
       <div>
         <h2 className="text-sm font-display tracking-widest text-muted-foreground mb-3">ADMIN TOOLS</h2>
@@ -603,5 +606,119 @@ export default function AdminHome() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+
+// ─── CVE Enrichment Batch Job Card ──────────────────────────────────
+function CveEnrichmentCard() {
+  const [isRunning, setIsRunning] = useState(false);
+  const stats = trpc.complianceExports.cveEnrichmentStats.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const runBatch = trpc.complianceExports.runCveEnrichmentBatch.useMutation({
+    onSuccess: (result) => {
+      setIsRunning(false);
+      toast.success(
+        `Enrichment complete: ${result.enriched} enriched, ${result.skipped} skipped, ${result.errors} errors (${(result.duration / 1000).toFixed(1)}s)`
+      );
+      stats.refetch();
+    },
+    onError: (err) => {
+      setIsRunning(false);
+      toast.error(`Enrichment failed: ${err.message}`);
+    },
+  });
+
+  const handleRun = (forceRefresh = false) => {
+    setIsRunning(true);
+    runBatch.mutate({ forceRefresh });
+  };
+
+  const s = stats.data;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-display tracking-wider flex items-center gap-2">
+            <Database className="w-4 h-4 text-blue-400" /> CVE ENRICHMENT
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[10px] font-display tracking-wider"
+              onClick={() => handleRun(false)}
+              disabled={isRunning}
+            >
+              {isRunning ? (
+                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3 h-3 mr-1" />
+              )}
+              {isRunning ? "RUNNING..." : "RUN BATCH"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[10px] font-display tracking-wider text-muted-foreground"
+              onClick={() => handleRun(true)}
+              disabled={isRunning}
+            >
+              FORCE REFRESH
+            </Button>
+          </div>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Pre-populates CVE descriptions, CWE data, and CVSS scores from NVD for all engagement vulnerabilities.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {stats.isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-16 bg-secondary/30 rounded animate-pulse" />
+            ))}
+          </div>
+        ) : s ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 bg-secondary/30 rounded-lg">
+              <p className="text-[9px] font-display tracking-widest text-muted-foreground">CVEs IN ENGAGEMENTS</p>
+              <p className="text-lg font-bold text-foreground">{s.totalCvesInEngagements}</p>
+            </div>
+            <div className="p-3 bg-secondary/30 rounded-lg">
+              <p className="text-[9px] font-display tracking-widest text-muted-foreground">ENRICHED</p>
+              <p className="text-lg font-bold text-emerald-400">{s.totalEnriched}</p>
+            </div>
+            <div className="p-3 bg-secondary/30 rounded-lg">
+              <p className="text-[9px] font-display tracking-widest text-muted-foreground">WITH CWEs</p>
+              <p className="text-lg font-bold text-blue-400">{s.withCwes}</p>
+            </div>
+            <div className="p-3 bg-secondary/30 rounded-lg">
+              <p className="text-[9px] font-display tracking-widest text-muted-foreground">COVERAGE</p>
+              <p className="text-lg font-bold text-foreground">{s.coveragePercent}%</p>
+            </div>
+            {s.newestEnrichment && (
+              <div className="col-span-2 md:col-span-4 flex items-center gap-2 text-[10px] text-muted-foreground">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                Last enriched: {new Date(s.newestEnrichment).toLocaleString()}
+                {s.withErrors > 0 && (
+                  <span className="text-amber-400 ml-2">
+                    <AlertTriangle className="w-3 h-3 inline mr-0.5" />
+                    {s.withErrors} errors
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <Database className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+            <p className="text-xs text-muted-foreground">No enrichment data yet. Run the batch job to populate.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

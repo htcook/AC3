@@ -384,7 +384,7 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
 }) {
   // NVD CVE lookup for description + CWE enrichment
   const [cveId] = useState(() => vuln?.cve || "");
-  const nvdLookup = trpc.complianceExports.lookupCve.useQuery(
+  const nvdLookup = trpc.complianceExports.getCveEnrichment.useQuery(
     { cveId: cveId },
     { enabled: !!vuln?.cve && /^CVE-\d{4}-\d{4,}$/i.test(vuln.cve || ""), staleTime: 24 * 60 * 60 * 1000, retry: 1 }
   );

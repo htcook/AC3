@@ -14,6 +14,13 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { lookupCve, batchLookupCves, getCacheStats, clearCache } from "../lib/nvd-cve-lookup";
 import {
+  getCachedEnrichment,
+  getBatchCachedEnrichments,
+  runEnrichmentBatch,
+  getEnrichmentStats,
+  extractAllCveIds,
+} from "../lib/cve-enrichment-service";
+import {
   enrichFinding,
   generateNistGapSummary,
   getImpactedNistFamilies,
@@ -105,6 +112,101 @@ const nvdLookupProcedures = {
     .mutation(() => {
       clearCache();
       return { success: true };
+    }),
+
+  // ─── CVE Enrichment (DB-cached) ────────────────────────────────────────────
+
+  /**
+   * Get a single CVE's enrichment from the database cache.
+   * Falls back to live NVD API if not cached.
+   */
+  getCveEnrichment: protectedProcedure
+    .input(z.object({
+      cveId: z.string().regex(/^CVE-\d{4}-\d{4,}$/i, "Invalid CVE ID format"),
+    }))
+    .query(async ({ input }) => {
+      const normalized = input.cveId.toUpperCase();
+
+      // Try DB cache first
+      const cached = await getCachedEnrichment(normalized);
+      if (cached && !cached.error) {
+        let enrichment: FindingEnrichment | null = null;
+        if (cached.cwes.length > 0) {
+          enrichment = enrichFinding({
+            cwes: cached.cwes,
+            severity: cvssToSeverity(cached.cvssV3Score),
+          });
+        }
+        return { ...cached, source: "db" as const, enrichment };
+      }
+
+      // Fallback to live NVD API
+      const result = await lookupCve(normalized);
+      let enrichment: FindingEnrichment | null = null;
+      if (result.cwes.length > 0) {
+        enrichment = enrichFinding({
+          cwes: result.cwes,
+          severity: cvssToSeverity(result.cvssV3Score),
+        });
+      }
+      return { ...result, source: "nvd" as const, enrichment };
+    }),
+
+  /**
+   * Get batch CVE enrichments from the database cache.
+   */
+  getBatchCveEnrichments: protectedProcedure
+    .input(z.object({
+      cveIds: z.array(z.string().regex(/^CVE-\d{4}-\d{4,}$/i)).max(100, "Maximum 100 CVEs per batch"),
+    }))
+    .query(async ({ input }) => {
+      const map = await getBatchCachedEnrichments(input.cveIds);
+      const results = input.cveIds.map(id => {
+        const cached = map.get(id.toUpperCase());
+        return cached || { cveId: id.toUpperCase(), description: null, cwes: [], cvssV3Score: null, cvssV3Vector: null, publishedDate: null, lastModifiedDate: null, references: [], enrichedAt: 0, error: "Not yet enriched" };
+      });
+      return {
+        results,
+        summary: {
+          total: results.length,
+          enriched: results.filter(r => r.description).length,
+          pending: results.filter(r => !r.description && !r.error).length,
+          errors: results.filter(r => r.error).length,
+        },
+      };
+    }),
+
+  /**
+   * Run the CVE enrichment batch job (admin-only).
+   * Extracts all CVE IDs from engagements and pre-populates the cve_enrichment table.
+   */
+  runCveEnrichmentBatch: protectedProcedure
+    .input(z.object({
+      forceRefresh: z.boolean().optional(),
+      maxCves: z.number().int().positive().max(500).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const result = await runEnrichmentBatch({
+        forceRefresh: input?.forceRefresh,
+        maxCves: input?.maxCves,
+      });
+      return result;
+    }),
+
+  /**
+   * Get enrichment statistics.
+   */
+  cveEnrichmentStats: protectedProcedure
+    .query(async () => {
+      const stats = await getEnrichmentStats();
+      const allCveIds = await extractAllCveIds();
+      return {
+        ...stats,
+        totalCvesInEngagements: allCveIds.length,
+        coveragePercent: allCveIds.length > 0
+          ? Math.round((stats.totalEnriched / allCveIds.length) * 100)
+          : 0,
+      };
     }),
 };
 

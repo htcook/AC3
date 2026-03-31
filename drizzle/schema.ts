@@ -6630,3 +6630,20 @@ export const knowledgeEntries = mysqlTable("knowledge_entries", {
 	index("ke_category_idx").on(table.category),
 	index("ke_phase_idx").on(table.phase),
 ]);
+
+export const cveEnrichment = mysqlTable("cve_enrichment", {
+	id: int().autoincrement().notNull(),
+	cveId: varchar("cve_id", { length: 32 }).notNull(),
+	description: text(),
+	cwes: json().$type<string[]>(),
+	cvssV3Score: float("cvss_v3_score"),
+	cvssV3Vector: varchar("cvss_v3_vector", { length: 128 }),
+	publishedDate: varchar("published_date", { length: 64 }),
+	lastModifiedDate: varchar("last_modified_date", { length: 64 }),
+	references: json().$type<string[]>(),
+	enrichedAt: bigint("enriched_at", { mode: "number" }).notNull(),
+	error: text(),
+},
+(table) => [
+	index("cve_enrichment_cve_id_unique").on(table.cveId),
+]);
