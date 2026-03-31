@@ -83,6 +83,12 @@ export const ENV = {
   HACKERONE_API_KEY: process.env.HACKERONE_API_KEY ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
+  // DigitalOcean Spaces — report & evidence storage
+  DO_SPACES_KEY: process.env.DO_SPACES_KEY ?? "",
+  DO_SPACES_SECRET: process.env.DO_SPACES_SECRET ?? "",
+  DO_SPACES_BUCKET: process.env.DO_SPACES_BUCKET ?? "aceofcloud-reports",
+  DO_SPACES_REGION: process.env.DO_SPACES_REGION ?? "nyc3",
+  DO_SPACES_ENDPOINT: process.env.DO_SPACES_ENDPOINT ?? "https://nyc3.digitaloceanspaces.com",
   // Scan Server (DigitalOcean droplet with offensive tools)
   SCAN_SERVER_HOST: process.env.SCAN_SERVER_HOST ?? "",
   SCAN_SERVER_USER: process.env.SCAN_SERVER_USER ?? "root",

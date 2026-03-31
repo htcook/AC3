@@ -10,7 +10,7 @@ import { getDb as _getDb } from "../db";
 import { evidenceItems, evidenceChainOfCustody } from "../../drizzle/schema";
 import { eq, desc, like, and, sql } from "drizzle-orm";
 import crypto from "crypto";
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 
 async function getDbSafe() {
   const db = await _getDb();
@@ -131,7 +131,7 @@ export const evidenceRouter = router({
       const suffix = crypto.randomBytes(4).toString("hex");
       const fileKey = `evidence/${input.evidenceId}/${input.fileName}-${suffix}`;
 
-      const { url } = await storagePut(fileKey, buffer, input.mimeType || "application/octet-stream");
+      const { url } = await doStoragePut(fileKey, buffer, input.mimeType || "application/octet-stream");
 
       await db.update(evidenceItems)
         .set({

@@ -15,7 +15,7 @@
  *     }]
  *   });
  */
-import { storagePut } from "server/storage";
+import { doStoragePut } from "../do-storage";
 import { ENV } from "./env";
 
 export type GenerateImageOptions = {
@@ -81,7 +81,7 @@ export async function generateImage(
   const buffer = Buffer.from(base64Data, "base64");
 
   // Save to S3
-  const { url } = await storagePut(
+  const { url } = await doStoragePut(
     `generated/${Date.now()}.png`,
     buffer,
     result.image.mimeType

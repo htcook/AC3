@@ -7,7 +7,7 @@
  * - Stores artifacts in S3 for inclusion in PDF exports
  */
 
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 import type { MsfClient } from "./msf-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ export async function captureConsoleOutput(
 
     const filename = `evidence/${ctx.runId}/${ctx.candidateId}-console.txt`;
     const buffer = Buffer.from(output, "utf-8");
-    const { url } = await storagePut(filename, buffer, "text/plain");
+    const { url } = await doStoragePut(filename, buffer, "text/plain");
 
     return {
       type: "console_output",
@@ -159,7 +159,7 @@ export async function captureSessionInfo(
 
     const filename = `evidence/${ctx.runId}/${ctx.candidateId}-session-info.txt`;
     const buffer = Buffer.from(info, "utf-8");
-    const { url } = await storagePut(filename, buffer, "text/plain");
+    const { url } = await doStoragePut(filename, buffer, "text/plain");
 
     return {
       type: "session_info",
@@ -266,7 +266,7 @@ export async function storeEvidenceScreenshot(
   try {
     const filename = `evidence/${ctx.runId}/${ctx.candidateId}-evidence-screenshot.txt`;
     const buffer = Buffer.from(screenshotText, "utf-8");
-    const { url } = await storagePut(filename, buffer, "text/plain");
+    const { url } = await doStoragePut(filename, buffer, "text/plain");
 
     return {
       type: "screenshot_text",
@@ -387,7 +387,7 @@ ${artifacts.length > 0 ? `
 
     const filename = `evidence/${ctx.runId}/${ctx.candidateId}-report.html`;
     const buffer = Buffer.from(html, "utf-8");
-    const { url } = await storagePut(filename, buffer, "text/html");
+    const { url } = await doStoragePut(filename, buffer, "text/html");
 
     return {
       reportUrl: url,

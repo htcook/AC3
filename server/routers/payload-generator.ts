@@ -404,9 +404,9 @@ export const payloadGeneratorRouter = router({
           const sha256 = createHash("sha256").update(fileBuffer).digest("hex");
 
           // Upload to S3
-          const { storagePut } = await import("../storage");
+          const { doStoragePut } = await import("../do-storage");
           const fileKey = `payloads/${payloadId}-${input.name.replace(/[^a-zA-Z0-9.-]/g, "_")}.${safeFormat}`;
-          const { url: fileUrl } = await storagePut(fileKey, fileBuffer, "application/octet-stream");
+          const { url: fileUrl } = await doStoragePut(fileKey, fileBuffer, "application/octet-stream");
 
           // Update record
           await db
@@ -473,7 +473,7 @@ export const payloadGeneratorRouter = router({
 
               // Store the agent stager alongside the payload
               const stagerKey = `payloads/${payloadId}-caldera-stager.${isWindows ? "ps1" : "sh"}`;
-              const { storagePut: stagerPut } = await import("../storage");
+              const { doStoragePut: stagerPut } = await import("../do-storage");
               const { url: stagerUrl } = await stagerPut(
                 stagerKey,
                 Buffer.from(agentStager, "utf-8"),

@@ -106,12 +106,13 @@ export default function ReportGenerator() {
         // Direct download via anchor element — no popup blocker issues
         const a = document.createElement('a');
         a.href = data.url;
-        a.download = data.filename || 'report.html';
+        a.download = data.filename || 'report.pdf';
         a.target = '_blank';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        toast.success('Report downloaded successfully');
+        const isPdf = data.filename?.endsWith('.pdf') || data.url.endsWith('.pdf');
+        toast.success(isPdf ? 'PDF report downloaded' : 'Report downloaded (HTML fallback)');
       }
     },
     onError: (err) => {

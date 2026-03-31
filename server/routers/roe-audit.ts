@@ -107,7 +107,7 @@ export const roeAuditRouter = router({
       const { getDb } = await import("../db");
       const { engagements } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      const { storagePut } = await import("../storage");
+      const { doStoragePut } = await import("../do-storage");
       const crypto = await import("crypto");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -123,7 +123,7 @@ export const roeAuditRouter = router({
 
       const suffix = crypto.randomBytes(4).toString("hex");
       const fileKey = `roe-documents/${input.engagementId}/${input.fileName}-${suffix}`;
-      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+      const { url } = await doStoragePut(fileKey, buffer, input.mimeType);
 
       await db.update(engagements)
         .set({ roeDocumentUrl: url })

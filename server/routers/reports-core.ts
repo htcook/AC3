@@ -1,4 +1,4 @@
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 import { fetchGophishAPI } from "../lib/api-helpers";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
@@ -499,9 +499,8 @@ export const reportsRouter = router({
 
             // Store as S3 file
             try {
-              const { storagePut } = await import('../storage');
               const reportKey = `reports/${input.engagementId}/${reportId}-pentest-${Date.now()}.md`;
-              const { url } = await storagePut(reportKey, pipelineResult.markdown, 'text/markdown');
+              const { url } = await doStoragePut(reportKey, pipelineResult.markdown, 'text/markdown');
 
               await db.updateReport(reportId, {
                 status: 'completed',
@@ -589,18 +588,25 @@ export const reportsRouter = router({
         const sectionOutline = buildSectionOutline(blueprintType);
 
         // ─── Auto-escalate risk when successful exploits exist ───
+        // GUARDRAIL: Only escalate risk based on CONFIRMED successful exploits from the database,
+        // not from in-memory ops state which may be stale or inaccurate.
         let riskEscalation = '';
         try {
-          const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
-          const opsState = await getOpsStateWithRecovery(input.engagementId);
-          if (opsState) {
-            const hasSuccessfulExploit = (opsState as any).assets?.some((a: any) =>
-              a.exploitAttempts?.some((ea: any) => ea.success)
-            );
-            const hasC2Agents = ((opsState as any).stats?.c2Agents || 0) > 0;
-            if (hasSuccessfulExploit || hasC2Agents) {
-              riskEscalation = `\n\nCRITICAL RISK ESCALATION: This engagement achieved SUCCESSFUL EXPLOITATION with confirmed shell access and/or C2 agent deployment. The overall risk rating MUST be HIGH or CRITICAL. Include a dedicated "Exploitation Evidence" section with:\n- CVSS v3.1 score and full vector string with per-metric justification\n- Exploitation timeline with precise timestamps\n- Session evidence (shell access, commands executed)\n- C2 agent deployment proof (agent IDs, callback confirmation)\n- Approval gate audit trail\n- Risk rating justification table (exploitability, impact, regulatory, detection gaps)\n- Banking/financial context impact if applicable`;
+          const dbExploitAttempts = await db.getExploitationAttempts(input.engagementId);
+          const confirmedSuccessful = dbExploitAttempts.filter(e => e.status === 'succeeded');
+          const hasC2Agents = false; // Only set true if we have DB-confirmed C2 agent evidence
+          try {
+            const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+            const opsState = await getOpsStateWithRecovery(input.engagementId);
+            if (opsState && ((opsState as any).stats?.c2Agents || 0) > 0) {
+              // C2 agents are confirmed by Caldera API, not LLM-generated
+              // hasC2Agents = true; // Uncomment when Caldera evidence is verified
             }
+          } catch { /* non-fatal */ }
+          if (confirmedSuccessful.length > 0 || hasC2Agents) {
+            riskEscalation = `\n\nCRITICAL RISK ESCALATION: This engagement achieved ${confirmedSuccessful.length} CONFIRMED SUCCESSFUL EXPLOITATION(S) verified in the database. The overall risk rating MUST be HIGH or CRITICAL. Include a dedicated "Exploitation Evidence" section with:\n- CVSS v3.1 score and full vector string with per-metric justification\n- Exploitation timeline with precise timestamps\n- Session evidence (shell access, commands executed)\n- Risk rating justification table (exploitability, impact, regulatory, detection gaps)`;
+          } else if (dbExploitAttempts.length > 0) {
+            riskEscalation = `\n\nEXPLOITATION STATUS: ${dbExploitAttempts.length} exploitation attempts were made but ALL FAILED. Do NOT claim successful exploitation. Report the failed attempts honestly and focus on the theoretical risk of the identified vulnerabilities.`;
           }
         } catch (e) { /* non-fatal */ }
 
@@ -628,7 +634,11 @@ export const reportsRouter = router({
               }
               return line;
             }).join('\n');
-            legacyExploitEvidence += `\n\nIMPORTANT: You MUST include an "Exploitation Evidence" section in the report that presents each successful exploit with its proof-of-concept output, HTTP response data, access classification, and timestamps. Failed and blocked attempts should be summarized in a table.`;
+            if (succeeded.length > 0) {
+              legacyExploitEvidence += `\n\nIMPORTANT: You MUST include an "Exploitation Evidence" section in the report that presents each successful exploit with its proof-of-concept output, HTTP response data, access classification, and timestamps. Failed and blocked attempts should be summarized in a table.`;
+            } else {
+              legacyExploitEvidence += `\n\nCRITICAL: ALL ${dbEvidence.length} exploitation attempts FAILED. Zero exploits succeeded. You MUST NOT claim any exploit was successful. You MUST NOT fabricate shell access, command execution, credential dumps, or any post-exploitation activity. The report MUST clearly state that exploitation testing was attempted but did not result in confirmed compromise. Describe the failed attempts honestly and discuss what defensive controls prevented exploitation.`;
+            }
             console.log(`[Report/Legacy] Loaded ${dbEvidence.length} exploitation evidence records`);
           }
         } catch (evidenceErr: any) {
@@ -649,6 +659,15 @@ Your task is to convert raw security testing data, reconnaissance outputs, and v
 The report must follow professional standards used by top consulting firms (Mandiant, NCC Group, Bishop Fox, CrowdStrike).
 
 ${sectionOutline}
+
+EVIDENCE-GROUNDING RULES (MANDATORY — VIOLATION IS PROFESSIONAL FRAUD):
+- You MUST ONLY report exploitation outcomes that are explicitly provided in the EXPLOITATION EVIDENCE section below.
+- If an exploit is marked as FAILED, you MUST report it as failed. Do NOT claim it succeeded.
+- If zero exploits succeeded, the report MUST clearly state that no exploitation was achieved during this engagement.
+- Do NOT invent, fabricate, or hallucinate any exploitation results, shell sessions, credential dumps, lateral movement, data exfiltration, or post-exploitation activity.
+- Use conditional language ("could potentially", "would allow", "if exploited") when discussing theoretical impact of unpatched vulnerabilities.
+- When all exploits failed, focus on: vulnerabilities identified, theoretical risk if left unpatched, and defensive controls that prevented exploitation.
+- This is a legal document provided to paying clients. Fabricating successful exploitation constitutes professional fraud and liability.
 
 FORMATTING REQUIREMENTS:
 - Use structured Markdown tables for all tabular data
@@ -780,9 +799,8 @@ Instructions: ${reportPrompt}`,
 
           // Store as S3 file
           try {
-            const { storagePut } = await import('../storage');
             const reportKey = `reports/${input.engagementId}/${reportId}-${Date.now()}.md`;
-            const { url } = await storagePut(reportKey, reportContent, 'text/markdown');
+            const { url } = await doStoragePut(reportKey, reportContent, 'text/markdown');
 
             await db.updateReport(reportId, {
               status: 'completed',
@@ -956,9 +974,8 @@ Instructions: ${reportPrompt}`,
 
         // Store the HTML version to S3
         try {
-          const { storagePut } = await import('../storage');
           const htmlKey = `reports/${report.engagementId}/${input.reportId}-branded-${Date.now()}.html`;
-          const { url } = await storagePut(htmlKey, html, 'text/html');
+          const { url } = await doStoragePut(htmlKey, html, 'text/html');
           return { html, url };
         } catch (e) {
           return { html, url: null };
@@ -1053,14 +1070,39 @@ Instructions: ${reportPrompt}`,
 </body>
 </html>`;
 
-        // Upload HTML to S3 for download as a branded HTML report
-        // (True server-side PDF generation would require puppeteer/wkhtmltopdf which aren't available)
-        // Instead we provide the branded HTML as a direct download file
+        // Generate real PDF using puppeteer-core with system Chromium
         try {
-          const { storagePut } = await import('../storage');
-          const pdfKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.html`;
-          const { url } = await storagePut(pdfKey, html, 'text/html');
-          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html` };
+          // Using doStoragePut from do-storage.ts (DO Spaces)
+          let pdfBuffer: Buffer;
+          try {
+            const puppeteer = await import('puppeteer-core');
+            const browser = await puppeteer.default.launch({
+              executablePath: '/usr/bin/chromium-browser',
+              headless: true,
+              args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+            });
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+            const pdfUint8 = await page.pdf({
+              format: 'A4',
+              printBackground: true,
+              margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
+              displayHeaderFooter: true,
+              headerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#999;">CONFIDENTIAL — Security Assessment Report</div>',
+              footerTemplate: '<div style="font-size:8px;width:100%;text-align:center;color:#999;">Ace of Cloud LLC — Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+            });
+            pdfBuffer = Buffer.from(pdfUint8);
+            await browser.close();
+          } catch (puppeteerErr: any) {
+            console.error('[Report/PDF] Puppeteer PDF generation failed, falling back to HTML:', puppeteerErr.message);
+            // Fallback: upload HTML if puppeteer fails in deployment
+            const htmlKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.html`;
+            const { url } = await doStoragePut(htmlKey, html, 'text/html');
+            return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.html` };
+          }
+          const pdfKey = `reports/${report.engagementId}/${input.reportId}-report-${Date.now()}.pdf`;
+          const { url } = await doStoragePut(pdfKey, pdfBuffer, 'application/pdf');
+          return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.pdf` };
         } catch (e: any) {
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate PDF: ' + e.message });
         }

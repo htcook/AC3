@@ -68,7 +68,7 @@ export const fileTransfersRouter = router({
       const { getDbRequired } = await import("../db");
       const { eq } = await import("drizzle-orm");
       const { MsfClient } = await import("../lib/msf-client");
-      const { storagePut } = await import("../storage");
+      const { doStoragePut } = await import("../do-storage");
       const dbConn = await getDbRequired();
 
       // Extract filename from remote path
@@ -118,7 +118,7 @@ export const fileTransfersRouter = router({
           const fileBuffer = Buffer.from(fileContent || "No content retrieved", "utf-8");
           const s3Key = `msf-artifacts/${ctx.user.openId}/${transferId}-${fileName}-${randomSuffix}`;
 
-          const { url } = await storagePut(s3Key, fileBuffer, "application/octet-stream");
+          const { url } = await doStoragePut(s3Key, fileBuffer, "application/octet-stream");
 
           // Update transfer record
           await dbConn.update(fileTransfers)
@@ -160,7 +160,7 @@ export const fileTransfersRouter = router({
       const { getDbRequired } = await import("../db");
       const { eq } = await import("drizzle-orm");
       const { MsfClient } = await import("../lib/msf-client");
-      const { storagePut } = await import("../storage");
+      const { doStoragePut } = await import("../do-storage");
       const dbConn = await getDbRequired();
 
       const randomSuffix = Math.random().toString(36).substring(2, 10);
@@ -168,7 +168,7 @@ export const fileTransfersRouter = router({
 
       // Store in S3 first for audit trail
       const s3Key = `msf-uploads/${ctx.user.openId}/${input.fileName}-${randomSuffix}`;
-      const { url: s3Url } = await storagePut(s3Key, fileBuffer, input.mimeType || "application/octet-stream");
+      const { url: s3Url } = await doStoragePut(s3Key, fileBuffer, input.mimeType || "application/octet-stream");
 
       // Create transfer record
       const [result] = await dbConn.insert(fileTransfers).values({

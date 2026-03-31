@@ -14,7 +14,7 @@ import { getDb as _getDb } from "../db";
 import { evidenceItems, evidenceChainOfCustody, engagements } from "../../drizzle/schema";
 import { eq, desc, like, and, or, sql, inArray } from "drizzle-orm";
 import crypto from "crypto";
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 import {
   captureCalderaEvidence,
   renderEvidenceToFile,
@@ -78,7 +78,7 @@ export const evidenceGalleryRouter = router({
         const fileKey = `evidence-gallery/${input.engagementId}/${panelType}-${suffix}.html`;
 
         // Upload HTML to S3
-        const { url } = await storagePut(fileKey, Buffer.from(html, "utf-8"), "text/html");
+        const { url } = await doStoragePut(fileKey, Buffer.from(html, "utf-8"), "text/html");
 
         await db.insert(evidenceItems).values({
           evidenceId,
@@ -178,7 +178,7 @@ export const evidenceGalleryRouter = router({
       const ext = result.format === "png" ? "png" : "html";
       const fileKey = `evidence-exports/${input.evidenceId}-${suffix}.${ext}`;
 
-      const { url } = await storagePut(fileKey, fileBuffer, mimeType);
+      const { url } = await doStoragePut(fileKey, fileBuffer, mimeType);
 
       // Log export in custody chain
       await db.insert(evidenceChainOfCustody).values({
@@ -243,7 +243,7 @@ export const evidenceGalleryRouter = router({
       const ext = result.format === "png" ? "png" : "html";
       const fileKey = `evidence-exports/live-${input.panelType}-${suffix}.${ext}`;
 
-      const { url } = await storagePut(fileKey, fileBuffer, mimeType);
+      const { url } = await doStoragePut(fileKey, fileBuffer, mimeType);
 
       // Clean up
       try { await fs.unlink(result.path); } catch {}

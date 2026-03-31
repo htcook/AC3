@@ -5,7 +5,7 @@ import { ac3Reports, ac3ReportFindings, ac3ReportArtifacts, engagements, engagem
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
-import { storagePut } from "../storage";
+import { doStoragePut } from "../do-storage";
 import { evidenceIntegrityAnchors, evidenceGuardrailAudit } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import * as docx from "docx";
@@ -2704,7 +2704,7 @@ export const ac3ReportsRouter = {
       // Generate buffer and upload to S3
       const buffer = await Packer.toBuffer(doc);
       const fileName = `ac3-reports/${input.reportId}-${Date.now()}.docx`;
-      const { url } = await storagePut(fileName, Buffer.from(buffer), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      const { url } = await doStoragePut(fileName, Buffer.from(buffer), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
       // Store the URL on the report
       await db.update(ac3Reports).set({

@@ -16,7 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-iam": "^3.995.0",
     "@aws-sdk/client-organizations": "^3.995.0",
-    "@aws-sdk/client-s3": "^3.693.0",
+    "@aws-sdk/client-s3": "^3.907.0",
     "@aws-sdk/client-sts": "^3.995.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
     "@azure/arm-authorization": "^9.0.0",
@@ -101,6 +101,7 @@
     "node-ssh": "^13.2.1",
     "otpauth": "^9.5.0",
     "prism-react-renderer": "^2.4.1",
+    "puppeteer-core": "^24.40.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.1",
