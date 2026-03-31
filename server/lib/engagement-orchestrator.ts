@@ -3234,6 +3234,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         const assetPlan = state.scanPlan?.assetPlans.find(
           ap => ap.hostname === asset.hostname || ap.ip === target
         );
+        // Extract discoveryFlags from the asset plan (used by auto-retry logic and logging)
+        const discoveryFlags = assetPlan?.discoveryFlags || '-Pn -sV -sC -O -f -T2 -D RND:5 --data-length 64';
 
         // ── Step 1: ScanForge Discovery (multi-tool port scanning) ──────────
         const discoveredPorts: Array<{ port: number; protocol: string; service: string; product?: string; version?: string }> = [];
@@ -3511,12 +3513,12 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
           try {
             const httpxStart = Date.now();
-            // Pipe targets to httpx via echo
+            // Pipe targets to httpx via raw command (not tool='bash' which may not be whitelisted)
             const httpxInput = httpxTargets.join('\\n');
             const httpxArgs = `${httpxFlags}`;
             const httpxCmd = `echo -e '${httpxInput}' | httpx ${httpxArgs}`;
             addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `httpx ${fmtTarget(asset, target)}`, detail: httpxCmd });
-            const httpxResult = await executeTool({ tool: 'bash', args: `-c "echo -e '${httpxInput}' | httpx ${httpxArgs}"`, timeoutSeconds: 120 });
+            const httpxResult = await executeRawCommandViaQueue(httpxCmd, 120, { engagementId: state.engagementId, engagementAbortSignal: engagementAbortSig });
             const httpxDuration = Date.now() - httpxStart;
 
             // Parse httpx JSON output — each line is a JSON object with real data
@@ -3930,6 +3932,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     const assetPlan = state.scanPlan?.assetPlans.find(
       ap => ap.hostname === asset.hostname || ap.ip === target
     );
+    // Auto-select the best scan tool for this asset in Phase B
+    const { autoSelectTool: autoSelectToolB } = await import("./scanforge-discovery");
+    const sfTool = autoSelectToolB({ targets: [target], stealthLevel: assetPlan?.evasionTechniques?.length ? 'medium' : 'minimal' });
 
     // Phase B targeted discovery: run deeper scripts on discovered ports
     if (assetPlan?.discoveryFlags) {
@@ -3965,7 +3970,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // Store as toolResult
         asset.toolResults.push({
           tool: sfTool || 'naabu',
-          command: `${sfTool} ${sfArgs}`,
+          command: `${sfTool} ${discoveryArgs}`,
           exitCode: discoveryResult.exitCode ?? 0,
           durationMs,
           timedOut: discoveryResult.timedOut || false,
@@ -3988,7 +3993,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           engagementId: state.engagementId,
           tool: sfTool || 'naabu',
           target,
-          command: `${sfTool} ${sfArgs}`,
+          command: `${sfTool} ${discoveryArgs}`,
           stdout: discoveryResult.stdout || '',
           stderr: discoveryResult.stderr || '',
           exitCode: discoveryResult.exitCode ?? 0,
