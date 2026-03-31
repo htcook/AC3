@@ -1534,6 +1534,33 @@ export const bugBountyRouter = router({
       return getScanForgeBridgeStats();
     }),
 
+  // ─── Multi-Platform Sync ───
+
+  // Sync a specific platform (Bugcrowd, Intigriti, YesWeHack, Open Bug Bounty, Immunefi)
+  syncPlatform: protectedProcedure
+    .input(
+      z.object({
+        platform: z.enum(["bugcrowd", "intigriti", "yeswehack", "open_bug_bounty", "immunefi"]),
+        pages: z.number().min(1).max(10).default(3),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { syncPlatform } = await import("../lib/bounty-platform-sync");
+      return syncPlatform(ctx.user.id, input.platform, input.pages);
+    }),
+
+  // Sync all platforms with active credentials + public platforms
+  syncAllPlatforms: protectedProcedure
+    .input(
+      z.object({
+        pages: z.number().min(1).max(10).default(3),
+      }).optional()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { syncAllPlatforms } = await import("../lib/bounty-platform-sync");
+      return syncAllPlatforms(ctx.user.id, input?.pages || 3);
+    }),
+
   // ─── Automated Intel Pipeline ───
 
   // Manually trigger the full bug bounty intelligence pipeline

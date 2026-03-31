@@ -18,6 +18,7 @@ import {
   Brain, Download, Sparkles, FlaskConical, ArrowRightLeft, BookOpen
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { PlatformIcon, PLATFORM_NAMES, PLATFORM_COLORS, PLATFORM_BG_COLORS } from "@/components/PlatformIcons";
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-500/20 text-red-400 border-red-500/30",
@@ -58,6 +59,8 @@ export default function BugBountyHub() {
   const [newFinding, setNewFinding] = useState({ platform: "manual" as const, title: "", severityRating: "medium" as const, cveIds: "", cweId: "", assetIdentifier: "", summary: "" });
   const [syncQuery, setSyncQuery] = useState("severity_rating:critical OR severity_rating:high");
   const [syncPages, setSyncPages] = useState(3);
+  const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null);
+  const [syncAllRunning, setSyncAllRunning] = useState(false);
 
   // ─── Queries ───
   const { data: stats } = trpc.bugBounty.stats.useQuery(undefined);
@@ -190,6 +193,39 @@ export default function BugBountyHub() {
     onSuccess: () => { toast.success("Finding deleted"); refetchFindings(); refetchCorrelations(); },
   });
 
+  // Multi-platform sync
+  const syncPlatformMut = trpc.bugBounty.syncPlatform.useMutation({
+    onSuccess: (d: any) => {
+      setSyncingPlatform(null);
+      if (d.errors?.length > 0) {
+        toast.warning(`${PLATFORM_NAMES[d.platform] || d.platform}: Synced ${d.synced} items with ${d.errors.length} errors (${(d.duration / 1000).toFixed(1)}s)`);
+      } else {
+        toast.success(`${PLATFORM_NAMES[d.platform] || d.platform}: Synced ${d.synced} items (${(d.duration / 1000).toFixed(1)}s)`);
+      }
+      refetchPrograms(); refetchFindings();
+    },
+    onError: (e: any) => { setSyncingPlatform(null); toast.error(`Sync failed: ${e.message}`); },
+  });
+  const syncAllPlatformsMut = trpc.bugBounty.syncAllPlatforms.useMutation({
+    onSuccess: (results: any) => {
+      setSyncAllRunning(false);
+      const totalSynced = results.reduce((sum: number, r: any) => sum + r.synced, 0);
+      const totalErrors = results.reduce((sum: number, r: any) => sum + (r.errors?.length || 0), 0);
+      toast.success(`All platforms synced: ${totalSynced} items across ${results.length} platforms${totalErrors > 0 ? ` (${totalErrors} errors)` : ""}`);
+      refetchPrograms(); refetchFindings();
+    },
+    onError: (e: any) => { setSyncAllRunning(false); toast.error(`Sync all failed: ${e.message}`); },
+  });
+
+  const handleSyncPlatform = (platformName: string) => {
+    setSyncingPlatform(platformName);
+    syncPlatformMut.mutate({ platform: platformName as any, pages: 3 });
+  };
+  const handleSyncAll = () => {
+    setSyncAllRunning(true);
+    syncAllPlatformsMut.mutate({ pages: 3 });
+  };
+
   const utils = trpc.useUtils();
 
   return (
@@ -217,7 +253,11 @@ export default function BugBountyHub() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => syncAll.mutate({ hacktivityPages: 5, programPages: 5 })} disabled={syncAll.isPending}>
             <RefreshCw className={`h-4 w-4 mr-1 ${syncAll.isPending ? "animate-spin" : ""}`} />
-            {syncAll.isPending ? "Full Sync..." : "Full Sync"}
+            {syncAll.isPending ? "H1 Sync..." : "H1 Sync"}
+          </Button>
+          <Button variant="outline" size="sm" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10" onClick={handleSyncAll} disabled={syncAllRunning}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${syncAllRunning ? "animate-spin" : ""}`} />
+            {syncAllRunning ? "Syncing All..." : "Sync All Platforms"}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowSyncDialog(true)}>
             <RefreshCw className="h-4 w-4 mr-1" />
@@ -581,13 +621,13 @@ export default function BugBountyHub() {
               <SelectTrigger className="w-40 bg-zinc-900 border-zinc-800"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Platforms</SelectItem>
-                <SelectItem value="hackerone">HackerOne</SelectItem>
-                <SelectItem value="bugcrowd">Bugcrowd</SelectItem>
-                <SelectItem value="intigriti">Intigriti</SelectItem>
-                <SelectItem value="synack">Synack</SelectItem>
-                <SelectItem value="yeswehack">YesWeHack</SelectItem>
-                <SelectItem value="open_bug_bounty">Open Bug Bounty</SelectItem>
-                <SelectItem value="immunefi">Immunefi</SelectItem>
+                <SelectItem value="hackerone"><span className="flex items-center gap-2"><PlatformIcon platform="hackerone" size={14} />HackerOne</span></SelectItem>
+                <SelectItem value="bugcrowd"><span className="flex items-center gap-2"><PlatformIcon platform="bugcrowd" size={14} />Bugcrowd</span></SelectItem>
+                <SelectItem value="intigriti"><span className="flex items-center gap-2"><PlatformIcon platform="intigriti" size={14} />Intigriti</span></SelectItem>
+                <SelectItem value="synack"><span className="flex items-center gap-2"><PlatformIcon platform="synack" size={14} />Synack</span></SelectItem>
+                <SelectItem value="yeswehack"><span className="flex items-center gap-2"><PlatformIcon platform="yeswehack" size={14} />YesWeHack</span></SelectItem>
+                <SelectItem value="open_bug_bounty"><span className="flex items-center gap-2"><PlatformIcon platform="open_bug_bounty" size={14} />Open Bug Bounty</span></SelectItem>
+                <SelectItem value="immunefi"><span className="flex items-center gap-2"><PlatformIcon platform="immunefi" size={14} />Immunefi</span></SelectItem>
                 <SelectItem value="manual">Manual</SelectItem>
               </SelectContent>
             </Select>
@@ -614,7 +654,7 @@ export default function BugBountyHub() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge className={`text-xs ${SEVERITY_COLORS[f.severityRating || "none"] || SEVERITY_COLORS.none}`}>{f.severityRating || "none"}</Badge>
-                          <Badge variant="outline" className="text-xs">{f.platform}</Badge>
+                          <Badge variant="outline" className="text-xs flex items-center gap-1"><PlatformIcon platform={f.platform} size={12} />{PLATFORM_NAMES[f.platform] || f.platform}</Badge>
                           {f.programHandle && <span className="text-xs text-muted-foreground">{f.programHandle}</span>}
                           {((f.cveIds as string[]) || []).length > 0 && (
                             <Badge className="bg-red-500/10 text-red-400 text-xs">{(f.cveIds as string[]).join(", ")}</Badge>
@@ -692,7 +732,7 @@ export default function BugBountyHub() {
                           <p className="text-xs text-muted-foreground">{p.handle}</p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs">{p.platform}</Badge>
+                      <Badge variant="outline" className="text-xs flex items-center gap-1"><PlatformIcon platform={p.platform} size={12} />{PLATFORM_NAMES[p.platform] || p.platform}</Badge>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 flex-wrap">
                       {p.state && <Badge variant={p.state === "open" ? "default" : "secondary"} className="text-xs">{p.state}</Badge>}
@@ -939,8 +979,8 @@ export default function BugBountyHub() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "open_bug_bounty", "immunefi"].map((plat) => {
               const linked = (credentials || []).filter((c: any) => c.platform === plat);
-              const platformNames: Record<string, string> = { hackerone: "HackerOne", bugcrowd: "Bugcrowd", intigriti: "Intigriti", synack: "Synack", yeswehack: "YesWeHack", open_bug_bounty: "Open Bug Bounty", immunefi: "Immunefi" };
-              const platformColors: Record<string, string> = { hackerone: "text-emerald-400 border-emerald-500/30", bugcrowd: "text-orange-400 border-orange-500/30", intigriti: "text-blue-400 border-blue-500/30", synack: "text-red-400 border-red-500/30", yeswehack: "text-yellow-400 border-yellow-500/30", open_bug_bounty: "text-teal-400 border-teal-500/30", immunefi: "text-violet-400 border-violet-500/30" };
+              const platformNamesLocal: Record<string, string> = PLATFORM_NAMES;
+              const platformColorsLocal: Record<string, string> = { hackerone: "border-emerald-500/30", bugcrowd: "border-orange-500/30", intigriti: "border-blue-500/30", synack: "border-blue-600/30", yeswehack: "border-red-500/30", open_bug_bounty: "border-yellow-500/30", immunefi: "border-purple-500/30" };
               const platformDescriptions: Record<string, string> = {
                 hackerone: "Enterprise bug bounty & VDP platform. Requires API Identifier + Token.",
                 bugcrowd: "Crowdsourced security testing. Requires API Token from Settings.",
@@ -964,11 +1004,11 @@ export default function BugBountyHub() {
                   <CardContent className="pt-5 pb-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-lg border flex items-center justify-center ${platformColors[plat] || "text-zinc-400 border-zinc-700"}`}>
-                          <Bug className="h-5 w-5" />
+                        <div className={`h-10 w-10 rounded-lg border flex items-center justify-center ${platformColorsLocal[plat] || "border-zinc-700"} ${PLATFORM_BG_COLORS[plat] || ""}`}>
+                          <PlatformIcon platform={plat} size={22} />
                         </div>
                         <div>
-                          <p className="font-semibold">{platformNames[plat]}</p>
+                          <p className="font-semibold">{PLATFORM_NAMES[plat] || plat}</p>
                           <p className="text-xs text-muted-foreground">{linked.length > 0 ? `${linked.length} account${linked.length > 1 ? "s" : ""} linked` : "Not connected"}</p>
                         </div>
                       </div>
@@ -1006,6 +1046,12 @@ export default function BugBountyHub() {
                           <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => toggleCredential.mutate({ id: cred.id, isActive: !cred.isActive })}>
                             {cred.isActive ? "Disable" : "Enable"}
                           </Button>
+                          {["bugcrowd", "intigriti", "yeswehack"].includes(plat) && cred.isActive && (
+                            <Button variant="outline" size="sm" className="text-xs h-7 border-purple-500/30 text-purple-400 hover:bg-purple-500/10" onClick={() => handleSyncPlatform(plat)} disabled={syncingPlatform === plat}>
+                              {syncingPlatform === plat ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                              Sync Now
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400 hover:text-red-300" onClick={() => { if (confirm("Remove this credential?")) deleteCredential.mutate({ id: cred.id }); }}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -1014,9 +1060,9 @@ export default function BugBountyHub() {
                     ))}
 
                     {linked.length === 0 && (
-                      <Button variant="outline" size="sm" className="w-full mt-2 text-xs" onClick={() => { setNewCredential({ ...newCredential, platform: plat as any, displayName: platformNames[plat] + " Account" }); setShowAddCredentialDialog(true); }}>
+                      <Button variant="outline" size="sm" className="w-full mt-2 text-xs" onClick={() => { setNewCredential({ ...newCredential, platform: plat as any, displayName: (PLATFORM_NAMES[plat] || plat) + " Account" }); setShowAddCredentialDialog(true); }}>
                         <Key className="h-3 w-3 mr-1" />
-                        Connect {platformNames[plat]}
+                        Connect {PLATFORM_NAMES[plat] || plat}
                       </Button>
                     )}
                   </CardContent>
