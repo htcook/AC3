@@ -185,7 +185,6 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/domain-intel", icon: Brain, label: "DOMAIN RECON" },
           { href: "/domain-intel/history", icon: ClipboardList, label: "SCAN HISTORY" },
           { href: "/web-crawler", icon: ScanSearch, label: "WEB CRAWLER" },
-          { href: "/bug-bounty", icon: Bug, label: "BUG BOUNTY HUB" },
           { href: "/osint-monitor", icon: Eye, label: "OSINT MONITOR" },
           { href: "/email-security", icon: Shield, label: "EMAIL SECURITY" },
         ],

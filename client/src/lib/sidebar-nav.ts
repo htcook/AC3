@@ -155,6 +155,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Adversaries", path: "/adversaries", icon: Target, roles: ["admin", "operator", "team_lead", "analyst"] },
       { label: "Activity Log", path: "/activity", icon: FileText },
       { label: "Audit Log", path: "/audit-log", icon: ScrollText, roles: ["admin", "team_lead", "executive"] },
+      { label: "Bug Bounty Hub", path: "/bug-bounty", icon: Bug },
     ],
   },
 
@@ -289,7 +290,6 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "KEV Catalog", path: "/kev-catalog", icon: AlertTriangle },
       { label: "NVD CVE Matcher", path: "/nvd-cve-matcher", icon: Bug },
       { label: "Vuln Intel", path: "/vuln-intel", icon: Scan },
-      { label: "Bug Bounty Hub", path: "/bug-bounty", icon: Bug },
       { label: "Credential Alerts", path: "/credential-alerts", icon: Key },
       { label: "DFIR Library", path: "/dfir-library", icon: Newspaper },
     ],
