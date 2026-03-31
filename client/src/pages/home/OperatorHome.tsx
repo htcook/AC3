@@ -262,26 +262,27 @@ export default function OperatorHome() {
 
   // ── Real data queries (scoped to active engagement when selected) ──
   const scansQuery = trpc.domainIntel.listScans.useQuery(undefined, {
-    refetchInterval: 15000,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
   const engagementsQuery = trpc.engagements.list.useQuery();
 
   // Activity timeline from real audit logs — filtered by engagement
   const timelineQuery = trpc.operatorCockpit.activityTimeline.useQuery(
     { limit: 50, hoursBack: timelineHours, engagementId: engId ?? undefined },
-    { refetchInterval: 30000 }
+    { refetchInterval: 60_000, staleTime: 30_000 }
   );
 
   // OPSEC gauge from real engagement data — filtered by engagement
   const opsecQuery = trpc.operatorCockpit.opsecGauge.useQuery(
     { engagementId: engId ?? undefined },
-    { refetchInterval: 60000 }
+    { refetchInterval: 120_000, staleTime: 60_000 }
   );
 
   // Quick stats — filtered by engagement
   const statsQuery = trpc.operatorCockpit.quickStats.useQuery(
     { engagementId: engId ?? undefined },
-    { refetchInterval: 30000 }
+    { refetchInterval: 60_000, staleTime: 30_000 }
   );
 
   // ── WebSocket real-time events ──

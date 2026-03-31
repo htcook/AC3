@@ -75,7 +75,7 @@ export async function fetchGophishAPI(endpoint: string, method: string = 'GET', 
         'Authorization': GOPHISH_API_KEY,
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(5000),
     };
     if (data) options.body = JSON.stringify(data);
 
@@ -111,7 +111,7 @@ export async function fetchCalderaAPI(url: string, apiKey: string, endpoint: str
 
     const options: RequestInit & { dispatcher?: any } = {
       headers: { 'KEY': apiKey },
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(5000),
     };
 
     if (isHttps) {

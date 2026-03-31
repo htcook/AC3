@@ -100,14 +100,24 @@ function DashboardInner() {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Live stats
+  // Live stats — external service calls use generous staleTime to avoid blocking initial render
   const { data: stats, refetch: refetchStats } = trpc.calderaProxy.getStats.useQuery(undefined, {
-    refetchInterval: 60000,
+    refetchInterval: 120_000, // 2 min
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
   const calderaStats = stats || { totalAdversaries: 0, totalThreatActors: 0, totalAbilities: 0, activeOperations: 0, totalAgents: 0 };
 
-  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, { refetchInterval: 60000 });
-  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, { refetchInterval: 60000 });
+  const { data: healthData } = trpc.calderaProxy.checkHealth.useQuery(undefined, {
+    refetchInterval: 120_000,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const { data: gophishData, refetch: refetchGophish } = trpc.gophishProxy.getStats.useQuery(undefined, {
+    refetchInterval: 120_000,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
   // Recent domain intel scans
   const { data: recentScans, isLoading: scansLoading, isError: scansError } = trpc.domainIntel.listScans.useQuery();
@@ -266,11 +276,16 @@ function DashboardInner() {
   // Real-time WebSocket events for dashboard
   const { events: wsEvents, isConnected: wsConnected, eventCounts } = useDashboardEvents();
 
-  // Auto-refresh stats when WS events arrive
+  // Auto-refresh stats when WS events arrive (debounced to avoid hammering the server)
+  const lastWsRefetchRef = useRef(0);
   useEffect(() => {
     if (wsEvents.length > 0) {
-      refetchStats();
-      refetchGophish();
+      const now = Date.now();
+      if (now - lastWsRefetchRef.current > 30_000) {
+        lastWsRefetchRef.current = now;
+        refetchStats();
+        refetchGophish();
+      }
     }
   }, [wsEvents.length]);
 

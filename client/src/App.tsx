@@ -335,16 +335,24 @@ function PageLoader() {
 // Protected route wrapper that requires authentication
 function ProtectedRoute({ component: Component, pageName }: { component: React.ComponentType; pageName?: string }) {
   const [location, setLocation] = useLocation();
-  const { data: session, isLoading } = trpc.calderaAuth.session.useQuery();
+  const { data: session, isLoading } = trpc.calderaAuth.session.useQuery(undefined, {
+    staleTime: 30_000, // Cache session for 30s to avoid redundant auth checks
+    refetchOnWindowFocus: false,
+  });
+
+  // Use optimistic auth: if we have a caldera session cookie, render immediately
+  // while the session query validates in the background
+  const hasSessionCookie = typeof document !== 'undefined' && document.cookie.includes('caldera_session');
 
   useEffect(() => {
-    if (!isLoading && !session?.authenticated) {
+    if (!isLoading && !session?.authenticated && !hasSessionCookie) {
       const returnTo = encodeURIComponent(location);
       setLocation(`/login?returnTo=${returnTo}`);
     }
-  }, [isLoading, session, setLocation, location]);
+  }, [isLoading, session, setLocation, location, hasSessionCookie]);
 
-  if (isLoading) {
+  // Show loading only if we have NO cached session AND no cookie hint
+  if (isLoading && !hasSessionCookie) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -356,7 +364,7 @@ function ProtectedRoute({ component: Component, pageName }: { component: React.C
     );
   }
 
-  if (!session?.authenticated) {
+  if (!isLoading && !session?.authenticated) {
     return null;
   }
 
