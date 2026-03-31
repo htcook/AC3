@@ -4,7 +4,6 @@ import {
   Shield, Globe, Target, AlertTriangle, ChevronRight, X,
   Crosshair, Eye, Clock, Fingerprint, Cpu, Layers
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 // ─── Threat Level Badge ────────────────────────────────────────────
 function ThreatBadge({ level }: { level: string | null }) {
@@ -353,10 +352,9 @@ const FILTER_TABS = [
 export default function ThreatActorFeed() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
 
   const { data, isLoading } = trpc.platformStats.recentThreatActors.useQuery(
-    { limit: 50 },
+    { limit: 20 },
     { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false }
   );
 
@@ -369,14 +367,10 @@ export default function ThreatActorFeed() {
     // Sort by threat level: critical first, then high, medium, low
     const levelOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     actors = [...actors].sort((a, b) => (levelOrder[a.threatLevel || "medium"] ?? 3) - (levelOrder[b.threatLevel || "medium"] ?? 3));
-    return showAll ? actors : actors.slice(0, 12);
-  }, [data, activeFilter, showAll]);
-
-  const totalFiltered = useMemo(() => {
-    if (!data?.actors) return 0;
-    if (activeFilter === "all") return data.total;
-    return data.actors.filter(a => a.type === activeFilter).length;
+    return actors.slice(0, 20);
   }, [data, activeFilter]);
+
+  const displayCount = filteredActors.length;
 
   return (
     <section className="py-20">
@@ -388,15 +382,15 @@ export default function ThreatActorFeed() {
               <Eye className="w-3.5 h-3.5" />
               LIVE INTELLIGENCE
             </div>
-            <h2 className="text-4xl sm:text-5xl font-display mb-2">THREAT ACTOR FEED</h2>
+            <h2 className="text-4xl sm:text-5xl font-display mb-2">TOP ACTIVE THREAT GROUPS</h2>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Browse {data?.total?.toLocaleString() || "1,700"}+ threat actor profiles from our continuously enriched intelligence database.
+              The 20 most active threat groups from our continuously enriched intelligence database.
               Click any actor for full details including ATT&CK techniques, tools, and malware.
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Layers className="w-4 h-4 text-primary" />
-            <span className="font-display tracking-wider">{totalFiltered.toLocaleString()} ACTORS</span>
+            <span className="font-display tracking-wider">{displayCount} ACTIVE GROUPS</span>
           </div>
         </div>
 
@@ -405,7 +399,7 @@ export default function ThreatActorFeed() {
           {FILTER_TABS.map(tab => (
             <button
               key={tab.value}
-              onClick={() => { setActiveFilter(tab.value); setShowAll(false); }}
+              onClick={() => setActiveFilter(tab.value)}
               className={`px-4 py-2 text-xs font-display tracking-widest border-2 transition-colors ${
                 activeFilter === tab.value
                   ? "border-primary bg-primary/10 text-primary"
@@ -441,19 +435,7 @@ export default function ThreatActorFeed() {
               ))}
             </div>
 
-            {/* Show More */}
-            {!showAll && totalFiltered > 12 && (
-              <div className="text-center mt-8">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAll(true)}
-                  className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white"
-                >
-                  SHOW ALL {totalFiltered.toLocaleString()} {activeFilter === "all" ? "THREAT ACTORS" : activeFilter.toUpperCase() + " ACTORS"}
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
-            )}
+
           </>
         )}
 
