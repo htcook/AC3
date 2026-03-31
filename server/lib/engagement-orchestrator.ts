@@ -1536,8 +1536,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
     's3scanner: S3 bucket ACL check (echo bucket | s3scanner scan --json)',
     'trufflehog: secret scanner for buckets',
     'aws: S3 CLI (aws s3 ls s3://bucket --no-sign-request)',
-    'ffuf: web fuzzer (ffuf -u URL/FUZZ -w wordlist -mc 200,301,302,403 -of json)',
-    'feroxbuster: recursive dir discovery (feroxbuster -u URL -w wordlist --json --smart)',
+    'gobuster: directory/file brute-force (gobuster dir -u URL -w /opt/SecLists/Discovery/Web-Content/common.txt -t 10 -q --no-error)',
     'sqlmap: SQLi exploitation (only confirmed targets)',
     'testssl: TLS/SSL vuln scanner',
     'whatweb: tech fingerprinter',
@@ -1553,7 +1552,7 @@ export async function generateScanPlan(engagementId: number): Promise<ScanPlan> 
   const systemPrompt = `You are a penetration tester planning active scanning for a ${state.engagementType} engagement after passive OSINT.
 
 PHASE A — Discovery: ScanForge discovery --top-ports 1000 -T3 then httpx on web ports. discoveryFlags = scan type/evasion only (no -p, --top-ports, -T). Cloud/WAF targets: use '-Pn -sV -sC' only, no evasion flags.
-PHASE B — Targeted tools per asset based on recon: Web→nuclei,nikto,ffuf,feroxbuster,whatweb,testssl; WP→wpscan; SQLi→sqlmap; Cloud→cloud_enum,s3scanner; SMB→enum4linux; LDAP→ldapsearch; DNS→dig; SNMP→onesixtyone; Login→hydra.
+PHASE B — Targeted tools per asset based on recon: Web→nuclei,nikto,gobuster,whatweb,testssl; WP→wpscan; SQLi→sqlmap; Cloud→cloud_enum,s3scanner; SMB→enum4linux; LDAP→ldapsearch; DNS→dig; SNMP→onesixtyone; Login→hydra.
 
 Tools:
 ${toolRef}
@@ -1970,7 +1969,7 @@ async function llmDecide(context: {
       currentPhase: context.phase,
       recentActivity,
       assetSummary,
-      availableTools: ['scanforge-discovery', 'nuclei', 'zap', 'nikto', 'gobuster', 'ffuf', 'testssl', 'hydra', 'sqlmap'],
+      availableTools: ['scanforge-discovery', 'nuclei', 'zap', 'nikto', 'gobuster', 'testssl', 'hydra', 'sqlmap'],
       engagement: {
         engagementType: context.engagementType,
         clientName: context.assets[0]?.hostname,
@@ -1982,7 +1981,7 @@ async function llmDecide(context: {
     // Map specialist output to legacy format
     const toolToActionType: Record<string, string> = {
       discovery: 'discovery_scan', nuclei: 'nuclei_scan', zap: 'zap_scan',
-      nikto: 'nuclei_scan', gobuster: 'nuclei_scan', ffuf: 'nuclei_scan',
+      nikto: 'nuclei_scan', gobuster: 'nuclei_scan',
       testssl: 'nuclei_scan', hydra: 'exploit_attempt', sqlmap: 'exploit_attempt',
     };
     const actionType = toolToActionType[opsResult.recommended_action.tool] || 'discovery_scan';
@@ -7085,11 +7084,19 @@ ${(() => {
             });
           }
         } catch (execErr: any) {
-          // Functional exploit generator failed — fall back to plan-based assessment
+          // Functional exploit generator failed — NEVER claim success without real execution evidence
           console.warn(`[Exploit] Functional exploit execution failed for ${target}:${port}:`, execErr.message);
           exploitOutput = `Exploit execution error: ${execErr.message}`;
-          // Fall back to plan-based success assessment
-          success = !!plan?.selectedExploit?.modulePath && (plan?.confidence ?? 0) >= 0.7;
+          // CRITICAL: Do NOT fall back to plan-based success. An LLM-generated plan with high
+          // confidence does NOT constitute evidence of a successful exploit. This was the root
+          // cause of hallucinated exploit successes in the Vianova engagement.
+          success = false;
+          addLog(state, {
+            phase: 'exploitation',
+            type: 'warning',
+            title: `Exploit execution failed: ${target}:${port}`,
+            detail: `The exploit generator threw an error: ${execErr.message}. Marking as FAILED (not falling back to plan-based assessment).`,
+          });
         }
 
         if (success) {

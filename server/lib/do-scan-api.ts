@@ -390,6 +390,24 @@ async function fallbackToSSH(
   startTime: number
 ): Promise<ToolExecResult> {
   metrics.httpFallbackToSSH++;
+
+  // In deployed environments (DO App Platform, containers), ssh binary is not available.
+  // Check SCAN_SERVER_SSH_KEY existence as a proxy for SSH capability.
+  const sshKeyConfigured = !!(process.env.SCAN_SERVER_SSH_KEY && process.env.SCAN_SERVER_HOST);
+  if (!sshKeyConfigured) {
+    console.warn(`${LOG} SSH fallback skipped for ${config.tool} — no SSH key configured (deployed env). HTTP error: ${originalError.message}`);
+    return {
+      tool: config.tool,
+      command: `${config.tool} ${config.args}`,
+      stdout: "",
+      stderr: `HTTP execution failed: ${originalError.message}. SSH fallback unavailable (no SSH key configured).`,
+      exitCode: -1,
+      durationMs: Date.now() - startTime,
+      timedOut: false,
+      error: `HTTP execution failed, SSH fallback unavailable`,
+    };
+  }
+
   console.log(`${LOG} Falling back to SSH for ${config.tool} (HTTP error: ${originalError.message})`);
 
   try {
@@ -428,6 +446,23 @@ async function fallbackToSSHRaw(
   startTime: number
 ): Promise<ToolExecResult> {
   metrics.httpFallbackToSSH++;
+
+  // In deployed environments, ssh binary is not available.
+  const sshKeyConfigured = !!(process.env.SCAN_SERVER_SSH_KEY && process.env.SCAN_SERVER_HOST);
+  if (!sshKeyConfigured) {
+    console.warn(`${LOG} SSH fallback skipped for raw command — no SSH key configured (deployed env)`);
+    return {
+      tool: "raw",
+      command,
+      stdout: "",
+      stderr: `HTTP execution failed. SSH fallback unavailable (no SSH key configured).`,
+      exitCode: -1,
+      durationMs: Date.now() - startTime,
+      timedOut: false,
+      error: "HTTP execution failed, SSH fallback unavailable",
+    };
+  }
+
   console.log(`${LOG} Falling back to SSH for raw command`);
 
   try {

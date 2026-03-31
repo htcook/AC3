@@ -157,6 +157,12 @@ export async function executeScanForgePhase(
         if (config.templateCategories && config.templateCategories.length > 0) {
           if (!config.templateCategories.includes(tmpl.category)) continue;
         }
+
+        // Normalize: templates use `request` (singular object) but the execution
+        // loop iterates over `requests` (plural array). Convert singular → array.
+        if (tmpl.request && !tmpl.requests) {
+          tmpl.requests = [tmpl.request];
+        }
         
         templates.push(tmpl);
       } catch {}
@@ -515,6 +521,12 @@ async function executeTemplate(
   const findings: ScanForgeFinding[] = [];
   const templateId = template.id || template.templateId;
   const confidenceThreshold = confidenceMap.get(templateId) || 0.5;
+
+  // Skip non-HTTP templates — DNS/TCP/multi-protocol templates cannot be executed via fetch
+  const protocol = (template.protocol || 'http').toLowerCase();
+  if (!['http', 'https'].includes(protocol)) {
+    return findings;
+  }
 
   // Execute each request in the template
   for (const request of (template.requests || [])) {

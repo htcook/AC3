@@ -2343,6 +2343,19 @@ export default function EngagementOps() {
                                     )}
                                   </div>
                                 )}
+                                {/* CWE inline badge (from vuln data if available) */}
+                                {(v.cwe || (v.cwes && Array.isArray(v.cwes) && v.cwes.length > 0)) && (
+                                  <div className="flex items-center gap-1 flex-wrap ml-0.5">
+                                    {(() => {
+                                      const cweList: string[] = v.cwes && Array.isArray(v.cwes) ? v.cwes : v.cwe ? [v.cwe] : [];
+                                      return cweList.slice(0, 3).map((cweId: string) => (
+                                        <Badge key={cweId} variant="outline" className="text-[8px] font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                                          {cweId}
+                                        </Badge>
+                                      ));
+                                    })()}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

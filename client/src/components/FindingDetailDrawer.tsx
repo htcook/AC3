@@ -13,8 +13,66 @@ import {
   Shield, AlertTriangle, ExternalLink, Bug, Copy, Check,
   Target, Fingerprint, Gauge, Flame, Globe2, GitBranch,
   FileWarning, Skull, TrendingUp, Info, ChevronDown, ChevronRight,
-  Terminal, Scan, ShieldCheck, FileText, Clock, Layers,
+  Terminal, Scan, ShieldCheck, FileText, Clock, Layers, BookOpen,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+
+/* ── Common CWE Name Map (top 50 most common) ── */
+const CWE_NAMES: Record<string, string> = {
+  "CWE-20": "Improper Input Validation",
+  "CWE-22": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+  "CWE-77": "Improper Neutralization of Special Elements used in a Command ('Command Injection')",
+  "CWE-78": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+  "CWE-79": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+  "CWE-89": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+  "CWE-94": "Improper Control of Generation of Code ('Code Injection')",
+  "CWE-98": "Improper Control of Filename for Include/Require Statement in PHP Program",
+  "CWE-119": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+  "CWE-120": "Buffer Copy without Checking Size of Input ('Classic Buffer Overflow')",
+  "CWE-125": "Out-of-bounds Read",
+  "CWE-190": "Integer Overflow or Wraparound",
+  "CWE-200": "Exposure of Sensitive Information to an Unauthorized Actor",
+  "CWE-264": "Permissions, Privileges, and Access Controls",
+  "CWE-269": "Improper Privilege Management",
+  "CWE-276": "Incorrect Default Permissions",
+  "CWE-284": "Improper Access Control",
+  "CWE-287": "Improper Authentication",
+  "CWE-295": "Improper Certificate Validation",
+  "CWE-306": "Missing Authentication for Critical Function",
+  "CWE-307": "Improper Restriction of Excessive Authentication Attempts",
+  "CWE-311": "Missing Encryption of Sensitive Data",
+  "CWE-319": "Cleartext Transmission of Sensitive Information",
+  "CWE-326": "Inadequate Encryption Strength",
+  "CWE-327": "Use of a Broken or Risky Cryptographic Algorithm",
+  "CWE-330": "Use of Insufficiently Random Values",
+  "CWE-352": "Cross-Site Request Forgery (CSRF)",
+  "CWE-362": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+  "CWE-400": "Uncontrolled Resource Consumption",
+  "CWE-416": "Use After Free",
+  "CWE-434": "Unrestricted Upload of File with Dangerous Type",
+  "CWE-476": "NULL Pointer Dereference",
+  "CWE-502": "Deserialization of Untrusted Data",
+  "CWE-522": "Insufficiently Protected Credentials",
+  "CWE-532": "Insertion of Sensitive Information into Log File",
+  "CWE-601": "URL Redirection to Untrusted Site ('Open Redirect')",
+  "CWE-611": "Improper Restriction of XML External Entity Reference",
+  "CWE-613": "Insufficient Session Expiration",
+  "CWE-639": "Authorization Bypass Through User-Controlled Key",
+  "CWE-640": "Weak Password Recovery Mechanism for Forgotten Password",
+  "CWE-668": "Exposure of Resource to Wrong Sphere",
+  "CWE-732": "Incorrect Permission Assignment for Critical Resource",
+  "CWE-787": "Out-of-bounds Write",
+  "CWE-798": "Use of Hard-coded Credentials",
+  "CWE-862": "Missing Authorization",
+  "CWE-863": "Incorrect Authorization",
+  "CWE-918": "Server-Side Request Forgery (SSRF)",
+  "CWE-1021": "Improper Restriction of Rendered UI Layers or Frames",
+  "CWE-1236": "Improper Neutralization of Formula Elements in a CSV File",
+};
+
+function getCweName(cweId: string): string {
+  return CWE_NAMES[cweId] || cweId;
+}
 
 /* ── Types ── */
 export interface EvidenceStep {
@@ -324,6 +382,13 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
   onClose: () => void;
   assetHostname?: string;
 }) {
+  // NVD CVE lookup for description + CWE enrichment
+  const [cveId] = useState(() => vuln?.cve || "");
+  const nvdLookup = trpc.complianceExports.lookupCve.useQuery(
+    { cveId: cveId },
+    { enabled: !!vuln?.cve && /^CVE-\d{4}-\d{4,}$/i.test(vuln.cve || ""), staleTime: 24 * 60 * 60 * 1000, retry: 1 }
+  );
+
   if (!vuln) return null;
   const sev = getSeverityConfig(vuln.severity);
   const ess = vuln.essEnrichment;
@@ -332,6 +397,9 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
   const hasEvidenceChain = vuln.evidenceChain && vuln.evidenceChain.length > 0;
   const hasExploitEvidence = !!vuln.exploitEvidence;
   const hasValidation = !!vuln.validationResult;
+  const nvdData = nvdLookup.data;
+  const nvdCwes = nvdData?.cwes || [];
+  const nvdDescription = nvdData?.description;
 
   // Determine if this is truly confirmed (has evidence)
   const hasAnyEvidence = hasEvidenceChain || hasExploitEvidence || hasValidation || !!vuln.evidenceDetail;
@@ -402,6 +470,58 @@ export function VulnDetailDrawer({ vuln, open, onClose, assetHostname }: {
                   </div>
                 )}
               </Section>
+            )}
+
+            {/* CVE Description & CWE Classification (from NVD) */}
+            {vuln.cve && (
+              <>
+                {nvdLookup.isLoading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="h-3 w-3 border-2 border-muted-foreground/30 border-t-cyan-400 rounded-full animate-spin" />
+                    Loading CVE details from NVD...
+                  </div>
+                )}
+                {nvdDescription && (
+                  <Section title="CVE Description" icon={<BookOpen className="h-3.5 w-3.5" />}>
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/30">
+                      <p className="text-xs text-foreground leading-relaxed">{nvdDescription}</p>
+                      {nvdData?.publishedDate && (
+                        <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" />
+                          Published: {new Date(nvdData.publishedDate).toLocaleDateString()}
+                          {nvdData.lastModifiedDate && ` \u2022 Modified: ${new Date(nvdData.lastModifiedDate).toLocaleDateString()}`}
+                        </p>
+                      )}
+                    </div>
+                  </Section>
+                )}
+                {nvdCwes.length > 0 && (
+                  <Section title={`CWE Classification (${nvdCwes.length})`} icon={<Shield className="h-3.5 w-3.5" />}>
+                    <div className="space-y-2">
+                      {nvdCwes.map((cweId) => (
+                        <div key={cweId} className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] font-mono text-amber-400 border-amber-500/30 bg-amber-500/10">
+                              {cweId}
+                            </Badge>
+                            <a
+                              href={`https://cwe.mitre.org/data/definitions/${cweId.replace('CWE-', '')}.html`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                          <p className="text-[11px] text-foreground/80 mt-1 leading-relaxed">
+                            {getCweName(cweId)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+              </>
             )}
 
             {/* Corroboration & Confidence */}
