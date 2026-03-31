@@ -79,6 +79,48 @@ async function verifyBugcrowd(apiKey: string): Promise<{ valid: boolean; message
   }
 }
 
+async function verifyIntigriti(apiKey: string): Promise<{ valid: boolean; message: string }> {
+  try {
+    const res = await fetch("https://api.intigriti.com/external/researcher/v1/programs?limit=1", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 200) return { valid: true, message: "Connected to Intigriti successfully" };
+    if (res.status === 401 || res.status === 403) return { valid: false, message: "Invalid API token — generate one at intigriti.com/settings" };
+    return { valid: false, message: `Intigriti returned status ${res.status}` };
+  } catch (err: any) {
+    return { valid: false, message: `Connection failed: ${err.message}` };
+  }
+}
+
+async function verifyYesWeHack(apiKey: string): Promise<{ valid: boolean; message: string }> {
+  try {
+    const res = await fetch("https://api.yeswehack.com/programs?page=1&nb_results=1", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 200) return { valid: true, message: "Connected to YesWeHack successfully" };
+    if (res.status === 401) return { valid: false, message: "Invalid API token" };
+    return { valid: false, message: `YesWeHack returned status ${res.status}` };
+  } catch (err: any) {
+    return { valid: false, message: `Connection failed: ${err.message}` };
+  }
+}
+
+async function verifyImmunefi(_apiKey: string): Promise<{ valid: boolean; message: string }> {
+  // Immunefi uses a public GraphQL API for program listing; API key is for authenticated actions
+  // We verify by checking if the key format looks valid (JWT or token)
+  if (_apiKey.length < 20) return { valid: false, message: "API key appears too short" };
+  return { valid: true, message: "Immunefi credentials saved — verification via API is limited; key format accepted" };
+}
+
+async function verifyOpenBugBounty(_apiKey: string): Promise<{ valid: boolean; message: string }> {
+  // Open Bug Bounty is a public platform with no formal API auth
+  // The "key" here is the researcher handle or email used for identification
+  if (_apiKey.length < 3) return { valid: false, message: "Handle/identifier appears too short" };
+  return { valid: true, message: "Open Bug Bounty credentials saved — this platform uses public disclosure; handle accepted" };
+}
+
 // ─── Router ───
 
 export const platformCredentialsRouter = router({
@@ -111,7 +153,7 @@ export const platformCredentialsRouter = router({
   add: protectedProcedure
     .input(
       z.object({
-        platform: z.enum(["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "custom"]),
+        platform: z.enum(["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "open_bug_bounty", "immunefi", "custom"]),
         displayName: z.string().min(1).max(255),
         apiUsername: z.string().max(512).optional(),
         apiKey: z.string().min(1),
@@ -221,6 +263,21 @@ export const platformCredentialsRouter = router({
           break;
         case "bugcrowd":
           result = await verifyBugcrowd(apiKey);
+          break;
+        case "intigriti":
+          result = await verifyIntigriti(apiKey);
+          break;
+        case "yeswehack":
+          result = await verifyYesWeHack(apiKey);
+          break;
+        case "immunefi":
+          result = await verifyImmunefi(apiKey);
+          break;
+        case "open_bug_bounty":
+          result = await verifyOpenBugBounty(apiKey);
+          break;
+        case "synack":
+          result = { valid: true, message: "Synack credentials saved — Synack Red Team access is invite-only; credentials stored for manual use" };
           break;
         default:
           result = { valid: true, message: "Custom platform — credentials saved (no auto-verification)" };

@@ -36,7 +36,7 @@ const CORRELATION_COLORS: Record<string, string> = {
 export default function BugBountyHub() {
   const [activeTab, setActiveTab] = useState("intelligence");
   const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState<"all" | "hackerone" | "bugcrowd" | "manual">("all");
+  const [platform, setPlatform] = useState<"all" | "hackerone" | "bugcrowd" | "intigriti" | "synack" | "yeswehack" | "open_bug_bounty" | "immunefi" | "manual">("all");
   const [severity, setSeverity] = useState<string>("");
   const [showAddProgramDialog, setShowAddProgramDialog] = useState(false);
   const [showAddFindingDialog, setShowAddFindingDialog] = useState(false);
@@ -46,7 +46,7 @@ export default function BugBountyHub() {
   const [selectedScopeProgram, setSelectedScopeProgram] = useState<string>("");
   const [trainingCategory, setTrainingCategory] = useState<string>("all");
   const [newCredential, setNewCredential] = useState({
-    platform: "hackerone" as "hackerone" | "bugcrowd" | "intigriti" | "synack" | "yeswehack" | "custom",
+    platform: "hackerone" as "hackerone" | "bugcrowd" | "intigriti" | "synack" | "yeswehack" | "open_bug_bounty" | "immunefi" | "custom",
     displayName: "",
     apiUsername: "",
     apiKey: "",
@@ -583,6 +583,11 @@ export default function BugBountyHub() {
                 <SelectItem value="all">All Platforms</SelectItem>
                 <SelectItem value="hackerone">HackerOne</SelectItem>
                 <SelectItem value="bugcrowd">Bugcrowd</SelectItem>
+                <SelectItem value="intigriti">Intigriti</SelectItem>
+                <SelectItem value="synack">Synack</SelectItem>
+                <SelectItem value="yeswehack">YesWeHack</SelectItem>
+                <SelectItem value="open_bug_bounty">Open Bug Bounty</SelectItem>
+                <SelectItem value="immunefi">Immunefi</SelectItem>
                 <SelectItem value="manual">Manual</SelectItem>
               </SelectContent>
             </Select>
@@ -932,10 +937,28 @@ export default function BugBountyHub() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack"].map((plat) => {
+            {["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "open_bug_bounty", "immunefi"].map((plat) => {
               const linked = (credentials || []).filter((c: any) => c.platform === plat);
-              const platformNames: Record<string, string> = { hackerone: "HackerOne", bugcrowd: "Bugcrowd", intigriti: "Intigriti", synack: "Synack", yeswehack: "YesWeHack" };
-              const platformColors: Record<string, string> = { hackerone: "text-emerald-400 border-emerald-500/30", bugcrowd: "text-orange-400 border-orange-500/30", intigriti: "text-blue-400 border-blue-500/30", synack: "text-red-400 border-red-500/30", yeswehack: "text-yellow-400 border-yellow-500/30" };
+              const platformNames: Record<string, string> = { hackerone: "HackerOne", bugcrowd: "Bugcrowd", intigriti: "Intigriti", synack: "Synack", yeswehack: "YesWeHack", open_bug_bounty: "Open Bug Bounty", immunefi: "Immunefi" };
+              const platformColors: Record<string, string> = { hackerone: "text-emerald-400 border-emerald-500/30", bugcrowd: "text-orange-400 border-orange-500/30", intigriti: "text-blue-400 border-blue-500/30", synack: "text-red-400 border-red-500/30", yeswehack: "text-yellow-400 border-yellow-500/30", open_bug_bounty: "text-teal-400 border-teal-500/30", immunefi: "text-violet-400 border-violet-500/30" };
+              const platformDescriptions: Record<string, string> = {
+                hackerone: "Enterprise bug bounty & VDP platform. Requires API Identifier + Token.",
+                bugcrowd: "Crowdsourced security testing. Requires API Token from Settings.",
+                intigriti: "European bug bounty platform. Requires Bearer token from Settings.",
+                synack: "Invite-only red team platform. Store your credentials for manual use.",
+                yeswehack: "European bug bounty platform. Requires API token from your profile.",
+                open_bug_bounty: "Public responsible disclosure platform. Enter your researcher handle.",
+                immunefi: "Web3 & DeFi bug bounty platform. Enter your API key or JWT token.",
+              };
+              const platformDocs: Record<string, string> = {
+                hackerone: "https://api.hackerone.com/",
+                bugcrowd: "https://docs.bugcrowd.com/api/getting-started/",
+                intigriti: "https://kb.intigriti.com/en/articles/3285960-api",
+                synack: "https://www.synack.com/red-team/",
+                yeswehack: "https://api.yeswehack.com/doc",
+                open_bug_bounty: "https://www.openbugbounty.org/",
+                immunefi: "https://immunefi.com/",
+              };
               return (
                 <Card key={plat} className={`bg-zinc-900/50 border-zinc-800 ${linked.length > 0 ? "ring-1 ring-emerald-500/20" : ""}`}>
                   <CardContent className="pt-5 pb-4">
@@ -951,6 +974,13 @@ export default function BugBountyHub() {
                       </div>
                       {linked.length > 0 ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : <Unplug className="h-5 w-5 text-zinc-600" />}
                     </div>
+                    <p className="text-xs text-muted-foreground mb-2">{platformDescriptions[plat]}</p>
+                    {platformDocs[plat] && (
+                      <a href={platformDocs[plat]} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 mb-3">
+                        <ExternalLink className="h-3 w-3" />
+                        API Documentation
+                      </a>
+                    )}
 
                     {linked.map((cred: any) => (
                       <div key={cred.id} className="mt-2 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
@@ -1307,6 +1337,8 @@ export default function BugBountyHub() {
                   <SelectItem value="intigriti">Intigriti</SelectItem>
                   <SelectItem value="synack">Synack</SelectItem>
                   <SelectItem value="yeswehack">YesWeHack</SelectItem>
+                  <SelectItem value="open_bug_bounty">Open Bug Bounty</SelectItem>
+                  <SelectItem value="immunefi">Immunefi</SelectItem>
                   <SelectItem value="custom">Custom Platform</SelectItem>
                 </SelectContent>
               </Select>
@@ -1315,12 +1347,29 @@ export default function BugBountyHub() {
               <Label>Display Name</Label>
               <Input value={newCredential.displayName} onChange={(e) => setNewCredential({ ...newCredential, displayName: e.target.value })} placeholder="My HackerOne Account" className="bg-zinc-800 border-zinc-700 mt-1" />
             </div>
-            {(newCredential.platform === "hackerone" || newCredential.platform === "custom") && (
+            {(newCredential.platform === "hackerone" || newCredential.platform === "open_bug_bounty" || newCredential.platform === "custom") && (
               <div>
-                <Label>API Username / Identifier</Label>
-                <Input value={newCredential.apiUsername} onChange={(e) => setNewCredential({ ...newCredential, apiUsername: e.target.value })} placeholder={newCredential.platform === "hackerone" ? "Your HackerOne API identifier" : "Username or identifier"} className="bg-zinc-800 border-zinc-700 mt-1" />
+                <Label>{newCredential.platform === "open_bug_bounty" ? "Researcher Handle" : "API Username / Identifier"}</Label>
+                <Input value={newCredential.apiUsername} onChange={(e) => setNewCredential({ ...newCredential, apiUsername: e.target.value })} placeholder={newCredential.platform === "hackerone" ? "Your HackerOne API identifier" : newCredential.platform === "open_bug_bounty" ? "Your Open Bug Bounty username" : "Username or identifier"} className="bg-zinc-800 border-zinc-700 mt-1" />
                 {newCredential.platform === "hackerone" && <p className="text-xs text-muted-foreground mt-1">Found under Settings &rarr; API Token in HackerOne</p>}
+                {newCredential.platform === "open_bug_bounty" && <p className="text-xs text-muted-foreground mt-1">Your researcher profile handle on openbugbounty.org</p>}
               </div>
+            )}
+            {/* Platform-specific setup hints */}
+            {newCredential.platform === "bugcrowd" && (
+              <p className="text-xs text-muted-foreground bg-zinc-800/50 p-2 rounded">Go to Bugcrowd &rarr; Settings &rarr; API Credentials &rarr; Generate Token</p>
+            )}
+            {newCredential.platform === "intigriti" && (
+              <p className="text-xs text-muted-foreground bg-zinc-800/50 p-2 rounded">Go to Intigriti &rarr; Settings &rarr; API &rarr; Generate Personal Access Token</p>
+            )}
+            {newCredential.platform === "yeswehack" && (
+              <p className="text-xs text-muted-foreground bg-zinc-800/50 p-2 rounded">Go to YesWeHack &rarr; Profile &rarr; API Keys &rarr; Create New Key</p>
+            )}
+            {newCredential.platform === "immunefi" && (
+              <p className="text-xs text-muted-foreground bg-zinc-800/50 p-2 rounded">Immunefi is primarily a Web3/DeFi platform. Enter your JWT or API token for authenticated access.</p>
+            )}
+            {newCredential.platform === "synack" && (
+              <p className="text-xs text-muted-foreground bg-zinc-800/50 p-2 rounded">Synack Red Team is invite-only. Store your credentials here for reference and manual use.</p>
             )}
             <div>
               <Label>API Key / Token</Label>
@@ -1389,6 +1438,11 @@ export default function BugBountyHub() {
                 <SelectContent>
                   <SelectItem value="hackerone">HackerOne</SelectItem>
                   <SelectItem value="bugcrowd">Bugcrowd</SelectItem>
+                  <SelectItem value="intigriti">Intigriti</SelectItem>
+                  <SelectItem value="synack">Synack</SelectItem>
+                  <SelectItem value="yeswehack">YesWeHack</SelectItem>
+                  <SelectItem value="open_bug_bounty">Open Bug Bounty</SelectItem>
+                  <SelectItem value="immunefi">Immunefi</SelectItem>
                   <SelectItem value="manual">Manual</SelectItem>
                 </SelectContent>
               </Select>

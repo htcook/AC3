@@ -5908,7 +5908,7 @@ export const unifiedExploitCatalog = mysqlTable("unified_exploit_catalog", {
 export const userPlatformCredentials = mysqlTable("user_platform_credentials", {
 	id: int().autoincrement().notNull(),
 	userId: int("user_id").notNull(),
-	platform: mysqlEnum(['hackerone','bugcrowd','intigriti','synack','yeswehack','custom']).notNull(),
+	platform: mysqlEnum(['hackerone','bugcrowd','intigriti','synack','yeswehack','open_bug_bounty','immunefi','custom']).notNull(),
 	displayName: varchar("display_name", { length: 255 }).notNull(),
 	apiUsername: varchar("api_username", { length: 512 }),
 	apiKeyEncrypted: text("api_key_encrypted").notNull(),

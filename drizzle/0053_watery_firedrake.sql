@@ -1,0 +1,1 @@
+ALTER TABLE `user_platform_credentials` MODIFY COLUMN `platform` enum('hackerone','bugcrowd','intigriti','synack','yeswehack','open_bug_bounty','immunefi','custom') NOT NULL;
