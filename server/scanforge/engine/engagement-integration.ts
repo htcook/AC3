@@ -143,10 +143,16 @@ export async function executeScanForgePhase(
   try {
     // Step 1: Load templates
     const templateEngine = new TemplateEngine();
-    const templatesDir = path.join(__esm_dirname, "../templates/definitions");
+    // Resolve template directory with fallback chain for dev vs Docker deployment
+    const candidatePaths = [
+      path.join(__esm_dirname, "../templates/definitions"),                          // ESM relative (dev)
+      path.join(process.cwd(), "server", "scanforge", "templates", "definitions"),  // process.cwd() based (Docker)
+      path.join("/usr/src/app", "server", "scanforge", "templates", "definitions"), // Hardcoded Docker path
+    ];
+    const templatesDir = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
     
     if (!fs.existsSync(templatesDir)) {
-      addLog({ phase: "vuln_detection", type: "warning", title: "ScanForge Templates Missing", detail: `Template directory not found: ${templatesDir}` });
+      addLog({ phase: "vuln_detection", type: "warning", title: "ScanForge Templates Missing", detail: `Template directory not found. Tried: ${candidatePaths.join(', ')}` });
       return result;
     }
 

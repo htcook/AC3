@@ -14,6 +14,7 @@
  */
 
 import { readdir, readFile } from "fs/promises";
+import { existsSync } from "fs";
 import { join, extname } from "path";
 import { randomUUID } from "crypto";
 import type {
@@ -124,7 +125,16 @@ export class TemplateEngine {
   private loaded = false;
 
   constructor(templateDir?: string) {
-    this.templateDir = templateDir || join(process.cwd(), "server", "scanforge", "templates", "definitions");
+    if (templateDir) {
+      this.templateDir = templateDir;
+    } else {
+      // Fallback chain for dev vs Docker deployment
+      const candidates = [
+        join(process.cwd(), "server", "scanforge", "templates", "definitions"),
+        join("/usr/src/app", "server", "scanforge", "templates", "definitions"),
+      ];
+      this.templateDir = candidates.find((p: string) => existsSync(p)) || candidates[0];
+    }
   }
 
   /**
