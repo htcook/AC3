@@ -77,6 +77,13 @@ export function serveStatic(app: Express) {
     })
   );
 
+  // Return 404 for missing static assets (prevents SPA fallback from serving
+  // index.html with text/html MIME type for JS/CSS requests, which causes
+  // "Expected a JavaScript module" errors in the browser)
+  app.use("/assets/*", (_req, res) => {
+    res.status(404).send("Asset not found");
+  });
+
   // fall through to index.html if the file doesn't exist (SPA routing)
   app.use("*", (_req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
