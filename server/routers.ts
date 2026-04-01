@@ -59,6 +59,7 @@ import { agentlessBASRouter } from "./routers/agentless-bas";
 import { attackPathDiscoveryRouter } from "./routers/attack-path-discovery";
 import { reportTemplatesRouter } from "./routers/report-templates";
 import { emailSecurityRouter } from "./routers/email-security";
+import { domainHealthRouter } from "./routers/domain-health";
 import { ngfwValidationRouter } from "./routers/ngfw-validation";
 import { remediationVerificationRouter } from "./routers/remediation-verification";
 import { cicdPipelineRouter } from "./routers/cicd-pipeline";
@@ -299,6 +300,7 @@ export const appRouter = router({
   attackPathDiscovery: attackPathDiscoveryRouter,
   reportTemplates: reportTemplatesRouter,
   emailSecurity: emailSecurityRouter,
+  domainHealth: domainHealthRouter,
   ngfwValidation: ngfwValidationRouter,
   remediationVerification: remediationVerificationRouter,
   cicdPipeline: cicdPipelineRouter,

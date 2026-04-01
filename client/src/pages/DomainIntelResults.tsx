@@ -18,7 +18,7 @@ import {
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
-  Box, ClipboardCheck, PackageSearch, GitCompareArrows
+  Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +55,7 @@ const TakeoverPocTab = lazy(() => import("./domain-intel-tabs/TakeoverPocTab"));
 const WebCrawlResultsTab = lazy(() => import("./domain-intel-tabs/WebCrawlResultsTab"));
 const EntityProfileTab = lazy(() => import("./domain-intel-tabs/EntityProfileTab"));
 const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorAlertCorrelationTab"));
+const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -389,6 +390,7 @@ export default function DomainIntelResults() {
   const postEnrichmentAnalysis = pipeline?.postEnrichmentAnalysis as any;
   const credentialTestSummary = pipeline?.credentialTestSummary as any;
   const oemCredentials = pipeline?.oemCredentials as any;
+  const domainHealth = pipeline?.domainHealth as any;
   const scanDelta = pipeline?.scanDelta as { previousScanId: number; previousScanDate: string; scanNumber: number; riskDelta: number | null; previousRiskScore: number | null; assetDelta: number | null; previousTotalAssets: number | null; findingsDelta: number | null; previousTotalFindings: number | null; newAssets: string[]; removedAssets: string[]; persistentAssets: string[] } | undefined;
 
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
@@ -1229,6 +1231,20 @@ export default function DomainIntelResults() {
               { value: 'cve-actors', label: 'CVE Actors', icon: <Fingerprint className="h-3 w-3" /> },
               { value: 'entity-profile', label: 'Entity Profile', icon: <Box className="h-3 w-3" />, hidden: !pipeline?.entityProfile },
               { value: 'vendor-alerts', label: 'Vendor Alerts', icon: <ShieldQuestion className="h-3 w-3" />, hidden: !pipeline?.vendorCorrelation },
+            ],
+          },
+          {
+            id: 'domain-health',
+            label: 'Domain Health',
+            icon: <HeartPulse className="h-3.5 w-3.5" />,
+            color: 'text-green-400',
+            subTabs: [
+              { value: 'health-overview', label: 'Health Score', icon: <HeartPulse className="h-3 w-3" /> },
+              { value: 'health-blacklist', label: 'Blacklist', icon: <ShieldX className="h-3 w-3" /> },
+              { value: 'health-mail', label: 'Mail Server', icon: <MailCheck className="h-3 w-3" /> },
+              { value: 'health-dns', label: 'DNS Health', icon: <Stethoscope className="h-3 w-3" /> },
+              { value: 'health-connectivity', label: 'Connectivity', icon: <Wifi className="h-3 w-3" /> },
+              { value: 'health-all', label: 'All Checks', icon: <ListChecks className="h-3 w-3" /> },
             ],
           },
           {
@@ -5929,6 +5945,15 @@ export default function DomainIntelResults() {
             <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><VendorAlertCorrelationTab correlation={pipeline.vendorCorrelation} domain={scan.domain} /></Suspense>
           </TabsContent>
         )}
+
+        {/* ─── Domain Health Tabs ─── */}
+        {['health-overview', 'health-blacklist', 'health-mail', 'health-dns', 'health-connectivity', 'health-all'].map(tab => (
+          <TabsContent key={tab} value={tab} className="space-y-4">
+            <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+              <DomainHealthTab report={domainHealth} activeSubTab={tab} />
+            </Suspense>
+          </TabsContent>
+        ))}
 
       </Tabs>
 

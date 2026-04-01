@@ -4816,6 +4816,47 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
       // Store scanforgeResult on state so executeEngagement can access it for post-scan comparison
       (state as any)._scanforgeResult = scanforgeResult;
+      // ── Persist ScanForge findings as evidence ──
+      if (scanforgeResult.stats.findingsTotal > 0) {
+        try {
+          const { persistGenericEvidence } = await import('./evidence-persistence');
+          const sfEvidence = {
+            stats: scanforgeResult.stats,
+            findings: scanforgeResult.findings.slice(0, 100).map((f: any) => ({
+              title: f.title, severity: f.severity, target: f.target,
+              port: f.port, service: f.service, cve: f.cve,
+              verified: f.verified, evidence: f.evidence, template: f.templateId,
+            })),
+          };
+          await persistGenericEvidence({
+            engagementId: state.engagementId,
+            title: `ScanForge Vulnerability Scan — ${scanforgeResult.stats.findingsTotal} findings`,
+            description: `ScanForge scan: ${scanforgeResult.stats.findingsVerified} verified, ${scanforgeResult.stats.templatesExecuted} templates`,
+            type: 'scanforge_evidence',
+            category: 'vulnerability_scan',
+            content: JSON.stringify(sfEvidence, null, 2),
+            tags: ['scanforge', 'auto-captured', 'vuln_detection'],
+            metadata: {
+              findingsTotal: scanforgeResult.stats.findingsTotal,
+              findingsVerified: scanforgeResult.stats.findingsVerified,
+              templatesExecuted: scanforgeResult.stats.templatesExecuted,
+              executionTimeMs: scanforgeResult.stats.executionTimeMs,
+            },
+            collectedBy: 'AC3 ScanForge Engine',
+          });
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: '💾 ScanForge Evidence Persisted',
+            detail: `${scanforgeResult.stats.findingsTotal} findings saved to evidence gallery`,
+          });
+        } catch (persistErr: any) {
+          addLog(state, {
+            phase: 'vuln_detection', type: 'warning',
+            title: '⚠️ ScanForge Evidence Persistence Failed',
+            detail: `Findings captured but DB save failed: ${persistErr.message}`,
+          });
+        }
+      }
     }
   } catch (sfErr: any) {
     addLog(state, {
@@ -7414,6 +7455,32 @@ ${(() => {
           provenance: exploitProvenance,
           performedBy: 'AC3 Orchestrator',
         });
+        // ── Persist evidence to DB (evidenceItems table) ──
+        try {
+          const { persistCalderaEvidence } = await import('./evidence-persistence');
+          const persistedCount = await persistCalderaEvidence({
+            snapshot: exploitEvidence,
+            phase: 'exploitation',
+            integrityGate: exploitGateResult ? {
+              passed: exploitGateResult.passed,
+              contentHash: exploitGateResult.contentHash,
+              provenanceValid: exploitGateResult.provenanceValid,
+              warnings: exploitGateResult.warnings,
+              errors: exploitGateResult.errors,
+            } : undefined,
+          });
+          addLog(state, {
+            phase: 'exploitation', type: 'info',
+            title: `💾 Evidence Persisted to DB`,
+            detail: `${persistedCount} evidence panels saved to evidence gallery (S3 + DB) for engagement ${state.engagementId}`,
+          });
+        } catch (persistErr: any) {
+          addLog(state, {
+            phase: 'exploitation', type: 'warning',
+            title: '⚠️ Evidence DB Persistence Failed',
+            detail: `Evidence captured but DB save failed: ${persistErr.message}`,
+          });
+        }
       }
     } catch (evidenceErr: any) {
       addLog(state, {
@@ -7925,6 +7992,32 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
         provenance: postExploitProvenance,
         performedBy: 'AC3 Orchestrator',
       });
+      // ── Persist post-exploit evidence to DB (evidenceItems table) ──
+      try {
+        const { persistCalderaEvidence } = await import('./evidence-persistence');
+        const persistedCount = await persistCalderaEvidence({
+          snapshot: postExploitEvidence,
+          phase: 'post_exploit',
+          integrityGate: postExploitGate ? {
+            passed: postExploitGate.passed,
+            contentHash: postExploitGate.contentHash,
+            provenanceValid: postExploitGate.provenanceValid,
+            warnings: postExploitGate.warnings,
+            errors: postExploitGate.errors,
+          } : undefined,
+        });
+        addLog(state, {
+          phase: 'post_exploit', type: 'info',
+          title: `💾 Post-Exploit Evidence Persisted to DB`,
+          detail: `${persistedCount} evidence panels saved to evidence gallery (S3 + DB) for engagement ${state.engagementId}`,
+        });
+      } catch (persistErr: any) {
+        addLog(state, {
+          phase: 'post_exploit', type: 'warning',
+          title: '⚠️ Post-Exploit Evidence DB Persistence Failed',
+          detail: `Evidence captured but DB save failed: ${persistErr.message}`,
+        });
+      }
     }
   } catch (evidenceErr: any) {
     addLog(state, {

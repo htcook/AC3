@@ -293,6 +293,11 @@ export const reportsRouter = router({
                 source: v.source,
                 corroborationTier: v.corroborationTier,
                 evidenceDetail: v.evidenceDetail,
+                evidence: v.evidence || undefined,
+                attack: v.attack || undefined,
+                method: v.method || undefined,
+                param: v.param || undefined,
+                url: v.url || undefined,
               })),
               toolResults: (a.toolResults || []).map((tr: any) => ({
                 tool: tr.tool || 'unknown',
@@ -362,6 +367,11 @@ export const reportsRouter = router({
                           source: sr.tool,
                           corroborationTier: f.corroborationTier || undefined,
                           evidenceDetail: f.evidence || f.evidenceDetail || undefined,
+                          evidence: f.evidence || undefined,
+                          attack: f.attack || undefined,
+                          method: f.method || undefined,
+                          param: f.param || undefined,
+                          url: f.url || undefined,
                         });
                       } else if (typeof f === 'string' && f.length > 5) {
                         asset.vulns.push({
@@ -741,14 +751,28 @@ ${JSON.stringify(campaignResults.map(c => ({
 Domain Intel Scan Results (${domainIntelData.length} scans):
 ${domainIntelData.slice(0, 3).map(s => {
   const r = s.result as any;
+  const po = s.pipelineOutput as any;
   return JSON.stringify({
     domain: s.domain,
     riskScore: r?.riskScore,
     assetsDiscovered: r?.assets?.length || 0,
     postureFindings: r?.posture?.length || 0,
     campaignRecommendations: (r?.campaigns || []).map((c: any) => ({ name: c.name, priority: c.priority })),
+    domainHealth: po?.domainHealth ? {
+      overallScore: po.domainHealth.overallScore,
+      overallGrade: po.domainHealth.overallGrade,
+      blacklistGrade: po.domainHealth.categories?.blacklist?.grade,
+      mailServerGrade: po.domainHealth.categories?.mailServer?.grade,
+      dnsHealthGrade: po.domainHealth.categories?.dnsHealth?.grade,
+      connectivityGrade: po.domainHealth.categories?.connectivity?.grade,
+      issueCount: po.domainHealth.issues?.length || 0,
+      criticalIssues: (po.domainHealth.issues || []).filter((i: any) => i.severity === 'critical').map((i: any) => i.message),
+      warningIssues: (po.domainHealth.issues || []).filter((i: any) => i.severity === 'warning').map((i: any) => i.message).slice(0, 5),
+    } : undefined,
   });
 }).join('\n')}
+
+IMPORTANT: If domain health data is available, include a "Domain Health Assessment" section covering blacklist status, mail server configuration, DNS health, and connectivity. Highlight any critical or warning issues that could impact the organization's security posture or email deliverability.
 
 Matched Threat Actors (${threatActorMatches.length} actors targeting this organization):
 ${threatActorMatches.slice(0, 10).map((a: any) => "- " + a.name + " (" + a.origin + ") - Score: " + a.matchScore + "/100 - Techniques: " + (a.techniques?.length || 0)).join('\n')}

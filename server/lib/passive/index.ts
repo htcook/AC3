@@ -53,6 +53,7 @@ import { circlPdnsConnector } from "./circl-pdns";
 import { commoncrawlConnector } from "./commoncrawl";
 import { reverseWhoisConnector } from "./reverse-whois";
 import { typosquatConnector } from "./typosquat";
+import { domainHealthConnector } from "./domain-health";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -108,6 +109,8 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   commoncrawlConnector,            // CommonCrawl — free historical web data for company context
   reverseWhoisConnector,           // Reverse WHOIS — free related domain discovery via crt.sh
   typosquatConnector,                // Typosquat Generator — free lookalike domain detection for phishing
+  // --- Domain Health (MXToolbox-equivalent) ---
+  domainHealthConnector,               // Domain Health — DNSBL blacklist, SMTP test, PTR, DNS health, IP block, TCP connectivity
 ];
 
 export interface PassiveReconConfig {
@@ -189,6 +192,7 @@ const LAB_FAST_TRACK_CONNECTORS = new Set([
   'ip_api',          // Free IP geolocation — works for any IP
   'wayback',         // Wayback Machine — fast fail for lab domains
   'container_discovery', // Docker/K8s discovery — works for lab infra
+  'domain_health',     // Domain health — DNSBL, SMTP, PTR, DNS health (no API key needed)
 ]);
 
 export function isLabDomain(domain: string): boolean {

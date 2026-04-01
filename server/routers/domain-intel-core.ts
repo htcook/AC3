@@ -391,6 +391,13 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              // Domain Health report extracted from passive recon observations
+              domainHealth: (() => {
+                const healthObs = result.passiveRecon?.allObservations?.find(
+                  (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
+                );
+                return healthObs?.evidence?.fullReport || null;
+              })(),
             };
 
             // ── Delta Comparison: Compare with previous scan for the same domain ──
@@ -945,6 +952,12 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              domainHealth: (() => {
+                const healthObs = result.passiveRecon?.allObservations?.find(
+                  (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
+                );
+                return healthObs?.evidence?.fullReport || null;
+              })(),
               retriedAt: new Date().toISOString(),
             };
 
@@ -1388,6 +1401,12 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              domainHealth: (() => {
+                const healthObs = result.passiveRecon?.allObservations?.find(
+                  (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
+                );
+                return healthObs?.evidence?.fullReport || null;
+              })(),
               // Preserve the previous snapshot for comparison
               previousSnapshot,
               refreshedAt: new Date().toISOString(),
@@ -2539,6 +2558,12 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              domainHealth: (() => {
+                const healthObs = result.passiveRecon?.allObservations?.find(
+                  (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
+                );
+                return healthObs?.evidence?.fullReport || null;
+              })(),
             };
 
             const finalStatus = scanOnly ? 'scan_complete' : 'completed';
