@@ -488,6 +488,9 @@ function Router() {
         <Route path="/reports/security">
           <Redirect to="/reports/generate" />
         </Route>
+        <Route path="/reports/engagement">
+          <Redirect to="/reports/generate" />
+        </Route>
         <Route path="/apt-library">
           <Redirect to="/threat-catalog" />
         </Route>
