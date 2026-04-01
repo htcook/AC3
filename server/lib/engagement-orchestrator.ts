@@ -7137,10 +7137,34 @@ ${(() => {
 
             // Write exploit to temp file and execute
             const exploitFileName = `exploit_${state.engagementId}_${Date.now()}.py`;
-            await executeRawCommand(`cat > /tmp/${exploitFileName} << 'EXPLOIT_EOF'\n${generatedExploit.code}\nEXPLOIT_EOF`, 10);
+            // Use base64 encoding to safely transfer exploit code (avoids heredoc termination issues
+            // and special character escaping problems that caused empty scripts in Vianova engagement)
+            const codeB64 = Buffer.from(generatedExploit.code).toString('base64');
+            await executeRawCommand(`echo '${codeB64}' | base64 -d > /tmp/${exploitFileName}`, 15);
+
+            // Validate Python syntax before execution to catch LLM-generated syntax errors early
+            const syntaxCheck = await executeRawCommand(`python3 -c "import ast; ast.parse(open('/tmp/${exploitFileName}').read())" 2>&1`, 10);
+            const syntaxOutput = typeof syntaxCheck === 'string' ? syntaxCheck : (syntaxCheck?.stderr || syntaxCheck?.stdout || '');
+            if (syntaxOutput.includes('SyntaxError') || syntaxOutput.includes('IndentationError')) {
+              console.warn(`[Exploit] Generated code has syntax errors: ${syntaxOutput.slice(0, 200)}`);
+              addLog(state, {
+                phase: 'exploitation',
+                type: 'warning',
+                title: `⚠️ Exploit Syntax Error: ${target}:${port}`,
+                detail: `LLM-generated exploit has Python syntax errors. Attempting execution anyway.\n${syntaxOutput.slice(0, 500)}`,
+              });
+            }
             const exploitTimeout = state.trainingLabMode ? 120 : 60;
             const execResult = await executeRawCommand(`cd /tmp && timeout ${exploitTimeout} python3 ${exploitFileName} 2>&1 || true`, exploitTimeout + 30);
-            exploitOutput = (typeof execResult === 'string' ? execResult : execResult?.stdout)?.trim() || '';
+            // Robust output extraction: handle string, ToolExecResult, or undefined
+            const rawExploitOutput = typeof execResult === 'string'
+              ? execResult
+              : (execResult?.stdout || execResult?.stderr || (execResult as any)?.error || '');
+            exploitOutput = (rawExploitOutput || '').trim();
+            // Log execution metadata for debugging
+            if (typeof execResult !== 'string' && execResult) {
+              console.log(`[Exploit] Execution result: exitCode=${execResult.exitCode} stdout=${(execResult.stdout || '').length}b stderr=${(execResult.stderr || '').length}b timedOut=${execResult.timedOut} durationMs=${execResult.durationMs}`);
+            }
 
             // Check for success indicators in the output
             const shellIndicators = [
