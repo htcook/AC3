@@ -30,7 +30,7 @@ describe("ScanForgeKB", () => {
   
   it("should ingest scanforge-discovery results and populate KB", () => {
     const kb = new ScanForgeKB("test-scan-3");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [
         { port: 22, proto: "tcp", state: "open", service: "ssh", version: "OpenSSH 8.9" },
         { port: 80, proto: "tcp", state: "open", service: "http", version: "nginx 1.24" },
@@ -50,7 +50,7 @@ describe("ScanForgeKB", () => {
   
   it("should query with glob patterns", () => {
     const kb = new ScanForgeKB("test-scan-4");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [
         { port: 22, proto: "tcp", state: "open", service: "ssh" },
         { port: 80, proto: "tcp", state: "open", service: "http" },
@@ -64,7 +64,7 @@ describe("ScanForgeKB", () => {
   
   it("should get open ports for a host", () => {
     const kb = new ScanForgeKB("test-scan-5");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [
         { port: 22, proto: "tcp", state: "open" },
         { port: 80, proto: "tcp", state: "open" },
@@ -79,7 +79,7 @@ describe("ScanForgeKB", () => {
   
   it("should get service ports for a host", () => {
     const kb = new ScanForgeKB("test-scan-6");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [
         { port: 80, proto: "tcp", state: "open", service: "http" },
         { port: 8080, proto: "tcp", state: "open", service: "http" },
@@ -162,7 +162,7 @@ describe("ScanForgeKB", () => {
   
   it("should serialize to JSON", () => {
     const kb = new ScanForgeKB("test-scan-10");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [{ port: 80, proto: "tcp", state: "open", service: "http" }],
     });
     
@@ -174,7 +174,7 @@ describe("ScanForgeKB", () => {
   
   it("should return KB statistics", () => {
     const kb = new ScanForgeKB("test-scan-11");
-    kb.ingestNmapResults("10.0.0.1", {
+    kb.ingestDiscoveryResults("10.0.0.1", {
       ports: [
         { port: 22, proto: "tcp", state: "open", service: "ssh" },
         { port: 80, proto: "tcp", state: "open", service: "http" },
@@ -186,7 +186,7 @@ describe("ScanForgeKB", () => {
     expect(stats.openPortCount).toBe(2);
     expect(stats.serviceCount).toBe(2);
     expect(stats.totalEntries).toBeGreaterThan(0);
-    expect(stats.entriesBySource["naabu"]).toBeGreaterThan(0);
+    expect(stats.entriesBySource["scanforge-discovery"]).toBeGreaterThan(0);
   });
 });
 
