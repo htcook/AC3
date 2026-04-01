@@ -137,7 +137,7 @@ async function zapRequest(
   const response = await new Promise<{ ok: boolean; status: number; statusText: string; json: () => any }>((resolve, reject) => {
     // http imported at top of file (ESM compatible)
     const reqUrl = apiUrl.toString();
-    const req = http.get(reqUrl, { agent, timeout: 30000 }, (res: any) => {
+    const req = http.get(reqUrl, { agent, timeout: 60000 }, (res: any) => {
       let data = '';
       res.on('data', (chunk: string) => data += chunk);
       res.on('end', () => {

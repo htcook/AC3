@@ -1462,7 +1462,7 @@ export default function EngagementOps() {
                         setIsGeneratingReport(true);
                         generateReportMut.mutate({
                           engagementId,
-                          reportType: 'full_engagement',
+                          reportType: 'pentest_assessment',
                           clientType: 'enterprise',
                           title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
                           preparedFor: engagement?.customerName ?? undefined,
@@ -4608,7 +4608,7 @@ export default function EngagementOps() {
                   setIsGeneratingReport(true);
                   generateReportMut.mutate({
                     engagementId,
-                    reportType: 'full_engagement',
+                    reportType: 'pentest_assessment',
                     clientType: 'enterprise',
                     title: `${engagement?.name || 'Engagement'} - Security Assessment Report`,
                     preparedFor: engagement?.customerName ?? undefined,

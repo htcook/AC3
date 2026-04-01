@@ -49,6 +49,8 @@ interface QueueEntry {
   reject: (error: Error) => void;
   enqueuedAt: number;
   caller?: string;
+  /** Direct callback for legacy callers that pass () => invokeLLM(...) */
+  _directFn?: () => Promise<InvokeResult>;
 }
 
 let config = { ...DEFAULT_CONFIG };
@@ -78,8 +80,33 @@ let maxQueueDepth = 0;
 /**
  * Submit an LLM call through the global throttle queue.
  * Returns a promise that resolves when the call completes.
+ *
+ * Supports multiple calling conventions for backward compatibility:
+ *   throttledLLMCall(params)                     — standard params object
+ *   throttledLLMCall(label, () => invokeLLM(p))  — legacy label + callback
+ *   throttledLLMCall(() => invokeLLM(p))          — legacy callback only
  */
-export function throttledLLMCall(params: InvokeParams): Promise<InvokeResult> {
+export function throttledLLMCall(
+  paramsOrLabelOrFn: InvokeParams | string | (() => Promise<InvokeResult>),
+  maybeFn?: (() => Promise<InvokeResult>) | string,
+): Promise<InvokeResult> {
+  // ── Normalize the three calling conventions into a single InvokeParams ──
+  let params: InvokeParams;
+  let directFn: (() => Promise<InvokeResult>) | undefined;
+
+  if (typeof paramsOrLabelOrFn === 'function') {
+    // throttledLLMCall(() => invokeLLM({...}))
+    directFn = paramsOrLabelOrFn;
+    params = { messages: [], _caller: 'legacy-callback' };
+  } else if (typeof paramsOrLabelOrFn === 'string') {
+    // throttledLLMCall("label", () => invokeLLM({...}))
+    directFn = maybeFn as (() => Promise<InvokeResult>);
+    params = { messages: [], _caller: paramsOrLabelOrFn };
+  } else {
+    // throttledLLMCall({ messages, ... }) — standard path
+    params = paramsOrLabelOrFn;
+  }
+
   const priority = params._priority || 'standard';
   
   return new Promise<InvokeResult>((resolve, reject) => {
@@ -90,6 +117,7 @@ export function throttledLLMCall(params: InvokeParams): Promise<InvokeResult> {
       reject,
       enqueuedAt: Date.now(),
       caller: params._caller,
+      _directFn: directFn,
     };
     
     queues[priority].push(entry);
@@ -224,7 +252,10 @@ async function processQueue(): Promise<void> {
 
 async function processEntry(entry: QueueEntry): Promise<void> {
   try {
-    const result = await invokeLLM({ _caller: "llm-throttle", ...entry.params });
+    // Use direct callback for legacy callers, otherwise use standard invokeLLM
+    const result = entry._directFn
+      ? await entry._directFn()
+      : await invokeLLM({ _caller: "llm-throttle", ...entry.params });
     activeCount--;
     
     // Success: cool down the delay

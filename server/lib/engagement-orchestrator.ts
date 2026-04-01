@@ -4316,6 +4316,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "vuln_detection";
   state.currentAction = "Running vulnerability detection...";
+  const scanServerHost = process.env.SCAN_SERVER_HOST || '';
   addLog(state, { phase: "vuln_detection", type: "info", title: "🛡️ Phase 6: Vulnerability Scanning", detail: "Running nuclei scans and ZAP web app scans" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "vuln_detection" });
 
@@ -5254,9 +5255,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           let zapDone = false;
           const zapTimeoutMinutes = state.trainingLabMode ? 45 : 5;
           const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
+          let consecutivePollFailures = 0;
+          const maxConsecutivePollFailures = state.trainingLabMode ? 8 : 3; // More tolerance for training labs
           while (!zapDone && Date.now() < zapTimeout) {
             try {
               const progress = await pollScanProgress(zapScanId);
+              consecutivePollFailures = 0; // Reset on success
               if (progress.status === "completed" || progress.status === "error") {
                 zapDone = true;
                 // Fetch detailed individual ZAP findings from webAppFindings table
@@ -5328,8 +5332,15 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
               }
             } catch (pollErr: any) {
-              addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Poll Error: ${targetUrl}`, detail: pollErr.message || 'Unknown poll error' });
-              zapDone = true; // Stop polling on error
+              consecutivePollFailures++;
+              addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Poll Error (${consecutivePollFailures}/${maxConsecutivePollFailures}): ${targetUrl}`, detail: pollErr.message || 'Unknown poll error' });
+              if (consecutivePollFailures >= maxConsecutivePollFailures) {
+                addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Polling Aborted: ${targetUrl}`, detail: `${consecutivePollFailures} consecutive poll failures. Stopping ZAP monitoring.` });
+                zapDone = true; // Stop polling after too many consecutive failures
+              } else {
+                // Transient error — wait longer before retrying
+                await new Promise(r => setTimeout(r, 20000));
+              }
             }
           }
 
@@ -6648,6 +6659,7 @@ ${(() => {
 async function executeExploitation(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "exploitation";
   state.currentAction = "Running exploitation phase...";
+  const scanServerHost = process.env.SCAN_SERVER_HOST || '';
   addLog(state, { phase: "exploitation", type: "info", title: "⚔️ Phase 7: Penetration Testing / Exploitation", detail: "Attempting exploitation on vulnerable assets" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "exploitation" });
 
@@ -7056,7 +7068,7 @@ ${(() => {
             const exploitFileName = `exploit_${state.engagementId}_${Date.now()}.py`;
             await executeRawCommand(`cat > /tmp/${exploitFileName} << 'EXPLOIT_EOF'\n${generatedExploit.code}\nEXPLOIT_EOF`, 10);
             const execResult = await executeRawCommand(`cd /tmp && timeout 60 python3 ${exploitFileName} 2>&1 || true`, 90);
-            exploitOutput = execResult?.trim() || '';
+            exploitOutput = (typeof execResult === 'string' ? execResult : execResult?.stdout)?.trim() || '';
 
             // Check for shell indicators in the output
             const shellIndicators = [
@@ -7353,6 +7365,7 @@ ${(() => {
 }
 async function executePostExploit(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "post_exploit";
+  const scanServerHost = process.env.SCAN_SERVER_HOST || '';
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "post_exploit" });
 
   if (state.engagementType === "red_team") {

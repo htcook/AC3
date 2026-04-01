@@ -1107,6 +1107,55 @@ Instructions: ${reportPrompt}`,
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to generate PDF: ' + e.message });
         }
       }),
+
+    /** Generate and return a DOCX report from the full markdown pipeline output */
+    exportDocx: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .mutation(async ({ input }) => {
+        const report = await db.getReportById(input.reportId);
+        if (!report) throw new TRPCError({ code: 'NOT_FOUND', message: 'Report not found' });
+
+        // Fetch the markdown content from S3
+        let markdownContent = '';
+        if (report.reportUrl) {
+          try {
+            const resp = await fetch(report.reportUrl);
+            if (resp.ok) markdownContent = await resp.text();
+          } catch (e) { /* fallback below */ }
+        }
+        if (!markdownContent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Report content not available. Please regenerate the report first.' });
+        }
+
+        const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        let assessmentTypeDisplay = 'Penetration Test';
+        try {
+          const { getReportBlueprint } = await import('../lib/report-section-blueprints');
+          const eng = await db.getEngagementById((report as any).engagementId);
+          const engType = (eng?.engagementType || (report as any).reportType || 'pentest').toLowerCase().replace(/[\s-]/g, '_');
+          assessmentTypeDisplay = getReportBlueprint(engType).displayName;
+        } catch {
+          assessmentTypeDisplay = ((report as any).reportType || 'penetration_test').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+        }
+
+        // Convert markdown to DOCX using our converter
+        const { markdownToDocx } = await import('../lib/markdown-to-docx');
+        const docxBuffer = await markdownToDocx(markdownContent, {
+          title: report.title || 'Security Assessment Report',
+          preparedFor: report.preparedFor || 'Client',
+          preparedBy: report.preparedBy || 'Ace of Cloud LLC',
+          assessmentType: assessmentTypeDisplay,
+          reportDate: dateStr,
+          reportId: String(input.reportId),
+        });
+
+        // Upload to S3
+        const docxKey = `reports/${(report as any).engagementId}/${input.reportId}-report-${Date.now()}.docx`;
+        const { url } = await doStoragePut(docxKey, docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+        return { url, filename: `${(report.title || 'report').replace(/[^a-zA-Z0-9]/g, '_')}.docx` };
+      }),
   });
 
 export const templateGeneratorRouter = router({

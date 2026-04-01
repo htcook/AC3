@@ -334,10 +334,11 @@ async function runPrompt(promptId: ScanForgePromptId, findingJson: string, asset
   const messages = buildPromptMessages(promptId, findingJson, assetJson);
   const responseFormat = getResponseFormat(promptId);
 
-  const response = await throttledLLMCall(
-    () => invokeLLM({ messages, response_format: responseFormat, _caller: `scanforge-reasoning:${promptId}` }),
-    `scanforge-${promptId}`,
-  );
+  const response = await throttledLLMCall({
+    messages,
+    response_format: responseFormat,
+    _caller: `scanforge-reasoning:${promptId}`,
+  });
 
   const content = response?.choices?.[0]?.message?.content;
   if (!content) return null;
@@ -451,10 +452,11 @@ export async function generateExecutiveSummary(
     engagementContext ? JSON.stringify(engagementContext, null, 2) : undefined,
   );
 
-  const response = await throttledLLMCall(
-    () => invokeLLM({ messages, response_format: getResponseFormat("executive_summary"), _caller: "scanforge-reasoning:executive_summary" }),
-    "scanforge-exec-summary",
-  );
+  const response = await throttledLLMCall({
+    messages,
+    response_format: getResponseFormat("executive_summary"),
+    _caller: "scanforge-reasoning:executive_summary",
+  });
 
   const content = response?.choices?.[0]?.message?.content;
   if (!content) return null;

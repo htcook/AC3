@@ -98,6 +98,32 @@ export default function ReportGenerator() {
 
   // Track which report is currently exporting PDF (per-report state)
   const [exportingPdfId, setExportingPdfId] = useState<number | null>(null);
+  const [exportingDocxId, setExportingDocxId] = useState<number | null>(null);
+
+  const exportDocxMut = trpc.reports.exportDocx.useMutation({
+    onSuccess: (data) => {
+      setExportingDocxId(null);
+      if (data.url) {
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = data.filename || 'report.docx';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success('DOCX report downloaded');
+      }
+    },
+    onError: (err) => {
+      setExportingDocxId(null);
+      toast.error('DOCX export failed: ' + err.message);
+    },
+  });
+
+  const handleExportDocx = (reportId: number) => {
+    setExportingDocxId(reportId);
+    exportDocxMut.mutate({ reportId });
+  };
 
   const exportPdfMut = trpc.reports.exportPdf.useMutation({
     onSuccess: (data) => {
@@ -391,6 +417,21 @@ export default function ReportGenerator() {
                     )}
                   </Button>
                 )}
+                {generatedReport.id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="font-display tracking-wider"
+                    onClick={() => handleExportDocx(generatedReport.id)}
+                    disabled={exportingDocxId === generatedReport.id}
+                  >
+                    {exportingDocxId === generatedReport.id ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> EXPORTING...</>
+                    ) : (
+                      <><FileText className="w-4 h-4 mr-2" /> EXPORT DOCX</>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
             <div className="bg-card border-2 border-border p-4 sm:p-6 max-h-[70vh] overflow-y-auto">
@@ -455,6 +496,21 @@ export default function ReportGenerator() {
                             <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> PDF</>
                           ) : (
                             <><FileText className="w-3.5 h-3.5 mr-1" /> PDF</>
+                          )}
+                        </Button>
+                      )}
+                      {report.status === 'completed' && report.reportUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[10px] font-display"
+                          onClick={() => handleExportDocx(report.id)}
+                          disabled={exportingDocxId === report.id}
+                        >
+                          {exportingDocxId === report.id ? (
+                            <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> DOCX</>
+                          ) : (
+                            <><FileText className="w-3.5 h-3.5 mr-1" /> DOCX</>
                           )}
                         </Button>
                       )}
