@@ -1009,6 +1009,98 @@ export const bugBountySyncLogs = mysqlTable("bug_bounty_sync_logs", {
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI VULNERABILITY RESEARCH — LLM-powered code auditing, 0-day discovery, PoC generation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const aiVulnResearchSessions = mysqlTable("ai_vuln_research_sessions", {
+	id: int().autoincrement().notNull(),
+	userId: int("user_id").notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	description: text(),
+	targetType: mysqlEnum("target_type", ['source_code','github_repo','binary','config','protocol','firmware','custom']).notNull(),
+	targetName: varchar("target_name", { length: 512 }).notNull(),
+	targetVersion: varchar("target_version", { length: 128 }),
+	githubUrl: varchar("github_url", { length: 1024 }),
+	language: varchar({ length: 64 }),
+	researchPrompt: text("research_prompt").notNull(),
+	status: mysqlEnum("status", ['pending','analyzing','completed','failed','cancelled']).default('pending').notNull(),
+	totalFindings: int("total_findings").default(0),
+	criticalCount: int("critical_count").default(0),
+	highCount: int("high_count").default(0),
+	mediumCount: int("medium_count").default(0),
+	lowCount: int("low_count").default(0),
+	llmModel: varchar("llm_model", { length: 128 }),
+	tokensUsed: int("tokens_used").default(0),
+	analysisTimeMs: int("analysis_time_ms"),
+	bugBountyProgramId: int("bug_bounty_program_id"),
+	engagementId: int("engagement_id"),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("avrs_user_idx").on(table.userId),
+	index("avrs_status_idx").on(table.status),
+	index("avrs_target_idx").on(table.targetType),
+	index("avrs_program_idx").on(table.bugBountyProgramId),
+]);
+
+export const aiVulnResearchFindings = mysqlTable("ai_vuln_research_findings", {
+	id: int().autoincrement().notNull(),
+	sessionId: int("session_id").notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	vulnType: varchar("vuln_type", { length: 128 }).notNull(),
+	severity: mysqlEnum("severity", ['critical','high','medium','low','informational']).notNull(),
+	cvssScore: float("cvss_score"),
+	cvssVector: varchar("cvss_vector", { length: 256 }),
+	cweId: varchar("cwe_id", { length: 32 }),
+	cveId: varchar("cve_id", { length: 64 }),
+	description: text().notNull(),
+	affectedCode: mediumtext("affected_code"),
+	filePath: varchar("file_path", { length: 1024 }),
+	lineStart: int("line_start"),
+	lineEnd: int("line_end"),
+	rootCause: text("root_cause"),
+	impact: text(),
+	exploitability: mysqlEnum("exploitability", ['trivial','easy','moderate','difficult','theoretical']),
+	pocCode: mediumtext("poc_code"),
+	pocLanguage: varchar("poc_language", { length: 64 }),
+	pocStatus: mysqlEnum("poc_status", ['not_generated','generating','generated','validated','failed']).default('not_generated'),
+	remediation: text(),
+	mitreTechniques: json("mitre_techniques"),
+	attackVector: varchar("attack_vector", { length: 256 }),
+	confidenceScore: float("confidence_score"),
+	llmReasoning: mediumtext("llm_reasoning"),
+	verified: tinyint().default(0),
+	exportedToBugBounty: tinyint("exported_to_bug_bounty").default(0),
+	bugBountyFindingId: int("bug_bounty_finding_id"),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("avrf_session_idx").on(table.sessionId),
+	index("avrf_severity_idx").on(table.severity),
+	index("avrf_vuln_type_idx").on(table.vulnType),
+	index("avrf_cwe_idx").on(table.cweId),
+	index("avrf_poc_status_idx").on(table.pocStatus),
+]);
+
+export const aiVulnResearchCodeSnippets = mysqlTable("ai_vuln_research_code_snippets", {
+	id: int().autoincrement().notNull(),
+	sessionId: int("session_id").notNull(),
+	filename: varchar({ length: 512 }).notNull(),
+	language: varchar({ length: 64 }),
+	content: mediumtext().notNull(),
+	lineCount: int("line_count"),
+	checksum: varchar({ length: 64 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("avrcs_session_idx").on(table.sessionId),
+]);
+
 export const bugReports = mysqlTable("bug_reports", {
 	id: int().autoincrement().notNull(),
 	userId: int("user_id").notNull(),

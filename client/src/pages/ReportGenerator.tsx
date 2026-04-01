@@ -9,7 +9,7 @@ import {
   FileText, Download, Eye, Calendar, Building, User, Shield, Target,
   CheckCircle, XCircle, AlertTriangle, Clock, Loader2, ChevronDown,
   ChevronUp, Sparkles, Globe, Mail, Lock, BarChart3, Briefcase,
-  Server, Cloud, Network, Copy, ExternalLink, RefreshCw, Zap
+  Server, Cloud, Network, Copy, ExternalLink, RefreshCw, Zap, Trash2
 } from 'lucide-react';
 import { Streamdown } from 'streamdown';
 
@@ -156,7 +156,7 @@ export default function ReportGenerator() {
             <div className="bg-card border-2 border-border p-4 sm:p-6">
               <h2 className="font-display tracking-wider text-sm text-muted-foreground mb-4">SELECT ENGAGEMENT</h2>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {engagements?.filter((e: any) => e.status === 'active' || e.status === 'completed').map((eng: any) => (
+                {engagements?.filter((e: any) => e.status === 'active' || e.status === 'completed' || e.status === 'planning').map((eng: any) => (
                   <button
                     key={eng.id}
                     onClick={() => {
@@ -457,6 +457,32 @@ export default function ReportGenerator() {
                             <><FileText className="w-3.5 h-3.5 mr-1" /> PDF</>
                           )}
                         </Button>
+                      )}
+                      {report.status === 'completed' && !report.reportUrl && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px] font-display text-yellow-400 hover:text-yellow-300"
+                            onClick={() => {
+                              toast.info('Content was lost during generation. Please delete and regenerate.');
+                            }}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 mr-1" /> No Content
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px] font-display text-red-400 hover:text-red-300"
+                            onClick={() => {
+                              if (confirm('Delete this orphaned report?')) {
+                                deleteReportMut.mutate({ id: report.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                          </Button>
+                        </>
                       )}
                       {report.status === 'failed' && (
                         <Button

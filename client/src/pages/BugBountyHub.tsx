@@ -18,6 +18,7 @@ import {
   Brain, Download, Sparkles, FlaskConical, ArrowRightLeft, BookOpen
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import { AIVulnResearchTab } from "@/pages/bug-bounty/AIVulnResearchTab";
 import { PlatformIcon, PLATFORM_NAMES, PLATFORM_COLORS, PLATFORM_BG_COLORS } from "@/components/PlatformIcons";
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -370,6 +371,10 @@ export default function BugBountyHub() {
           <TabsTrigger value="scanforge-bridge" className="text-xs">
             <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
             ScanForge Bridge
+          </TabsTrigger>
+          <TabsTrigger value="ai-vuln-research" className="text-xs">
+            <Brain className="h-3.5 w-3.5 mr-1" />
+            AI Vuln Research
           </TabsTrigger>
         </TabsList>
 
@@ -1361,8 +1366,12 @@ export default function BugBountyHub() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
 
+        {/* ─── AI Vulnerability Research Tab ─── */}
+        <TabsContent value="ai-vuln-research" className="space-y-4">
+          <AIVulnResearchTab />
+        </TabsContent>
+      </Tabs>
       {/* ─── Dialogs ─── */}
 
       {/* Add Credential Dialog */}

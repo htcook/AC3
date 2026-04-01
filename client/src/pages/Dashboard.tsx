@@ -448,6 +448,27 @@ function DashboardInner() {
 
       <DashboardConfigPanel />
 
+      {/* Health Status Banner — shows when external services are unreachable */}
+      {(serverStatus === 'offline' || gophishStatus === 'offline') && (
+        <div className="mx-4 sm:mx-6 mt-4 bg-red-950/40 border border-red-500/40 p-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-display tracking-wider text-red-300">
+              {serverStatus === 'offline' && gophishStatus === 'offline'
+                ? 'CALDERA C2 & GOPHISH SERVERS UNREACHABLE'
+                : serverStatus === 'offline'
+                  ? 'CALDERA C2 SERVER UNREACHABLE'
+                  : 'GOPHISH SERVER UNREACHABLE'}
+            </p>
+            <p className="text-xs text-red-400/70 mt-0.5">
+              {serverStatus === 'offline' && 'Caldera emulation engine is not responding. Adversary profiles, abilities, and operations data may be stale. '}
+              {gophishStatus === 'offline' && 'GoPhish phishing platform is not responding. Campaign metrics and email stats may be unavailable. '}
+              Dashboard will auto-reconnect when services come back online.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="p-4 sm:p-6 space-y-6">
 
         {isVisible('start-engagement') && (<>

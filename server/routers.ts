@@ -202,6 +202,7 @@ import { scanforgeRouter } from "./routers/scanforge";
 import { complianceExportsRouter } from "./routers/compliance-exports";
 import { platformCredentialsRouter } from "./routers/platform-credentials";
 import { testPlanApprovalRouter } from "./routers/test-plan-approval";
+import { aiVulnResearchRouter } from "./routers/ai-vuln-research";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -588,6 +589,8 @@ export const appRouter = router({
   testPlanApproval: testPlanApprovalRouter,
   // ─── Compliance Exports (NVD CVE Lookup, NIST 800-53 Report, ATT&CK Navigator) ──
   complianceExports: complianceExportsRouter,
+  // ─── AI Vulnerability Research (LLM-powered 0-day discovery & PoC generation) ──
+  aiVulnResearch: aiVulnResearchRouter,
 });
 export type AppRouter = typeof appRouter;
 

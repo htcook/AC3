@@ -26,6 +26,11 @@ import { getTemplateConfidenceMap } from "./confidence-tuner";
 import { AuthScanner, type AuthConfig, type AuthSession } from "./auth-scanner";
 import * as path from "path";
 import * as fs from "fs";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// ESM-compatible __dirname (tsx runs as ESM, so __dirname is not available)
+const __esm_dirname = dirname(fileURLToPath(import.meta.url));
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,7 +143,7 @@ export async function executeScanForgePhase(
   try {
     // Step 1: Load templates
     const templateEngine = new TemplateEngine();
-    const templatesDir = path.join(__dirname, "../templates/definitions");
+    const templatesDir = path.join(__esm_dirname, "../templates/definitions");
     
     if (!fs.existsSync(templatesDir)) {
       addLog({ phase: "vuln_detection", type: "warning", title: "ScanForge Templates Missing", detail: `Template directory not found: ${templatesDir}` });
