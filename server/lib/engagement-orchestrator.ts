@@ -4740,7 +4740,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             : `http://${a.hostname}`,
           ip: a.ip,
           hostname: a.hostname,
-          isInternal: a.hostname.endsWith('.internal') || a.hostname.endsWith('.local') || a.hostname.includes('.lab.'),
+          isInternal: (a.hostname.endsWith('.internal') || a.hostname.endsWith('.local') || a.hostname.includes('.lab.'))
+            && !a.hostname.includes('aceofcloud.io') && !a.hostname.includes('aceofcloud.com'), // aceofcloud labs are publicly accessible
           technologies: a.passiveRecon?.technologies || [],
           credentials: creds.length > 0 ? creds : undefined,
         };
@@ -8040,6 +8041,14 @@ export async function executeEngagement(
     state.error = e.message;
     state.phase = "error";
     return;
+  }
+  // Re-detect trainingLabMode if it was lost during state recovery (e.g., server restart)
+  if (state.trainingLabMode === undefined) {
+    const domain = engagement.targetDomain || '';
+    if (domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com') || (engagement as any).labName) {
+      state.trainingLabMode = true;
+      console.log(`[ExecuteEngagement] Training lab mode re-detected for #${engagementId} (domain: ${domain})`);
+    }
   }
   // Debug: log engagement fields for restart resilience diagnosis
   console.log(`[ExecuteEngagement] #${engagementId} loaded from DB: roeStatus=${JSON.stringify(engagement.roeStatus)}, trainingLabMode=${state.trainingLabMode}, startPhase=${startPhase}, resume=${options?.resume}`);

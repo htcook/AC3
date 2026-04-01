@@ -430,6 +430,7 @@ export async function executeScanForgePhase(
     });
 
   } catch (err) {
+    console.error("[ScanForge] Phase crash stack:", (err as Error).stack);
     addLog({
       phase: "vuln_detection",
       type: "error",

@@ -122,7 +122,7 @@ export async function runConfidenceTuning(): Promise<TuningReport> {
     const f1 = precision + recall > 0 ? 2 * (precision * recall) / (precision + recall) : 0;
     const fpRate = fp / totalFindings;
 
-    const currentConfidence = metrics.avgConfidence || CONFIG.DEFAULT_CONFIDENCE;
+    const currentConfidence = metrics.calibratedConfidence || CONFIG.DEFAULT_CONFIDENCE;
     let newConfidence = currentConfidence;
     let reason = "";
 
@@ -156,7 +156,7 @@ export async function runConfidenceTuning(): Promise<TuningReport> {
 
       await _db.update(scanforgeTemplateMetrics)
         .set({
-          avgConfidence: newConfidence,
+          calibratedConfidence: newConfidence,
           lastUpdated: new Date(),
         })
         .where(eq(scanforgeTemplateMetrics.templateId, metrics.templateId));
@@ -254,12 +254,12 @@ export async function processTemplateLifecycle(): Promise<{
  */
 export async function getTemplateConfidence(templateId: string): Promise<number> {
   const _db = await getDbRequired();
-  const metrics = await _db.select({ avgConfidence: scanforgeTemplateMetrics.avgConfidence })
+  const metrics = await _db.select({ calibratedConfidence: scanforgeTemplateMetrics.calibratedConfidence })
     .from(scanforgeTemplateMetrics)
     .where(eq(scanforgeTemplateMetrics.templateId, templateId))
     .limit(1);
 
-  return metrics[0]?.avgConfidence || CONFIG.DEFAULT_CONFIDENCE;
+  return metrics[0]?.calibratedConfidence || CONFIG.DEFAULT_CONFIDENCE;
 }
 
 /**
@@ -271,13 +271,13 @@ export async function getTemplateConfidenceMap(templateIds: string[]): Promise<M
   const _db = await getDbRequired();
   const metrics = await _db.select({
     templateId: scanforgeTemplateMetrics.templateId,
-    avgConfidence: scanforgeTemplateMetrics.avgConfidence,
+    calibratedConfidence: scanforgeTemplateMetrics.calibratedConfidence,
   })
     .from(scanforgeTemplateMetrics);
 
   const map = new Map<string, number>();
   for (const m of metrics) {
-    map.set(m.templateId, m.avgConfidence || CONFIG.DEFAULT_CONFIDENCE);
+    map.set(m.templateId, m.calibratedConfidence || CONFIG.DEFAULT_CONFIDENCE);
   }
   
   // Fill in defaults for templates without metrics
