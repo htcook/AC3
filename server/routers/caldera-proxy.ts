@@ -1,4 +1,4 @@
-import { fetchCalderaAPI, CALDERA_BASE_URL, CALDERA_API_KEY, cachedFetch } from "../lib/api-helpers";
+import { fetchCalderaAPI, CALDERA_BASE_URL, CALDERA_API_KEY } from "../lib/api-helpers";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
@@ -7,24 +7,22 @@ import { and, count, min, not, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
 export const calderaProxyRouter = router({
-    // Direct stats from C2 server — cached for 30s to prevent concurrent requests hammering Caldera
+    // Direct stats from C2 server
     getStats: protectedProcedure.query(async () => {
-      return cachedFetch('caldera:stats', async () => {
-        const [adversaries, abilities, operations, agents] = await Promise.all([
-          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
-          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities'),
-          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
-          fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
-        ]);
+      const [adversaries, abilities, operations, agents] = await Promise.all([
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/adversaries'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/abilities'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/operations'),
+        fetchCalderaAPI(CALDERA_BASE_URL, CALDERA_API_KEY, '/api/v2/agents'),
+      ]);
 
-        return {
-          totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
-          totalThreatActors: await db.getThreatActorCount(),
-          totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
-          activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
-          totalAgents: Array.isArray(agents) ? agents.length : 0,
-        };
-      }, 30_000);
+      return {
+        totalAdversaries: Array.isArray(adversaries) ? adversaries.length : 0,
+        totalThreatActors: await db.getThreatActorCount(),
+        totalAbilities: Array.isArray(abilities) ? abilities.length : 0,
+        activeOperations: Array.isArray(operations) ? operations.filter((o: any) => o.state === 'running').length : 0,
+        totalAgents: Array.isArray(agents) ? agents.length : 0,
+      };
     }),
 
     // Get all adversaries from DigitalOcean Caldera
@@ -128,20 +126,19 @@ export const calderaProxyRouter = router({
       return deploy || {};
     }),
 
-    // Check C2 server health — cached for 30s to prevent hammering
+    // Check C2 server health — retries once on failure to reduce false negatives
+    // during heavy ScanForge discovery scans that temporarily slow the Caldera server
     checkHealth: protectedProcedure.query(async () => {
-      return cachedFetch('caldera:health', async () => {
-        try {
-          const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
-            headers: { 'KEY': CALDERA_API_KEY },
-            signal: AbortSignal.timeout(3000),
-          });
-          if (response.ok) return true;
-        } catch {
-          // Server unreachable — return false immediately, don't retry
-        }
-        return false;
-      }, 30_000);
+      try {
+        const response = await fetch(`${CALDERA_BASE_URL}/api/v2/health`, {
+          headers: { 'KEY': CALDERA_API_KEY },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (response.ok) return true;
+      } catch {
+        // Server unreachable — return false immediately, don't retry
+      }
+      return false;
     }),
 
     // Create a new ability on the C2 server

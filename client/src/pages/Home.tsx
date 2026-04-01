@@ -78,7 +78,7 @@ const RECENT_UPDATES = [
   { date: "Feb 2026", title: "Kill Chain Timeline", desc: "Live engagement timeline with real-time updates for exploits, agents, scans, and tests." },
   { date: "Feb 2026", title: "Phishing Exploit Library", desc: "17 advanced phishing techniques auto-injected into campaigns based on target intelligence." },
   { date: "Feb 2026", title: "Crawl-to-Phish Pipeline", desc: "Clone login portals, detect vendors, and generate phishing templates from crawled pages." },
-  { date: "Feb 2026", title: "Top Active Threat Groups", desc: "View the 20 most active threat groups with techniques, tools, and target sectors — no login required." },
+  { date: "Feb 2026", title: "Public Threat Actor Feed", desc: "Browse 1,700+ threat actor profiles with techniques, tools, and target sectors — no login required." },
 ];
 
 function UpdatesPopup({ onClose }: { onClose: () => void }) {
@@ -153,7 +153,6 @@ function AnimatedStat({ value, label, suffix = "" }: { value: number; label: str
 
 export default function Home() {
   const [showUpdates, setShowUpdates] = useState(true);
-
   const { data: liveStats } = trpc.platformStats.getHomepageStats.useQuery(undefined, {
     staleTime: 5 * 60 * 1000, // cache for 5 minutes
     refetchOnWindowFocus: false,
@@ -357,11 +356,12 @@ export default function Home() {
 
           </div>
         </div>
-        </section>
+      </section>
 
       <div className="w-full h-px bg-primary" />
 
-      {/* ─── How It Works (Plain English) ───────────────────── */}
+
+      {/* ─── How It Works (Plain English) ───────────────────────── */}
       <section id="how-it-works" className="py-20 bg-card/30">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center mb-16">

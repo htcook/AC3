@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure } from "../_core/trpc";
 import { getDbRequired } from "../db";
-import { ac3Reports, ac3ReportFindings, ac3ReportArtifacts, engagements, engagementTimelineEvents, engagementOpsSnapshots, atomicTestExecutions, atomicTests, scanResults } from "../../drizzle/schema";
+import { ac3Reports, ac3ReportFindings, ac3ReportArtifacts, engagements, engagementTimelineEvents, engagementOpsSnapshots, atomicTestExecutions, atomicTests } from "../../drizzle/schema";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
@@ -1558,40 +1558,6 @@ export const ac3ReportsRouter = {
       const engagementContext: any = state.engagementContext || {};
       const roeScopeGuard: any = state.roeScopeGuard || {};
       const passiveReconResults: any[] = state.passiveReconResults || [];
-      const completedScans: any[] = state.completedScans || [];
-      const scanPlan: any = state.scanPlan || {};
-
-      // ── Query scan_results table for real tool output evidence ──
-      const scanResultRows = await db.select().from(scanResults)
-        .where(eq(scanResults.engagementId, input.engagementId));
-
-      // Build target → scan results index for evidence enrichment
-      const scanEvidenceByTarget = new Map<string, any[]>();
-      for (const sr of scanResultRows) {
-        const target = sr.target || '';
-        // Normalize target: strip protocol/port for matching
-        const normalizedTargets = [target];
-        try {
-          const u = new URL(target);
-          normalizedTargets.push(u.hostname);
-          if (u.port) normalizedTargets.push(`${u.hostname}:${u.port}`);
-        } catch { /* not a URL, use as-is */ }
-        for (const nt of normalizedTargets) {
-          if (!scanEvidenceByTarget.has(nt)) scanEvidenceByTarget.set(nt, []);
-          scanEvidenceByTarget.get(nt)!.push(sr);
-        }
-      }
-
-      // ── Build methodology data from scan plan and completed scans ──
-      const methodologyTools: Set<string> = new Set();
-      const methodologyPhases: string[] = [];
-      for (const sr of scanResultRows) {
-        methodologyTools.add(sr.tool);
-      }
-      for (const scan of completedScans) {
-        if (scan.tool) methodologyTools.add(scan.tool);
-        if (scan.phase && !methodologyPhases.includes(scan.phase)) methodologyPhases.push(scan.phase);
-      }
 
       // ── Build ATT&CK technique index from attack chains ──
       // Maps asset+CVE to technique IDs for cross-referencing with vulnAnalysis
@@ -1804,60 +1770,6 @@ export const ac3ReportsRouter = {
           });
         }
 
-        // ── Enrich with real scan_results evidence ──
-        // Match scan results to this finding's asset
-        const matchingScans: any[] = [];
-        if (assetName) {
-          // Try exact match and partial match
-          for (const [target, scans] of scanEvidenceByTarget) {
-            if (target === assetName || assetName.includes(target) || target.includes(assetName)) {
-              matchingScans.push(...scans);
-            }
-          }
-        }
-        // Also match by finding title keywords against scan findings
-        const titleKeywords = (finding.rfTitle || '').toLowerCase();
-        for (const sr of scanResultRows) {
-          if (sr.findings) {
-            const scanFindings = typeof sr.findings === 'string' ? JSON.parse(sr.findings) : sr.findings;
-            const scanFindingsStr = JSON.stringify(scanFindings).toLowerCase();
-            if (titleKeywords && scanFindingsStr.includes(titleKeywords.split(' ')[0])) {
-              if (!matchingScans.includes(sr)) matchingScans.push(sr);
-            }
-          }
-        }
-
-        // Deduplicate by scan ID and add real tool output as evidence
-        const seenScanIds = new Set<number>();
-        for (const scan of matchingScans.slice(0, 5)) {
-          if (seenScanIds.has(scan.id)) continue;
-          seenScanIds.add(scan.id);
-          const rawOutput = scan.rawOutput || scan.raw_output || '';
-          if (!rawOutput || rawOutput.length < 20) continue;
-
-          // Truncate raw output for evidence but keep enough for context
-          const truncatedOutput = rawOutput.length > 2000
-            ? rawOutput.slice(0, 2000) + '\n... [truncated]'
-            : rawOutput;
-
-          evidence.push({
-            type: 'scan_output',
-            tool: scan.tool,
-            reference: `${scan.tool} scan against ${scan.target}`,
-            description: `Tool: ${scan.tool}\nTarget: ${scan.target}\nCommand: ${scan.command || 'N/A'}\nExit Code: ${scan.exitCode ?? scan.exit_code ?? 'N/A'}\nDuration: ${scan.durationMs ?? scan.duration_ms ?? 'N/A'}ms\n\n--- Raw Output ---\n${truncatedOutput}`,
-            timestamp: scan.createdAt || scan.created_at,
-          });
-        }
-
-        // If no evidence found at all, create a note about it
-        if (evidence.length === 0) {
-          evidence.push({
-            type: 'note',
-            reference: `Finding: ${finding.rfTitle}`,
-            description: `This finding was identified during ${agentClass} analysis. Evidence was collected via automated scanning tools during the engagement.`,
-          });
-        }
-
         // Get CVSS score from ESS intelligence
         let cvssScore = '';
         for (const cve of (analysis.relatedCves || [])) {
@@ -1873,13 +1785,13 @@ export const ac3ReportsRouter = {
         if (finding.port) findingAssets.push(`${assetName}:${finding.port}`);
 
         findingsToCreate.push({
-          rfTitle: finding.rfTitle || `Vulnerability on ${assetName}`,
-          rfSeverity: severity,
-          rfAttackTechniques: uniqueTechniques.map(id => ({ id })),
-          rfControls: controls,
-          rfEvidence: evidence,
-          rfAssets: findingAssets,
-          rfCvssScore: cvssScore || (analysis.riskScore ? String(analysis.riskScore) : ''),
+          title: finding.rfTitle || `Vulnerability on ${assetName}`,
+          severity,
+          attackTechniques: uniqueTechniques.map(id => ({ id })),
+          controls,
+          evidence,
+          assets: findingAssets,
+          cvssScore: cvssScore || (analysis.riskScore ? String(analysis.riskScore) : ''),
           agentClass,
           sourceContext: [
             analysis.technicalAnalysis ? `Technical Analysis: ${analysis.technicalAnalysis}` : '',
@@ -1888,7 +1800,7 @@ export const ac3ReportsRouter = {
             analysis.remediation ? `Remediation Steps: ${JSON.stringify(analysis.remediation)}` : '',
           ].filter(Boolean).join('\n\n'),
           // Pre-populate remediation from analysis (platform data)
-          rfRemediation: Array.isArray(analysis.remediation)
+          remediation: Array.isArray(analysis.remediation)
             ? analysis.remediation.join('\n')
             : (analysis.remediation || ''),
         });
@@ -2022,18 +1934,6 @@ export const ac3ReportsRouter = {
         scopeUpdates.rptClientName = eng.customerName;
         scopeUpdates.rptSystemName = eng.name;
 
-        // Store methodology data
-        scopeUpdates.toolsUsed = [...methodologyTools];
-        scopeUpdates.testPhases = methodologyPhases.length > 0 ? methodologyPhases : [
-          'Reconnaissance & OSINT',
-          'Enumeration & Service Discovery',
-          'Vulnerability Detection',
-          'Exploitation & Validation',
-          'Post-Exploitation Analysis',
-          'Reporting & Remediation',
-        ];
-        scopeUpdates.engagementId = input.engagementId;
-
         if (Object.keys(scopeUpdates).length) {
           scopeUpdates.rptUpdatedAt = Date.now();
           await db.update(ac3Reports).set(scopeUpdates)
@@ -2053,7 +1953,7 @@ export const ac3ReportsRouter = {
           }
         }
         if (strengths.length) {
-          execUpdates.rptExecStrengths = strengths.slice(0, 5);
+          execUpdates.execKeyStrengths = strengths.slice(0, 5);
         }
 
         // Key gaps from high/critical vuln impact assessments
@@ -2070,18 +1970,18 @@ export const ac3ReportsRouter = {
           }
         }
         if (gaps.length) {
-          execUpdates.rptExecGaps = gaps.slice(0, 5);
+          execUpdates.execKeyGaps = gaps.slice(0, 5);
         }
 
         // Auto-derive overall rating from finding severity distribution
         const sevCounts: Record<string, number> = {};
-        for (const fc of findingsToCreate) {
-          sevCounts[fc.rfSeverity] = (sevCounts[fc.rfSeverity] || 0) + 1;
+        for (const f of findingsToCreate) {
+          sevCounts[f.rfSeverity] = (sevCounts[f.rfSeverity] || 0) + 1;
         }
-        if (sevCounts.critical && sevCounts.critical >= 3) execUpdates.rptExecRating = 'critical';
-        else if (sevCounts.critical || (sevCounts.high && sevCounts.high >= 5)) execUpdates.rptExecRating = 'high';
-        else if (sevCounts.high || (sevCounts.moderate && sevCounts.moderate >= 5)) execUpdates.rptExecRating = 'moderate';
-        else execUpdates.rptExecRating = 'low';
+        if (sevCounts.critical && sevCounts.critical >= 3) execUpdates.execOverallRating = 'critical';
+        else if (sevCounts.critical || (sevCounts.high && sevCounts.high >= 5)) execUpdates.execOverallRating = 'high';
+        else if (sevCounts.high || (sevCounts.moderate && sevCounts.moderate >= 5)) execUpdates.execOverallRating = 'moderate';
+        else execUpdates.execOverallRating = 'low';
 
         if (Object.keys(execUpdates).length) {
           execUpdates.rptUpdatedAt = Date.now();
@@ -2309,76 +2209,31 @@ export const ac3ReportsRouter = {
       ];
 
       // Executive Summary section
-      const execSeverityCounts: Record<string, number> = { critical: 0, high: 0, moderate: 0, low: 0, informational: 0 };
-      findings.forEach(f => { execSeverityCounts[f.rfSeverity] = (execSeverityCounts[f.rfSeverity] || 0) + 1; });
-
       const execSection: docx.Paragraph[] = [
         new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '1. Executive Summary', bold: true })] }),
       ];
-
-      // Overall Risk Level Badge
-      const overallRisk = report.rptExecRating || 'moderate';
-      const riskColor = severityColor[overallRisk] || 'FFAA00';
-      execSection.push(new Paragraph({
-        spacing: { before: 200, after: 200 },
-        children: [
-          new TextRun({ text: 'Overall Risk Level: ', bold: true, size: 28 }),
-          new TextRun({ text: overallRisk.toUpperCase(), bold: true, size: 28, color: riskColor }),
-        ],
-      }));
-
-      // Severity Breakdown Table in Executive Summary
-      execSection.push(new Paragraph({
-        spacing: { before: 200, after: 100 },
-        children: [new TextRun({ text: 'Vulnerability Severity Distribution:', bold: true })],
-      }));
-      execSection.push(new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            tableHeader: true,
-            children: ['Critical', 'High', 'Moderate', 'Low', 'Informational', 'Total'].map(text => new TableCell({
-              shading: { type: ShadingType.SOLID, color: '1a1a2e' },
-              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, color: 'FFFFFF', size: 18 })] })],
-            })),
-          }),
-          new TableRow({
-            children: [
-              ...['critical', 'high', 'moderate', 'low', 'informational'].map(sev => new TableCell({
-                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(execSeverityCounts[sev] || 0), bold: true, color: severityColor[sev], size: 22 })] })],
-              })),
-              new TableCell({
-                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(findings.length), bold: true, size: 22 })] })],
-              }),
-            ],
-          }),
-        ],
-      }));
-
-      // Risk Statement
-      if (report.rptExecRiskStatement) {
-        execSection.push(new Paragraph({
-          spacing: { before: 300, after: 200 },
-          children: [new TextRun({ text: 'Risk Assessment: ', bold: true }), new TextRun({ text: report.rptExecRiskStatement })],
-        }));
-      }
-
-      // Narrative
       if (report.rptExecNarrative) {
-        execSection.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: report.rptExecNarrative })] }));
-
-        const strengths = (report.rptExecStrengths as string[] || []);
+        if (report.rptExecRiskStatement) {
+          execSection.push(new Paragraph({
+            spacing: { after: 200 },
+            children: [new TextRun({ text: 'Overall Risk: ', bold: true }), new TextRun({ text: report.rptExecRiskStatement })],
+          }));
+        }
+        if (report.rptExecNarrative) {
+          execSection.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: report.rptExecNarrative })] }));
+        }
+        const strengths = (report.execKeyStrengths as string[] || []);
         if (strengths.length > 0) {
           execSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Key Strengths:', bold: true })] }));
           strengths.forEach(s => execSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: s })] })));
         }
-        const gaps = (report.rptExecGaps as string[] || []);
+        const gaps = (report.execKeyGaps as string[] || []);
         if (gaps.length > 0) {
           execSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Key Gaps:', bold: true })] }));
           gaps.forEach(g => execSection.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: g })] })));
         }
       } else {
-        execSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Executive summary narrative has not been generated yet. Use "Generate Exec Summary" to create one.', italics: true, color: '888888' })] }));
+        execSection.push(new Paragraph({ children: [new TextRun({ text: 'Executive summary has not been generated yet.', italics: true, color: '888888' })] }));
       }
       execSection.push(new Paragraph({ children: [new PageBreak()] }));
 
@@ -2409,100 +2264,9 @@ export const ac3ReportsRouter = {
       }
       scopeSection.push(new Paragraph({ children: [new PageBreak()] }));
 
-      // ── Test Methodology & Approach Section ──
-      const methodologySection: docx.Paragraph[] = [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '3. Test Methodology & Approach', bold: true })] }),
-      ];
-
-      // Methodology overview
-      methodologySection.push(new Paragraph({
-        spacing: { after: 200 },
-        children: [new TextRun({ text: 'This penetration test was conducted following industry-standard methodologies including the Penetration Testing Execution Standard (PTES), NIST SP 800-115 (Technical Guide to Information Security Testing and Assessment), and the OWASP Testing Guide. The assessment was designed to identify, validate, and document security vulnerabilities across the defined scope.' })],
-      }));
-
-      // Testing Phases
-      const testPhases = (report.testPhases as string[] || [
-        'Reconnaissance & OSINT',
-        'Enumeration & Service Discovery',
-        'Vulnerability Detection',
-        'Exploitation & Validation',
-        'Post-Exploitation Analysis',
-        'Reporting & Remediation',
-      ]);
-      methodologySection.push(new Paragraph({
-        spacing: { before: 200 },
-        children: [new TextRun({ text: 'Testing Phases:', bold: true })],
-      }));
-      testPhases.forEach((phase, i) => {
-        methodologySection.push(new Paragraph({
-          bullet: { level: 0 },
-          children: [new TextRun({ text: `Phase ${i + 1}: ${phase}` })],
-        }));
-      });
-
-      // Tools Used
-      const toolsUsed = (report.toolsUsed as string[] || []);
-      if (toolsUsed.length > 0) {
-        methodologySection.push(new Paragraph({
-          spacing: { before: 300 },
-          children: [new TextRun({ text: 'Tools & Technologies Used:', bold: true })],
-        }));
-        const toolDescriptions: Record<string, string> = {
-          'nuclei': 'Nuclei - Template-based vulnerability scanner for CVE detection',
-          'nikto': 'Nikto - Web server vulnerability scanner',
-          'httpx': 'httpx - HTTP toolkit for service discovery and fingerprinting',
-          'nmap': 'Nmap - Network discovery and security auditing',
-          'zap': 'OWASP ZAP - Dynamic application security testing (DAST)',
-          'subfinder': 'Subfinder - Subdomain discovery tool',
-          'amass': 'Amass - Attack surface mapping and asset discovery',
-          'masscan': 'Masscan - High-speed port scanner',
-          'ffuf': 'ffuf - Web fuzzer for directory and parameter discovery',
-          'gobuster': 'Gobuster - Directory/file brute-forcing tool',
-          'metasploit': 'Metasploit Framework - Exploitation and post-exploitation',
-          'burpsuite': 'Burp Suite - Web application security testing platform',
-          'sqlmap': 'SQLMap - Automated SQL injection detection and exploitation',
-        };
-        toolsUsed.forEach(tool => {
-          const desc = toolDescriptions[tool.toLowerCase()] || tool;
-          methodologySection.push(new Paragraph({
-            bullet: { level: 0 },
-            children: [new TextRun({ text: desc })],
-          }));
-        });
-      }
-
-      // Approach description
-      methodologySection.push(new Paragraph({
-        spacing: { before: 300 },
-        children: [new TextRun({ text: 'Approach:', bold: true })],
-      }));
-      methodologySection.push(new Paragraph({
-        spacing: { after: 200 },
-        children: [new TextRun({ text: `The assessment utilized a ${report.rptAssessmentType?.replace('_', ' ') || 'penetration test'} approach. Testing began with passive reconnaissance to identify publicly available information about the target environment. Active enumeration was then performed to discover services, technologies, and potential attack surfaces. Identified vulnerabilities were validated through controlled exploitation attempts within the approved rules of engagement. All testing activities were logged and timestamped for chain of custody purposes.` })],
-      }));
-
-      // Compliance framework reference
-      if (report.complianceFramework) {
-        const frameworkNames: Record<string, string> = {
-          'nist_800_53_r5': 'NIST SP 800-53 Rev. 5',
-          'fedramp': 'FedRAMP',
-          'pci_dss': 'PCI DSS',
-          'hipaa': 'HIPAA',
-        };
-        methodologySection.push(new Paragraph({
-          spacing: { before: 200 },
-          children: [
-            new TextRun({ text: 'Compliance Framework: ', bold: true }),
-            new TextRun({ text: `Findings are mapped to ${frameworkNames[report.complianceFramework] || report.complianceFramework} controls where applicable.` }),
-          ],
-        }));
-      }
-
-      methodologySection.push(new Paragraph({ children: [new PageBreak()] }));
-
       // Findings Summary Table
       const summarySection: docx.Paragraph[] = [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '4. Findings Summary', bold: true })] }),
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '3. Findings Summary', bold: true })] }),
       ];
 
       const severityCounts: Record<string, number> = { critical: 0, high: 0, moderate: 0, low: 0, informational: 0 };
@@ -2541,7 +2305,7 @@ export const ac3ReportsRouter = {
 
       // Detailed Findings
       const findingsSection: docx.Paragraph[] = [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '5. Detailed Findings', bold: true })] }),
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: '4. Detailed Findings', bold: true })] }),
       ];
 
       findings.forEach((f, idx) => {
@@ -2608,77 +2372,16 @@ export const ac3ReportsRouter = {
         // Evidence
         const evidence = (f.rfEvidence as any[] || []);
         if (evidence.length) {
-          findingsSection.push(new Paragraph({
-            spacing: { before: 300 },
-            children: [new TextRun({ text: 'Evidence & Supporting Data', bold: true, size: 24 })],
-          }));
-
-          evidence.forEach((e: any, eIdx: number) => {
-            const evidenceLabel = e.type === 'scan_output'
-              ? `Evidence ${eIdx + 1}: ${e.tool || 'Tool'} Output`
-              : e.type === 'exploit_attempt'
-              ? `Evidence ${eIdx + 1}: Exploit Attempt`
-              : e.type === 'poc'
-              ? `Evidence ${eIdx + 1}: Proof of Concept`
-              : `Evidence ${eIdx + 1}: ${e.type || 'Observation'}`;
-
+          findingsSection.push(new Paragraph({ spacing: { before: 200 }, children: [new TextRun({ text: 'Evidence', bold: true })] }));
+          evidence.forEach((e: any) => {
             findingsSection.push(new Paragraph({
-              spacing: { before: 200 },
+              bullet: { level: 0 },
               children: [
-                new TextRun({ text: evidenceLabel, bold: true, size: 20, color: '333333' }),
+                new TextRun({ text: `[${e.type}] `, bold: true }),
+                new TextRun({ text: e.description || e.reference }),
               ],
             }));
-
-            if (e.reference) {
-              findingsSection.push(new Paragraph({
-                children: [new TextRun({ text: `Reference: ${e.reference}`, italics: true, size: 18, color: '666666' })],
-              }));
-            }
-
-            if (e.timestamp) {
-              findingsSection.push(new Paragraph({
-                children: [new TextRun({ text: `Timestamp: ${new Date(e.timestamp).toISOString()}`, size: 16, color: '888888' })],
-              }));
-            }
-
-            // Render the description/output in a code-block style for scan output
-            if (e.description) {
-              const descLines = e.description.split('\n');
-              if (e.type === 'scan_output' && descLines.length > 3) {
-                // Render as a bordered code block for scan output
-                const codeRows = descLines.slice(0, 60).map((line: string) => new TableRow({
-                  children: [new TableCell({
-                    borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.SINGLE, size: 2, color: 'CCCCCC' }, right: { style: BorderStyle.NONE } },
-                    shading: { type: ShadingType.SOLID, color: 'F8F8F8' },
-                    children: [new Paragraph({ children: [new TextRun({ text: line || ' ', font: 'Courier New', size: 14 })] })],
-                  })],
-                }));
-                if (codeRows.length > 0) {
-                  findingsSection.push(new Table({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: codeRows,
-                  }));
-                }
-                if (descLines.length > 60) {
-                  findingsSection.push(new Paragraph({
-                    children: [new TextRun({ text: `... (${descLines.length - 60} more lines truncated)`, italics: true, size: 14, color: '999999' })],
-                  }));
-                }
-              } else {
-                // Regular text evidence
-                findingsSection.push(new Paragraph({
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: e.description, size: 18 })],
-                }));
-              }
-            }
           });
-        } else {
-          // No evidence - note this
-          findingsSection.push(new Paragraph({
-            spacing: { before: 200 },
-            children: [new TextRun({ text: 'Evidence: ', bold: true }), new TextRun({ text: 'No automated evidence captured for this finding. Manual validation recommended.', italics: true, color: '888888' })],
-          }));
         }
 
         // Supporting Artifacts (cross-references)
@@ -2705,7 +2408,7 @@ export const ac3ReportsRouter = {
         appendixSection.push(new Paragraph({ children: [new PageBreak()] }));
         appendixSection.push(new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          children: [new TextRun({ text: '6. Appendix — Supporting Artifacts', bold: true })],
+          children: [new TextRun({ text: '5. Appendix — Supporting Artifacts', bold: true })],
         }));
         appendixSection.push(new Paragraph({
           spacing: { after: 200 },
@@ -2990,7 +2693,6 @@ export const ac3ReportsRouter = {
             ...titleSection,
             ...execSection,
             ...scopeSection,
-            ...methodologySection,
             ...summarySection,
             ...findingsSection,
             ...appendixSection,

@@ -352,7 +352,6 @@ const FILTER_TABS = [
 export default function ThreatActorFeed() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
-
   const { data, isLoading } = trpc.platformStats.recentThreatActors.useQuery(
     { limit: 20 },
     { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false }
@@ -370,7 +369,11 @@ export default function ThreatActorFeed() {
     return actors.slice(0, 20);
   }, [data, activeFilter]);
 
-  const displayCount = filteredActors.length;
+  const totalFiltered = useMemo(() => {
+    if (!data?.actors) return 0;
+    if (activeFilter === "all") return data.total;
+    return data.actors.filter(a => a.type === activeFilter).length;
+  }, [data, activeFilter]);
 
   return (
     <section className="py-20">
@@ -382,15 +385,15 @@ export default function ThreatActorFeed() {
               <Eye className="w-3.5 h-3.5" />
               LIVE INTELLIGENCE
             </div>
-            <h2 className="text-4xl sm:text-5xl font-display mb-2">TOP ACTIVE THREAT GROUPS</h2>
+            <h2 className="text-4xl sm:text-5xl font-display mb-2">THREAT ACTOR FEED</h2>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              The 20 most active threat groups from our continuously enriched intelligence database.
+              Browse {data?.total?.toLocaleString() || "1,700"}+ threat actor profiles from our continuously enriched intelligence database.
               Click any actor for full details including ATT&CK techniques, tools, and malware.
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Layers className="w-4 h-4 text-primary" />
-            <span className="font-display tracking-wider">{displayCount} ACTIVE GROUPS</span>
+            <span className="font-display tracking-wider">{totalFiltered.toLocaleString()} ACTORS</span>
           </div>
         </div>
 
@@ -399,7 +402,7 @@ export default function ThreatActorFeed() {
           {FILTER_TABS.map(tab => (
             <button
               key={tab.value}
-              onClick={() => setActiveFilter(tab.value)}
+              onClick={() => { setActiveFilter(tab.value); setShowAll(false); }}
               className={`px-4 py-2 text-xs font-display tracking-widest border-2 transition-colors ${
                 activeFilter === tab.value
                   ? "border-primary bg-primary/10 text-primary"

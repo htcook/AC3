@@ -53,7 +53,6 @@ import {
   FileDown,
   Server,
   Target,
-  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -613,10 +612,6 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
             <Shield className="h-3.5 w-3.5" />
             Metadata & Scope
           </TabsTrigger>
-          <TabsTrigger value="methodology" className="gap-2">
-            <Wrench className="h-3.5 w-3.5" />
-            Methodology
-          </TabsTrigger>
           <TabsTrigger value="coverage" className="gap-2">
             <Target className="h-3.5 w-3.5" />
             Coverage
@@ -645,10 +640,6 @@ function ReportDetail({ reportId, onBack }: { reportId: string; onBack: () => vo
 
         <TabsContent value="metadata" className="space-y-4 mt-4">
           <MetadataTab report={report} reportId={reportId} />
-        </TabsContent>
-
-        <TabsContent value="methodology" className="space-y-4 mt-4">
-          <MethodologyTab report={report} />
         </TabsContent>
 
         <TabsContent value="coverage" className="space-y-4 mt-4">
@@ -2051,172 +2042,11 @@ function CalderaImportDialog({ open, onClose, reportId }: { open: boolean; onClo
   );
 }
 
-// ─── Methodology Tab ───────────────────────────────────────────────────────────────────────────
 
-function MethodologyTab({ report }: { report: any }) {
-  const toolDescriptions: Record<string, { name: string; category: string; description: string }> = {
-    nuclei: { name: 'Nuclei', category: 'Vulnerability Scanner', description: 'Template-based vulnerability scanner for CVE detection and security misconfiguration identification' },
-    nikto: { name: 'Nikto', category: 'Web Scanner', description: 'Comprehensive web server vulnerability scanner checking for dangerous files, outdated server software, and configuration issues' },
-    httpx: { name: 'httpx', category: 'HTTP Toolkit', description: 'Fast HTTP probing tool for service discovery, technology fingerprinting, and response analysis' },
-    nmap: { name: 'Nmap', category: 'Network Scanner', description: 'Network discovery and security auditing tool for port scanning, service detection, and OS fingerprinting' },
-    zap: { name: 'OWASP ZAP', category: 'DAST', description: 'Dynamic application security testing proxy for automated web application vulnerability detection' },
-    subfinder: { name: 'Subfinder', category: 'Reconnaissance', description: 'Passive subdomain discovery tool using multiple data sources' },
-    amass: { name: 'Amass', category: 'Attack Surface', description: 'In-depth attack surface mapping and external asset discovery' },
-    masscan: { name: 'Masscan', category: 'Port Scanner', description: 'High-speed TCP port scanner for rapid network reconnaissance' },
-    ffuf: { name: 'ffuf', category: 'Fuzzer', description: 'Fast web fuzzer for directory discovery, parameter brute-forcing, and virtual host enumeration' },
-    metasploit: { name: 'Metasploit', category: 'Exploitation', description: 'Penetration testing framework for exploit development, payload delivery, and post-exploitation' },
-    sqlmap: { name: 'SQLMap', category: 'SQL Injection', description: 'Automated SQL injection detection and exploitation tool' },
-  };
+// ─── Coverage Tab ────────────────────────────────────────────────────────────
 
-  const toolsUsed = (report.toolsUsed as string[] || []);
-  const testPhases = (report.testPhases as string[] || [
-    'Reconnaissance & OSINT',
-    'Enumeration & Service Discovery',
-    'Vulnerability Detection',
-    'Exploitation & Validation',
-    'Post-Exploitation Analysis',
-    'Reporting & Remediation',
-  ]);
-  const assessmentType = report.rptAssessmentType?.replace(/_/g, ' ') || 'penetration test';
-  const framework = report.complianceFramework || 'nist_800_53_r5';
-  const frameworkNames: Record<string, string> = {
-    nist_800_53_r5: 'NIST SP 800-53 Rev. 5',
-    fedramp: 'FedRAMP',
-    pci_dss: 'PCI DSS',
-    hipaa: 'HIPAA',
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Standards & Approach */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-500" />
-            Standards & Approach
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            This {assessmentType} was conducted following industry-standard methodologies including the
-            Penetration Testing Execution Standard (PTES), NIST SP 800-115 (Technical Guide to Information
-            Security Testing and Assessment), and the OWASP Testing Guide. The assessment was designed to
-            identify, validate, and document security vulnerabilities across the defined scope.
-          </p>
-          <div className="flex gap-2 flex-wrap">
-            <Badge variant="outline">PTES</Badge>
-            <Badge variant="outline">NIST SP 800-115</Badge>
-            <Badge variant="outline">OWASP Testing Guide</Badge>
-            <Badge variant="secondary">{frameworkNames[framework] || framework}</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Testing Phases */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-purple-500" />
-            Testing Phases
-          </CardTitle>
-          <CardDescription>The assessment was executed in the following phases</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {testPhases.map((phase: string, i: number) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                  {i + 1}
-                </div>
-                <div className="pt-1">
-                  <p className="text-sm font-medium">{phase}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tools Used */}
-      {toolsUsed.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5 text-orange-500" />
-              Tools & Technologies ({toolsUsed.length})
-            </CardTitle>
-            <CardDescription>Security tools employed during the assessment</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {toolsUsed.map((tool: string, i: number) => {
-                const info = toolDescriptions[tool.toLowerCase()];
-                return (
-                  <div key={i} className="border rounded-lg p-3 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{info?.name || tool}</span>
-                      {info?.category && (
-                        <Badge variant="outline" className="text-xs">{info.category}</Badge>
-                      )}
-                    </div>
-                    {info?.description && (
-                      <p className="text-xs text-muted-foreground">{info.description}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Assessment Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-green-500" />
-            Assessment Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Assessment Type:</span>
-              <p className="font-medium capitalize">{assessmentType}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Compliance Framework:</span>
-              <p className="font-medium">{frameworkNames[framework] || framework}</p>
-            </div>
-            {report.rptWindowStart && (
-              <div>
-                <span className="text-muted-foreground">Window Start:</span>
-                <p className="font-medium">{new Date(report.rptWindowStart).toLocaleDateString()}</p>
-              </div>
-            )}
-            {report.rptWindowEnd && (
-              <div>
-                <span className="text-muted-foreground">Window End:</span>
-                <p className="font-medium">{new Date(report.rptWindowEnd).toLocaleDateString()}</p>
-              </div>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground leading-relaxed mt-4">
-            Testing began with passive reconnaissance to identify publicly available information about the
-            target environment. Active enumeration was then performed to discover services, technologies,
-            and potential attack surfaces. Identified vulnerabilities were validated through controlled
-            exploitation attempts within the approved rules of engagement. All testing activities were
-            logged and timestamped for chain of custody purposes.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ─── Coverage Tab ────────────────────────────────────────────────────────────────────────────
-
-function CoverageTab({ reportId }: { reportId: string }) { data: coverage, isLoading } = trpc.ac3Reports.validateCoverage.useQuery({ reportId });
+function CoverageTab({ reportId }: { reportId: string }) {
+  const { data: coverage, isLoading } = trpc.ac3Reports.validateCoverage.useQuery({ reportId });
 
   if (isLoading) {
     return (
