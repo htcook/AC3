@@ -158,12 +158,11 @@ export class SliverClient {
       options.body = JSON.stringify(body);
     }
 
-    // Use undici dispatcher for native fetch() TLS override
+    // Use shared undici dispatcher for native fetch() TLS override
     if (url.startsWith("https://")) {
-      try {
-        const { Agent } = require('undici');
-        (options as any).dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
-      } catch { /* undici not available */ }
+      const { getUndiciDispatcher } = require('./gophish-client');
+      const dispatcher = getUndiciDispatcher();
+      if (dispatcher) (options as any).dispatcher = dispatcher;
     }
 
     const response = await fetch(url, options);

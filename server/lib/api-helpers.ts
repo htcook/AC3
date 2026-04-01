@@ -1,15 +1,9 @@
 /**
- * Shared API helpers for Caldera and GoPhish proxy routers.
+ * Shared API helpers for Caldera proxy routers and session management.
  *
- * FIPS 140-3 Compliance:
- *   All outbound HTTPS connections use the FIPS HTTPS agent which restricts
- *   to TLS 1.2+ with NIST SP 800-52 Rev. 2 approved cipher suites only.
- *   GoPhish self-signed certs are handled via a dedicated FIPS agent with
- *   rejectUnauthorized: false (TLS encryption still enforced, just no CA check).
+ * GoPhish API calls have been consolidated into server/lib/gophish-client.ts.
  */
 import { ENV } from "../_core/env";
-import { getFIPSHttpsAgent, createFIPSHttpsAgent } from "./fips-tls";
-import https from "https";
 
 // ─── Caldera Session ────────────────────────────────────────────────────
 
@@ -35,10 +29,8 @@ export function getCalderaCookieOptions(req: any, rememberMe = false) {
 
 export const CALDERA_JWT_SECRET = process.env.CALDERA_JWT_SECRET || 'caldera-dashboard-secret-key-2024';
 
-// ─── GoPhish & Caldera API Config ───────────────────────────────────────
+// ─── Caldera API Config ────────────────────────────────────────────────
 
-export const GOPHISH_URL = ENV.gophishBaseUrl;
-export const GOPHISH_API_KEY = ENV.gophishApiKey;
 export const CALDERA_BASE_URL = ENV.calderaBaseUrl;
 export const CALDERA_API_KEY = ENV.calderaApiKey;
 
@@ -118,114 +110,24 @@ export function clearAllCache(): void {
   responseCache.clear();
 }
 
-// ─── FIPS HTTPS Agents ─────────────────────────────────────────────────
-
-/**
- * FIPS agent for GoPhish connections.
- * GoPhish uses a self-signed certificate, so we disable CA validation
- * but STILL enforce FIPS-approved cipher suites and TLS 1.2+.
- */
-let _gophishFipsAgent: https.Agent | null = null;
-function getGophishFIPSAgent(): https.Agent {
-  if (_gophishFipsAgent) return _gophishFipsAgent;
-  _gophishFipsAgent = createFIPSHttpsAgent({
-    rejectUnauthorized: false,
-  });
-  return _gophishFipsAgent;
-}
-
-/**
- * Lazy-initialized undici Agent for native fetch() with TLS override.
- * Node.js native fetch uses undici — the `agent` option from https.Agent
- * is silently ignored. We must use `dispatcher` instead.
- */
-let _gophishUndiciAgent: any = null;
-function getGophishUndiciDispatcher(): any {
-  if (_gophishUndiciAgent) return _gophishUndiciAgent;
-  try {
-    const { Agent } = require('undici');
-    _gophishUndiciAgent = new Agent({
-      connect: { rejectUnauthorized: false },
-    });
-  } catch {
-    // undici not available, fetch will use default TLS settings
-    console.warn('[GoPhish] undici not available, self-signed certs may fail');
-  }
-  return _gophishUndiciAgent;
-}
-
-// ─── GoPhish API Helper ─────────────────────────────────────────────────
-
-/**
- * FIPS 140-3 compliant GoPhish API helper.
- * Uses undici dispatcher for proper TLS handling with native fetch().
- * Retries on transient failures with exponential backoff.
- */
-export async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any, retries = 2): Promise<any> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const url = `${GOPHISH_URL}${endpoint}`;
-      const isHttps = url.startsWith('https://');
-
-      const options: RequestInit & { dispatcher?: any } = {
-        method,
-        headers: {
-          'Authorization': GOPHISH_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        signal: AbortSignal.timeout(15000),
-      };
-      if (data) options.body = JSON.stringify(data);
-
-      // Use undici dispatcher for native fetch() TLS override (self-signed certs)
-      if (isHttps) {
-        const dispatcher = getGophishUndiciDispatcher();
-        if (dispatcher) {
-          options.dispatcher = dispatcher;
-        }
-      }
-      
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[GoPhish] API error (${endpoint}):`, response.status, errText);
-        if (attempt < retries && response.status >= 500) continue;
-        return null;
-      }
-      const text = await response.text();
-      return text ? JSON.parse(text) : null;
-    } catch (error: any) {
-      console.error(`[GoPhish] API error (${endpoint}) attempt ${attempt + 1}/${retries + 1}:`, error?.message || error);
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-      return null;
-    }
-  }
-  return null;
-}
-
 // ─── Caldera API Helper ─────────────────────────────────────────────────
 
+import { getUndiciDispatcher } from "./gophish-client";
+
 /**
- * FIPS 140-3 compliant Caldera API helper.
- * Uses the global FIPS HTTPS agent for all outbound HTTPS connections.
+ * Caldera API helper.
+ * Uses the shared undici dispatcher for TLS override (self-signed certs).
  */
 export async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
   try {
     const fullUrl = `${url}${endpoint}`;
-    const isHttps = fullUrl.startsWith('https://');
     const options: RequestInit & { dispatcher?: any } = {
       headers: { 'KEY': apiKey },
       signal: AbortSignal.timeout(15000),
     };
-    // Use undici dispatcher for native fetch() TLS override
-    if (isHttps) {
-      const dispatcher = getGophishUndiciDispatcher();
-      if (dispatcher) {
-        options.dispatcher = dispatcher;
-      }
+    if (fullUrl.startsWith('https://')) {
+      const dispatcher = getUndiciDispatcher();
+      if (dispatcher) options.dispatcher = dispatcher;
     }
     const response = await fetch(fullUrl, options);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);

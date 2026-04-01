@@ -2,7 +2,6 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
-import { ENV } from "./_core/env";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
@@ -240,70 +239,6 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
-
-// GoPhish & Caldera API config from environment
-const GOPHISH_URL = ENV.gophishBaseUrl;
-const GOPHISH_API_KEY = ENV.gophishApiKey;
-const CALDERA_BASE_URL = ENV.calderaBaseUrl;
-const CALDERA_API_KEY = ENV.calderaApiKey;
-
-// Lazy undici dispatcher for native fetch() TLS override
-let _routersUndiciAgent: any = null;
-function getRoutersUndiciDispatcher(): any {
-  if (_routersUndiciAgent) return _routersUndiciAgent;
-  try {
-    const { Agent } = require('undici');
-    _routersUndiciAgent = new Agent({ connect: { rejectUnauthorized: false } });
-  } catch { /* undici not available */ }
-  return _routersUndiciAgent;
-}
-
-async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
-  try {
-    const url = `${GOPHISH_URL}${endpoint}`;
-    const options: RequestInit & { dispatcher?: any } = {
-      method,
-      headers: {
-        'Authorization': GOPHISH_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(15000),
-    };
-    // Use undici dispatcher for native fetch() TLS override (self-signed certs)
-    if (url.startsWith('https://')) {
-      const dispatcher = getRoutersUndiciDispatcher();
-      if (dispatcher) options.dispatcher = dispatcher;
-    }
-    if (data) options.body = JSON.stringify(data);
-    
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`GoPhish API error (${endpoint}):`, response.status, errText);
-      return null;
-    }
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
-  } catch (error) {
-    console.error(`GoPhish API error (${endpoint}):`, error);
-    return null;
-  }
-}
-
-// Caldera API helper
-async function fetchCalderaAPI(url: string, apiKey: string, endpoint: string) {
-  try {
-    const response = await fetch(`${url}${endpoint}`, {
-      headers: { 'KEY': apiKey },
-      signal: AbortSignal.timeout(30000), // 30 second timeout for large responses
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.error(`Caldera API error (${endpoint}):`, error);
-    return null;
-  }
-}
 
 export const appRouter = router({
   system: systemRouter,

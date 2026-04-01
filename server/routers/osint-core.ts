@@ -1,5 +1,10 @@
 import { notifyOwner } from "../_core/notification";
-import { fetchGophishAPI } from "../lib/api-helpers";
+import { fetchGophish as _fetchGophish } from "../lib/gophish-client";
+
+/** Positional-args wrapper for backward compatibility */
+function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
+  return _fetchGophish(endpoint, { method, data });
+}
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";

@@ -1,7 +1,13 @@
-import { fetchGophishAPI, cachedFetch } from "../lib/api-helpers";
+import { fetchGophish as _fetchGophish } from "../lib/gophish-client";
+import { cachedFetch } from "../lib/api-helpers";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as schema from "../../drizzle/schema";
+
+/** Backward-compatible positional-args wrapper around the consolidated client */
+function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
+  return _fetchGophish(endpoint, { method, data });
+}
 
 export const gophishProxyRouter = router({
     // GoPhish API helper
