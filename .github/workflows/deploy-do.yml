@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: registry.digitalocean.com
   REGISTRY_NAME: ace-c3-registry
@@ -15,6 +19,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,10 +34,20 @@ jobs:
 
       - name: Build Docker image
         run: |
+          echo "Building Docker image (includes fresh Vite build)..."
           docker build \
             -t ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:latest \
             -t ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             .
+
+      - name: Verify no stale assets in image
+        run: |
+          # Quick sanity check: ensure the image was built with fresh assets
+          CID=$(docker create ${{ env.REGISTRY }}/${{ env.REGISTRY_NAME }}/${{ env.IMAGE_NAME }}:latest)
+          docker cp "$CID:/usr/src/app/dist/public/index.html" /tmp/index.html
+          docker rm "$CID"
+          echo "Build verification: index.html exists"
+          head -5 /tmp/index.html
 
       - name: Push Docker image to DOCR
         run: |

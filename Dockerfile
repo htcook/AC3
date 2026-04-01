@@ -22,7 +22,14 @@ RUN pnpm install --no-frozen-lockfile
 # Copy all source files
 COPY . .
 
-# Run build (produces dist/_server.js and copies .client-assets/ to dist/public/)
+# Always run fresh Vite build to ensure client assets are up-to-date
+# This avoids stale .client-assets/ from git causing deployment issues
+RUN rm -rf .client-assets dist/public && \
+    NODE_OPTIONS="--max-old-space-size=4096" npx vite build && \
+    cp -r dist/public .client-assets && \
+    echo "Fresh Vite build complete"
+
+# Run server build (produces dist/_server.js and copies .client-assets/ to dist/public/)
 RUN pnpm run build
 
 # Verify build output exists

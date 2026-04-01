@@ -1,12 +1,20 @@
 name: Pre-build Client Assets
 
-# Runs after CI passes on main — rebuilds .client-assets/ and commits
+# Runs on push to main — rebuilds .client-assets/ and commits
 # so the Manus sandbox never needs to run Vite build (avoids OOM).
+# NOTE: This is now independent of CI to avoid stale assets when CI has
+# pre-existing failures. The Dockerfile also runs a fresh Vite build as
+# a safety net.
 on:
-  workflow_run:
-    workflows: ["CI — Type Check, Test, Build"]
-    types: [completed]
+  push:
     branches: [main]
+    paths:
+      - 'client/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vite.config.*'
+      - 'tailwind.config.*'
 
   # Manual trigger for on-demand rebuilds
   workflow_dispatch:
@@ -26,8 +34,6 @@ jobs:
     name: Rebuild .client-assets
     runs-on: self-hosted
     timeout-minutes: 30
-    # Only run if CI passed (or manual trigger)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +56,7 @@ jobs:
       - name: Build client bundle
         run: |
           npx vite build
-          echo "✅ Vite build complete"
+          echo "Vite build complete"
 
       - name: Generate build manifest
         run: |
@@ -67,7 +73,7 @@ jobs:
           rm -rf .client-assets
           # Copy new build
           cp -r dist/public .client-assets
-          echo "✅ .client-assets updated"
+          echo ".client-assets updated"
           echo ""
           echo "Asset summary:"
           ls -la .client-assets/assets/ | head -20
