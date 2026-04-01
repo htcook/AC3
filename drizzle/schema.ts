@@ -170,6 +170,9 @@ export const ac3Reports = mysqlTable("ac3_reports", {
 	rptDocxUrl: text("rpt_docx_url"),
 	complianceFramework: varchar("compliance_framework", { length: 32 }).default('nist_800_53_r5').notNull(),
 	scopeExclusions: json("rpt_scope_exclusions"),
+	toolsUsed: json("rpt_tools_used"),
+	testPhases: json("rpt_test_phases"),
+	engagementId: int("engagement_id"),
 },
 (table) => [
 	index("ac3_reports_rpt_report_id_unique").on(table.rptReportId),
