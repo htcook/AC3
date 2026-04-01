@@ -95,6 +95,14 @@ export const engagementOpsRouter = router({
         if (state.trainingLabMode === undefined && (engagement as any).labName) {
           state.trainingLabMode = true;
         }
+        // Auto-detect training lab from target domain (aceofcloud.io lab infrastructure)
+        if (state.trainingLabMode === undefined) {
+          const domain = engagement.targetDomain || '';
+          if (domain.includes('aceofcloud.io') || domain.includes('aceofcloud.com')) {
+            state.trainingLabMode = true;
+            console.log(`[EngOps] Training lab auto-detected for #${input.engagementId} (domain: ${domain})`);
+          }
+        }
 
         await db.logActivity({
           userId: ctx.user.id,

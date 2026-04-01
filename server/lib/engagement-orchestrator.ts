@@ -5925,9 +5925,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           const portMatch = cmd.args.match(/-s\s+(\d+)/);
           const targetPort = portMatch ? Number(portMatch[1]) : (cmd.args.includes('ssh') ? 22 : 80);
           const targetHost = asset.ip || asset.hostname;
+          const netMod = await import('net');
           const isReachable = await new Promise<boolean>((resolve) => {
-            const net = require('net');
-            const sock = new net.Socket();
+            const sock = new netMod.default.Socket();
             sock.setTimeout(5000);
             sock.once('connect', () => { sock.destroy(); resolve(true); });
             sock.once('timeout', () => { sock.destroy(); resolve(false); });
