@@ -4,7 +4,6 @@ import {
   Shield, Globe, Target, AlertTriangle, ChevronRight, X,
   Crosshair, Eye, Clock, Fingerprint, Cpu, Layers
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 // ─── Threat Level Badge ────────────────────────────────────────────
 function ThreatBadge({ level }: { level: string | null }) {
@@ -353,10 +352,8 @@ const FILTER_TABS = [
 export default function ThreatActorFeed() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [selectedActorId, setSelectedActorId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
-
   const { data, isLoading } = trpc.platformStats.recentThreatActors.useQuery(
-    { limit: 50 },
+    { limit: 20 },
     { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false }
   );
 
@@ -369,8 +366,8 @@ export default function ThreatActorFeed() {
     // Sort by threat level: critical first, then high, medium, low
     const levelOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     actors = [...actors].sort((a, b) => (levelOrder[a.threatLevel || "medium"] ?? 3) - (levelOrder[b.threatLevel || "medium"] ?? 3));
-    return showAll ? actors : actors.slice(0, 12);
-  }, [data, activeFilter, showAll]);
+    return actors.slice(0, 20);
+  }, [data, activeFilter]);
 
   const totalFiltered = useMemo(() => {
     if (!data?.actors) return 0;
@@ -441,19 +438,7 @@ export default function ThreatActorFeed() {
               ))}
             </div>
 
-            {/* Show More */}
-            {!showAll && totalFiltered > 12 && (
-              <div className="text-center mt-8">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAll(true)}
-                  className="font-display tracking-wider border-2 border-primary text-primary hover:bg-primary hover:text-white"
-                >
-                  SHOW ALL {totalFiltered.toLocaleString()} {activeFilter === "all" ? "THREAT ACTORS" : activeFilter.toUpperCase() + " ACTORS"}
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
-            )}
+
           </>
         )}
 
