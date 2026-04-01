@@ -134,7 +134,10 @@ export class ManjusakaClient {
     if (body) options.body = JSON.stringify(body);
 
     if (url.startsWith("https://")) {
-      (options as any).agent = getFIPSHttpsAgent();
+      try {
+        const { Agent } = require('undici');
+        (options as any).dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+      } catch { /* undici not available */ }
     }
 
     const response = await fetch(url, options);

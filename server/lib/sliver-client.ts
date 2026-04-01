@@ -158,9 +158,12 @@ export class SliverClient {
       options.body = JSON.stringify(body);
     }
 
-    // Use FIPS agent for HTTPS
+    // Use undici dispatcher for native fetch() TLS override
     if (url.startsWith("https://")) {
-      (options as any).agent = getFIPSHttpsAgent();
+      try {
+        const { Agent } = require('undici');
+        (options as any).dispatcher = new Agent({ connect: { rejectUnauthorized: false } });
+      } catch { /* undici not available */ }
     }
 
     const response = await fetch(url, options);

@@ -28,6 +28,21 @@ async function requireDb() {
 /**
  * Fetch from GoPhish API (reuse the same pattern as main routers.ts)
  */
+/**
+ * Lazy-initialized undici Agent for native fetch() with TLS override.
+ */
+let _undiciAgent: any = null;
+function getUndiciDispatcher(): any {
+  if (_undiciAgent) return _undiciAgent;
+  try {
+    const { Agent } = require('undici');
+    _undiciAgent = new Agent({ connect: { rejectUnauthorized: false } });
+  } catch {
+    console.warn('[GoPhish/phishing-ops] undici not available');
+  }
+  return _undiciAgent;
+}
+
 async function fetchGophish(endpoint: string, method = "GET", data?: any) {
   const { ENV } = await import("../_core/env");
   const baseUrl = ENV.gophishBaseUrl;
@@ -36,22 +51,23 @@ async function fetchGophish(endpoint: string, method = "GET", data?: any) {
     throw new TRPCError({ code: "PRECONDITION_FAILED", message: "GoPhish not configured" });
   }
   const url = `${baseUrl}${endpoint}`;
-  const opts: RequestInit & { agent?: any } = {
+  const opts: RequestInit & { dispatcher?: any } = {
     method,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: apiKey,
       "Content-Type": "application/json",
     },
-    ...(typeof globalThis !== "undefined" && { signal: AbortSignal.timeout(15000) }),
+    signal: AbortSignal.timeout(15000),
   };
   if (data && method !== "GET") {
     opts.body = JSON.stringify(data);
   }
-  // FIPS 140-3: Use FIPS HTTPS agent with self-signed cert support
+  // Use undici dispatcher for native fetch() TLS override (self-signed certs)
   if (url.startsWith('https://')) {
-    const { createFIPSHttpsAgent } = await import('../lib/fips-tls');
-    // @ts-ignore - Node.js specific option
-    opts.agent = createFIPSHttpsAgent({ rejectUnauthorized: false });
+    const dispatcher = getUndiciDispatcher();
+    if (dispatcher) {
+      opts.dispatcher = dispatcher;
+    }
   }
   const res = await fetch(url, opts);
   if (!res.ok) {

@@ -247,12 +247,21 @@ const GOPHISH_API_KEY = ENV.gophishApiKey;
 const CALDERA_BASE_URL = ENV.calderaBaseUrl;
 const CALDERA_API_KEY = ENV.calderaApiKey;
 
+// Lazy undici dispatcher for native fetch() TLS override
+let _routersUndiciAgent: any = null;
+function getRoutersUndiciDispatcher(): any {
+  if (_routersUndiciAgent) return _routersUndiciAgent;
+  try {
+    const { Agent } = require('undici');
+    _routersUndiciAgent = new Agent({ connect: { rejectUnauthorized: false } });
+  } catch { /* undici not available */ }
+  return _routersUndiciAgent;
+}
+
 async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
   try {
-    // FIPS 140-3: Use FIPS HTTPS agent with self-signed cert support
-    const { createFIPSHttpsAgent } = await import('./lib/fips-tls');
     const url = `${GOPHISH_URL}${endpoint}`;
-    const options: RequestInit & { agent?: any } = {
+    const options: RequestInit & { dispatcher?: any } = {
       method,
       headers: {
         'Authorization': GOPHISH_API_KEY,
@@ -260,9 +269,10 @@ async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: 
       },
       signal: AbortSignal.timeout(15000),
     };
+    // Use undici dispatcher for native fetch() TLS override (self-signed certs)
     if (url.startsWith('https://')) {
-      // @ts-ignore - Node.js specific option
-      options.agent = createFIPSHttpsAgent({ rejectUnauthorized: false });
+      const dispatcher = getRoutersUndiciDispatcher();
+      if (dispatcher) options.dispatcher = dispatcher;
     }
     if (data) options.body = JSON.stringify(data);
     

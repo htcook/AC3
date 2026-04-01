@@ -6,7 +6,8 @@ import * as schema from "../../drizzle/schema";
 export const gophishProxyRouter = router({
     // GoPhish API helper
     getCampaigns: protectedProcedure.query(async () => {
-      return fetchGophishAPI('/api/campaigns/');
+      const result = await fetchGophishAPI('/api/campaigns/');
+      return Array.isArray(result) ? result : [];
     }),
 
     getCampaign: protectedProcedure
@@ -22,7 +23,8 @@ export const gophishProxyRouter = router({
       }),
 
     getTemplates: protectedProcedure.query(async () => {
-      return fetchGophishAPI('/api/templates/');
+      const result = await fetchGophishAPI('/api/templates/');
+      return Array.isArray(result) ? result : [];
     }),
 
     createTemplate: protectedProcedure
@@ -38,7 +40,8 @@ export const gophishProxyRouter = router({
       }),
 
     getLandingPages: protectedProcedure.query(async () => {
-      return fetchGophishAPI('/api/pages/');
+      const result = await fetchGophishAPI('/api/pages/');
+      return Array.isArray(result) ? result : [];
     }),
 
     createLandingPage: protectedProcedure
@@ -54,7 +57,8 @@ export const gophishProxyRouter = router({
       }),
 
     getSendingProfiles: protectedProcedure.query(async () => {
-      return fetchGophishAPI('/api/smtp/');
+      const result = await fetchGophishAPI('/api/smtp/');
+      return Array.isArray(result) ? result : [];
     }),
 
     createSendingProfile: protectedProcedure
@@ -71,7 +75,8 @@ export const gophishProxyRouter = router({
       }),
 
     getGroups: protectedProcedure.query(async () => {
-      return fetchGophishAPI('/api/groups/');
+      const result = await fetchGophishAPI('/api/groups/');
+      return Array.isArray(result) ? result : [];
     }),
 
     createGroup: protectedProcedure
@@ -316,13 +321,17 @@ export const gophishProxyRouter = router({
     // Get GoPhish server status
     getStatus: protectedProcedure.query(async () => {
       try {
-        const campaigns = await fetchGophishAPI('/api/campaigns/');
-        const templates = await fetchGophishAPI('/api/templates/');
-        const pages = await fetchGophishAPI('/api/pages/');
-        const groups = await fetchGophishAPI('/api/groups/');
-        const smtp = await fetchGophishAPI('/api/smtp/');
+        const [campaigns, templates, pages, groups, smtp] = await Promise.all([
+          fetchGophishAPI('/api/campaigns/'),
+          fetchGophishAPI('/api/templates/'),
+          fetchGophishAPI('/api/pages/'),
+          fetchGophishAPI('/api/groups/'),
+          fetchGophishAPI('/api/smtp/'),
+        ]);
+        // If ALL calls returned null, the server is offline
+        const allNull = [campaigns, templates, pages, groups, smtp].every(r => r === null);
         return {
-          online: true,
+          online: !allNull,
           campaigns: Array.isArray(campaigns) ? campaigns.length : 0,
           templates: Array.isArray(templates) ? templates.length : 0,
           landingPages: Array.isArray(pages) ? pages.length : 0,

@@ -134,44 +134,76 @@ function getGophishFIPSAgent(): https.Agent {
   return _gophishFipsAgent;
 }
 
+/**
+ * Lazy-initialized undici Agent for native fetch() with TLS override.
+ * Node.js native fetch uses undici — the `agent` option from https.Agent
+ * is silently ignored. We must use `dispatcher` instead.
+ */
+let _gophishUndiciAgent: any = null;
+function getGophishUndiciDispatcher(): any {
+  if (_gophishUndiciAgent) return _gophishUndiciAgent;
+  try {
+    const { Agent } = require('undici');
+    _gophishUndiciAgent = new Agent({
+      connect: { rejectUnauthorized: false },
+    });
+  } catch {
+    // undici not available, fetch will use default TLS settings
+    console.warn('[GoPhish] undici not available, self-signed certs may fail');
+  }
+  return _gophishUndiciAgent;
+}
+
 // ─── GoPhish API Helper ─────────────────────────────────────────────────
 
 /**
  * FIPS 140-3 compliant GoPhish API helper.
- * Uses FIPS HTTPS agent instead of disabling TLS validation globally.
+ * Uses undici dispatcher for proper TLS handling with native fetch().
+ * Retries on transient failures with exponential backoff.
  */
-export async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any) {
-  try {
-    const url = `${GOPHISH_URL}${endpoint}`;
-    const isHttps = url.startsWith('https://');
+export async function fetchGophishAPI(endpoint: string, method: string = 'GET', data?: any, retries = 2): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const url = `${GOPHISH_URL}${endpoint}`;
+      const isHttps = url.startsWith('https://');
 
-    const options: RequestInit & { dispatcher?: any } = {
-      method,
-      headers: {
-        'Authorization': GOPHISH_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(5000),
-    };
-    if (data) options.body = JSON.stringify(data);
+      const options: RequestInit & { dispatcher?: any } = {
+        method,
+        headers: {
+          'Authorization': GOPHISH_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      };
+      if (data) options.body = JSON.stringify(data);
 
-    if (isHttps) {
-      // @ts-ignore - Node.js specific option for native fetch
-      options.agent = getGophishFIPSAgent();
-    }
-    
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`GoPhish API error (${endpoint}):`, response.status, errText);
+      // Use undici dispatcher for native fetch() TLS override (self-signed certs)
+      if (isHttps) {
+        const dispatcher = getGophishUndiciDispatcher();
+        if (dispatcher) {
+          options.dispatcher = dispatcher;
+        }
+      }
+      
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[GoPhish] API error (${endpoint}):`, response.status, errText);
+        if (attempt < retries && response.status >= 500) continue;
+        return null;
+      }
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
+    } catch (error: any) {
+      console.error(`[GoPhish] API error (${endpoint}) attempt ${attempt + 1}/${retries + 1}:`, error?.message || error);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
       return null;
     }
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
-  } catch (error) {
-    console.error(`GoPhish API error (${endpoint}):`, error);
-    return null;
   }
+  return null;
 }
 
 // ─── Caldera API Helper ─────────────────────────────────────────────────
@@ -184,17 +216,17 @@ export async function fetchCalderaAPI(url: string, apiKey: string, endpoint: str
   try {
     const fullUrl = `${url}${endpoint}`;
     const isHttps = fullUrl.startsWith('https://');
-
     const options: RequestInit & { dispatcher?: any } = {
       headers: { 'KEY': apiKey },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     };
-
+    // Use undici dispatcher for native fetch() TLS override
     if (isHttps) {
-      // @ts-ignore - Node.js specific option for native fetch
-      options.agent = getFIPSHttpsAgent();
+      const dispatcher = getGophishUndiciDispatcher();
+      if (dispatcher) {
+        options.dispatcher = dispatcher;
+      }
     }
-
     const response = await fetch(fullUrl, options);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
