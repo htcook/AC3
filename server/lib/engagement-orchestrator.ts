@@ -6989,6 +6989,7 @@ ${(() => {
         let shellType: string | undefined;
         let shellPayload: string | undefined;
 
+        const isTrainingLabExploit = state.trainingLabMode === true;
         try {
           // Step 0: Look up known exploits from Exploit-DB and Metasploit
           let exploitDbContext = '';
@@ -7059,25 +7060,71 @@ ${(() => {
               ?.slice(0, 10)
               ?.map(v => ({ title: v.title, severity: v.severity, cve: v.cve, port: (v as any).port })),
             includeEvasion: true,
+            // Training lab context for adapted exploit strategy
+            trainingLabMode: state.trainingLabMode === true,
+            trainingLabName: state.trainingLabMode ? (() => {
+              const h = target.toLowerCase();
+              if (h.includes('juice')) return 'juice-shop';
+              if (h.includes('bwapp')) return 'bwapp';
+              if (h.includes('dvwa')) return 'dvwa';
+              if (h.includes('webgoat')) return 'webgoat';
+              if (h.includes('mutillidae')) return 'mutillidae';
+              if (h.includes('crapi')) return 'crapi';
+              if (h.includes('vampi')) return 'vampi';
+              return 'unknown-lab';
+            })() : undefined,
+            attackerHost: scanServerHost || undefined,
+            attackerPort: 4444,
           });
 
           // Step 2: Execute the exploit on the scan server
           if (generatedExploit?.code) {
             const { executeRawCommand } = await import("./scan-server-executor");
+
+            // Install prerequisites if the exploit needs them (e.g., requests library)
+            if (generatedExploit.prerequisites?.length > 0) {
+              const pipPackages = generatedExploit.prerequisites
+                .filter(p => /^[a-zA-Z0-9_-]+$/.test(p) && !['python3', 'python', 'bash', 'curl', 'wget', 'nc', 'netcat', 'nmap'].includes(p.toLowerCase()))
+                .slice(0, 5);
+              if (pipPackages.length > 0) {
+                try {
+                  await executeRawCommand(`pip3 install --quiet ${pipPackages.join(' ')} 2>/dev/null || true`, 30);
+                } catch { /* best effort */ }
+              }
+            }
+
             // Write exploit to temp file and execute
             const exploitFileName = `exploit_${state.engagementId}_${Date.now()}.py`;
             await executeRawCommand(`cat > /tmp/${exploitFileName} << 'EXPLOIT_EOF'\n${generatedExploit.code}\nEXPLOIT_EOF`, 10);
-            const execResult = await executeRawCommand(`cd /tmp && timeout 60 python3 ${exploitFileName} 2>&1 || true`, 90);
+            const exploitTimeout = state.trainingLabMode ? 120 : 60;
+            const execResult = await executeRawCommand(`cd /tmp && timeout ${exploitTimeout} python3 ${exploitFileName} 2>&1 || true`, exploitTimeout + 30);
             exploitOutput = (typeof execResult === 'string' ? execResult : execResult?.stdout)?.trim() || '';
 
-            // Check for shell indicators in the output
+            // Check for success indicators in the output
             const shellIndicators = [
               /shell.*opened/i, /session.*opened/i, /meterpreter/i, /reverse.*shell/i,
               /connect.*back/i, /uid=\d+/i, /root@/i, /www-data@/i, /\$\s*$/m,
               /command.*shell/i, /interactive.*shell/i, /spawned/i, /whoami/i,
             ];
-            success = shellIndicators.some(re => re.test(exploitOutput)) || 
-                      (generatedExploit.popsShell === true && exploitOutput.length > 50);
+            // Training lab: also detect web-level exploit success (data extraction, auth bypass, etc.)
+            const webExploitIndicators = [
+              /EXPLOIT_SUCCESS/i,
+              /successfully.*exploit/i,
+              /vulnerability.*confirmed/i,
+              /injection.*successful/i,
+              /extracted.*data/i,
+              /admin.*access/i,
+              /authentication.*bypass/i,
+              /sensitive.*data.*leak/i,
+              /\bpassword[s]?\s*[:=]/i,
+              /\btoken\s*[:=]/i,
+              /HTTP\/1\.[01]\s+200/i,
+              /status.*code.*200/i,
+              /\{\s*".*"\s*:/,  // JSON response body (data extraction)
+            ];
+            success = shellIndicators.some(re => re.test(exploitOutput)) ||
+                      (generatedExploit.popsShell === true && exploitOutput.length > 50) ||
+                      (isTrainingLabExploit && webExploitIndicators.some(re => re.test(exploitOutput)) && !(/EXPLOIT_FAILED/i.test(exploitOutput)));
 
             shellType = generatedExploit.shellType || undefined;
             shellPayload = generatedExploit.shellPayload || undefined;
@@ -7140,7 +7187,11 @@ ${(() => {
           if (success) {
             asset.status = "compromised";
             state.stats.exploitsSucceeded++;
-            state.stats.sessionsOpened++;
+            // Only count sessions opened for actual shell access, not web-level exploits
+            const hasShellEvidence = /shell.*opened|session.*opened|meterpreter|uid=\d+|root@|www-data@/i.test(exploitOutput);
+            if (!isTrainingLabExploit || hasShellEvidence) {
+              state.stats.sessionsOpened++;
+            }
           }
         }
 
@@ -7163,16 +7214,25 @@ ${(() => {
           moduleOrTool: module || cve,
           resultStatus: success ? "success" : "failure",
           resultDetail: success 
-            ? `Exploit succeeded — shell obtained (${shellType || 'reverse_shell'}). Session: ${shellSessionId}` 
+            ? (isTrainingLabExploit && shellType === 'none'
+              ? `Exploit succeeded — web vulnerability confirmed. Evidence captured.`
+              : `Exploit succeeded — shell obtained (${shellType || 'reverse_shell'}). Session: ${shellSessionId}`)
             : `Exploit failed. Output: ${exploitOutput.slice(0, 200)}`,
+          isTrainingLab: isTrainingLabExploit || undefined,
         });
 
         addLog(state, {
           phase: "exploitation",
           type: success ? "exploit_success" : "exploit_fail",
-          title: success ? `✅ Shell Obtained: ${target}` : `❌ Exploit Failed: ${target}`,
+          title: success
+            ? (isTrainingLabExploit && shellType === 'none'
+              ? `✅ Vulnerability Confirmed: ${target}`
+              : `✅ Shell Obtained: ${target}`)
+            : `❌ Exploit Failed: ${target}`,
           detail: success
-            ? `Successfully exploited ${service} on ${target}:${port}. ${shellType || 'Reverse shell'} session opened (${shellSessionId}).\nEvidence: ${exploitOutput.slice(0, 300)}`
+            ? (isTrainingLabExploit && shellType === 'none'
+              ? `Successfully exploited ${service} on ${target}:${port}. Web vulnerability confirmed with evidence.\nEvidence: ${exploitOutput.slice(0, 300)}`
+              : `Successfully exploited ${service} on ${target}:${port}. ${shellType || 'Reverse shell'} session opened (${shellSessionId}).\nEvidence: ${exploitOutput.slice(0, 300)}`)
             : `Exploitation of ${service} on ${target}:${port} failed.\nOutput: ${exploitOutput.slice(0, 300)}\nMoving to next target.`,
           riskTier: "red",
           data: { 
