@@ -462,7 +462,7 @@ const TOOL_SIGNATURES: Record<EvidenceSourceTool, {
   requiredFields: string[];
   outputFormats: string[];
 }> = {
-  discovery: {
+  "scanforge-discovery": {
     patterns: [
       /ScanForge scan report for/i,
       /\d+\/tcp\s+(open|closed|filtered)/,

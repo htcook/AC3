@@ -10,6 +10,13 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, "../..");
+const resolve = (rel: string) => path.join(PROJECT_ROOT, rel);
 
 // ─── Test Plan Generator Type Tests ──────────────────────────────────────
 
@@ -32,7 +39,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should not contain FedRAMP in the module source", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -52,7 +59,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should not contain 3PAO references except in negative instructions", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -69,7 +76,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should reference NIST 800-115 as the primary standard", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -80,7 +87,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should include DNS security assessment based on SP 800-81r3", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -91,7 +98,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should use AssessmentAttackVector instead of FedRAMPAttackVector", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -102,7 +109,7 @@ describe("Test Plan Generator — No FedRAMP Branding", () => {
   it("should use standardsReference instead of fedRampReference", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -115,7 +122,7 @@ describe("Test Plan Generator — Assessment Attack Vectors", () => {
   it("should define 9 assessment attack vectors in the source", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -133,7 +140,7 @@ describe("Test Plan Generator — Assessment Attack Vectors", () => {
   it("should include DNS Infrastructure as an attack vector", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -143,7 +150,7 @@ describe("Test Plan Generator — Assessment Attack Vectors", () => {
   it("should include Cloud Infrastructure as an attack vector", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -153,7 +160,7 @@ describe("Test Plan Generator — Assessment Attack Vectors", () => {
   it("should include API Security as an attack vector", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -194,7 +201,7 @@ describe("Engagement Pipeline — Phase Order", () => {
   it("should have the correct expanded phase order in the orchestrator", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      resolve("server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
 
@@ -214,7 +221,7 @@ describe("Engagement Pipeline — Phase Order", () => {
   it("should have Domain Recon as the first phase label", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      resolve("server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
 
@@ -224,7 +231,7 @@ describe("Engagement Pipeline — Phase Order", () => {
   it("should import pipeline-phases module in the orchestrator", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/engagement-orchestrator.ts",
+      resolve("server/lib/engagement-orchestrator.ts"),
       "utf-8"
     );
 
@@ -238,7 +245,7 @@ describe("UI Labels — Domain Recon Rename", () => {
   it("should use Domain Recon in the sidebar navigation", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/components/AppShell.tsx",
+      resolve("client/src/components/AppShell.tsx"),
       "utf-8"
     );
 
@@ -249,7 +256,7 @@ describe("UI Labels — Domain Recon Rename", () => {
   it("should use Domain Recon in the DomainIntel page title", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/DomainIntel.tsx",
+      resolve("client/src/pages/DomainIntel.tsx"),
       "utf-8"
     );
 
@@ -260,7 +267,7 @@ describe("UI Labels — Domain Recon Rename", () => {
   it("should use Domain Recon in the EngagementPipeline steps", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EngagementPipeline.tsx",
+      resolve("client/src/pages/EngagementPipeline.tsx"),
       "utf-8"
     );
 
@@ -273,7 +280,7 @@ describe("UI Labels — Domain Recon Rename", () => {
   it("should use Domain Recon in the WorkflowLauncher", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/components/WorkflowLauncher.tsx",
+      resolve("client/src/components/WorkflowLauncher.tsx"),
       "utf-8"
     );
 
@@ -284,7 +291,7 @@ describe("UI Labels — Domain Recon Rename", () => {
   it("should use domain recon in the CommandPalette", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/components/CommandPalette.tsx",
+      resolve("client/src/components/CommandPalette.tsx"),
       "utf-8"
     );
 
@@ -299,7 +306,7 @@ describe("EngagementOps — Phase Display", () => {
   it("should include all 8 phases in the PHASES array", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EngagementOps.tsx",
+      resolve("client/src/pages/EngagementOps.tsx"),
       "utf-8"
     );
 
@@ -319,7 +326,7 @@ describe("EngagementOps — Phase Display", () => {
   it("should have updated phase labels in PHASE_LABELS", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EngagementOps.tsx",
+      resolve("client/src/pages/EngagementOps.tsx"),
       "utf-8"
     );
 
@@ -331,7 +338,7 @@ describe("EngagementOps — Phase Display", () => {
   it("should have re-run options for new phases", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/client/src/pages/EngagementOps.tsx",
+      resolve("client/src/pages/EngagementOps.tsx"),
       "utf-8"
     );
 
@@ -348,7 +355,7 @@ describe("NIST SP 800-81r3 DNS Security Integration", () => {
   it("should reference NIST SP 800-81r3 in the test plan generator", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -358,7 +365,7 @@ describe("NIST SP 800-81r3 DNS Security Integration", () => {
   it("should include DNS assessment data input in the test plan generator", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -368,7 +375,7 @@ describe("NIST SP 800-81r3 DNS Security Integration", () => {
   it("should include DNS records in passive recon summary", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 
@@ -378,7 +385,7 @@ describe("NIST SP 800-81r3 DNS Security Integration", () => {
   it("should reference NIST 800-53 DNS controls SC-20, SC-21, SC-22", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync(
-      "/home/ubuntu/caldera-dashboard/server/lib/test-plan-generator.ts",
+      resolve("server/lib/test-plan-generator.ts"),
       "utf-8"
     );
 

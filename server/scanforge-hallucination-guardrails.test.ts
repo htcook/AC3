@@ -151,7 +151,7 @@ describe("VulnDetailDrawer NVD Integration", () => {
     );
 
     // Verify the NVD lookup query is wired up
-    expect(src).toContain("trpc.complianceExports.lookupCve.useQuery");
+    expect(src).toContain("trpc.complianceExports.getCveEnrichment.useQuery");
     expect(src).toContain("nvdLookup");
     expect(src).toContain("nvdDescription");
     expect(src).toContain("nvdCwes");

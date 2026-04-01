@@ -385,15 +385,15 @@ export default function ThreatActorFeed() {
               <Eye className="w-3.5 h-3.5" />
               LIVE INTELLIGENCE
             </div>
-            <h2 className="text-4xl sm:text-5xl font-display mb-2">THREAT ACTOR FEED</h2>
+            <h2 className="text-4xl sm:text-5xl font-display mb-2">TOP ACTIVE THREAT GROUPS</h2>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Browse {data?.total?.toLocaleString() || "1,700"}+ threat actor profiles from our continuously enriched intelligence database.
-              Click any actor for full details including ATT&CK techniques, tools, and malware.
+              Explore the 20 most active threat groups ranked by operational tempo from our continuously enriched intelligence database.
+              Click any group for full details including ATT&CK techniques, tools, and malware.
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Layers className="w-4 h-4 text-primary" />
-            <span className="font-display tracking-wider">{totalFiltered.toLocaleString()} ACTORS</span>
+            <span className="font-display tracking-wider">{totalFiltered.toLocaleString()} ACTIVE GROUPS</span>
           </div>
         </div>
 

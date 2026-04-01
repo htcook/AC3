@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 
+/**
+ * Network tests are skipped in CI (external API credentials may not be available).
+ */
+const isCI = !!process.env.CI;
+
 describe("HackerOne API credentials", () => {
   it("should have HACKERONE_API_USERNAME set", () => {
     const username = process.env.HACKERONE_API_USERNAME;
@@ -13,7 +18,7 @@ describe("HackerOne API credentials", () => {
     expect(apiKey!.length).toBeGreaterThan(0);
   });
 
-  it("should authenticate successfully against HackerOne Hacker API", async () => {
+  it.skipIf(isCI)("should authenticate successfully against HackerOne Hacker API", async () => {
     const username = process.env.HACKERONE_API_USERNAME;
     const apiKey = process.env.HACKERONE_API_KEY;
 

@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 
+/**
+ * Network tests are skipped in CI (no access to private ScanForge droplet).
+ */
+const isCI = !!process.env.CI;
+
 describe("ScanForge Dedicated Droplet Connectivity", () => {
   const SCANFORGE_URL = "http://137.184.71.192:4000";
   const ZAP_URL = process.env.ZAP_BASE_URL || "http://137.184.71.192:8090";
 
-  it("should reach the ScanForge scan service health endpoint", async () => {
+  it.skipIf(isCI)("should reach the ScanForge scan service health endpoint", async () => {
     const res = await fetch(`${SCANFORGE_URL}/health`, { signal: AbortSignal.timeout(10000) });
     expect(res.ok).toBe(true);
     const body = await res.json();
@@ -13,7 +18,7 @@ describe("ScanForge Dedicated Droplet Connectivity", () => {
     expect(body.cpus).toBeGreaterThanOrEqual(4);
   });
 
-  it("should execute nuclei version check via the ScanForge API", async () => {
+  it.skipIf(isCI)("should execute nuclei version check via the ScanForge API", async () => {
     const res = await fetch(`${SCANFORGE_URL}/api/scan/tool`, {
       method: "POST",
       headers: {
@@ -29,7 +34,7 @@ describe("ScanForge Dedicated Droplet Connectivity", () => {
     expect(body.result.stderr).toContain("Nuclei");
   });
 
-  it("should execute a simple ScanForge discovery scan via the ScanForge API", async () => {
+  it.skipIf(isCI)("should execute a simple ScanForge discovery scan via the ScanForge API", async () => {
     const res = await fetch(`${SCANFORGE_URL}/api/scan/tool`, {
       method: "POST",
       headers: {

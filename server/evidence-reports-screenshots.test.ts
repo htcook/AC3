@@ -82,7 +82,7 @@ describe('Screenshot Capture in Exploit Sandbox', () => {
   });
 
   it('Screenshot capture uploads to S3', () => {
-    expect(sandboxCode).toContain('storagePut');
+    expect(sandboxCode).toContain('doStoragePut');
     expect(sandboxCode).toContain('exploit-evidence/');
     expect(sandboxCode).toContain('image/png');
   });

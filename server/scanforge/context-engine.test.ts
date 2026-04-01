@@ -13,6 +13,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+/**
+ * Enriched Narratives tests make real LLM calls — slow and non-deterministic.
+ * Skip in CI to avoid flaky failures.
+ */
+const isCI = !!process.env.CI;
 import { ContextEngine } from "./intelligence/context-engine";
 import { ProtocolRegistry } from "./protocols/registry";
 import type {
@@ -411,7 +417,7 @@ describe("ContextEngine — Heuristic Correlation", () => {
 
 // ─── Context Engine: Enriched Narratives ──────────────────────────────────
 
-describe("ContextEngine — Enriched Narratives", () => {
+describe.skipIf(isCI)("ContextEngine — Enriched Narratives", () => {
   let engine: ContextEngine;
 
   beforeEach(async () => {

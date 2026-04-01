@@ -442,7 +442,7 @@ describe("AC3 Reports Enhancements: DOCX Generation", () => {
       path.join(__dirname, "routers/ac3-reports.ts"),
       "utf-8"
     );
-    expect(routerSource).toContain("storagePut");
+    expect(routerSource).toContain("doStoragePut");
     expect(routerSource).toContain("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
   });
 });
@@ -456,7 +456,7 @@ describe("AC3 Reports Enhancements: Engagement Import", () => {
     // Should reference engagement timeline events
     expect(routerSource).toContain("engagementTimelineEvents");
     // Should map event types to severity
-    expect(routerSource).toContain("sourceModule");
+    expect(routerSource).toContain("SourceModule");
   });
 
   it("engagement import preserves source traceability", () => {
@@ -464,8 +464,8 @@ describe("AC3 Reports Enhancements: Engagement Import", () => {
       path.join(__dirname, "routers/ac3-reports.ts"),
       "utf-8"
     );
-    expect(routerSource).toContain("sourceEventId");
-    expect(routerSource).toContain("sourceModule");
+    expect(routerSource).toContain("SourceEventId");
+    expect(routerSource).toContain("SourceModule");
   });
 });
 

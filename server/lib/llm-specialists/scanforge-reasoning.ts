@@ -335,7 +335,7 @@ async function runPrompt(promptId: ScanForgePromptId, findingJson: string, asset
   const responseFormat = getResponseFormat(promptId);
 
   const response = await throttledLLMCall(
-    () => invokeLLM({ messages, response_format: responseFormat }),
+    () => invokeLLM({ messages, response_format: responseFormat, _caller: `scanforge-reasoning:${promptId}` }),
     `scanforge-${promptId}`,
   );
 
@@ -452,7 +452,7 @@ export async function generateExecutiveSummary(
   );
 
   const response = await throttledLLMCall(
-    () => invokeLLM({ messages, response_format: getResponseFormat("executive_summary") }),
+    () => invokeLLM({ messages, response_format: getResponseFormat("executive_summary"), _caller: "scanforge-reasoning:executive_summary" }),
     "scanforge-exec-summary",
   );
 

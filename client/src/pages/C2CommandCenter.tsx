@@ -674,6 +674,12 @@ export default function C2CommandCenter() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">Central hub for managing Command & Control infrastructure across all active engagements. Monitor C2 server status, manage listeners, view active callbacks, and issue commands to compromised systems. This page provides unified visibility into Cyber C2, Sliver, and other C2 frameworks. Use it to coordinate post-exploitation activities, manage implant communications, and track operator actions during red team operations.</p>
             <p className="text-sm text-zinc-400 mt-1">Unified multi-framework C2 orchestration — Cyber C2 · Metasploit · Sliver · Empire · Cobalt Strike · GoPhish</p>
+            <div className="flex gap-2 mt-2">
+              <Link href="/bug-bounty" className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors">
+                <Bug className="h-3 w-3" />
+                BUG BOUNTY HUB
+              </Link>
+            </div>
           </div>
         </div>
 

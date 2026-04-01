@@ -116,10 +116,10 @@ describe("shouldShadowTest", () => {
 
   it("should return a config when conditions match (100% rate)", async () => {
     const configs = [{
-      id: 1, configName: "Test Config", enabled: 1, shadowPercentage: 100,
-      primaryModel: "gemini-2.5-flash", experimentalModel: "gpt-4o",
-      callerFilter: "", priorityFilter: "all", maxConcurrent: 10,
-      activeShadowTests: 0, totalRuns: 0,
+      id: 1, nscConfigName: "Test Config", nscEnabled: 1, nscShadowPercentage: 100,
+      nscPrimaryModel: "gemini-2.5-flash", nscExperimentalModel: "gpt-4o",
+      nscCallerFilter: "", nscPriorityFilter: "all", nscMaxConcurrent: 10,
+      nscActiveShadowTests: 0, nscTotalRuns: 0,
     }];
     mockGetDb.mockResolvedValue(createDbMock(configs));
 
@@ -132,10 +132,10 @@ describe("shouldShadowTest", () => {
 
   it("should filter by caller prefix - matching", async () => {
     const configs = [{
-      id: 1, configName: "OSINT Only", enabled: 1, shadowPercentage: 100,
-      primaryModel: "gemini-2.5-flash", experimentalModel: "gpt-4o",
-      callerFilter: "specialist:osint", priorityFilter: "all", maxConcurrent: 10,
-      activeShadowTests: 0, totalRuns: 0,
+      id: 1, nscConfigName: "OSINT Only", nscEnabled: 1, nscShadowPercentage: 100,
+      nscPrimaryModel: "gemini-2.5-flash", nscExperimentalModel: "gpt-4o",
+      nscCallerFilter: "specialist:osint", nscPriorityFilter: "all", nscMaxConcurrent: 10,
+      nscActiveShadowTests: 0, nscTotalRuns: 0,
     }];
     mockGetDb.mockResolvedValue(createDbMock(configs));
 
@@ -145,10 +145,10 @@ describe("shouldShadowTest", () => {
 
   it("should filter by caller prefix - non-matching", async () => {
     const configs = [{
-      id: 1, configName: "OSINT Only", enabled: 1, shadowPercentage: 100,
-      primaryModel: "gemini-2.5-flash", experimentalModel: "gpt-4o",
-      callerFilter: "specialist:osint", priorityFilter: "all", maxConcurrent: 10,
-      activeShadowTests: 0, totalRuns: 0,
+      id: 1, nscConfigName: "OSINT Only", nscEnabled: 1, nscShadowPercentage: 100,
+      nscPrimaryModel: "gemini-2.5-flash", nscExperimentalModel: "gpt-4o",
+      nscCallerFilter: "specialist:osint", nscPriorityFilter: "all", nscMaxConcurrent: 10,
+      nscActiveShadowTests: 0, nscTotalRuns: 0,
     }];
     mockGetDb.mockResolvedValue(createDbMock(configs));
 
@@ -158,10 +158,10 @@ describe("shouldShadowTest", () => {
 
   it("should filter by priority - matching", async () => {
     const configs = [{
-      id: 1, configName: "Essential Only", enabled: 1, shadowPercentage: 100,
-      primaryModel: "gemini-2.5-flash", experimentalModel: "gpt-4o",
-      callerFilter: "", priorityFilter: "essential", maxConcurrent: 10,
-      activeShadowTests: 0, totalRuns: 0,
+      id: 1, nscConfigName: "Essential Only", nscEnabled: 1, nscShadowPercentage: 100,
+      nscPrimaryModel: "gemini-2.5-flash", nscExperimentalModel: "gpt-4o",
+      nscCallerFilter: "", nscPriorityFilter: "essential", nscMaxConcurrent: 10,
+      nscActiveShadowTests: 0, nscTotalRuns: 0,
     }];
     mockGetDb.mockResolvedValue(createDbMock(configs));
 
@@ -171,10 +171,10 @@ describe("shouldShadowTest", () => {
 
   it("should filter by priority - non-matching", async () => {
     const configs = [{
-      id: 1, configName: "Essential Only", enabled: 1, shadowPercentage: 100,
-      primaryModel: "gemini-2.5-flash", experimentalModel: "gpt-4o",
-      callerFilter: "", priorityFilter: "essential", maxConcurrent: 10,
-      activeShadowTests: 0, totalRuns: 0,
+      id: 1, nscConfigName: "Essential Only", nscEnabled: 1, nscShadowPercentage: 100,
+      nscPrimaryModel: "gemini-2.5-flash", nscExperimentalModel: "gpt-4o",
+      nscCallerFilter: "", nscPriorityFilter: "essential", nscMaxConcurrent: 10,
+      nscActiveShadowTests: 0, nscTotalRuns: 0,
     }];
     mockGetDb.mockResolvedValue(createDbMock(configs));
 

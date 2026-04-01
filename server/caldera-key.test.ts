@@ -3,7 +3,11 @@ import { describe, it, expect } from "vitest";
 /**
  * Validate that the Caldera API key resolves correctly and
  * the Caldera 5.3.0 instance at caldera.aceofcloud.io responds.
+ *
+ * Network tests are skipped in CI (no access to private infrastructure).
  */
+const isCI = !!process.env.CI;
+
 describe("Caldera API Key Validation", () => {
   const CALDERA_URL = "https://caldera.aceofcloud.io";
   // The resolveCalderaApiKey logic: if env is ADMIN123 or short, use the hardcoded fallback
@@ -20,7 +24,7 @@ describe("Caldera API Key Validation", () => {
     expect(key).not.toBe("ADMIN123");
   });
 
-  it("should authenticate with Caldera v2 API /health endpoint", async () => {
+  it.skipIf(isCI)("should authenticate with Caldera v2 API /health endpoint", async () => {
     const key = resolveCalderaApiKey();
     const resp = await fetch(`${CALDERA_URL}/api/v2/health`, {
       headers: { KEY: key },
@@ -31,7 +35,7 @@ describe("Caldera API Key Validation", () => {
     expect(data.version).toBe("5.3.0");
   });
 
-  it("should authenticate with Caldera v2 API /agents endpoint", async () => {
+  it.skipIf(isCI)("should authenticate with Caldera v2 API /agents endpoint", async () => {
     const key = resolveCalderaApiKey();
     const resp = await fetch(`${CALDERA_URL}/api/v2/agents`, {
       headers: { KEY: key },
@@ -41,7 +45,7 @@ describe("Caldera API Key Validation", () => {
     expect(Array.isArray(data)).toBe(true);
   });
 
-  it("should authenticate with Caldera v2 API /contacts endpoint", async () => {
+  it.skipIf(isCI)("should authenticate with Caldera v2 API /contacts endpoint", async () => {
     const key = resolveCalderaApiKey();
     const resp = await fetch(`${CALDERA_URL}/api/v2/contacts`, {
       headers: { KEY: key },

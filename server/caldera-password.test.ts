@@ -5,8 +5,10 @@ import { describe, it, expect } from "vitest";
  * configured via the CALDERA_PASSWORD environment variable and can
  * authenticate with the Caldera server.
  *
- * These tests are skipped in CI where secrets are not available.
+ * Network tests are skipped in CI (no access to private infrastructure).
  */
+const isCI = !!process.env.CI;
+
 describe("Caldera Password Secret Validation", () => {
   const CALDERA_URL = "https://caldera.aceofcloud.io";
 
@@ -20,7 +22,7 @@ describe("Caldera Password Secret Validation", () => {
     expect(pw!.length).toBeGreaterThan(0);
   });
 
-  it("should authenticate with Caldera /enter endpoint using red account", async () => {
+  it.skipIf(isCI)("should authenticate with Caldera /enter endpoint using red account", async () => {
     if (!process.env.CALDERA_PASSWORD) {
       console.log("[SKIP] CALDERA_PASSWORD not set — skipping in CI");
       return;
