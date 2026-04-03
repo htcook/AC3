@@ -1061,6 +1061,7 @@ export const calderaProxyRouter = router({
               })),
               scanPlan: opsState.scanPlan,
               passiveReconResults: opsState.passiveReconResults,
+              targetProfiles: opsState.targetProfiles,
             };
           }
         }

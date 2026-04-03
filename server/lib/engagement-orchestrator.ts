@@ -423,6 +423,8 @@ export interface EngagementOpsState {
     recommendations: string[];
     processedAt: number;
   };
+  /** Context-aware target profiles — built from httpx/ScanForge data for WAF/CDN/topology awareness */
+  targetProfiles?: Record<string, import('./context-aware-scanner').TargetProfile>;
   /** Phase checkpoint tracking — tracks completed scan targets so resume skips them */
   completedScans?: {
     /** Nuclei scan URLs that completed (success or graceful failure) */
@@ -1740,6 +1742,18 @@ Return valid JSON per the response_format schema.`;
       { label: 'methodology', content: methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '' },
       { label: 'phaseTool', content: phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '' },
       { label: 'missedVuln', content: buildMissedVulnContext({ targetPreset: targetPreset || undefined }) },
+      // Context-aware target profiles (WAF/CDN/topology) — if profiling ran before scan plan generation
+      { label: 'targetProfiles', content: (() => {
+        if (!state.targetProfiles || Object.keys(state.targetProfiles).length === 0) return '';
+        try {
+          const { buildTargetProfileContext } = require('./context-aware-scanner');
+          const profileCtxParts: string[] = [];
+          for (const [host, profile] of Object.entries(state.targetProfiles)) {
+            profileCtxParts.push(buildTargetProfileContext(profile));
+          }
+          return '## Context-Aware Target Profiles\n' + profileCtxParts.join('\n---\n');
+        } catch { return ''; }
+      })() },
     ]);
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);
@@ -4014,6 +4028,258 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE A.6: Context-Aware Target Profiling (WAF/CDN/topology detection)
+  // ═══════════════════════════════════════════════════════════════════════════
+  try {
+    const {
+      detectWAF, detectCDN, classifyAssetRole, selectEvasionProfile,
+      generateScanStrategy, getDefaultScopeConstraints, buildTargetProfileContext,
+    } = await import('./context-aware-scanner');
+    type TargetProfile = import('./context-aware-scanner').TargetProfile;
+    type TargetFingerprint = import('./context-aware-scanner').TargetFingerprint;
+    type TopologyNode = import('./context-aware-scanner').TopologyNode;
+
+    addLog(state, {
+      phase: 'enumeration', type: 'info',
+      title: '🔍 Phase A.6: Context-Aware Target Profiling',
+      detail: 'Building target profiles from discovery data — detecting WAF, CDN, firewall, topology, and generating adaptive scan strategies',
+    });
+
+    if (!state.targetProfiles) state.targetProfiles = {};
+
+    // Map orchestrator engagement type to context-aware scanner scope type
+    const scopeTypeMap: Record<string, 'pentest' | 'red_team' | 'vuln_assessment' | 'bug_bounty'> = {
+      pentest: 'pentest', red_team: 'red_team', purple_team: 'red_team',
+      phishing: 'vuln_assessment', tabletop: 'vuln_assessment',
+    };
+    const scopeEngType = scopeTypeMap[state.engagementType] || 'pentest';
+    const baseScopeConstraints = getDefaultScopeConstraints(scopeEngType);
+
+    for (const asset of scopedAssets) {
+      try {
+        // ── Collect httpx response headers from tool results ──
+        const httpxResult = asset.toolResults.find(tr => tr.tool === 'httpx');
+        const responseHeaders: Record<string, string> = {
+          ...((asset as any).httpxResponseHeaders || {}),
+          ...(httpxResult?.fingerprints?.httpHeaders || {}),
+        };
+        if (httpxResult?.fingerprints?.webServer && !responseHeaders['server']) {
+          responseHeaders['server'] = httpxResult.fingerprints.webServer;
+        }
+
+        // ── Extract cookies from response headers ──
+        const cookies: string[] = httpxResult?.fingerprints?.cookies || [];
+        if (responseHeaders['set-cookie']) {
+          cookies.push(...responseHeaders['set-cookie'].split(/,\s*(?=[^;]*=)/));
+        }
+
+        // ── Extract status code from httpx output ──
+        let statusCode = 200;
+        if (httpxResult?.rawOutput) {
+          const scMatch = httpxResult.rawOutput.match(/"status.code":(\d+)|"status_code":(\d+)/);
+          if (scMatch) statusCode = parseInt(scMatch[1] || scMatch[2]);
+        }
+
+        // ── Build TargetFingerprint from all available data ──
+        const technologies = asset.passiveRecon?.technologies || [];
+        const webServerStr = httpxResult?.fingerprints?.webServer || responseHeaders['server'] || null;
+        const poweredBy = httpxResult?.fingerprints?.poweredBy || responseHeaders['x-powered-by'] || null;
+
+        // Parse web server name/version
+        let webServerParsed: TargetFingerprint['webServer'] = null;
+        if (webServerStr) {
+          const wsMatch = webServerStr.match(/^([\w.-]+)\/?([\d.]+)?/);
+          webServerParsed = {
+            name: wsMatch?.[1] || webServerStr,
+            version: wsMatch?.[2] || null,
+            role: 'unknown',
+          };
+        }
+
+        // Parse app framework from x-powered-by and technologies
+        let appFramework: TargetFingerprint['appFramework'] = null;
+        if (poweredBy) {
+          const fwMatch = poweredBy.match(/^([\w.-]+)\/?([\d.]+)?/);
+          const lang = /PHP/i.test(poweredBy) ? 'PHP'
+            : /ASP/i.test(poweredBy) ? 'C#'
+            : /Express|Node/i.test(poweredBy) ? 'JavaScript'
+            : /JSF|Servlet/i.test(poweredBy) ? 'Java'
+            : 'unknown';
+          appFramework = { name: fwMatch?.[1] || poweredBy, version: fwMatch?.[2] || null, language: lang };
+        }
+
+        // Detect CMS from technologies
+        let cms: TargetFingerprint['cms'] = null;
+        const cmsNames = ['WordPress', 'Drupal', 'Joomla', 'Magento', 'Shopify', 'Wix', 'Squarespace', 'Ghost', 'Typo3', 'PrestaShop'];
+        for (const cmsName of cmsNames) {
+          const found = technologies.find(t => t.toLowerCase().includes(cmsName.toLowerCase()));
+          if (found) {
+            const vMatch = found.match(/([\d.]+)/);
+            cms = { name: cmsName, version: vMatch?.[1] || null };
+            break;
+          }
+        }
+
+        // Detect languages from technologies
+        const langPatterns: Record<string, RegExp> = {
+          PHP: /php/i, Java: /java|jsp|servlet/i, Python: /python|django|flask/i,
+          'C#': /asp\.net|c#/i, Ruby: /ruby|rails/i, JavaScript: /node|express|next|react|angular|vue/i,
+          Go: /\bgo\b|golang/i, Rust: /\brust\b/i,
+        };
+        const detectedLangs: string[] = [];
+        for (const [lang, pat] of Object.entries(langPatterns)) {
+          if (technologies.some(t => pat.test(t)) || (poweredBy && pat.test(poweredBy))) {
+            detectedLangs.push(lang);
+          }
+        }
+
+        // Build TLS info from httpx fingerprints
+        let tlsData: TargetFingerprint['tls'] = null;
+        if (httpxResult?.fingerprints?.tlsInfo) {
+          const ti = httpxResult.fingerprints.tlsInfo;
+          tlsData = {
+            version: ti.protocol || 'unknown',
+            cipher: ti.cipherSuite || null,
+            certIssuer: ti.issuerOrg || null,
+            certExpiry: ti.notAfter || null,
+            hsts: !!responseHeaders['strict-transport-security'],
+            protocols: ti.protocol ? [ti.protocol] : [],
+          };
+        }
+
+        // Build service banners from ScanForge discovery ports
+        const serviceBanners: TargetFingerprint['serviceBanners'] = {};
+        for (const p of asset.ports) {
+          serviceBanners[p.port] = {
+            service: p.service || 'unknown',
+            version: p.version || null,
+            banner: null,
+            protocol: 'tcp',
+          };
+        }
+
+        const fingerprint: TargetFingerprint = {
+          serverHeader: webServerStr,
+          webServer: webServerParsed,
+          appFramework,
+          cms,
+          os: null, // OS detection requires deeper probing
+          tls: tlsData,
+          languages: detectedLangs,
+          jsFrameworks: technologies.filter(t => /react|angular|vue|svelte|next|nuxt|gatsby/i.test(t)),
+          databases: technologies.filter(t => /mysql|postgres|mongo|redis|elastic|sqlite|mariadb|oracle|mssql/i.test(t)),
+          techTags: technologies,
+          serviceBanners,
+        };
+
+        // ── Run WAF detection ──
+        const wafProfile = detectWAF(responseHeaders, cookies, '', statusCode);
+        if (wafProfile.detected) {
+          asset.wafDetected = wafProfile.vendor || 'unknown';
+          addLog(state, {
+            phase: 'enumeration', type: 'waf_detected',
+            title: `🛡️ WAF Detected: ${fmtTarget(asset)} → ${wafProfile.vendor} (${wafProfile.type})`,
+            detail: `Confidence: ${wafProfile.confidence}% | Detection: ${wafProfile.detectionMethod}\nBypass techniques: ${wafProfile.bypassTechniques.slice(0, 3).join(', ')}`,
+          });
+        }
+
+        // ── Run CDN detection ──
+        const cnames = (asset as any).cnames || (asset.passiveRecon?.dnsRecords?.['CNAME'] || []);
+        const cdnProfile = detectCDN(responseHeaders, cnames);
+        if (cdnProfile.detected) {
+          addLog(state, {
+            phase: 'enumeration', type: 'info',
+            title: `🌐 CDN Detected: ${fmtTarget(asset)} → ${cdnProfile.provider}`,
+            detail: `Evidence: ${cdnProfile.evidence.join(', ')}${cdnProfile.originIp ? ` | Origin IP: ${cdnProfile.originIp}` : ''}${cdnProfile.hasBuiltInWAF ? ' | Has built-in WAF' : ''}`,
+          });
+        }
+
+        // ── Classify asset role ──
+        const openPorts = asset.ports.map(p => p.port);
+        const roleResult = classifyAssetRole(fingerprint, openPorts, responseHeaders);
+
+        // ── Build topology node ──
+        const topologyNode: TopologyNode = {
+          host: asset.hostname,
+          role: roleResult.role,
+          confidence: roleResult.confidence,
+          backend: null,
+          services: asset.ports.map(p => ({ port: p.port, service: p.service, version: p.version || null })),
+          directlyReachable: true,
+        };
+
+        // ── Determine environment ──
+        const cloudProviders = (asset as any).cloudProviders || [];
+        const environment: TargetProfile['environment'] = cloudProviders.length > 0 ? 'cloud'
+          : technologies.some(t => /docker|kubernetes|k8s|container/i.test(t)) ? 'containerized'
+          : technologies.some(t => /lambda|serverless|cloud.function/i.test(t)) ? 'serverless'
+          : 'traditional';
+
+        // ── Determine risk profile ──
+        const riskProfile: TargetProfile['riskProfile'] = wafProfile.detected && cdnProfile.detected ? 'high_security'
+          : wafProfile.detected || cdnProfile.detected ? 'standard'
+          : asset.ports.length > 20 ? 'legacy'
+          : 'standard';
+
+        // ── Build scope constraints ──
+        const scopeConstraints = { ...baseScopeConstraints };
+        if (cdnProfile.detected) scopeConstraints.sharedInfrastructure = true;
+        if (wafProfile.detected) scopeConstraints.wafBypassAuthorized = scopeEngType === 'pentest' || scopeEngType === 'red_team';
+
+        // ── Build partial profile (without strategy) ──
+        const partialProfile: Omit<TargetProfile, 'recommendedStrategy'> = {
+          hostname: asset.hostname,
+          ips: asset.ip ? [asset.ip] : [],
+          fingerprint,
+          waf: wafProfile,
+          cdn: cdnProfile,
+          firewall: { detected: false, type: 'unknown', filteredPorts: [], rateLimiting: { detected: false, requestsPerSecond: null, burstLimit: null }, geoBlocking: false, ipReputationBlocking: false },
+          topology: topologyNode,
+          environment,
+          riskProfile,
+          scopeConstraints,
+          profiledAt: Date.now(),
+        };
+
+        // ── Generate scan strategy ──
+        const strategy = generateScanStrategy(partialProfile);
+
+        // ── Store complete profile ──
+        const fullProfile: TargetProfile = { ...partialProfile, recommendedStrategy: strategy };
+        state.targetProfiles[asset.hostname] = fullProfile;
+
+        addLog(state, {
+          phase: 'enumeration', type: 'info',
+          title: `📋 Profile: ${fmtTarget(asset)} → ${roleResult.role} (${environment})`,
+          detail: `Strategy: ${strategy.name} (${strategy.riskLevel} risk, ~${strategy.estimatedTimeMinutes}min)\nEvasion: ${strategy.evasionProfile.name} (${strategy.evasionProfile.rateLimit} req/s)\nPhases: ${strategy.phases.map(p => p.name).join(' → ')}`,
+        });
+      } catch (profileErr: any) {
+        addLog(state, {
+          phase: 'enumeration', type: 'warning',
+          title: `⚠️ Profiling Failed: ${fmtTarget(asset)}`,
+          detail: `Context-aware profiling error: ${profileErr.message}. Proceeding with default scan strategy.`,
+        });
+      }
+    }
+
+    const profiledCount = Object.keys(state.targetProfiles).length;
+    const wafCount = Object.values(state.targetProfiles).filter(p => p.waf.detected).length;
+    const cdnCount = Object.values(state.targetProfiles).filter(p => p.cdn.detected).length;
+
+    addLog(state, {
+      phase: 'enumeration', type: 'phase_complete',
+      title: `✅ Context-Aware Profiling Complete: ${profiledCount} targets profiled`,
+      detail: `WAF detected: ${wafCount} | CDN detected: ${cdnCount}\nProfiles stored for adaptive Phase B tool selection and downstream vuln scanning.`,
+    });
+  } catch (profileEngineErr: any) {
+    console.error('[ContextAwareScanner] Error:', profileEngineErr.message);
+    addLog(state, {
+      phase: 'enumeration', type: 'warning',
+      title: '⚠️ Context-Aware Profiling Skipped',
+      detail: `Profiling engine error: ${profileEngineErr.message}. Proceeding to Phase B with default strategies.`,
+    });
+  }
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE B: Targeted ScanForge + Tool Deployment (using enriched data)
   // ═══════════════════════════════════════════════════════════════════════════
   addLog(state, {
@@ -4182,6 +4448,40 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       });
     }
 
+    // ── Merge context-aware strategy tools into command list ──
+    const targetProfile = state.targetProfiles?.[asset.hostname];
+    if (targetProfile?.recommendedStrategy) {
+      const existingTools = new Set(cmdsToRun.map(c => c.tool));
+      const strategyPhases = targetProfile.recommendedStrategy.phases;
+      let augmentedCount = 0;
+      for (const phase of strategyPhases) {
+        for (const tool of phase.tools) {
+          // Only add tools that aren't already in the command list
+          if (!existingTools.has(tool.tool)) {
+            const resolvedFlags = tool.flags
+              .replace(/HOST|TARGET/g, asset.ip || asset.hostname)
+              .replace(/DISCOVERED_PORTS/g, asset.ports.map(p => p.port).join(','))
+              .replace(/TARGET_URL/g, `https://${asset.hostname}`)
+              .replace(/TARGET:PORT/g, `${asset.hostname}:443`);
+            cmdsToRun.push({
+              tool: tool.tool,
+              command: `${tool.tool} ${resolvedFlags}`,
+              purpose: `[Context-Aware] ${tool.purpose}`,
+              priority: phase.requiresApproval ? 3 : 2,
+            });
+            existingTools.add(tool.tool);
+            augmentedCount++;
+          }
+        }
+      }
+      if (augmentedCount > 0) {
+        addLog(state, {
+          phase: 'enumeration', type: 'info',
+          title: `🧠 Context-Aware Augmentation: ${fmtTarget(asset)}`,
+          detail: `Added ${augmentedCount} tools from ${targetProfile.recommendedStrategy.name} strategy (${targetProfile.recommendedStrategy.riskLevel} risk)\nEvasion: ${targetProfile.recommendedStrategy.evasionProfile.name} (${targetProfile.recommendedStrategy.evasionProfile.rateLimit} req/s)`,
+        });
+      }
+    }
     // Execute priority 1 and 2 tool commands on the scan server
     // Skip subfinder for scoped engagements — targets are already defined, subfinder
     // discovers new subdomains outside scope. Keep it only for domain intelligence scans.
@@ -4613,8 +4913,30 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
       if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
 
+       // ── Context-aware nuclei tag augmentation from target profiles ──
+      const vulnTargetProfile = state.targetProfiles?.[asset.hostname];
+      if (vulnTargetProfile) {
+        // Add tags from fingerprinted technologies
+        const fp = vulnTargetProfile.fingerprint;
+        if (fp.cms?.name) {
+          const cmsTag = fp.cms.name.toLowerCase().replace(/\s+/g, '-');
+          if (!techTags.includes(cmsTag)) techTags.push(cmsTag);
+        }
+        if (fp.appFramework?.name) {
+          const fwTag = fp.appFramework.name.toLowerCase().replace(/[\s.]+/g, '-');
+          if (!techTags.includes(fwTag)) techTags.push(fwTag);
+        }
+        // Add WAF-specific tags if WAF detected
+        if (vulnTargetProfile.waf.detected) {
+          if (!techTags.includes('waf-detect')) techTags.push('waf-detect');
+          if (!techTags.includes('waf-bypass')) techTags.push('waf-bypass');
+        }
+        // Add cloud-specific tags
+        if (vulnTargetProfile.environment === 'cloud') {
+          if (!techTags.includes('cloud')) techTags.push('cloud');
+        }
+      }
       const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
-
       // ── Training lab enhanced scanning: add vuln-category tags for broader coverage ──
       const isTrainingLabScan = state.trainingLabMode === true;
       if (isTrainingLabScan) {
@@ -5112,6 +5434,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         zapRelease = await acquireScanSlot('zap', state.engagementId);
         // First, detect WAF
         let wafVendor: string | undefined;
+        // Use context-aware profile WAF data as pre-seed (from Phase A.6)
+        const zapTargetProfile = state.targetProfiles?.[webApp.hostname];
+        if (zapTargetProfile?.waf.detected && zapTargetProfile.waf.vendor) {
+          wafVendor = zapTargetProfile.waf.vendor;
+          webApp.wafDetected = wafVendor;
+        }
         try {
           const { detectWaf } = await import("./waf-detector");
           const wafResult = await detectWaf(targetUrl);
@@ -5187,8 +5515,19 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         if (httpxHeaders['set-cookie']) headerHints.push(`Set-Cookie: ${httpxHeaders['set-cookie'].substring(0, 100)}`);
         if (httpxHeaders['server']) headerHints.push(`Server: ${httpxHeaders['server']}`);
         const techHints = [...new Set([...serviceVersions, ...httpxTechs, ...headerHints])];
-
-        // Check if this asset has confirmed credentials from credential testing
+        // Enrich tech hints with context-aware fingerprint data
+        const zapProfile = state.targetProfiles?.[webApp.hostname];
+        if (zapProfile) {
+          const fp = zapProfile.fingerprint;
+          if (fp.cms?.name) techHints.push(`CMS: ${fp.cms.name}${fp.cms.version ? ` v${fp.cms.version}` : ''}`);
+          if (fp.appFramework?.name) techHints.push(`Framework: ${fp.appFramework.name} (${fp.appFramework.language})`);
+          if (fp.databases.length > 0) techHints.push(`Databases: ${fp.databases.join(', ')}`);
+          if (fp.jsFrameworks.length > 0) techHints.push(`JS Frameworks: ${fp.jsFrameworks.join(', ')}`);
+          if (zapProfile.waf.detected) techHints.push(`WAF: ${zapProfile.waf.vendor} (${zapProfile.waf.type})`);
+          if (zapProfile.cdn.detected) techHints.push(`CDN: ${zapProfile.cdn.provider}`);
+          if (zapProfile.topology.role !== 'unknown') techHints.push(`Role: ${zapProfile.topology.role}`);
+        }
+        // Check if this asset has confirmed credentials from credential testingg
         const webCreds = (webApp.confirmedCredentials || []).filter(c =>
           ['http', 'https', 'web_admin', 'http-form', 'http-get', 'http-post'].includes(c.service) ||
           c.protocol === 'http' || c.protocol === 'https'
@@ -6891,6 +7230,18 @@ ${(() => {
     { label: 'offensive', content: offTechExploitCtx || '' },
     { label: 'zap', content: zapExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
+    // Context-aware target profiles for exploitation
+    { label: 'targetProfiles', content: (() => {
+      if (!state.targetProfiles || Object.keys(state.targetProfiles).length === 0) return '';
+      try {
+        const { buildTargetProfileContext } = require('./context-aware-scanner');
+        const parts: string[] = [];
+        for (const [host, profile] of Object.entries(state.targetProfiles)) {
+          parts.push(buildTargetProfileContext(profile));
+        }
+        return '## Target Profiles (WAF/CDN/Topology)\n' + parts.join('\n---\n');
+      } catch { return ''; }
+    })() },
   ]);
 })()}`,
   });
