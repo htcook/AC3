@@ -79,6 +79,10 @@ const ALLOWED_TOOLS = new Set([
   "python3", "scapy",
   // Advanced injection & XSS testing tools
   "xsstrike", "dalfox",
+  // Command injection & template injection tools
+  "commix", "tplmap",
+  // Screenshot capture
+  "chromium", "chromium-browser", "google-chrome", "puppeteer",
   // Allow reading tool manifest and health check
   "bash", "sh",
 ]);

@@ -1784,6 +1784,86 @@ Return valid JSON per the response_format schema.`;
     } catch (e) {
       console.warn('[ScanPlan] Failed to build threat actor learning context:', e);
     }
+    // Injection tools knowledge (Commix, tplmap advanced guides)
+    let injectionToolsCtx = '';
+    try {
+      const { buildInjectionToolContext } = await import('./knowledge/injection-tools-knowledge');
+      injectionToolsCtx = buildInjectionToolContext();
+    } catch (e) {
+      console.warn('[ScanPlan] Failed to build injection tools context:', e);
+    }
+    // WAF-adaptive tool guidance — maps WAF vendor to specific tool flags
+    let wafAdaptiveCtx = '';
+    try {
+      const detectedWAFs = state.assets
+        .filter(a => a.wafDetected && a.wafDetected !== 'none')
+        .map(a => ({ host: a.hostname, waf: a.wafDetected }));
+      if (detectedWAFs.length > 0) {
+        const wafSections: string[] = ['## WAF-Adaptive Tool Configuration\n'];
+        for (const { host, waf } of detectedWAFs) {
+          const wafLower = (waf || '').toLowerCase();
+          wafSections.push(`### ${host} — ${waf} WAF Detected`);
+          wafSections.push('**General evasion:**');
+          wafSections.push('- Add random delays: `--delay 2 --random-agent`');
+          wafSections.push('- Use encoding: URL-encode payloads, double-encode for strict WAFs');
+          wafSections.push('- Fragment requests: use chunked transfer encoding');
+          if (/cloudflare/i.test(wafLower)) {
+            wafSections.push('**Cloudflare-specific:**');
+            wafSections.push('- SQLMap: `--tamper=between,randomcase,space2comment --random-agent --delay=3`');
+            wafSections.push('- Nuclei: `-rl 5 -c 2 -H "Cache-Control: no-transform"` (rate limit to 5 req/s)');
+            wafSections.push('- Commix: `--tamper=base64encode --delay=2 --random-agent`');
+            wafSections.push('- XSS: Use DOM-based vectors, avoid `<script>` tags, use event handlers');
+            wafSections.push('- Bypass: Try origin IP via DNS history, check for direct IP access');
+          } else if (/akamai/i.test(wafLower)) {
+            wafSections.push('**Akamai-specific:**');
+            wafSections.push('- SQLMap: `--tamper=charencode,between --random-agent --delay=5`');
+            wafSections.push('- Nuclei: `-rl 3 -c 1` (very aggressive rate limiting)');
+            wafSections.push('- Use HTTP/2 where possible, Akamai blocks HTTP/1.0');
+            wafSections.push('- Avoid common scanner User-Agents (nikto, sqlmap default)');
+          } else if (/aws|shield|waf/i.test(wafLower)) {
+            wafSections.push('**AWS WAF-specific:**');
+            wafSections.push('- SQLMap: `--tamper=space2comment,randomcase --random-agent`');
+            wafSections.push('- Use case variation and comment injection for SQL bypass');
+            wafSections.push('- Check for WAF rule groups: SQLi, XSS, LFI are separate rule sets');
+          } else if (/imperva|incapsula/i.test(wafLower)) {
+            wafSections.push('**Imperva-specific:**');
+            wafSections.push('- SQLMap: `--tamper=apostrophemask,equaltolike --delay=3`');
+            wafSections.push('- Rotate User-Agents per request');
+            wafSections.push('- Use HPP (HTTP Parameter Pollution) for bypass');
+          } else if (/f5|big.?ip/i.test(wafLower)) {
+            wafSections.push('**F5 BIG-IP-specific:**');
+            wafSections.push('- SQLMap: `--tamper=space2mssqlblank,charencode`');
+            wafSections.push('- Check for ASM vs Advanced WAF (different bypass techniques)');
+          } else {
+            wafSections.push('**Generic WAF bypass:**');
+            wafSections.push('- Try all tamper scripts: `--tamper=apostrophemask,between,randomcase`');
+            wafSections.push('- Use alternative encoding (Unicode, hex, double-URL)');
+            wafSections.push('- Test with different HTTP methods (GET vs POST vs PUT)');
+          }
+          wafSections.push('');
+        }
+        wafAdaptiveCtx = wafSections.join('\n');
+      }
+    } catch (e) {
+      console.warn('[ScanPlan] Failed to build WAF adaptive context:', e);
+    }
+    // Tool availability tracking — exclude tools that failed in previous phases
+    let toolAvailabilityCtx = '';
+    try {
+      const failedTools = new Set<string>();
+      for (const asset of state.assets) {
+        for (const tr of (asset.toolResults || [])) {
+          if (tr.outputPreview && /command not found|not installed|No such file|ENOENT/i.test(tr.outputPreview)) {
+            failedTools.add(tr.tool);
+          }
+        }
+      }
+      if (failedTools.size > 0) {
+        toolAvailabilityCtx = `## Tool Availability Warning\n**The following tools are NOT available on the scan server — do NOT recommend them:**\n${[...failedTools].map(t => `- ${t} (not installed)`).join('\n')}\n\nUse alternative tools instead.`;
+      }
+    } catch (e) {
+      console.warn('[ScanPlan] Failed to build tool availability context:', e);
+    }
     // Banking domain knowledge injection
     let bankingCtx = '';
     try {
@@ -1814,6 +1894,9 @@ Return valid JSON per the response_format schema.`;
       { label: 'tools', content: toolsCtx || '' },
       { label: 'methodology', content: methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '' },
       { label: 'phaseTool', content: phaseToolCtx ? '## Phase Tool Recommendations\n' + phaseToolCtx : '' },
+      { label: 'injectionTools', content: injectionToolsCtx || '' },
+      { label: 'wafAdaptive', content: wafAdaptiveCtx || '' },
+      { label: 'toolAvailability', content: toolAvailabilityCtx || '' },
       { label: 'missedVuln', content: buildMissedVulnContext({ targetPreset: targetPreset || undefined }) },
       // Context-aware target profiles (WAF/CDN/topology) — if profiling ran before scan plan generation
       { label: 'targetProfiles', content: (() => {
@@ -6547,6 +6630,132 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
   }
 
+  // ── Commix: OS Command Injection Testing ──
+  for (const webApp of webApps) {
+    if (!isInRoeScope(state, webApp.hostname, webApp.ip)) continue;
+    const targetUrl = webApp.urls?.[0] || `http://${webApp.hostname}`;
+    const injectableUrlsForCommix = (webApp.crawledUrls || []).filter(u => u.url.includes('?')).slice(0, 8);
+    if (injectableUrlsForCommix.length === 0) continue;
+    try {
+      const approved = await requestApproval(state, {
+        phase: "vuln_detection",
+        riskTier: "orange",
+        title: `Commix Command Injection Test: ${webApp.hostname}`,
+        description: `Running Commix against ${injectableUrlsForCommix.length} URLs on ${webApp.hostname} to detect OS command injection vulnerabilities. Tests classic, eval-based, time-based, and file-based injection techniques.`,
+        target: webApp.hostname,
+        toolCommand: `commix --url="${targetUrl}" --batch --level=2 --technique=CEFT`,
+      });
+      if (approved) {
+        const { batchCommixScan, ingestCommixToWebAppFindings } = await import("./scanners/commix-scanner");
+        const isTrainingLab = state.trainingLabMode === true;
+        addLog(state, { phase: "vuln_detection", type: "info", title: `💉 Commix: ${webApp.hostname}`, detail: `Testing ${injectableUrlsForCommix.length} URLs for OS command injection${isTrainingLab ? ' (training lab: level=3)' : ''}` });
+        const commixResults = await batchCommixScan(injectableUrlsForCommix, {
+          engagementId: state.engagementId,
+          cookie: webApp.sessionCookie || undefined,
+          timeoutSeconds: isTrainingLab ? 120 : 90,
+          level: isTrainingLab ? 3 : 2,
+        });
+        const allFindings = commixResults.flatMap(r => r.findings);
+        const cmdiCount = allFindings.filter(f => f.type === "cmdi" || f.type === "blind_cmdi").length;
+        if (cmdiCount > 0) {
+          webApp.vulns.push({ id: genId(), severity: "critical", title: `[Commix] ${cmdiCount} OS command injection vulnerabilities confirmed`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by Commix automated command injection testing', rawEvidence: allFindings.map(f => `${f.type}: ${f.title} | param: ${f.parameter || 'N/A'} | technique: ${f.technique || 'N/A'}`).join('\n').slice(0, 4000), source: 'commix' });
+          state.stats.vulnsFound += cmdiCount;
+        }
+        // Ingest to unified findings
+        try {
+          const { findingsIngested } = await ingestCommixToWebAppFindings(commixResults, state.engagementId, webApp.hostname);
+          if (findingsIngested > 0) {
+            addLog(state, { phase: "vuln_detection", type: "info", title: `Commix → web_app_findings: ${findingsIngested} ingested`, detail: `${findingsIngested} command injection findings written to unified findings table` });
+          }
+        } catch { /* non-fatal */ }
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_result",
+          title: `Commix Complete: ${webApp.hostname}`,
+          detail: `${cmdiCount} command injection vulns confirmed, ${allFindings.length} total findings`,
+          data: { cmdiCount, totalFindings: allFindings.length },
+        });
+        webApp.toolResults.push({
+          tool: 'commix',
+          command: `commix --url="${targetUrl}" --batch --level=${isTrainingLab ? 3 : 2} --technique=CEFT`,
+          exitCode: 0,
+          durationMs: commixResults.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
+          timedOut: false,
+          findingCount: allFindings.length,
+          findings: allFindings.map(f => ({ severity: f.severity, title: f.title })),
+          outputPreview: JSON.stringify(allFindings.slice(0, 3), null, 2).slice(0, 1024),
+          executedAt: Date.now(),
+          phase: 'vuln_detection',
+        });
+      }
+    } catch (commixErr: any) {
+      console.error(`[Commix] Engagement #${state.engagementId} error on ${webApp.hostname}: ${commixErr.message}`);
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `Commix Error: ${webApp.hostname}`, detail: commixErr.message });
+    }
+  }
+
+  // ── tplmap: Server-Side Template Injection Testing ──
+  for (const webApp of webApps) {
+    if (!isInRoeScope(state, webApp.hostname, webApp.ip)) continue;
+    const targetUrl = webApp.urls?.[0] || `http://${webApp.hostname}`;
+    const injectableUrlsForTplmap = (webApp.crawledUrls || []).filter(u => u.url.includes('?')).slice(0, 8);
+    if (injectableUrlsForTplmap.length === 0) continue;
+    try {
+      const approved = await requestApproval(state, {
+        phase: "vuln_detection",
+        riskTier: "orange",
+        title: `tplmap SSTI Test: ${webApp.hostname}`,
+        description: `Running tplmap against ${injectableUrlsForTplmap.length} URLs on ${webApp.hostname} to detect Server-Side Template Injection. Tests 15+ template engines (Jinja2, Twig, Mako, Smarty, Freemarker, etc.).`,
+        target: webApp.hostname,
+        toolCommand: `tplmap -u "${targetUrl}"`,
+      });
+      if (approved) {
+        const { batchTplmapScan, ingestTplmapToWebAppFindings } = await import("./scanners/tplmap-scanner");
+        addLog(state, { phase: "vuln_detection", type: "info", title: `🧪 tplmap SSTI: ${webApp.hostname}`, detail: `Testing ${injectableUrlsForTplmap.length} URLs for server-side template injection across 15+ engines` });
+        const tplmapResults = await batchTplmapScan(injectableUrlsForTplmap, {
+          engagementId: state.engagementId,
+          cookie: webApp.sessionCookie || undefined,
+          timeoutSeconds: 90,
+          level: 2,
+        });
+        const allFindings = tplmapResults.flatMap(r => r.findings);
+        const sstiCount = allFindings.filter(f => f.type === "ssti" || f.type === "blind_ssti").length;
+        const enginesDetected = [...new Set(tplmapResults.map(r => r.stats.engineDetected).filter(Boolean))];
+        if (sstiCount > 0) {
+          webApp.vulns.push({ id: genId(), severity: "critical", title: `[tplmap] ${sstiCount} SSTI vulnerabilities confirmed${enginesDetected.length > 0 ? ` (${enginesDetected.join(', ')})` : ''}`, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by tplmap SSTI testing. Engines: ${enginesDetected.join(', ') || 'unknown'}`, rawEvidence: allFindings.map(f => `${f.type}: ${f.title} | engine: ${f.engine || 'N/A'} | capabilities: ${(f.capabilities || []).join(', ')}`).join('\n').slice(0, 4000), source: 'tplmap' });
+          state.stats.vulnsFound += sstiCount;
+        }
+        // Ingest to unified findings
+        try {
+          const { findingsIngested } = await ingestTplmapToWebAppFindings(tplmapResults, state.engagementId, webApp.hostname);
+          if (findingsIngested > 0) {
+            addLog(state, { phase: "vuln_detection", type: "info", title: `tplmap → web_app_findings: ${findingsIngested} ingested`, detail: `${findingsIngested} SSTI findings written to unified findings table` });
+          }
+        } catch { /* non-fatal */ }
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_result",
+          title: `tplmap Complete: ${webApp.hostname}`,
+          detail: `${sstiCount} SSTI vulns found${enginesDetected.length > 0 ? `, engines: ${enginesDetected.join(', ')}` : ''}, ${allFindings.length} total findings`,
+          data: { sstiCount, enginesDetected, totalFindings: allFindings.length },
+        });
+        webApp.toolResults.push({
+          tool: 'tplmap',
+          command: `tplmap -u "${targetUrl}" --level 2`,
+          exitCode: 0,
+          durationMs: tplmapResults.reduce((sum, r) => sum + r.stats.durationSeconds * 1000, 0),
+          timedOut: false,
+          findingCount: allFindings.length,
+          findings: allFindings.map(f => ({ severity: f.severity, title: f.title })),
+          outputPreview: JSON.stringify(allFindings.slice(0, 3), null, 2).slice(0, 1024),
+          executedAt: Date.now(),
+          phase: 'vuln_detection',
+        });
+      }
+    } catch (tplmapErr: any) {
+      console.error(`[tplmap] Engagement #${state.engagementId} error on ${webApp.hostname}: ${tplmapErr.message}`);
+      addLog(state, { phase: "vuln_detection", type: "warning", title: `tplmap Error: ${webApp.hostname}`, detail: tplmapErr.message });
+    }
+  }
+
   // ── Credential Testing: run priority 3 tools (hydra) on login services ──
   addLog(state, { phase: "vuln_detection", type: "info", title: "🔑 Credential Testing", detail: "Testing vendor/OEM default credentials first, then common wordlists on discovered login services" });
 
@@ -10103,6 +10312,174 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       title: "🏁 Engagement Execution Complete",
       detail: `${state.stats.hostsScanned} hosts, ${verifiedVulns} verified vulns (${unverifiedVulns} unverified — excluded from risk), ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits (${verifiedExploits} with evidence), ${state.stats.zapScansRun} ZAP scans`,
     });
+    // ── Screenshot Evidence Capture ──
+    try {
+      const { selectFindingsForScreenshot, captureScreenshotBatch } = await import('./scanners/screenshot-capture');
+      const allVulnsForScreenshot = state.assets.flatMap(a =>
+        (a.vulns || []).map((v: any) => ({
+          id: v.id,
+          title: v.title || v.name || 'Unknown',
+          severity: v.severity || 'info',
+          endpoint: v.endpoint || v.url,
+          url: v.endpoint || v.url,
+          source: v.source || v.tool,
+          corroborationTier: v.corroborationTier,
+        }))
+      );
+      const screenshotTargets = selectFindingsForScreenshot(allVulnsForScreenshot, 15);
+      if (screenshotTargets.length > 0) {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `\uD83D\uDCF8 Capturing ${screenshotTargets.length} evidence screenshots...`,
+          detail: `Targeting ${screenshotTargets.filter(s => s.severity === 'critical' || s.severity === 'high').length} critical/high findings`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+        const screenshotRequests = screenshotTargets.map(t => ({
+          url: t.url,
+          engagementId,
+          findingId: t.findingId,
+          findingTitle: t.findingTitle,
+          severity: t.severity,
+        }));
+
+        const screenshotResults = await captureScreenshotBatch(screenshotRequests, {
+          maxConcurrency: 3,
+          onProgress: (done, total) => {
+            state.currentAction = `Capturing screenshots: ${done}/${total}`;
+          },
+        });
+
+        let successCount = 0;
+        let failCount = 0;
+        for (const [key, result] of screenshotResults) {
+          if (result.success) {
+            successCount++;
+            // Attach screenshot path to the corresponding vuln
+            for (const asset of state.assets) {
+              const vuln = (asset.vulns || []).find((v: any) =>
+                (v.id === key || v.title === key || v.name === key)
+              );
+              if (vuln) {
+                (vuln as any).screenshotPath = result.screenshotPath;
+                (vuln as any).screenshotCapturedAt = result.capturedAt;
+                (vuln as any).screenshotPageTitle = result.pageTitle;
+                break;
+              }
+            }
+          } else {
+            failCount++;
+          }
+        }
+
+        addLog(state, {
+          phase: 'completed', type: successCount > 0 ? 'info' : 'warning',
+          title: `\uD83D\uDCF8 Screenshots: ${successCount} captured, ${failCount} failed`,
+          detail: `Evidence screenshots attached to ${successCount} findings`,
+        });
+      } else {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: '\uD83D\uDCF8 No web-accessible findings for screenshot capture',
+          detail: 'Screenshots require HTTP-accessible vulnerability endpoints',
+        });
+      }
+    } catch (ssErr: any) {
+      console.warn('[ScreenshotCapture] Failed:', ssErr.message);
+      addLog(state, {
+        phase: 'completed', type: 'warning',
+        title: '\u26A0\uFE0F Screenshot capture failed',
+        detail: ssErr.message,
+      });
+    }
+
+    // ── Attack Narrative Generation ──
+    try {
+      const { generateAttackNarratives, generateExecutiveSummary } = await import('./attack-narrative-generator');
+      const narrativeInput = {
+        engagementId: state.engagementId,
+        engagementName: state.engagementName || `Engagement #${state.engagementId}`,
+        targetProfile: state.targetProfiles ? {
+          industry: undefined,
+          waf: Object.values(state.targetProfiles as Record<string, any>)[0]?.waf?.vendor,
+          cdn: Object.values(state.targetProfiles as Record<string, any>)[0]?.cdn?.provider,
+          techStack: Object.values(state.targetProfiles as Record<string, any>)[0]?.fingerprint?.webServer
+            ? [Object.values(state.targetProfiles as Record<string, any>)[0]?.fingerprint?.webServer]
+            : [],
+        } : undefined,
+        assets: state.assets.map((a: any) => ({
+          hostname: a.hostname || a.ip,
+          ip: a.ip,
+          ports: a.ports,
+          vulns: (a.vulns || []).map((v: any) => ({
+            id: v.id,
+            title: v.title || v.name,
+            severity: v.severity,
+            description: v.description,
+            tool: v.tool || v.source,
+            cve: v.cve,
+            endpoint: v.endpoint || v.url,
+            rawEvidence: v.rawEvidence || v.evidence,
+            corroborationTier: v.corroborationTier,
+            screenshotPath: v.screenshotPath,
+          })),
+          exploitAttempts: a.exploitAttempts || [],
+          toolResults: a.toolResults || [],
+        })),
+      };
+
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: '\uD83D\uDCDD Generating attack narratives...',
+        detail: 'LLM analyzing findings to produce kill chain narratives',
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      const narratives = await generateAttackNarratives(narrativeInput);
+
+      if (narratives.length > 0) {
+        // Store narratives on state for report generation
+        (state as any).attackNarratives = narratives;
+
+        // Generate executive summary
+        const execSummary = await generateExecutiveSummary({
+          ...narrativeInput,
+          stats: {
+            vulnsFound: state.stats.vulnsFound || 0,
+            verifiedVulns: verifiedVulns,
+            exploitsAttempted: state.stats.exploitsAttempted || 0,
+            exploitsSucceeded: state.stats.exploitsSucceeded || 0,
+            portsFound: state.stats.portsFound || 0,
+          },
+          narratives,
+        });
+        (state as any).executiveSummary = execSummary;
+
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: `\uD83D\uDCDD Generated ${narratives.length} attack narratives`,
+          detail: [
+            `Critical/High: ${narratives.filter(n => n.severity === 'critical' || n.severity === 'high').length}`,
+            `Medium: ${narratives.filter(n => n.severity === 'medium').length}`,
+            `MITRE techniques mapped: ${[...new Set(narratives.flatMap(n => n.mitreTechniques))].length}`,
+          ].join(' | '),
+        });
+      } else {
+        addLog(state, {
+          phase: 'completed', type: 'info',
+          title: '\uD83D\uDCDD No findings eligible for narrative generation',
+          detail: 'Attack narratives require confirmed findings with evidence',
+        });
+      }
+    } catch (narrErr: any) {
+      console.warn('[AttackNarrative] Generation failed:', narrErr.message);
+      addLog(state, {
+        phase: 'completed', type: 'warning',
+        title: '\u26A0\uFE0F Attack narrative generation failed',
+        detail: narrErr.message,
+      });
+    }
+
     // ── Evidence Chain Flush & Integrity Anchor ──
     try {
       const flushResult = await flushChainToDb(String(state.engagementId));
@@ -10843,6 +11220,100 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       });
     } catch (notifErr: any) {
       console.warn(`[Notification] Completion notification failed for #${engagementId}:`, notifErr.message);
+    }
+
+    // ═══ GRADUATION SYSTEM — Record engagement outcomes for specialist model advancement ═══
+    try {
+      const { recordScenarioResult, recordTrainingData } = await import('./graduation-lab-bridge');
+      const totalVulnsForGrad = state.stats.vulnsFound || 0;
+      const verifiedForGrad = (state.stats as any).verifiedVulns || 0;
+      const exploitSuccessRate = state.stats.exploitsAttempted > 0
+        ? state.stats.exploitsSucceeded / state.stats.exploitsAttempted
+        : 0;
+      const evidenceRate = totalVulnsForGrad > 0 ? verifiedForGrad / totalVulnsForGrad : 0;
+
+      // Score each specialist model based on their contribution to the engagement
+      // recon_analyst: scored on asset discovery and port enumeration
+      const reconScore = Math.min(100, (state.assets.length * 15) + (state.stats.portsFound * 3));
+      recordScenarioResult({
+        model: 'recon_analyst',
+        scenarioId: `eng-${engagementId}-recon`,
+        passed: state.assets.length > 0 && state.stats.portsFound > 0,
+        score: reconScore,
+        maxScore: 100,
+      });
+
+      // exploit_selector: scored on exploit success rate and evidence quality
+      const exploitScore = Math.round(
+        (exploitSuccessRate * 50) + (evidenceRate * 30) + (totalVulnsForGrad > 10 ? 20 : totalVulnsForGrad * 2)
+      );
+      recordScenarioResult({
+        model: 'exploit_selector',
+        scenarioId: `eng-${engagementId}-exploit`,
+        passed: exploitSuccessRate > 0 || verifiedForGrad > 5,
+        score: Math.min(100, exploitScore),
+        maxScore: 100,
+      });
+
+      // evasion_optimizer: scored on whether scans completed without being blocked
+      const evasionState = (state as any).evasionState;
+      const wasBlocked = evasionState?.currentLevel > 1;
+      const evasionRecovered = evasionState?.escalationHistory?.length > 0;
+      const evasionScore = wasBlocked ? (evasionRecovered ? 70 : 30) : 90;
+      recordScenarioResult({
+        model: 'evasion_optimizer',
+        scenarioId: `eng-${engagementId}-evasion`,
+        passed: !wasBlocked || evasionRecovered,
+        score: evasionScore,
+        maxScore: 100,
+      });
+
+      // cognitive_core: scored on overall engagement quality (evidence, coverage, accuracy)
+      const owaspCoverage = (state as any).owaspCoverage;
+      const coverageScore = owaspCoverage?.tested ? Math.round((owaspCoverage.tested / 25) * 40) : 20;
+      const cognitiveScore = Math.min(100, coverageScore + Math.round(evidenceRate * 40) + (totalVulnsForGrad > 0 ? 20 : 0));
+      recordScenarioResult({
+        model: 'cognitive_core',
+        scenarioId: `eng-${engagementId}-cognitive`,
+        passed: cognitiveScore >= 50,
+        score: cognitiveScore,
+        maxScore: 100,
+      });
+
+      // Record training data from successful exploit attempts
+      const successfulExploits = state.assets.flatMap(a =>
+        (a.exploitAttempts || []).filter((e: any) => e.succeeded)
+      );
+      if (successfulExploits.length > 0) {
+        const trainingExamples = successfulExploits.map((e: any) => ({
+          id: `train-${engagementId}-${e.id || Date.now()}`,
+          model: 'exploit_selector' as const,
+          input: JSON.stringify({
+            target: e.target,
+            vuln: e.vulnTitle || e.technique,
+            tool: e.tool,
+            command: e.command,
+          }),
+          expectedOutput: JSON.stringify({
+            succeeded: true,
+            technique: e.technique,
+            evidence: e.rawEvidence?.slice(0, 500),
+          }),
+          quality: 'high' as const,
+          source: `engagement-${engagementId}`,
+          metadata: { engagementId: String(engagementId), phase: 'exploitation' },
+        }));
+        recordTrainingData('exploit_selector', trainingExamples);
+      }
+
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: `🎓 Graduation: ${4} specialist models scored`,
+        detail: `Recon: ${reconScore}/100 | Exploit: ${Math.min(100, exploitScore)}/100 | Evasion: ${evasionScore}/100 | Cognitive: ${cognitiveScore}/100 | Training examples: ${successfulExploits.length}`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (gradErr: any) {
+      console.warn(`[Graduation] Failed to record engagement outcomes for #${engagementId}:`, gradErr.message);
     }
   } catch (e: any) {
     clearInterval(heartbeatInterval); // Clean up heartbeat on error

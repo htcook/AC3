@@ -801,7 +801,8 @@ export function computeHybridFusionScore(input: {
   cvssExploitability?: number;
   epssScore?: number;
   isKev?: boolean;
-}): { hybrid: number; carverComposite: number; priorityTier: PriorityTier } {
+  evidenceMultiplier?: number;
+}): { hybrid: number; carverComposite: number; priorityTier: PriorityTier; evidenceAdjusted: boolean } {
   const carverComposite = computeCarverComposite(input.carverPreset);
   const sectorMult = input.sectorMultiplier ?? 1.0;
   const cvssBase = input.cvssBase ?? 0;
@@ -819,12 +820,21 @@ export function computeHybridFusionScore(input: {
     hybrid += 2.0;
   }
 
+  // Evidence multiplier: scale final score by evidence quality
+  // confirmed=1.0, corroborated=0.85, unverified=0.3
+  const evMult = input.evidenceMultiplier ?? 1.0;
+  const evidenceAdjusted = evMult < 1.0;
+  if (evidenceAdjusted) {
+    hybrid = hybrid * evMult;
+  }
+
   hybrid = Math.round(hybrid * 100) / 100;
 
   return {
     hybrid,
     carverComposite,
     priorityTier: priorityTierFromScore(hybrid),
+    evidenceAdjusted,
   };
 }
 

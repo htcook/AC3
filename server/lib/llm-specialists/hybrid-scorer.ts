@@ -366,6 +366,8 @@ export interface FullHybridScoreInput {
   isKev?: boolean;
   fedRampLevel?: "moderate" | "high";
   overrideSector?: CarverSector;
+  /** Evidence quality multiplier: confirmed=1.0, corroborated=0.85, unverified=0.3 */
+  evidenceMultiplier?: number;
   // Scan data
   ports?: Array<{ port: number; service?: string; version?: string; state?: string }>;
   technologies?: string[];
@@ -388,6 +390,7 @@ export interface FullHybridScoreOutput {
   llmEnhanced: HybridScorerOutput;
   finalScore: number;
   finalTier: PriorityTier;
+  evidenceAdjusted: boolean;
 }
 
 /**
@@ -434,11 +437,21 @@ export async function scoreFullHybrid(input: FullHybridScoreInput): Promise<Full
     engagementContext: input.engagementContext,
   });
 
+  // Apply evidence multiplier to the final score
+  const evMult = input.evidenceMultiplier ?? 1.0;
+  const evidenceAdjusted = evMult < 1.0;
+  const adjustedScore = evidenceAdjusted
+    ? Math.round(llmEnhanced.adjustedHybridScore * evMult * 100) / 100
+    : llmEnhanced.adjustedHybridScore;
+
   return {
     baseline,
     llmEnhanced,
-    finalScore: llmEnhanced.adjustedHybridScore,
-    finalTier: llmEnhanced.adjustedPriorityTier,
+    finalScore: adjustedScore,
+    finalTier: evidenceAdjusted
+      ? priorityTierFromScore(adjustedScore)
+      : llmEnhanced.adjustedPriorityTier,
+    evidenceAdjusted,
   };
 }
 
