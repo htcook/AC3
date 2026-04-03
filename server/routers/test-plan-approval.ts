@@ -13,7 +13,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { getDb, getDbRequired } from "../db";
+import { getDb, getDbRequired, getDomainIntelScansByEngagement, getDiscoveredAssetsByScan } from "../db";
 import { testPlans, engagements } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -77,8 +77,8 @@ export const testPlanApprovalRouter = router({
         });
       }
 
-      // Import the test plan generator
-      const { generateTestPlan } = await import("../lib/test-plan-generator");
+      // Import the test plan generator and markdown converter
+      const { generateTestPlan, testPlanToMarkdown } = await import("../lib/test-plan-generator");
 
       // Build generation context from engagement data
       const planTitle =
@@ -105,19 +105,128 @@ export const testPlanApprovalRouter = router({
         }
       }
 
-      // Generate the plan
-      const plan = await generateTestPlan({
-        engagementType: input.planType,
-        engagementName: engagement.name,
-        customerName: engagement.customerName || "Customer",
-        targetDomains,
-        targetIpRanges,
-        roeStatus: engagement.roeStatus || "none",
-        roeSigned: engagement.roeStatus === "signed",
-        roeScope,
-        startDate: engagement.startDate || undefined,
-        endDate: engagement.endDate || undefined,
+      // Get the latest completed DI scan for this engagement
+      const diScans = await getDomainIntelScansByEngagement(input.engagementId);
+      const latestScan = diScans.find((s: any) => s.status === "completed" || s.status === "scan_complete");
+
+      // Get discovered assets from the latest DI scan
+      let diAssets: any[] = [];
+      if (latestScan) {
+        diAssets = await getDiscoveredAssetsByScan(latestScan.id);
+      }
+
+      // Map discovered assets to TestPlanInput.assets format
+      const assets = diAssets.map((a: any) => {
+        const techs = Array.isArray(a.technologies) ? a.technologies : [];
+        const tags = Array.isArray(a.tags) ? a.tags : [];
+        return {
+          hostname: a.hostname || "unknown",
+          ip: undefined as string | undefined,
+          type: a.assetType || "web_application",
+          services: [] as Array<{ port: number; service: string; version?: string }>,
+          technologies: techs.map((t: any) => typeof t === "string" ? t : t?.name || String(t)),
+          cloudProvider: tags.find((t: any) => typeof t === "string" && t.startsWith("cloud:"))?.replace("cloud:", "") || undefined,
+          wafDetected: tags.find((t: any) => typeof t === "string" && t.startsWith("waf:"))?.replace("waf:", "") || undefined,
+          certificates: [] as Array<{ subject: string; issuer?: string; validTo?: string }>,
+        };
       });
+
+      // Build passiveReconResults from DI scan data
+      const passiveReconResults: Record<string, any> = {};
+      for (const a of diAssets) {
+        const findings = Array.isArray(a.postureFindings) ? a.postureFindings : [];
+        passiveReconResults[a.hostname || "unknown"] = {
+          subdomains: [],
+          ipAddresses: [],
+          technologies: Array.isArray(a.technologies)
+            ? a.technologies.map((t: any) => typeof t === "string" ? t : t?.name || String(t))
+            : [],
+          services: [],
+          certificates: [],
+          riskSignals: findings.map((f: any) => ({
+            severity: f.severity || "info",
+            type: f.type || f.category || "finding",
+            rationale: f.description || f.summary || String(f),
+          })),
+        };
+      }
+
+      // If no assets from DI, create minimal assets from engagement target domains
+      if (assets.length === 0) {
+        for (const d of targetDomains) {
+          assets.push({
+            hostname: d,
+            ip: undefined,
+            type: "web_application",
+            services: [],
+            technologies: [],
+            cloudProvider: undefined,
+            wafDetected: undefined,
+            certificates: [],
+          });
+          passiveReconResults[d] = {
+            subdomains: [],
+            ipAddresses: [],
+            technologies: [],
+            services: [],
+            certificates: [],
+            riskSignals: [],
+          };
+        }
+      }
+
+      // Map planType to TestPlanType
+      const planTypeMap: Record<string, "penetration_test" | "red_team_exercise"> = {
+        pentest: "penetration_test",
+        red_team: "red_team_exercise",
+      };
+
+      // Map engagement type
+      const engTypeMap: Record<string, "pentest" | "red_team" | "purple_team" | "phishing" | "tabletop"> = {
+        pentest: "pentest",
+        red_team: "red_team",
+        purple_team: "purple_team",
+        phishing: "phishing",
+        tabletop: "tabletop",
+      };
+
+      // Build the authorized domains from RoE scope + engagement targets
+      const authorizedDomains = roeScope?.domains || targetDomains;
+      const authorizedIps = roeScope?.ipRanges || targetIpRanges;
+      const excludedTargets = roeScope?.excluded
+        ? (Array.isArray(roeScope.excluded) ? roeScope.excluded : [roeScope.excluded])
+        : [];
+
+      // Get compliance flags from DI scan
+      const complianceFlags = latestScan?.complianceFlags
+        ? (Array.isArray(latestScan.complianceFlags) ? latestScan.complianceFlags : [])
+        : [];
+
+      // Generate the plan with full TestPlanInput
+      const plan = await generateTestPlan({
+        engagementId: input.engagementId,
+        engagementName: engagement.name,
+        planType: planTypeMap[input.planType] || "penetration_test",
+        engagementType: engTypeMap[engagement.engagementType] || "pentest",
+        organizationName: engagement.customerName || "Customer",
+        roe: {
+          status: engagement.roeStatus || "none",
+          authorizedDomains,
+          authorizedIps,
+          excludedTargets,
+          signedBy: engagement.roeSignerName || undefined,
+          signedAt: engagement.roeSignedDate || undefined,
+        },
+        assets,
+        passiveReconResults,
+        complianceFrameworks: complianceFlags.map((f: any) => String(f)),
+        scanProfile: "standard",
+        operatorName: "AceofCloud AC3 Platform",
+        assessorOrganization: "AceofCloud",
+      });
+
+      // Convert plan to markdown for storage
+      const planMarkdown = testPlanToMarkdown(plan);
 
       // Check for existing plans for this engagement/type
       const existing = await db
@@ -141,7 +250,7 @@ export const testPlanApprovalRouter = router({
         engagementId: input.engagementId,
         planType: input.planType,
         title: planTitle,
-        content: plan.content,
+        content: planMarkdown,
         structuredData: plan.structuredData || null,
         version,
         status: "draft",
@@ -153,7 +262,7 @@ export const testPlanApprovalRouter = router({
         title: planTitle,
         version,
         status: "draft" as const,
-        contentPreview: plan.content.slice(0, 500) + "...",
+        contentPreview: planMarkdown.slice(0, 500) + "...",
       };
     }),
 
@@ -385,7 +494,7 @@ export const testPlanApprovalRouter = router({
         });
       }
 
-      const { generateTestPlan } = await import("../lib/test-plan-generator");
+      const { generateTestPlan, testPlanToMarkdown } = await import("../lib/test-plan-generator");
 
       const targetDomains = engagement.targetDomain
         ? engagement.targetDomain.split(",").map((d: string) => d.trim()).filter(Boolean)
@@ -415,40 +524,100 @@ export const testPlanApprovalRouter = router({
         .filter(Boolean)
         .join("\n\n");
 
+      // Get the latest completed DI scan for this engagement
+      const diScans2 = await getDomainIntelScansByEngagement(existingPlan.engagementId);
+      const latestScan2 = diScans2.find((s: any) => s.status === "completed" || s.status === "scan_complete");
+      let diAssets2: any[] = [];
+      if (latestScan2) {
+        diAssets2 = await getDiscoveredAssetsByScan(latestScan2.id);
+      }
+
+      const regenAssets = diAssets2.length > 0
+        ? diAssets2.map((a: any) => ({
+            hostname: a.hostname || "unknown",
+            ip: undefined as string | undefined,
+            type: a.assetType || "web_application",
+            services: [] as Array<{ port: number; service: string; version?: string }>,
+            technologies: (Array.isArray(a.technologies) ? a.technologies : []).map((t: any) => typeof t === "string" ? t : t?.name || String(t)),
+            cloudProvider: undefined as string | undefined,
+            wafDetected: undefined as string | undefined,
+            certificates: [] as Array<{ subject: string; issuer?: string; validTo?: string }>,
+          }))
+        : targetDomains.map((d: string) => ({
+            hostname: d,
+            ip: undefined as string | undefined,
+            type: "web_application",
+            services: [] as Array<{ port: number; service: string; version?: string }>,
+            technologies: [] as string[],
+            cloudProvider: undefined as string | undefined,
+            wafDetected: undefined as string | undefined,
+            certificates: [] as Array<{ subject: string; issuer?: string; validTo?: string }>,
+          }));
+
+      const regenPassiveRecon: Record<string, any> = {};
+      for (const a of diAssets2) {
+        const findings = Array.isArray(a.postureFindings) ? a.postureFindings : [];
+        regenPassiveRecon[a.hostname || "unknown"] = {
+          subdomains: [], ipAddresses: [],
+          technologies: (Array.isArray(a.technologies) ? a.technologies : []).map((t: any) => typeof t === "string" ? t : t?.name || String(t)),
+          services: [], certificates: [],
+          riskSignals: findings.map((f: any) => ({ severity: f.severity || "info", type: f.type || "finding", rationale: f.description || String(f) })),
+        };
+      }
+      if (Object.keys(regenPassiveRecon).length === 0) {
+        for (const d of targetDomains) {
+          regenPassiveRecon[d] = { subdomains: [], ipAddresses: [], technologies: [], services: [], certificates: [], riskSignals: [] };
+        }
+      }
+
+      const planTypeMap2: Record<string, "penetration_test" | "red_team_exercise"> = { pentest: "penetration_test", red_team: "red_team_exercise" };
+      const engTypeMap2: Record<string, "pentest" | "red_team" | "purple_team" | "phishing" | "tabletop"> = {
+        pentest: "pentest", red_team: "red_team", purple_team: "purple_team", phishing: "phishing", tabletop: "tabletop",
+      };
+      const authorizedDomains2 = roeScope?.domains || targetDomains;
+      const authorizedIps2 = roeScope?.ipRanges || targetIpRanges;
+
       const plan = await generateTestPlan({
-        engagementType: existingPlan.planType as "pentest" | "red_team",
+        engagementId: existingPlan.engagementId,
         engagementName: engagement.name,
-        customerName: engagement.customerName || "Customer",
-        targetDomains,
-        targetIpRanges,
-        roeStatus: engagement.roeStatus || "none",
-        roeSigned: engagement.roeStatus === "signed",
-        roeScope,
-        startDate: engagement.startDate || undefined,
-        endDate: engagement.endDate || undefined,
-        additionalGuidance,
+        planType: planTypeMap2[existingPlan.planType] || "penetration_test",
+        engagementType: engTypeMap2[engagement.engagementType] || "pentest",
+        organizationName: engagement.customerName || "Customer",
+        roe: {
+          status: engagement.roeStatus || "none",
+          authorizedDomains: authorizedDomains2,
+          authorizedIps: authorizedIps2,
+          signedBy: engagement.roeSignerName || undefined,
+          signedAt: engagement.roeSignedDate || undefined,
+        },
+        assets: regenAssets,
+        passiveReconResults: regenPassiveRecon,
+        operatorName: "AceofCloud AC3 Platform",
+        assessorOrganization: "AceofCloud",
       });
 
       const newVersion = (existingPlan.version || 1) + 1;
       const newPlanId = `tp-${randomUUID().slice(0, 8)}`;
 
-      await db.insert(testPlans).values({
+      const dbConn = await getDbRequired();
+      await dbConn.insert(testPlans).values({
         planId: newPlanId,
         engagementId: existingPlan.engagementId,
         planType: existingPlan.planType,
         title: existingPlan.title,
-        content: plan.content,
+        content: testPlanToMarkdown(plan),
         structuredData: plan.structuredData || null,
         version: newVersion,
         status: "draft",
         generatedBy: ctx.user.id,
       });
 
+      const regenMarkdown = testPlanToMarkdown(plan);
       return {
         planId: newPlanId,
         version: newVersion,
         status: "draft" as const,
-        contentPreview: plan.content.slice(0, 500) + "...",
+        contentPreview: regenMarkdown.slice(0, 500) + "...",
       };
     }),
 
