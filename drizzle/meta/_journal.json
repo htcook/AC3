@@ -407,6 +407,13 @@
       "when": 1775080818487,
       "tag": "0057_smooth_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1775172494787,
+      "tag": "0058_kind_harpoon",
+      "breakpoints": true
     }
   ]
 }

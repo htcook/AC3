@@ -1333,6 +1333,7 @@ export function getPipelinePhaseOrder(): Array<{
     { phase: 'test_plan_approval', number: 4, label: 'Plan Approval', description: 'Customer test plan review and approval gate', requiresRoE: false },
     { phase: 'enumeration', number: 5, label: 'Active Discovery', description: 'Port scanning, service identification, OS fingerprinting', requiresRoE: true },
     { phase: 'vuln_detection', number: 6, label: 'Vulnerability Scanning', description: 'Automated and manual vulnerability identification', requiresRoE: true },
+    { phase: 'social_engineering' as OpsPhase, number: 6, label: 'Social Engineering', description: 'Phishing assessment, domain spoofability analysis, and campaign recommendations (ROE-gated)', requiresRoE: true },
     { phase: 'exploitation', number: 7, label: 'Exploitation', description: 'Penetration testing and exploitation of confirmed vulnerabilities', requiresRoE: true },
     { phase: 'post_exploit', number: 8, label: 'Post-Exploitation', description: 'C2 deployment, lateral movement, or evidence collection', requiresRoE: true },
     { phase: 'reporting', number: 9, label: 'Reporting', description: 'Comprehensive findings report generation', requiresRoE: false },

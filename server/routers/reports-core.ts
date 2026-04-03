@@ -304,8 +304,12 @@ export const reportsRouter = router({
                 command: tr.command,
                 exitCode: tr.exitCode,
                 duration: tr.duration,
+                durationMs: tr.durationMs || tr.duration,
                 findings: tr.findings || [],
-                rawOutput: tr.rawOutput,
+                findingCount: tr.findings?.length || tr.findingCount || 0,
+                rawOutput: tr.outputPreview || tr.rawOutput || '',
+                executedAt: tr.executedAt || tr.timestamp,
+                phase: tr.phase || 'unknown',
               })),
               exploitAttempts: (a.exploitAttempts || []).map((ea: any) => ({
                 module: ea.module || 'unknown',
@@ -317,6 +321,9 @@ export const reportsRouter = router({
                 reasoning: ea.reasoning,
                 timestamp: ea.timestamp,
                 error: ea.error,
+                output: ea.output || ea.rawOutput || '',
+                technique: ea.technique || '',
+                payload: ea.payload || '',
               })),
             }));
 

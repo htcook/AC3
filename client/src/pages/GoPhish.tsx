@@ -10,10 +10,10 @@ import {
   Edit, Save, XCircle, ChevronDown, ChevronUp, Copy, BookOpen,
   Shield, Globe2, Briefcase, Rocket, Filter, Download, Search,
   Tag, Monitor, KeyRound, DollarSign, Building2, Share2, Truck,
-  UserCheck, Calendar, Palette
+  UserCheck, Calendar, Palette, Library, Database
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@/data/phishing-templates";
+import { TEMPLATE_CATEGORIES, PHISHING_TEMPLATES, LANDING_PAGE_TEMPLATES, type TemplateCategory } from "@/data/phishing-templates";
 import TemplatePreview, { TemplatePreviewThumbnail, TemplatePreviewModal } from "@/components/TemplatePreview";
 
 import AppShell from "@/components/AppShell";
@@ -481,30 +481,62 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'all' | 'beginner' | 'intermediate' | 'advanced'>('all');
+  const [viewSource, setViewSource] = useState<'all' | 'c3-library' | 'gophish'>('all');
   const syncTemplates = trpc.gophishProxy.syncTemplates.useMutation();
 
-  // Enrich templates with auto-detected tags
-  const enrichedTemplates = useMemo(() => {
+  // Build C3 library templates as display items
+  const c3LibraryTemplates = useMemo(() => {
+    return PHISHING_TEMPLATES.map(t => ({
+      id: `c3-${t.id}`,
+      name: t.name,
+      subject: t.subjectLine,
+      html: t.htmlContent,
+      text: t.previewText,
+      _category: t.category,
+      _difficulty: t.difficulty,
+      _source: 'c3-library' as const,
+      _c3Template: t,
+      modified_date: new Date().toISOString(),
+    }));
+  }, []);
+
+  // Enrich GoPhish templates with auto-detected tags
+  const gophishTemplates = useMemo(() => {
     if (!Array.isArray(templates)) return [];
     return templates.map((t: any) => {
       const category = detectCategory(t.name || '', t.subject || '', t.html || '');
       const difficulty = detectDifficulty(t.html || '', t.subject || '');
-      return { ...t, _category: category, _difficulty: difficulty };
+      return { ...t, _category: category, _difficulty: difficulty, _source: 'gophish' as const };
     });
   }, [templates]);
 
+  // Merge templates based on view source
+  const allTemplates = useMemo(() => {
+    if (viewSource === 'c3-library') return c3LibraryTemplates;
+    if (viewSource === 'gophish') return gophishTemplates;
+    // Deduplicate: if a GoPhish template name starts with [C3], mark it as synced
+    const syncedNames = new Set(gophishTemplates.filter((t: any) => (t.name || '').startsWith('[C3]')).map((t: any) => (t.name || '').replace('[C3] ', '')));
+    const deduped = c3LibraryTemplates.map(t => ({
+      ...t,
+      _synced: syncedNames.has(t.name),
+    }));
+    // Add GoPhish-only templates (not from C3 library)
+    const gophishOnly = gophishTemplates.filter((t: any) => !(t.name || '').startsWith('[C3]'));
+    return [...deduped, ...gophishOnly];
+  }, [c3LibraryTemplates, gophishTemplates, viewSource]);
+
   // Category counts
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: enrichedTemplates.length };
-    for (const t of enrichedTemplates) {
+    const counts: Record<string, number> = { all: allTemplates.length };
+    for (const t of allTemplates) {
       if (t._category) counts[t._category] = (counts[t._category] || 0) + 1;
     }
     return counts;
-  }, [enrichedTemplates]);
+  }, [allTemplates]);
 
   // Filter templates
   const filteredTemplates = useMemo(() => {
-    let result = enrichedTemplates;
+    let result = allTemplates;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((t: any) =>
@@ -521,7 +553,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
       result = result.filter((t: any) => t._difficulty === selectedDifficulty);
     }
     return result;
-  }, [enrichedTemplates, searchQuery, selectedCategory, selectedDifficulty]);
+  }, [allTemplates, searchQuery, selectedCategory, selectedDifficulty]);
 
   const handleSave = () => {
     if (!form.name || !form.subject || !form.html) { toast.error("Name, subject, and HTML are required"); return; }
@@ -550,7 +582,26 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-display text-xl tracking-wider">EMAIL TEMPLATES</h2>
+          <div className="flex border border-border rounded overflow-hidden">
+            {([['all', 'ALL'], ['c3-library', 'C3 LIBRARY'], ['gophish', 'GOPHISH']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setViewSource(key as any)}
+                className={`px-3 py-1 text-[10px] font-display tracking-wider transition-all ${
+                  viewSource === key
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card'
+                }`}
+              >
+                {key === 'c3-library' && <Library className="w-3 h-3 inline mr-1" />}
+                {key === 'gophish' && <Database className="w-3 h-3 inline mr-1" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -691,16 +742,30 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
       )}
 
       {/* Results count */}
-      {Array.isArray(templates) && templates.length > 0 && (
-        <div className="text-xs text-muted-foreground font-display tracking-wider">
-          SHOWING {filteredTemplates.length} OF {enrichedTemplates.length} TEMPLATES
-        </div>
-      )}
+      <div className="text-xs text-muted-foreground font-display tracking-wider flex items-center gap-3">
+        <span>SHOWING {filteredTemplates.length} OF {allTemplates.length} TEMPLATES</span>
+        <span className="flex items-center gap-1.5">
+          <Library className="w-3 h-3 text-emerald-400" /> {c3LibraryTemplates.length} C3
+          <Database className="w-3 h-3 text-blue-400 ml-2" /> {gophishTemplates.length} GOPHISH
+        </span>
+      </div>
 
       {filteredTemplates.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredTemplates.map((t: any) => (
-            <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 transition-colors group overflow-hidden">
+            <div key={t.id} className="bg-card border-2 border-border hover:border-blue-500 transition-colors group overflow-hidden relative">
+              {/* Source badge */}
+              <div className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-display tracking-wider ${
+                t._source === 'c3-library'
+                  ? (t as any)._synced ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' : 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                  : 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+              }`}>
+                {t._source === 'c3-library' ? (
+                  <>{(t as any)._synced ? <><CheckCircle className="w-2.5 h-2.5" /> SYNCED</> : <><Library className="w-2.5 h-2.5" /> C3 LIBRARY</>}</>
+                ) : (
+                  <><Database className="w-2.5 h-2.5" /> GOPHISH</>
+                )}
+              </div>
               {/* Thumbnail preview */}
               {t.html && (
                 <TemplatePreviewThumbnail
@@ -717,8 +782,17 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Preview" onClick={() => setPreviewTemplate(t)}><Eye className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}><Edit className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>
+                    {t._source === 'gophish' && <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}><Edit className="w-3 h-3" /></Button>}
+                    {t._source === 'gophish' && <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(t.id)}><Trash2 className="w-3 h-3" /></Button>}
+                    {t._source === 'c3-library' && !(t as any)._synced && (
+                      <Button variant="ghost" size="sm" className="h-7 p-0 px-1.5 text-emerald-400 text-[10px]" title="Push to GoPhish" onClick={async () => {
+                        try {
+                          const c3t = (t as any)._c3Template;
+                          await syncTemplates.mutateAsync({ templates: [{ name: `[C3] ${c3t.name}`, subject: c3t.subjectLine, html: c3t.htmlContent, text: c3t.previewText }] });
+                          toast.success(`Synced "${c3t.name}" to GoPhish`);
+                        } catch (err: any) { toast.error(sanitizeErrorForToast(err)); }
+                      }}><Download className="w-3 h-3" /></Button>
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground mb-2">Subject: {t.subject || 'N/A'}</p>
@@ -735,12 +809,13 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>
+                {t._source === 'gophish' && <p className="text-xs text-muted-foreground">Modified: {new Date(t.modified_date).toLocaleDateString()}</p>}
+                {t._source === 'c3-library' && (t as any)._c3Template?.description && <p className="text-xs text-muted-foreground line-clamp-2">{(t as any)._c3Template.description}</p>}
               </div>
             </div>
           ))}
         </div>
-      ) : Array.isArray(templates) && templates.length > 0 ? (
+      ) : (searchQuery || selectedCategory !== 'all' || selectedDifficulty !== 'all') ? (
         <div className="bg-card border-2 border-dashed border-border p-12 text-center">
           <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
           <h3 className="font-display text-lg tracking-wider mb-2">NO MATCHING TEMPLATES</h3>
@@ -750,8 +825,8 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
           </button>
         </div>
       ) : (
-        <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Templates support phishing platform variables like {{.URL}} and {{.FirstName}}." />
-      )}
+        <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Switch to C3 Library view to browse built-in templates." />
+      )
 
       {/* Template Preview Modal */}
       {previewTemplate && (
@@ -773,6 +848,48 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' });
   const [previewPage, setPreviewPage] = useState<any>(null);
+  const [viewSource, setViewSource] = useState<'all' | 'c3-library' | 'gophish'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const syncLandingPages = trpc.gophishProxy.createLandingPage.useMutation();
+
+  // Build C3 library landing pages as display items
+  const c3LandingPages = useMemo(() => {
+    return LANDING_PAGE_TEMPLATES.map(lp => ({
+      id: `c3-${lp.id}`,
+      name: lp.name,
+      html: lp.htmlContent,
+      capture_credentials: true,
+      capture_passwords: lp.captureFields.includes('password'),
+      redirect_url: lp.redirectUrl,
+      _source: 'c3-library' as const,
+      _c3Template: lp,
+      _category: lp.category,
+      modified_date: new Date().toISOString(),
+    }));
+  }, []);
+
+  // GoPhish landing pages
+  const gophishPages = useMemo(() => {
+    if (!Array.isArray(pages)) return [];
+    return pages.map((p: any) => ({ ...p, _source: 'gophish' as const }));
+  }, [pages]);
+
+  // Merge based on view source
+  const allPages = useMemo(() => {
+    if (viewSource === 'c3-library') return c3LandingPages;
+    if (viewSource === 'gophish') return gophishPages;
+    const syncedNames = new Set(gophishPages.filter((p: any) => (p.name || '').startsWith('[C3]')).map((p: any) => (p.name || '').replace('[C3] ', '')));
+    const deduped = c3LandingPages.map(p => ({ ...p, _synced: syncedNames.has(p.name) }));
+    const gophishOnly = gophishPages.filter((p: any) => !(p.name || '').startsWith('[C3]'));
+    return [...deduped, ...gophishOnly];
+  }, [c3LandingPages, gophishPages, viewSource]);
+
+  // Filter
+  const filteredPages = useMemo(() => {
+    if (!searchQuery.trim()) return allPages;
+    const q = searchQuery.toLowerCase();
+    return allPages.filter((p: any) => (p.name || '').toLowerCase().includes(q) || (p.html || '').toLowerCase().includes(q));
+  }, [allPages, searchQuery]);
 
   const handleSave = () => {
     if (!form.name || !form.html) { toast.error("Name and HTML are required"); return; }
@@ -794,11 +911,56 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-xl tracking-wider">LANDING PAGES</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <h2 className="font-display text-xl tracking-wider">LANDING PAGES</h2>
+          <div className="flex border border-border rounded overflow-hidden">
+            {([['all', 'ALL'], ['c3-library', 'C3 LIBRARY'], ['gophish', 'GOPHISH']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setViewSource(key as any)}
+                className={`px-3 py-1 text-[10px] font-display tracking-wider transition-all ${
+                  viewSource === key
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card'
+                }`}
+              >
+                {key === 'c3-library' && <Library className="w-3 h-3 inline mr-1" />}
+                {key === 'gophish' && <Database className="w-3 h-3 inline mr-1" />}
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <Button size="sm" className="font-display tracking-wider bg-green-500 hover:bg-green-600 text-black" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name: '', html: '', capture_credentials: true, capture_passwords: true, redirect_url: '' }); }}>
           {showForm ? <><XCircle className="w-4 h-4 mr-2" />CANCEL</> : <><Plus className="w-4 h-4 mr-2" />NEW LANDING PAGE</>}
         </Button>
+      </div>
+
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search landing pages..."
+          className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500/30 transition-colors"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Results count */}
+      <div className="text-xs text-muted-foreground font-display tracking-wider flex items-center gap-3">
+        <span>SHOWING {filteredPages.length} OF {allPages.length} LANDING PAGES</span>
+        <span className="flex items-center gap-1.5">
+          <Library className="w-3 h-3 text-emerald-400" /> {c3LandingPages.length} C3
+          <Database className="w-3 h-3 text-blue-400 ml-2" /> {gophishPages.length} GOPHISH
+        </span>
       </div>
 
       {showForm && (
@@ -834,10 +996,22 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
         </div>
       )}
 
-      {Array.isArray(pages) && pages.length > 0 ? (
+      {filteredPages.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pages.map((p: any) => (
-            <div key={p.id} className="bg-card border-2 border-border hover:border-green-500 transition-colors group overflow-hidden">
+          {filteredPages.map((p: any) => (
+            <div key={p.id} className="bg-card border-2 border-border hover:border-green-500 transition-colors group overflow-hidden relative">
+              {/* Source badge */}
+              <div className={`absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-display tracking-wider ${
+                p._source === 'c3-library'
+                  ? (p as any)._synced ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' : 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                  : 'bg-blue-500/30 text-blue-300 border border-blue-500/50'
+              }`}>
+                {p._source === 'c3-library' ? (
+                  <>{(p as any)._synced ? <><CheckCircle className="w-2.5 h-2.5" /> SYNCED</> : <><Library className="w-2.5 h-2.5" /> C3 LIBRARY</>}</>
+                ) : (
+                  <><Database className="w-2.5 h-2.5" /> GOPHISH</>
+                )}
+              </div>
               {/* Thumbnail preview */}
               {p.html && (
                 <TemplatePreviewThumbnail
@@ -855,8 +1029,17 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Preview" onClick={() => setPreviewPage(p)}><Eye className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Edit className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}><Trash2 className="w-3 h-3" /></Button>
+                    {p._source === 'gophish' && <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(p)}><Edit className="w-3 h-3" /></Button>}
+                    {p._source === 'gophish' && <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={() => onDelete(p.id)}><Trash2 className="w-3 h-3" /></Button>}
+                    {p._source === 'c3-library' && !(p as any)._synced && (
+                      <Button variant="ghost" size="sm" className="h-7 p-0 px-1.5 text-emerald-400 text-[10px]" title="Push to GoPhish" onClick={async () => {
+                        try {
+                          const c3lp = (p as any)._c3Template;
+                          onCreate({ name: `[C3] ${c3lp.name}`, html: c3lp.htmlContent, capture_credentials: true, capture_passwords: c3lp.captureFields.includes('password'), redirect_url: c3lp.redirectUrl });
+                          toast.success(`Synced "${c3lp.name}" to GoPhish`);
+                        } catch (err: any) { toast.error('Failed to sync landing page'); }
+                      }}><Download className="w-3 h-3" /></Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2">
@@ -864,14 +1047,26 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
                   {p.capture_passwords && <span className="text-[10px] font-display tracking-wider bg-red-500/20 text-red-400 px-2 py-0.5">CAPTURES PASSWORDS</span>}
                 </div>
                 {p.redirect_url && <p className="text-xs text-muted-foreground mt-2">Redirect: {p.redirect_url}</p>}
-                <p className="text-xs text-muted-foreground mt-1">Modified: {new Date(p.modified_date).toLocaleDateString()}</p>
+                {p._source === 'gophish' && <p className="text-xs text-muted-foreground mt-1">Modified: {new Date(p.modified_date).toLocaleDateString()}</p>}
+                {p._source === 'c3-library' && (p as any)._c3Template?.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{(p as any)._c3Template.description}</p>}
+                {p._source === 'c3-library' && (p as any)._category && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-display tracking-wider mt-2 px-2 py-0.5 rounded border border-green-500/40 text-green-400 bg-green-500/15">
+                    {(p as any)._category.replace(/-/g, ' ').toUpperCase()}
+                  </span>
+                )}
               </div>
             </div>
           ))}
         </div>
+      ) : searchQuery ? (
+        <div className="bg-card border-2 border-dashed border-border p-12 text-center">
+          <Search className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
+          <h3 className="font-display text-lg tracking-wider mb-2">NO MATCHING LANDING PAGES</h3>
+          <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-green-400 hover:text-green-300 font-display tracking-wider">CLEAR SEARCH</button>
+        </div>
       ) : (
-        <EmptyState icon={<Globe className="w-12 h-12 text-green-500/50" />} title="NO LANDING PAGES" description="Create landing pages with credential capture forms for phishing simulations." />
-      )}
+        <EmptyState icon={<Globe className="w-12 h-12 text-green-500/50" />} title="NO LANDING PAGES" description="Create landing pages or switch to C3 Library view to browse built-in templates." />
+      )
 
       {/* Landing Page Preview Modal */}
       {previewPage && (

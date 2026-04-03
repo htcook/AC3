@@ -111,6 +111,7 @@ export type OpsPhase =
   | "test_plan_approval"      // Phase 4b: Customer Test Plan Approval Gate
   | "enumeration"             // Phase 5: Active Discovery & Enumeration (ScanForge, httpx)
   | "vuln_detection"          // Phase 6: Vulnerability Scanning
+  | "social_engineering"      // Phase 6b: Social Engineering / Phishing (ROE-gated)
   | "exploitation"            // Phase 7: Penetration Testing / Exploitation
   | "post_exploit"            // Phase 8: Post-Exploitation (Red Team only)
   | "reporting"               // Phase 9: Reporting
@@ -8060,7 +8061,7 @@ export async function executeEngagement(
   engagementId: number,
   operatorCtx: { id: string; name?: string },
   options?: {
-    startPhase?: 'recon' | 'passive_discovery' | 'scoping' | 'test_plan' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit';
+    startPhase?: 'recon' | 'passive_discovery' | 'scoping' | 'test_plan' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit';
     resume?: boolean; // If true, resume from last saved phase instead of startPhase
     scanProfile?: 'quick' | 'standard' | 'deep' | 'stealth';
   }
@@ -8114,7 +8115,7 @@ export async function executeEngagement(
         state = recovered;
         // Use explicit startPhase from options if provided (caller already computed next phase)
         // Otherwise advance to the next phase after the recovered one
-        const phaseOrder: OpsPhase[] = ['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
+        const phaseOrder: OpsPhase[] = ['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit'];
         if (options?.startPhase) {
           startPhase = options.startPhase;
         } else {
@@ -8915,6 +8916,110 @@ export async function executeEngagement(
         }
       }
 
+      // Phase 6b: Social Engineering / Phishing (ROE-gated, optional)
+      // Only runs if social engineering is explicitly authorized in the ROE scope
+      const roeScope = engagement.roeScope as any;
+      const socialEngAuthorized = roeScope && typeof roeScope === 'object' && (
+        roeScope.socialEngineeringAllowed === true ||
+        roeScope.socialEngineering === true ||
+        roeScope.phishing === true
+      );
+      if (socialEngAuthorized) {
+        state.phase = 'social_engineering';
+        state.currentAction = 'Preparing social engineering assessment...';
+        broadcastOpsUpdate(state.engagementId, { type: 'phase_change', phase: 'social_engineering' });
+        addLog(state, {
+          phase: 'social_engineering', type: 'info',
+          title: '\uD83C\uDFA3 Phase 6b: Social Engineering Assessment',
+          detail: 'Social engineering is authorized in the Rules of Engagement. Analyzing domain spoofability and preparing phishing intelligence.',
+        });
+
+        try {
+          // Check domain spoofability from recon data
+          const targetDomain = engagement.targetDomain || '';
+          const primaryAsset = state.assets.find(a => a.hostname === targetDomain || a.hostname.endsWith('.' + targetDomain));
+          const emailSecurity = primaryAsset?.passiveRecon?.emailSecurity;
+          const spoofable = emailSecurity ? (!emailSecurity.spf || !emailSecurity.dmarc || emailSecurity.dmarcPolicy === 'none') : true;
+
+          // Log domain spoofing assessment
+          if (spoofable) {
+            addLog(state, {
+              phase: 'social_engineering', type: 'info',
+              title: '\u2705 Domain Spoofing Viable',
+              detail: `Target domain ${targetDomain} has weak email security: SPF=${emailSecurity?.spf ? 'present' : 'MISSING'}, DMARC=${emailSecurity?.dmarc ? 'present' : 'MISSING'}${emailSecurity?.dmarcPolicy ? ` (policy: ${emailSecurity.dmarcPolicy})` : ''}. Direct domain spoofing is recommended.`,
+            });
+          } else {
+            addLog(state, {
+              phase: 'social_engineering', type: 'info',
+              title: '\uD83D\uDEE1\uFE0F Domain Hardened Against Spoofing',
+              detail: `Target domain ${targetDomain} has strong email security: SPF=${emailSecurity?.spf ? '\u2713' : '\u2717'}, DKIM=${emailSecurity?.dkim ? '\u2713' : '\u2717'}, DMARC=${emailSecurity?.dmarc ? '\u2713' : '\u2717'} (policy: ${emailSecurity?.dmarcPolicy || 'unknown'}). Use a typosquat or owned domain for phishing.`,
+            });
+          }
+
+          // Use LLM to generate phishing campaign recommendations based on recon
+          const techStack = primaryAsset?.passiveRecon?.technologies || [];
+          const services = primaryAsset?.passiveRecon?.services || [];
+          const phishingRecommendation = await throttledLLMCall({
+            messages: [
+              {
+                role: 'system',
+                content: `You are a social engineering specialist on a red team. Based on the target's technology stack, services, and email security posture, recommend the most effective phishing approach. Be specific about:
+1. Email template category (IT Help Desk, Password Reset, Cloud Services, etc.)
+2. Pretext scenario tailored to the target's tech stack
+3. Whether to spoof the target domain or use an alternate
+4. Landing page strategy (credential harvest, malware delivery, or MFA bypass)
+5. Timing and delivery recommendations
+
+Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrategy": "spoof_target" | "typosquat" | "owned_domain", "landingPageType": string, "deliveryNotes": string, "confidence": number }`
+              },
+              {
+                role: 'user',
+                content: `Target: ${targetDomain}\nTech Stack: ${techStack.join(', ') || 'unknown'}\nServices: ${services.map(s => `${s.port}/${s.service}`).join(', ') || 'unknown'}\nEmail Security: SPF=${emailSecurity?.spf}, DKIM=${emailSecurity?.dkim}, DMARC=${emailSecurity?.dmarc} (policy: ${emailSecurity?.dmarcPolicy || 'unknown'})\nSpoofable: ${spoofable}\nVulns found so far: ${state.stats.vulnsFound}`,
+              },
+            ],
+            response_format: { type: 'json_object' as const },
+          });
+
+          const phishRec = JSON.parse(phishingRecommendation.choices[0]?.message?.content || '{}');
+          addLog(state, {
+            phase: 'social_engineering', type: 'info',
+            title: '\uD83D\uDCCB Phishing Campaign Recommendation',
+            detail: `Category: ${phishRec.templateCategory || 'General'}\nPretext: ${phishRec.pretext || 'N/A'}\nDomain Strategy: ${phishRec.domainStrategy || 'unknown'}\nLanding Page: ${phishRec.landingPageType || 'credential harvest'}\nDelivery: ${phishRec.deliveryNotes || 'N/A'}\nConfidence: ${phishRec.confidence || 'N/A'}%`,
+            data: { phishingRecommendation: phishRec, spoofable, emailSecurity },
+          });
+
+          // Store phishing intelligence in state for the report
+          (state as any).phishingIntel = {
+            authorized: true,
+            spoofable,
+            emailSecurity,
+            recommendation: phishRec,
+            targetDomain,
+            assessedAt: Date.now(),
+          };
+
+          addLog(state, {
+            phase: 'social_engineering', type: 'phase_complete',
+            title: '\u2705 Phase 6b Complete',
+            detail: `Social engineering assessment complete. ${spoofable ? 'Domain spoofing viable.' : 'Domain hardened — alternate domain required.'} Campaign recommendation generated. Operator can launch phishing campaign from the Phishing Operations module.`,
+          });
+        } catch (phishErr: any) {
+          addLog(state, {
+            phase: 'social_engineering', type: 'warning',
+            title: 'Social Engineering Assessment Error',
+            detail: `Failed to complete phishing assessment: ${phishErr.message}. Continuing to exploitation phase.`,
+          });
+        }
+        await phaseCheckpoint('social_engineering');
+        if (!state.isRunning) return;
+      } else {
+        addLog(state, {
+          phase: 'social_engineering', type: 'info',
+          title: '\u23ED\uFE0F Social Engineering Skipped',
+          detail: 'Social engineering is not authorized in the Rules of Engagement for this engagement. Skipping to exploitation phase.',
+        });
+      }
+
       // Phase 7: Exploitation (safety gated)
       const exploitGate = safetyEngine.canEnterPhase('exploitation');
       if (!exploitGate.allowed) {
@@ -9711,7 +9816,7 @@ export async function executeEngagement(
       const { notifyOwner } = await import('../_core/notification');
       const durationMs = (state.completedAt || Date.now()) - (state.startedAt || Date.now());
       const durationMin = Math.round(durationMs / 60_000);
-      const phases = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'];
+      const phases = ['recon', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit'];
       const phasesCompleted = phases.filter(p => state.log.some(l => l.phase === p)).length;
       const critVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'critical').length, 0);
       const highVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter(v => v.severity === 'high').length, 0);
@@ -9808,7 +9913,7 @@ export async function resumeEngagement(
   // Determine the best phase to resume from.
   // When state.phase is 'error'/'idle'/'paused', search backwards through logs
   // for the last VALID pipeline phase (not 'error', 'idle', 'paused', 'unknown', 'completed').
-  const validPipelinePhases = new Set(['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']);
+  const validPipelinePhases = new Set(['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit']);
   let resumePhase: string = 'recon';
   if (state.phase === 'error' || state.phase === 'idle' || state.phase === 'paused') {
     // Search backwards through log entries for the last valid pipeline phase
@@ -9966,11 +10071,11 @@ export async function recoverInterruptedEngagements(): Promise<{
  */
 export async function rerunFromPhase(
   engagementId: number,
-  targetPhase: 'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit',
+  targetPhase: 'recon' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit',
   operatorCtx: { id: string; name?: string }
 ): Promise<{ success: boolean; message: string }> {
-  const PHASE_ORDER: Array<'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit'> = [
-    'recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit',
+  const PHASE_ORDER: Array<'recon' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit'> = [
+    'recon', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit',
   ];
 
   const targetIdx = PHASE_ORDER.indexOf(targetPhase);

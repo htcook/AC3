@@ -287,6 +287,129 @@ async function testSmtp(host: string, timeoutMs: number): Promise<SmtpTestResult
 
 // ─── PTR (Reverse DNS) ─────────────────────────────────────────────
 
+// ─── SPF / DMARC / MX Lookup ─────────────────────────────────────────
+
+interface SpfResult {
+  found: boolean;
+  record: string | null;
+  mechanisms: string[];
+  policy: 'none' | 'softfail' | 'hardfail' | 'neutral' | 'unknown';
+  includeCount: number;
+  spoofable: boolean; // true if policy is none/neutral or no SPF at all
+}
+
+async function lookupSpf(domain: string, timeoutMs: number): Promise<SpfResult> {
+  try {
+    const txtRecords = await withTimeout(resolveTxt(domain), timeoutMs, []);
+    const spfRecord = txtRecords.flat().find(r => r.startsWith('v=spf1'));
+    if (!spfRecord) {
+      return { found: false, record: null, mechanisms: [], policy: 'none', includeCount: 0, spoofable: true };
+    }
+    const parts = spfRecord.split(/\s+/);
+    const mechanisms = parts.filter(p => !p.startsWith('v='));
+    const allPart = parts.find(p => /^[~?+-]?all$/.test(p)) || '';
+    let policy: SpfResult['policy'] = 'unknown';
+    if (allPart.startsWith('-') || allPart === '-all') policy = 'hardfail';
+    else if (allPart.startsWith('~') || allPart === '~all') policy = 'softfail';
+    else if (allPart.startsWith('?') || allPart === '?all') policy = 'neutral';
+    else if (allPart === '+all' || allPart === 'all') policy = 'none';
+    else if (!allPart) policy = 'none';
+    const includeCount = mechanisms.filter(m => m.startsWith('include:')).length;
+    const spoofable = policy === 'none' || policy === 'neutral' || !spfRecord;
+    return { found: true, record: spfRecord, mechanisms, policy, includeCount, spoofable };
+  } catch {
+    return { found: false, record: null, mechanisms: [], policy: 'none', includeCount: 0, spoofable: true };
+  }
+}
+
+interface DmarcResult {
+  found: boolean;
+  record: string | null;
+  policy: 'none' | 'quarantine' | 'reject' | 'unknown';
+  subdomainPolicy: string | null;
+  reportUri: string | null;
+  pct: number;
+  spoofable: boolean; // true if policy is none or no DMARC at all
+}
+
+async function lookupDmarc(domain: string, timeoutMs: number): Promise<DmarcResult> {
+  try {
+    const txtRecords = await withTimeout(resolveTxt(`_dmarc.${domain}`), timeoutMs, []);
+    const dmarcRecord = txtRecords.flat().find(r => r.startsWith('v=DMARC1'));
+    if (!dmarcRecord) {
+      return { found: false, record: null, policy: 'none', subdomainPolicy: null, reportUri: null, pct: 100, spoofable: true };
+    }
+    const tags = Object.fromEntries(
+      dmarcRecord.split(';').map(p => p.trim().split('=').map(s => s.trim())).filter(p => p.length === 2)
+    );
+    let policy: DmarcResult['policy'] = 'unknown';
+    if (tags.p === 'reject') policy = 'reject';
+    else if (tags.p === 'quarantine') policy = 'quarantine';
+    else if (tags.p === 'none') policy = 'none';
+    const pct = tags.pct ? parseInt(tags.pct, 10) : 100;
+    const spoofable = policy === 'none' || !dmarcRecord;
+    return {
+      found: true, record: dmarcRecord, policy,
+      subdomainPolicy: tags.sp || null,
+      reportUri: tags.rua || null,
+      pct, spoofable,
+    };
+  } catch {
+    return { found: false, record: null, policy: 'none', subdomainPolicy: null, reportUri: null, pct: 100, spoofable: true };
+  }
+}
+
+interface MailSecurityAssessment {
+  spf: SpfResult;
+  dmarc: DmarcResult;
+  mxRecords: { exchange: string; priority: number }[];
+  spoofable: boolean; // composite: true if domain can be spoofed
+  spoofReason: string;
+  score: number; // 0-100
+}
+
+// Enterprise mail service ports
+const ENTERPRISE_MAIL_PORTS = [
+  { port: 25, service: 'SMTP', protocol: 'smtp' },
+  { port: 465, service: 'SMTPS (Implicit TLS)', protocol: 'smtps' },
+  { port: 587, service: 'SMTP Submission', protocol: 'submission' },
+  { port: 2525, service: 'SMTP Alternate', protocol: 'smtp-alt' },
+  { port: 143, service: 'IMAP', protocol: 'imap' },
+  { port: 993, service: 'IMAPS', protocol: 'imaps' },
+  { port: 110, service: 'POP3', protocol: 'pop3' },
+  { port: 995, service: 'POP3S', protocol: 'pop3s' },
+];
+
+interface MailPortResult {
+  port: number;
+  service: string;
+  protocol: string;
+  connected: boolean;
+  banner?: string;
+  latencyMs: number;
+  host: string;
+  error?: string;
+}
+
+async function checkMailPorts(host: string, timeoutMs: number): Promise<MailPortResult[]> {
+  const results = await Promise.all(
+    ENTERPRISE_MAIL_PORTS.map(async (mp) => {
+      const tcp = await tcpConnect(host, mp.port, Math.min(timeoutMs, 5000));
+      return {
+        port: mp.port,
+        service: mp.service,
+        protocol: mp.protocol,
+        connected: tcp.connected,
+        banner: tcp.banner,
+        latencyMs: tcp.latencyMs,
+        host,
+        error: tcp.error,
+      };
+    })
+  );
+  return results;
+}
+
 interface PtrResult {
   ip: string;
   hostnames: string[];
@@ -549,6 +672,8 @@ export interface DomainHealthReport {
   categories: {
     blacklist: { score: number; grade: string; details: DnsblResult | null };
     mailServer: { score: number; grade: string; details: SmtpTestResult[] };
+    mailSecurity: { score: number; grade: string; details: MailSecurityAssessment | null };
+    mailPorts: { score: number; grade: string; details: MailPortResult[] };
     dnsHealth: { score: number; grade: string; details: DnsHealthResult | null };
     reverseDs: { score: number; grade: string; details: PtrResult[] };
     ipInfo: { score: number; grade: string; details: IpBlockInfo[] };
@@ -587,7 +712,7 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   const primaryMx = mxRecords[0]?.exchange;
 
   // Step 3: Run all checks in parallel
-  const [dnsblResult, smtpResults, dnsHealthResult, ptrResults, ipInfoResults, tcpResults] = await Promise.all([
+  const [dnsblResult, smtpResults, dnsHealthResult, ptrResults, ipInfoResults, tcpResults, spfResult, dmarcResult, mailPortResults] = await Promise.all([
     // DNSBL check on primary IP
     primaryIp ? checkDnsbl(primaryIp, timeoutMs) : Promise.resolve(null),
 
@@ -608,7 +733,7 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
           mxIps.forEach(ip => ipsToCheck.add(ip));
         } catch {}
       }
-      return Promise.all([...ipsToCheck].slice(0, 5).map(ip => checkPtr(ip, domain, 5000)));
+      return Promise.all(Array.from(ipsToCheck).slice(0, 5).map(ip => checkPtr(ip, domain, 5000)));
     })(),
 
     // IP block info for primary IP
@@ -616,6 +741,15 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
 
     // TCP connectivity check on common ports
     primaryIp ? checkTcpPorts(primaryIp, [80, 443, 25, 587, 993, 143], Math.min(timeoutMs, 10000)) : Promise.resolve([]),
+
+    // SPF record lookup
+    lookupSpf(domain, 5000),
+
+    // DMARC record lookup
+    lookupDmarc(domain, 5000),
+
+    // Enterprise mail port scan on primary MX host
+    primaryMx ? checkMailPorts(primaryMx, Math.min(timeoutMs, 10000)) : (primaryIp ? checkMailPorts(primaryIp, Math.min(timeoutMs, 10000)) : Promise.resolve([])),
   ]);
 
   // ─── Score Calculation ──────────────────────────────────────────
@@ -708,12 +842,75 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
     }
   }
 
-  // Overall score (weighted average)
+  // Mail Security score (SPF + DMARC)
+  let mailSecurityScore = 100;
+  const spoofReasons: string[] = [];
+  if (!spfResult.found) {
+    mailSecurityScore -= 40;
+    spoofReasons.push('No SPF record — any server can send email as this domain');
+    issues.push({ severity: 'critical', category: 'mailSecurity', message: `No SPF record found for ${domain} — domain is spoofable` });
+  } else if (spfResult.spoofable) {
+    mailSecurityScore -= 25;
+    spoofReasons.push(`SPF policy is ${spfResult.policy} — does not block unauthorized senders`);
+    issues.push({ severity: 'warning', category: 'mailSecurity', message: `SPF policy is '${spfResult.policy}' — weak protection against spoofing` });
+  }
+  if (!dmarcResult.found) {
+    mailSecurityScore -= 40;
+    spoofReasons.push('No DMARC record — receiving servers cannot validate sender authenticity');
+    issues.push({ severity: 'critical', category: 'mailSecurity', message: `No DMARC record found for ${domain} — domain is spoofable` });
+  } else if (dmarcResult.spoofable) {
+    mailSecurityScore -= 20;
+    spoofReasons.push(`DMARC policy is ${dmarcResult.policy} — spoofed emails are not rejected`);
+    issues.push({ severity: 'warning', category: 'mailSecurity', message: `DMARC policy is '${dmarcResult.policy}' — spoofed emails pass through` });
+  } else if (dmarcResult.policy === 'quarantine') {
+    mailSecurityScore -= 5;
+    issues.push({ severity: 'info', category: 'mailSecurity', message: `DMARC policy is 'quarantine' — consider upgrading to 'reject' for full protection` });
+  }
+  if (dmarcResult.found && dmarcResult.pct < 100) {
+    mailSecurityScore -= 10;
+    issues.push({ severity: 'warning', category: 'mailSecurity', message: `DMARC only applies to ${dmarcResult.pct}% of messages (pct=${dmarcResult.pct})` });
+  }
+  mailSecurityScore = Math.max(0, mailSecurityScore);
+
+  const domainSpoofable = (spfResult.spoofable || !spfResult.found) && (dmarcResult.spoofable || !dmarcResult.found);
+  const mailSecurityAssessment: MailSecurityAssessment = {
+    spf: spfResult,
+    dmarc: dmarcResult,
+    mxRecords,
+    spoofable: domainSpoofable,
+    spoofReason: spoofReasons.length > 0 ? spoofReasons.join('; ') : 'Domain has strong SPF and DMARC protections',
+    score: mailSecurityScore,
+  };
+
+  // Mail Port score
+  let mailPortScore = 100;
+  const openMailPorts = mailPortResults.filter(r => r.connected);
+  const smtpPorts = mailPortResults.filter(r => [25, 465, 587, 2525].includes(r.port));
+  const smtpOpen = smtpPorts.filter(r => r.connected);
+  if (smtpOpen.length === 0 && mxRecords.length > 0) {
+    mailPortScore = 40;
+    const port25 = smtpPorts.find(r => r.port === 25);
+    if (port25 && !port25.connected) {
+      issues.push({ severity: 'warning', category: 'mailPorts', message: `Port 25 is not reachable on ${port25.host} — may be filtered by cloud provider or firewall. Checked alternate SMTP ports (465, 587, 2525) as well.` });
+    }
+    issues.push({ severity: 'critical', category: 'mailPorts', message: `No SMTP ports (25, 465, 587, 2525) are reachable on mail server` });
+  } else if (smtpOpen.length > 0) {
+    // Check if only insecure ports are open
+    const hasSecureSMTP = smtpOpen.some(r => r.port === 465 || r.port === 587);
+    if (!hasSecureSMTP) {
+      mailPortScore -= 15;
+      issues.push({ severity: 'warning', category: 'mailPorts', message: 'Only plain SMTP (port 25) is open — no secure submission ports (465/587)' });
+    }
+  }
+
+  // Overall score (weighted average — adjusted for new categories)
   const overallScore = Math.round(
-    blacklistScore * 0.25 +
-    mailScore * 0.25 +
-    dnsScore * 0.20 +
-    ptrScore * 0.15 +
+    blacklistScore * 0.20 +
+    mailScore * 0.15 +
+    mailSecurityScore * 0.20 +
+    mailPortScore * 0.05 +
+    dnsScore * 0.15 +
+    ptrScore * 0.10 +
     connectivityScore * 0.10 +
     ipScore * 0.05
   );
@@ -726,6 +923,8 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
     categories: {
       blacklist: { score: blacklistScore, grade: scoreToGrade(blacklistScore), details: dnsblResult },
       mailServer: { score: mailScore, grade: scoreToGrade(mailScore), details: smtpResults },
+      mailSecurity: { score: mailSecurityScore, grade: scoreToGrade(mailSecurityScore), details: mailSecurityAssessment },
+      mailPorts: { score: mailPortScore, grade: scoreToGrade(mailPortScore), details: mailPortResults },
       dnsHealth: { score: dnsScore, grade: scoreToGrade(dnsScore), details: dnsHealthResult },
       reverseDs: { score: ptrScore, grade: scoreToGrade(ptrScore), details: ptrResults },
       ipInfo: { score: ipScore, grade: scoreToGrade(ipScore), details: ipInfoResults },
@@ -772,6 +971,8 @@ export const domainHealthConnector: PassiveConnector = {
           overallGrade: report.overallGrade,
           blacklistScore: report.categories.blacklist.score,
           mailServerScore: report.categories.mailServer.score,
+          mailSecurityScore: report.categories.mailSecurity.score,
+          mailPortScore: report.categories.mailPorts.score,
           dnsHealthScore: report.categories.dnsHealth.score,
           reverseDnsScore: report.categories.reverseDs.score,
           connectivityScore: report.categories.connectivity.score,
@@ -987,6 +1188,71 @@ export const domainHealthConnector: PassiveConnector = {
             provider: "AC3 TCP Connectivity Checker",
             method: `TCP connect test to ${tcp.host}:${tcp.port}`,
             verifyUrl: `https://mxtoolbox.com/SuperTool.aspx?action=tcp%3a${tcp.host}%3a${tcp.port}`,
+          },
+        });
+      }
+
+      // 8. Mail Security observations (SPF, DMARC, spoofability)
+      if (report.categories.mailSecurity.details) {
+        const ms = report.categories.mailSecurity.details;
+        observations.push({
+          assetId: makeAssetId(domain, 'mail_security', 'domain_health'),
+          domain,
+          assetType: 'txt',
+          name: `Mail Security: ${scoreToGrade(ms.score)} (${ms.score}/100)${ms.spoofable ? ' — SPOOFABLE' : ' — Protected'}`,
+          source: 'domain_health',
+          observedAt: now,
+          tags: [
+            'domain_health', 'mail_security', 'spf', 'dmarc',
+            ms.spoofable ? 'spoofable' : 'protected',
+            ms.spf.found ? `spf:${ms.spf.policy}` : 'spf:missing',
+            ms.dmarc.found ? `dmarc:${ms.dmarc.policy}` : 'dmarc:missing',
+          ],
+          evidence: {
+            spf: ms.spf,
+            dmarc: ms.dmarc,
+            spoofable: ms.spoofable,
+            spoofReason: ms.spoofReason,
+            mxRecords: ms.mxRecords,
+            score: ms.score,
+          },
+          attribution: {
+            provider: 'AC3 Mail Security Analyzer',
+            method: `SPF + DMARC analysis for ${domain}`,
+            verifyUrl: `https://mxtoolbox.com/SuperTool.aspx?action=spf%3a${domain}`,
+          },
+        });
+      }
+
+      // 9. Enterprise mail port observations
+      for (const mp of report.categories.mailPorts.details) {
+        observations.push({
+          assetId: makeAssetId(domain, `mailport:${mp.host}:${mp.port}`, 'domain_health'),
+          domain,
+          assetType: 'ip',
+          ip: mp.host,
+          name: mp.connected
+            ? `Mail Port ${mp.port} (${mp.service}) OPEN on ${mp.host} (${mp.latencyMs}ms)${mp.banner ? ` — ${mp.banner.substring(0, 60)}` : ''}`
+            : `Mail Port ${mp.port} (${mp.service}) CLOSED on ${mp.host}`,
+          source: 'domain_health',
+          observedAt: now,
+          tags: [
+            'domain_health', 'mail_port', `port:${mp.port}`, mp.protocol,
+            mp.connected ? 'port_open' : 'port_closed',
+          ],
+          evidence: {
+            host: mp.host,
+            port: mp.port,
+            service: mp.service,
+            protocol: mp.protocol,
+            connected: mp.connected,
+            banner: mp.banner,
+            latencyMs: mp.latencyMs,
+            error: mp.error,
+          },
+          attribution: {
+            provider: 'AC3 Mail Port Scanner',
+            method: `Enterprise mail port scan on ${mp.host}:${mp.port} (${mp.service})`,
           },
         });
       }

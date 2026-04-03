@@ -64,7 +64,7 @@ import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
-type OpsPhase = "idle" | "recon" | "recon_complete" | "passive_discovery" | "scoping" | "test_plan" | "test_plan_approval" | "enumeration" | "vuln_detection" | "exploitation" | "post_exploit" | "reporting" | "completed" | "paused" | "error";
+type OpsPhase = "idle" | "recon" | "recon_complete" | "passive_discovery" | "scoping" | "test_plan" | "test_plan_approval" | "enumeration" | "vuln_detection" | "social_engineering" | "exploitation" | "post_exploit" | "reporting" | "completed" | "paused" | "error";
 type ApprovalStatus = "pending" | "approved" | "denied";
 
 interface ApprovalGate {
@@ -217,6 +217,7 @@ const PHASES: Array<{ id: string; label: string; icon: React.ReactNode; color: s
   { id: "test_plan_approval", label: "Plan Approval", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-indigo-200" },
   { id: "enumeration", label: "Active Discovery", icon: <Target className="h-4 w-4" />, color: "text-cyan-400" },
   { id: "vuln_detection", label: "Vuln Scan", icon: <Bug className="h-4 w-4" />, color: "text-yellow-400" },
+  { id: "social_engineering", label: "Social Eng.", icon: <Zap className="h-4 w-4" />, color: "text-orange-400" },
   { id: "exploitation", label: "Exploit", icon: <Skull className="h-4 w-4" />, color: "text-red-400" },
   { id: "post_exploit", label: "Post-Exploit", icon: <Radio className="h-4 w-4" />, color: "text-purple-400" },
   { id: "completed", label: "Complete", icon: <CheckCircle2 className="h-4 w-4" />, color: "text-green-400" },
@@ -859,7 +860,7 @@ export default function EngagementOps() {
 
   // ── Re-run From Specific Phase ──
   const [showRerunFromPhaseDialog, setShowRerunFromPhaseDialog] = useState(false);
-  const [rerunTargetPhase, setRerunTargetPhase] = useState<'recon' | 'enumeration' | 'vuln_detection' | 'exploitation' | 'post_exploit'>('exploitation');
+  const [rerunTargetPhase, setRerunTargetPhase] = useState<'recon' | 'enumeration' | 'vuln_detection' | 'social_engineering' | 'exploitation' | 'post_exploit'>('exploitation');
   const rerunFromPhaseMut = trpc.engagementOps.rerunFromPhase.useMutation({
     onSuccess: (data) => {
       toast.success(data.message);

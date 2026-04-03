@@ -1,10 +1,9 @@
-// @ts-nocheck
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   HeartPulse, ShieldX, MailCheck, Stethoscope, Wifi, ListChecks,
   CheckCircle2, XCircle, AlertTriangle, Info, Globe,
-  Server, Lock, Clock, Activity
+  Server, Lock, Clock, Activity, Shield, Mail, Network
 } from "lucide-react";
 
 const GRADE_COLORS: Record<string, string> = {
@@ -85,13 +84,15 @@ function HealthOverview({ report }: { report: any }) {
   const c = report.categories;
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">Comprehensive domain health assessment covering blacklist reputation, mail server configuration, DNS infrastructure, reverse DNS, and network connectivity. Equivalent to MXToolbox SuperTool diagnostics.</p>
+      <p className="text-sm text-muted-foreground">Comprehensive domain health assessment covering blacklist reputation, mail server configuration, mail security (SPF/DMARC), enterprise mail ports, DNS infrastructure, reverse DNS, and network connectivity.</p>
       <Card className="bg-card/50 border-border/50"><CardContent className="pt-6">
         <div className="flex flex-col md:flex-row items-center gap-8">
           <ScoreGauge score={report.overallScore} grade={report.overallGrade} label="Overall Health" size="lg" />
-          <div className="flex-1 grid grid-cols-3 sm:grid-cols-6 gap-4">
+          <div className="flex-1 grid grid-cols-4 sm:grid-cols-8 gap-4">
             <ScoreGauge score={c.blacklist.score} grade={c.blacklist.grade} label="Blacklist" size="sm" />
             <ScoreGauge score={c.mailServer.score} grade={c.mailServer.grade} label="Mail" size="sm" />
+            {c.mailSecurity && <ScoreGauge score={c.mailSecurity.score} grade={c.mailSecurity.grade} label="SPF/DMARC" size="sm" />}
+            {c.mailPorts && <ScoreGauge score={c.mailPorts.score} grade={c.mailPorts.grade} label="Mail Ports" size="sm" />}
             <ScoreGauge score={c.dnsHealth.score} grade={c.dnsHealth.grade} label="DNS" size="sm" />
             <ScoreGauge score={c.reverseDs.score} grade={c.reverseDs.grade} label="rDNS" size="sm" />
             <ScoreGauge score={c.ipInfo.score} grade={c.ipInfo.grade} label="IP Info" size="sm" />
@@ -104,6 +105,8 @@ function HealthOverview({ report }: { report: any }) {
         <CardContent className="space-y-4">
           <ScoreBar label="Blacklist / DNSBL" score={c.blacklist.score} grade={c.blacklist.grade} icon={<ShieldX className="h-4 w-4 text-red-400" />} />
           <ScoreBar label="Mail Server (SMTP)" score={c.mailServer.score} grade={c.mailServer.grade} icon={<MailCheck className="h-4 w-4 text-blue-400" />} />
+          {c.mailSecurity && <ScoreBar label="Mail Security (SPF/DMARC)" score={c.mailSecurity.score} grade={c.mailSecurity.grade} icon={<Shield className="h-4 w-4 text-violet-400" />} />}
+          {c.mailPorts && <ScoreBar label="Enterprise Mail Ports" score={c.mailPorts.score} grade={c.mailPorts.grade} icon={<Network className="h-4 w-4 text-pink-400" />} />}
           <ScoreBar label="DNS Health" score={c.dnsHealth.score} grade={c.dnsHealth.grade} icon={<Stethoscope className="h-4 w-4 text-purple-400" />} />
           <ScoreBar label="Reverse DNS (PTR)" score={c.reverseDs.score} grade={c.reverseDs.grade} icon={<Globe className="h-4 w-4 text-cyan-400" />} />
           <ScoreBar label="IP Block Info" score={c.ipInfo.score} grade={c.ipInfo.grade} icon={<Server className="h-4 w-4 text-amber-400" />} />
@@ -180,6 +183,178 @@ function MailServerTab({ report }: { report: any }) {
         </Card>
       ))}
       <Issues issues={report.issues} category="mailServer" />
+    </div>
+  );
+}
+
+function MailSecurityTab({ report }: { report: any }) {
+  const ms = report.categories.mailSecurity?.details;
+  if (!ms) return <div className="text-sm text-muted-foreground p-4">Mail security data not available. Run a new scan to generate SPF/DMARC analysis.</div>;
+  const spf = ms.spf;
+  const dmarc = ms.dmarc;
+  const spfPolicyColor = spf.policy === 'hardfail' ? 'text-emerald-400' : spf.policy === 'softfail' ? 'text-yellow-400' : 'text-red-400';
+  const dmarcPolicyColor = dmarc.policy === 'reject' ? 'text-emerald-400' : dmarc.policy === 'quarantine' ? 'text-yellow-400' : 'text-red-400';
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Email authentication analysis covering SPF (Sender Policy Framework), DMARC (Domain-based Message Authentication), and domain spoofability assessment.</p>
+
+      {/* Spoofability Banner */}
+      <Card className={`border-border/50 ${ms.spoofable ? "bg-red-500/5 border-red-500/30" : "bg-emerald-500/5 border-emerald-500/30"}`}>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            {ms.spoofable ? <AlertTriangle className="h-6 w-6 text-red-400" /> : <Shield className="h-6 w-6 text-emerald-400" />}
+            <div>
+              <div className={`font-medium ${ms.spoofable ? "text-red-400" : "text-emerald-400"}`}>
+                {ms.spoofable ? "Domain is SPOOFABLE" : "Domain is Protected Against Spoofing"}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">{ms.spoofReason}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SPF Record */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            {spf.found ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <XCircle className="h-4 w-4 text-red-400" />}
+            SPF Record
+            <Badge variant="outline" className={`ml-auto text-xs ${spf.found ? (spf.spoofable ? "text-yellow-400 border-yellow-500/40" : "text-emerald-400 border-emerald-500/40") : "text-red-400 border-red-500/40"}`}>
+              {spf.found ? spf.policy : "MISSING"}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {spf.found ? (
+            <>
+              <div className="text-xs font-mono text-muted-foreground bg-muted/20 p-3 rounded break-all border border-border/30">{spf.record}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="text-sm"><span className="text-muted-foreground">Policy:</span> <span className={`font-medium ${spfPolicyColor}`}>{spf.policy}</span></div>
+                <div className="text-sm"><span className="text-muted-foreground">Includes:</span> <span className="font-mono">{spf.includeCount}</span></div>
+                <div className="text-sm"><span className="text-muted-foreground">Mechanisms:</span> <span className="font-mono">{spf.mechanisms.length}</span></div>
+              </div>
+              {spf.mechanisms.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1.5">SPF Mechanisms:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {spf.mechanisms.map((m: string, i: number) => (
+                      <Badge key={i} variant="outline" className="text-[10px] font-mono">{m}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-sm text-red-400">No SPF record found — any server can send email as this domain.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* DMARC Record */}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            {dmarc.found ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <XCircle className="h-4 w-4 text-red-400" />}
+            DMARC Record
+            <Badge variant="outline" className={`ml-auto text-xs ${dmarc.found ? (dmarc.spoofable ? "text-yellow-400 border-yellow-500/40" : "text-emerald-400 border-emerald-500/40") : "text-red-400 border-red-500/40"}`}>
+              {dmarc.found ? dmarc.policy : "MISSING"}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {dmarc.found ? (
+            <>
+              <div className="text-xs font-mono text-muted-foreground bg-muted/20 p-3 rounded break-all border border-border/30">{dmarc.record}</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="text-sm"><span className="text-muted-foreground">Policy:</span> <span className={`font-medium ${dmarcPolicyColor}`}>{dmarc.policy}</span></div>
+                {dmarc.subdomainPolicy && <div className="text-sm"><span className="text-muted-foreground">Subdomain:</span> <span className="font-mono">{dmarc.subdomainPolicy}</span></div>}
+                <div className="text-sm"><span className="text-muted-foreground">Percentage:</span> <span className="font-mono">{dmarc.pct}%</span></div>
+              </div>
+              {dmarc.reportUri && (
+                <div className="text-sm"><span className="text-muted-foreground">Report URI:</span> <span className="font-mono text-xs break-all">{dmarc.reportUri}</span></div>
+              )}
+            </>
+          ) : (
+            <div className="text-sm text-red-400">No DMARC record found — receiving servers cannot validate sender authenticity.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* MX Records */}
+      {ms.mxRecords && ms.mxRecords.length > 0 && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4 text-blue-400" /> MX Records ({ms.mxRecords.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1.5">
+              {ms.mxRecords.map((mx: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/10 border border-border/30">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-mono text-foreground/90">{mx.exchange}</span>
+                  </div>
+                  <Badge variant="outline" className="text-xs font-mono">Priority: {mx.priority}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Issues issues={report.issues} category="mailSecurity" />
+    </div>
+  );
+}
+
+function MailPortsTab({ report }: { report: any }) {
+  const ports = report.categories.mailPorts?.details || [];
+  if (!ports.length) return <div className="text-sm text-muted-foreground p-4">Mail port data not available. Run a new scan to check enterprise mail ports.</div>;
+  const openPorts = ports.filter((p: any) => p.connected);
+  const closedPorts = ports.filter((p: any) => !p.connected);
+  const smtpPorts = ports.filter((p: any) => [25, 465, 587, 2525].includes(p.port));
+  const imapPorts = ports.filter((p: any) => [143, 993].includes(p.port));
+  const popPorts = ports.filter((p: any) => [110, 995].includes(p.port));
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">Enterprise mail service port scan covering SMTP (25, 465, 587, 2525), IMAP (143, 993), and POP3 (110, 995). Tests connectivity to the primary MX host.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="bg-card/50 border-border/50"><CardContent className="pt-5 text-center"><div className="text-3xl font-bold text-foreground">{ports.length}</div><div className="text-xs text-muted-foreground mt-1">Ports Tested</div></CardContent></Card>
+        <Card className={`border-border/50 ${openPorts.length > 0 ? "bg-emerald-500/5" : "bg-red-500/5"}`}><CardContent className="pt-5 text-center"><div className={`text-3xl font-bold ${openPorts.length > 0 ? "text-emerald-400" : "text-red-400"}`}>{openPorts.length}</div><div className="text-xs text-muted-foreground mt-1">Open</div></CardContent></Card>
+        <Card className="bg-card/50 border-border/50"><CardContent className="pt-5 text-center"><div className="text-3xl font-bold text-muted-foreground">{closedPorts.length}</div><div className="text-xs text-muted-foreground mt-1">Closed/Filtered</div></CardContent></Card>
+        <Card className="bg-card/50 border-border/50"><CardContent className="pt-5 text-center"><div className="text-sm font-mono text-foreground/80 mt-1">{ports[0]?.host || "N/A"}</div><div className="text-xs text-muted-foreground mt-1">Target Host</div></CardContent></Card>
+      </div>
+
+      {/* Port groups */}
+      {[
+        { label: "SMTP Ports", icon: <MailCheck className="h-4 w-4 text-blue-400" />, group: smtpPorts },
+        { label: "IMAP Ports", icon: <Mail className="h-4 w-4 text-purple-400" />, group: imapPorts },
+        { label: "POP3 Ports", icon: <Server className="h-4 w-4 text-amber-400" />, group: popPorts },
+      ].map(({ label, icon, group }) => group.length > 0 && (
+        <Card key={label} className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2">{icon} {label}</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {group.map((p: any, i: number) => (
+                <div key={i} className={`flex items-center gap-3 p-3 rounded-lg border ${p.connected ? "bg-emerald-500/5 border-emerald-500/20" : "bg-muted/10 border-border/30"}`}>
+                  {p.connected ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{p.service}</div>
+                    <div className="text-[10px] text-muted-foreground">Port {p.port} — {p.connected ? `${p.latencyMs}ms` : (p.error || "closed/filtered")}</div>
+                    {p.banner && <div className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{p.banner}</div>}
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] ${p.connected ? "text-emerald-400 border-emerald-500/40" : "text-muted-foreground border-border/40"}`}>
+                    {p.connected ? "OPEN" : "CLOSED"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      <Issues issues={report.issues} category="mailPorts" />
     </div>
   );
 }
@@ -273,6 +448,8 @@ function AllChecksTab({ report }: { report: any }) {
   const sections = [
     { key: "blacklist", label: "Blacklist / DNSBL", icon: <ShieldX className="h-4 w-4 text-red-400" />, score: c.blacklist.score, grade: c.blacklist.grade },
     { key: "mailServer", label: "Mail Server (SMTP)", icon: <MailCheck className="h-4 w-4 text-blue-400" />, score: c.mailServer.score, grade: c.mailServer.grade },
+    ...(c.mailSecurity ? [{ key: "mailSecurity", label: "Mail Security (SPF/DMARC)", icon: <Shield className="h-4 w-4 text-violet-400" />, score: c.mailSecurity.score, grade: c.mailSecurity.grade }] : []),
+    ...(c.mailPorts ? [{ key: "mailPorts", label: "Enterprise Mail Ports", icon: <Network className="h-4 w-4 text-pink-400" />, score: c.mailPorts.score, grade: c.mailPorts.grade }] : []),
     { key: "dnsHealth", label: "DNS Health", icon: <Stethoscope className="h-4 w-4 text-purple-400" />, score: c.dnsHealth.score, grade: c.dnsHealth.grade },
     { key: "reverseDns", label: "Reverse DNS (PTR)", icon: <Globe className="h-4 w-4 text-cyan-400" />, score: c.reverseDs.score, grade: c.reverseDs.grade },
     { key: "ipInfo", label: "IP Block Info", icon: <Server className="h-4 w-4 text-amber-400" />, score: c.ipInfo.score, grade: c.ipInfo.grade },
@@ -308,6 +485,8 @@ export default function DomainHealthTab({ report, activeSubTab }: { report: any;
     case "health-overview": return <HealthOverview report={report} />;
     case "health-blacklist": return <BlacklistTab report={report} />;
     case "health-mail": return <MailServerTab report={report} />;
+    case "health-mail-security": return <MailSecurityTab report={report} />;
+    case "health-mail-ports": return <MailPortsTab report={report} />;
     case "health-dns": return <DnsHealthTab report={report} />;
     case "health-connectivity": return <ConnectivityTab report={report} />;
     case "health-all": return <AllChecksTab report={report} />;

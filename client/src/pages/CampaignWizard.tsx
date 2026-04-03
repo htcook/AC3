@@ -76,6 +76,98 @@ export default function CampaignWizard() {
   const createInternalCampaign = trpc.campaign.create.useMutation();
   const applyTemplateMutation = trpc.threatIntelTraining.applyTemplateToCampaign.useMutation();
 
+  // Fetch engagement ROE data for social engineering check
+  const { data: engagementDetail } = trpc.engagements.get.useQuery(
+    { id: selectedEngagementId! },
+    { enabled: !!selectedEngagementId }
+  );
+
+  // Check if social engineering is allowed in ROE
+  const socialEngAllowed = useMemo(() => {
+    if (!selectedEngagementId || !engagementDetail) return true; // standalone = allowed
+    // Check roeScope JSON for socialEngineeringAllowed
+    const roeScope = (engagementDetail as any).roeScope;
+    if (roeScope && typeof roeScope === 'object') {
+      if ('socialEngineeringAllowed' in roeScope) {
+        return !!roeScope.socialEngineeringAllowed;
+      }
+      // Also check nested scope.socialEngineering
+      if ('socialEngineering' in roeScope) {
+        return !!roeScope.socialEngineering;
+      }
+    }
+    // If ROE status is 'none' (no ROE document), allow by default but warn
+    if ((engagementDetail as any).roeStatus === 'none') return true;
+    // If ROE is signed but no explicit social eng scope, default to not allowed (conservative)
+    if ((engagementDetail as any).roeStatus === 'signed' && roeScope) return false;
+    return true; // default to allowed if not specified
+  }, [selectedEngagementId, engagementDetail]);
+
+  // ROE status for display
+  const roeStatus = useMemo(() => {
+    if (!engagementDetail) return null;
+    return {
+      status: (engagementDetail as any).roeStatus || 'none',
+      hasRoe: (engagementDetail as any).roeStatus !== 'none',
+      isSigned: (engagementDetail as any).roeStatus === 'signed',
+    };
+  }, [engagementDetail]);
+
+  // Fetch OSINT recon data for domain spoofing intelligence
+  const { data: reconData } = trpc.osint.getRecon.useQuery(
+    { engagementId: selectedEngagementId! },
+    { enabled: !!selectedEngagementId }
+  );
+  const { data: typosquatData } = trpc.osint.getTyposquats.useQuery(
+    { engagementId: selectedEngagementId! },
+    { enabled: !!selectedEngagementId }
+  );
+
+  // Domain spoofing intelligence
+  const spoofIntel = useMemo(() => {
+    const latestRecon = Array.isArray(reconData) ? reconData[0] : null;
+    if (!latestRecon) return null;
+    const spoofScore = latestRecon.spoofScore || 0;
+    const hasSPF = !!latestRecon.spfRecord;
+    const hasDMARC = !!latestRecon.dmarcRecord;
+    const spfRaw = latestRecon.spfRecord || '';
+    const dmarcRaw = latestRecon.dmarcRecord || '';
+    // Typosquats: show unregistered (available for purchase) or already purchased/configured
+    const availableTyposquats = (typosquatData || []).filter((t: any) =>
+      !t.isRegistered || t.status === 'purchased' || t.status === 'configured' || t.status === 'in_use'
+    );
+    
+    // Decision logic:
+    // HIGH spoof score (>=70) = weak defenses = recommend spoofing target domain
+    // MODERATE (40-69) = partial defenses = spoofing may work, have fallback ready
+    // LOW (<40) = strong defenses = use typosquat or owned domain
+    let recommendation: 'spoof_target' | 'spoof_possible' | 'use_alternate';
+    let rationale: string;
+    
+    if (spoofScore >= 70) {
+      recommendation = 'spoof_target';
+      rationale = `Target domain has weak email security (spoofability: ${spoofScore}%). ${!hasSPF ? 'No SPF record found.' : `SPF: ${spfRaw.substring(0, 80)}`} ${!hasDMARC ? 'No DMARC record found.' : `DMARC: ${dmarcRaw.substring(0, 80)}`} Domain spoofing is highly likely to succeed — use the target's own domain as the sender address.`;
+    } else if (spoofScore >= 40) {
+      recommendation = 'spoof_possible';
+      rationale = `Target domain has moderate email security (spoofability: ${spoofScore}%). ${hasSPF ? `SPF exists: ${spfRaw.substring(0, 60)}` : 'No SPF.'} ${hasDMARC ? `DMARC exists: ${dmarcRaw.substring(0, 60)}` : 'No DMARC.'} Spoofing may succeed against some recipients — prepare a fallback domain.`;
+    } else {
+      recommendation = 'use_alternate';
+      rationale = `Target domain is well-hardened against spoofing (spoofability: ${spoofScore}%). ${hasSPF ? 'SPF: ✓ enforced' : ''} ${hasDMARC ? 'DMARC: ✓ enforced' : ''} Spoofing will likely be blocked — use a typosquat or owned domain instead.`;
+    }
+    
+    return {
+      spoofScore,
+      hasSPF,
+      hasDMARC,
+      spfRaw,
+      dmarcRaw,
+      recommendation,
+      rationale,
+      availableTyposquats: availableTyposquats.slice(0, 5),
+      targetDomain: selectedEngagement?.targetDomain || '',
+    };
+  }, [reconData, typosquatData, selectedEngagement]);
+
   // Derived data
   const selectedTemplate = useMemo(() =>
     templates?.find((t: any) => t.id === selectedTemplateId), [templates, selectedTemplateId]);
@@ -385,6 +477,55 @@ export default function CampaignWizard() {
                 ))}
               </div>
 
+              {/* ROE Social Engineering Check */}
+              {selectedEngagementId && !socialEngAllowed && (
+                <div className="mt-4 border border-red-500/40 bg-red-500/10 p-4">
+                  <div className="flex items-center gap-3">
+                    <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-display text-sm tracking-wider text-red-400">SOCIAL ENGINEERING NOT AUTHORIZED</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        The Rules of Engagement for this engagement do not authorize social engineering / phishing operations.
+                        {roeStatus?.isSigned
+                          ? ' The ROE is signed but does not include social engineering in scope.'
+                          : roeStatus?.hasRoe
+                          ? ' The ROE exists but has not been signed yet.'
+                          : ''}
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => setSelectedEngagementId(null)}
+                          className="text-[10px] px-2 py-1 border border-border hover:border-primary/50 font-display tracking-wider"
+                        >
+                          PROCEED STANDALONE
+                        </button>
+                        <button
+                          onClick={() => navigate(`/engagement/${selectedEngagementId}`)}
+                          className="text-[10px] px-2 py-1 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10 font-display tracking-wider"
+                        >
+                          UPDATE ROE SCOPE
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ROE Status indicator when social engineering IS allowed */}
+              {selectedEngagementId && socialEngAllowed && roeStatus?.hasRoe && (
+                <div className="mt-4 border border-green-500/30 bg-green-500/5 p-3">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="w-4 h-4 text-green-400" />
+                    <div>
+                      <span className="text-xs font-display tracking-wider text-green-400">SOCIAL ENGINEERING AUTHORIZED</span>
+                      <p className="text-[10px] text-muted-foreground">
+                        ROE {roeStatus.isSigned ? 'signed and' : ''} includes social engineering in scope.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* OSINT Findings Panel - shows when an engagement is selected */}
               {selectedEngagementId && selectedEngagement?.targetDomain && (
                 <OsintFindingsPanel engagementId={selectedEngagementId} domain={selectedEngagement.targetDomain} />
@@ -596,6 +737,101 @@ export default function CampaignWizard() {
                 Choose the SMTP sending profile for this campaign.
               </p>
 
+              {/* Domain Spoofing Intelligence Advisor */}
+              {spoofIntel && (
+                <div className={`mb-6 border p-4 space-y-3 ${
+                  spoofIntel.recommendation === 'spoof_target'
+                    ? 'border-green-500/30 bg-green-500/5'
+                    : spoofIntel.recommendation === 'spoof_possible'
+                    ? 'border-yellow-500/30 bg-yellow-500/5'
+                    : 'border-red-500/30 bg-red-500/5'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Radar className="w-5 h-5 text-primary" />
+                      <div>
+                        <h3 className="font-display text-sm tracking-wider">DOMAIN SPOOFING INTELLIGENCE</h3>
+                        <p className="text-[10px] text-muted-foreground">Based on OSINT recon of {spoofIntel.targetDomain}</p>
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-display ${
+                      spoofIntel.spoofScore >= 70 ? 'text-green-400' : spoofIntel.spoofScore >= 40 ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {spoofIntel.spoofScore}%
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-display ${
+                      spoofIntel.hasSPF ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    }`}>SPF {spoofIntel.hasSPF ? 'PRESENT' : 'MISSING'}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-display ${
+                      spoofIntel.hasDMARC ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                    }`}>DMARC {spoofIntel.hasDMARC ? 'PRESENT' : 'MISSING'}</span>
+                  </div>
+
+                  <div className={`p-3 border ${
+                    spoofIntel.recommendation === 'spoof_target'
+                      ? 'border-green-500/20 bg-green-500/5'
+                      : spoofIntel.recommendation === 'spoof_possible'
+                      ? 'border-yellow-500/20 bg-yellow-500/5'
+                      : 'border-red-500/20 bg-red-500/5'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {spoofIntel.recommendation === 'spoof_target' ? (
+                        <ShieldCheck className="w-4 h-4 text-green-400" />
+                      ) : spoofIntel.recommendation === 'spoof_possible' ? (
+                        <ShieldAlert className="w-4 h-4 text-yellow-400" />
+                      ) : (
+                        <ShieldAlert className="w-4 h-4 text-red-400" />
+                      )}
+                      <span className="font-display text-xs tracking-wider">
+                        {spoofIntel.recommendation === 'spoof_target'
+                          ? 'RECOMMENDED: SPOOF TARGET DOMAIN'
+                          : spoofIntel.recommendation === 'spoof_possible'
+                          ? 'SPOOFING MAY WORK — PREPARE FALLBACK'
+                          : 'RECOMMENDED: USE ALTERNATE DOMAIN'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{spoofIntel.rationale}</p>
+                  </div>
+
+                  {spoofIntel.availableTyposquats.length > 0 && (
+                    <div className="border border-border bg-background p-3">
+                      <span className="text-[10px] font-display tracking-wider text-muted-foreground">
+                        {spoofIntel.recommendation === 'spoof_target' ? 'FALLBACK TYPOSQUAT DOMAINS' : 'RECOMMENDED ALTERNATE DOMAINS'}
+                      </span>
+                      <div className="mt-1.5 space-y-1">
+                        {spoofIntel.availableTyposquats.map((t: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-xs">
+                            <span className="font-mono text-primary">{t.permutedDomain}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground">{t.permutationType}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                t.status === 'purchased' || t.status === 'configured' || t.status === 'in_use'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : t.isRegistered
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {t.status === 'purchased' || t.status === 'configured' || t.status === 'in_use'
+                                  ? t.status.toUpperCase()
+                                  : t.isRegistered ? 'TAKEN' : 'AVAILABLE'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        {spoofIntel.recommendation === 'spoof_target'
+                          ? 'These domains are available as fallback if direct spoofing is detected.'
+                          : 'Register one of the available domains and configure an SMTP sending profile to use it.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid gap-3 max-w-3xl">
                 {sendingProfiles?.map((smtp: any) => (
                   <button
@@ -771,6 +1007,28 @@ export default function CampaignWizard() {
                       <span className="text-xs text-muted-foreground">Phishing URL</span>
                       <p className="font-medium truncate">{phishingUrl || "—"}</p>
                     </div>
+                    {spoofIntel && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">Domain Strategy</span>
+                        <p className={`font-medium text-sm ${
+                          spoofIntel.recommendation === 'spoof_target' ? 'text-green-400' :
+                          spoofIntel.recommendation === 'spoof_possible' ? 'text-yellow-400' : 'text-red-400'
+                        }`}>
+                          {spoofIntel.recommendation === 'spoof_target' ? `Spoof ${spoofIntel.targetDomain}` :
+                           spoofIntel.recommendation === 'spoof_possible' ? 'Spoof (with fallback)' : 'Use alternate domain'}
+                        </p>
+                      </div>
+                    )}
+                    {roeStatus?.hasRoe && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">ROE Status</span>
+                        <p className={`font-medium text-sm ${
+                          socialEngAllowed ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {socialEngAllowed ? 'Social Eng. Authorized' : 'NOT Authorized'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
