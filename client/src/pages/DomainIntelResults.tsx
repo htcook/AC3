@@ -631,6 +631,20 @@ export default function DomainIntelResults() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {scan.status === 'completed' && (
+            <Button
+              size="sm"
+              className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => {
+                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
+                exportDiEasmReport(scan.primaryDomain, fullScanData);
+                toast.success('Generating full EASM report PDF — this may take a moment');
+              }}
+            >
+              <FileText className="h-3.5 w-3.5 mr-1.5" />
+              EASM Report (PDF)
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="text-xs">

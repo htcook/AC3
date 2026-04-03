@@ -1081,8 +1081,8 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
     // IP block info for primary IP
     primaryIp ? getIpBlockInfo(primaryIp, 10000).then(r => [r]) : Promise.resolve([]),
 
-    // TCP connectivity check on common ports
-    primaryIp ? checkTcpPorts(primaryIp, [80, 443, 25, 587, 993, 143], Math.min(timeoutMs, 10000)) : Promise.resolve([]),
+    // TCP connectivity check on common web ports (mail ports are checked separately via MX)
+    primaryIp ? checkTcpPorts(primaryIp, [80, 443], Math.min(timeoutMs, 10000)) : Promise.resolve([]),
 
     // SPF record lookup
     lookupSpf(domain, 5000),
@@ -1090,8 +1090,8 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
     // DMARC record lookup
     lookupDmarc(domain, 5000),
 
-    // Enterprise mail port scan on primary MX host
-    primaryMx ? checkMailPorts(primaryMx, Math.min(timeoutMs, 10000)) : (primaryIp ? checkMailPorts(primaryIp, Math.min(timeoutMs, 10000)) : Promise.resolve([])),
+    // Enterprise mail port scan on primary MX host (only if MX records exist — avoids false positives on web-only hosts)
+    primaryMx ? checkMailPorts(primaryMx, Math.min(timeoutMs, 10000)) : Promise.resolve([]),
   ]);
 
   // ─── Score Calculation ──────────────────────────────────────────
@@ -1152,8 +1152,14 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   // Mail server score
   let mailScore = 100;
   if (mxRecords.length === 0) {
-    mailScore = 0;
-    issues.push({ severity: "critical", category: "mailServer", message: "No MX records found — domain cannot receive email" });
+    // No MX records — this is expected for subdomains, dev environments, and non-mail domains
+    const isSubdomain = domain.split('.').length > 2;
+    mailScore = isSubdomain ? 100 : 50; // Don't penalize subdomains
+    if (!isSubdomain) {
+      issues.push({ severity: "warning", category: "mailServer", message: "No MX records found — domain cannot receive email (expected for non-mail domains)" });
+    } else {
+      issues.push({ severity: "info", category: "mailServer", message: "No MX records found — expected for subdomains" });
+    }
   } else {
     const connectedMx = smtpResults.filter(r => r.connected);
     if (connectedMx.length === 0) {
@@ -1263,7 +1269,10 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   const openMailPorts = mailPortResults.filter(r => r.connected);
   const smtpPorts = mailPortResults.filter(r => [25, 465, 587, 2525].includes(r.port));
   const smtpOpen = smtpPorts.filter(r => r.connected);
-  if (smtpOpen.length === 0 && mxRecords.length > 0) {
+  if (smtpPorts.length === 0) {
+    // No mail ports were scanned (no MX records) — skip mail port scoring entirely
+    mailPortScore = 100;
+  } else if (smtpOpen.length === 0 && mxRecords.length > 0) {
     mailPortScore = 40;
     const port25 = smtpPorts.find(r => r.port === 25);
     if (port25 && !port25.connected) {

@@ -530,6 +530,16 @@ export async function exportDiEasmReport(
     o.tags?.includes('credential_breach')
   );
 
+  // Dehashed breach database summaries
+  const breachDbObs = observations.filter((o: any) =>
+    o.tags?.includes('breach_database') && o.source === 'dehashed'
+  );
+
+  // Dehashed overall breach summary
+  const breachSummaryObs = observations.find((o: any) =>
+    o.tags?.includes('breach_summary') && o.source === 'dehashed'
+  );
+
   const firstPartyObs = credentialObs.filter((o: any) =>
     o.evidence?.credential_source === 'first_party' || o.tags?.includes('first_party_breach')
   );
@@ -566,6 +576,69 @@ export async function exportDiEasmReport(
   doc.setTextColor(148, 163, 184);
   doc.text(`Unclassified: ${unknownSourceObs.length}`, margin + 145, y + 24);
   y += 38;
+
+  // Dehashed breach summary statistics
+  if (breachSummaryObs) {
+    const bsEvidence = breachSummaryObs.evidence || {};
+    y = subheading('Breach Intelligence Summary (Dehashed)', y);
+
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    const col1X = margin + 5;
+    const col2X = margin + 55;
+    const col3X = margin + 110;
+    doc.text(`Total Records: ${bsEvidence.total_records || 0}`, col1X, y + 7);
+    doc.text(`Unique Breaches: ${bsEvidence.unique_breaches || 0}`, col2X, y + 7);
+    doc.text(`Leaked Accounts: ${bsEvidence.unique_leaked_accounts || 0}`, col3X, y + 7);
+    doc.text(`Subdomains Found: ${bsEvidence.unique_subdomains_found || 0}`, col1X, y + 14);
+    doc.text(`Unique IPs: ${bsEvidence.unique_ips_found || 0}`, col2X, y + 14);
+    doc.text(`Credentials Exposed: ${bsEvidence.credentials_exposed || 0}`, col3X, y + 14);
+    y += 28;
+  }
+
+  // Dehashed breach database breakdown
+  if (breachDbObs.length > 0) {
+    y = subheading('Breach Database Attribution', y);
+
+    doc.setTextColor(113, 113, 122);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Individual breach databases where organization credentials were found.', margin, y);
+    y += 6;
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Breach Database', 'Records Found', 'Credentials Exposed', 'Has Passwords', 'Has Hashes']],
+      body: breachDbObs
+        .sort((a: any, b: any) => (b.evidence?.total_records || 0) - (a.evidence?.total_records || 0))
+        .slice(0, 30)
+        .map((o: any) => [
+          o.evidence?.database_name || 'Unknown',
+          String(o.evidence?.total_records || 0),
+          String(o.evidence?.credentials_exposed || 0),
+          o.evidence?.has_passwords ? 'YES' : 'No',
+          o.evidence?.has_hashed_passwords ? 'YES' : 'No',
+        ]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && (data.column.index === 3 || data.column.index === 4)) {
+          const text = String(data.cell.text);
+          if (text === 'YES') {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
 
   // 1st-party breaches (critical — these are breaches of the target's own systems)
   if (firstPartyObs.length > 0) {
@@ -648,13 +721,19 @@ export async function exportDiEasmReport(
   const darkwebObs = observations.filter((o: any) =>
     o.tags?.includes('darkweb') ||
     o.tags?.includes('ransomware_listing') ||
+    o.tags?.includes('ransomware_live') ||
+    o.tags?.includes('ransomware_victim') ||
     o.tags?.includes('iab_listing') ||
     o.tags?.includes('data_leak') ||
     o.tags?.includes('stealer_log') ||
     o.tags?.includes('underground_intel')
   );
 
-  const ransomwareObs = darkwebObs.filter((o: any) => o.tags?.includes('ransomware_listing'));
+  const ransomwareObs = darkwebObs.filter((o: any) =>
+    o.tags?.includes('ransomware_listing') ||
+    o.tags?.includes('ransomware_live') ||
+    o.tags?.includes('ransomware_victim')
+  );
   const iabObs = darkwebObs.filter((o: any) => o.tags?.includes('iab_listing') || o.tags?.includes('access_sale'));
   const dataLeakObs = darkwebObs.filter((o: any) => o.tags?.includes('data_leak'));
   const stealerObs = darkwebObs.filter((o: any) => o.tags?.includes('stealer_log') || o.tags?.includes('compromised_employee'));
@@ -695,13 +774,14 @@ export async function exportDiEasmReport(
 
     autoTable!(doc, {
       startY: y,
-      head: [['Listing', 'Threat Actor', 'Victim', 'Date', 'Match Type']],
-      body: ransomwareObs.slice(0, 15).map((o: any) => [
-        truncate(o.evidence?.title || o.name, 40),
-        o.evidence?.actor_name || 'Unknown',
-        truncate(o.evidence?.victim_name, 25),
-        o.evidence?.event_date || 'N/A',
-        (o.evidence?.match_type || 'unknown').replace(/_/g, ' '),
+      head: [['Listing', 'Threat Actor / Group', 'Victim', 'Date', 'Match Type', 'Source']],
+      body: ransomwareObs.slice(0, 20).map((o: any) => [
+        truncate(o.evidence?.title || o.name, 35),
+        o.evidence?.actor_name || o.evidence?.group_name || 'Unknown',
+        truncate(o.evidence?.victim_name || o.evidence?.victim, 20),
+        o.evidence?.event_date || o.evidence?.discovered || 'N/A',
+        (o.evidence?.match_type || (o.tags?.includes('fuzzy_match') ? 'fuzzy' : 'exact')).replace(/_/g, ' '),
+        o.source === 'ransomware_live' ? 'Ransomware.live' : 'DarkWeb CrossRef',
       ]),
       theme: 'grid',
       headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },

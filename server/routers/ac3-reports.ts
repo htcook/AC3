@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../_core/trpc";
 import { getDbRequired } from "../db";
 import { ac3Reports, ac3ReportFindings, ac3ReportArtifacts, engagements, engagementTimelineEvents, engagementOpsSnapshots, atomicTestExecutions, atomicTests } from "../../drizzle/schema";
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, like } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
 import { doStoragePut } from "../do-storage";
@@ -3056,6 +3056,21 @@ export const ac3ReportsRouter = {
     }),
 
   // ─── One-Click Full Post-Exploit Report Generation ─────────────────────────
+
+  /** Find auto-generated report for an engagement by name */
+  getReportByEngagementName: protectedProcedure
+    .input(z.object({ engagementName: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDbRequired();
+      const rows = await db.select().from(ac3Reports)
+        .where(and(
+          like(ac3Reports.rptName, `%${input.engagementName}%`),
+          eq(ac3Reports.rptCreatedBy, 'auto-pipeline'),
+        ))
+        .orderBy(desc(ac3Reports.rptCreatedAt))
+        .limit(1);
+      return rows[0] || null;
+    }),
 
   /** Chains: create report → import from ops snapshot → generate narratives → exec summary → mark review */
   generateFullReport: protectedProcedure

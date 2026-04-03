@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
+import { exportDiEasmReport } from "@/lib/export-di-report";
 const CLIENT_TYPES = [
   { value: "msp", label: "MSP / Managed Service Provider", icon: Server },
   { value: "enterprise", label: "Enterprise", icon: Building2 },
@@ -682,6 +683,20 @@ export default function DomainIntel() {
                           >
                             {refreshScan.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
                             Refresh
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toast.info('Generating EASM report PDF — please wait...');
+                              // Navigate to results page which has the full data for export
+                              navigate(`/domain-intel/${scan.id}`);
+                            }}
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Report
                           </Button>
                           <span className="text-[10px] text-purple-400 font-medium">View Results →</span>
                         </div>

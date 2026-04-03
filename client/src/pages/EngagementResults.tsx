@@ -9,7 +9,7 @@ import {
   ExternalLink, Download, Rocket, CheckCircle, AlertTriangle,
   TrendingUp, UserCheck, Lock, Loader2
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 import AppShell from "@/components/AppShell";
 function MetricCard({ label, value, icon, color, subtitle }: { label: string; value: string | number; icon: React.ReactNode; color: string; subtitle?: string }) {
@@ -101,6 +101,34 @@ export default function EngagementResults() {
     { enabled: !!engagementId }
   );
 
+  // Look up auto-generated report for this engagement
+  const engName = engagement?.name || '';
+  const { data: autoReport } = trpc.ac3Reports.getReportByEngagementName.useQuery(
+    { engagementName: engName },
+    { enabled: !!engName }
+  );
+
+  // Export DOCX mutation
+  const exportDocxMutation = trpc.ac3Reports.exportDocx.useMutation({
+    onSuccess: (data: any) => {
+      if (data?.url) {
+        window.open(data.url, '_blank');
+        toast.success('Report DOCX generated — downloading...');
+      } else if (data?.base64) {
+        const byteChars = atob(data.base64);
+        const byteArr = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([byteArr], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${engName || 'report'}.docx`; a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Report DOCX downloaded');
+      }
+    },
+    onError: (err: any) => toast.error(`DOCX export failed: ${err.message}`),
+  });
+
   // Fetch all campaign links for this engagement
   const { data: campaignLinks } = trpc.campaignEngagements.byEngagement.useQuery(
     { engagementId: engagementId! },
@@ -185,6 +213,18 @@ export default function EngagementResults() {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {autoReport && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-display tracking-wider text-green-400 hover:text-green-300 border-green-500/30"
+                  onClick={() => exportDocxMutation.mutate({ reportId: autoReport.rptReportId })}
+                  disabled={exportDocxMutation.isPending}
+                >
+                  {exportDocxMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  DOWNLOAD REPORT (DOCX)
+                </Button>
+              )}
               <Link href={`/reports/generate`}>
                 <Button variant="outline" size="sm" className="font-display tracking-wider">
                   <FileText className="w-4 h-4 mr-2" />GENERATE REPORT
