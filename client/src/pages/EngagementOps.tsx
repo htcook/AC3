@@ -62,6 +62,8 @@ import TestPlanGate from "@/components/TestPlanGate";
 import { CoverageQuality } from "@/components/CoverageQuality";
 import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
+import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
+import EngagementTimeline from "@/components/EngagementTimeline";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -1274,6 +1276,12 @@ export default function EngagementOps() {
                   <Wifi className={`h-3 w-3 ${wsConnected ? "text-green-400" : "text-red-400"}`} />
                   {wsConnected ? "Live" : "Disconnected"}
                 </span>
+                {targetProfilesQ.data && Object.keys(targetProfilesQ.data).length > 0 && (
+                  <>
+                    <span className="text-border">|</span>
+                    <EvasionStatusIndicator targetProfiles={targetProfilesQ.data} compact />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -2004,6 +2012,7 @@ export default function EngagementOps() {
                   { value: 'trends', label: 'Trends', icon: <TrendingUp className="h-3 w-3" /> },
                   { value: 'planhistory', label: 'Plan History', icon: <ClipboardList className="h-3 w-3" /> },
                   { value: 'testplan', label: 'Test Plan', icon: <FileText className="h-3 w-3" /> },
+                  { value: 'timeline', label: 'Timeline', icon: <Clock className="h-3 w-3" /> },
                 ],
               },
               {
@@ -4244,6 +4253,21 @@ export default function EngagementOps() {
                       })}
                     </div>
                   )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Engagement Timeline Tab ── */}
+            <TabsContent value="timeline" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <EngagementTimeline
+                    log={ops?.log || []}
+                    assets={ops?.assets || []}
+                    startedAt={ops?.startedAt}
+                    completedAt={ops?.completedAt}
+                    currentPhase={ops?.phase || 'idle'}
+                  />
                 </div>
               </ScrollArea>
             </TabsContent>

@@ -4590,6 +4590,28 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       }
     }
 
+    // ── Apply evasion profile flags to all tool commands ──
+    if (state.targetProfiles) {
+      const targetProfile = state.targetProfiles[asset.hostname];
+      if (targetProfile) {
+        const { augmentCommandWithEvasion } = await import('./evasion-cli-adapter.js');
+        for (const cmd of highPriorityCmds) {
+          const augmentation = augmentCommandWithEvasion(cmd.tool, cmd.command, targetProfile);
+          if (augmentation.flagsAdded.length > 0) {
+            cmd.command = augmentation.augmentedCommand;
+          }
+        }
+        const escalation = (targetProfile as any).evasionEscalation;
+        if (escalation && escalation.currentLevel > 1) {
+          addLog(state, {
+            phase: 'enumeration', type: 'info',
+            title: `🛡️ Evasion flags applied: ${fmtTarget(asset)}`,
+            detail: `Level ${escalation.currentLevel}: Rate limits, headers, and timing adjusted for ${highPriorityCmds.length} tools`,
+          });
+        }
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // PARALLEL TOOL EXECUTION — Run tools concurrently with concurrency limit
     // Shannon-inspired: run up to 3 tools in parallel per asset (SSH connection limit)
@@ -5007,7 +5029,30 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         } else if ((asset as any).trainingLabCreds?.sessionCookie) {
           authHeaderArg = ` -H "Cookie: ${(asset as any).trainingLabCreds.sessionCookie}"`;
         }
-        const nucleiArgs = `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${state.engagementType === "red_team" ? 50 : 150}${authHeaderArg}`;
+        // Apply evasion profile rate limit if available
+        let nucleiRateLimit = state.engagementType === "red_team" ? 50 : 150;
+        let nucleiEvasionHeaders = '';
+        if (state.targetProfiles) {
+          const tp = state.targetProfiles[asset.hostname];
+          if (tp) {
+            const esc = (tp as any).evasionEscalation;
+            if (esc && esc.currentLevel > 1) {
+              const ep = tp.recommendedStrategy?.evasionProfile;
+              if (ep) {
+                nucleiRateLimit = Math.min(nucleiRateLimit, ep.rateLimit);
+                if (ep.headerManipulation) {
+                  for (const [k, v] of Object.entries(ep.headerManipulation)) {
+                    nucleiEvasionHeaders += ` -H "${k}: ${v}"`;
+                  }
+                }
+                if (ep.userAgentStrategy === 'browser_mimic') {
+                  nucleiEvasionHeaders += ` -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"`;
+                }
+              }
+            }
+          }
+        }
+        const nucleiArgs = `-u ${url} ${severityArg} ${tagArgs} -jsonl -nc -duc -ni ${timeoutArg} -retries 1 -rate-limit ${nucleiRateLimit}${authHeaderArg}${nucleiEvasionHeaders}`;
         nucleiScanTasks.push({ asset, url, nucleiArgs, target, techTags, assetVulnKeys });
       }
     }
@@ -5028,6 +5073,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       let release: (() => void) | null = null;
       try {
         release = await acquireScanSlot('nuclei', state.engagementId);
+        // Update heartbeat so stall detector knows we're alive during long Nuclei scans
+        if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
         addLog(state, {
           phase: "vuln_detection", type: "scan_start",
           title: `Nuclei: ${url}`,
@@ -5035,6 +5082,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         });
 
         const result = await executeNucleiWithRetry(nucleiArgs, target);
+        // Update heartbeat after Nuclei execution completes
+        if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
 
         if (result.exitCode === -1 && !result.stdout) {
           phase3NucleiErrors++;
@@ -5115,7 +5164,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     // Run nuclei tasks in parallel batches with semaphore backpressure
     for (let i = 0; i < nucleiScanTasks.length; i += NUCLEI_BATCH_SIZE) {
       const batch = nucleiScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
+      // Update heartbeat before each batch to prevent stall detection during long parallel scans
+      if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
       await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
+      // Update heartbeat after batch completes
+      if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
       // Persist state after each batch completes (saves completedScans checkpoint)
       persistOpsStateDebounced(state.engagementId, 200);
     }
@@ -5624,6 +5677,26 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               data: { wafVendor, delayMs: llmConfig.activeScanConfig.delayInMs, threads: llmConfig.activeScanConfig.threadPerHost },
             });
           } catch { /* WAF evasion is best-effort */ }
+        }
+        // Apply escalated evasion profile overrides to ZAP config
+        if (state.targetProfiles) {
+          const tp = state.targetProfiles[webApp.hostname];
+          if (tp) {
+            try {
+              const { getZapEvasionOverrides } = await import('./evasion-cli-adapter.js');
+              const zapOverrides = getZapEvasionOverrides(tp);
+              if (zapOverrides) {
+                llmConfig.activeScanConfig.delayInMs = Math.max(llmConfig.activeScanConfig.delayInMs || 0, zapOverrides.delayInMs);
+                llmConfig.activeScanConfig.threadPerHost = Math.min(llmConfig.activeScanConfig.threadPerHost || 5, zapOverrides.threadPerHost);
+                const esc = (tp as any).evasionEscalation;
+                addLog(state, {
+                  phase: 'vuln_detection', type: 'info',
+                  title: `🛡️ ZAP evasion overrides applied: ${webApp.hostname}`,
+                  detail: `Level ${esc?.currentLevel || 1}: delay=${llmConfig.activeScanConfig.delayInMs}ms, threads=${llmConfig.activeScanConfig.threadPerHost}`,
+                });
+              }
+            } catch { /* Non-critical */ }
+          }
         }
 
         addLog(state, {
@@ -7721,31 +7794,93 @@ ${(() => {
               console.log(`[Exploit] Execution result: exitCode=${execResult.exitCode} stdout=${(execResult.stdout || '').length}b stderr=${(execResult.stderr || '').length}b timedOut=${execResult.timedOut} durationMs=${execResult.durationMs}`);
             }
 
-            // Check for success indicators in the output
+            // ── Exploit Success Detection (hardened against hallucination) ──
+            // CRITICAL: False positives here create hallucinated exploits in reports.
+            // Every indicator must be specific enough that a normal failed request won't match.
+
+            // Negative indicators: if ANY of these appear, the exploit FAILED regardless of other signals
+            const failureIndicators = [
+              /EXPLOIT_FAILED/i,
+              /exploit.*failed/i,
+              /connection.*refused/i,
+              /connection.*timed?\s*out/i,
+              /Traceback \(most recent call last\)/i,
+              /ModuleNotFoundError/i,
+              /ImportError/i,
+              /SyntaxError/i,
+              /IndentationError/i,
+              /NameError/i,
+              /TypeError.*argument/i,
+              /Permission denied/i,
+              /Access denied/i,
+              /403 Forbidden/i,
+              /404 Not Found/i,
+              /500 Internal Server Error/i,
+              /502 Bad Gateway/i,
+              /503 Service Unavailable/i,
+              /No route to host/i,
+              /Network is unreachable/i,
+              /Could not resolve host/i,
+              /SSL.*error/i,
+              /certificate.*error/i,
+              /timeout.*exceeded/i,
+              /\[Errno/i,
+              /OSError/i,
+              /socket\.error/i,
+            ];
+            const hasFailureSignal = failureIndicators.some(re => re.test(exploitOutput));
+
+            // Shell-level success: strong indicators that a system shell was obtained
             const shellIndicators = [
-              /shell.*opened/i, /session.*opened/i, /meterpreter/i, /reverse.*shell/i,
-              /connect.*back/i, /uid=\d+/i, /root@/i, /www-data@/i, /\$\s*$/m,
-              /command.*shell/i, /interactive.*shell/i, /spawned/i, /whoami/i,
+              /shell.*opened/i, /session.*opened/i, /meterpreter/i,
+              /uid=\d+.*gid=\d+/i, /root@[a-zA-Z]/i, /www-data@[a-zA-Z]/i,
+              /command.*shell.*established/i, /interactive.*shell.*spawned/i,
             ];
-            // Training lab: also detect web-level exploit success (data extraction, auth bypass, etc.)
+
+            // Web exploit success: STRICT indicators for training labs only
+            // Removed overly broad patterns (HTTP 200, JSON body, password/token mentions)
+            // that caused false positives on Juice Shop engagement
             const webExploitIndicators = [
-              /EXPLOIT_SUCCESS/i,
-              /successfully.*exploit/i,
-              /vulnerability.*confirmed/i,
-              /injection.*successful/i,
-              /extracted.*data/i,
-              /admin.*access/i,
-              /authentication.*bypass/i,
-              /sensitive.*data.*leak/i,
-              /\bpassword[s]?\s*[:=]/i,
-              /\btoken\s*[:=]/i,
-              /HTTP\/1\.[01]\s+200/i,
-              /status.*code.*200/i,
-              /\{\s*".*"\s*:/,  // JSON response body (data extraction)
+              /EXPLOIT_SUCCESS/i,                    // Explicit marker from our exploit scripts
+              /\[\+\].*successfully.*exploit/i,       // Prefixed success message
+              /\[\+\].*injection.*successful/i,       // Prefixed injection confirmation
+              /\[\+\].*authentication.*bypass/i,      // Prefixed auth bypass
+              /\[\+\].*extracted.*\d+.*records?/i,     // Extracted N records (specific count)
+              /\[\+\].*admin.*access.*granted/i,      // Admin access confirmed
+              /\[\+\].*sensitive.*data.*leaked/i,      // Data leak confirmed
+              /\[\+\].*rce.*confirmed/i,              // RCE confirmed
+              /\[\+\].*command.*executed/i,            // Command execution confirmed
             ];
-            success = shellIndicators.some(re => re.test(exploitOutput)) ||
-                      (generatedExploit.popsShell === true && exploitOutput.length > 50) ||
-                      (isTrainingLabExploit && webExploitIndicators.some(re => re.test(exploitOutput)) && !(/EXPLOIT_FAILED/i.test(exploitOutput)));
+
+            // Evidence quality gate: require minimum meaningful output length
+            const MIN_EVIDENCE_LENGTH = 100; // Exploit output must be substantial
+            const hasSubstantialOutput = exploitOutput.length >= MIN_EVIDENCE_LENGTH;
+
+            // Shell success: strong shell indicators AND no failure signals AND substantial output
+            const shellSuccess = !hasFailureSignal &&
+              hasSubstantialOutput &&
+              shellIndicators.some(re => re.test(exploitOutput));
+
+            // popsShell claim from LLM: ONLY trust if corroborated by shell indicators in output
+            // (Previously, popsShell=true + output>50 chars = success, which was too permissive)
+            const popsShellCorroborated = generatedExploit.popsShell === true &&
+              !hasFailureSignal &&
+              hasSubstantialOutput &&
+              shellIndicators.some(re => re.test(exploitOutput));
+
+            // Web exploit success (training labs only): strict markers AND no failure signals
+            const webSuccess = isTrainingLabExploit &&
+              !hasFailureSignal &&
+              hasSubstantialOutput &&
+              webExploitIndicators.some(re => re.test(exploitOutput));
+
+            success = shellSuccess || popsShellCorroborated || webSuccess;
+
+            // Log the evidence quality assessment for debugging
+            console.log(`[Exploit] Evidence assessment for ${target}:${port}: ` +
+              `shellSuccess=${shellSuccess} popsShellCorroborated=${popsShellCorroborated} ` +
+              `webSuccess=${webSuccess} hasFailureSignal=${hasFailureSignal} ` +
+              `outputLen=${exploitOutput.length} final=${success}`);
 
             shellType = generatedExploit.shellType || undefined;
             shellPayload = generatedExploit.shellPayload || undefined;

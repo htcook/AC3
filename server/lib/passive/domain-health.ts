@@ -107,8 +107,6 @@ const DNSBL_ZONES = [
   "cbl.anti-spam.org.cn",
   // Fabel
   "spamsources.fabel.dk",
-  // S5h
-  "all.s5h.net",
   // Anonmails
   "spam.dnsbl.anonmails.de",
   // Bogons
@@ -755,11 +753,20 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   // ─── Score Calculation ──────────────────────────────────────────
 
   // Blacklist score (100 = clean, 0 = heavily listed)
+  // Note: Spamhaus PBL/XBL may flag cloud/hosting IPs that aren't actually spam sources.
+  // We weight SBL (policy-based) and DBL (domain-based) as critical, but treat PBL/XBL
+  // as informational since cloud-hosted resolvers often trigger these.
   let blacklistScore = 100;
   if (dnsblResult) {
-    blacklistScore = Math.max(0, 100 - dnsblResult.score * 5); // Each listing = -5 points
+    // Separate truly critical listings (SBL, DBL, Barracuda, SpamCop) from
+    // informational ones (PBL, XBL which flag cloud/hosting IP ranges)
+    const pblXblZones = ["pbl.spamhaus.org", "xbl.spamhaus.org"];
+    const actionableListings = dnsblResult.listed.filter(l => !pblXblZones.includes(l.zone));
+    const informationalListings = dnsblResult.listed.filter(l => pblXblZones.includes(l.zone));
+    // Score based on actionable listings only (-5 per listing)
+    blacklistScore = Math.max(0, 100 - actionableListings.length * 5 - informationalListings.length * 1);
     if (dnsblResult.listed.length > 0) {
-      const criticalLists = dnsblResult.listed.filter(l =>
+      const criticalLists = actionableListings.filter(l =>
         l.zone.includes("spamhaus") || l.zone.includes("barracuda") || l.zone.includes("spamcop")
       );
       if (criticalLists.length > 0) {
@@ -823,8 +830,9 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
     }
   }
 
-  // IP info score (informational, doesn't reduce score)
-  const ipScore = ipInfoResults.length > 0 && !ipInfoResults[0].error ? 100 : 50;
+  // IP info score — purely informational, doesn't penalize the domain.
+  // RDAP availability is external infrastructure, not a domain health indicator.
+  const ipScore = ipInfoResults.length > 0 && !ipInfoResults[0].error ? 100 : 100;
 
   // Connectivity score
   let connectivityScore = 100;
