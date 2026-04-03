@@ -1073,6 +1073,21 @@ export function verifyAnchor(
 }
 
 /**
+ * Map evidence provenance to an evidence_items type value.
+ */
+function mapProvenanceToEvidenceType(provenance?: EvidenceProvenance): string {
+  if (!provenance) return 'tool_output';
+  const tool = provenance.sourceTool?.toLowerCase() || '';
+  if (tool.includes('zap') || tool.includes('burp')) return 'http_capture';
+  if (tool.includes('nmap') || tool.includes('masscan')) return 'scan_output';
+  if (tool.includes('nuclei') || tool.includes('nikto')) return 'scan_output';
+  if (tool.includes('sqlmap') || tool.includes('hydra')) return 'exploit_output';
+  if (tool.includes('metasploit')) return 'exploit_output';
+  if (tool.includes('screenshot')) return 'screenshot';
+  return 'tool_output';
+}
+
+/**
  * Flush the in-memory chain to the database for persistence.
  */
 export async function flushChainToDb(engagementId: string): Promise<{ flushed: number; errors: string[] }> {
@@ -1091,9 +1106,45 @@ export async function flushChainToDb(engagementId: string): Promise<{ flushed: n
       return { flushed, errors };
     }
 
+    const { eq } = await import("drizzle-orm");
+
     for (const envelope of chain) {
       try {
-        // Upsert integrity data into evidence_chain_of_custody
+        // Step 1: Ensure the parent evidence_items record exists (FK constraint)
+        // Check if the evidence item already exists in the DB
+        const existing = await db.select({ id: evidenceItems.id })
+          .from(evidenceItems)
+          .where(eq(evidenceItems.evidenceId, envelope.evidenceId))
+          .limit(1);
+
+        if (existing.length === 0) {
+          // Create the evidence item record so the FK constraint is satisfied
+          await db.insert(evidenceItems).values({
+            evidenceId: envelope.evidenceId,
+            engagementId: envelope.engagementId,
+            title: `Evidence: ${envelope.provenance?.sourceTool || 'unknown'} — ${envelope.provenance?.targetHost || 'unknown'}`,
+            description: envelope.custodyTrail?.[0]?.details || 'Auto-created from integrity chain',
+            type: mapProvenanceToEvidenceType(envelope.provenance),
+            category: envelope.provenance?.sourceTool || 'general',
+            sha256Hash: envelope.contentHash,
+            collectedBy: envelope.custodyTrail?.[0]?.performedBy || 'system',
+            collectedAt: new Date(envelope.createdAt).toISOString().slice(0, 19).replace('T', ' '),
+            tags: JSON.stringify([
+              envelope.provenance?.sourceTool,
+              envelope.provenance?.targetHost,
+              envelope.verificationStatus,
+            ].filter(Boolean)),
+            metadata: JSON.stringify({
+              contentHash: envelope.contentHash,
+              chainHash: envelope.chainHash,
+              provenance: envelope.provenance,
+              verificationStatus: envelope.verificationStatus,
+            }),
+            classification: 'confidential',
+          });
+        }
+
+        // Step 2: Insert custody trail events
         for (const event of envelope.custodyTrail) {
           await db.insert(evidenceChainOfCustody).values({
             evidenceId: envelope.evidenceId,

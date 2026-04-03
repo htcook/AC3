@@ -173,7 +173,14 @@ export interface AssetStatus {
   ip?: string;
   type: "web_app" | "server" | "network_device" | "database" | "api" | "unknown";
   ports: Array<{ port: number; service: string; version?: string }>;
-  vulns: Array<{ id: string; severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string; evidence?: string; source?: string }>;
+  vulns: Array<{ id: string; severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string; evidence?: string; source?: string;
+    /** Evidence quality tier: 'confirmed' = tool output/HTTP capture attached, 'corroborated' = multiple sources agree, 'unverified' = no raw evidence */
+    corroborationTier?: 'confirmed' | 'corroborated' | 'unverified';
+    /** Human-readable evidence summary */
+    evidenceDetail?: string;
+    /** Raw tool output or HTTP request/response that proves the vulnerability exists */
+    rawEvidence?: string;
+  }>;
   /** Passive recon findings deferred until vuln_detection phase — NOT counted as confirmed vulns */
   pendingVulns: Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string }>;
   zapFindings: Array<{ alert: string; risk: string; url: string; cweId?: number }>;
@@ -4452,7 +4459,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
 
         // Add findings to asset vulns (deduplicated)
         for (const f of findings) {
-          if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output` })) {
+          if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, cvss: f.cvss, cwe: f.cwe, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by active scan tool output`, rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined, source: 'active_scan' })) {
             state.stats.vulnsFound++;
           }
         }
@@ -4772,7 +4779,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       // Add findings to asset vulns (deduplicated)
       let newCount = 0;
       for (const f of findings) {
-        if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} active scan` })) {
+        if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, cvss: f.cvss, cwe: f.cwe, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} active scan`, rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined, source: cmd.tool })) {
           state.stats.vulnsFound++;
           newCount++;
         }
@@ -5165,7 +5172,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         for (const f of findings) {
           const key = `${f.severity}::${f.title}::${f.cve || ''}`;
           if (!assetVulnKeys.has(key)) {
-            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, cvss: f.cvss, cwe: f.cwe, source: 'nuclei' } as any);
+            asset.vulns.push({ id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, cvss: f.cvss, cwe: f.cwe, source: 'nuclei', corroborationTier: 'confirmed' as const, evidenceDetail: `Confirmed by nuclei scan`, rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined } as any);
             assetVulnKeys.add(key);
             state.stats.vulnsFound++;
             newFindings++;
@@ -5389,6 +5396,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 cwe: finding.cwe,
                 evidence: finding.evidence,
                 source: 'scanforge',
+                corroborationTier: 'confirmed' as const,
+                evidenceDetail: `Confirmed by ScanForge reasoning pipeline`,
+                rawEvidence: finding.evidence ? (typeof finding.evidence === 'string' ? finding.evidence : JSON.stringify(finding.evidence)).slice(0, 4000) : undefined,
               });
               state.stats.vulnsFound++;
               if (asset.status === 'scanning' || asset.status === 'enumerated') {
@@ -5952,6 +5962,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                       webApp.zapFindings.push({ alert: alertTitle, risk: sev, url: f.url || targetUrl, cweId: f.cweId || undefined });
                       // Push to main vulns array with full detail for exploit phase
                       const cweStr = f.cweId ? `CWE-${f.cweId}` : undefined;
+                      const zapRawEvidence = [f.method && f.url ? `${f.method} ${f.url}` : '', f.param ? `Param: ${f.param}` : '', f.attack ? `Attack: ${f.attack.substring(0, 2000)}` : '', f.evidence ? `Evidence: ${f.evidence.substring(0, 2000)}` : ''].filter(Boolean).join('\n');
                       webApp.vulns.push({
                         id: genId(),
                         severity: sev,
@@ -5960,6 +5971,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                         cwe: cweStr,
                         evidence: f.evidence || undefined,
                         evidenceDetail: [f.method && f.url ? `${f.method} ${f.url}` : '', f.param ? `Param: ${f.param}` : '', f.attack ? `Attack: ${f.attack.substring(0, 500)}` : '', f.evidence ? `Evidence: ${f.evidence.substring(0, 500)}` : ''].filter(Boolean).join(' | ') || undefined,
+                        corroborationTier: 'confirmed' as const,
+                        rawEvidence: zapRawEvidence || undefined,
                         attack: f.attack || undefined,
                         method: f.method || undefined,
                         param: f.param || undefined,
@@ -5983,12 +5996,12 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                   if (totalAlerts > 0) {
                     if (counts.high > 0) {
                       webApp.zapFindings.push({ alert: "High-risk web vulnerability", risk: "high", url: targetUrl });
-                      webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings`, source: 'zap' } as any);
+                      webApp.vulns.push({ id: genId(), severity: "high", title: `[ZAP] ${counts.high} high-risk findings`, source: 'zap', corroborationTier: 'confirmed' as const, evidenceDetail: `ZAP active scan confirmed ${counts.high} high-risk findings` } as any);
                       state.stats.vulnsFound += counts.high;
                     }
                     if (counts.medium > 0) {
                       webApp.zapFindings.push({ alert: "Medium-risk web vulnerability", risk: "medium", url: targetUrl });
-                      webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings`, source: 'zap' } as any);
+                      webApp.vulns.push({ id: genId(), severity: "medium", title: `[ZAP] ${counts.medium} medium-risk findings`, source: 'zap', corroborationTier: 'confirmed' as const, evidenceDetail: `ZAP active scan confirmed ${counts.medium} medium-risk findings` } as any);
                       state.stats.vulnsFound += counts.medium;
                     }
                     if (counts.low > 0) {
@@ -6349,7 +6362,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         const sqliCount = allFindings.filter(f => f.type === "sqli").length;
 
         if (sqliCount > 0) {
-          webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap] ${sqliCount} SQL injection vulnerabilities confirmed`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap deep injection testing' });
+          webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap] ${sqliCount} SQL injection vulnerabilities confirmed`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap deep injection testing', rawEvidence: allFindings.map(f => `${f.type}: ${f.title || ''} ${f.payload || ''}`).join('\n').slice(0, 4000), source: 'sqlmap' });
           state.stats.vulnsFound += sqliCount;
 
           // LLM analysis of SQLMap findings
@@ -6426,7 +6439,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             });
 
             if (blindResult.blindSqliFound > 0) {
-              webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap Blind] ${blindResult.blindSqliFound} blind SQL injection vulnerabilities`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap blind injection testing (Boolean-blind + Time-blind)' });
+              webApp.vulns.push({ id: genId(), severity: "critical", title: `[SQLMap Blind] ${blindResult.blindSqliFound} blind SQL injection vulnerabilities`, corroborationTier: 'confirmed', evidenceDetail: 'Confirmed by SQLMap blind injection testing (Boolean-blind + Time-blind)', source: 'sqlmap' });
               state.stats.vulnsFound += blindResult.blindSqliFound;
             }
 
@@ -6489,7 +6502,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
         if (xssCount > 0) {
           const severity = domCount > 0 || allFindings.some(f => f.type === "stored_xss") ? "high" : "medium";
-          webApp.vulns.push({ id: genId(), severity, title: `[XSS] ${xssCount} XSS vulnerabilities (${domCount} DOM-based)`, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${xssResults[0]?.tool || 'XSS scanner'}` });
+          webApp.vulns.push({ id: genId(), severity, title: `[XSS] ${xssCount} XSS vulnerabilities (${domCount} DOM-based)`, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${xssResults[0]?.tool || 'XSS scanner'}`, source: 'xss-scanner' });
           state.stats.vulnsFound += xssCount;
 
           // LLM analysis of XSS findings
@@ -6641,7 +6654,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
           const findings = parseToolOutput(cmd.tool, result.stdout, asset);
           for (const f of findings) {
-            if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} credential test` })) {
+            if (pushVulnDeduped(asset, { id: genId(), severity: f.severity, title: f.title, cve: f.cve, description: f.description, corroborationTier: 'confirmed', evidenceDetail: `Confirmed by ${cmd.tool} credential test`, rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined, source: cmd.tool })) {
               state.stats.vulnsFound++;
             }
           }
@@ -9752,8 +9765,11 @@ export async function executeEngagement(
                     severity: pf.severity,
                     title: pf.title,
                     cve: pf.cve,
+                    description: pf.description,
                     corroborationTier: 'confirmed',
                     evidenceDetail: `Confirmed by ${h.request.tool} re-scan`,
+                    rawEvidence: pf.evidence ? JSON.stringify(pf.evidence).slice(0, 4000) : undefined,
+                    source: h.request.tool,
                   })) {
                     state.stats.vulnsFound++;
                     newFindingsCount++;
@@ -10034,15 +10050,58 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     state.completedAt = Date.now();
     state.currentAction = undefined;
 
-    // ── Final stats recalculation from actual asset data ──
-    state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+    // ── Evidence-Gated Stats Recalculation ──
+    // Classify each vuln's evidence status before counting.
+    // A vuln is "evidence-backed" if it has:
+    //   - corroborationTier === 'confirmed' (tool actively verified it), OR
+    //   - rawEvidence or evidence field is non-empty (raw tool output attached), OR
+    //   - source from an active scan tool (nuclei, zap, sqlmap, etc.)
+    // Vulns without evidence are tagged 'unverified' and excluded from risk counts.
+    const ACTIVE_SCAN_SOURCES = ['nuclei', 'zap', 'sqlmap', 'nmap', 'hydra', 'nikto', 'xss-scanner', 'metasploit', 'httpx', 'ffuf'];
+    let totalVulns = 0;
+    let verifiedVulns = 0;
+    let unverifiedVulns = 0;
+    for (const asset of state.assets) {
+      for (const vuln of asset.vulns) {
+        totalVulns++;
+        const hasRawEvidence = !!(vuln.rawEvidence || vuln.evidence);
+        const isConfirmed = vuln.corroborationTier === 'confirmed' || vuln.corroborationTier === 'corroborated';
+        const isFromActiveScan = ACTIVE_SCAN_SOURCES.some(s => (vuln.source || '').toLowerCase().includes(s) || (vuln.title || '').toLowerCase().includes(`[${s}]`));
+        if (hasRawEvidence || isConfirmed || isFromActiveScan) {
+          if (!vuln.corroborationTier) vuln.corroborationTier = 'confirmed';
+          verifiedVulns++;
+        } else {
+          vuln.corroborationTier = 'unverified';
+          unverifiedVulns++;
+        }
+      }
+    }
+    // Also classify exploit attempts
+    let verifiedExploits = 0;
+    let unverifiedExploits = 0;
+    for (const asset of state.assets) {
+      for (const exploit of asset.exploitAttempts) {
+        const hasExploitEvidence = !!(exploit.exploitOutput || exploit.httpEvidence || exploit.attackPayload);
+        if (hasExploitEvidence) {
+          verifiedExploits++;
+        } else {
+          unverifiedExploits++;
+        }
+      }
+    }
+    state.stats.vulnsFound = totalVulns;
     state.stats.portsFound = state.assets.reduce((sum, a) => sum + a.ports.length, 0);
+    // Store evidence breakdown in stats for downstream use
+    (state.stats as any).verifiedVulns = verifiedVulns;
+    (state.stats as any).unverifiedVulns = unverifiedVulns;
+    (state.stats as any).verifiedExploits = verifiedExploits;
+    (state.stats as any).unverifiedExploits = unverifiedExploits;
 
-     addLog(state, {
+    addLog(state, {
       phase: "completed",
       type: "phase_complete",
       title: "🏁 Engagement Execution Complete",
-      detail: `${state.stats.hostsScanned} hosts, ${state.stats.vulnsFound} vulns, ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits, ${state.stats.zapScansRun} ZAP scans`,
+      detail: `${state.stats.hostsScanned} hosts, ${verifiedVulns} verified vulns (${unverifiedVulns} unverified — excluded from risk), ${state.stats.exploitsSucceeded}/${state.stats.exploitsAttempted} exploits (${verifiedExploits} with evidence), ${state.stats.zapScansRun} ZAP scans`,
     });
     // ── Evidence Chain Flush & Integrity Anchor ──
     try {

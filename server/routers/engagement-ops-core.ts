@@ -85,6 +85,56 @@ export const engagementOpsRouter = router({
         if (state.isRunning) {
           throw new TRPCError({ code: 'CONFLICT', message: 'Engagement is already running' });
         }
+
+        // ═══ FULL RE-RUN RESET ═══
+        // When re-launching a completed or errored engagement, reset all accumulated
+        // stats, assets, vulns, and completedScans to prevent duplication.
+        // This is a full re-run, not a resume from a checkpoint.
+        const previousPhase = state.phase;
+        if (previousPhase === 'completed' || previousPhase === 'error' || previousPhase === 'idle') {
+          console.log(`[EngOps] Full re-run detected for #${input.engagementId} (was: ${previousPhase}). Resetting stats and data.`);
+          // Reset stats to zero
+          state.stats = {
+            hostsScanned: 0, portsFound: 0, vulnsFound: 0,
+            exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
+            zapScansRun: 0, wafDetections: 0,
+          };
+          // Clear all asset data (vulns, ports, tool results, exploit attempts)
+          for (const asset of state.assets) {
+            asset.vulns = [];
+            asset.ports = [];
+            asset.toolResults = [];
+            asset.exploitAttempts = [];
+            if ((asset as any).zapFindings) (asset as any).zapFindings = [];
+            if ((asset as any).nucleiFindings) (asset as any).nucleiFindings = [];
+          }
+          // Clear assets entirely for a truly fresh start
+          state.assets = [];
+          // Reset completedScans so no scans are skipped
+          state.completedScans = {
+            nucleiCompleted: new Set(),
+            zapCompleted: new Set(),
+            hydraCompleted: new Set(),
+            exploitCompleted: new Set(),
+            lastCheckpointAt: Date.now(),
+          };
+          // Clear previous error and completion state
+          state.error = undefined;
+          state.completedAt = undefined;
+          state.progress = 0;
+          // Clear coverage analysis, target profiles, and manual findings
+          state.coverageAnalysis = undefined;
+          state.targetProfiles = undefined;
+          // Keep logs from previous run for audit trail, but add reset marker
+          state.log.push({
+            phase: 'idle' as any,
+            type: 'info' as any,
+            title: '\u{1F504} Full Pipeline Re-run — Stats Reset',
+            detail: `Previous run (${previousPhase}) data cleared. All stats, assets, vulns, and scan checkpoints reset to zero for a clean re-run.`,
+            timestamp: Date.now(),
+          });
+        }
+
         // Set exhaustive exploitation mode — when true, attempts every exploit opportunity
         state.exhaustiveExploit = input.exhaustiveExploit;
         // Set training lab mode if specified — auto-approves all gates including exploitation
