@@ -1,4 +1,5 @@
 import { protectedProcedure, router } from "../_core/trpc";
+import { z } from "zod";
 import { not } from "drizzle-orm";
 import { runDoInfraAudit, runDoFirewallAudit } from "../lib/do-infra-audit";
 
@@ -156,8 +157,48 @@ export const scanServerRouter = router({
             : { name: versionChecks[i].name, version: 'error', installed: false }
         );
       } catch (err: any) {
-        return [];
+         return [];
       }
     }),
 
+    // ─── Tool Manifest Sync ────────────────────────────────────────────────
+
+    /** Run a full manifest sync — compare registry against actual scan server tools */
+    manifestSync: protectedProcedure
+      .input(z.object({ forceRefresh: z.boolean().optional() }).optional())
+      .mutation(async ({ input }) => {
+        const { runManifestSync } = await import('../lib/tool-manifest-sync');
+        return runManifestSync({ forceRefresh: input?.forceRefresh ?? true });
+      }),
+
+    /** Get the cached manifest sync report (fast, no scan server calls) */
+    manifestReport: protectedProcedure.query(async () => {
+      const { getCachedReport, runManifestSync } = await import('../lib/tool-manifest-sync');
+      const cached = getCachedReport();
+      if (cached) return cached;
+      // No cache — run a sync
+      return runManifestSync();
+    }),
+
+    /** Get category readiness breakdown */
+    categoryReadiness: protectedProcedure.query(async () => {
+      const { getCachedReport, runManifestSync } = await import('../lib/tool-manifest-sync');
+      const report = getCachedReport() || await runManifestSync();
+      return {
+        categories: report.categoryReadiness,
+        overallReadiness: report.overallReadiness,
+        overallStatus: report.overallStatus,
+      };
+    }),
+
+    /** Get remediation plan for missing tools */
+    remediationPlan: protectedProcedure.query(async () => {
+      const { getCachedReport, runManifestSync } = await import('../lib/tool-manifest-sync');
+      const report = getCachedReport() || await runManifestSync();
+      return {
+        steps: report.remediationPlan,
+        criticalGaps: report.criticalGaps,
+        totalMissing: report.missingTools,
+      };
+    }),
   });

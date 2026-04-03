@@ -7070,7 +7070,20 @@ ${(() => {
             console.warn(`[Exploit] Exploit-DB/MSF lookup failed:`, edbErr.message);
           }
 
-          // Step 1: Generate the actual exploit code via LLM (with Exploit-DB context)
+          // Step 0.5: Query feedback loop for historical exploit performance
+          let feedbackPromptSection = '';
+          try {
+            const { buildFeedbackContextForExploit } = await import("./exploit-feedback-integration");
+            const feedbackCtx = await buildFeedbackContextForExploit(service || 'unknown', cve || undefined, target, Number(port));
+            if (feedbackCtx.performancePrompt && feedbackCtx.rankedModules.length > 0) {
+              feedbackPromptSection = feedbackCtx.performancePrompt;
+              console.log(`[Exploit] Feedback context: ${feedbackCtx.rankedModules.length} ranked modules, avoid=${feedbackCtx.avoidModules.length}, prefer=${feedbackCtx.preferModules.length}`);
+            }
+          } catch (fbErr: any) {
+            console.warn(`[Exploit] Feedback context query failed (non-blocking):`, fbErr.message);
+          }
+
+          // Step 1: Generate the actual exploit code via LLM (with Exploit-DB context + feedback)
           const { generateFunctionalExploit } = await import("./functional-exploit-generator");
           const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
           console.log(`[Exploit] Generating exploit for ${cve || service} on ${target}:${port}`);
@@ -7080,7 +7093,8 @@ ${(() => {
               title: vulnForExploit?.title || `${service} exploit`,
               severity: vulnForExploit?.severity || 'critical',
               description: (vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`) +
-                (exploitDbContext ? `\n\nKnown Exploits:\n${exploitDbContext}` : ''),
+                (exploitDbContext ? `\n\nKnown Exploits:\n${exploitDbContext}` : '') +
+                (feedbackPromptSection ? `\n\n${feedbackPromptSection}` : ''),
               service: service || 'http',
               port: Number(port),
               tool: (vulnForExploit as any)?.source || undefined,
@@ -7400,6 +7414,30 @@ ${(() => {
           planConfidence: plan?.confidence,
           planReasoning: plan?.reasoning?.slice(0, 500),
         }).catch(() => {});
+
+        // ── Feedback Loop: record exploit result for cross-engagement learning ──
+        try {
+          const { recordExploitResult } = await import("./exploit-feedback-integration");
+          await recordExploitResult({
+            engagementId: state.engagementId,
+            target,
+            port: Number(port),
+            service: service || "unknown",
+            cve: cve || undefined,
+            module: module || undefined,
+            success,
+            exploitOutput: exploitOutput.slice(0, 2000),
+            shellType: shellType || undefined,
+            executionMs: Date.now() - (exploitStartTime || Date.now()),
+            errorMessage: success ? undefined : exploitOutput.slice(0, 500),
+            exploitCategory: generatedExploit?.reasoningChain?.context?.includes("sql_injection") ? "sql_injection" : undefined,
+            generatedExploitCode: generatedExploit?.code ? "yes" : undefined,
+            targetVersion: asset?.ports?.find(p => p.port === Number(port))?.version || undefined,
+          });
+        } catch (fbErr: any) {
+          console.warn(`[FeedbackLoop] Failed to record exploit result:`, fbErr.message);
+        }
+
         // Auto-trigger post-exploitation playbook when a shell is obtained
         if (success) {
           onShellObtained({
