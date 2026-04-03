@@ -105,7 +105,7 @@ queryClient.getMutationCache().subscribe(event => {
  * The Manus/Cloudflare proxy enforces 200 requests per 60-second window.
  * When the limit is hit, we back off exponentially instead of failing.
  */
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const INITIAL_BACKOFF_MS = 1000;
 
 async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

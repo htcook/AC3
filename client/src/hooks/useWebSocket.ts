@@ -257,6 +257,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const wsFailureCountRef = useRef(0);
+  const sseReconnectAttemptsRef = useRef(0);
   const channelsRef = useRef(channels);
   const lastSseIdRef = useRef(0);
 
@@ -307,6 +308,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       sse.addEventListener("connected", () => {
         setStatus("connected");
+        sseReconnectAttemptsRef.current = 0; // Reset backoff on successful connect
         console.log("[EventStream] Connected via SSE fallback");
       });
 
@@ -328,9 +330,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         if (sse.readyState === EventSource.CLOSED) {
           sseRef.current = null;
           setStatus("error");
-          // Try to reconnect after a delay
+          // Exponential backoff to prevent rate-limit flooding
           if (autoReconnect && enabled) {
-            reconnectTimeoutRef.current = setTimeout(connectSSE, 5000);
+            const attempts = sseReconnectAttemptsRef.current;
+            const delay = Math.min(5000 * Math.pow(2, attempts), 60000); // 5s, 10s, 20s, 40s, 60s max
+            sseReconnectAttemptsRef.current++;
+            console.log(`[EventStream] SSE reconnect attempt ${attempts + 1}, waiting ${delay}ms`);
+            reconnectTimeoutRef.current = setTimeout(connectSSE, delay);
           }
         }
       };

@@ -55,11 +55,16 @@ export const apiRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: rateLimitResponse,
-  skip: isLocalRequest,
+  skip: (req) => {
+    if (isLocalRequest(req)) return true;
+    // SSE event stream is a long-lived connection, not burst traffic
+    if (req.path === "/api/events/stream") return true;
+    return false;
+  },
   message: "Too many API requests. Please slow down.",
 });
 
-// ─── General Rate Limiter ───────────────────────────────────────────────────
+// ─── General Rate Limiter ───────────────────────────────────────────────
 // Lenient: 500 requests per minute per IP for all other endpoints
 export const generalRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -71,6 +76,8 @@ export const generalRateLimiter = rateLimit({
     if (isLocalRequest(req)) return true;
     // Skip for health check endpoints
     if (req.path === "/healthz" || req.path === "/api/health") return true;
+    // Skip for SSE event stream — long-lived connections, not burst traffic
+    if (req.path === "/api/events/stream") return true;
     return false;
   },
   message: "Too many requests. Please try again later.",
