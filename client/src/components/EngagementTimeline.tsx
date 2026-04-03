@@ -7,7 +7,7 @@
  * and phase transitions as milestone markers.
  */
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   Radar, Target, Bug, Skull, Radio, Shield, ShieldAlert, ShieldOff,
   AlertTriangle, CheckCircle2, XCircle, Zap, Clock, ChevronDown, ChevronUp,
   Search, FileText, FileCheck, Crosshair, Activity, Filter, Layers,
+  Play, Pause, Square, FastForward, SkipForward, SkipBack, Rewind,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -364,10 +365,29 @@ function computePhaseDurations(events: TimelineEvent[]): PhaseDuration[] {
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
+// ─── Replay Speed Options ─────────────────────────────────────────────────
+
+const SPEED_OPTIONS = [
+  { value: 1, label: "1x" },
+  { value: 2, label: "2x" },
+  { value: 5, label: "5x" },
+  { value: 10, label: "10x" },
+  { value: 25, label: "25x" },
+];
+
 export default function EngagementTimeline({ log, assets, startedAt, completedAt, currentPhase }: EngagementTimelineProps) {
   const [filter, setFilter] = useState<EventFilter>("all");
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Replay state
+  const [replayActive, setReplayActive] = useState(false);
+  const [replayPaused, setReplayPaused] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(5);
+  const [replayIndex, setReplayIndex] = useState(-1);
+  const [replayElapsed, setReplayElapsed] = useState(0);
+  const replayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const events = useMemo(() => buildTimelineEvents(log, assets), [log, assets]);
   const phaseDurations = useMemo(() => computePhaseDurations(events), [events]);
@@ -414,6 +434,93 @@ export default function EngagementTimeline({ log, assets, startedAt, completedAt
       return next;
     });
   };
+
+  // ── Replay Controls ──
+  const startReplay = useCallback(() => {
+    setReplayActive(true);
+    setReplayPaused(false);
+    setReplayIndex(0);
+    setReplayElapsed(0);
+    setExpandedEvents(new Set());
+  }, []);
+
+  const pauseReplay = useCallback(() => {
+    setReplayPaused(prev => !prev);
+  }, []);
+
+  const stopReplay = useCallback(() => {
+    setReplayActive(false);
+    setReplayPaused(false);
+    setReplayIndex(-1);
+    setReplayElapsed(0);
+    if (replayTimerRef.current) {
+      clearInterval(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+  }, []);
+
+  const skipForward = useCallback(() => {
+    setReplayIndex(prev => Math.min(prev + 1, filteredEvents.length - 1));
+  }, [filteredEvents.length]);
+
+  const skipBackward = useCallback(() => {
+    setReplayIndex(prev => Math.max(prev - 1, 0));
+  }, []);
+
+  // Replay timer effect
+  useEffect(() => {
+    if (!replayActive || replayPaused || filteredEvents.length === 0) {
+      if (replayTimerRef.current) {
+        clearInterval(replayTimerRef.current);
+        replayTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Calculate interval between events based on speed
+    const baseInterval = 1000; // 1 second base
+    const interval = Math.max(50, baseInterval / replaySpeed);
+
+    replayTimerRef.current = setInterval(() => {
+      setReplayIndex(prev => {
+        const next = prev + 1;
+        if (next >= filteredEvents.length) {
+          // Replay complete
+          setReplayActive(false);
+          setReplayPaused(false);
+          if (replayTimerRef.current) clearInterval(replayTimerRef.current);
+          return prev;
+        }
+        return next;
+      });
+      setReplayElapsed(prev => prev + interval);
+    }, interval);
+
+    return () => {
+      if (replayTimerRef.current) {
+        clearInterval(replayTimerRef.current);
+        replayTimerRef.current = null;
+      }
+    };
+  }, [replayActive, replayPaused, replaySpeed, filteredEvents.length]);
+
+  // Auto-scroll to current replay event
+  useEffect(() => {
+    if (replayActive && replayIndex >= 0 && replayIndex < filteredEvents.length) {
+      const event = filteredEvents[replayIndex];
+      const el = eventRefs.current.get(event.id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [replayIndex, replayActive, filteredEvents]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (replayTimerRef.current) clearInterval(replayTimerRef.current);
+    };
+  }, []);
 
   if (events.length === 0) {
     return (
@@ -483,6 +590,106 @@ export default function EngagementTimeline({ log, assets, startedAt, completedAt
         </Card>
       )}
 
+      {/* Replay Controls */}
+      <Card className="border-border/40 bg-card/40">
+        <CardContent className="p-2.5 flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            {!replayActive ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-[10px] gap-1 bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20"
+                onClick={startReplay}
+                disabled={filteredEvents.length === 0}
+              >
+                <Play className="h-3 w-3" />
+                Replay
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-7 w-7 p-0 text-[10px] ${replayPaused ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"}`}
+                  onClick={pauseReplay}
+                >
+                  {replayPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-[10px] bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                  onClick={stopReplay}
+                >
+                  <Square className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-[10px] border-border/50"
+                  onClick={skipBackward}
+                  disabled={replayIndex <= 0}
+                >
+                  <SkipBack className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-[10px] border-border/50"
+                  onClick={skipForward}
+                  disabled={replayIndex >= filteredEvents.length - 1}
+                >
+                  <SkipForward className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Speed selector */}
+          <div className="flex items-center gap-0.5 border-l border-border/30 pl-2">
+            <FastForward className="h-3 w-3 text-muted-foreground" />
+            {SPEED_OPTIONS.map(opt => (
+              <Button
+                key={opt.value}
+                variant={replaySpeed === opt.value ? "default" : "ghost"}
+                size="sm"
+                className={`h-6 px-1.5 text-[9px] min-w-[28px] ${replaySpeed === opt.value ? "" : "text-muted-foreground"}`}
+                onClick={() => setReplaySpeed(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+
+          {/* Progress & elapsed time */}
+          {replayActive && (
+            <div className="flex items-center gap-2 border-l border-border/30 pl-2 ml-auto">
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {formatDuration(replayElapsed)}
+                </span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Event {replayIndex + 1}/{filteredEvents.length}
+              </div>
+              {/* Progress bar */}
+              <div className="w-24 h-1.5 bg-border/30 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-cyan-500 rounded-full transition-all duration-200"
+                  style={{ width: `${((replayIndex + 1) / Math.max(1, filteredEvents.length)) * 100}%` }}
+                />
+              </div>
+              {replayPaused && (
+                <Badge variant="outline" className="text-[8px] text-yellow-400 border-yellow-500/30 animate-pulse">
+                  PAUSED
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Filter Bar */}
       <div className="flex items-center gap-1 flex-wrap">
         <Filter className="h-3.5 w-3.5 text-muted-foreground mr-1" />
@@ -525,9 +732,20 @@ export default function EngagementTimeline({ log, assets, startedAt, completedAt
             const isExpanded = expandedEvents.has(event.id);
             const isPhaseTransition = event.type === "phase_start" || event.type === "phase_end";
             const cfg = PHASE_CONFIG[event.phase];
+            const isReplayCurrent = replayActive && idx === replayIndex;
+            const isReplayPast = replayActive && idx < replayIndex;
+            const isReplayFuture = replayActive && idx > replayIndex;
 
             return (
-              <div key={event.id} className="relative mb-1.5">
+              <div
+                key={event.id}
+                ref={(el) => { if (el) eventRefs.current.set(event.id, el); }}
+                className={`relative mb-1.5 transition-all duration-300 ${
+                  isReplayCurrent ? "scale-[1.01] z-10" :
+                  isReplayFuture ? "opacity-20" :
+                  isReplayPast ? "opacity-60" : ""
+                }`}
+              >
                 {/* Timeline dot */}
                 <div className={`absolute -left-6 top-1.5 w-[22px] flex items-center justify-center`}>
                   <div className={`w-2 h-2 rounded-full ${
@@ -543,15 +761,17 @@ export default function EngagementTimeline({ log, assets, startedAt, completedAt
                 {/* Event card */}
                 <div
                   className={`rounded-md border transition-colors cursor-pointer ${
-                    isPhaseTransition
-                      ? `${cfg?.bgColor || "bg-card/50"} border-border/30`
-                      : event.type === "evasion"
-                        ? "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40"
-                        : event.type === "finding"
-                          ? "bg-yellow-500/5 border-yellow-500/20 hover:border-yellow-500/40"
-                          : event.type === "exploit" && event.success
-                            ? "bg-red-500/5 border-red-500/20 hover:border-red-500/40"
-                            : "bg-card/30 border-border/20 hover:border-border/40"
+                    isReplayCurrent
+                      ? "ring-2 ring-cyan-500/60 border-cyan-500/40 bg-cyan-500/10 shadow-lg shadow-cyan-500/10"
+                      : isPhaseTransition
+                        ? `${cfg?.bgColor || "bg-card/50"} border-border/30`
+                        : event.type === "evasion"
+                          ? "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40"
+                          : event.type === "finding"
+                            ? "bg-yellow-500/5 border-yellow-500/20 hover:border-yellow-500/40"
+                            : event.type === "exploit" && event.success
+                              ? "bg-red-500/5 border-red-500/20 hover:border-red-500/40"
+                              : "bg-card/30 border-border/20 hover:border-border/40"
                   } p-2`}
                   onClick={() => !isPhaseTransition && toggleExpand(event.id)}
                 >

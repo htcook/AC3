@@ -530,6 +530,7 @@ export const reportsRouter = router({
               activeScanPlan: activeScanPlanMeta,
               calderaEvidenceSnapshot: await collectCalderaEvidenceForReport(engagement),
               exploitationEvidence,
+              manualFindings: opsState?.manualFindings || [],
             });
 
             // Store as S3 file

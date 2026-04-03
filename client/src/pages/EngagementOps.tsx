@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
 import { CodeViewer } from "@/components/CodeViewer";
 import { VulnTrendChart } from "@/components/VulnTrendChart";
+import ManualFindingsPanel from "@/components/ManualFindingsPanel";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -45,7 +46,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
-  X, FileCheck, Fingerprint,
+  X, FileCheck, Fingerprint, Edit2,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -64,6 +65,7 @@ import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
 import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
+import ScanCoverageHeatmap, { computeCoverage } from "@/components/ScanCoverageHeatmap";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -719,6 +721,11 @@ export default function EngagementOps() {
   const targetProfilesQ = trpc.engagementOps.getTargetProfiles.useQuery(
     { engagementId },
     { enabled: engagementId > 0, refetchInterval: isRunning ? 15000 : 60000 }
+  );
+
+  const manualFindingsQ = trpc.engagementOps.listManualFindings.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: 15000 }
   );
 
   // LLM Cost tracking for this engagement
@@ -1997,6 +2004,7 @@ export default function EngagementOps() {
           {(() => {
             const toolCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.toolResults?.length || 0), 0);
             const credTests = (ops?.assets || []).flatMap((a: any) => (a.toolResults || []).filter((tr: any) => tr.phase === 'credential_testing'));
+            const coverage = computeCoverage(ops?.assets || []);
             const credFound = credTests.filter((tr: any) => Array.isArray(tr.findings) && tr.findings.length > 0).length;
             const synthCount = (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.tool === 'llm-synthesis').length, 0);
             const tabGroups: TabGroup[] = [
@@ -2026,6 +2034,8 @@ export default function EngagementOps() {
                   { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credTests.length },
                   { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
                   { value: 'scanimports', label: 'Scan Reports', icon: <FileUp className="h-3 w-3" /> },
+                  { value: 'coverageheatmap', label: 'Coverage Map', icon: <BarChart3 className="h-3 w-3" />, count: coverage.totalGaps || undefined },
+                  { value: 'manualfindings', label: 'Manual Findings', icon: <Edit2 className="h-3 w-3" />, count: manualFindingsQ.data?.findings?.length || 0 },
                 ],
               },
               {
@@ -4276,6 +4286,27 @@ export default function EngagementOps() {
             <TabsContent value="scanimports" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-full">
                 <ScanReportImportPanel engagementId={engagementId} />
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Coverage Heatmap Tab ── */}
+            <TabsContent value="coverageheatmap" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <ScanCoverageHeatmap assets={ops?.assets || []} />
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ═══ Manual Findings ═══ */}
+            <TabsContent value="manualfindings" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <ManualFindingsPanel
+                    engagementId={String(engagementId)}
+                    assets={(ops?.assets || []).map((a: any) => ({ hostname: a.hostname, ip: a.ip }))}
+                  />
+                </div>
               </ScrollArea>
             </TabsContent>
 

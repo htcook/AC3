@@ -3510,4 +3510,308 @@ Return ONLY a JSON object with vulnerabilities array.`;
       }
       return { history };
     }),
+
+  // ═══ MANUAL FINDINGS UPLOAD ═══
+
+  /** Submit a new manual finding */
+  submitManualFinding: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      asset: z.string(),
+      title: z.string().min(3).max(500),
+      severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
+      cvss: z.number().min(0).max(10).optional(),
+      cve: z.string().optional(),
+      cwe: z.string().optional(),
+      description: z.string().min(10),
+      stepsToReproduce: z.string().optional(),
+      impact: z.string().optional(),
+      remediation: z.string().optional(),
+      category: z.string().default('web'),
+      tags: z.array(z.string()).default([]),
+      notes: z.string().optional(),
+      evidence: z.array(z.object({
+        type: z.enum(['screenshot', 'terminal_output', 'http_request_response', 'exploit_code', 'tool_output', 'notes', 'pcap', 'video', 'document']),
+        name: z.string(),
+        mimeType: z.string(),
+        url: z.string().optional(),
+        fileKey: z.string().optional(),
+        textContent: z.string().optional(),
+        sizeBytes: z.number().optional(),
+        caption: z.string().optional(),
+      })).default([]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getOpsState, getOpsStateWithRecovery, addLog } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new Error('Engagement not found');
+
+      const findingId = `mf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const now = Date.now();
+
+      const finding: any = {
+        id: findingId,
+        asset: input.asset,
+        title: input.title,
+        severity: input.severity,
+        cvss: input.cvss,
+        cve: input.cve,
+        cwe: input.cwe,
+        description: input.description,
+        stepsToReproduce: input.stepsToReproduce,
+        impact: input.impact,
+        remediation: input.remediation,
+        category: input.category,
+        tags: input.tags,
+        notes: input.notes,
+        submittedBy: ctx.user?.name || ctx.user?.openId || 'operator',
+        submittedAt: now,
+        updatedAt: now,
+        status: 'submitted' as const,
+        evidence: input.evidence.map((e, i) => ({
+          id: `ev-${findingId}-${i}`,
+          type: e.type,
+          name: e.name,
+          mimeType: e.mimeType,
+          url: e.url,
+          fileKey: e.fileKey,
+          textContent: e.textContent,
+          sizeBytes: e.sizeBytes,
+          caption: e.caption,
+          uploadedAt: now,
+        })),
+      };
+
+      if (!state.manualFindings) state.manualFindings = [];
+      state.manualFindings.push(finding);
+
+      // Also push to the asset's vulns array so it appears in the report
+      const asset = state.assets.find(a => a.hostname === input.asset);
+      if (asset) {
+        const vulnId = `manual-${findingId}`;
+        asset.vulns.push({
+          id: vulnId,
+          severity: input.severity,
+          title: `[Manual] ${input.title}`,
+          cve: input.cve,
+          description: input.description,
+          cvss: input.cvss,
+          cwe: input.cwe,
+          evidence: input.stepsToReproduce || input.description,
+          source: 'manual',
+        });
+        // Update asset status if needed
+        if (asset.status === 'pending' || asset.status === 'scanning' || asset.status === 'enumerated' || asset.status === 'discovered') {
+          asset.status = 'vulns_found';
+        }
+      }
+
+      addLog(state, {
+        phase: state.phase,
+        type: 'finding',
+        title: `Manual finding: ${input.title}`,
+        detail: `${input.severity.toUpperCase()} | ${input.category} | ${input.evidence.length} evidence items | Submitted by ${finding.submittedBy}`,
+        data: { findingId, severity: input.severity, asset: input.asset, category: input.category, manual: true },
+        riskTier: input.severity === 'critical' ? 'red' : input.severity === 'high' ? 'orange' : 'yellow',
+      });
+
+      return { id: findingId, success: true };
+    }),
+
+  /** List all manual findings for an engagement */
+  listManualFindings: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      return { findings: state?.manualFindings || [] };
+    }),
+
+  /** Update a manual finding */
+  updateManualFinding: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      findingId: z.string(),
+      title: z.string().optional(),
+      severity: z.enum(['critical', 'high', 'medium', 'low', 'info']).optional(),
+      cvss: z.number().min(0).max(10).optional(),
+      cve: z.string().optional(),
+      cwe: z.string().optional(),
+      description: z.string().optional(),
+      stepsToReproduce: z.string().optional(),
+      impact: z.string().optional(),
+      remediation: z.string().optional(),
+      category: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      notes: z.string().optional(),
+      status: z.enum(['draft', 'submitted', 'verified', 'rejected']).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.manualFindings) throw new Error('No manual findings found');
+
+      const finding = state.manualFindings.find(f => f.id === input.findingId);
+      if (!finding) throw new Error('Finding not found');
+
+      if (input.title !== undefined) finding.title = input.title;
+      if (input.severity !== undefined) finding.severity = input.severity;
+      if (input.cvss !== undefined) finding.cvss = input.cvss;
+      if (input.cve !== undefined) finding.cve = input.cve;
+      if (input.cwe !== undefined) finding.cwe = input.cwe;
+      if (input.description !== undefined) finding.description = input.description;
+      if (input.stepsToReproduce !== undefined) finding.stepsToReproduce = input.stepsToReproduce;
+      if (input.impact !== undefined) finding.impact = input.impact;
+      if (input.remediation !== undefined) finding.remediation = input.remediation;
+      if (input.category !== undefined) finding.category = input.category;
+      if (input.tags !== undefined) finding.tags = input.tags;
+      if (input.notes !== undefined) finding.notes = input.notes;
+      if (input.status !== undefined) finding.status = input.status;
+      finding.updatedAt = Date.now();
+
+      return { success: true };
+    }),
+
+  /** Delete a manual finding */
+  deleteManualFinding: protectedProcedure
+    .input(z.object({ engagementId: z.number(), findingId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.manualFindings) throw new Error('No manual findings found');
+
+      const idx = state.manualFindings.findIndex(f => f.id === input.findingId);
+      if (idx === -1) throw new Error('Finding not found');
+      state.manualFindings.splice(idx, 1);
+
+      // Also remove from asset vulns
+      for (const asset of state.assets) {
+        const vulnIdx = asset.vulns.findIndex(v => v.id === `manual-${input.findingId}`);
+        if (vulnIdx !== -1) asset.vulns.splice(vulnIdx, 1);
+      }
+
+      return { success: true };
+    }),
+
+  /** Upload evidence file for a manual finding */
+  uploadManualEvidence: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      findingId: z.string(),
+      evidence: z.object({
+        type: z.enum(['screenshot', 'terminal_output', 'http_request_response', 'exploit_code', 'tool_output', 'notes', 'pcap', 'video', 'document']),
+        name: z.string(),
+        mimeType: z.string(),
+        textContent: z.string().optional(),
+        caption: z.string().optional(),
+        /** Base64-encoded file data for file uploads */
+        fileData: z.string().optional(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.manualFindings) throw new Error('No manual findings found');
+
+      const finding = state.manualFindings.find(f => f.id === input.findingId);
+      if (!finding) throw new Error('Finding not found');
+
+      const evidenceId = `ev-${input.findingId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      let url: string | undefined;
+      let fileKey: string | undefined;
+      let sizeBytes: number | undefined;
+
+      // If file data is provided, upload to S3
+      if (input.evidence.fileData) {
+        const { storagePut } = await import('../storage');
+        const buffer = Buffer.from(input.evidence.fileData, 'base64');
+        sizeBytes = buffer.length;
+        const suffix = Math.random().toString(36).slice(2, 8);
+        const key = `manual-evidence/${input.engagementId}/${input.findingId}/${evidenceId}-${suffix}`;
+        const result = await storagePut(key, buffer, input.evidence.mimeType);
+        url = result.url;
+        fileKey = result.key;
+      }
+
+      const evidence: any = {
+        id: evidenceId,
+        type: input.evidence.type,
+        name: input.evidence.name,
+        mimeType: input.evidence.mimeType,
+        url,
+        fileKey,
+        textContent: input.evidence.textContent,
+        sizeBytes,
+        caption: input.evidence.caption,
+        uploadedAt: Date.now(),
+      };
+
+      finding.evidence.push(evidence);
+      finding.updatedAt = Date.now();
+
+      return { evidenceId, url, success: true };
+    }),
+
+  /** Add inline text evidence (terminal output, HTTP req/res, exploit code, notes) */
+  addTextEvidence: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      findingId: z.string(),
+      type: z.enum(['terminal_output', 'http_request_response', 'exploit_code', 'notes', 'tool_output']),
+      name: z.string(),
+      textContent: z.string(),
+      caption: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.manualFindings) throw new Error('No manual findings found');
+
+      const finding = state.manualFindings.find(f => f.id === input.findingId);
+      if (!finding) throw new Error('Finding not found');
+
+      const evidenceId = `ev-${input.findingId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      finding.evidence.push({
+        id: evidenceId,
+        type: input.type,
+        name: input.name,
+        mimeType: 'text/plain',
+        textContent: input.textContent,
+        caption: input.caption,
+        uploadedAt: Date.now(),
+      });
+      finding.updatedAt = Date.now();
+
+      return { evidenceId, success: true };
+    }),
+
+  /** Delete evidence from a manual finding */
+  deleteManualEvidence: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      findingId: z.string(),
+      evidenceId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.manualFindings) throw new Error('No manual findings found');
+
+      const finding = state.manualFindings.find(f => f.id === input.findingId);
+      if (!finding) throw new Error('Finding not found');
+
+      const idx = finding.evidence.findIndex((e: any) => e.id === input.evidenceId);
+      if (idx === -1) throw new Error('Evidence not found');
+      finding.evidence.splice(idx, 1);
+      finding.updatedAt = Date.now();
+
+      return { success: true };
+    }),
   });

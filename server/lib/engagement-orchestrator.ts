@@ -313,6 +313,70 @@ export interface ScanPlan {
   estimatedDuration: string;
   riskAssessment: string;
 }
+/** Manual finding submitted by a pentester — first-class evidence for report generation */
+export interface ManualFinding {
+  id: string;
+  /** Which asset this finding relates to (hostname or IP) */
+  asset: string;
+  /** Finding title */
+  title: string;
+  /** Severity: critical, high, medium, low, info */
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  /** CVSS score if applicable */
+  cvss?: number;
+  /** CVE identifier if applicable */
+  cve?: string;
+  /** CWE identifier if applicable */
+  cwe?: string;
+  /** Detailed description of the finding */
+  description: string;
+  /** Steps to reproduce the vulnerability */
+  stepsToReproduce?: string;
+  /** Impact assessment */
+  impact?: string;
+  /** Remediation recommendation */
+  remediation?: string;
+  /** Evidence attachments — screenshots, terminal output, tool logs, etc. */
+  evidence: ManualEvidence[];
+  /** Category: web, network, infrastructure, social_engineering, physical, wireless, cloud, mobile, api */
+  category: string;
+  /** Tags for filtering and grouping */
+  tags: string[];
+  /** Who submitted this finding */
+  submittedBy: string;
+  /** When this finding was submitted */
+  submittedAt: number;
+  /** When this finding was last updated */
+  updatedAt: number;
+  /** Status: draft, submitted, verified, rejected */
+  status: 'draft' | 'submitted' | 'verified' | 'rejected';
+  /** Operator notes / narrative context */
+  notes?: string;
+}
+
+/** Evidence attachment for a manual finding */
+export interface ManualEvidence {
+  id: string;
+  /** Type of evidence */
+  type: 'screenshot' | 'terminal_output' | 'http_request_response' | 'exploit_code' | 'tool_output' | 'notes' | 'pcap' | 'video' | 'document';
+  /** Display name */
+  name: string;
+  /** MIME type */
+  mimeType: string;
+  /** S3 URL for file-based evidence */
+  url?: string;
+  /** S3 key for file-based evidence */
+  fileKey?: string;
+  /** Inline text content for terminal output, HTTP req/res, exploit code, notes */
+  textContent?: string;
+  /** File size in bytes */
+  sizeBytes?: number;
+  /** When this evidence was uploaded */
+  uploadedAt: number;
+  /** Caption or description of this evidence */
+  caption?: string;
+}
+
 export interface EngagementOpsState {
   engagementId: number;
   engagementType: "pentest" | "red_team" | "purple_team" | "phishing" | "tabletop";
@@ -425,6 +489,8 @@ export interface EngagementOpsState {
   };
   /** Context-aware target profiles — built from httpx/ScanForge data for WAF/CDN/topology awareness */
   targetProfiles?: Record<string, import('./context-aware-scanner').TargetProfile>;
+  /** Manual findings submitted by pentesters — first-class evidence alongside automated findings */
+  manualFindings?: ManualFinding[];
   /** Phase checkpoint tracking — tracks completed scan targets so resume skips them */
   completedScans?: {
     /** Nuclei scan URLs that completed (success or graceful failure) */
