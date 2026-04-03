@@ -11181,6 +11181,73 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       });
     }
 
+    // ═══ TEST PLAN ADHERENCE — Compare planned tests vs actual execution ═══
+    try {
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: '📋 Test Plan Adherence: Analyzing execution against PTES/NIST standards...',
+        detail: 'Comparing planned tests vs actual execution, identifying coverage gaps, generating recommendations',
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+
+      const { generateTestPlanAdherence } = await import('./engagement-report-handoff');
+
+      // Check if a test plan was generated for this engagement's DI scan
+      const testPlan = (state.metadata as any)?.testPlan || null;
+
+      const adherence = await generateTestPlanAdherence(
+        {
+          engagementId: state.engagementId,
+          engagementName: engagement.name,
+          engagementType: state.engagementType,
+          phase: state.phase,
+          assets: state.assets,
+          stats: state.stats,
+          log: state.log,
+          startedAt: state.startedAt,
+          completedAt: state.completedAt,
+          metadata: state.metadata as Record<string, any>,
+        },
+        testPlan,
+      );
+
+      // Store adherence in state metadata for UI access
+      if (!state.metadata) state.metadata = {} as any;
+      (state.metadata as any).testPlanAdherence = {
+        adherencePercentage: adherence.adherencePercentage,
+        totalPlanned: adherence.totalPlannedTests,
+        executed: adherence.executedTests,
+        skipped: adherence.skippedTests,
+        blocked: adherence.blockedTests,
+        ptesPhases: adherence.ptesPhaseCompletion.map(p => ({
+          phase: p.phase,
+          status: p.status,
+          findings: p.findings,
+        })),
+        coverageGaps: adherence.coverageGaps.length,
+        recommendations: adherence.recommendations,
+        generatedAt: adherence.generatedAt,
+      };
+
+      const completedPhases = adherence.ptesPhaseCompletion.filter(p => p.status === 'completed').length;
+      const totalPhases = adherence.ptesPhaseCompletion.length;
+
+      addLog(state, {
+        phase: 'completed', type: 'phase_complete',
+        title: `📋 Test Plan Adherence: ${adherence.adherencePercentage}% — ${completedPhases}/${totalPhases} PTES phases completed`,
+        detail: `Executed: ${adherence.executedTests} | Skipped: ${adherence.skippedTests} | Gaps: ${adherence.coverageGaps.length} | Recommendations: ${adherence.recommendations.length}`,
+        data: { testPlanAdherence: (state.metadata as any).testPlanAdherence },
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (adherenceErr: any) {
+      console.warn('[TestPlanAdherence] Analysis failed:', adherenceErr.message);
+      addLog(state, {
+        phase: 'completed', type: 'warning',
+        title: '⚠️ Test Plan Adherence Analysis Failed',
+        detail: adherenceErr.message,
+      });
+    }
+
     // Final checkpoint
     await phaseCheckpoint('completed');
 

@@ -179,6 +179,9 @@ export default function DomainIntelResults() {
   const [engagementRunning, setEngagementRunning] = useState(false);
   const [exploitDeploying, setExploitDeploying] = useState(false);
   const [matchingRunning, setMatchingRunning] = useState(false);
+  const [testPlanGenerating, setTestPlanGenerating] = useState(false);
+  const [testPlanDialogOpen, setTestPlanDialogOpen] = useState(false);
+  const [testPlanResult, setTestPlanResult] = useState<any>(null);
 
   const FP_REASON_TEMPLATES = [
     { value: "patched", label: "Already patched / remediated" },
@@ -730,6 +733,67 @@ export default function DomainIntelResults() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Generate Test Plan Button */}
+          {(scan.status === 'completed' || scan.status === 'scan_complete') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={async () => {
+                setTestPlanGenerating(true);
+                toast.info('Generating PTES/NIST test plan — this may take 30-60 seconds...');
+                try {
+                  // Map DI scan data to the test plan generator's expected input shape
+                  const mappedAssets = (assets as any[]).map((a: any) => ({
+                    hostname: a.hostname || '',
+                    ip: a.ip || a.ipAddress || undefined,
+                    ports: a.ports || [],
+                    technologies: a.technologies || [],
+                    hybridRiskScore: a.hybridRiskScore || a.riskScore || 0,
+                    carverScores: a.carverScores || {},
+                    missionFunction: a.missionFunction,
+                    essentialService: a.essentialService,
+                    type: a.type || 'web_server',
+                    services: a.services || (a.ports || []).map((p: number) => ({ port: p, service: `port-${p}` })),
+                    cloudProvider: a.cloudProvider,
+                    wafDetected: a.wafDetected,
+                    certificates: a.certificates || [],
+                  }));
+                  const result = await (trpc as any).testPlanGenerator.generate.mutate({
+                    scanId,
+                    domain: scan.domain,
+                    orgName: (scan as any).orgName || undefined,
+                    planType: 'penetration_test',
+                    assets: mappedAssets,
+                    observations: pipeline?.observations || [],
+                    domainHealthData: pipeline?.domainHealth || undefined,
+                    wafNgfwData: pipeline?.wafNgfwData || undefined,
+                    breachData: pipeline?.breachData || undefined,
+                    threatActorData: pipeline?.threatActorMatches || undefined,
+                    dnsAssessmentData: pipeline?.dnsAssessment || undefined,
+                    llmAnalysis: pipeline?.postEnrichmentAnalysis || undefined,
+                    carverFeedback: pipeline?.carverFeedback || undefined,
+                    passiveRecon: pipeline?.passiveRecon || undefined,
+                  });
+                  setTestPlanResult(result);
+                  setTestPlanDialogOpen(true);
+                  toast.success('Test plan generated successfully');
+                } catch (err: any) {
+                  toast.error(`Test plan generation failed: ${sanitizeErrorForToast(err)}`);
+                } finally {
+                  setTestPlanGenerating(false);
+                }
+              }}
+              disabled={testPlanGenerating}
+            >
+              {testPlanGenerating ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {testPlanGenerating ? 'Generating...' : 'Test Plan'}
+            </Button>
+          )}
           {/* Refresh Scan Button — only for completed scans */}
           {(scan.status === 'completed' || scan.status === 'scan_complete') && (
             <Button
@@ -6060,6 +6124,158 @@ export default function DomainIntelResults() {
               ) : (
                 <><Flag className="h-4 w-4 mr-2" /> Confirm False Positive</>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Test Plan Dialog ── */}
+      <Dialog open={testPlanDialogOpen} onOpenChange={setTestPlanDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-emerald-400" />
+              PTES/NIST Test Plan
+            </DialogTitle>
+            <DialogDescription>
+              Automated test plan generated from domain intelligence findings, structured per PTES phases and NIST SP 800-115.
+            </DialogDescription>
+          </DialogHeader>
+          {testPlanResult && (
+            <div className="space-y-4">
+              {/* Summary metrics */}
+              <div className="grid grid-cols-4 gap-3">
+                <div className="rounded-lg border bg-card p-3 text-center">
+                  <div className="text-2xl font-bold text-emerald-400">{testPlanResult.structuredData?.schedule?.totalDays || '—'}</div>
+                  <div className="text-xs text-muted-foreground">Est. Days</div>
+                </div>
+                <div className="rounded-lg border bg-card p-3 text-center">
+                  <div className="text-2xl font-bold text-cyan-400">{testPlanResult.structuredData?.attackVectors?.length || 0}</div>
+                  <div className="text-xs text-muted-foreground">Attack Vectors</div>
+                </div>
+                <div className="rounded-lg border bg-card p-3 text-center">
+                  <div className="text-2xl font-bold text-amber-400">{testPlanResult.structuredData?.tools?.length || 0}</div>
+                  <div className="text-xs text-muted-foreground">Tools</div>
+                </div>
+                <div className="rounded-lg border bg-card p-3 text-center">
+                  <div className="text-2xl font-bold text-purple-400">{testPlanResult.sections?.length || 0}</div>
+                  <div className="text-xs text-muted-foreground">PTES Sections</div>
+                </div>
+              </div>
+
+              {/* PTES sections */}
+              {testPlanResult.sections?.map((section: any, idx: number) => (
+                <Collapsible key={idx} defaultOpen={idx < 3}>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">{section.ptesPhase || `Phase ${idx + 1}`}</Badge>
+                      <span className="font-medium text-sm">{section.title}</span>
+                      {section.nistReference && (
+                        <Badge variant="secondary" className="text-[10px]">{section.nistReference}</Badge>
+                      )}
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 pl-4 border-l-2 border-emerald-500/20">
+                    <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground whitespace-pre-wrap">
+                      <Streamdown>{section.content || 'Content pending...'}</Streamdown>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+
+              {/* Attack vectors table */}
+              {testPlanResult.structuredData?.attackVectors?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <Crosshair className="h-4 w-4 text-red-400" /> Attack Vectors
+                  </h4>
+                  <div className="border rounded-lg overflow-auto max-h-[300px]">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="p-2 text-left">Vector</th>
+                          <th className="p-2 text-left">Category</th>
+                          <th className="p-2 text-left">MITRE ATT&CK</th>
+                          <th className="p-2 text-center">Priority</th>
+                          <th className="p-2 text-left">Tools</th>
+                          <th className="p-2 text-left">Evidence Required</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {testPlanResult.structuredData.attackVectors.map((av: any, i: number) => (
+                          <tr key={i} className="border-t hover:bg-muted/30">
+                            <td className="p-2 font-medium">{av.name}</td>
+                            <td className="p-2">{av.category}</td>
+                            <td className="p-2"><Badge variant="outline" className="text-[10px]">{av.mitreTechnique || '—'}</Badge></td>
+                            <td className="p-2 text-center">
+                              <Badge className={`text-[10px] ${
+                                av.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
+                                av.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                                av.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' :
+                                'bg-green-500/20 text-green-400'
+                              }`}>{av.priority}</Badge>
+                            </td>
+                            <td className="p-2">{(av.tools || []).join(', ')}</td>
+                            <td className="p-2 text-muted-foreground">{av.evidenceRequired || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Risk mitigation */}
+              {testPlanResult.structuredData?.riskMitigation?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" /> Risk Mitigation During Testing
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {testPlanResult.structuredData.riskMitigation.map((rm: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded border bg-card">
+                        <Badge variant="outline" className={`text-[10px] shrink-0 ${
+                          rm.severity === 'high' ? 'border-red-500/50 text-red-400' :
+                          rm.severity === 'medium' ? 'border-amber-500/50 text-amber-400' :
+                          'border-green-500/50 text-green-400'
+                        }`}>{rm.severity}</Badge>
+                        <div>
+                          <span className="text-xs font-medium">{rm.risk}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{rm.mitigation}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!testPlanResult?.markdown) return;
+                const blob = new Blob([testPlanResult.markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${scan?.primaryDomain || 'domain'}_test_plan_PTES_NIST.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success('Test plan exported as Markdown');
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" /> Export Markdown
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => setTestPlanDialogOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

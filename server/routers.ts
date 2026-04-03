@@ -203,6 +203,7 @@ import { complianceExportsRouter } from "./routers/compliance-exports";
 import { platformCredentialsRouter } from "./routers/platform-credentials";
 import { testPlanApprovalRouter } from "./routers/test-plan-approval";
 import { aiVulnResearchRouter } from "./routers/ai-vuln-research";
+import { testPlanGeneratorRouter } from "./routers/test-plan-generator";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -538,6 +539,8 @@ export const appRouter = router({
   complianceExports: complianceExportsRouter,
   // ─── AI Vulnerability Research (LLM-powered 0-day discovery & PoC generation) ──
   aiVulnResearch: aiVulnResearchRouter,
+  // ─── Automated Test Plan Generator (PTES/NIST DI→Engagement Bridge) ──
+  testPlanGenerator: testPlanGeneratorRouter,
 });
 export type AppRouter = typeof appRouter;
 
