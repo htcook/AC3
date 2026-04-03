@@ -50,10 +50,10 @@ const STAGE_META: Record<string, { label: string; icon: React.ComponentType<{ cl
     description: "Subdomain enumeration & DNS discovery",
   },
   nmap: {
-    label: "Nmap",
+    label: "Port Discovery",
     icon: Search,
     color: "text-emerald-400",
-    description: "Port scanning & service detection",
+    description: "Port scanning (naabu/masscan) & service fingerprinting (Nerva)",
   },
   service_fingerprinter: {
     label: "Fingerprinter",
@@ -252,8 +252,8 @@ export default function DiscoveryChain() {
               <h1 className="text-2xl font-bold tracking-tight">Discovery Chain</h1>
             </div>
             <p className="text-muted-foreground text-sm max-w-2xl">
-              Automated reconnaissance pipeline that sequences Amass subdomain discovery, Nmap port scanning,
-              service fingerprinting, and Nuclei vulnerability scanning — each stage feeds its output into the next.
+              Automated reconnaissance pipeline that sequences Amass subdomain discovery, port scanning (naabu/masscan),
+              service fingerprinting (Nerva/httpx), and Nuclei vulnerability scanning — each stage feeds its output into the next.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -387,18 +387,18 @@ export default function DiscoveryChain() {
                   </Select>
                 </div>
 
-                {/* Nmap Profile */}
+                {/* Port Discovery Profile */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Nmap Profile</Label>
+                  <Label className="text-sm font-medium">Port Discovery Profile</Label>
                   <Select value={nmapProfile} onValueChange={setNmapProfile}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="quick">Quick (Top 100)</SelectItem>
-                      <SelectItem value="standard">Standard (Top 1000)</SelectItem>
-                      <SelectItem value="deep">Deep (All 65535)</SelectItem>
-                      <SelectItem value="stealth">Stealth (SYN)</SelectItem>
-                      <SelectItem value="service">Service Detection</SelectItem>
-                      <SelectItem value="vuln">Vulnerability</SelectItem>
+                      <SelectItem value="quick">Quick (Top 100 ports)</SelectItem>
+                      <SelectItem value="standard">Standard (Top 1000 ports)</SelectItem>
+                      <SelectItem value="deep">Deep (All 65535 ports)</SelectItem>
+                      <SelectItem value="stealth">Stealth (SYN + rate limiting)</SelectItem>
+                      <SelectItem value="service">Service Fingerprint (Nerva)</SelectItem>
+                      <SelectItem value="vuln">Full Discovery + Vuln</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

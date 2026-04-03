@@ -197,7 +197,7 @@ export default function SafetyDashboard() {
                     <p className="font-mono font-semibold">{engineState.data.profile.maxRpsPerHost}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Max Nmap Timing</span>
+                    <span className="text-muted-foreground">Max Scan Timing</span>
                     <p className="font-mono font-semibold">-T{engineState.data.profile.maxNmapTiming}</p>
                   </div>
                   <div>
@@ -557,7 +557,7 @@ export default function SafetyDashboard() {
                       </tr>
                     ))}
                     {[
-                      { label: "Max Nmap Timing", key: "maxNmapTiming", prefix: "-T" },
+                      { label: "Max Scan Timing", key: "maxNmapTiming", prefix: "-T" },
                       { label: "Max RPS/Host", key: "maxRpsPerHost" },
                       { label: "Max Concurrent/Target", key: "maxConcurrentPerTarget" },
                     ].map(row => (

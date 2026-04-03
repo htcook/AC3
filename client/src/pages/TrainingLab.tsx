@@ -543,7 +543,7 @@ export default function TrainingLab() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="quick">Quick (httpx + nuclei)</SelectItem>
-                            <SelectItem value="standard">Standard (+ nmap + gobuster)</SelectItem>
+                            <SelectItem value="standard">Standard (+ naabu + gobuster)</SelectItem>
                             <SelectItem value="deep">Deep (+ ZAP full scan)</SelectItem>
                           </SelectContent>
                         </Select>
@@ -2130,7 +2130,7 @@ function RoEAcknowledgmentModal({ open, target, customUrl, scanProfile, onAccept
                 <p className="text-[10px] text-primary">
                   <Shield className="w-3 h-3 inline mr-1" />
                   The platform will automatically enforce these rules by blocking prohibited scan types,
-                  sanitizing nmap flags, and filtering nuclei templates.
+                  sanitizing scan flags, and filtering nuclei templates.
                 </p>
               </div>
             </div>

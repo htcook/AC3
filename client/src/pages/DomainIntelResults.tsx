@@ -2411,7 +2411,7 @@ export default function DomainIntelResults() {
                       <div className="p-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 space-y-2">
                         {waf.scanTuning.nmapFlags && (
                           <div>
-                            <p className="text-[10px] text-muted-foreground">Nmap Flags</p>
+                            <p className="text-[10px] text-muted-foreground">Scanner Flags (naabu/Nerva)</p>
                             <p className="text-xs font-mono text-cyan-400">{waf.scanTuning.nmapFlags}</p>
                           </div>
                         )}

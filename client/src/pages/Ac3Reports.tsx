@@ -2393,7 +2393,7 @@ function ArtifactsTab({ reportId, findings }: { reportId: string; findings: any[
               <Textarea
                 value={addForm.description}
                 onChange={(e) => setAddForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Nmap scan output showing open ports on target host"
+                placeholder="Port scan output showing open ports on target host"
                 rows={2}
               />
             </div>

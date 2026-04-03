@@ -144,9 +144,387 @@ export const SCANFORGE_TOOLS: ScanforgeTool[] = [
     ],
     outputFormat: '-O csv or -O json or stdout',
     defaultPortRange: 'Single port per scan',
+   },
+  // ─── Service Fingerprinting ────────────────────────────────────────────────
+  {
+    name: 'Nerva',
+    binary: 'nerva',
+    description: 'High-performance service fingerprinter written in Go by Praetorian. Identifies 120+ protocols and application-layer services using multi-probe fingerprinting. 4x faster than nmap -sV with higher accuracy. Outputs structured JSON with service name, version, banner, TLS info, and confidence score.',
+    primaryUseCase: 'Deep service fingerprinting and version detection on discovered open ports',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'Replacing nmap -sV for service version detection',
+      'Identifying non-HTTP services (SSH, FTP, SMTP, databases, custom protocols)',
+      'Banner grabbing with protocol-aware probes',
+      'Detecting services running on non-standard ports',
+      'Building accurate asset inventories with version info',
+      'Feeding service data into vulnerability correlation',
+    ],
+    limitations: [
+      'No port discovery — requires port list input from naabu/masscan',
+      'No vulnerability detection (use nuclei after)',
+      'Newer tool — smaller community than nmap',
+    ],
+    outputFormat: '-json (JSON lines with service, version, banner, tls, confidence)',
+    defaultPortRange: 'N/A — operates on provided port list',
+  },
+  {
+    name: 'httpx',
+    binary: 'httpx',
+    description: 'ProjectDiscovery fast HTTP toolkit for probing web servers. Detects technologies (via Wappalyzer DB), grabs titles, status codes, content lengths, TLS certificates, CDN detection, and follows redirects. Native pipeline integration with naabu and nuclei.',
+    primaryUseCase: 'HTTP service fingerprinting, technology detection, and web server enumeration',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'Web technology fingerprinting (frameworks, CMS, server software)',
+      'CDN and WAF detection via -cdn flag',
+      'TLS certificate analysis via -tls-grab',
+      'HTTP header analysis and server identification',
+      'Filtering live web hosts from port scan results',
+      'Pipeline: naabu → httpx → nuclei',
+    ],
+    limitations: [
+      'HTTP/HTTPS only — cannot fingerprint non-web services',
+      'Technology detection depends on Wappalyzer signature database',
+      'Cannot detect services behind non-standard protocols',
+    ],
+    outputFormat: '-json (JSON with url, title, status_code, tech, server, tls, cdn)',
+    defaultPortRange: '80,443,8080,8443',
+  },
+  {
+    name: 'WhatWeb',
+    binary: 'whatweb',
+    description: 'Web fingerprinter that identifies websites including CMS, blogging platforms, JS libraries, analytics packages, web servers, embedded devices, version numbers, email addresses, SQL errors, and more. Has 1800+ plugins.',
+    primaryUseCase: 'Deep web application fingerprinting with 1800+ technology signatures',
+    speed: 'moderate',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'Detailed CMS and framework version identification',
+      'Detecting embedded devices and IoT web interfaces',
+      'Finding information leaks (emails, SQL errors, stack traces)',
+      'Identifying WAF/CDN products',
+      'Complementing httpx tech-detect with deeper analysis',
+    ],
+    limitations: [
+      'Slower than httpx for large target lists',
+      'HTTP/HTTPS only',
+      'Some plugins may trigger WAF alerts at aggressive levels',
+    ],
+    outputFormat: '--log-json (JSON) or --log-brief (one-liner)',
+    defaultPortRange: '80,443',
+  },
+  // ─── Web Application Scanning ─────────────────────────────────────────────
+  {
+    name: 'Katana',
+    binary: 'katana',
+    description: 'ProjectDiscovery next-gen web crawler/spider. Supports standard and headless (Chrome) crawling, JavaScript rendering, automatic form filling, scope control, and passive/active modes. Discovers endpoints, parameters, and hidden paths.',
+    primaryUseCase: 'Web application endpoint discovery and crawling for attack surface mapping',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'Discovering API endpoints and hidden paths',
+      'JavaScript-rendered SPA crawling (headless mode)',
+      'Finding form parameters and input vectors',
+      'Building sitemap for targeted vulnerability scanning',
+      'Scope-aware crawling that respects engagement boundaries',
+    ],
+    limitations: [
+      'Headless mode requires Chrome/Chromium',
+      'Cannot bypass authentication without configuration',
+      'May miss dynamically generated content',
+    ],
+    outputFormat: '-json (JSON lines) or stdout (URL list)',
+    defaultPortRange: 'N/A — operates on URLs',
+  },
+  {
+    name: 'wafw00f',
+    binary: 'wafw00f',
+    description: 'Web Application Firewall detection tool. Identifies 150+ WAF products by analyzing HTTP responses, error pages, cookies, and headers. Essential for adapting scan strategy to bypass or work within WAF constraints.',
+    primaryUseCase: 'WAF/CDN identification and fingerprinting for adaptive scanning',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'high',
+    bestFor: [
+      'Identifying WAF vendor before vulnerability scanning',
+      'Adapting nuclei/ZAP scan policies to avoid WAF blocking',
+      'Detecting CDN-based WAFs (Cloudflare, Akamai, AWS WAF)',
+      'Choosing appropriate evasion techniques per WAF type',
+      'Pre-scan reconnaissance for engagement planning',
+    ],
+    limitations: [
+      'Cannot bypass WAFs — only detects them',
+      'Some custom WAFs may not be in signature database',
+      'Single URL per invocation (script for bulk)',
+    ],
+    outputFormat: '-o json (JSON) or stdout (text)',
+    defaultPortRange: 'N/A — operates on URLs',
+  },
+  // ─── TLS/SSH Auditing ─────────────────────────────────────────────────────
+  {
+    name: 'ssh-audit',
+    binary: 'ssh-audit',
+    description: 'SSH server and client configuration auditor. Tests key exchange algorithms, host key types, encryption ciphers, MAC algorithms, and compression. Identifies vulnerabilities, weak algorithms, and policy violations. Replaces nmap ssh-* NSE scripts with deeper analysis.',
+    primaryUseCase: 'SSH server security auditing and algorithm weakness detection',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'high',
+    bestFor: [
+      'Auditing SSH server configuration (algorithms, key types, ciphers)',
+      'Detecting known SSH vulnerabilities (Terrapin, regreSSHion CVE-2024-6387)',
+      'Compliance checking against security policies',
+      'Identifying weak or deprecated algorithms',
+      'Replacing nmap ssh-auth-methods, ssh-hostkey, ssh2-enum-algos scripts',
+    ],
+    limitations: [
+      'SSH only — no other protocols',
+      'Cannot test authentication credentials (use hydra for that)',
+      'Requires network access to SSH port',
+    ],
+    outputFormat: '-j (JSON with algorithms, vulnerabilities, recommendations)',
+    defaultPortRange: '22,2222,22222',
+  },
+  {
+    name: 'testssl.sh',
+    binary: 'testssl.sh',
+    description: 'Comprehensive TLS/SSL testing tool. Tests protocols (SSLv2-TLS1.3), cipher suites, certificate chain, BEAST/CRIME/POODLE/Heartbleed/ROBOT/Ticketbleed vulnerabilities, HSTS, OCSP stapling, certificate transparency, and more. Replaces nmap ssl-* NSE scripts with much deeper analysis.',
+    primaryUseCase: 'Deep TLS/SSL security assessment and compliance testing',
+    speed: 'moderate',
+    accuracy: 'high',
+    stealthCapability: 'high',
+    bestFor: [
+      'Complete TLS/SSL vulnerability assessment',
+      'Detecting Heartbleed, POODLE, BEAST, ROBOT, DROWN, Ticketbleed',
+      'Certificate chain validation and expiry checking',
+      'Cipher suite strength analysis',
+      'PCI-DSS and HIPAA TLS compliance checking',
+      'Replacing nmap ssl-enum-ciphers, ssl-heartbleed, ssl-poodle scripts',
+    ],
+    limitations: [
+      'Slower than sslscan for quick checks',
+      'Requires bash and OpenSSL',
+      'Single target per invocation',
+    ],
+    outputFormat: '--json (JSON) or --csv (CSV) or stdout (colored text)',
+    defaultPortRange: '443,8443,465,993,995,636,989,990,5061',
+  },
+  // ─── Credential Attacks ───────────────────────────────────────────────────
+  {
+    name: 'Hydra',
+    binary: 'hydra',
+    description: 'Fast network logon cracker supporting 50+ protocols including SSH, FTP, HTTP, HTTPS, SMB, SMTP, MySQL, PostgreSQL, RDP, VNC, LDAP, and more. Supports parallel connections, resume, and custom wordlists.',
+    primaryUseCase: 'Network service credential brute-forcing and default credential testing',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'low',
+    bestFor: [
+      'Testing default credentials on discovered services',
+      'SSH, FTP, RDP, VNC brute-force attacks',
+      'HTTP form-based authentication testing',
+      'Database credential testing (MySQL, PostgreSQL, MSSQL)',
+      'SMTP/IMAP/POP3 credential testing',
+    ],
+    limitations: [
+      'Noisy — generates many failed login attempts',
+      'May trigger account lockout policies',
+      'Requires wordlists for effective attacks',
+      'Some protocols have rate limits that slow attacks',
+    ],
+    outputFormat: '-o (text) or -b json (JSON)',
+    defaultPortRange: 'Protocol-dependent',
+  },
+  {
+    name: 'NetExec (nxc)',
+    binary: 'nxc',
+    description: 'Network execution tool (successor to CrackMapExec). Supports SMB, WinRM, LDAP, MSSQL, SSH, FTP, RDP, WMI protocols. Performs credential validation, share enumeration, command execution, and Active Directory attacks.',
+    primaryUseCase: 'Windows/AD network credential validation and post-exploitation',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'low',
+    bestFor: [
+      'SMB share enumeration and access testing',
+      'Active Directory credential spraying',
+      'WinRM/WMI remote command execution',
+      'LDAP enumeration and AD reconnaissance',
+      'Validating credentials across multiple hosts',
+      'Post-exploitation lateral movement',
+    ],
+    limitations: [
+      'Primarily Windows/AD focused',
+      'Noisy — generates authentication events',
+      'Requires valid credentials for most post-exploitation features',
+    ],
+    outputFormat: 'stdout (colored text) or --export json',
+    defaultPortRange: '445,5985,5986,389,636,1433,22,21,3389',
+  },
+  {
+    name: 'Medusa',
+    binary: 'medusa',
+    description: 'Speedy, massively parallel, modular login brute-forcer. Supports many services including HTTP, FTP, SSH, Telnet, MSSQL, MySQL, PostgreSQL, SMB, VNC, and more.',
+    primaryUseCase: 'Parallel credential brute-forcing across multiple hosts and services',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'low',
+    bestFor: [
+      'Parallel brute-force across many hosts simultaneously',
+      'Testing default credentials on bulk services',
+      'Complementing hydra for services it handles better',
+    ],
+    limitations: [
+      'Fewer protocol modules than hydra',
+      'Less actively maintained than hydra',
+      'No JSON output format',
+    ],
+    outputFormat: '-O (text log file)',
+    defaultPortRange: 'Protocol-dependent',
+  },
+  // ─── Vulnerability Scanning ───────────────────────────────────────────────
+  {
+    name: 'Nuclei',
+    binary: 'nuclei',
+    description: 'ProjectDiscovery fast vulnerability scanner based on YAML templates. 8000+ community templates covering CVEs, misconfigurations, exposures, default logins, and more. Supports HTTP, DNS, TCP, headless, and code protocols.',
+    primaryUseCase: 'Template-based vulnerability detection across web and network services',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'CVE detection with proof-of-concept validation',
+      'Misconfiguration detection (exposed panels, debug endpoints)',
+      'Default credential testing',
+      'Technology-specific vulnerability scanning',
+      'Custom template development for proprietary applications',
+      'Pipeline: naabu → httpx → nuclei',
+    ],
+    limitations: [
+      'Template quality varies — some have false positives',
+      'Cannot discover unknown vulnerabilities (template-dependent)',
+      'Rate limiting needed for production targets',
+    ],
+    outputFormat: '-json (JSON lines) or -o (text)',
+    defaultPortRange: 'N/A — operates on URLs/hosts',
+  },
+  {
+    name: 'SQLMap',
+    binary: 'sqlmap',
+    description: 'Automatic SQL injection detection and exploitation tool. Supports MySQL, Oracle, PostgreSQL, MSSQL, SQLite, and more. Features database fingerprinting, data extraction, file system access, and OS command execution via SQL injection.',
+    primaryUseCase: 'SQL injection detection, exploitation, and database extraction',
+    speed: 'moderate',
+    accuracy: 'high',
+    stealthCapability: 'low',
+    bestFor: [
+      'Confirming and exploiting SQL injection vulnerabilities',
+      'Database enumeration and data extraction',
+      'Testing WAF bypass for SQL injection payloads',
+      'OS command execution via SQL injection',
+      'Automated exploitation of discovered injection points',
+    ],
+    limitations: [
+      'Noisy — sends many malicious payloads',
+      'Requires identified injection point or URL with parameters',
+      'Can cause data corruption if used carelessly',
+      'WAFs often block SQLMap user-agent and payloads',
+    ],
+    outputFormat: '--output-dir (structured output directory)',
+    defaultPortRange: 'N/A — operates on URLs',
+  },
+  {
+    name: 'Nikto',
+    binary: 'nikto',
+    description: 'Web server scanner that tests for 7000+ dangerous files/programs, outdated server versions, and version-specific problems. Checks for server configuration items like multiple index files and HTTP server options.',
+    primaryUseCase: 'Web server misconfiguration and known vulnerability scanning',
+    speed: 'moderate',
+    accuracy: 'medium',
+    stealthCapability: 'low',
+    bestFor: [
+      'Finding dangerous default files and programs',
+      'Detecting outdated web server software',
+      'Checking HTTP security headers',
+      'Finding backup files, admin panels, and debug endpoints',
+    ],
+    limitations: [
+      'Very noisy — sends thousands of requests',
+      'High false positive rate',
+      'No authentication support for protected areas',
+      'Signature-based — cannot find custom vulnerabilities',
+    ],
+    outputFormat: '-Format json (JSON) or -Format xml (XML)',
+    defaultPortRange: '80,443',
+  },
+  // ─── Subdomain/DNS ────────────────────────────────────────────────────────
+  {
+    name: 'Subfinder',
+    binary: 'subfinder',
+    description: 'ProjectDiscovery passive subdomain discovery tool. Uses 40+ data sources including certificate transparency, DNS datasets, search engines, and threat intelligence feeds. Fast and non-intrusive.',
+    primaryUseCase: 'Passive subdomain enumeration from multiple data sources',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'high',
+    bestFor: [
+      'Initial subdomain discovery without touching the target',
+      'Certificate transparency log mining',
+      'Expanding attack surface during reconnaissance',
+      'Pipeline: subfinder → httpx → nuclei',
+    ],
+    limitations: [
+      'Passive only — cannot discover subdomains not in data sources',
+      'Requires API keys for best results (Shodan, SecurityTrails, etc.)',
+      'Cannot find internal/private subdomains',
+    ],
+    outputFormat: '-json (JSON lines) or -o (text list)',
+    defaultPortRange: 'N/A — discovers subdomains',
+  },
+  // ─── Cloud Security ───────────────────────────────────────────────────────
+  {
+    name: 'S3Scanner',
+    binary: 's3scanner',
+    description: 'Scan for open/misconfigured S3 buckets and dump their contents. Supports AWS S3, DigitalOcean Spaces, GCP Storage, and other S3-compatible services.',
+    primaryUseCase: 'Cloud storage bucket enumeration and misconfiguration detection',
+    speed: 'fast',
+    accuracy: 'high',
+    stealthCapability: 'high',
+    bestFor: [
+      'Finding publicly accessible S3 buckets',
+      'Testing bucket permissions (read, write, list)',
+      'Discovering sensitive data in cloud storage',
+      'Checking for misconfigured bucket policies',
+    ],
+    limitations: [
+      'Requires bucket name guessing or enumeration',
+      'Cannot access buckets with proper IAM policies',
+      'Rate limited by cloud providers',
+    ],
+    outputFormat: 'stdout (text) or -o (output file)',
+    defaultPortRange: 'N/A — operates on bucket names',
+  },
+  // ─── Post-Exploitation / Lateral Movement ─────────────────────────────────
+  {
+    name: 'Impacket',
+    binary: 'python3 -m impacket',
+    description: 'Collection of Python classes for working with network protocols. Includes tools for SMB, MSRPC, LDAP, Kerberos, NTLM, and more. Essential for Windows/AD post-exploitation including secretsdump, psexec, wmiexec, smbexec, and dcomexec.',
+    primaryUseCase: 'Windows/AD protocol exploitation and post-exploitation',
+    speed: 'moderate',
+    accuracy: 'high',
+    stealthCapability: 'medium',
+    bestFor: [
+      'Credential dumping (secretsdump, lsassy)',
+      'Remote command execution (psexec, wmiexec, smbexec)',
+      'Kerberos attacks (GetNPUsers, GetUserSPNs)',
+      'NTLM relay attacks',
+      'SMB/MSRPC enumeration',
+    ],
+    limitations: [
+      'Windows/AD focused — limited use for Linux targets',
+      'Requires valid credentials for most tools',
+      'Some tools are very noisy (psexec creates a service)',
+    ],
+    outputFormat: 'stdout (text)',
+    defaultPortRange: '445,135,139,389,636,88,464',
   },
 ];
-
 // ─── Evasion Technique Profiles ────────────────────────────────────────────
 
 export interface EvasionProfile {
@@ -483,20 +861,20 @@ export const TECH_SIGNATURES: TechSignature[] = [
   {
     technology: 'SSH',
     indicators: ['ssh', 'openssh', 'dropbear'],
-    recommendedTools: ['naabu', 'masscan'],
+    recommendedTools: ['naabu', 'nerva', 'ssh-audit', 'hydra'],
     scanPorts: '22,2222,22222',
     httpxFlags: 'N/A',
     nucleiTags: 'ssh,cve',
-    notes: 'Naabu can detect SSH version via banner grab. Nuclei has SSH-specific vulnerability templates.',
+    notes: 'Use nerva for SSH version/banner detection. Use ssh-audit for algorithm weakness analysis and CVE detection (Terrapin, regreSSHion). Use hydra for credential testing. Nuclei has SSH-specific vulnerability templates.',
   },
   {
     technology: 'Database Services',
     indicators: ['mysql', 'postgresql', 'mssql', 'oracle', 'mongodb', 'redis', 'elasticsearch'],
-    recommendedTools: ['masscan', 'naabu'],
+    recommendedTools: ['naabu', 'nerva', 'hydra', 'nxc'],
     scanPorts: '3306,5432,1433,1521,27017,6379,9200,9300',
     httpxFlags: 'N/A',
     nucleiTags: 'database,cve,misconfig,default-login',
-    notes: 'Exposed database ports are critical findings. Nuclei can test for default credentials and known CVEs.',
+    notes: 'Use nerva for service version fingerprinting. Use hydra for default credential testing. Use nxc for MSSQL credential validation. Exposed database ports are critical findings. Nuclei can test for default credentials and known CVEs.',
   },
   {
     technology: 'Docker/Kubernetes',
@@ -510,33 +888,76 @@ export const TECH_SIGNATURES: TechSignature[] = [
   {
     technology: 'Cloud Services',
     indicators: ['aws', 'azure', 'gcp', 'cloudflare', 'akamai'],
-    recommendedTools: ['naabu', 'httpx', 'nuclei'],
+    recommendedTools: ['naabu', 'httpx', 'nuclei', 'wafw00f', 's3scanner', 'subfinder'],
     scanPorts: '80,443,8080,8443',
     httpxFlags: '-title -tech-detect -status-code -cdn -server',
     nucleiTags: 'cloud,aws,azure,gcp,s3,misconfig',
-    notes: 'Use httpx -cdn to detect CDN/WAF. Rate limit scans for cloud targets. Check for IMDS at 169.254.169.254.',
+    notes: 'Use wafw00f to identify CDN/WAF vendor. Use httpx -cdn for CDN detection. Use s3scanner for bucket enumeration. Use subfinder for subdomain discovery. Rate limit scans for cloud targets. Check for IMDS at 169.254.169.254.',
   },
   {
     technology: 'Mail Services',
     indicators: ['smtp', 'pop3', 'imap', 'exchange', 'postfix', 'sendmail'],
-    recommendedTools: ['masscan', 'naabu'],
+    recommendedTools: ['naabu', 'nerva', 'hydra', 'testssl.sh'],
     scanPorts: '25,110,143,465,587,993,995,2525',
     httpxFlags: 'N/A',
     nucleiTags: 'mail,smtp,cve',
-    notes: 'Check for open relay, VRFY/EXPN commands, STARTTLS downgrade. Nuclei has mail-specific templates.',
+    notes: 'Use nerva for SMTP/POP3/IMAP service version detection. Use hydra for credential testing. Use testssl.sh for STARTTLS assessment. Check for open relay, VRFY/EXPN commands, STARTTLS downgrade. Nuclei has mail-specific templates.',
   },
   {
     technology: 'VPN/Remote Access',
     indicators: ['vpn', 'openvpn', 'wireguard', 'ipsec', 'rdp', 'vnc', 'citrix'],
-    recommendedTools: ['masscan', 'naabu'],
+    recommendedTools: ['naabu', 'nerva', 'hydra', 'nxc', 'testssl.sh'],
     scanPorts: '443,500,1194,1723,3389,4443,5900,8443',
     httpxFlags: '-title -tech-detect -status-code',
     nucleiTags: 'vpn,rdp,vnc,citrix,cve',
-    notes: 'VPN endpoints often have web portals. Check for Fortinet, Pulse Secure, Citrix ADC vulns via Nuclei.',
+    notes: 'Use nerva for VPN/RDP/VNC service fingerprinting. Use hydra for RDP/VNC credential testing. Use nxc for RDP credential validation. Use testssl.sh for VPN portal TLS assessment. Check for Fortinet, Pulse Secure, Citrix ADC vulns via Nuclei.',
+  },  {
+    technology: 'FTP Services',
+    indicators: ['ftp', 'vsftpd', 'proftpd', 'pure-ftpd', 'filezilla'],
+    recommendedTools: ['naabu', 'nerva', 'hydra', 'testssl.sh'],
+    scanPorts: '21,990,2121',
+    httpxFlags: 'N/A',
+    nucleiTags: 'ftp,cve,default-login',
+    notes: 'Use nerva for FTP server version detection. Test for anonymous login (hydra -l anonymous -p anonymous). Use testssl.sh for FTPS assessment. Check for directory traversal and writable directories. Nuclei has FTP-specific templates.',
+  },
+  {
+    technology: 'WAF/CDN/Proxy',
+    indicators: ['cloudflare', 'akamai', 'fastly', 'cloudfront', 'incapsula', 'imperva', 'sucuri', 'barracuda', 'f5', 'fortiweb', 'modsecurity', 'nginx-waf', 'aws-waf', 'azure-front-door'],
+    recommendedTools: ['wafw00f', 'httpx', 'whatweb'],
+    scanPorts: '80,443,8080,8443',
+    httpxFlags: '-title -tech-detect -status-code -cdn -server -tls-grab',
+    nucleiTags: 'waf,cdn,proxy,misconfig',
+    notes: 'CRITICAL: Always run wafw00f FIRST to identify WAF before vulnerability scanning. Use httpx -cdn to detect CDN. Check for WAF bypass via origin IP discovery (DNS history, certificate transparency, email headers). Adapt scan rate and payloads based on WAF vendor. Common bypasses: encoding tricks, chunked transfer, header manipulation, IP rotation.',
+  },
+  {
+    technology: 'Bastion/Jump Host',
+    indicators: ['bastion', 'jump', 'jumpbox', 'gateway'],
+    recommendedTools: ['naabu', 'nerva', 'ssh-audit', 'hydra'],
+    scanPorts: '22,2222,3389,443',
+    httpxFlags: 'N/A',
+    nucleiTags: 'ssh,cve',
+    notes: 'Bastion hosts are high-value targets — compromising them provides access to internal networks. Use ssh-audit for configuration weakness detection. Test for key-based auth bypass, agent forwarding abuse, and ProxyJump misconfiguration. Check if the bastion exposes internal network topology via SSH banners or MOTD.',
+  },
+  {
+    technology: 'IoT/Embedded',
+    indicators: ['iot', 'embedded', 'firmware', 'upnp', 'mqtt', 'coap', 'zigbee', 'camera', 'printer', 'router'],
+    recommendedTools: ['naabu', 'nerva', 'whatweb', 'hydra'],
+    scanPorts: '80,443,23,8080,8443,1883,5683,49152',
+    httpxFlags: '-title -tech-detect -status-code -server',
+    nucleiTags: 'iot,cve,default-login,misconfig',
+    notes: 'Use nerva for protocol identification on non-standard ports. Use whatweb for embedded web interface fingerprinting. Test default credentials (admin/admin, root/root). Check for UPnP exposure, MQTT without auth, and firmware update endpoints.',
+  },
+  {
+    technology: 'Load Balancer',
+    indicators: ['haproxy', 'traefik', 'envoy', 'f5', 'netscaler', 'aws-elb', 'aws-alb', 'nginx-lb'],
+    recommendedTools: ['httpx', 'wafw00f', 'testssl.sh'],
+    scanPorts: '80,443,8080,8443,8404,9090',
+    httpxFlags: '-title -tech-detect -status-code -server -tls-grab',
+    nucleiTags: 'proxy,misconfig,exposure',
+    notes: 'Detect load balancer type via Server header, X-Forwarded-For behavior, and cookie patterns. Check for admin panel exposure (HAProxy stats, Traefik dashboard). Test for request smuggling (CL.TE, TE.CL). Use testssl.sh to check TLS termination configuration.',
   },
 ];
-
-// ─── Admin/Service Ports ──────────────────────────────────────────────────
+// ─── Admin/Service Ports ────────────────────────────────────────────────────
 
 /** Admin/service ports for targeted fingerprinting — standard admin/service ports */
 export const ADMIN_SERVICE_PORTS: Record<string, number[]> = {
@@ -612,14 +1033,45 @@ You have access to four high-speed discovery tools. Select the optimal tool(s) b
 
 ### Discovery Chain Architecture
 
-The ScanForge pipeline follows a 4-stage architecture:
+The ScanForge pipeline follows a 7-stage architecture:
 
-1. **Port Discovery** (Masscan/Naabu/RustScan/ZMap) → Open ports
-2. **Service Fingerprinting** (httpx) → Web technologies, server headers, status codes
-3. **Vulnerability Detection** (Nuclei) → CVEs, misconfigs, exposures
-4. **Verification** (ZAP active scan) → Confirmed exploitable vulnerabilities
+1. **Subdomain Discovery** (subfinder) → Subdomains and DNS records (passive, run first)
+2. **Port Discovery** (Masscan/Naabu/RustScan/ZMap) → Open ports per host
+3. **Service Fingerprinting** (Nerva + httpx + whatweb) → Service versions, banners, web technologies
+4. **Boundary Detection** (wafw00f + httpx -cdn) → WAF/CDN/firewall identification
+5. **Protocol Auditing** (ssh-audit + testssl.sh + sslscan) → SSH/TLS configuration weaknesses
+6. **Vulnerability Detection** (Nuclei + Nikto + SQLMap) → CVEs, misconfigs, injections
+7. **Verification & Exploitation** (ZAP active scan + Hydra + custom exploits) → Confirmed exploitable vulnerabilities
 
-Each stage feeds the next. The LLM should select tools for stage 1 based on target context, then always chain httpx (stage 2) and Nuclei (stage 3).`);
+Stage flow:
+- Stage 1 expands the target list (subdomains → IPs)
+- Stage 2 discovers open ports on all targets
+- Stage 3 identifies WHAT is running on each port (Nerva for non-HTTP, httpx for HTTP, whatweb for deep web fingerprinting)
+- Stage 4 identifies boundary protections BEFORE aggressive scanning (critical for adapting payloads)
+- Stage 5 audits specific protocols for configuration weaknesses
+- Stage 6 scans for known vulnerabilities with adapted payloads based on Stage 4 findings
+- Stage 7 confirms exploitability and tests credentials
+
+**CRITICAL: Always run Stage 4 (boundary detection) BEFORE Stage 6 (vulnerability scanning) to avoid WAF blocking.**
+
+### Tool Selection by Service Type
+
+| Service Type | Fingerprint Tool | Audit Tool | Attack Tool |
+|-------------|-----------------|------------|-------------|
+| HTTP/HTTPS | httpx + whatweb | testssl.sh | nuclei + ZAP + sqlmap |
+| SSH | nerva | ssh-audit | hydra |
+| FTP | nerva | - | hydra (anon + brute) |
+| SMTP/IMAP/POP3 | nerva | testssl.sh (STARTTLS) | hydra |
+| MySQL/PostgreSQL | nerva | - | hydra + nxc |
+| MSSQL | nerva | - | nxc + hydra |
+| RDP | nerva | - | hydra + nxc |
+| SMB | nerva | - | nxc + hydra |
+| DNS | nerva | - | nuclei |
+| VPN (IKE/IPsec) | nerva | - | nuclei |
+| Redis | nerva | - | hydra |
+| MongoDB | nerva | - | nuclei |
+| LDAP | nerva | - | nxc |
+| Custom/Unknown | nerva | - | nuclei (generic) |`);
 
   // Evasion guidance
   if (targetInfo?.stealthRequired || targetInfo?.hasFirewall || targetInfo?.hasIDS) {
@@ -698,18 +1150,46 @@ Additional cloud scanning rules:
 - For GCP: check for exposed GCS buckets, service account keys, Compute metadata`);
   }
 
-  // Tool chaining rules
+   // Tool chaining rules
   sections.push(`### Tool Chaining Rules
-
 1. **Always chain httpx after port discovery** for web service fingerprinting
-2. **Always chain Nuclei after httpx** for vulnerability detection
-3. **Use Naabu for pipeline integration** — native stdin/stdout support
-4. **Masscan JSON output** can be parsed and fed to httpx via jq
-5. **RustScan greppable output** can be parsed for port lists
-6. **ZMap output** feeds directly to httpx for web service discovery
-7. **Nuclei severity filter**: use \`-severity medium,high,critical\` for actionable findings
-8. **httpx tech-detect** provides technology fingerprinting without active scanning
-9. **Rate limit the entire pipeline** — not just the port scanner`);
+2. **Always run Nerva on non-HTTP ports** for service version detection and banner grabbing
+3. **Always run wafw00f before Nuclei/ZAP** to detect WAF and adapt payloads
+4. **Always chain Nuclei after httpx** for vulnerability detection
+5. **Run ssh-audit on every SSH port** — replaces nmap ssh-* scripts with deeper analysis
+6. **Run testssl.sh on every TLS port** — replaces nmap ssl-* scripts with comprehensive testing
+7. **Use Naabu for pipeline integration** — native stdin/stdout support
+8. **Masscan JSON output** can be parsed and fed to httpx via jq
+9. **RustScan greppable output** can be parsed for port lists
+10. **ZMap output** feeds directly to httpx for web service discovery
+11. **Nuclei severity filter**: use \`-severity medium,high,critical\` for actionable findings
+12. **httpx tech-detect** provides technology fingerprinting without active scanning
+13. **Rate limit the entire pipeline** — not just the port scanner
+14. **Use katana for endpoint discovery** before SQLMap injection testing
+15. **Use s3scanner for cloud bucket enumeration** when cloud services detected
+16. **Use hydra for credential testing** only after service fingerprinting confirms the service type
+
+### WAF/CDN Adaptive Scanning
+When wafw00f detects a WAF, adapt the scanning strategy:
+
+| WAF Vendor | Nuclei Adaptation | ZAP Adaptation | Rate Limit |
+|-----------|------------------|----------------|------------|
+| Cloudflare | Use -tags cloudflare-bypass, add delay 2s | Reduce thread count to 2, use chunked encoding | 5 req/sec |
+| Akamai | Use custom UA, rotate IPs if available | Enable Bot Manager evasion profile | 3 req/sec |
+| AWS WAF | Use -tags aws-waf-bypass, test rule groups | Use standard browser UA | 10 req/sec |
+| ModSecurity/OWASP CRS | Use encoding bypass payloads | Enable CRS evasion mode | 20 req/sec |
+| Imperva/Incapsula | Use -tags imperva-bypass, JS challenge handling | Use headless browser mode | 5 req/sec |
+| F5 BIG-IP ASM | Test iRule bypass, cookie manipulation | Use session persistence | 10 req/sec |
+| Fortinet FortiWeb | Test ML bypass, use uncommon HTTP methods | Enable FortiWeb evasion | 10 req/sec |
+| Unknown WAF | Start with low rate, test encoding variants | Use conservative scan policy | 5 req/sec |
+
+### Scope Awareness Rules
+1. **Only scan targets explicitly in scope** — never expand to discovered but unauthorized targets
+2. **CDN/WAF bypass**: discovering the origin IP is valid recon, but scanning it requires explicit scope authorization
+3. **Shared infrastructure**: if WAF protects multiple tenants, limit aggressive testing to avoid affecting others
+4. **Rate limiting**: always respect the engagement's authorized scan rate, even if WAF allows more
+5. **Credential testing**: only test credentials on services explicitly authorized for brute-force testing
+6. **Post-exploitation**: only perform lateral movement if the engagement scope includes internal network testing`);
 
   return sections.join('\n\n');
 }
@@ -821,13 +1301,30 @@ export function getFullScanforgeContext(targetInfo?: {
  * Given detected technologies and context, returns the optimal ScanForge command pipeline.
  * Replaces buildOptimalScanForgeCommand().
  */
+export interface ScanforgeCommandPipeline {
+  discoveryCmd: string;
+  fingerprintCmd: string;
+  serviceFingerprintCmd: string;
+  boundaryDetectionCmd: string;
+  protocolAuditCmds: string[];
+  vulnCmd: string;
+  credentialCmd: string;
+  pipeline: string;
+}
+
 export function buildOptimalScanforgeCommand(params: {
   detectedTech: string[];
   stealthLevel: 'minimal' | 'low' | 'medium' | 'high' | 'maximum';
   scanType: 'recon' | 'vuln' | 'full';
   target: string;
   targetSize?: 'single' | 'small' | 'medium' | 'large';
-}): { discoveryCmd: string; fingerprintCmd: string; vulnCmd: string; pipeline: string } {
+  hasSSH?: boolean;
+  hasTLS?: boolean;
+  hasFTP?: boolean;
+  hasRDP?: boolean;
+  hasSMB?: boolean;
+  isDomain?: boolean;
+}): ScanforgeCommandPipeline {
   const { detectedTech, stealthLevel, scanType, target, targetSize } = params;
 
   // Collect tech-specific Nuclei tags
@@ -872,33 +1369,68 @@ export function buildOptimalScanforgeCommand(params: {
   }
 
   if (targetSize === 'single') {
-    // RustScan for single hosts
     const batchSize = stealthLevel === 'maximum' || stealthLevel === 'high' ? 128 : stealthLevel === 'medium' ? 500 : 4500;
     discoveryCmd = `rustscan -a ${target} --range 1-65535 -b ${batchSize} -t ${stealthLevel === 'maximum' ? 5000 : 2000} -g`;
   } else if (stealthLevel === 'high' || stealthLevel === 'maximum') {
-    // Naabu for stealth
     discoveryCmd = `naabu -host ${target} -p ${portList} -rate ${rate} -s s -no-stdin -Pn -retries 1 -json`;
   } else {
-    // Masscan for speed
     const evasionFlags = stealthLevel === 'medium' ? '--source-port 53 --randomize-hosts' : '';
     discoveryCmd = `masscan ${target} -p${portList} --rate ${rate} ${evasionFlags} -oJ -`.trim();
   }
 
-  // Fingerprinting command
+  // Stage 3a: HTTP fingerprinting (httpx)
   const httpxRate = stealthLevel === 'maximum' || stealthLevel === 'high' ? '-rate-limit 10' : '';
-  const fingerprintCmd = `httpx -json -title -tech-detect -status-code -server -follow-redirects ${httpxRate}`.trim();
+  const fingerprintCmd = `httpx -json -title -tech-detect -status-code -server -cdn -tls-grab -follow-redirects ${httpxRate}`.trim();
 
-  // Vulnerability detection command
+  // Stage 3b: Service fingerprinting (Nerva for non-HTTP ports)
+  const serviceFingerprintCmd = `nerva -json ${target}`;
+
+  // Stage 4: Boundary detection (wafw00f)
+  const boundaryDetectionCmd = `wafw00f ${target.startsWith('http') ? target : 'https://' + target} -o json`;
+
+  // Stage 5: Protocol auditing
+  const protocolAuditCmds: string[] = [];
+  if (params.hasSSH) {
+    protocolAuditCmds.push(`ssh-audit -j ${target}`);
+  }
+  if (params.hasTLS) {
+    protocolAuditCmds.push(`testssl.sh --json ${target}`);
+  }
+  if (params.hasFTP) {
+    protocolAuditCmds.push(`hydra -l anonymous -p anonymous -s 21 ${target} ftp`);
+  }
+
+  // Stage 6: Vulnerability detection
   const nucleiTagList = Array.from(nucleiTags).join(',');
   const nucleiRate = stealthLevel === 'maximum' || stealthLevel === 'high' ? '-rate-limit 10' : '';
   const vulnCmd = scanType === 'recon'
     ? ''
     : `nuclei -json -tags ${nucleiTagList || 'cve,misconfig'} -severity medium,high,critical ${nucleiRate}`.trim();
 
-  // Full pipeline
+  // Stage 7: Credential testing
+  let credentialCmd = '';
+  if (scanType === 'full') {
+    const credTargets: string[] = [];
+    if (params.hasSSH) credTargets.push(`hydra -L users.txt -P passwords.txt -s 22 ${target} ssh -t 4`);
+    if (params.hasRDP) credTargets.push(`hydra -L users.txt -P passwords.txt -s 3389 ${target} rdp -t 4`);
+    if (params.hasFTP) credTargets.push(`hydra -L users.txt -P passwords.txt -s 21 ${target} ftp -t 4`);
+    if (params.hasSMB) credTargets.push(`nxc smb ${target} -u users.txt -p passwords.txt --continue-on-success`);
+    credentialCmd = credTargets.join(' && ');
+  }
+
+  // Full pipeline (stages 2-6 chained)
   const pipeline = vulnCmd
     ? `${discoveryCmd} | ${fingerprintCmd} | ${vulnCmd}`
     : `${discoveryCmd} | ${fingerprintCmd}`;
 
-  return { discoveryCmd, fingerprintCmd, vulnCmd, pipeline };
+  return {
+    discoveryCmd,
+    fingerprintCmd,
+    serviceFingerprintCmd,
+    boundaryDetectionCmd,
+    protocolAuditCmds,
+    vulnCmd,
+    credentialCmd,
+    pipeline,
+  };
 }

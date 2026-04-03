@@ -1,0 +1,45 @@
+AUDIT: Report Pipeline Evidence & Rules Quality Issues
+=====================================================
+
+ROOT CAUSES IDENTIFIED:
+
+1. FINGERPRINT DATA LOST IN TRANSIT
+   - httpx captures: webserver, tech[], status_code, tls, headers, cdn_name
+   - nuclei captures: info.name, info.severity, info.classification (cve, cvss, cwe)
+   - nmap/naabu captures: port, service, product, version
+   - BUT: ToolResult interface only stores: { severity, title, cve? } in findings[]
+   - Missing: HTTP response bodies, headers, banner strings, version strings
+   - The outputPreview is trimmed to 256-1024 bytes and often further trimmed to save memory
+   - rawOutput is NOT stored on the ToolResult interface at all (only in persistScanResult to DB)
+
+2. EXPLOIT EVIDENCE MISSING ACTION/RESPONSE DATA
+   - exploitAttempts interface stores: module, success, cve, service, port, confidence, reasoning
+   - Missing from interface: exploitOutput, shellType, payload, technique, httpResponse
+   - The actual exploitOutput IS captured in the push to asset.exploitAttempts (line ~7290)
+     but the interface doesn't declare it, so it gets lost in serialization
+   - reports-core maps ea.output || ea.rawOutput but the field is actually ea.exploitOutput
+
+3. EVIDENCE PASSED TO LLM IS MINIMAL
+   - rawVulns only include: title, severity, cve, asset, source, description, evidence
+   - The "evidence" field is built from: evidenceDetail, evidence, attack, method+url, param
+   - But most vulns from nuclei/httpx only have title and severity - no evidence fields
+   - The LLM then GENERATES fake evidence because the input says "Evidence: N/A"
+
+4. DETECTION RULES ARE LLM-GENERATED PLACEHOLDERS
+   - The LLM prompt says "Realistic detection rules (Sigma YAML, YARA, or Suricata)"
+   - But the LLM generates generic template rules, not real detection signatures
+   - No actual IOCs, hashes, or network signatures from the scan data are used
+
+5. UNKNOWN STATUSES
+   - Asset status defaults to "unknown" in several fallback paths
+   - Engagement status may not be set when report is generated mid-engagement
+   - Finding severity can be "Unknown" if nuclei/tool output doesn't parse cleanly
+
+FIXES NEEDED:
+
+A. Extend ToolResult interface to include rawOutput and structured fingerprint data
+B. Extend exploitAttempts interface to include exploitOutput, shellType, httpResponse
+C. Add a fingerprint extraction step that parses tool output into structured evidence
+D. Pass real tool output excerpts + fingerprints to the LLM as evidence context
+E. Replace LLM-generated detection rules with deterministic rule templates
+F. Fix status resolution throughout the pipeline

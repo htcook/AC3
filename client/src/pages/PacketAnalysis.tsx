@@ -889,7 +889,7 @@ function NetworkTopologyTab() {
             Network Topology Visualizer
           </CardTitle>
           <CardDescription>
-            Build and view network topology from engagement scan data — nmap results, traceroute hops, PCAP conversations, and asset metadata.
+            Build and view network topology from engagement scan data — port discovery results, traceroute hops, PCAP conversations, and asset metadata.
             Drag nodes to reposition, scroll to zoom, click nodes/edges for details.
           </CardDescription>
         </CardHeader>
@@ -1091,10 +1091,10 @@ function NetworkTopologyTab() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Activity className="h-4 w-4 text-amber-400" />
-              Auto-Capture Sessions (nmap-triggered)
+              Auto-Capture Sessions (scan-triggered)
             </CardTitle>
             <CardDescription>
-              PCAPs captured automatically during nmap scans. Click "Replay" to instantly replay the captured traffic against the original target.
+              PCAPs captured automatically during port discovery scans. Click "Replay" to instantly replay the captured traffic against the original target.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -320,6 +320,7 @@ interface ZapAlert {
   attack: string;
   evidence: string;
   other: string;
+  messageId: string;
   tags: Record<string, string>;
 }
 
@@ -1718,6 +1719,7 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           // Store attack surface data alongside the scan
           await db.update(webAppScans).set({
             urlsDiscovered: discoveredUrls.length || urlsFound,
+            detectedTechStack: detectedTech ? JSON.stringify(detectedTech).substring(0, 4000) : undefined,
           }).where(eq(webAppScans.id, scanId));
         } catch (asErr: any) {
           console.warn(`[ZAP AttackSurface] Scan #${scanId}: Failed to enumerate attack surface: ${asErr.message}`);
@@ -2090,6 +2092,34 @@ async function collectAlerts(scanId: number, config: ZapConfig): Promise<void> {
       // Metasploit module correlation
       const msfModules = findMsfModules(cweId);
 
+      // Fetch full HTTP request/response for high/medium severity alerts
+      let enrichedEvidence = (alert.evidence || "").substring(0, 2000);
+      if ((severity === 'high' || severity === 'medium') && alert.messageId) {
+        try {
+          const msg = await zapRequest("/JSON/core/view/message/", {
+            id: alert.messageId,
+          }, config);
+          if (msg?.message) {
+            const reqHeaders = (msg.message.requestHeader || '').substring(0, 1000);
+            const reqBody = (msg.message.requestBody || '').substring(0, 500);
+            const resHeaders = (msg.message.responseHeader || '').substring(0, 500);
+            const resBody = (msg.message.responseBody || '').substring(0, 500);
+            const httpEvidence = [
+              enrichedEvidence,
+              '\n--- HTTP Request ---',
+              reqHeaders,
+              reqBody ? `\n[Body] ${reqBody}` : '',
+              '\n--- HTTP Response ---',
+              resHeaders,
+              resBody ? `\n[Body] ${resBody}` : '',
+            ].filter(Boolean).join('\n');
+            enrichedEvidence = httpEvidence.substring(0, 4000);
+          }
+        } catch (msgErr) {
+          // Non-critical: continue with original evidence
+        }
+      }
+
       await db.insert(webAppFindings).values({
         scanId,
         alertName: alert.name || alert.alert,
@@ -2104,7 +2134,7 @@ async function collectAlerts(scanId: number, config: ZapConfig): Promise<void> {
         method: alert.method,
         param: alert.param || null,
         attack: (alert.attack || "").substring(0, 2000),
-        evidence: (alert.evidence || "").substring(0, 2000),
+        evidence: enrichedEvidence,
         zapPluginId: alert.pluginId,
         zapAlertRef: alert.id,
         // MITRE ATT&CK

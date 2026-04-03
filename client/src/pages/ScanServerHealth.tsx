@@ -396,7 +396,7 @@ export default function ScanServerHealth() {
 
 function ToolCategoryBadge({ name }: { name: string }) {
   const categories: Record<string, { label: string; color: string }> = {
-    nmap: { label: "Recon", color: "text-cyan-400 border-cyan-500/30" },
+    nmap: { label: "Port Discovery", color: "text-cyan-400 border-cyan-500/30" },
     nuclei: { label: "Vuln", color: "text-red-400 border-red-500/30" },
     nikto: { label: "Web", color: "text-orange-400 border-orange-500/30" },
     hydra: { label: "Creds", color: "text-yellow-400 border-yellow-500/30" },

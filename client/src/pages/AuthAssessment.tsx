@@ -343,7 +343,7 @@ export default function AuthAssessment() {
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { phase: "1. Recon & Identification", desc: "Identify login endpoints, auth entrypoints, and SSO providers. Fingerprint technology stack.", tools: "ffuf, nmap, ZAP, Burp Suite" },
+                { phase: "1. Recon & Identification", desc: "Identify login endpoints, auth entrypoints, and SSO providers. Fingerprint technology stack.", tools: "ffuf, naabu, Nerva, httpx, ZAP" },
                 { phase: "2. Enumeration Testing", desc: "Detect username/email enumeration via response differences (status codes, timing, content length).", tools: "Custom HTTP probes, ZAP, ffuf" },
                 { phase: "3. Credential Surface Analysis", desc: "Assess lockout thresholds, throttling mechanisms, password policy strength, and CAPTCHA implementation.", tools: "ZAP, Burp Suite, Hydra" },
                 { phase: "4. Flow Manipulation", desc: "Model the auth state machine — test step-skipping, parameter tampering, and race conditions.", tools: "Burp Suite, mitmproxy, ZAP" },

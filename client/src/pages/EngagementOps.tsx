@@ -5,7 +5,7 @@
  * 1. Paste in-scope assets (domains, IPs, URLs)
  * 2. Run Passive Discovery (OSINT, domain intel)
  * 3. Review discovered assets → Click "Start Active Scan"
- * 4. LLM orchestrates: nmap → tool matching (ZAP for web, nuclei for CVEs) → credential testing → exploit approval
+ * 4. LLM orchestrates: port discovery (naabu/Nerva) → tool matching (ZAP for web, nuclei for CVEs) → credential testing → exploit approval
  * 5. Operator approves high-risk actions inline
  * 6. Pentest: per-asset unauthorized access evidence → report
  * 7. Red Team: C2 agent deploy → Cyber C2 callback → pivot
@@ -726,7 +726,7 @@ export default function EngagementOps() {
 
   const activeScanMut = trpc.engagementOps.startActiveScan.useMutation({
     onSuccess: (data) => {
-      toast.success(`Active Scan Started (${selectedProfile.toUpperCase()}) — LLM orchestrating scan plan → nmap → tool matching → exploit on ${data.assetsCount} assets`);
+      toast.success(`Active Scan Started (${selectedProfile.toUpperCase()}) — LLM orchestrating scan plan → port discovery → tool matching → exploit on ${data.assetsCount} assets`);
       setActiveTab("feed");
       opsStateQ.refetch();
     },
@@ -1701,8 +1701,8 @@ export default function EngagementOps() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {ops.scanPlan
-                    ? "Scan plan generated. Review the LLM's recommended nmap flags and tools per asset below, then start the active scan."
-                    : "Generate a scan plan to let the LLM analyze each asset and recommend specific nmap flags and active tools before scanning."}
+                    ? "Scan plan generated. Review the LLM's recommended scan configuration and tools per asset below, then start the active scan."
+                    : "Generate a scan plan to let the LLM analyze each asset and recommend specific scan profiles and active tools before scanning."}
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-none ml-4">
@@ -1855,11 +1855,11 @@ export default function EngagementOps() {
                         <Badge variant="outline" className="text-xs">{ap.assetType}</Badge>
                       </div>
 
-                      {/* Nmap flags */}
+                      {/* Scan Configuration */}
                       <div className="mb-2">
-                        <div className="text-xs text-cyan-400 font-medium mb-1">Nmap Flags:</div>
+                        <div className="text-xs text-cyan-400 font-medium mb-1">Scan Configuration:</div>
                         <code className="text-xs bg-black/40 px-2 py-1 rounded font-mono text-green-300 block">
-                          nmap {ap.nmapFlags} {ap.ip || ap.hostname}
+                          naabu {ap.nmapFlags} -host {ap.ip || ap.hostname} | nerva
                         </code>
                         <p className="text-xs text-muted-foreground mt-1 italic">{ap.nmapRationale}</p>
                       </div>
@@ -2105,7 +2105,7 @@ export default function EngagementOps() {
                         <p><strong>Step 1:</strong> Click <strong>Add Targets</strong> to paste in-scope domains, IPs, or URLs</p>
                         <p><strong>Step 2:</strong> Click <strong>Passive Discovery</strong> to run OSINT on all targets</p>
                         <p><strong>Step 3:</strong> Review assets, then click <strong>Start Active Scan</strong> to hand off to the LLM</p>
-                        <p className="text-cyan-400">The LLM will run nmap first, then match tools to discovered services automatically</p>
+                        <p className="text-cyan-400">The LLM will run port discovery (naabu/Nerva) first, then match tools to discovered services automatically</p>
                       </div>
                       {!roeSigned && (
                         <p className="text-xs text-orange-400 mt-4">⚠️ RoE must be signed before active scanning (passive recon is allowed)</p>
@@ -2610,11 +2610,11 @@ export default function EngagementOps() {
             <TabsContent value="discovery" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-full">
                 <div className="py-3 space-y-4">
-                  <p className="text-xs text-muted-foreground">Aggregated discovery results from naabu, nmap, and httpx across all assets. Click any row to view the full asset detail.</p>
+                  <p className="text-xs text-muted-foreground">Aggregated discovery results from naabu, Nerva, and httpx across all assets. Click any row to view the full asset detail.</p>
                   {(() => {
                     const assets = ops?.assets || [];
                     const allToolResults = assets.flatMap((a: any) => (a.toolResults || []).map((tr: any) => ({ ...tr, assetHostname: a.hostname })));
-                    const nmapResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery');
+                    const nmapResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' || tr.tool === 'naabu');
                     const nucleiResults = allToolResults.filter((tr: any) => tr.tool === 'nuclei');
                     const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
 
@@ -2776,7 +2776,7 @@ export default function EngagementOps() {
                             <CardContent className="p-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <Search className="h-4 w-4 text-blue-400" />
-                                <span className="text-xs font-medium">Nmap</span>
+                                <span className="text-xs font-medium">Port Discovery</span>
                                 <Badge variant="secondary" className="ml-auto text-[9px] h-4">{nmapResults.length} runs</Badge>
                               </div>
                               <p className="text-[10px] text-muted-foreground">Service fingerprinting & OS detection</p>
@@ -4725,7 +4725,7 @@ export default function EngagementOps() {
               <h4 className="text-sm font-medium">Select Phases</h4>
               {[
                 { key: 'passive' as const, label: 'Passive Reconnaissance', desc: 'OSINT, domain intel, certificate transparency', icon: <Search className="h-4 w-4" /> },
-                { key: 'active' as const, label: 'Active Scanning', desc: 'Nmap, Nuclei, ZAP, Nikto via scan server', icon: <Target className="h-4 w-4" /> },
+                { key: 'active' as const, label: 'Active Scanning', desc: 'naabu/Nerva, Nuclei, ZAP, Nikto via scan server', icon: <Target className="h-4 w-4" /> },
                 { key: 'llmAnalysis' as const, label: 'LLM Analysis & Re-Scan', desc: 'AI-driven gap analysis, targeted re-scans', icon: <Brain className="h-4 w-4" /> },
                 { key: 'exploitGeneration' as const, label: 'Exploit Generation', desc: 'LLM-generated exploit plans and functional code', icon: <Skull className="h-4 w-4" /> },
               ].map(phase => (
@@ -4784,7 +4784,7 @@ export default function EngagementOps() {
                 { id: 'passive_discovery' as const, label: 'Passive Discovery', desc: 'Re-runs passive enumeration (DNS, certs, tech fingerprinting)', icon: <Search className="h-4 w-4" />, preserves: 'Domain recon data' },
                 { id: 'scoping' as const, label: 'Scoping & RoE Review', desc: 'Re-validates scope and RoE checklist', icon: <FileCheck className="h-4 w-4" />, preserves: 'Recon + passive discovery' },
                 { id: 'test_plan' as const, label: 'Test Plan Generation', desc: 'Re-generates the NIST 800-115 aligned test plan', icon: <FileText className="h-4 w-4" />, preserves: 'Recon + passive + scope' },
-                { id: 'enumeration' as const, label: 'Active Discovery', desc: 'Re-runs nmap scanning and active port discovery', icon: <Network className="h-4 w-4" />, preserves: 'Recon + passive + scope + plan' },
+                { id: 'enumeration' as const, label: 'Active Discovery', desc: 'Re-runs port discovery (naabu/Nerva) and service fingerprinting', icon: <Network className="h-4 w-4" />, preserves: 'Recon + passive + scope + plan' },
                 { id: 'vuln_detection' as const, label: 'Vulnerability Scanning', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'All through active discovery' },
                 { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'All through vuln scan' },
                 { id: 'post_exploit' as const, label: 'Post-Exploitation', desc: 'Re-runs post-exploit analysis and reporting prep', icon: <Key className="h-4 w-4" />, preserves: 'All prior phases' },

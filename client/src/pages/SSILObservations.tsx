@@ -401,7 +401,7 @@ export default function SSILObservations() {
                       onChange={(e) => setFilters({ ...filters, scannerName: e.target.value || undefined, offset: 0 })}
                     >
                       <option value="">All Scanners</option>
-                      <option value="nmap">Nmap</option>
+                      <option value="nmap">Port Discovery</option>
                       <option value="nuclei">Nuclei</option>
                       <option value="zgrab2">ZGrab2</option>
                       <option value="web_crawler">Web Crawler</option>

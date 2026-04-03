@@ -26,7 +26,7 @@ import AppShell from "@/components/AppShell";
 
 const SCAN_TYPE_CONFIG: Record<string, { label: string; icon: typeof Zap; color: string }> = {
   zap_dast: { label: "ZAP DAST", icon: Zap, color: "text-orange-400" },
-  nmap: { label: "Nmap", icon: Terminal, color: "text-cyan-400" },
+  nmap: { label: "Port Discovery", icon: Terminal, color: "text-cyan-400" },
   nuclei: { label: "Nuclei", icon: Globe, color: "text-purple-400" },
   custom: { label: "Custom", icon: Code2, color: "text-emerald-400" },
 };
@@ -420,7 +420,7 @@ export default function ScanWebhooks() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="zap_dast">ZAP DAST</SelectItem>
-                  <SelectItem value="nmap">Nmap</SelectItem>
+                  <SelectItem value="nmap">Port Discovery</SelectItem>
                   <SelectItem value="nuclei">Nuclei</SelectItem>
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>

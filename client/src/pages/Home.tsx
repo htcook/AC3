@@ -46,7 +46,7 @@ function CollapsibleSection({ title, subtitle, defaultOpen = false, children }: 
 
 // ─── What's New Popup ────────────────────────────────────────────────
 const RECENT_UPDATES = [
-  { date: "Mar 2026", title: "ScanForge Discovery Engine", desc: "Replaced nmap with a purpose-built multi-tool discovery pipeline. Masscan, Naabu, RustScan, and ZMap provide high-speed port discovery while httpx and Nuclei handle service fingerprinting and vulnerability detection — all running on dedicated infrastructure." },
+  { date: "Apr 2026", title: "ScanForge Discovery Engine v2", desc: "Expanded the multi-tool discovery pipeline with Nerva service fingerprinting (120+ protocols), ssh-audit, testssl.sh, wafw00f WAF detection, katana web crawling, and context-aware scanning. Naabu, Masscan, and RustScan handle port discovery while Nerva, httpx, and Nuclei provide deep service identification and vulnerability detection." },
   { date: "Mar 2026", title: "AC3 Report Generator", desc: "Generate professional pentest and red team reports. AI drafts narrative sections while the platform controls severity, evidence, and technique mappings. Includes executive summaries, QA review, and DOCX export." },
   { date: "Mar 2026", title: "DOCX Report Export", desc: "One-click Word document generation with title page, executive summary, findings table, and detailed sections. Branded and ready to deliver." },
   { date: "Mar 2026", title: "Findings Deduplication", desc: "Automatically detects and merges duplicate findings during imports. Combines evidence, keeps the highest severity, and prevents duplicates within a single batch." },

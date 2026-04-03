@@ -391,7 +391,7 @@ function SSHAuditLaunchDialog({ open, onClose, engagementId }: { open: boolean; 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Switch checked={nmapScripts} onCheckedChange={setNmapScripts} />
-              <Label>Run nmap SSH NSE scripts</Label>
+              <Label>Run ssh-audit deep analysis</Label>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={enumAuth} onCheckedChange={setEnumAuth} />
@@ -1720,7 +1720,7 @@ export default function DastScanners() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  <Badge variant="outline">Port Discovery (naabu/nmap)</Badge>
+                  <Badge variant="outline">Port Discovery (naabu/Nerva)</Badge>
                   <ChevronRight className="w-3 h-3" />
                   <Badge variant="outline">Service Identification</Badge>
                   <ChevronRight className="w-3 h-3" />

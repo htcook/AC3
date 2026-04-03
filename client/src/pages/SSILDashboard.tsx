@@ -157,7 +157,7 @@ export default function SSILDashboard() {
                       <span className="font-mono">{summary?.observations.riskCards || 0}</span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded">
-                      6 scanner adapters: Nmap, Nuclei, ZGrab2, Web Crawler, Domain Intel, Vuln Scanner
+                      6 scanner adapters: Port Discovery, Nuclei, ZGrab2, Web Crawler, Domain Intel, Vuln Scanner
                     </div>
                     <Link href="/ssil/observations">
                       <Button variant="outline" size="sm" className="w-full mt-2">
@@ -225,7 +225,7 @@ export default function SSILDashboard() {
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       Transforms raw scanner output into the unified <code className="text-xs bg-muted px-1 rounded">scan_observation</code> schema.
-                      Per-scanner adapters handle Nmap, Nuclei, ZGrab2, Web Crawler, Domain Intel,
+                      Per-scanner adapters handle Port Discovery, Nuclei, ZGrab2, Web Crawler, Domain Intel,
                       and Vuln Scanner. Observations feed into signal derivation and hybrid risk
                       card generation (CVSS × Hybrid × BIA × confidence).
                     </p>

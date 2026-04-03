@@ -181,7 +181,7 @@ export default function SSILPolicies() {
                     >
                       <option value="nuclei">Nuclei</option>
                       <option value="zgrab2">ZGrab2</option>
-                      <option value="nmap_orchestrated">Nmap</option>
+                      <option value="nmap_orchestrated">Port Discovery</option>
                       <option value="zap">ZAP</option>
                       <option value="web_crawler">Web Crawler</option>
                       <option value="domain_intel">Domain Intel</option>

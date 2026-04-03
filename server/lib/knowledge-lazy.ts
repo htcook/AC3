@@ -95,6 +95,10 @@ export function getFullScanforgeContext(...args: any[]) {
   track('scanforge');
   return scanforgeKnowledge.getFullScanforgeContext(...args);
 }
+export function buildOptimalScanforgeCommand(...args: any[]) {
+  track('scanforge');
+  return scanforgeKnowledge.buildOptimalScanforgeCommand(...args);
+}
 
 // ─── attack-chain-retriever ────────────────────────────────────────────────
 export function getChainsByVulnDescriptions(...args: any[]) {

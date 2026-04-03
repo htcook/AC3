@@ -192,6 +192,19 @@ export interface AssetStatus {
     timestamp?: number;
     durationMs?: number;
     errorDetail?: string;
+    /** Raw exploit output (stdout/stderr from the exploit execution) */
+    exploitOutput?: string;
+    /** Type of shell obtained (reverse_shell, bind_shell, web_shell, none) */
+    shellType?: string;
+    /** HTTP request/response evidence for web-based exploits */
+    httpEvidence?: {
+      request?: { method?: string; url?: string; headers?: Record<string, string>; body?: string };
+      response?: { statusCode?: number; headers?: Record<string, string>; body?: string };
+    };
+    /** The actual payload/command sent during exploitation */
+    attackPayload?: string;
+    /** What technique was used (e.g., SQLi, RCE, LFI) */
+    technique?: string;
   }>;
   status: "pending" | "scanning" | "enumerated" | "vulns_found" | "exploiting" | "compromised" | "no_vulns" | "discovered";
   wafDetected?: string;
@@ -216,10 +229,41 @@ export interface AssetStatus {
     durationMs: number;
     timedOut: boolean;
     findingCount: number;
-    findings: Array<{ severity: string; title: string; cve?: string }>;
+    findings: Array<{
+      severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string;
+      /** Structured evidence captured from tool output */
+      evidence?: {
+        /** HTTP request that triggered the finding */
+        request?: { method?: string; url?: string; headers?: Record<string, string>; body?: string };
+        /** HTTP response proving the vulnerability */
+        response?: { statusCode?: number; headers?: Record<string, string>; body?: string };
+        /** The attack payload or input that was used */
+        attackPayload?: string;
+        /** The vulnerable parameter name */
+        vulnerableParam?: string;
+        /** Matched pattern or signature from the scanner */
+        matchedPattern?: string;
+        /** Raw proof text from scanner output */
+        proofText?: string;
+      };
+    }>;
     outputPreview: string; // first 2KB of stdout
+    /** Full raw stdout (up to 50KB) for evidence extraction */
+    rawOutput?: string;
     executedAt: number;
     phase: string;
+    /** Structured fingerprints extracted from this tool's output */
+    fingerprints?: {
+      webServer?: string;
+      technologies?: string[];
+      frameworks?: string[];
+      operatingSystem?: string;
+      serviceVersions?: Array<{ port: number; service: string; product?: string; version?: string; banner?: string }>;
+      httpHeaders?: Record<string, string>;
+      tlsInfo?: { subjectCN?: string; issuerOrg?: string; notAfter?: string; protocol?: string; cipherSuite?: string };
+      cookies?: string[];
+      poweredBy?: string;
+    };
   }>;
 }
 
@@ -2457,12 +2501,23 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
 
 // ─── Tool Output Parser ────────────────────────────────────────────────────
 
+type ParsedFinding = {
+  severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string;
+  evidence?: {
+    request?: { method?: string; url?: string; headers?: Record<string, string>; body?: string };
+    response?: { statusCode?: number; headers?: Record<string, string>; body?: string };
+    attackPayload?: string;
+    vulnerableParam?: string;
+    matchedPattern?: string;
+    proofText?: string;
+  };
+};
 function parseToolOutput(
   tool: string,
   stdout: string,
   asset: AssetStatus
-): Array<{ severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string }> {
-  const findings: Array<{ severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string }> = [];
+): ParsedFinding[] {
+  const findings: ParsedFinding[] = [];
   if (!stdout || stdout.length < 10) return findings;
 
   switch (tool) {
@@ -2478,6 +2533,46 @@ function parseToolOutput(
                         obj.info?.classification?.cve?.[0] ||
                         obj["template-id"]?.match(/CVE-\d{4}-\d+/)?.[0];
             const matchedAt = obj["matched-at"] || obj.host || '';
+            // Extract structured evidence from nuclei output
+            const evidence: ParsedFinding['evidence'] = {};
+            // Capture the matched URL and curl command as the request
+            if (obj["curl-command"]) {
+              const curlMatch = obj["curl-command"].match(/curl\s+(?:-[A-Z]+\s+)?['"]?(https?:\/\/[^'"\s]+)/);
+              evidence.request = { method: obj.type === 'http' ? 'GET' : undefined, url: matchedAt || curlMatch?.[1] };
+            } else if (matchedAt) {
+              evidence.request = { url: matchedAt };
+            }
+            // Capture the response body/extracted data
+            if (obj["extracted-results"] && Array.isArray(obj["extracted-results"]) && obj["extracted-results"].length > 0) {
+              evidence.proofText = obj["extracted-results"].join('\n');
+            }
+            if (obj["matcher-name"]) {
+              evidence.matchedPattern = obj["matcher-name"];
+            }
+            // Capture the response if available (nuclei -include-rr flag)
+            if (obj.response) {
+              const respStr = typeof obj.response === 'string' ? obj.response : '';
+              const statusMatch = respStr.match(/^HTTP\/[\d.]+ (\d+)/);
+              evidence.response = {
+                statusCode: statusMatch ? parseInt(statusMatch[1]) : undefined,
+                body: respStr.substring(0, 2000),
+              };
+            }
+            // Capture the request if available
+            if (obj.request) {
+              const reqStr = typeof obj.request === 'string' ? obj.request : '';
+              const methodMatch = reqStr.match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(\S+)/);
+              if (methodMatch) {
+                evidence.request = { ...evidence.request, method: methodMatch[1], url: methodMatch[2] };
+              }
+              if (reqStr.length > 0) {
+                evidence.request = { ...evidence.request, body: reqStr.substring(0, 1000) };
+              }
+            }
+            // Capture template-id as the matched pattern if no matcher-name
+            if (!evidence.matchedPattern && obj["template-id"]) {
+              evidence.matchedPattern = obj["template-id"];
+            }
             findings.push({
               severity: obj.info.severity,
               title: `[Nuclei] ${obj.info.name}${matchedAt ? ` @ ${matchedAt}` : ''}`,
@@ -2485,6 +2580,7 @@ function parseToolOutput(
               description: obj.info.description || undefined,
               cvss: obj.info.classification?.['cvss-score'] || obj.info.classification?.['cvss_score'] || undefined,
               cwe: obj.info.classification?.cwe?.[0] || undefined,
+              evidence: Object.keys(evidence).length > 0 ? evidence : undefined,
             });
           }
         } catch { /* not JSON line — nuclei banner or progress output */ }
@@ -3679,7 +3775,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               }
             }
 
-            // Store httpx result
+            // Store httpx result with fingerprints and raw output
             asset.toolResults.push({
               tool: 'httpx',
               command: httpxCmd,
@@ -3689,8 +3785,21 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               findingCount: httpxFindings.length,
               findings: httpxFindings,
               outputPreview: (httpxResult.stdout || '').slice(0, 1024),
+              rawOutput: (httpxResult.stdout || '').slice(0, 50_000),
               executedAt: Date.now(),
               phase: 'discovery',
+              fingerprints: {
+                webServer: webServer || undefined,
+                technologies: techDetected.length > 0 ? techDetected : undefined,
+                httpHeaders: Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined,
+                tlsInfo: tlsInfo ? {
+                  subjectCN: tlsInfo.subject_cn,
+                  issuerOrg: tlsInfo.issuer_org,
+                  notAfter: tlsInfo.not_after,
+                } : undefined,
+                poweredBy: responseHeaders['x-powered-by'] || undefined,
+                cookies: responseHeaders['set-cookie'] ? [responseHeaders['set-cookie']] : undefined,
+              },
             });
 
             await persistScanResult({
@@ -3981,7 +4090,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           durationMs,
           timedOut: discoveryResult.timedOut || false,
           findingCount: findings.length,
-          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
           outputPreview: (discoveryResult.stdout || '').slice(0, 1024),
           executedAt: Date.now(),
           phase: 'targeted_enum',
@@ -4241,7 +4350,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         durationMs: result.durationMs,
         timedOut: result.timedOut,
         findingCount: findings.length,
-        findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+        findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
         outputPreview: result.stdout.slice(0, 1024),
         executedAt: Date.now(),
         phase: 'targeted_enum',
@@ -4600,7 +4709,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           durationMs: result.durationMs,
           timedOut: result.timedOut,
           findingCount: findings.length,
-          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+          findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
           outputPreview: result.stdout.slice(0, 1024),
           executedAt: Date.now(),
           phase: 'vuln_detection',
@@ -5337,7 +5446,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                         description: f.description || undefined,
                         cwe: cweStr,
                         evidence: f.evidence || undefined,
+                        evidenceDetail: [f.method && f.url ? `${f.method} ${f.url}` : '', f.param ? `Param: ${f.param}` : '', f.attack ? `Attack: ${f.attack.substring(0, 500)}` : '', f.evidence ? `Evidence: ${f.evidence.substring(0, 500)}` : ''].filter(Boolean).join(' | ') || undefined,
+                        attack: f.attack || undefined,
+                        method: f.method || undefined,
+                        param: f.param || undefined,
+                        url: f.url || undefined,
                         source: 'zap',
+                        solution: f.solution || undefined,
                       } as any);
                       zapVulnCount++;
                     }
@@ -6026,7 +6141,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             durationMs: result.durationMs,
             timedOut: result.timedOut,
             findingCount: findings.length,
-            findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve })),
+            findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
             outputPreview: result.stdout.slice(0, 1024),
             executedAt: Date.now(),
             phase: 'credential_testing',

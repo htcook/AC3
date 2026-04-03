@@ -198,6 +198,19 @@ export const reportsRouter = router({
           }
         } catch (e) { console.error('ROE/audit fetch for report failed:', e); }
 
+        // Helper: Derive asset status from scan results when not explicitly set
+        function deriveAssetStatus(asset: any): string {
+          const hasExploits = (asset.exploitAttempts || []).some((ea: any) => ea.success);
+          if (hasExploits) return 'compromised';
+          const hasVulns = (asset.vulns || []).length > 0;
+          const hasToolResults = (asset.toolResults || []).length > 0;
+          if (hasVulns) return 'vulnerable';
+          if (hasToolResults) return 'scanned';
+          const hasPorts = (asset.knownPorts || []).length > 0 || (asset.ports || []).length > 0;
+          if (hasPorts) return 'enumerated';
+          return 'discovered';
+        }
+
         // Fetch engagement ops data for discovery/tool evidence sections
         let opsDataContext = 'No active scan data available for this engagement.';
         try {
@@ -280,7 +293,7 @@ export const reportsRouter = router({
             let pipelineAssets = (opsState?.assets || []).map((a: any) => ({
               hostname: a.hostname || 'unknown',
               ip: a.ip || '',
-              status: a.status || 'unknown',
+              status: a.status || deriveAssetStatus(a),
               knownPorts: (a.knownPorts || []).map((p: any) => typeof p === 'number' ? { port: p } : p),
               technologies: a.passiveRecon?.technologies || [],
               riskSignals: a.passiveRecon?.riskSignals || [],
@@ -300,7 +313,7 @@ export const reportsRouter = router({
                 url: v.url || undefined,
               })),
               toolResults: (a.toolResults || []).map((tr: any) => ({
-                tool: tr.tool || 'unknown',
+                tool: tr.tool || 'scanner',
                 command: tr.command,
                 exitCode: tr.exitCode,
                 duration: tr.duration,
@@ -309,10 +322,10 @@ export const reportsRouter = router({
                 findingCount: tr.findings?.length || tr.findingCount || 0,
                 rawOutput: tr.outputPreview || tr.rawOutput || '',
                 executedAt: tr.executedAt || tr.timestamp,
-                phase: tr.phase || 'unknown',
+                phase: tr.phase || (tr.tool === 'nuclei' ? 'scanning' : tr.tool === 'httpx' ? 'discovery' : tr.tool === 'naabu' || tr.tool === 'masscan' ? 'enumeration' : 'reconnaissance'),
               })),
               exploitAttempts: (a.exploitAttempts || []).map((ea: any) => ({
-                module: ea.module || 'unknown',
+                module: ea.module || ea.exploitModule || ea.exploitSource || 'manual',
                 success: !!ea.success,
                 cve: ea.cve,
                 service: ea.service,
