@@ -4713,6 +4713,41 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           detail: `${succeeded}/${batch.length} tools finished (${failed} errors). Tools: ${batch.map(c => c.tool).join(', ')}`,
         });
       }
+      // ── Auto-escalate evasion if tools are being blocked ──
+      if (failed > 0 && state.targetProfiles) {
+        try {
+          const { escalateEvasionProfile: evaluateAndEscalate } = await import('./evasion-escalation-engine.js');
+          const profile = state.targetProfiles[asset.hostname];
+          if (profile) {
+            // Check latest tool results for block indicators
+            const recentResults = asset.toolResults.slice(-batch.length);
+            for (const tr of recentResults) {
+              const output = tr.outputPreview || '';
+              const isBlocked = tr.exitCode !== 0 || tr.timedOut ||
+                /403|blocked|captcha|rate.limit|connection.reset|ip.ban/i.test(output);
+              if (isBlocked) {
+                const blockReason = tr.timedOut ? 'rate_limit' as const :
+                  /403|blocked|waf/i.test(output) ? 'waf_block' as const :
+                  /captcha/i.test(output) ? 'captcha' as const :
+                  /rate.limit/i.test(output) ? 'rate_limit' as const :
+                  /connection.reset|rst/i.test(output) ? 'connection_reset' as const :
+                  /ban/i.test(output) ? 'ip_ban' as const : 'waf_block' as const;
+                const escalationResult = evaluateAndEscalate(profile, blockReason, { toolOutput: output });
+                if (escalationResult.escalation.currentLevel > (profile.evasionEscalation?.currentLevel || 1)) {
+                  state.targetProfiles[asset.hostname] = { ...profile, evasionEscalation: escalationResult.escalation };
+                  addLog(state, {
+                    phase: 'enumeration', type: 'warning',
+                    title: `⚡ Evasion auto-escalated: ${asset.hostname}`,
+                    detail: `Level ${escalationResult.escalation.currentLevel}: ${escalationResult.escalation.action} (trigger: ${blockReason})`,
+                    riskTier: 'yellow',
+                  });
+                  break; // One escalation per batch is enough
+                }
+              }
+            }
+          }
+        } catch (_e) { /* Non-critical — log and continue */ }
+      }
     }
     const parallelDuration = Date.now() - parallelStartTime;
     addLog(state, {

@@ -3372,4 +3372,142 @@ Return ONLY a JSON object with vulnerabilities array.`;
       const { getDetectedInterruptions } = await import('../lib/engagement-auto-resume');
       return getDetectedInterruptions();
     }),
+
+  /** Get target profiles (WAF/CDN/topology/fingerprint/evasion) for an engagement */
+  getTargetProfiles: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.targetProfiles) return { profiles: {}, hasProfiles: false };
+      // Serialize target profiles for the frontend
+      const profiles: Record<string, any> = {};
+      for (const [host, profile] of Object.entries(state.targetProfiles)) {
+        const p = profile as any;
+        profiles[host] = {
+          hostname: p.hostname,
+          ips: p.ips,
+          fingerprint: {
+            serverHeader: p.fingerprint?.serverHeader || null,
+            webServer: p.fingerprint?.webServer || null,
+            appFramework: p.fingerprint?.appFramework || null,
+            cms: p.fingerprint?.cms || null,
+            os: p.fingerprint?.os || null,
+            tls: p.fingerprint?.tls || null,
+            languages: p.fingerprint?.languages || [],
+            jsFrameworks: p.fingerprint?.jsFrameworks || [],
+            databases: p.fingerprint?.databases || [],
+            techTags: p.fingerprint?.techTags || [],
+            serviceBanners: p.fingerprint?.serviceBanners || {},
+          },
+          waf: {
+            detected: p.waf?.detected || false,
+            vendor: p.waf?.vendor || 'none',
+            type: p.waf?.type || 'unknown',
+            confidence: p.waf?.confidence || 0,
+            bypassTechniques: p.waf?.bypassTechniques || [],
+          },
+          cdn: {
+            detected: p.cdn?.detected || false,
+            provider: p.cdn?.provider || 'none',
+            edgeServers: p.cdn?.edgeServers || [],
+            originDiscoveryMethods: p.cdn?.originDiscoveryMethods || [],
+          },
+          firewall: {
+            detected: p.firewall?.detected || false,
+            type: p.firewall?.type || 'unknown',
+            filteredPorts: p.firewall?.filteredPorts || [],
+            rateLimiting: p.firewall?.rateLimiting || { detected: false },
+          },
+          topology: {
+            role: p.topology?.role || 'unknown',
+            confidence: p.topology?.confidence || 0,
+            backend: p.topology?.backend || null,
+            services: p.topology?.services || [],
+          },
+          environment: p.environment || 'unknown',
+          riskProfile: p.riskProfile || 'standard',
+          evasionProfile: p.recommendedStrategy?.evasionProfile || null,
+          scanStrategy: p.recommendedStrategy ? {
+            name: p.recommendedStrategy.name,
+            riskLevel: p.recommendedStrategy.riskLevel,
+            estimatedTimeMinutes: p.recommendedStrategy.estimatedTimeMinutes,
+            phases: (p.recommendedStrategy.phases || []).map((ph: any) => ({
+              name: ph.name,
+              order: ph.order,
+              purpose: ph.purpose,
+              requiresApproval: ph.requiresApproval,
+              tools: (ph.tools || []).map((t: any) => ({ tool: t.tool, purpose: t.purpose })),
+            })),
+          } : null,
+          profiledAt: p.profiledAt,
+          evasionEscalation: p.evasionEscalation || null,
+        };
+      }
+      return { profiles, hasProfiles: Object.keys(profiles).length > 0 };
+    }),
+
+  /** Escalate evasion profile for a target when blocked */
+  escalateEvasion: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      hostname: z.string(),
+      reason: z.enum(['waf_block', 'rate_limit', 'connection_reset', 'captcha', 'ip_ban', 'manual']),
+      blockedStatusCode: z.number().optional(),
+      blockedToolOutput: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate, addLog } = await import('../lib/engagement-orchestrator');
+      const { escalateEvasionProfile } = await import('../lib/evasion-escalation-engine');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement state not found' });
+      if (!state.targetProfiles?.[input.hostname]) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `No target profile for ${input.hostname}` });
+      }
+      const result = escalateEvasionProfile(
+        state.targetProfiles[input.hostname] as any,
+        input.reason,
+        { statusCode: input.blockedStatusCode, toolOutput: input.blockedToolOutput }
+      );
+      // Update the profile in state
+      (state.targetProfiles[input.hostname] as any).evasionEscalation = result.escalation;
+      if (result.newEvasionProfile) {
+        (state.targetProfiles[input.hostname] as any).recommendedStrategy = {
+          ...(state.targetProfiles[input.hostname] as any).recommendedStrategy,
+          evasionProfile: result.newEvasionProfile,
+        };
+      }
+      addLog(state, {
+        phase: state.phase,
+        type: 'info',
+        title: `\u26a0\ufe0f Evasion Escalated: ${input.hostname}`,
+        detail: `${result.escalation.currentLevel} (${input.reason}) — ${result.escalation.action}`,
+      });
+      broadcastOpsUpdate(state.engagementId, {
+        type: 'evasion_escalation',
+        hostname: input.hostname,
+        escalation: result.escalation,
+      });
+      return result;
+    }),
+
+  /** Get evasion escalation history for an engagement */
+  getEvasionHistory: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state?.targetProfiles) return { history: [] };
+      const history: Array<{ hostname: string; escalation: any }> = [];
+      for (const [host, profile] of Object.entries(state.targetProfiles)) {
+        const p = profile as any;
+        if (p.evasionEscalation) {
+          history.push({ hostname: host, escalation: p.evasionEscalation });
+        }
+      }
+      return { history };
+    }),
   });

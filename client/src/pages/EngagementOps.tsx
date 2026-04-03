@@ -45,7 +45,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
-  X, FileCheck,
+  X, FileCheck, Fingerprint,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -61,6 +61,7 @@ import EngagementTerminal from "@/components/EngagementTerminal";
 import TestPlanGate from "@/components/TestPlanGate";
 import { CoverageQuality } from "@/components/CoverageQuality";
 import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
+import TargetProfilePanel from "@/components/TargetProfilePanel";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
 
@@ -710,6 +711,10 @@ export default function EngagementOps() {
     { enabled: engagementId > 0, refetchInterval: isRunning ? 20000 : 60000 }
   );
   const feedbackLoopQ = trpc.engagementOps.getFeedbackLoopState.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0, refetchInterval: isRunning ? 15000 : 60000 }
+  );
+  const targetProfilesQ = trpc.engagementOps.getTargetProfiles.useQuery(
     { engagementId },
     { enabled: engagementId > 0, refetchInterval: isRunning ? 15000 : 60000 }
   );
@@ -2008,6 +2013,7 @@ export default function EngagementOps() {
                 color: 'text-purple-400',
                 subTabs: [
                   { value: 'discovery', label: 'Tool Results', icon: <Radar className="h-3 w-3" />, count: toolCount },
+                  { value: 'targetprofiles', label: 'Target Profiles', icon: <Fingerprint className="h-3 w-3" />, count: targetProfilesQ.data?.hasProfiles ? Object.keys(targetProfilesQ.data.profiles).length : 0 },
                   { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credTests.length },
                   { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
                   { value: 'scanimports', label: 'Scan Reports', icon: <FileUp className="h-3 w-3" /> },
@@ -3174,6 +3180,15 @@ export default function EngagementOps() {
                       ))}
                     </>
                   )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Target Profiles Tab ── */}
+            <TabsContent value="targetprofiles" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-3">
+                  <TargetProfilePanel engagementId={engagementId} isRunning={isRunning} />
                 </div>
               </ScrollArea>
             </TabsContent>
