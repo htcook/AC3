@@ -31,6 +31,7 @@ import CorroborationPanel from "@/components/CorroborationPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary, exportExecutiveSummaryWithValidation, exportValidationReportPdf, exportValidationResultsCsv } from "@/lib/export-utils";
+import { exportDiEasmReport } from "@/lib/export-di-report";
 import { KpiStrip } from "@/components/KpiStrip";
 import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
@@ -638,6 +639,13 @@ export default function DomainIntelResults() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Export Data</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
+                exportDiEasmReport(scan.primaryDomain, fullScanData);
+                toast.success('Full EASM report export started — this may take a moment');
+              }}>
+                <ShieldAlert className="h-4 w-4 mr-2" /> Full EASM Report (PDF)
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 // Check if validation data is available for enhanced export
                 if (validationRun && validationResults.length > 0) {

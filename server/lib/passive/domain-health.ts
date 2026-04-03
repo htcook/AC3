@@ -17,7 +17,7 @@
  * who prioritize domain health monitoring over penetration testing.
  */
 import { createHash } from "crypto";
-import { resolve4, resolveMx, resolveNs, resolveSoa, resolveTxt, reverse } from "dns/promises";
+import { resolve4, resolveMx, resolveNs, resolveSoa, resolveTxt, reverse, Resolver } from "dns/promises";
 import { createConnection, Socket } from "net";
 import type { AssetObservation, ConnectorConfig, ConnectorResult, PassiveConnector } from "./types";
 
@@ -171,27 +171,364 @@ function tcpConnect(host: string, port: number, timeoutMs: number): Promise<{ co
 
 // ─── DNSBL Check ────────────────────────────────────────────────────
 
+/** Classification of a single DNSBL listing with reason, category, and severity */
+export interface DnsblListing {
+  zone: string;
+  result: string[];           // Raw 127.x.x.x return codes
+  reason: string | null;      // Human-readable reason from TXT record
+  lookupUrl: string;          // URL to verify/investigate the listing
+  category: DnsblCategory;    // Classified category of the listing
+  severity: "critical" | "high" | "medium" | "low" | "informational";
+  actionRequired: boolean;    // Whether this listing requires remediation
+  firstSeenAt: number;        // Timestamp when we first detected this listing (ms)
+  ttl: number | null;         // DNS TTL in seconds — low TTL may indicate recent listing
+  returnCodeMeaning: string;  // Human-readable meaning of the 127.x.x.x code
+  falsePositiveIndicators: string[]; // Reasons this might be a false positive
+}
+
+export type DnsblCategory =
+  | "spam_source"        // Confirmed spam sender
+  | "phishing"           // Phishing-related
+  | "malware"            // Malware distribution
+  | "botnet_cc"          // Botnet command & control
+  | "exploit"            // Exploited/compromised host
+  | "open_proxy"         // Open proxy server
+  | "open_relay"         // Open SMTP relay
+  | "dynamic_ip"         // Dynamic/residential IP range (usually informational)
+  | "bad_reputation"     // General bad reputation
+  | "drop"               // Don't Route or Peer (hijacked)
+  | "abused_legit"       // Legitimate domain being abused
+  | "newly_registered"   // Zero-reputation / newly registered domain
+  | "unknown";           // Could not classify
+
 interface DnsblResult {
   ip: string;
   totalChecked: number;
-  listed: { zone: string; result: string[] }[];
+  listed: DnsblListing[];
   clean: string[];
   errors: string[];
   score: number; // 0-100 (0 = clean, 100 = heavily blacklisted)
+  reverseDns: string[];           // PTR hostnames for the checked IP
+  isCloudHosted: boolean;         // Whether PTR suggests cloud/hosting provider
+  cloudProvider: string | null;   // Detected cloud provider name
+  actionableCount: number;        // Number of listings that require action
+  informationalCount: number;     // Number of informational-only listings
+  categoryBreakdown: Record<string, number>; // Count per DnsblCategory
+}
+
+// ─── Return Code → Category Mapping ────────────────────────────────
+
+/** Map Spamhaus return codes to categories */
+function classifySpamhausCode(code: string, zone: string): { category: DnsblCategory; severity: DnsblListing["severity"]; actionRequired: boolean } {
+  // SBL/ZEN IP-based
+  if (code === "127.0.0.2") return { category: "spam_source", severity: "critical", actionRequired: true };
+  if (code === "127.0.0.3") return { category: "spam_source", severity: "high", actionRequired: true }; // CSS automated
+  if (code === "127.0.0.9") return { category: "drop", severity: "critical", actionRequired: true }; // DROP
+  if (code === "127.0.0.30") return { category: "botnet_cc", severity: "critical", actionRequired: true }; // BCL
+  if (code === "127.0.0.4") return { category: "exploit", severity: "high", actionRequired: true }; // XBL
+  if (code === "127.0.0.10" || code === "127.0.0.11") return { category: "dynamic_ip", severity: "informational", actionRequired: false }; // PBL
+
+  // DBL domain-based
+  if (code === "127.0.1.2") return { category: "bad_reputation", severity: "high", actionRequired: true };
+  if (code === "127.0.1.4" || code === "127.0.1.104") return { category: "phishing", severity: "critical", actionRequired: true };
+  if (code === "127.0.1.5" || code === "127.0.1.105") return { category: "malware", severity: "critical", actionRequired: true };
+  if (code === "127.0.1.6" || code === "127.0.1.106") return { category: "botnet_cc", severity: "critical", actionRequired: true };
+  if (code === "127.0.1.102") return { category: "abused_legit", severity: "high", actionRequired: true };
+  if (code === "127.0.1.103") return { category: "abused_legit", severity: "medium", actionRequired: true };
+
+  // ZRD (Zero Reputation Domain)
+  if (code.startsWith("127.0.2.")) return { category: "newly_registered", severity: "medium", actionRequired: false };
+
+  return { category: "unknown", severity: "medium", actionRequired: true };
+}
+
+/** Map SORBS return codes to categories */
+function classifySorbsCode(code: string): { category: DnsblCategory; severity: DnsblListing["severity"]; actionRequired: boolean } {
+  if (code === "127.0.0.2" || code === "127.0.0.3" || code === "127.0.0.4") return { category: "open_proxy", severity: "high", actionRequired: true };
+  if (code === "127.0.0.5") return { category: "open_relay", severity: "high", actionRequired: true };
+  if (code === "127.0.0.6" || code === "127.0.0.8") return { category: "spam_source", severity: "critical", actionRequired: true };
+  if (code === "127.0.0.7") return { category: "exploit", severity: "critical", actionRequired: true };
+  if (code === "127.0.0.9") return { category: "botnet_cc", severity: "critical", actionRequired: true };
+  if (code === "127.0.0.10") return { category: "dynamic_ip", severity: "informational", actionRequired: false };
+  if (code === "127.0.0.11") return { category: "bad_reputation", severity: "low", actionRequired: false };
+  if (code === "127.0.0.14") return { category: "bad_reputation", severity: "low", actionRequired: false }; // no rDNS
+  return { category: "unknown", severity: "medium", actionRequired: true };
+}
+
+/** Classify a DNSBL listing based on zone name and return codes */
+function classifyListing(zone: string, codes: string[]): { category: DnsblCategory; severity: DnsblListing["severity"]; actionRequired: boolean } {
+  const primaryCode = codes[0] || "127.0.0.2";
+
+  // Spamhaus zones
+  if (zone.includes("spamhaus")) return classifySpamhausCode(primaryCode, zone);
+
+  // SORBS zones
+  if (zone.includes("sorbs")) return classifySorbsCode(primaryCode);
+
+  // Known informational-only zones (dynamic IP ranges)
+  if (zone === "dyna.spamrats.com" || zone === "noptr.spamrats.com") return { category: "dynamic_ip", severity: "informational", actionRequired: false };
+  if (zone === "bogons.cymru.com") return { category: "bad_reputation", severity: "informational", actionRequired: false };
+
+  // Known critical zones
+  if (zone.includes("barracuda")) return { category: "spam_source", severity: "critical", actionRequired: true };
+  if (zone.includes("spamcop")) return { category: "spam_source", severity: "critical", actionRequired: true };
+  if (zone.includes("cbl.abuseat")) return { category: "exploit", severity: "high", actionRequired: true }; // Composite Blocking List
+  if (zone.includes("uceprotect")) {
+    if (zone.includes("-3")) return { category: "bad_reputation", severity: "informational", actionRequired: false }; // /8 block
+    if (zone.includes("-2")) return { category: "bad_reputation", severity: "low", actionRequired: false }; // /24 block
+    return { category: "spam_source", severity: "medium", actionRequired: true }; // -1 = individual IP
+  }
+  if (zone.includes("dronebl")) return { category: "exploit", severity: "high", actionRequired: true };
+  if (zone.includes("blocklist.de")) return { category: "exploit", severity: "high", actionRequired: true };
+  if (zone.includes("surbl") || zone.includes("uribl")) return { category: "phishing", severity: "high", actionRequired: true };
+
+  // Default: treat as medium severity actionable listing
+  return { category: "bad_reputation", severity: "medium", actionRequired: true };
+}
+
+/** Build a lookup URL for manual verification of a DNSBL listing */
+function buildLookupUrl(zone: string, ip: string): string {
+  if (zone.includes("spamhaus")) return `https://check.spamhaus.org/listed/?searchterm=${ip}`;
+  if (zone.includes("barracuda")) return `https://www.barracudacentral.org/lookups/lookup-reputation?lookup_entry=${ip}`;
+  if (zone.includes("spamcop")) return `https://www.spamcop.net/bl.shtml?${ip}`;
+  if (zone.includes("sorbs")) return `http://www.sorbs.net/lookup.shtml?${ip}`;
+  if (zone.includes("abuseat") || zone.includes("cbl")) return `https://www.abuseat.org/lookup.cgi?ip=${ip}`;
+  if (zone.includes("dronebl")) return `https://dronebl.org/lookup?ip=${ip}`;
+  if (zone.includes("blocklist.de")) return `https://www.blocklist.de/en/search.html?ip=${ip}`;
+  if (zone.includes("surbl")) return `https://www.surbl.org/surbl-analysis?domain=${ip}`;
+  if (zone.includes("uribl")) return `https://lookup.uribl.com/?domain=${ip}`;
+  // Fallback to MXToolbox
+  return `https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${ip}&run=toolpage`;
+}
+
+// ─── Cloud Provider Detection ─────────────────────────────────────
+
+const CLOUD_PTR_PATTERNS: { pattern: RegExp; provider: string }[] = [
+  { pattern: /\.compute\.amazonaws\.com$/i, provider: "AWS EC2" },
+  { pattern: /\.compute\.internal$/i, provider: "AWS EC2" },
+  { pattern: /\.amazonaws\.com$/i, provider: "AWS" },
+  { pattern: /\.cloudfront\.net$/i, provider: "AWS CloudFront" },
+  { pattern: /\.googleusercontent\.com$/i, provider: "Google Cloud" },
+  { pattern: /\.bc\.googleusercontent\.com$/i, provider: "Google Cloud" },
+  { pattern: /\.1e100\.net$/i, provider: "Google" },
+  { pattern: /\.azure\.com$/i, provider: "Microsoft Azure" },
+  { pattern: /\.azurewebsites\.net$/i, provider: "Microsoft Azure" },
+  { pattern: /\.cloudapp\.net$/i, provider: "Microsoft Azure" },
+  { pattern: /\.digitalocean\.com$/i, provider: "DigitalOcean" },
+  { pattern: /\.vultr\.com$/i, provider: "Vultr" },
+  { pattern: /\.linode\.com$/i, provider: "Linode/Akamai" },
+  { pattern: /\.hetzner\.com$/i, provider: "Hetzner" },
+  { pattern: /\.ovh\.(net|com|ca)$/i, provider: "OVH" },
+  { pattern: /\.contabo\.host$/i, provider: "Contabo" },
+  { pattern: /\.rackspace\.com$/i, provider: "Rackspace" },
+  { pattern: /\.heroku\.com$/i, provider: "Heroku" },
+  { pattern: /\.vercel\.app$/i, provider: "Vercel" },
+  { pattern: /\.netlify\.app$/i, provider: "Netlify" },
+  { pattern: /\.fly\.dev$/i, provider: "Fly.io" },
+  { pattern: /\.render\.com$/i, provider: "Render" },
+];
+
+function detectCloudProvider(ptrHostnames: string[]): { isCloud: boolean; provider: string | null } {
+  for (const hostname of ptrHostnames) {
+    for (const { pattern, provider } of CLOUD_PTR_PATTERNS) {
+      if (pattern.test(hostname)) return { isCloud: true, provider };
+    }
+  }
+  return { isCloud: false, provider: null };
+}
+
+// ─── Return Code Meaning Lookup ──────────────────────────────────
+
+function getReturnCodeMeaning(zone: string, code: string): string {
+  // Spamhaus IP-based
+  if (zone.includes("spamhaus")) {
+    const meanings: Record<string, string> = {
+      "127.0.0.2": "SBL — Direct spam source, verified by Spamhaus",
+      "127.0.0.3": "CSS — Spam source detected by automated heuristics",
+      "127.0.0.4": "XBL — Exploited/infected machine (CBL data)",
+      "127.0.0.9": "DROP — Hijacked IP space, do not route or peer",
+      "127.0.0.10": "PBL — Dynamic/residential IP range (ISP-maintained), not a spam indicator",
+      "127.0.0.11": "PBL — Dynamic/residential IP range (Spamhaus-maintained), not a spam indicator",
+      "127.0.0.30": "BCL — Botnet command & control server",
+      "127.0.1.2": "DBL — Low-reputation domain",
+      "127.0.1.4": "DBL — Phishing-related domain",
+      "127.0.1.5": "DBL — Malware-related domain",
+      "127.0.1.6": "DBL — Botnet C&C domain",
+      "127.0.1.102": "DBL — Abused legitimate domain",
+      "127.0.1.103": "DBL — Abused redirector domain",
+      "127.0.1.104": "DBL — Abused domain used in phishing",
+      "127.0.1.105": "DBL — Abused domain used by malware",
+      "127.0.1.106": "DBL — Abused domain hosting C&C",
+    };
+    if (code.startsWith("127.0.2.")) {
+      const hours = parseInt(code.split(".")[3], 10);
+      return `ZRD — Zero-reputation domain, first seen ${hours - 1}–${hours} hours ago`;
+    }
+    return meanings[code] || `Spamhaus listing (code ${code})`;
+  }
+  // SORBS
+  if (zone.includes("sorbs")) {
+    const meanings: Record<string, string> = {
+      "127.0.0.2": "HTTP proxy detected",
+      "127.0.0.3": "SOCKS proxy detected",
+      "127.0.0.4": "Miscellaneous proxy detected",
+      "127.0.0.5": "Open SMTP relay",
+      "127.0.0.6": "Recently observed sending spam (last 48h)",
+      "127.0.0.7": "Web exploit / vulnerability host",
+      "127.0.0.8": "Confirmed spam source (block)",
+      "127.0.0.9": "Zombie/trojan-infected machine",
+      "127.0.0.10": "Dynamic IP range — not a spam indicator",
+      "127.0.0.11": "Bad configuration (open relay test failed)",
+      "127.0.0.14": "No reverse DNS (missing PTR record)",
+    };
+    return meanings[code] || `SORBS listing (code ${code})`;
+  }
+  // Barracuda
+  if (zone.includes("barracuda")) return "Barracuda Reputation Block List — IP has sent spam to Barracuda traps";
+  // SpamCop
+  if (zone.includes("spamcop")) return "SpamCop — IP reported by SpamCop users for sending unsolicited email";
+  // CBL
+  if (zone.includes("cbl") || zone.includes("abuseat")) return "CBL — IP detected sending spam, likely compromised/infected";
+  // UCEPROTECT
+  if (zone.includes("uceprotect")) {
+    if (zone.includes("-3")) return "UCEPROTECT Level 3 — Entire /8 network block listed (very broad, often false positive)";
+    if (zone.includes("-2")) return "UCEPROTECT Level 2 — /24 subnet listed due to multiple abusive IPs";
+    return "UCEPROTECT Level 1 — Individual IP listed for abuse";
+  }
+  // DroneBL
+  if (zone.includes("dronebl")) return "DroneBL — IP identified as compromised/drone host";
+  // Blocklist.de
+  if (zone.includes("blocklist.de")) return "blocklist.de — IP reported for attacks (brute-force, exploits, etc.)";
+  // SURBL/URIBL
+  if (zone.includes("surbl")) return "SURBL — Domain found in spam message bodies";
+  if (zone.includes("uribl")) return "URIBL — Domain/URI found in spam message bodies";
+  // Spamrats
+  if (zone === "dyna.spamrats.com") return "SpamRATS DYNA — Dynamic/residential IP range (informational)";
+  if (zone === "noptr.spamrats.com") return "SpamRATS NOPTR — IP has no reverse DNS record";
+  if (zone === "spam.spamrats.com") return "SpamRATS SPAM — IP observed sending spam";
+  // Bogons
+  if (zone.includes("bogons")) return "Team Cymru Bogons — IP in unallocated/reserved address space";
+  return `Listed on ${zone} (return code ${code})`;
 }
 
 async function checkDnsbl(ip: string, timeoutMs: number): Promise<DnsblResult> {
   const reversed = ip.split(".").reverse().join(".");
-  const result: DnsblResult = { ip, totalChecked: 0, listed: [], clean: [], errors: [], score: 0 };
+  const now = Date.now();
+  const resolver = new Resolver();
+  resolver.setServers(["8.8.8.8", "1.1.1.1"]); // Use public resolvers for consistent results
 
-  // Run all DNSBL lookups in parallel with per-query timeout
+  const result: DnsblResult = {
+    ip, totalChecked: 0, listed: [], clean: [], errors: [], score: 0,
+    reverseDns: [], isCloudHosted: false, cloudProvider: null,
+    actionableCount: 0, informationalCount: 0, categoryBreakdown: {},
+  };
+
+  // Step 1: Resolve PTR for the IP upfront (needed for false-positive analysis)
+  try {
+    const ptrHostnames = await withTimeout(reverse(ip), Math.min(timeoutMs, 5000), [] as string[]);
+    result.reverseDns = ptrHostnames;
+    const cloudDetection = detectCloudProvider(ptrHostnames);
+    result.isCloudHosted = cloudDetection.isCloud;
+    result.cloudProvider = cloudDetection.provider;
+  } catch {
+    // PTR failure is non-fatal
+  }
+
+  // Step 2: Run all DNSBL lookups in parallel with per-query timeout
   const checks = DNSBL_ZONES.map(async (zone) => {
     const query = `${reversed}.${zone}`;
     try {
-      const addrs = await withTimeout(resolve4(query), Math.min(timeoutMs, 5000), [] as string[]);
+      // Use resolve4 with TTL option for cache age estimation
+      let addrs: string[] = [];
+      let ttl: number | null = null;
+      try {
+        const ttlResults = await withTimeout(
+          resolver.resolve4(query, { ttl: true } as any),
+          Math.min(timeoutMs, 5000),
+          [] as any[]
+        );
+        if (Array.isArray(ttlResults) && ttlResults.length > 0) {
+          // ttlResults may be [{address, ttl}] or string[] depending on runtime
+          if (typeof ttlResults[0] === "object" && ttlResults[0].address) {
+            addrs = ttlResults.map((r: any) => r.address);
+            ttl = ttlResults[0].ttl ?? null;
+          } else {
+            addrs = ttlResults as unknown as string[];
+          }
+        }
+      } catch (ttlErr: any) {
+        // Fallback to standard resolve4 if TTL query fails
+        if (ttlErr.code !== "ENOTFOUND" && ttlErr.code !== "ENODATA") {
+          addrs = await withTimeout(resolve4(query), Math.min(timeoutMs, 5000), [] as string[]);
+        }
+      }
+
       result.totalChecked++;
       if (addrs.length > 0) {
-        result.listed.push({ zone, result: addrs });
+        // Classify the listing based on zone and return codes
+        const classification = classifyListing(zone, addrs);
+        const codeMeaning = getReturnCodeMeaning(zone, addrs[0]);
+
+        // Query TXT record for human-readable reason (best-effort, don't block on failure)
+        let reason: string | null = null;
+        try {
+          const txtRecords = await withTimeout(
+            resolveTxt(query),
+            Math.min(timeoutMs, 3000),
+            [] as string[][]
+          );
+          if (txtRecords.length > 0) {
+            reason = txtRecords.map(r => r.join("")).join(" | ").substring(0, 500);
+          }
+        } catch {
+          // TXT lookup failure is non-fatal — many zones don't serve TXT
+        }
+
+        // Build false-positive indicators based on all available context
+        const fpIndicators: string[] = [];
+        if (result.isCloudHosted && classification.category === "dynamic_ip") {
+          fpIndicators.push(`IP belongs to ${result.cloudProvider} — PBL/dynamic listings are expected for cloud-hosted IPs and do not indicate abuse`);
+        }
+        if (result.isCloudHosted && zone.includes("uceprotect") && (zone.includes("-2") || zone.includes("-3"))) {
+          fpIndicators.push(`UCEPROTECT L2/L3 lists entire subnets/blocks — ${result.cloudProvider} IP ranges are frequently listed regardless of individual IP behavior`);
+        }
+        if (zone === "noptr.spamrats.com" && result.reverseDns.length > 0) {
+          fpIndicators.push("SpamRATS NOPTR listing but IP actually has PTR records — may be stale listing");
+        }
+        if (zone.includes("bogons") && result.reverseDns.length > 0) {
+          fpIndicators.push("Bogon listing but IP has valid PTR — likely allocated since last bogon list update");
+        }
+        if (classification.category === "dynamic_ip" && result.reverseDns.some(h => /static|dedicated|server/i.test(h))) {
+          fpIndicators.push("Listed as dynamic IP but PTR hostname suggests static/dedicated server");
+        }
+        if (ttl !== null && ttl > 86400) {
+          // Very high TTL (>24h) suggests a long-standing, well-established listing
+        }
+        if (ttl !== null && ttl < 300) {
+          fpIndicators.push(`Very low TTL (${ttl}s) — listing may be recently added or frequently updated`);
+        }
+
+        // If listing is informational AND we have false-positive indicators, downgrade severity
+        let finalSeverity = classification.severity;
+        let finalActionRequired = classification.actionRequired;
+        if (fpIndicators.length >= 2 && classification.severity !== "critical") {
+          finalSeverity = "informational";
+          finalActionRequired = false;
+        }
+
+        result.listed.push({
+          zone,
+          result: addrs,
+          reason,
+          lookupUrl: buildLookupUrl(zone, ip),
+          category: classification.category,
+          severity: finalSeverity,
+          actionRequired: finalActionRequired,
+          firstSeenAt: now,
+          ttl,
+          returnCodeMeaning: codeMeaning,
+          falsePositiveIndicators: fpIndicators,
+        });
       } else {
         result.clean.push(zone);
       }
@@ -206,6 +543,13 @@ async function checkDnsbl(ip: string, timeoutMs: number): Promise<DnsblResult> {
   });
 
   await Promise.all(checks);
+
+  // Compute summary statistics
+  result.actionableCount = result.listed.filter(l => l.actionRequired).length;
+  result.informationalCount = result.listed.filter(l => !l.actionRequired).length;
+  for (const listing of result.listed) {
+    result.categoryBreakdown[listing.category] = (result.categoryBreakdown[listing.category] || 0) + 1;
+  }
   result.score = result.totalChecked > 0
     ? Math.round((result.listed.length / result.totalChecked) * 100)
     : 0;
@@ -753,27 +1097,51 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   // ─── Score Calculation ──────────────────────────────────────────
 
   // Blacklist score (100 = clean, 0 = heavily listed)
-  // Note: Spamhaus PBL/XBL may flag cloud/hosting IPs that aren't actually spam sources.
-  // We weight SBL (policy-based) and DBL (domain-based) as critical, but treat PBL/XBL
-  // as informational since cloud-hosted resolvers often trigger these.
+  // Uses the new classification system to weight listings by severity and reduce false positives.
+  // Informational listings (dynamic IP, bogons) don't penalize the score.
+  // Critical listings (spam, malware, phishing, botnet) have heavy penalties.
   let blacklistScore = 100;
   if (dnsblResult) {
-    // Separate truly critical listings (SBL, DBL, Barracuda, SpamCop) from
-    // informational ones (PBL, XBL which flag cloud/hosting IP ranges)
-    const pblXblZones = ["pbl.spamhaus.org", "xbl.spamhaus.org"];
-    const actionableListings = dnsblResult.listed.filter(l => !pblXblZones.includes(l.zone));
-    const informationalListings = dnsblResult.listed.filter(l => pblXblZones.includes(l.zone));
-    // Score based on actionable listings only (-5 per listing)
-    blacklistScore = Math.max(0, 100 - actionableListings.length * 5 - informationalListings.length * 1);
+    const actionableListings = dnsblResult.listed.filter(l => l.actionRequired);
+    const informationalListings = dnsblResult.listed.filter(l => !l.actionRequired);
+
+    // Severity-weighted scoring: critical=-10, high=-7, medium=-4, low=-2, informational=-0.5
+    const severityPenalty: Record<string, number> = { critical: 10, high: 7, medium: 4, low: 2, informational: 0.5 };
+    let totalPenalty = 0;
+    for (const listing of dnsblResult.listed) {
+      totalPenalty += severityPenalty[listing.severity] ?? 4;
+    }
+    blacklistScore = Math.max(0, Math.round(100 - totalPenalty));
+
     if (dnsblResult.listed.length > 0) {
-      const criticalLists = actionableListings.filter(l =>
-        l.zone.includes("spamhaus") || l.zone.includes("barracuda") || l.zone.includes("spamcop")
-      );
-      if (criticalLists.length > 0) {
-        issues.push({ severity: "critical", category: "blacklist", message: `IP ${primaryIp} is listed on ${criticalLists.length} major blacklist(s): ${criticalLists.map(l => l.zone).join(", ")}` });
+      // Group by category for richer issue messages
+      const criticalListings = actionableListings.filter(l => l.severity === "critical" || l.severity === "high");
+      if (criticalListings.length > 0) {
+        // Build a reason-aware message
+        const categoryGroups = new Map<string, DnsblListing[]>();
+        for (const l of criticalListings) {
+          const existing = categoryGroups.get(l.category) || [];
+          existing.push(l);
+          categoryGroups.set(l.category, existing);
+        }
+        for (const [cat, listings] of Array.from(categoryGroups.entries())) {
+          const zoneNames = listings.map(l => l.zone).join(", ");
+          const reasons = listings.filter(l => l.reason).map(l => l.reason).slice(0, 2);
+          const reasonStr = reasons.length > 0 ? ` — Reason: ${reasons.join("; ")}` : "";
+          issues.push({
+            severity: "critical",
+            category: "blacklist",
+            message: `IP ${primaryIp} listed for ${cat.replace(/_/g, " ")} on ${listings.length} list(s): ${zoneNames}${reasonStr}`,
+          });
+        }
       }
-      if (dnsblResult.listed.length > criticalLists.length) {
-        issues.push({ severity: "warning", category: "blacklist", message: `IP ${primaryIp} is listed on ${dnsblResult.listed.length - criticalLists.length} additional blacklist(s)` });
+      if (informationalListings.length > 0) {
+        const infoZones = informationalListings.map(l => `${l.zone} (${l.category.replace(/_/g, " ")})`).join(", ");
+        issues.push({
+          severity: "info",
+          category: "blacklist",
+          message: `IP ${primaryIp} appears on ${informationalListings.length} informational list(s) — not indicative of abuse: ${infoZones}`,
+        });
       }
     }
   } else if (!primaryIp) {
@@ -995,32 +1363,92 @@ export const domainHealthConnector: PassiveConnector = {
         },
       });
 
-      // 2. Blacklist observations
+      // 2. Blacklist observations — enhanced with per-listing detail, reasons, and false-positive context
       if (report.categories.blacklist.details) {
         const bl = report.categories.blacklist.details;
         if (bl.listed.length > 0) {
+          // Summary observation with full context for LLM reasoning
           observations.push({
             assetId: makeAssetId(domain, `blacklist:${bl.ip}`, "domain_health"),
             domain,
             assetType: "ip",
             ip: bl.ip,
-            name: `BLACKLISTED on ${bl.listed.length}/${bl.totalChecked} DNSBL zones`,
+            name: bl.actionableCount > 0
+              ? `BLACKLISTED on ${bl.actionableCount} actionable + ${bl.informationalCount} informational DNSBL zone(s) out of ${bl.totalChecked} checked`
+              : `Listed on ${bl.informationalCount} informational-only DNSBL zone(s) — no actionable listings (${bl.totalChecked} checked)`,
             source: "domain_health",
             observedAt: now,
-            tags: ["domain_health", "blacklist", "dnsbl", "email_reputation"],
+            tags: [
+              "domain_health", "blacklist", "dnsbl", "email_reputation",
+              ...(bl.isCloudHosted ? ["cloud_hosted"] : []),
+              ...(bl.actionableCount === 0 && bl.listed.length > 0 ? ["likely_false_positive"] : []),
+            ],
             evidence: {
               ip: bl.ip,
+              reverseDns: bl.reverseDns,
+              isCloudHosted: bl.isCloudHosted,
+              cloudProvider: bl.cloudProvider,
               listedCount: bl.listed.length,
+              actionableCount: bl.actionableCount,
+              informationalCount: bl.informationalCount,
               totalChecked: bl.totalChecked,
-              listedZones: bl.listed.map(l => l.zone),
               blacklistScore: bl.score,
+              categoryBreakdown: bl.categoryBreakdown,
+              listings: bl.listed.map(l => ({
+                zone: l.zone,
+                returnCodes: l.result,
+                returnCodeMeaning: l.returnCodeMeaning,
+                reason: l.reason,
+                category: l.category,
+                severity: l.severity,
+                actionRequired: l.actionRequired,
+                ttl: l.ttl,
+                lookupUrl: l.lookupUrl,
+                falsePositiveIndicators: l.falsePositiveIndicators,
+                firstSeenAt: new Date(l.firstSeenAt).toISOString(),
+              })),
             },
             attribution: {
-              provider: "AC3 DNSBL Engine",
-              method: `Checked ${bl.totalChecked} DNS blacklists for IP ${bl.ip}`,
+              provider: "AC3 DNSBL Engine v2",
+              method: `Checked ${bl.totalChecked} DNS blacklists for IP ${bl.ip} with TXT reason lookup, TTL analysis, reverse DNS cross-reference, and cloud provider detection`,
               verifyUrl: `https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${bl.ip}`,
             },
           });
+
+          // Individual observations for each actionable listing (for granular tracking)
+          for (const listing of bl.listed.filter(l => l.actionRequired)) {
+            observations.push({
+              assetId: makeAssetId(domain, `blacklist:${bl.ip}:${listing.zone}`, "domain_health"),
+              domain,
+              assetType: "ip",
+              ip: bl.ip,
+              name: `${listing.severity.toUpperCase()}: ${bl.ip} listed on ${listing.zone} — ${listing.returnCodeMeaning}`,
+              source: "domain_health",
+              observedAt: now,
+              tags: [
+                "domain_health", "blacklist", "dnsbl", listing.category,
+                `severity_${listing.severity}`, "actionable",
+              ],
+              evidence: {
+                ip: bl.ip,
+                zone: listing.zone,
+                returnCodes: listing.result,
+                returnCodeMeaning: listing.returnCodeMeaning,
+                reason: listing.reason,
+                category: listing.category,
+                severity: listing.severity,
+                ttl: listing.ttl,
+                reverseDns: bl.reverseDns,
+                cloudProvider: bl.cloudProvider,
+                falsePositiveIndicators: listing.falsePositiveIndicators,
+              },
+              attribution: {
+                provider: "AC3 DNSBL Engine v2",
+                method: `DNSBL A+TXT lookup on ${listing.zone} for ${bl.ip}`,
+                verifyUrl: listing.lookupUrl,
+              },
+            });
+          }
         }
       }
 

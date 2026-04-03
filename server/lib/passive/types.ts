@@ -10,7 +10,7 @@
 export type AssetType = 
   | "subdomain" | "ip" | "certificate" | "url" 
   | "asn" | "mx" | "ns" | "txt" | "cname"
-  | "breach";
+  | "breach" | "credential" | "domain" | "infrastructure";
 
 export interface AssetObservation {
   assetId: string;

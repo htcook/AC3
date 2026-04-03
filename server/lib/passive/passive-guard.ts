@@ -57,6 +57,12 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "circl_pdns",          // CIRCL Passive DNS — queries historical DNS database (passive)
   "commoncrawl",         // CommonCrawl — queries historical web crawl database (passive)
   "reverse_whois",       // Reverse WHOIS — queries crt.sh for related domains (passive)
+  // --- Threat Intel Expansion (Gap Analysis P0) ---
+  "alienvault_otx",       // AlienVault OTX — queries OTX pulse database (passive)
+  "google_safebrowsing",  // Google SafeBrowsing — queries SafeBrowsing database (passive)
+  "phishtank",            // PhishTank — queries phishing URL database (passive)
+  "darkweb_crossref",     // Dark Web Cross-Reference — queries local underground intel DB only (passive)
+  "dehashed_whois",        // Dehashed WHOIS — queries Dehashed API for WHOIS, reverse WHOIS, subdomain scan (passive)
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)

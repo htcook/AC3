@@ -54,6 +54,11 @@ import { commoncrawlConnector } from "./commoncrawl";
 import { reverseWhoisConnector } from "./reverse-whois";
 import { typosquatConnector } from "./typosquat";
 import { domainHealthConnector } from "./domain-health";
+import { alienvaultOtxConnector } from "./alienvault-otx";
+import { googleSafeBrowsingConnector } from "./google-safebrowsing";
+import { phishtankConnector } from "./phishtank";
+import { darkwebCrossrefConnector } from "./darkweb-crossref";
+import { dehashedWhoisConnector } from "./dehashed-whois";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -111,6 +116,14 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   typosquatConnector,                // Typosquat Generator — free lookalike domain detection for phishing
   // --- Domain Health (MXToolbox-equivalent) ---
   domainHealthConnector,               // Domain Health — DNSBL blacklist, SMTP test, PTR, DNS health, IP block, TCP connectivity
+  // --- Threat Intel Expansion (Gap Analysis P0) ---
+  alienvaultOtxConnector,              // AlienVault OTX — free threat intel exchange, pulses, passive DNS, malware
+  googleSafeBrowsingConnector,         // Google SafeBrowsing — malware, phishing, unwanted software detection
+  phishtankConnector,                  // PhishTank — community-verified phishing URL database
+  // --- Dark Web Cross-Reference (Local DB) ---
+  darkwebCrossrefConnector,              // Cross-references domain against local underground intel DB (ransomware, IAB, data leaks)
+  // --- Dehashed WHOIS & Subdomain Scan ---
+  dehashedWhoisConnector,                  // Dehashed WHOIS — registration data, reverse WHOIS, subdomain scan
 ];
 
 export interface PassiveReconConfig {

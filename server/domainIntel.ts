@@ -32,6 +32,7 @@ import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./li
 import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-discovery";
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
+import { applyCarverFeedbackLoop, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -279,6 +280,7 @@ export interface PipelineResult {
   };
   crossModuleEnrichment?: CrossModuleEnrichmentResult;
   postEnrichmentAnalysis?: PostEnrichmentAnalysis;
+  carverFeedback?: CarverFeedbackResult;
   orgDiscovery?: OrgDiscoveryResult;
   oemCredentials?: Array<{
     vendor: string;
@@ -2846,14 +2848,10 @@ export async function runDomainIntelPipeline(
       `${crossModuleEnrichment.summary.totalRiskAdjustments} risk adjustments`
     );
 
-    // Apply threat intel risk boosts to hybrid scores
+    // NOTE: Threat intel risk boosts are now handled by the CARVER Feedback Loop (Stage 3.995)
+    // which distributes adjustments across specific CARVER factors instead of applying a flat +3.
+    // Clean up the legacy _threatIntelBoost markers so they don't interfere.
     for (const a of analyses) {
-      const boost = (a as any)._threatIntelBoost;
-      if (boost && boost > 0) {
-        a.hybridRiskScore = Math.min(100, a.hybridRiskScore + boost);
-        a.riskBand = riskBand(a.hybridRiskScore);
-        console.log(`[DomainIntel] Threat intel boost: ${a.asset.hostname} +${boost} → ${a.hybridRiskScore} (${a.riskBand})`);
-      }
       delete (a as any)._threatIntelBoost;
     }
   } catch (err: any) {
@@ -2922,6 +2920,49 @@ export async function runDomainIntelPipeline(
     }
     // Stage 5: Summaries depend on campaigns, so must run after
     summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined);
+  }
+
+  // ─── Stage 3.995: CARVER Feedback Loop ─────────────────────────────────────
+  // Closes the gap between LLM intelligence and CARVER scoring:
+  // 1. Attack chain assets get CARVER factor boosts
+  // 2. Threat intel boosts target specific CARVER factors (replaces flat +3)
+  // 3. Discovery context signals feed into CARVER reasoning
+  let carverFeedback: CarverFeedbackResult | undefined;
+  try {
+    carverFeedback = applyCarverFeedbackLoop(
+      analyses,
+      postEnrichmentAnalysis,
+      crossModuleEnrichment,
+      passiveRecon,
+    );
+    if (carverFeedback.summary.totalAdjustments > 0) {
+      // Recalculate hybrid risk scores after CARVER adjustments
+      for (const a of analyses) {
+        const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+        const portBoost = (a as any)._portLikelihoodBoost || 0;
+        const hybrid = computeHybridRisk(
+          a.cvssEstimate,
+          missionImpact,
+          a.contextIndicators,
+          a.vulnRiskScore,
+          portBoost
+        );
+        a.missionImpactScore = Math.round(missionImpact * 10) / 10;
+        a.hybridRiskScore = hybrid.score;
+        a.riskBand = hybrid.band;
+        a.suggestedTier = riskTier(hybrid.score);
+        a.impactScore = hybrid.impactScore;
+        a.likelihoodScore = hybrid.likelihoodScore;
+        a.assetCriticalityScore = computeAssetCriticality(missionImpact).score;
+        a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
+      }
+      console.log(
+        `[DomainIntel] Stage 3.995: CARVER feedback loop applied ${carverFeedback.summary.totalAdjustments} adjustments ` +
+        `across ${carverFeedback.summary.assetsAffected} assets (avg delta: ${carverFeedback.summary.avgScoreChange})`
+      );
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] CARVER feedback loop failed (non-fatal): ${err.message}`);
   }
 
   // Compute overall risk — KEV boost is already baked into per-asset hybridRiskScores,
@@ -3254,6 +3295,7 @@ export async function runDomainIntelPipeline(
     emailSecurity: emailSecurityReport || undefined,
     crossModuleEnrichment,
     postEnrichmentAnalysis,
+    carverFeedback,
     orgDiscovery: orgDiscoveryResult || undefined,
     oemCredentials,
     credentialTestSummary,
