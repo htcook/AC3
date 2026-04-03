@@ -826,7 +826,7 @@ function TemplatesPanel({ templates, onCreate, onUpdate, onDelete, isCreating }:
         </div>
       ) : (
         <EmptyState icon={<Mail className="w-12 h-12 text-blue-500/50" />} title="NO EMAIL TEMPLATES" description="Create email templates to use in phishing campaigns. Switch to C3 Library view to browse built-in templates." />
-      )
+      )}
 
       {/* Template Preview Modal */}
       {previewTemplate && (
@@ -1066,7 +1066,7 @@ function LandingPagesPanel({ pages, onCreate, onUpdate, onDelete, isCreating }: 
         </div>
       ) : (
         <EmptyState icon={<Globe className="w-12 h-12 text-green-500/50" />} title="NO LANDING PAGES" description="Create landing pages or switch to C3 Library view to browse built-in templates." />
-      )
+      )}
 
       {/* Landing Page Preview Modal */}
       {previewPage && (

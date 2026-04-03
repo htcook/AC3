@@ -575,27 +575,128 @@ export function runEngagementCoverageAnalysis(assets: OrchestratorAsset[]): Enga
       timeoutSeconds: 300,
     };
 
-    // Build ScannerResult array from tool results
-    const scannersRun: ScannerResult[] = (asset.toolResults || []).map(tr => ({
-      scanner: tr.tool,
-      status: (tr.timedOut ? "timeout" : tr.exitCode === 0 ? "completed" : "failed") as ScannerResult["status"],
-      durationMs: tr.durationMs,
-      findingCount: tr.findingCount,
-      error: tr.exitCode !== 0 && !tr.timedOut ? `Exit code ${tr.exitCode}` : undefined,
-    }));
+    // ── Tool-to-Protocol Mapping ──────────────────────────────────────────
+    // The coverage detector expects protocol names (http, https, ssh, dns, etc.)
+    // but the orchestrator records tool names (naabu, nuclei, httpx, etc.).
+    // Map tool execution to the protocols they cover.
+    const TOOL_TO_PROTOCOLS: Record<string, string[]> = {
+      httpx: ["http", "https"],
+      nuclei: ["http", "https"],
+      naabu: [],  // port scanner — protocols inferred from discovered services
+      masscan: [],
+      rustscan: [],
+      nmap: ["http", "https", "ssh", "dns", "smtp", "ftp"],
+      zap: ["http", "https"],
+      nikto: ["http", "https"],
+      sqlmap: ["http", "https"],
+      hydra: ["ssh", "ftp", "http", "https"],
+      dig: ["dns"],
+      dnsrecon: ["dns"],
+      subfinder: ["dns"],
+      amass: ["dns"],
+      curl: ["http", "https"],
+      wpscan: ["http", "https"],
+      gobuster: ["http", "https"],
+      dirb: ["http", "https"],
+      ffuf: ["http", "https"],
+      testssl: ["https"],
+      sslscan: ["https"],
+      msfconsole: ["http", "https", "ssh", "ftp", "smtp"],
+    };
 
-    // Get templates executed (from tool names)
-    const templatesExecuted = (asset.toolResults || []).map(tr => tr.tool);
+    // ── Tool-to-Tag Mapping ───────────────────────────────────────────────
+    // Map tool execution to the template tags they satisfy.
+    const TOOL_TO_TAGS: Record<string, string[]> = {
+      nuclei: ["cve", "exposure", "misconfig", "owasp-top10"],
+      zap: ["owasp-top10", "exposure", "misconfig"],
+      nikto: ["exposure", "misconfig"],
+      httpx: ["exposure"],
+      hydra: ["credentials"],
+      sqlmap: ["owasp-top10"],
+      wpscan: ["cve", "exposure", "credentials"],
+      dig: ["dns", "zone-transfer"],
+      dnsrecon: ["dns", "dnssec", "zone-transfer"],
+      nmap: ["exposure"],
+      testssl: ["misconfig"],
+      sslscan: ["misconfig"],
+      gobuster: ["exposure"],
+      dirb: ["exposure"],
+      ffuf: ["exposure"],
+      msfconsole: ["cve", "owasp-top10"],
+    };
+
+    // Build protocol set from tool execution + discovered services
+    const protocolsFromTools = new Set<string>();
+    const tagsFromTools = new Set<string>();
+    const completedTools = (asset.toolResults || []).filter(tr => tr.exitCode === 0 && !tr.timedOut);
+    for (const tr of completedTools) {
+      const toolName = tr.tool.toLowerCase();
+      const protocols = TOOL_TO_PROTOCOLS[toolName];
+      if (protocols) protocols.forEach(p => protocolsFromTools.add(p));
+      const tags = TOOL_TO_TAGS[toolName];
+      if (tags) tags.forEach(t => tagsFromTools.add(t));
+    }
+    // Also infer protocols from discovered port services
+    for (const p of asset.ports) {
+      const svc = (p.service || "").toLowerCase();
+      if (svc === "http" || svc === "https" || svc === "ssh" || svc === "dns" ||
+          svc === "smtp" || svc === "ftp" || svc === "smb" || svc === "mysql" ||
+          svc === "postgresql" || svc === "redis" || svc === "mongodb") {
+        protocolsFromTools.add(svc);
+      }
+    }
+
+    // Build ScannerResult array using protocol names for the coverage detector
+    const scannersRun: ScannerResult[] = [];
+    // Add one entry per inferred protocol (the detector checks protocolsScanned.has("http") etc.)
+    for (const proto of protocolsFromTools) {
+      scannersRun.push({
+        scanner: proto,
+        status: "completed" as ScannerResult["status"],
+        durationMs: 0,
+        findingCount: 0,
+      });
+    }
+    // Also add original tool entries for tool-level tracking
+    for (const tr of (asset.toolResults || [])) {
+      scannersRun.push({
+        scanner: tr.tool,
+        status: (tr.timedOut ? "timeout" : tr.exitCode === 0 ? "completed" : "failed") as ScannerResult["status"],
+        durationMs: tr.durationMs,
+        findingCount: tr.findingCount,
+        error: tr.exitCode !== 0 && !tr.timedOut ? `Exit code ${tr.exitCode}` : undefined,
+      });
+    }
+
+    // Get templates executed — include both tool names AND inferred tags
+    const templatesExecuted = [
+      ...(asset.toolResults || []).map(tr => tr.tool),
+      ...Array.from(tagsFromTools),
+    ];
 
     // Infer asset classification
     const environment = inferAssetEnvironment(asset);
     const classification: AssetClassification = {
       environment,
       assetType: asset.type as any || "server",
-      protocols: asset.ports.map(p => p.service).filter(Boolean),
+      protocols: [...protocolsFromTools],
       technologies: [],
       complianceScope: [],
     };
+
+    // Build synthetic ScanTemplate objects from inferred tags so the coverage
+    // detector's tag-matching loop can find them. Each inferred tag becomes a
+    // synthetic template whose id matches an entry in templatesExecuted.
+    const syntheticTemplates: ScanTemplate[] = Array.from(tagsFromTools).map(tag => ({
+      id: tag,
+      name: `Inferred: ${tag}`,
+      description: `Synthetic template for coverage tracking — inferred from tool execution`,
+      author: "bridge",
+      severity: "info" as any,
+      tags: [tag],
+      protocol: "http",
+      matchers: [],
+    }));
 
     // Run coverage analysis
     const report = detector.analyze(
@@ -603,7 +704,7 @@ export function runEngagementCoverageAnalysis(assets: OrchestratorAsset[]): Enga
       config,
       scannersRun,
       templatesExecuted,
-      [], // all templates — empty means detector uses its built-in expectations
+      syntheticTemplates, // synthetic templates so tag matching works
       classification
     );
 

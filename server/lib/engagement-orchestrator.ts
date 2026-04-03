@@ -566,6 +566,12 @@ export function normalizeOpsState(state: any): EngagementOpsState {
     }
   }
 
+  // Recalculate portsFound from actual asset port arrays to fix stale stat after snapshot recovery
+  const actualPortCount = state.assets.reduce((sum: number, a: any) => sum + (a.ports?.length || 0), 0);
+  if (actualPortCount > 0 && state.stats.portsFound === 0) {
+    state.stats.portsFound = actualPortCount;
+  }
+
   return state as EngagementOpsState;
 }
 

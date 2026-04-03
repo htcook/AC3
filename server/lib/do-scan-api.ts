@@ -168,12 +168,14 @@ export async function executeToolViaHttp(
   }
 
   try {
-    console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}...`);
+    // Use dynamic URL with health-check failover (dedicated → legacy)
+    const activeUrl = await getActiveScanUrl();
+    console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}... via ${activeUrl}`);
 
     const timeoutMs = (timeoutSeconds + 60) * 1000; // +60s buffer (was +30s)
 
     const response = await fetchWithRetry(
-      `${SCAN_SERVICE_URL}/api/scan/tool`,
+      `${activeUrl}/api/scan/tool`,
       {
         method: "POST",
         headers: {
@@ -265,12 +267,14 @@ export async function executeRawCommandViaHttp(
   }
 
   try {
-    console.log(`${LOG} Raw command: ${command.slice(0, 100)}...`);
+    // Use dynamic URL with health-check failover (dedicated → legacy)
+    const activeUrl = await getActiveScanUrl();
+    console.log(`${LOG} Raw command: ${command.slice(0, 100)}... via ${activeUrl}`);
 
     const timeoutMs = (timeoutSeconds + 60) * 1000;
 
     const response = await fetchWithRetry(
-      `${SCAN_SERVICE_URL}/api/scan/raw`,
+      `${activeUrl}/api/scan/raw`,
       {
         method: "POST",
         headers: {
@@ -338,7 +342,8 @@ export async function checkDoScanServiceHealth(): Promise<{
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    const response = await fetch(`${SCAN_SERVICE_URL}/health`, {
+    const activeUrl = await getActiveScanUrl();
+    const response = await fetch(`${activeUrl}/health`, {
       headers: { "X-Scan-Key": SCAN_API_KEY },
       signal: controller.signal,
     });
