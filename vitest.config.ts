@@ -17,6 +17,7 @@ export default defineConfig({
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
     setupFiles: ["server/test-setup.ts"],
     testTimeout: 30000,
+    hookTimeout: 30000,
     coverage: {
       provider: "v8",
       include: ["server/lib/**/*.ts"],
