@@ -7124,6 +7124,39 @@ ${(() => {
           if (generatedExploit?.code) {
             const { executeRawCommand } = await import("./scan-server-executor");
 
+            // ── Pre-flight Tool Provisioning (Exploit Tooling Framework) ──
+            // Classify the vulnerability and provision required tools before execution
+            try {
+              const { classifyVulnerability, provisionForExploit, formatProvisionReportForPrompt } = await import("./exploit-tooling-framework");
+              const exploitCategory = classifyVulnerability({
+                title: vulnForExploit?.title || `${service} exploit`,
+                description: vulnForExploit?.description,
+                cve: cve || undefined,
+                service: service || undefined,
+                port: Number(port),
+              });
+              if (exploitCategory) {
+                const provisionReport = await provisionForExploit(
+                  exploitCategory,
+                  async (cmd: string, timeout: number) => {
+                    const result = await executeRawCommand(cmd, timeout);
+                    if (typeof result === 'string') return { stdout: result, stderr: '', exitCode: 0 };
+                    return { stdout: result?.stdout || '', stderr: result?.stderr || '', exitCode: result?.exitCode ?? 0 };
+                  },
+                  { maxTotalTimeSeconds: 90 }
+                );
+                const provisionSummary = formatProvisionReportForPrompt(provisionReport);
+                addLog(state, {
+                  phase: 'exploitation', type: provisionReport.allRequiredAvailable ? 'info' : 'warning',
+                  title: `🔧 Tool Provisioning: ${exploitCategory}`,
+                  detail: provisionSummary,
+                });
+                console.log(`[Exploit] Provisioned tools for ${exploitCategory}: ${provisionReport.results.map(r => `${r.tool}=${r.status}`).join(', ')}`);
+              }
+            } catch (provErr: any) {
+              console.warn(`[Exploit] Tool provisioning failed (non-fatal):`, provErr.message);
+            }
+
             // Install prerequisites if the exploit needs them (e.g., requests library)
             if (generatedExploit.prerequisites?.length > 0) {
               const pipPackages = generatedExploit.prerequisites

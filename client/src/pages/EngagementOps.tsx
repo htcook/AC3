@@ -1245,7 +1245,7 @@ export default function EngagementOps() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Header ── */}
       <div className="flex-none border-b border-border/50 bg-card/50 backdrop-blur-sm px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-4">
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
               <Crosshair className="h-5 w-5 text-red-400" />
@@ -1273,7 +1273,7 @@ export default function EngagementOps() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
             {ops?.isRunning ? (
               <>
                 <div className="flex items-center gap-2 text-sm">
