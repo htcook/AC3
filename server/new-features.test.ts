@@ -20,8 +20,27 @@ describe("Custom Exploit Repository", () => {
 
   it("buildCustomExploitPromptSection should return a string", async () => {
     const { buildCustomExploitPromptSection } = await import("./lib/custom-exploit-repository");
-    const result = await buildCustomExploitPromptSection("http", "CVE-2024-1234");
+    const result = buildCustomExploitPromptSection([{
+      title: "Test SQLi Exploit",
+      description: "SQL injection via login form",
+      language: "python",
+      codeSnippet: "import requests\nrequests.post(url, data={'user': \"' OR 1=1--\"})",
+      tags: ["sqli", "auth-bypass"],
+      cveId: "CVE-2024-1234",
+      exploitType: "sql_injection",
+      toolingCategory: null,
+      successRate: 0.85,
+      timesDeployed: 3,
+    }]);
     expect(typeof result).toBe("string");
+    expect(result).toContain("Test SQLi Exploit");
+    expect(result).toContain("CUSTOM EXPLOIT TEMPLATES");
+  });
+
+  it("buildCustomExploitPromptSection should return empty for no templates", async () => {
+    const { buildCustomExploitPromptSection } = await import("./lib/custom-exploit-repository");
+    const result = buildCustomExploitPromptSection([]);
+    expect(result).toBe("");
   });
 });
 

