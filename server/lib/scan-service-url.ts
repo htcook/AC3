@@ -40,7 +40,7 @@ export const SCAN_API_KEY = "ADMIN123";
 // ─── Health Check & Failover ────────────────────────────────────────────────
 let _dedicatedHealthy = true;
 let _lastHealthCheck = 0;
-const HEALTH_CHECK_INTERVAL_MS = 60_000; // 1 minute
+const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30s — reduced from 60s for faster ScanForge recovery detection
 
 /**
  * Check if the dedicated ScanForge droplet is healthy.
@@ -52,7 +52,7 @@ export async function isDedicatedHealthy(): Promise<boolean> {
 
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const timer = setTimeout(() => ctrl.abort(), 10_000); // 10s timeout (was 5s — ScanForge can be slow under load)
     const resp = await fetch(`${SCANFORGE_DEDICATED_URL}/health`, { signal: ctrl.signal });
     clearTimeout(timer);
     _dedicatedHealthy = resp.ok;

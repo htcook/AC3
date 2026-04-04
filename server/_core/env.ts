@@ -81,6 +81,7 @@ export const ENV = {
   GITHUB_CLASSIC_TOKEN: process.env.GITHUB_CLASSIC_TOKEN ?? '',
   // HackerOne Bug Bounty Intelligence
   HACKERONE_API_KEY: process.env.HACKERONE_API_KEY ?? "",
+  HACKERONE_API_USERNAME: process.env.HACKERONE_API_USERNAME ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
   // DigitalOcean Spaces — report & evidence storage

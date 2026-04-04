@@ -172,7 +172,7 @@ export async function executeToolViaHttp(
     const activeUrl = await getActiveScanUrl();
     console.log(`${LOG} Executing tool: ${tool} ${(args || "").slice(0, 80)}... via ${activeUrl}`);
 
-    const timeoutMs = (timeoutSeconds + 60) * 1000; // +60s buffer (was +30s)
+    const timeoutMs = Math.min((timeoutSeconds + 60) * 1000, 360_000); // +60s buffer, hard cap at 6 min to prevent ScanForge hangs
 
     const response = await fetchWithRetry(
       `${activeUrl}/api/scan/tool`,
@@ -271,7 +271,7 @@ export async function executeRawCommandViaHttp(
     const activeUrl = await getActiveScanUrl();
     console.log(`${LOG} Raw command: ${command.slice(0, 100)}... via ${activeUrl}`);
 
-    const timeoutMs = (timeoutSeconds + 60) * 1000;
+    const timeoutMs = Math.min((timeoutSeconds + 60) * 1000, 360_000); // Hard cap at 6 min
 
     const response = await fetchWithRetry(
       `${activeUrl}/api/scan/raw`,

@@ -56,14 +56,34 @@ function getH1Credentials(): { username: string; token: string } | null {
 }
 
 async function h1Fetch(path: string): Promise<any> {
+  // Circuit breaker: skip if HackerOne is known-down (e.g., 401 auth failure)
+  const { shouldAllowRequest, recordSuccess, recordFailure, classifyError } = await import('./api-resilience');
+  const cbCheck = shouldAllowRequest('hackerone');
+  if (!cbCheck.allowed) {
+    throw new Error(`[HackerOne] Circuit breaker open: ${cbCheck.reason}`);
+  }
+
   const creds = getH1Credentials();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (creds) {
     headers.Authorization = "Basic " + Buffer.from(`${creds.username}:${creds.token}`).toString("base64");
   }
-  const res = await fetch(`${H1_BASE}${path}`, { headers, signal: AbortSignal.timeout(20000) });
-  if (!res.ok) throw new Error(`HackerOne API ${res.status}: ${res.statusText}`);
-  return res.json();
+  try {
+    const res = await fetch(`${H1_BASE}${path}`, { headers, signal: AbortSignal.timeout(20000) });
+    if (!res.ok) {
+      const err = new Error(`HackerOne API ${res.status}: ${res.statusText}`);
+      (err as any).status = res.status;
+      recordFailure('hackerone', classifyError(err, 'hackerone'));
+      throw err;
+    }
+    recordSuccess('hackerone');
+    return res.json();
+  } catch (err: any) {
+    if (!err.message?.includes('Circuit breaker')) {
+      recordFailure('hackerone', classifyError(err, 'hackerone'));
+    }
+    throw err;
+  }
 }
 
 // ─── Types ───
@@ -538,8 +558,14 @@ export function initBountyIntelSchedule() {
   console.log("[BountyIntel] Scheduled intelligence pipeline every 6h (04:00, 10:00, 16:00, 22:00 UTC)");
 
   // Deferred initial run — 10 minutes after server start to avoid startup congestion
+  // Skips if an engagement is actively running to avoid memory contention
   setTimeout(async () => {
     try {
+      // Check if any engagement is actively running (pipelineRunning is module-level)
+      if (pipelineRunning) {
+        console.log("[BountyIntel] Skipping warm-up — pipeline already running");
+        return;
+      }
       console.log("[BountyIntel] Running initial intelligence pipeline warm-up...");
       await runBountyIntelPipeline("manual");
     } catch (err) {

@@ -180,25 +180,42 @@ export async function executeToolViaQueue(
     metrics.fellBackToSSH++;
     console.log(`${LOG} SSH fallback for ${config.tool} on ${target}`);
 
-    const { executeTool } = await import("./scan-server-executor");
-    const result = await executeTool(config);
-    const latency = Date.now() - startTime;
+    try {
+      const { executeTool } = await import("./scan-server-executor");
+      const result = await executeTool(config);
+      const latency = Date.now() - startTime;
 
-    // Update average SSH latency
-    metrics.avgSSHLatencyMs = metrics.fellBackToSSH === 1
-      ? latency
-      : Math.round((metrics.avgSSHLatencyMs * (metrics.fellBackToSSH - 1) + latency) / metrics.fellBackToSSH);
+      // Update average SSH latency
+      metrics.avgSSHLatencyMs = metrics.fellBackToSSH === 1
+        ? latency
+        : Math.round((metrics.avgSSHLatencyMs * (metrics.fellBackToSSH - 1) + latency) / metrics.fellBackToSSH);
 
-    // Broadcast execution event
-    broadcastJobEvent(engagementId, {
-      type: "job:executed_local",
-      tool: config.tool,
-      target,
-      durationMs: latency,
-      exitCode: result.exitCode,
-    });
+      // Broadcast execution event
+      broadcastJobEvent(engagementId, {
+        type: "job:executed_local",
+        tool: config.tool,
+        target,
+        durationMs: latency,
+        exitCode: result.exitCode,
+      });
 
-    return { ...result, executionMode: "local" };
+      return { ...result, executionMode: "local" };
+    } catch (sshErr: any) {
+      console.error(`${LOG} SSH fallback also failed for ${config.tool}: ${sshErr.message}`);
+      // Track failed scan for deferred retry
+      trackDeferredScan(engagementId, config, sshErr.message);
+      return {
+        tool: config.tool,
+        command: `${config.tool} ${config.args || ""}`,
+        stdout: "",
+        stderr: `All execution paths failed. HTTP: scan service unavailable. SSH: ${sshErr.message}`,
+        exitCode: -1,
+        durationMs: Date.now() - startTime,
+        timedOut: false,
+        error: `All execution paths failed for ${config.tool}`,
+        executionMode: "local" as const,
+      };
+    }
   }
 
   // ── Queue dispatch ────────────────────────────────────────────────────
@@ -523,4 +540,122 @@ export function getBridgeStatus(): {
   const hasWorkers = hasHealthyWorker("scan");
   const mode = hasWorkers ? "queue" : "local";
   return { mode, hasWorkers, metrics: getBridgeMetrics() };
+}
+
+
+// ─── Deferred Scan Tracking & Retry ─────────────────────────────────────────
+/**
+ * Tracks scan tool executions that failed due to infrastructure issues
+ * (ScanForge unhealthy + SSH failure). These can be retried before the
+ * engagement completes to collect remaining results.
+ */
+
+interface DeferredScan {
+  config: ToolExecConfig;
+  failedAt: number;
+  reason: string;
+  retryCount: number;
+}
+
+const deferredScans = new Map<number, DeferredScan[]>();
+
+export function trackDeferredScan(engagementId: number, config: ToolExecConfig, reason: string): void {
+  if (!deferredScans.has(engagementId)) {
+    deferredScans.set(engagementId, []);
+  }
+  const list = deferredScans.get(engagementId)!;
+  // Avoid duplicates (same tool + same args)
+  const exists = list.some(d => d.config.tool === config.tool && d.config.args === config.args);
+  if (!exists) {
+    list.push({ config, failedAt: Date.now(), reason, retryCount: 0 });
+    console.log(`${LOG} Tracked deferred scan: ${config.tool} for engagement #${engagementId} (reason: ${reason})`);
+  }
+}
+
+/**
+ * Get the list of deferred (failed) scans for an engagement.
+ */
+export function getDeferredScans(engagementId: number): DeferredScan[] {
+  return deferredScans.get(engagementId) || [];
+}
+
+/**
+ * Retry all deferred scans for an engagement. Called before the engagement
+ * transitions to the reporting phase so we can collect any results that
+ * were missed due to transient infrastructure failures.
+ *
+ * Returns an array of results (successful retries only).
+ */
+export async function retryDeferredScans(
+  engagementId: number,
+  options?: { engagementAbortSignal?: AbortSignal; maxRetries?: number }
+): Promise<Array<{ tool: string; result: ToolExecResult }>> {
+  const deferred = deferredScans.get(engagementId);
+  if (!deferred || deferred.length === 0) {
+    console.log(`${LOG} No deferred scans to retry for engagement #${engagementId}`);
+    return [];
+  }
+
+  const maxRetries = options?.maxRetries ?? 1;
+  const results: Array<{ tool: string; result: ToolExecResult }> = [];
+
+  console.log(`${LOG} Retrying ${deferred.length} deferred scans for engagement #${engagementId}`);
+
+  // First, reset the health check cache so we get a fresh check
+  try {
+    const { isDedicatedHealthy } = await import("./scan-service-url");
+    // Force a fresh health check by waiting for the cache to expire
+    // (the cache is 60s, but we can just call it — if ScanForge was restarted, it'll pass)
+    const healthy = await isDedicatedHealthy();
+    console.log(`${LOG} ScanForge health before deferred retry: ${healthy ? 'healthy' : 'unhealthy'}`);
+  } catch {}
+
+  for (const scan of deferred) {
+    if (scan.retryCount >= maxRetries) {
+      console.log(`${LOG} Skipping deferred scan ${scan.config.tool} — max retries (${maxRetries}) reached`);
+      continue;
+    }
+
+    if (options?.engagementAbortSignal?.aborted) {
+      console.log(`${LOG} Engagement aborted — stopping deferred scan retries`);
+      break;
+    }
+
+    scan.retryCount++;
+    console.log(`${LOG} Deferred retry ${scan.retryCount}/${maxRetries}: ${scan.config.tool}`);
+
+    try {
+      const result = await executeToolViaQueue(scan.config, {
+        engagementId,
+        engagementAbortSignal: options?.engagementAbortSignal,
+      });
+
+      if (result.exitCode === 0 || (result.stdout && result.stdout.length > 0)) {
+        results.push({ tool: scan.config.tool, result });
+        console.log(`${LOG} Deferred scan ${scan.config.tool} succeeded on retry! stdout=${result.stdout?.length || 0}b`);
+      } else {
+        console.log(`${LOG} Deferred scan ${scan.config.tool} retry returned exit=${result.exitCode}`);
+      }
+    } catch (retryErr: any) {
+      console.warn(`${LOG} Deferred scan ${scan.config.tool} retry failed: ${retryErr.message}`);
+    }
+  }
+
+  // Clean up completed deferred scans
+  const remaining = deferred.filter(d => d.retryCount < maxRetries && !results.some(r => r.tool === d.config.tool));
+  if (remaining.length === 0) {
+    deferredScans.delete(engagementId);
+  } else {
+    deferredScans.set(engagementId, remaining);
+  }
+
+  console.log(`${LOG} Deferred retry complete: ${results.length}/${deferred.length} succeeded`);
+  return results;
+}
+
+/**
+ * Clean up deferred scan tracking for a completed engagement.
+ */
+export function clearDeferredScans(engagementId: number): void {
+  deferredScans.delete(engagementId);
 }

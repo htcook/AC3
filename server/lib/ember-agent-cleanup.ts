@@ -72,7 +72,7 @@ let lastCleanupResult: CleanupResult | null = null;
 export async function runEmberCleanup(
   configOverrides?: Partial<EmberCleanupConfig>,
 ): Promise<CleanupResult> {
-  const config = { ...DEFAULT_CONFIG, ...configOverrides };
+  const config = { ...DEFAULT_CONFIG, ...(configOverrides || {}) };
   const startTime = Date.now();
   const errors: string[] = [];
   const purgedAgents: CleanupResult["purgedAgents"] = [];
@@ -90,17 +90,17 @@ export async function runEmberCleanup(
       .select({
         id: emberAgents.id,
         agentId: emberAgents.agentId,
-        name: emberAgents.name,
-        state: emberAgents.state,
+        name: emberAgents.emberName,
+        state: emberAgents.emberState,
         lastBeaconAt: emberAgents.lastBeaconAt,
-        createdAt: emberAgents.createdAt,
+        createdAt: emberAgents.emberCreatedAt,
       })
       .from(emberAgents)
       .where(
         and(
           or(
-            eq(emberAgents.state, "dead"),
-            eq(emberAgents.state, "self_destruct"),
+            eq(emberAgents.emberState, "dead"),
+            eq(emberAgents.emberState, "self_destruct"),
           ),
           lte(emberAgents.lastBeaconAt, cutoffMs),
         ),
@@ -250,7 +250,7 @@ export async function purgeAgent(agentId: string): Promise<{
     await db.delete(emberAgents).where(eq(emberAgents.agentId, agentId));
 
     console.log(
-      `[EmberCleanup] Force-purged agent ${agent.name || agentId} ` +
+      `[EmberCleanup] Force-purged agent ${agent.emberName || agentId} ` +
       `(${beaconsDeleted} beacons, ${tasksDeleted} tasks)`,
     );
 

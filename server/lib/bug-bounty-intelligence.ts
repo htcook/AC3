@@ -134,21 +134,29 @@ export interface OpSecEnrichment {
 
 const H1_BASE = "https://api.hackerone.com/v1/hackers";
 
+let h1CircuitOpen = false;
 async function h1ApiFetch(path: string): Promise<any> {
+  if (h1CircuitOpen) {
+    throw new Error('HackerOne API circuit open — skipping (previous auth failure)');
+  }
   const apiKey = ENV.HACKERONE_API_KEY;
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
   if (apiKey) {
     // HackerOne uses Basic auth: username:token
-    // The API key format may be just the token; use it as both username and token
-    headers.Authorization = "Basic " + Buffer.from(`${apiKey}:${apiKey}`).toString("base64");
+    const username = ENV.HACKERONE_API_USERNAME || 'htc0';
+    headers.Authorization = "Basic " + Buffer.from(`${username}:${apiKey}`).toString("base64");
   }
   const res = await fetch(`${H1_BASE}${path}`, {
     headers,
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      h1CircuitOpen = true;
+      console.warn(`[BugBountyIntel] HackerOne ${res.status} — circuit opened, no further calls this session`);
+    }
     throw new Error(`HackerOne API ${res.status}: ${res.statusText}`);
   }
   return res.json();

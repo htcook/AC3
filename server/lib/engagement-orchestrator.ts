@@ -848,10 +848,11 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Manus container can OOM fast — thresholds tuned for 384MB heap limit
-    const HEAP_WARNING_MB = 250;
-    const HEAP_CRITICAL_MB = 300;
-    const RSS_EMERGENCY_MB = 550;
+    // Tuned for 768MB heap limit (dev) / 640MB (prod)
+    const heapLimitMB = (global as any).__heapLimitMB || 768;
+    const HEAP_WARNING_MB = heapLimitMB * 0.6;   // ~460MB
+    const HEAP_CRITICAL_MB = heapLimitMB * 0.75;  // ~576MB
+    const RSS_EMERGENCY_MB = heapLimitMB * 1.3;   // ~1000MB
 
     const needsAction = heapMB > HEAP_WARNING_MB || rssMB > RSS_EMERGENCY_MB;
     if (needsAction) {
@@ -975,9 +976,10 @@ export function getHealthStatus() {
     },
     memoryWatchdog: {
       running: memoryWatchdogInterval !== null,
-      heapWarningThresholdMB: 250,
-      heapCriticalThresholdMB: 300,
-      rssEmergencyThresholdMB: 550,
+      heapLimitMB: (global as any).__heapLimitMB || 768,
+      heapWarningThresholdMB: Math.round(((global as any).__heapLimitMB || 768) * 0.6),
+      heapCriticalThresholdMB: Math.round(((global as any).__heapLimitMB || 768) * 0.75),
+      rssEmergencyThresholdMB: Math.round(((global as any).__heapLimitMB || 768) * 1.3),
     },
     scanConcurrency: getScanConcurrencyMetrics(),
     engagements: {
@@ -2606,7 +2608,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       try {
         const domainAssets = state.assets.filter(a => a.hostname === domain || a.hostname.endsWith('.' + domain));
         if (domainAssets.length > 0) {
-          const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
+          const { scoreFullHybrid, buildEngagementContext } = await import('./llm-specialists/hybrid-scorer');
           // Score each asset individually using the correct FullHybridScoreInput interface
           for (const asset of domainAssets) {
             // Update heartbeat so stall detector knows we're alive during long LLM scoring
@@ -2636,7 +2638,11 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
                 dnsRecords: (asset.passiveRecon as any)?.dnsRecords || [],
                 httpHeaders: (asset.passiveRecon as any)?.httpHeaders || {},
                 riskSignals,
-                engagementContext: state.engagementContext,
+                engagementContext: state.engagementContext || buildEngagementContext({
+                  engagementType: state.engagementType || 'pentest',
+                  targetCount: state.assets?.length || 1,
+                  domains: [domain],
+                }),
               });
               // Store the hybrid score on the asset for downstream use
               (asset as any).hybridScore = hybridResult.finalScore;
@@ -5094,7 +5100,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           tool: "nuclei",
           args: nucleiArgs,
           target,
-          timeoutSeconds: 600,
+          timeoutSeconds: 300, // Reduced from 600s — nuclei CVE scans were hanging ScanForge
           engagementId: state.engagementId,
         });
         // If SSH connection failed (exit -1, empty stdout, short duration < 20s), retry
@@ -7388,7 +7394,7 @@ ${(() => {
   ]);
   if (activeFindings.length > 0) {
     try {
-      const { scoreFullHybrid } = await import('./llm-specialists/hybrid-scorer');
+      const { scoreFullHybrid, buildEngagementContext } = await import('./llm-specialists/hybrid-scorer');
       addLog(state, {
         phase: 'vuln_detection', type: 'info',
         title: '\ud83c\udfaf Hybrid Risk Scoring (Active Findings)',
@@ -7433,7 +7439,11 @@ ${(() => {
             httpHeaders: (asset.passiveRecon as any)?.httpHeaders || {},
             riskSignals: assetRiskSignals,
             cvssBase: Math.max(...asset.vulns.map(v => v.cvss || 0), 0) || undefined,
-            engagementContext: state.engagementContext,
+            engagementContext: state.engagementContext || buildEngagementContext({
+              engagementType: state.engagementType || 'pentest',
+              targetCount: state.assets?.length || 1,
+              domains: [asset.hostname],
+            }),
           });
           // Store the hybrid score on the asset
           (asset as any).hybridScore = hybridResult.finalScore;
@@ -9131,19 +9141,18 @@ export async function executeEngagement(
     state.engagementContext = buildEngagementContext({
       engagementType: state.engagementType,
       clientName: engagement.clientName || engagement.name || 'Unknown',
-      sector: engagement.sector || engagement.industry || undefined,
-      complianceFrameworks: engagement.complianceFrameworks || [],
-      roeConstraints: engagement.roeStatus === 'signed' ? {
-        authorizedDomains: state.roeScopeGuard?.authorizedDomains || [],
-        authorizedIps: state.roeScopeGuard?.authorizedIps || [],
-        restrictions: engagement.roeNotes || '',
-      } : undefined,
-      knownAssets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ip, type: a.type })),
+      industry: engagement.sector || engagement.industry || undefined,
+      scope: engagement.scope || state.assets.map(a => a.hostname).join(', '),
+      targetCount: state.assets.length || 1,
+      domains: state.assets.map(a => a.hostname),
+      rulesOfEngagement: engagement.roeStatus === 'signed'
+        ? (engagement.roeNotes || 'Signed RoE on file')
+        : undefined,
     });
     addLog(state, {
       phase: state.phase, type: 'info',
       title: '🧠 Context Engine Initialized',
-      detail: `Sector: ${state.engagementContext.sector || 'auto-detect'} | Type: ${state.engagementType} | Compliance: ${state.engagementContext.complianceFrameworks?.join(', ') || 'none'} | RoE: ${engagement.roeStatus}`,
+      detail: `Sector: ${state.engagementContext.inferredSector || 'auto-detect'} | Type: ${state.engagementType} | Compliance: ${state.engagementContext.complianceFrameworks?.join(', ') || 'none'} | RoE: ${engagement.roeStatus}`,
     });
   } catch (e: any) {
     console.error('[OpsState] Context engine init failed:', e.message);
@@ -9923,6 +9932,68 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       }
     } else {
       addLog(state, { phase: "enumeration", type: "error", title: "⛔ Active Phases Blocked", detail: "RoE must be signed to proceed past recon. Please have the team lead sign the RoE." });
+    }
+
+    // ═══ DEFERRED SCAN RETRY ═══
+    // Retry any scans that failed due to infrastructure issues (ScanForge down, SSH failure)
+    // before generating the final report, so we can collect remaining results.
+    try {
+      const { retryDeferredScans, getDeferredScans, clearDeferredScans } = await import('./job-queue-bridge');
+      const deferred = getDeferredScans(engagementId);
+      if (deferred.length > 0) {
+        addLog(state, {
+          phase: 'post_exploit', type: 'info',
+          title: `🔄 Deferred Scan Retry: ${deferred.length} failed scans`,
+          detail: `Retrying scans that failed due to infrastructure issues: ${deferred.map(d => d.config.tool).join(', ')}`,
+        });
+        const retryResults = await retryDeferredScans(engagementId, {
+          engagementAbortSignal: engagementAbortSig,
+          maxRetries: 2,
+        });
+        if (retryResults.length > 0) {
+          addLog(state, {
+            phase: 'post_exploit', type: 'info',
+            title: `✅ Deferred Retry Success: ${retryResults.length}/${deferred.length} scans recovered`,
+            detail: retryResults.map(r => `${r.tool}: exit=${r.result.exitCode}, stdout=${r.result.stdout?.length || 0}b`).join('\n'),
+          });
+          // Process recovered results — add findings to assets
+          for (const { tool, result } of retryResults) {
+            if (result.stdout && state.assets.length > 0) {
+              const asset = state.assets[0]; // Primary asset
+              const findings = parseToolOutput(tool, result.stdout, asset);
+              for (const f of findings) {
+                pushVulnDeduped(asset, {
+                  id: genId(), severity: f.severity, title: f.title, cve: f.cve,
+                  description: f.description, cvss: f.cvss, cwe: f.cwe,
+                  corroborationTier: 'confirmed',
+                  evidenceDetail: `Confirmed by ${tool} (deferred retry)`,
+                  rawEvidence: f.evidence ? JSON.stringify(f.evidence).slice(0, 4000) : undefined,
+                  source: tool,
+                });
+                state.stats.vulnsFound++;
+              }
+              asset.toolResults.push({
+                tool, command: result.command || `${tool} (deferred)`,
+                exitCode: result.exitCode, durationMs: result.durationMs || 0,
+                timedOut: result.timedOut || false, findingCount: findings.length,
+                findings: findings.map(f => ({ severity: f.severity, title: f.title })),
+                outputPreview: result.stdout.slice(0, 1024),
+                executedAt: Date.now(), phase: 'deferred_retry',
+              });
+            }
+          }
+        } else {
+          addLog(state, {
+            phase: 'post_exploit', type: 'warning',
+            title: `⚠️ Deferred Retry: 0/${deferred.length} scans recovered`,
+            detail: `Infrastructure may still be unavailable. Failed tools: ${deferred.map(d => d.config.tool).join(', ')}`,
+          });
+        }
+        clearDeferredScans(engagementId);
+      }
+    } catch (deferredErr: any) {
+      console.error('[DeferredRetry] Failed:', deferredErr.message);
+      addLog(state, { phase: 'post_exploit', type: 'error', title: 'Deferred Scan Retry Failed', detail: deferredErr.message });
     }
 
     // ═══ OWASP COVERAGE ANALYSIS ═══

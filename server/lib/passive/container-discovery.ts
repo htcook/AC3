@@ -575,15 +575,18 @@ export async function analyzeContainerExposure(
     ...generateContainerSubdomains(domain),
     ...(additionalHosts || []),
   ];
-  const uniqueCandidates = [...new Set(candidates)];
+  const uniqueCandidates = [...new Set(candidates)].slice(0, 5); // Cap at 5 hosts to limit probe count
 
   const allHits: ProbeHit[] = [];
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 5;
+  const MAX_TOTAL_PROBES = 60; // Safety cap: 5 hosts x 11 probes = 55 max
   const probeQueue: Array<{ host: string; probe: ContainerProbe }> = [];
   for (const host of uniqueCandidates) {
     for (const probe of CONTAINER_PROBES) {
+      if (probeQueue.length >= MAX_TOTAL_PROBES) break;
       probeQueue.push({ host, probe });
     }
+    if (probeQueue.length >= MAX_TOTAL_PROBES) break;
   }
 
   let probesCompleted = 0;

@@ -52,7 +52,7 @@ export interface PersistEvidenceOptions {
  */
 export async function persistCalderaEvidence(opts: PersistEvidenceOptions): Promise<number> {
   const { snapshot, phase, integrityGate } = opts;
-  const db = getDb();
+  const db = await getDb();
   let persisted = 0;
 
   for (const panelType of PANEL_TYPES) {
@@ -143,7 +143,7 @@ export async function persistGenericEvidence(opts: {
   collectedBy?: string;
 }): Promise<string | null> {
   try {
-    const db = getDb();
+    const db = await getDb();
     const evidenceId = `ev_gen_${crypto.randomBytes(6).toString("hex")}`;
     const suffix = crypto.randomBytes(4).toString("hex");
     const ext = opts.contentType === "text/html" ? "html" : "json";

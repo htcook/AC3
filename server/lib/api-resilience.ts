@@ -131,8 +131,12 @@ export function recordFailure(service: string, error: ClassifiedError, config: C
     circuit.recentErrors = circuit.recentErrors.slice(-10);
   }
   
-  if (circuit.failures >= config.failureThreshold) {
-    circuit.state = "open";
+  // Auth failures (401/403) open circuit immediately — retrying with same bad creds is pointless
+  if (error.category === 'auth_failure' || error.category === 'not_configured') {
+    circuit.state = 'open';
+    circuit.failures = config.failureThreshold; // Ensure it stays open
+  } else if (circuit.failures >= config.failureThreshold) {
+    circuit.state = 'open';
   }
 }
 

@@ -66,13 +66,13 @@ export async function captureDecision(capture: DecisionCapture): Promise<number 
     const db = await getDb();
     const result = await db.insert(llmDecisionLog).values({
       engagementId: capture.engagementId,
-      phase: capture.phase,
-      caller: capture.caller,
-      decision: capture.decision,
-      reasoning: capture.reasoning,
-      actions: capture.actions,
+      dlPhase: capture.phase,
+      dlCaller: capture.caller,
+      dlDecision: capture.decision,
+      dlReasoning: capture.reasoning,
+      dlActions: capture.actions,
       contextSummary: capture.contextSummary?.slice(0, 5000),
-      latencyMs: capture.latencyMs,
+      dlLatencyMs: capture.latencyMs,
       tokensUsed: capture.tokensUsed,
     });
     const insertId = (result as any)?.[0]?.insertId ?? null;
@@ -97,8 +97,8 @@ export async function updateDecisionOutcome(update: OutcomeUpdate): Promise<void
       .from(llmDecisionLog)
       .where(and(
         eq(llmDecisionLog.engagementId, update.engagementId),
-        eq(llmDecisionLog.phase, update.phase),
-        eq(llmDecisionLog.caller, update.caller),
+        eq(llmDecisionLog.dlPhase, update.phase),
+        eq(llmDecisionLog.dlCaller, update.caller),
       ))
       .orderBy(desc(llmDecisionLog.id))
       .limit(1);
@@ -107,7 +107,7 @@ export async function updateDecisionOutcome(update: OutcomeUpdate): Promise<void
       const row = rows[0];
       await db.update(llmDecisionLog)
         .set({
-          outcome: update.outcome,
+          dlOutcome: update.outcome,
           outcomeDetail: update.outcomeDetail?.slice(0, 5000),
           stealthScore: update.stealthScore,
         })
@@ -117,9 +117,9 @@ export async function updateDecisionOutcome(update: OutcomeUpdate): Promise<void
       await persistTrainingExample({
         model: callerToSpecialist(update.caller),
         engagementId: String(update.engagementId),
-        context: row.contextSummary || row.decision,
-        decision: row.decision,
-        reasoning: row.reasoning || '',
+        context: row.contextSummary || row.dlDecision,
+        decision: row.dlDecision,
+        reasoning: row.dlReasoning || '',
         outcome: update.outcome,
         stealthScore: update.stealthScore ?? 0.5,
       });
@@ -154,13 +154,13 @@ export async function persistTrainingExample(params: {
     const db = await getDb();
     await db.insert(llmTrainingExamples).values({
       exampleId: example.id,
-      model: example.model,
-      source: 'live_engagement',
+      teModel: example.model,
+      teSource: 'live_engagement',
       sourceId: params.engagementId,
-      quality: example.quality,
+      teQuality: example.quality,
       qualityScore: example.qualityScore,
-      messages: example.messages,
-      metadata: example.metadata,
+      teMessages: example.messages,
+      teMetadata: example.metadata,
     });
 
     console.log(`[TrainingBridge] Training example persisted: ${example.id} (${example.quality}, score=${example.qualityScore.toFixed(2)})`);
@@ -180,17 +180,17 @@ export async function persistC2Execution(capture: C2ExecutionCapture): Promise<v
     const db = await getDb();
     await db.insert(c2ExecutionLog).values({
       techniqueId: capture.techniqueId,
-      framework: capture.framework,
-      success: capture.success ? 1 : 0,
+      celFramework: capture.framework,
+      celSuccess: capture.success ? 1 : 0,
       confidenceAdjustment: capture.confidenceAdjustment,
       targetPlatform: capture.targetPlatform,
       targetArch: capture.targetArch,
       exitCode: capture.exitCode,
       lessonsLearned: capture.lessonsLearned,
-      extractedArtifacts: capture.extractedArtifacts,
+      celExtractedArtifacts: capture.extractedArtifacts,
       observedTelemetry: capture.observedTelemetry,
-      constraints: capture.constraints,
-      engagementId: capture.engagementId,
+      celConstraints: capture.constraints,
+      celEngagementId: capture.engagementId,
     });
     console.log(`[TrainingBridge] C2 execution persisted: ${capture.techniqueId} (${capture.framework}) success=${capture.success}`);
   } catch (err: any) {
@@ -304,15 +304,15 @@ export async function getTrainingExamples(params: {
     const conditions: any[] = [];
     if (params.model) {
       const { eq } = await import("drizzle-orm");
-      conditions.push(eq(llmTrainingExamples.model, params.model));
+      conditions.push(eq(llmTrainingExamples.teModel, params.model));
     }
     if (params.source) {
       const { eq } = await import("drizzle-orm");
-      conditions.push(eq(llmTrainingExamples.source, params.source));
+      conditions.push(eq(llmTrainingExamples.teSource, params.source));
     }
     if (params.quality) {
       const { eq } = await import("drizzle-orm");
-      conditions.push(eq(llmTrainingExamples.quality, params.quality));
+      conditions.push(eq(llmTrainingExamples.teQuality, params.quality));
     }
     const { and } = await import("drizzle-orm");
     const where = conditions.length > 0 ? and(...conditions) : undefined;
