@@ -631,7 +631,7 @@ export default function DomainIntelResults() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {scan.status === 'completed' && (
+          {(scan.status === 'completed' || scan.status === 'scan_complete') && (
             <Button
               size="sm"
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
@@ -642,7 +642,7 @@ export default function DomainIntelResults() {
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
-              EASM Report (PDF)
+              Report
             </Button>
           )}
           <DropdownMenu>

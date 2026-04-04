@@ -1,1 +1,0 @@
-ALTER TABLE `vuln_scan_imports` MODIFY COLUMN `vsi_scanner_type` enum('nessus','qualys','rapid7','openvas','burp','zap','custom') NOT NULL;

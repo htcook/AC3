@@ -257,8 +257,19 @@ export const threatIntelRouter = router({
 
       return events.map(e => ({
         ...e.event,
-        mitreTechniques: safeParseArr(e.event.mitreTechniques),
-        iocs: safeParseArr(e.event.iocs),
+        // Map tge-prefixed Drizzle fields to frontend-expected names
+        actorId: e.event.tgeActorId,
+        title: e.event.tgeTitle,
+        description: e.event.tgeDescription,
+        severity: e.event.tgeSeverity,
+        victimName: e.event.tgeVictimName,
+        victimSector: e.event.tgeVictimSector,
+        victimCountry: e.event.tgeVictimCountry,
+        mitreTechniques: safeParseArr(e.event.tgeMitreTechniques),
+        iocs: safeParseArr(e.event.tgeIocs),
+        source: e.event.tgeSource,
+        sourceUrl: e.event.tgeSourceUrl,
+        confidence: e.event.tgeConfidence,
         actorName: e.actorName,
         actorType: e.actorType,
       }));

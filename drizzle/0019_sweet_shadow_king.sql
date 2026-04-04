@@ -1,1 +1,0 @@
-ALTER TABLE `ac3_reports` ADD `rpt_scope_exclusions` json;

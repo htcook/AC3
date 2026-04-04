@@ -3542,7 +3542,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         }
         try {
           // Naabu v2.5.0: MUST use SYN scan (-s s) with -no-stdin to avoid CONNECT scan hang bug
-          const sfArgs = sfTool === 'naabu' ? `-host ${target} -top-ports 1000 -s s -no-stdin -rate 1000 -retries 1 -json` : sfTool === 'masscan' ? `${target} -p1-1024,3306,3389,5432,5900,6379,8080,8443,27017 --rate 1000 -oJ -` : sfTool === 'rustscan' ? `-a ${target} --range 1-65535 -b 4500 -g` : `-host ${target} -top-ports 1000 -s s -no-stdin -json`;
+          const sfArgs = sfTool === 'naabu' ? `-host ${target} -top-ports 1000 -s s -no-stdin -rate 1000 -retries 1 -json` : sfTool === 'masscan' ? `${target} -p1-1024,1720,2000,2427,3306,3389,5060,5061,5080,5432,5900,6379,8080,8443,9090,27017,41795 --rate 1000 -oJ -` : sfTool === 'rustscan' ? `-a ${target} --range 1-65535 -b 4500 -g` : `-host ${target} -top-ports 1000 -s s -no-stdin -json`;
           addLog(state, { phase: 'enumeration', type: 'tool_exec', title: `${sfTool} ${fmtTarget(asset, target)}`, detail: `${sfTool} ${sfArgs}` });
           const discoveryResult = await executeTool({ tool: sfTool, args: sfArgs, timeoutSeconds: 600, sudo: sfTool === 'masscan' || sfTool === 'zmap' || sfTool === 'naabu' });
 
@@ -3752,6 +3752,34 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           } catch (capErr: any) {
             console.warn(`[AutoCapture] Stop hook failed: ${capErr.message}`);
           }
+        }
+
+        // ── Step 2b: RDP/VoIP/Conferencing service-specific scanning ──────
+        try {
+          const { isRdpVoipConferencingPort, getScanCommandsForService, getServiceForPort, buildExploitContextForLlm } = await import('./knowledge/rdp-voip-conferencing-knowledge');
+          const rdpVoipPorts = discoveredPorts.filter(p => isRdpVoipConferencingPort(p.port) || ['rdp', 'sip', 'sips', 'h323', 'sccp', 'mgcp', 'ms-wbt-server'].includes(p.service));
+          if (rdpVoipPorts.length > 0) {
+            addLog(state, { phase: 'enumeration', type: 'info', title: `🔌 RDP/VoIP/Conferencing Services Detected: ${fmtTarget(asset, target)}`, detail: `Found ${rdpVoipPorts.length} RDP/VoIP/conferencing services: ${rdpVoipPorts.map(p => `${p.port}/${p.service}`).join(', ')}` });
+            for (const svcPort of rdpVoipPorts.slice(0, 5)) {
+              const svcName = getServiceForPort(svcPort.port) || svcPort.service;
+              const scanCmds = getScanCommandsForService(svcName, target, svcPort.port);
+              for (const cmd of scanCmds.slice(0, 2)) {
+                try {
+                  const svcResult = await executeTool({ tool: cmd.tool, args: cmd.command.replace(cmd.tool + ' ', ''), timeoutSeconds: cmd.timeout, sudo: cmd.tool === 'nmap' });
+                  if (svcResult.stdout) {
+                    addLog(state, { phase: 'enumeration', type: 'scan_result', title: `${cmd.tool} ${svcName} scan: ${target}:${svcPort.port}`, detail: `${cmd.purpose}\n${(svcResult.stdout || '').slice(0, 1000)}` });
+                  }
+                } catch (svcErr: any) {
+                  /* best effort — continue scanning */
+                }
+              }
+              // Store RDP/VoIP context on asset for exploitation phase
+              if (!(asset as any).rdpVoipContext) (asset as any).rdpVoipContext = [];
+              (asset as any).rdpVoipContext.push({ port: svcPort.port, service: svcName, exploitContext: buildExploitContextForLlm({ service: svcName, target, port: svcPort.port }) });
+            }
+          }
+        } catch (rdpVoipErr: any) {
+          /* RDP/VoIP scanning is best-effort — don't block pipeline */
         }
 
         // ── Step 3: httpx (HTTP probing on web ports) ────────────────────
@@ -5688,8 +5716,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           webApp.wafDetected = wafVendor;
         }
         try {
-          const { detectWaf } = await import("./waf-detector");
-          const wafResult = await detectWaf(targetUrl);
+          const { detectWafEnhanced } = await import("./waf-detector");
+          const wafResult = await detectWafEnhanced(targetUrl);
           if (wafResult?.detected) {
             wafVendor = wafResult.vendor;
             webApp.wafDetected = wafVendor;
@@ -5741,6 +5769,37 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             } catch (wafGateErr: any) {
               // WAF evidence gate is best-effort
             }
+          }
+
+          // Log active probe results (NGFW/IDS/behavioral)
+          if (wafResult?.activeProbe) {
+            const ap = wafResult.activeProbe;
+            if (ap.idsDetected || ap.ngfwDetected) {
+              addLog(state, {
+                phase: 'vuln_detection',
+                type: 'info',
+                title: `Active Probe: ${ap.ngfwDetected ? `NGFW (${ap.ngfwProduct})` : `IDS/IPS (${ap.idsProduct})`} Detected`,
+                detail: `Active probing on ${targetUrl} detected ${ap.detectionMethods.join('; ')}`,
+                data: { idsDetected: ap.idsDetected, ngfwDetected: ap.ngfwDetected, idsProduct: ap.idsProduct, ngfwProduct: ap.ngfwProduct },
+              });
+            }
+            const behavioral = ap.behavioral;
+            if (behavioral.rateLimitDetected || behavioral.botDetectionActive || behavioral.dpiLikely || behavioral.tlsInspectionDetected) {
+              addLog(state, {
+                phase: 'vuln_detection',
+                type: 'info',
+                title: `Behavioral Analysis: ${targetUrl}`,
+                detail: [
+                  behavioral.rateLimitDetected ? `Rate limiting at ~${behavioral.rateLimitThreshold} req/burst` : null,
+                  behavioral.botDetectionActive ? 'Bot detection active' : null,
+                  behavioral.dpiLikely ? 'Deep packet inspection likely' : null,
+                  behavioral.tlsInspectionDetected ? 'TLS inspection detected' : null,
+                ].filter(Boolean).join(', '),
+                data: behavioral,
+              });
+            }
+            // Store active probe results on the asset for exploitation phase
+            (webApp as any).activeProbe = ap;
           }
         } catch { /* WAF detection is best-effort */ }
 
@@ -8194,6 +8253,10 @@ ${(() => {
               console.warn(`[PostExploit] Auto-trigger failed for engagement #${state.engagementId}:`, err.message);
             });
           }
+        } catch (innerExploitErr: any) {
+          // Inner try failed — propagate to outer catch for error recording
+          throw innerExploitErr;
+        }
       } catch (e: any) {
         // Record the failed attempt with error evidence
         if (asset) {

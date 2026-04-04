@@ -1,1 +1,0 @@
-ALTER TABLE `exploitation_attempts` ADD `screenshot_urls` json;

@@ -1,1 +1,0 @@
-ALTER TABLE `engagement_ops_snapshots` ADD `server_instance_id` varchar(64);
