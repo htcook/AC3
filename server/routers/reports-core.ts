@@ -283,7 +283,7 @@ export const reportsRouter = router({
         } catch (e) { console.error('Failed to fetch ops data for report:', e); }
 
         // ─── Pentest Assessment Pipeline (new structured report) ───
-        if (input.reportType === 'pentest_assessment') {
+        if (input.reportType === 'pentest_assessment' || input.reportType === 'full_engagement') {
           try {
             const { runPentestReportPipeline } = await import('../lib/pentest-report-pipeline');
             const { getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');

@@ -67,12 +67,120 @@ export async function exportDiEasmReport(
   const margin = 15;
   const contentWidth = pageWidth - margin * 2;
 
-  // Extract data from scan
+  // ── Data Normalization Layer ──
+  // The pipeline output uses different field names/structures than what the report
+  // sections expect. This layer maps the actual pipeline data to the expected shape.
   const assets = scan.assets || [];
-  const observations = scan.observations || [];
-  const domainHealth = scan.domainHealth || {};
+
+  // Build synthetic observations from asset postureFindings when observations array is empty
+  const rawObservations = scan.observations || [];
+  const observations: any[] = rawObservations.length > 0 ? rawObservations : (() => {
+    const synth: any[] = [];
+    for (const asset of assets) {
+      const findings = asset.postureFindings || (asset.analysis ? (() => { try { return JSON.parse(asset.analysis)?.postureFindings || []; } catch { return []; } })() : []);
+      for (const f of (findings as any[])) {
+        const tags: string[] = [];
+        if (f.category === 'vulnerability' || f.finding?.includes('CVE-')) tags.push('vulnerability');
+        if (f.finding?.match(/CVE-\d{4}-\d+/)) tags.push('cve');
+        if (f.category === 'credential' || f.finding?.toLowerCase().includes('credential')) tags.push('leaked_credential');
+        if (f.category === 'darkweb') tags.push('darkweb');
+        synth.push({
+          name: f.finding || f.title || 'Finding',
+          source: f.source || 'posture_analysis',
+          domain: asset.hostname || domain,
+          tags,
+          assetType: f.category || 'finding',
+          evidence: {
+            severity: f.severity === 'critical' ? 9 : f.severity === 'high' ? 7 : f.severity === 'medium' ? 5 : 3,
+            cve_id: f.finding?.match(/CVE-\d{4}-\d+/)?.[0] || undefined,
+            hostname: asset.hostname,
+            description: f.remediation || f.finding,
+            title: f.finding,
+          },
+          firstSeen: asset.createdAt || null,
+        });
+      }
+    }
+    return synth;
+  })();
+
+  // Normalize domainHealth: pipeline stores categories as dnsHealth/mailSecurity/blacklist
+  // but report expects dns/emailSecurity/ssl/blacklist
+  const rawDomainHealth = scan.domainHealth || {};
+  const domainHealth = (() => {
+    const cats = rawDomainHealth.categories || {};
+    const normalized: any = { ...rawDomainHealth };
+    // Map dnsHealth → dns
+    if (cats.dnsHealth && !normalized.dns) {
+      const dh = cats.dnsHealth.details || {};
+      normalized.dns = {
+        aRecords: dh.nameservers?.map((ns: any) => ns.name || ns) || [],
+        nsRecords: dh.nameservers?.map((ns: any) => ns.name || ns) || [],
+        soaConsistent: dh.soaConsistent,
+        nsConsistent: dh.nsConsistent,
+        zoneTransferBlocked: dh.zoneTransferBlocked,
+        recursionDisabled: dh.recursionDisabled,
+        score: cats.dnsHealth.score,
+        grade: cats.dnsHealth.grade,
+      };
+    }
+    // Map mailSecurity → emailSecurity
+    if (cats.mailSecurity && !normalized.emailSecurity) {
+      const ms = cats.mailSecurity.details || {};
+      normalized.emailSecurity = {
+        spf: ms.spf ? { present: ms.spf.exists || !!ms.spf.record, record: ms.spf.record || '' } : { present: false },
+        dkim: { present: false }, // DKIM not directly available from this connector
+        dmarc: ms.dmarc ? { present: ms.dmarc.exists || !!ms.dmarc.record, policy: ms.dmarc.policy || 'none', record: ms.dmarc.record || '' } : { present: false },
+        spoofable: ms.spoofable,
+        spoofReason: ms.spoofReason,
+        score: cats.mailSecurity.score,
+        grade: cats.mailSecurity.grade,
+      };
+    }
+    // Map blacklist category
+    if (cats.blacklist && !normalized.blacklist) {
+      const bl = cats.blacklist.details || {};
+      normalized.blacklist = {
+        listings: (bl.listed || []).map((l: any) => ({
+          zone: typeof l === 'string' ? l : l.zone || l.name || 'Unknown',
+          category: typeof l === 'string' ? 'listed' : l.category || 'listed',
+          severity: typeof l === 'string' ? 'medium' : l.severity || 'medium',
+          reason: typeof l === 'string' ? l : l.reason || l.txtReason || '',
+        })),
+        clean: bl.clean || [],
+        totalChecked: bl.totalChecked || 0,
+        score: cats.blacklist.score,
+        grade: cats.blacklist.grade,
+      };
+    }
+    // Add overall health summary
+    normalized.overallScore = rawDomainHealth.overallScore;
+    normalized.overallGrade = rawDomainHealth.overallGrade;
+    return normalized;
+  })();
+
   const enrichment = scan.enrichment || {};
-  const llmAnalysis = scan.llmAnalysis || {};
+
+  // Map postEnrichmentAnalysis → llmAnalysis expected shape
+  const postEnrichment = scan.postEnrichmentAnalysis || {};
+  const llmAnalysis = scan.llmAnalysis || {
+    executiveBrief: postEnrichment.executiveAnalysis || postEnrichment.overallAssessment || '',
+    recommendations: (postEnrichment.prioritizedRecommendations || []).map((r: any, i: number) => ({
+      recommendation: r.description || r.recommendation || r.title || (typeof r === 'string' ? r : ''),
+      title: r.title || r.recommendation || `Recommendation ${i + 1}`,
+      category: r.category || 'General',
+      effort: r.effort || r.priority || 'N/A',
+    })),
+    attackChains: (postEnrichment.attackPaths || []).map((p: any) => ({
+      name: p.name || p.title || 'Attack Path',
+      title: p.title || p.name || 'Attack Path',
+      description: p.description || p.narrative || '',
+      narrative: p.narrative || p.description || '',
+    })),
+    blindSpots: postEnrichment.blindSpots || [],
+    confidenceStatement: postEnrichment.confidenceStatement || '',
+  };
+
   const reputationEngine = scan.reputationEngine || {};
   const discoveryCoverage = scan.discoveryCoverage || {};
   const wafNgfw = scan.wafNgfwDetection || {};
@@ -172,8 +280,10 @@ export async function exportDiEasmReport(
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
   doc.text(`Total Findings: ${scan.totalFindings ?? 0}`, metricsX, y + 25);
-  doc.text(`Data Sources Queried: ${scan.connectorResults?.length ?? 0}`, metricsX, y + 32);
-  doc.text(`Scan Duration: ${scan.durationMs ? `${(scan.durationMs / 1000).toFixed(1)}s` : 'N/A'}`, metricsX, y + 39);
+  const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
+  doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
+  const scanDuration = scan.durationMs || scan.domainHealth?.durationMs;
+  doc.text(`Scan Duration: ${scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A'}`, metricsX, y + 39);
 
   // Classification & metadata
   y = 165;
@@ -227,6 +337,32 @@ export async function exportDiEasmReport(
     doc.setFont('helvetica', 'normal');
     y = writeText(llmAnalysis.executiveBrief, margin, y, contentWidth);
     y += 6;
+  }
+
+  // Organization Profile section (from DI pipeline orgProfile)
+  const orgProfile = scan.orgProfile;
+  if (orgProfile && (orgProfile.sector || orgProfile.clientType || orgProfile.complianceFlags?.length > 0 || orgProfile.criticalFunctions?.length > 0)) {
+    y = subheading('Organization Profile', y);
+    const orgRows: string[][] = [];
+    orgRows.push(['Organization', orgProfile.customerName || scan.primaryDomain || 'N/A']);
+    orgRows.push(['Primary Domain', orgProfile.primaryDomain || scan.primaryDomain || 'N/A']);
+    if (orgProfile.sector) orgRows.push(['Industry Sector', orgProfile.sector]);
+    if (orgProfile.clientType) orgRows.push(['Organization Type', orgProfile.clientType.charAt(0).toUpperCase() + orgProfile.clientType.slice(1)]);
+    if (orgProfile.complianceFlags?.length > 0) orgRows.push(['Compliance Frameworks', orgProfile.complianceFlags.join(', ')]);
+    if (orgProfile.criticalFunctions?.length > 0) orgRows.push(['Critical Business Functions', orgProfile.criticalFunctions.join(', ')]);
+    if (orgProfile.additionalDomains?.length > 0) orgRows.push(['Additional Domains', orgProfile.additionalDomains.join(', ')]);
+    autoTable!(doc, {
+      startY: y,
+      head: [['Attribute', 'Detail']],
+      body: orgRows,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 8, cellPadding: 2, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
   }
 
   // Key risk findings summary table
@@ -376,6 +512,34 @@ export async function exportDiEasmReport(
   // 4. DOMAIN HEALTH & BLACKLIST STATUS
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Domain Health & Blacklist Status');
+
+  // Overall health score summary
+  if (domainHealth.overallScore !== undefined) {
+    const healthScore = domainHealth.overallScore;
+    const healthGrade = domainHealth.overallGrade || 'N/A';
+    const gradeColor = healthGrade === 'A' ? [22, 163, 74] : healthGrade === 'B' ? [59, 130, 246] : healthGrade === 'C' ? [202, 138, 4] : healthGrade === 'D' ? [234, 88, 12] : [220, 38, 38];
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'F');
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(9);
+    doc.text('OVERALL DOMAIN HEALTH', margin + 5, y + 8);
+    doc.setFillColor(gradeColor[0], gradeColor[1], gradeColor[2]);
+    doc.roundedRect(margin + 5, y + 12, 30, 14, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${healthGrade} (${healthScore})`, margin + 8, y + 22);
+    // Category grades
+    const cats = rawDomainHealth.categories || {};
+    const catEntries = Object.entries(cats).map(([k, v]: [string, any]) => `${k.replace(/([A-Z])/g, ' $1').trim()}: ${v.grade || 'N/A'} (${v.score || 0})`);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(200, 210, 220);
+    const catText = catEntries.join(' | ');
+    doc.text(truncate(catText, 120), margin + 40, y + 18);
+    doc.text(truncate(catText.slice(catText.indexOf('|', 60) + 2), 120), margin + 40, y + 23);
+    y += 38;
+  }
 
   // DNS configuration
   if (domainHealth.dns) {
@@ -550,6 +714,12 @@ export async function exportDiEasmReport(
     !o.tags?.includes('first_party_breach') && !o.tags?.includes('third_party_breach')
   );
 
+  // Fallback: use scan.breachData if observations don't have breach info
+  const breachDataFallback = scan.breachData || {};
+  const totalLeaked = credentialObs.length || breachDataFallback.totalExposures || 0;
+  const uniqueEmails = breachDataFallback.uniqueEmails || 0;
+  const uniqueBreachSources = breachDataFallback.uniqueBreachSources || 0;
+
   // Breach overview box
   doc.setFillColor(30, 41, 59);
   doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'F');
@@ -560,22 +730,66 @@ export async function exportDiEasmReport(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Total Leaked Credentials: ${credentialObs.length}`, margin + 5, y + 17);
+  doc.text(`Total Leaked Credentials: ${totalLeaked}`, margin + 5, y + 17);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
 
   if (firstPartyObs.length > 0) {
     doc.setTextColor(220, 38, 38);
     doc.text(`1st-Party Breaches: ${firstPartyObs.length}`, margin + 5, y + 24);
+  } else if (uniqueEmails > 0) {
+    doc.setTextColor(202, 138, 4);
+    doc.text(`${uniqueEmails} unique emails across ${uniqueBreachSources} breach sources`, margin + 5, y + 24);
   } else {
     doc.setTextColor(34, 197, 94);
     doc.text('No 1st-Party Breaches Detected', margin + 5, y + 24);
   }
-  doc.setTextColor(202, 138, 4);
-  doc.text(`3rd-Party Credential Reuse: ${thirdPartyObs.length}`, margin + 80, y + 24);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Unclassified: ${unknownSourceObs.length}`, margin + 145, y + 24);
+  if (thirdPartyObs.length > 0) {
+    doc.setTextColor(202, 138, 4);
+    doc.text(`3rd-Party Credential Reuse: ${thirdPartyObs.length}`, margin + 80, y + 24);
+  }
+  if (unknownSourceObs.length > 0) {
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Unclassified: ${unknownSourceObs.length}`, margin + 145, y + 24);
+  }
   y += 38;
+
+  // Breach data summary from pipeline (when observations are empty but breachData exists)
+  if (credentialObs.length === 0 && breachDataFallback.totalExposures > 0) {
+    y = subheading('Breach Intelligence Summary', y);
+
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F');
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    const col1X = margin + 5;
+    const col2X = margin + 55;
+    const col3X = margin + 110;
+    doc.text(`Total Exposures: ${breachDataFallback.totalExposures}`, col1X, y + 7);
+    doc.text(`Unique Emails: ${breachDataFallback.uniqueEmails || 0}`, col2X, y + 7);
+    doc.text(`Breach Sources: ${breachDataFallback.uniqueBreachSources || 0}`, col3X, y + 7);
+    doc.text(`Passwords Exposed: ${breachDataFallback.passwordsExposed || 0}`, col1X, y + 14);
+    doc.text(`Hashed Passwords: ${breachDataFallback.hashedPasswordsExposed || 0}`, col2X, y + 14);
+    doc.text(`Credential Pairs: ${breachDataFallback.credentialPairs || 0}`, col3X, y + 14);
+    y += 28;
+
+    // Breach sources table
+    if (breachDataFallback.breachSources?.length > 0) {
+      y = subheading('Breach Sources', y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Breach Source']],
+        body: breachDataFallback.breachSources.slice(0, 30).map((s: string) => [s]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+  }
 
   // Dehashed breach summary statistics
   if (breachSummaryObs) {
@@ -1102,19 +1316,20 @@ export async function exportDiEasmReport(
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Appendix: Data Sources & Methodology');
 
-  // Connector results
-  if (scan.connectorResults?.length > 0) {
+  // Connector results — use passiveRecon.connectorResults (trimmed summary) or scan.connectorResults
+  const connectorResults = scan.passiveRecon?.connectorResults || scan.connectorResults || [];
+  if (connectorResults.length > 0) {
     y = subheading('Data Sources Queried', y);
 
     autoTable!(doc, {
       startY: y,
       head: [['Source', 'Observations', 'Duration', 'Status']],
-      body: scan.connectorResults
-        .sort((a: any, b: any) => (b.observations?.length || 0) - (a.observations?.length || 0))
+      body: connectorResults
+        .sort((a: any, b: any) => (b.observationCount || b.observations?.length || 0) - (a.observationCount || a.observations?.length || 0))
         .slice(0, 40)
         .map((cr: any) => [
           (cr.connector || 'unknown').replace(/_/g, ' '),
-          String(cr.observations?.length || 0),
+          String(cr.observationCount ?? cr.observations?.length ?? 0),
           cr.durationMs ? `${(cr.durationMs / 1000).toFixed(1)}s` : 'N/A',
           cr.errors?.length > 0 ? `Error: ${truncate(cr.errors[0], 30)}` : cr.rateLimited ? 'Rate Limited' : 'OK',
         ]),
@@ -1157,9 +1372,10 @@ export async function exportDiEasmReport(
     ['Domain', domain],
     ['Scan Mode', scan.scanMode || 'standard'],
     ['Started', scan.createdAt ? new Date(scan.createdAt).toLocaleString() : 'N/A'],
-    ['Duration', scan.durationMs ? `${(scan.durationMs / 1000).toFixed(1)} seconds` : 'N/A'],
-    ['Total Observations', String(observations.length)],
-    ['Total Assets', String(assets.length)],
+    ['Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)} seconds` : 'N/A'],
+    ['Total Findings', String(scan.totalFindings || observations.length)],
+    ['Total Assets', String(scan.totalAssets || assets.length)],
+    ['Data Sources', String(connectorCount)],
     ['Report Generated', new Date().toLocaleString()],
   ];
 
