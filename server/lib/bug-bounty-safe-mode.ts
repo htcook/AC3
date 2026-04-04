@@ -735,3 +735,51 @@ export async function safeModeGate(
     scopeCheck,
   };
 }
+
+
+// ── Factory wrapper used by scanforge-enhanced-pipeline ──────────────
+
+export type SafetyCheckResult = {
+  allowed: boolean;
+  violations: SafetyViolation[];
+  safeCode?: string;
+};
+
+export interface BugBountySafeMode {
+  checkExploit(code: string, vulnClass: string): SafetyCheckResult;
+  config: SafeModeConfig;
+}
+
+/**
+ * Create a BugBountySafeMode instance with the given rules.
+ */
+export function createSafeMode(rules: Partial<SafeModeConfig> & {
+  programName?: string;
+  scope?: { inScope: string[]; outOfScope: string[] };
+  maxSeverity?: string;
+  allowedActions?: string[];
+  prohibitedActions?: string[];
+}): BugBountySafeMode {
+  const config: SafeModeConfig = {
+    enabled: true,
+    maxSeverity: (rules.maxSeverity as any) || 'critical',
+    allowedActions: rules.allowedActions || ['read', 'enumerate'],
+    prohibitedActions: rules.prohibitedActions || ['data_destruction', 'service_disruption'],
+    scopeRules: rules.scope || rules.scopeRules || { inScope: [], outOfScope: [] },
+    evidenceRequired: rules.evidenceRequired ?? true,
+    oobTestingEnabled: rules.oobTestingEnabled ?? true,
+  };
+
+  return {
+    config,
+    checkExploit(code: string, vulnClass: string): SafetyCheckResult {
+      const violations = scanForViolations(code);
+      const result = applySafeMode(code, 'python', config);
+      return {
+        allowed: violations.filter(v => v.severity === 'critical').length === 0,
+        violations,
+        safeCode: result.safeCode,
+      };
+    },
+  };
+}

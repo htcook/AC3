@@ -656,3 +656,56 @@ def stealth_request(method, url, **kwargs):
 # Usage: resp = stealth_request("POST", "http://target/path", data="payload")
 `;
 }
+
+
+// ── Factory wrapper used by scanforge-enhanced-pipeline ──────────────
+
+export interface StealthDecision {
+  shouldDelay: boolean;
+  delayMs: number;
+  profile: TimingProfile;
+  reason: string;
+}
+
+export interface StealthController {
+  evaluate(targetHost: string, vulnClass: string): StealthDecision;
+  config: StealthConfig;
+}
+
+/**
+ * Create a StealthController instance with the given config.
+ */
+export function createStealthController(config: Partial<StealthConfig> = {}): StealthController {
+  const profile = config.profile || 'normal';
+  const timing = getTimingProfile(profile);
+  const fullConfig: StealthConfig = {
+    profile,
+    maxRps: config.maxRps || timing.maxRps,
+    jitterRangeMs: config.jitterRangeMs || timing.jitterRangeMs,
+    rotateUserAgent: config.rotateUserAgent ?? true,
+    benignRatio: config.benignRatio || timing.benignRatio,
+    proxies: config.proxies || [],
+    proxyRotateAfter: config.proxyRotateAfter || 5,
+    respectRobotsTxt: config.respectRobotsTxt ?? false,
+    maxConcurrent: config.maxConcurrent || 1,
+  };
+
+  return {
+    config: fullConfig,
+    evaluate(targetHost: string, vulnClass: string): StealthDecision {
+      const [minJitter, maxJitter] = fullConfig.jitterRangeMs;
+      const delayMs = Math.floor(Math.random() * (maxJitter - minJitter) + minJitter);
+
+      const shouldDelay = profile !== 'aggressive';
+
+      return {
+        shouldDelay,
+        delayMs: shouldDelay ? delayMs : 0,
+        profile,
+        reason: shouldDelay
+          ? `Stealth profile '${profile}': applying ${delayMs}ms jitter for ${vulnClass} against ${targetHost}`
+          : `Aggressive profile: no delay for ${vulnClass}`,
+      };
+    },
+  };
+}

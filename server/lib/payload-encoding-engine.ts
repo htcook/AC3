@@ -672,3 +672,69 @@ def sf_encode_chain(payload, techniques):
 # payload = sf_encode_chain(raw_payload, ${JSON.stringify(VULN_CLASS_ENCODINGS[vulnClass]?.slice(0, 3) || ['url_double', 'case_alt'])})
 `;
 }
+
+
+// ── Convenience wrappers used by scanforge-enhanced-pipeline ─────────
+
+export interface EvasionStrategy {
+  name: string;
+  techniques: EncodingTechnique[];
+  wafVendor: string;
+  vulnClass: string;
+}
+
+/**
+ * Select an evasion strategy based on detected WAF and vuln class.
+ */
+export function selectEvasionStrategy(
+  detectedWaf: string,
+  vulnClass: VulnClass | string,
+): EvasionStrategy {
+  const wafLower = (detectedWaf || '').toLowerCase();
+  const vc = (vulnClass || 'generic') as VulnClass;
+
+  // WAF-specific technique selection
+  const wafTechniques: Record<string, EncodingTechnique[]> = {
+    cloudflare: ['url_double', 'unicode', 'case_swap', 'comment_insert'],
+    akamai: ['hex', 'url_double', 'whitespace_vary', 'case_swap'],
+    imperva: ['unicode', 'url_double', 'comment_insert', 'null_byte'],
+    modsecurity: ['url_double', 'case_swap', 'hex', 'comment_insert'],
+    f5: ['unicode', 'hex', 'url_double', 'whitespace_vary'],
+    aws: ['url_double', 'unicode', 'case_swap', 'comment_insert'],
+  };
+
+  const matchedWaf = Object.keys(wafTechniques).find(w => wafLower.includes(w));
+  const techniques = matchedWaf
+    ? wafTechniques[matchedWaf]
+    : VULN_CLASS_ENCODINGS[vc] || ['url_double', 'case_swap'];
+
+  return {
+    name: matchedWaf ? `${matchedWaf}-evasion` : `generic-${vc}-evasion`,
+    techniques: techniques.slice(0, 4) as EncodingTechnique[],
+    wafVendor: detectedWaf,
+    vulnClass: vc,
+  };
+}
+
+/**
+ * Apply WAF evasion encoding to exploit code.
+ */
+export function applyWafEvasion(
+  code: string,
+  strategy: EvasionStrategy,
+): { success: boolean; encodedPayload: string; techniquesApplied: string[] } {
+  try {
+    let encoded = code;
+    const applied: string[] = [];
+    for (const technique of strategy.techniques) {
+      const result = encodePayload(encoded, technique);
+      if (result.encoded !== encoded) {
+        encoded = result.encoded;
+        applied.push(technique);
+      }
+    }
+    return { success: true, encodedPayload: encoded, techniquesApplied: applied };
+  } catch (err) {
+    return { success: false, encodedPayload: code, techniquesApplied: [] };
+  }
+}
