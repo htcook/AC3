@@ -12,6 +12,22 @@
  */
 
 import { ENV } from "../_core/env";
+import { getH1CredentialsForUser, type PlatformCredentials } from "./credential-service";
+
+// ─── User Context ────────────────────────────────────────────────────────────
+
+/** Thread-local user context for per-user credential resolution */
+let _activeUserId: number | string | null = null;
+
+/** Set the active user context for subsequent HackerOne API calls */
+export function setActiveUser(userId: number | string | null): void {
+  _activeUserId = userId;
+}
+
+/** Get the currently active user ID */
+export function getActiveUser(): number | string | null {
+  return _activeUserId;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,18 +151,27 @@ export interface OpSecEnrichment {
 const H1_BASE = "https://api.hackerone.com/v1/hackers";
 
 let h1CircuitOpen = false;
+
+/** Resolve HackerOne credentials: per-user DB lookup → global env fallback */
+async function resolveH1Credentials(): Promise<{ username: string; apiKey: string } | null> {
+  // Try per-user credentials first
+  const creds = await getH1CredentialsForUser(_activeUserId);
+  if (creds) {
+    return { username: creds.username, apiKey: creds.apiKey };
+  }
+  return null;
+}
+
 async function h1ApiFetch(path: string): Promise<any> {
   if (h1CircuitOpen) {
     throw new Error('HackerOne API circuit open — skipping (previous auth failure)');
   }
-  const apiKey = ENV.HACKERONE_API_KEY;
+  const creds = await resolveH1Credentials();
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
-  if (apiKey) {
-    // HackerOne uses Basic auth: username:token
-    const username = ENV.HACKERONE_API_USERNAME || 'htc0';
-    headers.Authorization = "Basic " + Buffer.from(`${username}:${apiKey}`).toString("base64");
+  if (creds) {
+    headers.Authorization = "Basic " + Buffer.from(`${creds.username}:${creds.apiKey}`).toString("base64");
   }
   const res = await fetch(`${H1_BASE}${path}`, {
     headers,
@@ -234,7 +259,9 @@ function classifyCWE(cwe: string): { category: string; mitigationFocus: string }
 
 // ─── Domain Intel Enrichment ─────────────────────────────────────────────────
 
-export async function enrichDomainIntel(domain: string): Promise<DomainIntelEnrichment> {
+export async function enrichDomainIntel(domain: string, userId?: number | string | null): Promise<DomainIntelEnrichment> {
+  // Set user context for credential resolution
+  if (userId !== undefined) setActiveUser(userId);
   // Search hacktivity for the domain's program
   const domainBase = domain.replace(/^www\./, "").split(".").slice(-2).join(".");
   const items = await fetchHacktivity(`team:${domainBase}`, 5);
@@ -312,8 +339,10 @@ export async function enrichDomainIntel(domain: string): Promise<DomainIntelEnri
 // ─── Threat Enrichment ───────────────────────────────────────────────────────
 
 export async function enrichThreatIntelligence(
-  timeRangeDays: number = 90
+  timeRangeDays: number = 90,
+  userId?: number | string | null
 ): Promise<ThreatEnrichment> {
+  if (userId !== undefined) setActiveUser(userId);
   const fromDate = new Date(Date.now() - timeRangeDays * 86400000);
   const fromStr = fromDate.toISOString().split("T")[0].replace(/-/g, "-");
   const toStr = new Date().toISOString().split("T")[0].replace(/-/g, "-");
@@ -411,7 +440,8 @@ export async function enrichThreatIntelligence(
 
 // ─── Attack Vector Enrichment ────────────────────────────────────────────────
 
-export async function enrichAttackVectors(): Promise<AttackVectorEnrichment> {
+export async function enrichAttackVectors(userId?: number | string | null): Promise<AttackVectorEnrichment> {
+  if (userId !== undefined) setActiveUser(userId);
   // Fetch high-value disclosed reports
   const criticalItems = await fetchHacktivity("severity_rating:critical AND disclosed:true", 5);
   const highItems = await fetchHacktivity("severity_rating:high AND disclosed:true", 5);
@@ -508,7 +538,8 @@ export async function enrichAttackVectors(): Promise<AttackVectorEnrichment> {
 
 // ─── OpSec Enrichment ────────────────────────────────────────────────────────
 
-export async function enrichOpSec(): Promise<OpSecEnrichment> {
+export async function enrichOpSec(userId?: number | string | null): Promise<OpSecEnrichment> {
+  if (userId !== undefined) setActiveUser(userId);
   // Fetch recent critical and high findings for defensive analysis
   const items = await fetchHacktivity("severity_rating:critical OR severity_rating:high", 5);
 
@@ -591,13 +622,15 @@ export interface BugBountyIntelligenceReport {
 }
 
 export async function generateFullIntelligenceReport(
-  domain?: string
+  domain?: string,
+  userId?: number | string | null
 ): Promise<BugBountyIntelligenceReport> {
+  if (userId !== undefined) setActiveUser(userId);
   const [domainIntel, threatEnrichment, attackVectors, opSec] = await Promise.all([
-    domain ? enrichDomainIntel(domain) : Promise.resolve(null),
-    enrichThreatIntelligence(90),
-    enrichAttackVectors(),
-    enrichOpSec(),
+    domain ? enrichDomainIntel(domain, userId) : Promise.resolve(null),
+    enrichThreatIntelligence(90, userId),
+    enrichAttackVectors(userId),
+    enrichOpSec(userId),
   ]);
 
   return {

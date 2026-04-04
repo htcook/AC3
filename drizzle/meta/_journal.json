@@ -8,6 +8,20 @@
       "when": 1775268950692,
       "tag": "0000_wise_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1775328175172,
+      "tag": "0001_flawless_silver_surfer",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775328212426,
+      "tag": "0002_large_power_pack",
+      "breakpoints": true
     }
   ]
 }

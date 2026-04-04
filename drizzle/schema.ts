@@ -6739,3 +6739,87 @@ export const cveEnrichment = mysqlTable("cve_enrichment", {
 (table) => [
 	index("cve_enrichment_cve_id_unique").on(table.cveId),
 ]);
+
+// ═══ Engagement Result Persistence ═══════════════════════════════════════════
+// Stores structured engagement outcomes for dashboard visibility and historical analysis.
+
+export const engagementResults = mysqlTable("engagement_results", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	operatorId: int("operator_id"),
+	operatorName: varchar("operator_name", { length: 255 }),
+	engagementType: varchar("engagement_type", { length: 64 }),
+	targetDomain: text("target_domain"),
+	status: mysqlEnum(['completed', 'error', 'partial']).default('completed').notNull(),
+	// Timing
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	durationMs: int("duration_ms"),
+	// Stats
+	hostsScanned: int("hosts_scanned").default(0),
+	portsFound: int("ports_found").default(0),
+	vulnsFound: int("vulns_found").default(0),
+	verifiedVulns: int("verified_vulns").default(0),
+	unverifiedVulns: int("unverified_vulns").default(0),
+	exploitsAttempted: int("exploits_attempted").default(0),
+	exploitsSucceeded: int("exploits_succeeded").default(0),
+	sessionsOpened: int("sessions_opened").default(0),
+	zapScansRun: int("zap_scans_run").default(0),
+	// Severity breakdown
+	criticalVulns: int("critical_vulns").default(0),
+	highVulns: int("high_vulns").default(0),
+	mediumVulns: int("medium_vulns").default(0),
+	lowVulns: int("low_vulns").default(0),
+	infoVulns: int("info_vulns").default(0),
+	// OWASP coverage
+	owaspCoverageScore: int("owasp_coverage_score"),
+	owaspTotalTested: int("owasp_total_tested"),
+	owaspTotalPartial: int("owasp_total_partial"),
+	owaspTotalGaps: int("owasp_total_gaps"),
+	owaspCriticalGaps: json("owasp_critical_gaps").$type<string[]>(),
+	// Report reference
+	autoReportId: varchar("auto_report_id", { length: 128 }),
+	// Full summary JSON (attack narratives, test plan adherence, etc.)
+	summaryJson: json("summary_json"),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("er_engagement_idx").on(table.engagementId),
+	index("er_operator_idx").on(table.operatorId),
+	index("er_status_idx").on(table.status),
+]);
+
+export const engagementFindings = mysqlTable("engagement_findings", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	resultId: int("result_id"),
+	// Finding details
+	title: varchar({ length: 512 }).notNull(),
+	severity: mysqlEnum(['critical', 'high', 'medium', 'low', 'info']).default('medium').notNull(),
+	cve: varchar({ length: 64 }),
+	cwe: varchar({ length: 128 }),
+	description: text(),
+	endpoint: text(),
+	hostname: varchar({ length: 255 }),
+	port: int(),
+	// Source and evidence
+	source: varchar({ length: 128 }),
+	tool: varchar({ length: 128 }),
+	corroborationTier: mysqlEnum("corroboration_tier", ['confirmed', 'corroborated', 'unverified']).default('unverified'),
+	rawEvidence: text("raw_evidence"),
+	screenshotPath: text("screenshot_path"),
+	// Exploit info
+	exploitAttempted: tinyint("exploit_attempted").default(0),
+	exploitSucceeded: tinyint("exploit_succeeded").default(0),
+	exploitTechnique: varchar("exploit_technique", { length: 255 }),
+	// OWASP/MITRE mapping
+	owaspCategory: varchar("owasp_category", { length: 128 }),
+	mitreTechnique: varchar("mitre_technique", { length: 128 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("ef_engagement_idx").on(table.engagementId),
+	index("ef_result_idx").on(table.resultId),
+	index("ef_severity_idx").on(table.severity),
+	index("ef_corroboration_idx").on(table.corroborationTier),
+]);

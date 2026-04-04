@@ -3022,3 +3022,176 @@ export async function getExploitationStats(engagementId: number) {
     withEvidence: rows.filter(r => r.eaEvidence != null).length,
   };
 }
+
+
+// ═══ Engagement Result Persistence ═══════════════════════════════════════════
+
+import { engagementResults, engagementFindings } from "../drizzle/schema";
+
+export interface EngagementResultInput {
+  engagementId: number;
+  operatorId?: number;
+  operatorName?: string;
+  engagementType?: string;
+  targetDomain?: string;
+  status: 'completed' | 'error' | 'partial';
+  startedAt?: number;
+  completedAt?: number;
+  durationMs?: number;
+  stats: {
+    hostsScanned?: number;
+    portsFound?: number;
+    vulnsFound?: number;
+    verifiedVulns?: number;
+    unverifiedVulns?: number;
+    exploitsAttempted?: number;
+    exploitsSucceeded?: number;
+    sessionsOpened?: number;
+    zapScansRun?: number;
+  };
+  severityBreakdown: {
+    critical?: number;
+    high?: number;
+    medium?: number;
+    low?: number;
+    info?: number;
+  };
+  owaspCoverage?: {
+    score?: number;
+    totalTested?: number;
+    totalPartial?: number;
+    totalGaps?: number;
+    criticalGaps?: string[];
+  };
+  autoReportId?: string;
+  summaryJson?: Record<string, any>;
+}
+
+export interface EngagementFindingInput {
+  engagementId: number;
+  resultId?: number;
+  title: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  cve?: string;
+  cwe?: string;
+  description?: string;
+  endpoint?: string;
+  hostname?: string;
+  port?: number;
+  source?: string;
+  tool?: string;
+  corroborationTier?: 'confirmed' | 'corroborated' | 'unverified';
+  rawEvidence?: string;
+  screenshotPath?: string;
+  exploitAttempted?: boolean;
+  exploitSucceeded?: boolean;
+  exploitTechnique?: string;
+  owaspCategory?: string;
+  mitreTechnique?: string;
+}
+
+/**
+ * Save structured engagement results to the engagement_results table.
+ * Returns the inserted result ID.
+ */
+export async function saveEngagementResult(input: EngagementResultInput): Promise<number> {
+  const db = await getDbRequired();
+  const now = Date.now();
+  const [result] = await db.insert(engagementResults).values({
+    engagementId: input.engagementId,
+    operatorId: input.operatorId,
+    operatorName: input.operatorName,
+    engagementType: input.engagementType,
+    targetDomain: input.targetDomain,
+    status: input.status,
+    startedAt: input.startedAt,
+    completedAt: input.completedAt,
+    durationMs: input.durationMs,
+    hostsScanned: input.stats.hostsScanned || 0,
+    portsFound: input.stats.portsFound || 0,
+    vulnsFound: input.stats.vulnsFound || 0,
+    verifiedVulns: input.stats.verifiedVulns || 0,
+    unverifiedVulns: input.stats.unverifiedVulns || 0,
+    exploitsAttempted: input.stats.exploitsAttempted || 0,
+    exploitsSucceeded: input.stats.exploitsSucceeded || 0,
+    sessionsOpened: input.stats.sessionsOpened || 0,
+    zapScansRun: input.stats.zapScansRun || 0,
+    criticalVulns: input.severityBreakdown.critical || 0,
+    highVulns: input.severityBreakdown.high || 0,
+    mediumVulns: input.severityBreakdown.medium || 0,
+    lowVulns: input.severityBreakdown.low || 0,
+    infoVulns: input.severityBreakdown.info || 0,
+    owaspCoverageScore: input.owaspCoverage?.score,
+    owaspTotalTested: input.owaspCoverage?.totalTested,
+    owaspTotalPartial: input.owaspCoverage?.totalPartial,
+    owaspTotalGaps: input.owaspCoverage?.totalGaps,
+    owaspCriticalGaps: input.owaspCoverage?.criticalGaps,
+    autoReportId: input.autoReportId,
+    summaryJson: input.summaryJson,
+    createdAt: now,
+  });
+  return Number(result.insertId);
+}
+
+/**
+ * Save individual findings from an engagement to the engagement_findings table.
+ * Accepts an array of findings and inserts them in batch.
+ */
+export async function saveEngagementFindings(findings: EngagementFindingInput[]): Promise<number> {
+  if (findings.length === 0) return 0;
+  const db = await getDbRequired();
+  const now = Date.now();
+  let inserted = 0;
+
+  // Insert in batches of 50 to avoid query size limits
+  for (let i = 0; i < findings.length; i += 50) {
+    const batch = findings.slice(i, i + 50);
+    await db.insert(engagementFindings).values(
+      batch.map(f => ({
+        engagementId: f.engagementId,
+        resultId: f.resultId,
+        title: f.title,
+        severity: f.severity,
+        cve: f.cve,
+        cwe: f.cwe,
+        description: f.description?.slice(0, 65000),
+        endpoint: f.endpoint,
+        hostname: f.hostname,
+        port: f.port,
+        source: f.source,
+        tool: f.tool,
+        corroborationTier: f.corroborationTier || 'unverified',
+        rawEvidence: f.rawEvidence?.slice(0, 65000),
+        screenshotPath: f.screenshotPath,
+        exploitAttempted: f.exploitAttempted ? 1 : 0,
+        exploitSucceeded: f.exploitSucceeded ? 1 : 0,
+        exploitTechnique: f.exploitTechnique,
+        owaspCategory: f.owaspCategory,
+        mitreTechnique: f.mitreTechnique,
+        createdAt: now,
+      }))
+    );
+    inserted += batch.length;
+  }
+  return inserted;
+}
+
+/**
+ * Get engagement results by engagement ID.
+ */
+export async function getEngagementResult(engagementId: number) {
+  const db = await getDbRequired();
+  const rows = await db.select().from(engagementResults)
+    .where(eq(engagementResults.engagementId, engagementId))
+    .limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * Get all findings for an engagement.
+ */
+export async function getEngagementFindings(engagementId: number) {
+  const db = await getDbRequired();
+  return db.select().from(engagementFindings)
+    .where(eq(engagementFindings.engagementId, engagementId));
+}

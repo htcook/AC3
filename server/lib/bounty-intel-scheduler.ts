@@ -41,14 +41,28 @@ async function getDb() {
 
 let pipelineRunning = false;
 
-// ─── HackerOne API Client (standalone, no tRPC context) ───
+// ─── HackerOne API Client (per-user credential support) ───
+import { getH1CredentialsForUser } from './credential-service';
 
 const H1_BASE = "https://api.hackerone.com/v1/hackers";
 
-function getH1Credentials(): { username: string; token: string } | null {
+/** Active user ID for per-user credential resolution in scheduler context */
+let _schedulerUserId: number | string | null = null;
+
+/** Set the user context for the scheduler's HackerOne API calls */
+export function setSchedulerUser(userId: number | string | null): void {
+  _schedulerUserId = userId;
+}
+
+async function getH1Credentials(): Promise<{ username: string; token: string } | null> {
+  // Try per-user credentials from DB first
+  const creds = await getH1CredentialsForUser(_schedulerUserId);
+  if (creds) {
+    return { username: creds.username, token: creds.apiKey };
+  }
+  // Fallback to env vars
   const envKey = process.env.HACKERONE_API_KEY;
   if (!envKey) return null;
-
   const username = process.env.HACKERONE_API_USERNAME || envKey.split(":")[0];
   const token = envKey.includes(":") ? envKey.split(":").slice(1).join(":") : envKey;
   if (username && token) return { username, token };
@@ -63,7 +77,7 @@ async function h1Fetch(path: string): Promise<any> {
     throw new Error(`[HackerOne] Circuit breaker open: ${cbCheck.reason}`);
   }
 
-  const creds = getH1Credentials();
+  const creds = await getH1Credentials();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (creds) {
     headers.Authorization = "Basic " + Buffer.from(`${creds.username}:${creds.token}`).toString("base64");
@@ -125,7 +139,7 @@ async function runStage(
 
 async function syncHacktivity(): Promise<{ count: number; detail: string }> {
   const db = await getDb();
-  const creds = getH1Credentials();
+  const creds = await getH1Credentials();
   if (!creds) return { count: 0, detail: "No H1 credentials configured (set HACKERONE_API_KEY)" };
 
   const [logResult] = await db.insert(bugBountySyncLogs).values({

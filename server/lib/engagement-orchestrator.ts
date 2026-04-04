@@ -9163,6 +9163,17 @@ export async function executeEngagement(
   // Reset tracker at engagement start, register asset tech as discovered
   const owaspTracker = resetOwaspTracker();
 
+  // ═══ PER-USER CREDENTIAL CONTEXT ═══
+  // Set the active user for per-user HackerOne API credential resolution.
+  // This ensures bug bounty intelligence calls use the operator's own API keys.
+  try {
+    const { setActiveUser } = await import('./bug-bounty-intelligence');
+    setActiveUser(operatorCtx.id);
+    console.log(`[CredentialCtx] Set active user to ${operatorCtx.id} (${operatorCtx.name || 'unknown'}) for engagement #${engagementId}`);
+  } catch (e: any) {
+    console.warn('[CredentialCtx] Failed to set active user:', e.message);
+  }
+
   emitSystemNotification({
     title: options?.resume ? "Engagement Resumed" : "Engagement Execution Started",
     message: `Autonomous ${state.engagementType} execution ${options?.resume ? 'resumed' : 'started'} for engagement #${engagementId} (from ${startPhase})`,
@@ -11030,6 +11041,138 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
 
     // Final checkpoint
     await phaseCheckpoint('completed');
+
+    // ═══ ENGAGEMENT RESULT PERSISTENCE ═══
+    // Save structured results and findings to engagement_results / engagement_findings tables
+    try {
+      const { saveEngagementResult, saveEngagementFindings } = await import('../db');
+
+      // Compute severity breakdown from assets
+      const sevBreakdown = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      for (const asset of state.assets) {
+        for (const v of (asset.vulns || [])) {
+          const sev = (v.severity || 'medium').toLowerCase();
+          if (sev === 'critical') sevBreakdown.critical++;
+          else if (sev === 'high') sevBreakdown.high++;
+          else if (sev === 'medium' || sev === 'moderate') sevBreakdown.medium++;
+          else if (sev === 'low') sevBreakdown.low++;
+          else sevBreakdown.info++;
+        }
+      }
+
+      // Compute OWASP coverage from state
+      const owaspData = (state as any).owaspCoverage || (state.metadata as any)?.owaspCoverage;
+      const owaspCov = owaspData ? {
+        score: owaspData.coveragePercentage || owaspData.score || 0,
+        totalTested: owaspData.tested || owaspData.totalTested || 0,
+        totalPartial: owaspData.partial || owaspData.totalPartial || 0,
+        totalGaps: owaspData.gaps || owaspData.totalGaps || 0,
+        criticalGaps: owaspData.criticalGaps || [],
+      } : undefined;
+
+      // Build summary JSON with attack narratives, test plan adherence, etc.
+      const adherence = (state.metadata as any)?.testPlanAdherence;
+      const summaryJson: Record<string, any> = {
+        phases: state.log.filter(l => l.type === 'phase_complete').map(l => l.phase),
+        logEntryCount: state.log.length,
+        testPlanAdherence: adherence || null,
+        autoReportId: (state.metadata as any)?.autoReportId || null,
+        autoReportFindings: (state.metadata as any)?.autoReportFindings || 0,
+        scanProfile: (state as any).scanProfile || 'standard',
+        safetyLevel: (state as any).safetyLevel || 'standard',
+      };
+
+      const resultId = await saveEngagementResult({
+        engagementId,
+        operatorId: parseInt(String(operatorCtx.id), 10) || undefined,
+        operatorName: operatorCtx.name,
+        engagementType: state.engagementType,
+        targetDomain: state.assets.map(a => a.hostname).join(', '),
+        status: 'completed',
+        startedAt: state.startedAt,
+        completedAt: state.completedAt,
+        durationMs: (state.completedAt || Date.now()) - (state.startedAt || Date.now()),
+        stats: {
+          hostsScanned: state.assets.length,
+          portsFound: state.stats.portsFound,
+          vulnsFound: state.stats.vulnsFound,
+          verifiedVulns: (state.stats as any).verifiedVulns || 0,
+          unverifiedVulns: (state.stats as any).unverifiedVulns || 0,
+          exploitsAttempted: state.stats.exploitsAttempted,
+          exploitsSucceeded: state.stats.exploitsSucceeded,
+          sessionsOpened: state.stats.sessionsOpened,
+          zapScansRun: state.stats.zapScansRun || 0,
+        },
+        severityBreakdown: sevBreakdown,
+        owaspCoverage: owaspCov,
+        autoReportId: (state.metadata as any)?.autoReportId,
+        summaryJson,
+      });
+
+      // Persist individual findings
+      const findingsToSave: Array<any> = [];
+      for (const asset of state.assets) {
+        for (const v of (asset.vulns || [])) {
+          const sev = (v.severity || 'medium').toLowerCase();
+          const mappedSev = sev === 'moderate' ? 'medium' : (['critical','high','medium','low','info'].includes(sev) ? sev : 'medium');
+          findingsToSave.push({
+            engagementId,
+            resultId,
+            title: v.title || v.cve || 'Untitled',
+            severity: mappedSev as any,
+            cve: v.cve || undefined,
+            cwe: v.cwe || undefined,
+            description: v.description || undefined,
+            endpoint: v.endpoint || v.url || undefined,
+            hostname: asset.hostname,
+            port: v.port || undefined,
+            source: v.source || undefined,
+            tool: v.tool || v.source || undefined,
+            corroborationTier: v.corroborationTier || v.verified ? 'confirmed' : 'unverified',
+            rawEvidence: v.rawEvidence || v.evidence || undefined,
+            exploitAttempted: (asset.exploitAttempts || []).some((e: any) => e.vulnTitle === v.title),
+            exploitSucceeded: (asset.exploitAttempts || []).some((e: any) => e.vulnTitle === v.title && e.succeeded),
+            exploitTechnique: (asset.exploitAttempts || []).find((e: any) => e.vulnTitle === v.title)?.technique,
+            owaspCategory: v.owaspCategory || undefined,
+            mitreTechnique: v.mitreTechnique || undefined,
+          });
+        }
+        // Also persist ZAP findings
+        for (const zf of (asset.zapFindings || [])) {
+          const zapSev = (zf.risk || 'medium').toLowerCase();
+          const mappedZapSev = ['critical','high','medium','low','info'].includes(zapSev) ? zapSev : 'medium';
+          findingsToSave.push({
+            engagementId,
+            resultId,
+            title: zf.alert || 'ZAP Finding',
+            severity: mappedZapSev as any,
+            description: zf.description || undefined,
+            endpoint: zf.url || undefined,
+            hostname: asset.hostname,
+            source: 'zap',
+            tool: 'zap',
+            corroborationTier: 'unverified' as const,
+            rawEvidence: zf.other || zf.solution || undefined,
+          });
+        }
+      }
+
+      const savedCount = await saveEngagementFindings(findingsToSave);
+
+      addLog(state, {
+        phase: 'completed', type: 'info',
+        title: `💾 Results Persisted: ${savedCount} findings saved to DB`,
+        detail: `Result ID: ${resultId} | Findings: ${savedCount} (${sevBreakdown.critical}C/${sevBreakdown.high}H/${sevBreakdown.medium}M/${sevBreakdown.low}L/${sevBreakdown.info}I)${owaspCov ? ` | OWASP: ${owaspCov.score}%` : ''}`,
+      });
+      broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+    } catch (persistErr: any) {
+      console.error('[ResultPersistence] Failed to save engagement results:', persistErr.message);
+      addLog(state, {
+        phase: 'completed', type: 'warning',
+        title: '⚠️ Result Persistence Failed',
+        detail: `${persistErr.message}. Results are still available in the ops state snapshot.`,
+      });
+    }
 
     // Free knowledge module memory after engagement completes
     const clearedMods = clearKnowledgeCache();
