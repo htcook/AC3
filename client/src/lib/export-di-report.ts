@@ -396,6 +396,52 @@ export async function exportDiEasmReport(
     y = (doc as any).lastAutoTable.finalY + 8;
   }
 
+  // Business Intelligence section (from pipeline crawl)
+  const bizIntel = scan.pipelineCrawl?.businessIntelligence;
+  if (bizIntel && (bizIntel.services?.length > 0 || bizIntel.products?.length > 0 || bizIntel.businessSummary)) {
+    y = subheading('Business Intelligence (Web Crawl)', y);
+    // Business summary
+    if (bizIntel.businessSummary) {
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      const summaryLines = doc.splitTextToSize(bizIntel.businessSummary, contentWidth);
+      if (y + summaryLines.length * 4 > pageHeight - 25) { doc.addPage(); y = 20; }
+      doc.text(summaryLines, margin, y);
+      y += summaryLines.length * 4 + 4;
+    }
+    const bizRows: string[][] = [];
+    if (bizIntel.services?.length > 0) bizRows.push(['Services', bizIntel.services.join(', ')]);
+    if (bizIntel.products?.length > 0) bizRows.push(['Products / Solutions', bizIntel.products.join(', ')]);
+    if (bizIntel.industryIndicators?.length > 0) bizRows.push(['Industry Indicators', bizIntel.industryIndicators.join(', ')]);
+    if (bizIntel.targetMarket?.length > 0) bizRows.push(['Target Market', bizIntel.targetMarket.join(', ')]);
+    if (bizIntel.partnerships?.length > 0) bizRows.push(['Partnerships / Integrations', bizIntel.partnerships.join(', ')]);
+    if (bizIntel.complianceMentions?.length > 0) bizRows.push(['Compliance Mentions', bizIntel.complianceMentions.join(', ')]);
+    if (bizIntel.geographicPresence?.length > 0) bizRows.push(['Geographic Presence', (bizIntel as any).geographicPresence.join(', ')]);
+    if (bizIntel.pricingModel) bizRows.push(['Pricing Model', (bizIntel as any).pricingModel]);
+    if (bizRows.length > 0) {
+      if (y + bizRows.length * 10 > pageHeight - 25) { doc.addPage(); y = 20; }
+      autoTable!(doc, {
+        startY: y,
+        head: [['Category', 'Details']],
+        body: bizRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 }, 1: { cellWidth: contentWidth - 45 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+    // Confidence indicator
+    if (bizIntel.confidence != null) {
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Business intelligence confidence: ${Math.round(bizIntel.confidence * 100)}% (source: passive web crawl of public pages)`, margin, y);
+      y += 6;
+    }
+  }
+
   // Key risk findings summary table
   const criticalAssets = assets.filter((a: any) => a.riskBand === 'critical' || a.hybridRiskScore >= 80);
   const highAssets = assets.filter((a: any) => a.riskBand === 'high' || (a.hybridRiskScore >= 60 && a.hybridRiskScore < 80));
@@ -1456,6 +1502,8 @@ export async function exportDiEasmReport(
     ['Total Findings', String(scan.totalFindings || observations.length)],
     ['Total Assets', String(scan.totalAssets || assets.length)],
     ['Data Sources', String(connectorCount)],
+    ['Web Crawl', scan.pipelineCrawl ? `${scan.pipelineCrawl.totalCrawled}/${scan.pipelineCrawl.totalAssets} assets crawled (${scan.pipelineCrawl.totalFindings} findings, grade: ${scan.pipelineCrawl.worstGrade})` : 'Not run'],
+    ['CARVER Adjustments (Crawl)', scan.pipelineCrawl?.carverAdjustmentsApplied ? `${scan.pipelineCrawl.carverAdjustmentsApplied} assets adjusted` : 'N/A'],
     ['Report Generated', new Date().toLocaleString()],
   ];
 

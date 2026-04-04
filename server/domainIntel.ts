@@ -362,6 +362,35 @@ export interface PipelineResult {
       accessLevel: string;
     }>;
   };
+  /** Inline pipeline crawl results (Stage 3.993) */
+  pipelineCrawl?: {
+    totalAssets: number;
+    totalCrawled: number;
+    totalFailed: number;
+    totalFindings: number;
+    worstGrade: string;
+    durationMs: number;
+    carverAdjustmentsApplied: number;
+    businessIntelligence?: {
+      services: string[];
+      products: string[];
+      industryIndicators: string[];
+      partnerships: string[];
+      targetMarket: string[];
+      complianceMentions: string[];
+      businessSummary: string;
+      confidence: number;
+    } | null;
+    assetCrawls: Array<{
+      hostname: string;
+      url: string;
+      httpStatus: number | null;
+      securityGrade: string | null;
+      findingCount: number;
+      technologies: string[];
+      carverAdjusted: boolean;
+    }>;
+  };
   /** Cross-session scan delta — comparison against previous scan of the same domain */
   scanDelta?: {
     previousScanId: number;
@@ -1482,6 +1511,38 @@ export async function generateScanOnlySummary(
   const allFindings = analyses.flatMap(a => a.postureFindings);
   const kevFindings = allFindings.filter(f => (f as any).kevListed);
 
+  // ── Corroboration breakdown for scan-only summary accuracy ──
+  const confirmedFindings = allFindings.filter(f => f.corroborationTier === 'confirmed');
+  const probableFindings = allFindings.filter(f => f.corroborationTier === 'probable');
+  const unconfirmedFindings = allFindings.filter(f => f.corroborationTier !== 'confirmed' && f.corroborationTier !== 'probable');
+  const versionConfirmedCount = allFindings.filter(f => f.versionMatchConfirmed).length;
+  const kevConfirmed = kevFindings.filter(f => f.versionMatchConfirmed);
+  const kevProbable = kevFindings.filter(f => !f.versionMatchConfirmed);
+
+  const corroborationBlock = `
+CORROBORATION BREAKDOWN (CRITICAL — you MUST reflect this in your summary):
+- CONFIRMED findings (version detected + matched to CVE): ${confirmedFindings.length}
+- PROBABLE findings (product family detected, version NOT confirmed): ${probableFindings.length}
+- UNCONFIRMED/INFERRED findings (LLM inference or technology match only): ${unconfirmedFindings.length}
+- Version-confirmed vulnerabilities: ${versionConfirmedCount}
+- KEV-listed findings: ${kevFindings.length} (${kevConfirmed.length} version-confirmed, ${kevProbable.length} product-family only)
+
+RULES FOR WRITING THE SUMMARY:
+1. NEVER describe probable or unconfirmed findings as definitive risks. Use language like "potential exposure" or "product family detected but version unconfirmed".
+2. ALWAYS state the corroboration tier when referencing specific CVEs.
+3. If ALL KEV findings are probable (no version confirmation), say "N KEV-listed products were detected but no specific vulnerable versions were confirmed. Further version enumeration is recommended."
+4. Do NOT claim critical risk from probable-only findings.
+5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, do NOT describe the posture as "critical" or "high risk".
+6. Include a brief "Evidence Confidence" note at the end of the executive summary.
+`;
+
+  const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
+    `- [CONFIRMED] ${f.title} (severity: ${f.severity}/10, version: ${f.detectedVersion || 'N/A'}, CVSS: ${f.cvssScore || 'N/A'})`
+  ).join('\n');
+  const probableFindingsList = probableFindings.slice(0, 5).map(f =>
+    `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
+  ).join('\n');
+
   const prompt = `Generate a scan summary for a domain intelligence reconnaissance:
 
 Organization: ${org.customerName} (${org.sector}, ${org.clientType})
@@ -1489,16 +1550,19 @@ Total Assets Discovered: ${analyses.length}
 Critical/High Risk Assets: ${criticalAssets.length}
 Total Posture Findings: ${allFindings.length}
 KEV-listed Findings: ${kevFindings.length}
-
+${corroborationBlock}
 Top Risk Assets:
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join('\n')}
 
-Key Findings:
-${allFindings.slice(0, 10).map(f => `- ${f.title} (severity: ${f.severity}/10)`).join('\n')}
+Confirmed Findings (version-matched):
+${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected)'}
+
+Probable Findings (product family match, version unconfirmed):
+${probableFindingsList || '(none)'}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas, and a recommendation on whether to proceed with a full engagement (campaign design + threat actor profiling). Written for AC3 by AceofCloud.
-2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Note that campaign design and threat actor matching have not yet been performed — this is a pre-engagement scan.
+1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas with their corroboration tier, and a recommendation on whether to proceed with a full engagement. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Clearly distinguish confirmed vs probable findings. Note that campaign design and threat actor matching have not yet been performed — this is a pre-engagement scan.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -1552,6 +1616,40 @@ export async function generateSummaries(
   const criticalAssets = analyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
   const allFindings = analyses.flatMap(a => a.postureFindings);
 
+  // ── Corroboration breakdown for exec summary accuracy ──
+  const confirmedFindings = allFindings.filter(f => f.corroborationTier === 'confirmed');
+  const probableFindings = allFindings.filter(f => f.corroborationTier === 'probable');
+  const unconfirmedFindings = allFindings.filter(f => f.corroborationTier !== 'confirmed' && f.corroborationTier !== 'probable');
+  const versionConfirmedCount = allFindings.filter(f => f.versionMatchConfirmed).length;
+  const kevFindings = allFindings.filter(f => f.kevListed);
+  const kevConfirmed = kevFindings.filter(f => f.versionMatchConfirmed);
+  const kevProbable = kevFindings.filter(f => !f.versionMatchConfirmed);
+
+  const corroborationBlock = `
+CORROBORATION BREAKDOWN (CRITICAL — you MUST reflect this in your summary):
+- CONFIRMED findings (version detected + matched to CVE): ${confirmedFindings.length}
+- PROBABLE findings (product family detected, version NOT confirmed): ${probableFindings.length}
+- UNCONFIRMED/INFERRED findings (LLM inference or technology match only): ${unconfirmedFindings.length}
+- Version-confirmed vulnerabilities: ${versionConfirmedCount}
+- KEV-listed findings: ${kevFindings.length} (${kevConfirmed.length} version-confirmed, ${kevProbable.length} product-family only)
+
+RULES FOR WRITING THE EXECUTIVE SUMMARY:
+1. NEVER describe probable or unconfirmed findings as definitive risks. Use language like "potential exposure" or "product family detected but version unconfirmed".
+2. ALWAYS state the corroboration tier when referencing specific CVEs. Example: "CVE-2024-1234 (confirmed — v2.1.3 detected)" vs "CVE-2024-5678 (probable — Apache detected but version unconfirmed)".
+3. If ALL KEV findings are probable (no version confirmation), say "N KEV-listed products were detected but no specific vulnerable versions were confirmed. Further version enumeration is recommended."
+4. Do NOT claim critical risk from probable-only findings. Probable findings indicate potential exposure requiring version verification, not confirmed vulnerability.
+5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, the summary should NOT describe the posture as "critical" or "high risk" based solely on probable matches.
+6. Include a brief "Evidence Confidence" note at the end of the executive summary stating how many findings are confirmed vs probable.
+`;
+
+  // ── Build finding lists with corroboration labels ──
+  const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
+    `- [CONFIRMED] ${f.title} (severity: ${f.severity}/10, version: ${f.detectedVersion || 'N/A'}, CVSS: ${f.cvssScore || 'N/A'})`
+  ).join("\n");
+  const probableFindingsList = probableFindings.slice(0, 5).map(f =>
+    `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
+  ).join("\n");
+
   const prompt = `Generate two summaries for a security assessment:
 
 Organization: ${org.customerName} (${org.sector}, ${org.clientType})
@@ -1559,19 +1657,22 @@ Total Assets Discovered: ${analyses.length}
 Critical/High Risk Assets: ${criticalAssets.length}
 Total Posture Findings: ${allFindings.length}
 Recommended Campaigns: ${campaigns.length}
-
+${corroborationBlock}
 Top Risk Assets:
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join("\n")}
 
-Key Findings:
-${allFindings.slice(0, 10).map(f => `- ${f.title} (severity: ${f.severity}/10)`).join("\n")}
+Confirmed Findings (version-matched):
+${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected)'}
+
+Probable Findings (product family match, version unconfirmed):
+${probableFindingsList || '(none)'}
 
 Campaigns Designed:
 ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings, and recommended actions. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A technical threat model summary covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths.
+1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings with their corroboration tier, and recommended actions. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A technical threat model summary covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths. Clearly distinguish confirmed vs probable attack vectors.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -2510,6 +2611,65 @@ export async function runDomainIntelPipeline(
   }
 
   await yieldEventLoop();
+  // Stage 3.75: NVD CVE Description Enrichment — add human-readable descriptions, CVSS vectors,
+  // and affected version ranges to posture findings that have CVE IDs but lack descriptions.
+  // This runs AFTER KEV + vuln feed + Shodan so all CVE-bearing findings are already created.
+  try {
+    const { batchLookupCves } = await import("./lib/nvd-cve-lookup");
+    // Collect all unique CVE IDs across all posture findings
+    const allCveIds = new Set<string>();
+    for (const a of analyses) {
+      for (const f of a.postureFindings) {
+        if (f.cveIds) f.cveIds.forEach(id => allCveIds.add(id));
+      }
+    }
+    if (allCveIds.size > 0) {
+      // Cap at 50 CVEs to respect NVD rate limits (no API key = 5 req/30s)
+      const cveList = Array.from(allCveIds).slice(0, 50);
+      console.log(`[DomainIntel] NVD enrichment: looking up ${cveList.length} CVEs (of ${allCveIds.size} total)`);
+      const nvdResults = await batchLookupCves(cveList);
+      // Build a CVE → NVD result map
+      const nvdMap = new Map<string, typeof nvdResults[0]>();
+      for (const r of nvdResults) {
+        if (!r.error) nvdMap.set(r.cveId, r);
+      }
+      let enrichedCount = 0;
+      // Annotate posture findings with NVD data
+      for (const a of analyses) {
+        for (const f of a.postureFindings) {
+          if (!f.cveIds || f.cveIds.length === 0) continue;
+          for (const cveId of f.cveIds) {
+            const nvd = nvdMap.get(cveId);
+            if (!nvd) continue;
+            // Add NVD description to evidence detail if not already present
+            if (nvd.description && !f.evidenceDetail?.includes(nvd.description.substring(0, 40))) {
+              f.evidenceDetail = (f.evidenceDetail || '') + ` NVD: ${nvd.description}`;
+            }
+            // Update CVSS score from NVD if we have a more authoritative score
+            if (nvd.cvssV3Score && (!f.cvssScore || f.evidenceBasis === 'kev_match')) {
+              f.cvssScore = nvd.cvssScore;
+            }
+            // Add NVD description to evidence chain
+            if (nvd.description && f.evidenceChain) {
+              f.evidenceChain.push(`NVD Description: ${nvd.description.substring(0, 200)}`);
+            }
+            // Store the CVSS vector for detailed analysis
+            if (nvd.cvssV3Vector && f.evidenceChain) {
+              f.evidenceChain.push(`CVSS v3.1 Vector: ${nvd.cvssV3Vector}`);
+            }
+            // Add NVD-sourced CWE IDs to the finding title if not already present
+            // (useful for compliance mapping)
+            enrichedCount++;
+          }
+        }
+      }
+      console.log(`[DomainIntel] NVD enrichment complete: ${nvdMap.size}/${cveList.length} CVEs resolved, ${enrichedCount} findings enriched`);
+    }
+  } catch (err: any) {
+    console.error(`[DomainIntel] NVD CVE enrichment failed (non-fatal): ${err.message}`);
+  }
+
+  await yieldEventLoop();
   // Stage 3.8: Exploit Matching — match confirmed CVEs against Metasploit/ExploitDB
   let exploitMatchResult: PipelineResult['exploitMatches'] | undefined;
   try {
@@ -3171,10 +3331,50 @@ export async function runDomainIntelPipeline(
     } else {
       console.log(`[DomainIntel] Container exposure: No exposed container infrastructure detected (${containerExposure.totalProbes} probes)`);
     }
-  } catch (containerErr: any) {
+   } catch (containerErr: any) {
     console.error(`[DomainIntel] Stage 3.992 container exposure scan failed (non-fatal): ${containerErr.message}`);
   }
-
+  // ─── Stage 3.993: Inline Web Crawl + CARVER Scoring + Business Intel ────
+  // Runs the web crawler INLINE so crawl-derived CARVER adjustments and business
+  // intelligence feed directly into hybrid risk scoring (before Stage 3.995).
+  let pipelineCrawlResult: Awaited<ReturnType<typeof import('./lib/pipeline-crawl-stage').runPipelineCrawlStage>> | undefined;
+  try {
+    const { runPipelineCrawlStage, enrichOrgWithBusinessIntel, applyBusinessIntelCarverBoosts } = await import('./lib/pipeline-crawl-stage');
+    pipelineCrawlResult = await runPipelineCrawlStage(analyses, org, org.primaryDomain);
+    if (pipelineCrawlResult.businessIntelligence) {
+      // Enrich org profile with crawl-derived business context
+      enrichOrgWithBusinessIntel(org, pipelineCrawlResult.businessIntelligence);
+      // Apply business-intel-driven CARVER boosts (compliance, critical services, enterprise market)
+      const bizBoosts = applyBusinessIntelCarverBoosts(analyses, pipelineCrawlResult.businessIntelligence);
+      console.log(`[DomainIntel] Stage 3.993: Business intel CARVER boosts applied to ${bizBoosts} assets`);
+    }
+    // Recalculate hybrid risk scores after crawl CARVER adjustments
+    if (pipelineCrawlResult.carverAdjustmentsApplied > 0) {
+      for (const a of analyses) {
+        const missionImpact = computeMissionImpact(a.carverScores, a.shockScores);
+        const portBoost = (a as any)._portLikelihoodBoost || 0;
+        const hybrid = computeHybridRisk(
+          a.cvssEstimate,
+          missionImpact,
+          a.contextIndicators,
+          a.vulnRiskScore,
+          portBoost
+        );
+        a.missionImpactScore = Math.round(missionImpact * 10) / 10;
+        a.hybridRiskScore = hybrid.score;
+        a.riskBand = hybrid.band;
+        a.suggestedTier = riskTier(hybrid.score);
+        a.impactScore = hybrid.impactScore;
+        a.likelihoodScore = hybrid.likelihoodScore;
+        a.assetCriticalityScore = computeAssetCriticality(missionImpact).score;
+        a.assetCriticalityBand = computeAssetCriticality(missionImpact).band;
+      }
+      console.log(`[DomainIntel] Stage 3.993: Hybrid risk recalculated after ${pipelineCrawlResult.carverAdjustmentsApplied} crawl CARVER adjustments`);
+    }
+  } catch (crawlErr: any) {
+    console.error(`[DomainIntel] Stage 3.993 pipeline crawl failed (non-fatal): ${crawlErr.message}`);
+  }
+  await yieldEventLoop();
   // ─── Auto-generate CARVER Risk Card for this domain ────────────────────
   let carverRiskCard: any = null;
   try {
@@ -3303,5 +3503,6 @@ export async function runDomainIntelPipeline(
     containerExposure,
     wafNgfwAssessment,
     scanDelta,
+    pipelineCrawl: pipelineCrawlResult,
   };
 }

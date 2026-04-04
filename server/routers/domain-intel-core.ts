@@ -391,6 +391,8 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              // Pipeline crawl results (Stage 3.993) — business intel + CARVER adjustments
+              pipelineCrawl: (result as any).pipelineCrawl || undefined,
               // Domain Health report extracted from passive recon observations
               domainHealth: (() => {
                 const healthObs = result.passiveRecon?.allObservations?.find(
@@ -952,6 +954,7 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              pipelineCrawl: (result as any).pipelineCrawl || undefined,
               domainHealth: (() => {
                 const healthObs = result.passiveRecon?.allObservations?.find(
                   (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
@@ -1401,6 +1404,7 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              pipelineCrawl: (result as any).pipelineCrawl || undefined,
               domainHealth: (() => {
                 const healthObs = result.passiveRecon?.allObservations?.find(
                   (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
@@ -2558,6 +2562,7 @@ export const domainIntelRouter = router({
               } : undefined,
               complianceScan: result.complianceScan || undefined,
               containerExposure: result.containerExposure || undefined,
+              pipelineCrawl: (result as any).pipelineCrawl || undefined,
               domainHealth: (() => {
                 const healthObs = result.passiveRecon?.allObservations?.find(
                   (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
