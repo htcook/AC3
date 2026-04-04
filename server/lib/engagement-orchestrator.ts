@@ -7892,13 +7892,18 @@ ${(() => {
           engagementId: state.engagementId,
         });
 
-        // ── Real exploit execution via functional exploit generator + scan server ──
+        // ══════════════════════════════════════════════════════════════════
+        // Enhanced Exploit Execution (P1/P2/P3 wiring)
+        // Routes through: enhanced pipeline (10 gap modules) → chain reasoner
+        // → chain execution → retry engine, instead of direct generateFunctionalExploit.
+        // ══════════════════════════════════════════════════════════════════
         const exploitStartTime = Date.now();
         let success = false;
         let shellSessionId: string | undefined;
         let exploitOutput = '';
         let shellType: string | undefined;
         let shellPayload: string | undefined;
+        let generatedExploit: any = null;
 
         const isTrainingLabExploit = state.trainingLabMode === true;
         try {
@@ -7951,41 +7956,37 @@ ${(() => {
             console.warn(`[Exploit] Feedback context query failed (non-blocking):`, fbErr.message);
           }
 
-          // Step 1: Generate the actual exploit code via LLM (with Exploit-DB context + feedback)
-          const { generateFunctionalExploit } = await import("./functional-exploit-generator");
-          const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
-          console.log(`[Exploit] Generating exploit for ${cve || service} on ${target}:${port}`);
-          const generatedExploit = await generateFunctionalExploit({
-            vulnerability: {
-              cve: cve || undefined,
-              title: vulnForExploit?.title || `${service} exploit`,
-              severity: vulnForExploit?.severity || 'critical',
-              description: (vulnForExploit?.description || `Vulnerability in ${service} on port ${port}`) +
-                (exploitDbContext ? `\n\nKnown Exploits:\n${exploitDbContext}` : '') +
-                (feedbackPromptSection ? `\n\n${feedbackPromptSection}` : ''),
-              service: service || 'http',
-              port: Number(port),
-              tool: (vulnForExploit as any)?.source || undefined,
-            },
-            target: {
-              hostname: target,
-              ip: asset?.ip || undefined,
-              os: asset?.os || undefined,
-              technologies: asset?.technologies || [],
+          // ── Step 1+2+3: Enhanced Pipeline Bridge (replaces direct generateFunctionalExploit) ──
+          // This routes through the full enhanced pipeline (10 gap modules), chain reasoner,
+          // chain execution, and retry engine via the enhanced-exploit-orchestration bridge.
+          const { executeEnhancedExploitWithChaining } = await import("./enhanced-exploit-orchestration");
+          console.log(`[Exploit] Running ENHANCED pipeline for ${cve || service} on ${target}:${port}`);
+
+          const enhancedOutcome = await executeEnhancedExploitWithChaining({
+            engagementId: state.engagementId,
+            target,
+            port: Number(port),
+            service: service || 'http',
+            cve: cve || undefined,
+            module: module || undefined,
+            asset: asset ? {
+              hostname: asset.hostname || target,
+              ip: asset.ip || undefined,
+              os: asset.os || undefined,
+              technologies: asset.technologies || [],
               wafDetected: (asset as any)?.wafDetected || undefined,
-              ports: asset?.ports?.map(p => ({ port: p.port, service: p.service, version: p.version })) || [],
-            },
-            exploitPlan: plan ? {
-              selectedModule: plan.selectedExploit?.modulePath,
-              reasoning: plan.reasoning,
-              evasionRecommendations: plan.evasionTechniques,
+              ports: asset.ports?.map(p => ({ port: p.port, service: p.service, version: p.version })) || [],
+              vulns: asset.vulns?.map(v => ({ title: v.title, severity: v.severity, cve: v.cve, description: v.description, source: (v as any)?.source, port: (v as any)?.port })) || [],
+              confirmedCredentials: (asset as any)?.confirmedCredentials || undefined,
             } : undefined,
-            otherVulns: asset?.vulns
-              ?.filter(v => v.cve !== cve)
-              ?.slice(0, 10)
-              ?.map(v => ({ title: v.title, severity: v.severity, cve: v.cve, port: (v as any).port })),
-            includeEvasion: true,
-            // Training lab context for adapted exploit strategy
+            plan: plan ? {
+              selectedExploit: plan.selectedExploit ? { modulePath: plan.selectedExploit.modulePath, payloadOptions: plan.selectedExploit.payloadOptions, opsecRisk: plan.selectedExploit.opsecRisk } : undefined,
+              reasoning: plan.reasoning,
+              confidence: plan.confidence,
+              evasionTechniques: plan.evasionTechniques,
+            } : undefined,
+            exploitDbContext,
+            feedbackPromptSection,
             trainingLabMode: state.trainingLabMode === true,
             trainingLabName: state.trainingLabMode ? (() => {
               const h = target.toLowerCase();
@@ -7998,556 +7999,201 @@ ${(() => {
               if (h.includes('vampi')) return 'vampi';
               return 'unknown-lab';
             })() : undefined,
-            attackerHost: scanServerHost || undefined,
-            attackerPort: 4444,
+            scanServerHost: scanServerHost || undefined,
+            useEnhancedPipeline: true,
+            enableChainExecution: true,
+            enableChainReasoner: true,
+            maxChainSteps: 4,
           });
 
-          // Step 2: Execute the exploit on the scan server
-          if (generatedExploit?.code) {
-            const { executeRawCommand } = await import("./scan-server-executor");
+          // Extract results from enhanced outcome
+          success = enhancedOutcome.success;
+          exploitOutput = enhancedOutcome.exploitOutput;
+          shellType = enhancedOutcome.shellType;
+          shellPayload = enhancedOutcome.shellPayload;
+          shellSessionId = enhancedOutcome.shellSessionId;
+          generatedExploit = enhancedOutcome.generatedExploit;
 
-            // ── Pre-flight Tool Provisioning (Exploit Tooling Framework) ──
-            // Classify the vulnerability and provision required tools before execution
-            try {
-              const { classifyVulnerability, provisionForExploit, formatProvisionReportForPrompt } = await import("./exploit-tooling-framework");
-              const exploitCategory = classifyVulnerability({
-                title: vulnForExploit?.title || `${service} exploit`,
-                description: vulnForExploit?.description,
-                cve: cve || undefined,
-                service: service || undefined,
-                port: Number(port),
-              });
-              if (exploitCategory) {
-                const provisionReport = await provisionForExploit(
-                  exploitCategory,
-                  async (cmd: string, timeout: number) => {
-                    const result = await executeRawCommand(cmd, timeout);
-                    if (typeof result === 'string') return { stdout: result, stderr: '', exitCode: 0 };
-                    return { stdout: result?.stdout || '', stderr: result?.stderr || '', exitCode: result?.exitCode ?? 0 };
-                  },
-                  { maxTotalTimeSeconds: 90 }
-                );
-                const provisionSummary = formatProvisionReportForPrompt(provisionReport);
-                addLog(state, {
-                  phase: 'exploitation', type: provisionReport.allRequiredAvailable ? 'info' : 'warning',
-                  title: `🔧 Tool Provisioning: ${exploitCategory}`,
-                  detail: provisionSummary,
-                });
-                console.log(`[Exploit] Provisioned tools for ${exploitCategory}: ${provisionReport.results.map(r => `${r.tool}=${r.status}`).join(', ')}`);
-              }
-            } catch (provErr: any) {
-              console.warn(`[Exploit] Tool provisioning failed (non-fatal):`, provErr.message);
-            }
-
-            // Install prerequisites if the exploit needs them (e.g., requests library)
-            if (generatedExploit.prerequisites?.length > 0) {
-              const pipPackages = generatedExploit.prerequisites
-                .filter(p => /^[a-zA-Z0-9_-]+$/.test(p) && !['python3', 'python', 'bash', 'curl', 'wget', 'nc', 'netcat', 'nmap'].includes(p.toLowerCase()))
-                .slice(0, 5);
-              if (pipPackages.length > 0) {
-                try {
-                  await executeRawCommand(`pip3 install --quiet ${pipPackages.join(' ')} 2>/dev/null || true`, 30);
-                } catch { /* best effort */ }
-              }
-            }
-
-            // Write exploit to temp file and execute
-            const exploitFileName = `exploit_${state.engagementId}_${Date.now()}.py`;
-            // Use base64 encoding to safely transfer exploit code (avoids heredoc termination issues
-            // and special character escaping problems that caused empty scripts in Vianova engagement)
-            const codeB64 = Buffer.from(generatedExploit.code).toString('base64');
-            await executeRawCommand(`echo '${codeB64}' | base64 -d > /tmp/${exploitFileName}`, 15);
-
-            // Validate Python syntax before execution to catch LLM-generated syntax errors early
-            const syntaxCheck = await executeRawCommand(`python3 -c "import ast; ast.parse(open('/tmp/${exploitFileName}').read())" 2>&1`, 10);
-            const syntaxOutput = typeof syntaxCheck === 'string' ? syntaxCheck : (syntaxCheck?.stderr || syntaxCheck?.stdout || '');
-            if (syntaxOutput.includes('SyntaxError') || syntaxOutput.includes('IndentationError')) {
-              console.warn(`[Exploit] Generated code has syntax errors: ${syntaxOutput.slice(0, 200)}`);
-              addLog(state, {
-                phase: 'exploitation',
-                type: 'warning',
-                title: `⚠️ Exploit Syntax Error: ${target}:${port}`,
-                detail: `LLM-generated exploit has Python syntax errors. Attempting execution anyway.\n${syntaxOutput.slice(0, 500)}`,
-              });
-            }
-            const exploitTimeout = state.trainingLabMode ? 120 : 60;
-            const execResult = await executeRawCommand(`cd /tmp && timeout ${exploitTimeout} python3 ${exploitFileName} 2>&1 || true`, exploitTimeout + 30);
-            // Robust output extraction: handle string, ToolExecResult, or undefined
-            const rawExploitOutput = typeof execResult === 'string'
-              ? execResult
-              : (execResult?.stdout || execResult?.stderr || (execResult as any)?.error || '');
-            exploitOutput = (rawExploitOutput || '').trim();
-            // Log execution metadata for debugging
-            if (typeof execResult !== 'string' && execResult) {
-              console.log(`[Exploit] Execution result: exitCode=${execResult.exitCode} stdout=${(execResult.stdout || '').length}b stderr=${(execResult.stderr || '').length}b timedOut=${execResult.timedOut} durationMs=${execResult.durationMs}`);
-            }
-
-            // ── Exploit Success Detection (hardened against hallucination) ──
-            // CRITICAL: False positives here create hallucinated exploits in reports.
-            // Every indicator must be specific enough that a normal failed request won't match.
-
-            // Negative indicators: if ANY of these appear, the exploit FAILED regardless of other signals
-            const failureIndicators = [
-              /EXPLOIT_FAILED/i,
-              /exploit.*failed/i,
-              /connection.*refused/i,
-              /connection.*timed?\s*out/i,
-              /Traceback \(most recent call last\)/i,
-              /ModuleNotFoundError/i,
-              /ImportError/i,
-              /SyntaxError/i,
-              /IndentationError/i,
-              /NameError/i,
-              /TypeError.*argument/i,
-              /Permission denied/i,
-              /Access denied/i,
-              /403 Forbidden/i,
-              /404 Not Found/i,
-              /500 Internal Server Error/i,
-              /502 Bad Gateway/i,
-              /503 Service Unavailable/i,
-              /No route to host/i,
-              /Network is unreachable/i,
-              /Could not resolve host/i,
-              /SSL.*error/i,
-              /certificate.*error/i,
-              /timeout.*exceeded/i,
-              /\[Errno/i,
-              /OSError/i,
-              /socket\.error/i,
-            ];
-            const hasFailureSignal = failureIndicators.some(re => re.test(exploitOutput));
-
-            // Shell-level success: strong indicators that a system shell was obtained
-            const shellIndicators = [
-              /shell.*opened/i, /session.*opened/i, /meterpreter/i,
-              /uid=\d+.*gid=\d+/i, /root@[a-zA-Z]/i, /www-data@[a-zA-Z]/i,
-              /command.*shell.*established/i, /interactive.*shell.*spawned/i,
-            ];
-
-            // Web exploit success: STRICT indicators for training labs only
-            // Removed overly broad patterns (HTTP 200, JSON body, password/token mentions)
-            // that caused false positives on Juice Shop engagement
-            const webExploitIndicators = [
-              /EXPLOIT_SUCCESS/i,                    // Explicit marker from our exploit scripts
-              /\[\+\].*successfully.*exploit/i,       // Prefixed success message
-              /\[\+\].*injection.*successful/i,       // Prefixed injection confirmation
-              /\[\+\].*authentication.*bypass/i,      // Prefixed auth bypass
-              /\[\+\].*extracted.*\d+.*records?/i,     // Extracted N records (specific count)
-              /\[\+\].*admin.*access.*granted/i,      // Admin access confirmed
-              /\[\+\].*sensitive.*data.*leaked/i,      // Data leak confirmed
-              /\[\+\].*rce.*confirmed/i,              // RCE confirmed
-              /\[\+\].*command.*executed/i,            // Command execution confirmed
-            ];
-
-            // Evidence quality gate: require minimum meaningful output length
-            const MIN_EVIDENCE_LENGTH = 100; // Exploit output must be substantial
-            const hasSubstantialOutput = exploitOutput.length >= MIN_EVIDENCE_LENGTH;
-
-            // Shell success: strong shell indicators AND no failure signals AND substantial output
-            const shellSuccess = !hasFailureSignal &&
-              hasSubstantialOutput &&
-              shellIndicators.some(re => re.test(exploitOutput));
-
-            // popsShell claim from LLM: ONLY trust if corroborated by shell indicators in output
-            // (Previously, popsShell=true + output>50 chars = success, which was too permissive)
-            const popsShellCorroborated = generatedExploit.popsShell === true &&
-              !hasFailureSignal &&
-              hasSubstantialOutput &&
-              shellIndicators.some(re => re.test(exploitOutput));
-
-            // Web exploit success (training labs only): strict markers AND no failure signals
-            const webSuccess = isTrainingLabExploit &&
-              !hasFailureSignal &&
-              hasSubstantialOutput &&
-              webExploitIndicators.some(re => re.test(exploitOutput));
-
-            success = shellSuccess || popsShellCorroborated || webSuccess;
-
-            // Log the evidence quality assessment for debugging
-            console.log(`[Exploit] Evidence assessment for ${target}:${port}: ` +
-              `shellSuccess=${shellSuccess} popsShellCorroborated=${popsShellCorroborated} ` +
-              `webSuccess=${webSuccess} hasFailureSignal=${hasFailureSignal} ` +
-              `outputLen=${exploitOutput.length} final=${success}`);
-
-            shellType = generatedExploit.shellType || undefined;
-            shellPayload = generatedExploit.shellPayload || undefined;
-
+          // Emit all log entries from the enhanced pipeline
+          for (const logEntry of enhancedOutcome.logEntries) {
             addLog(state, {
               phase: 'exploitation',
-              type: 'info',
-              title: `Exploit Output: ${target}:${port}`,
-              detail: exploitOutput.slice(0, 1000) || 'No output captured',
-              data: { 
-                exploitCode: generatedExploit.code?.slice(0, 500),
-                language: generatedExploit.language,
-                popsShell: generatedExploit.popsShell,
-                shellType: generatedExploit.shellType,
-              },
+              type: logEntry.type as any,
+              title: logEntry.title,
+              detail: logEntry.detail,
+              data: logEntry.data,
             });
           }
-        } catch (execErr: any) {
-          // Functional exploit generator failed — NEVER claim success without real execution evidence
-          console.warn(`[Exploit] Functional exploit execution failed for ${target}:${port}:`, execErr.message);
-          exploitOutput = `Exploit execution error: ${execErr.message}`;
-          // CRITICAL: Do NOT fall back to plan-based success. An LLM-generated plan with high
-          // confidence does NOT constitute evidence of a successful exploit. This was the root
-          // cause of hallucinated exploit successes in the Vianova engagement.
-          success = false;
+
+          // Log enhanced pipeline summary
           addLog(state, {
             phase: 'exploitation',
-            type: 'warning',
-            title: `Exploit execution failed: ${target}:${port}`,
-            detail: `The exploit generator threw an error: ${execErr.message}. Marking as FAILED (not falling back to plan-based assessment).`,
+            type: success ? 'exploit_success' : 'exploit_fail',
+            title: success
+              ? (isTrainingLabExploit && shellType === 'none'
+                ? `✅ Vulnerability Confirmed (Enhanced): ${target}`
+                : `✅ Shell Obtained (Enhanced): ${target}`)
+              : `❌ Exploit Failed (Enhanced): ${target}`,
+            detail: success
+              ? `Enhanced pipeline succeeded on ${service} at ${target}:${port}.\n` +
+                `Access level: ${enhancedOutcome.highestAccessLevel || 'unknown'}\n` +
+                `Chain: ${enhancedOutcome.chainResult ? `${enhancedOutcome.chainResult.stepResults.filter(r => r.success).length}/${enhancedOutcome.chainResult.stepResults.length} steps` : 'N/A'}\n` +
+                `Evidence: ${exploitOutput.slice(0, 300)}`
+              : `Enhanced pipeline failed on ${service} at ${target}:${port}.\n` +
+                `Pipeline: ${enhancedOutcome.enhancedPipelineResult?.status || 'N/A'}\n` +
+                `Output: ${exploitOutput.slice(0, 300)}`,
+            riskTier: 'red',
+            data: {
+              enhancedPipeline: true,
+              pipelineStatus: enhancedOutcome.enhancedPipelineResult?.status,
+              qualityScore: enhancedOutcome.enhancedPipelineResult?.qualityScore?.overall,
+              verificationStatus: enhancedOutcome.verification?.status,
+              chainSteps: enhancedOutcome.chainResult?.stepResults?.length,
+              reasonerAction: enhancedOutcome.reasonerDecision?.action?.type,
+              highestAccess: enhancedOutcome.highestAccessLevel,
+              totalDurationMs: enhancedOutcome.totalDurationMs,
+            },
           });
-        }
 
-        if (success) {
-          shellSessionId = `session-${genId()}`;
-        }
-
-        if (asset) {
-          asset.exploitAttempts.push({
-            module: module || cve || "auto",
-            success,
-            sessionId: shellSessionId,
-            // Full evidence fields
-            cve: cve || undefined,
-            service: service || undefined,
-            port: Number(port) || undefined,
-            target: target || undefined,
-            confidence: plan?.confidence ?? undefined,
-            reasoning: plan?.reasoning?.slice(0, 500) || undefined,
-            selectedExploit: plan?.selectedExploit ? {
-              modulePath: plan.selectedExploit.modulePath,
-              payload: plan.selectedExploit.payloadOptions?.[0] || shellPayload || undefined,
-              options: plan.selectedExploit.opsecRisk ? { opsecRisk: plan.selectedExploit.opsecRisk } : undefined,
-            } : undefined,
-            exploitOutput: exploitOutput.slice(0, 2000) || undefined,
-            shellType: shellType || undefined,
-            timestamp: exploitStartTime,
-            durationMs: Date.now() - exploitStartTime,
-          });
-          if (success) {
-            asset.status = "compromised";
+          // Update asset status on success
+          if (success && asset) {
+            asset.status = 'compromised';
             state.stats.exploitsSucceeded++;
-            // Only count sessions opened for actual shell access, not web-level exploits
             const hasShellEvidence = /shell.*opened|session.*opened|meterpreter|uid=\d+|root@|www-data@/i.test(exploitOutput);
             if (!isTrainingLabExploit || hasShellEvidence) {
               state.stats.sessionsOpened++;
             }
           }
-        }
 
-        emitExploitResult({
-          jobId: state.stats.exploitsAttempted,
-          module: module || cve || "auto",
-          targetIp: target,
-          success,
-          engagementId: state.engagementId,
-        });
+          // NOTE: Feedback recording, retry engine, and chain execution are all handled
+          // inside executeEnhancedExploitWithChaining — no need to duplicate here.
+          // The following legacy blocks (Steps 1-3, retry engine) are now bypassed.
+          const vulnForExploit = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
+          // Legacy exploit generation + execution code removed (preserved in git history).
+          // The enhanced pipeline bridge (executeEnhancedExploitWithChaining) handles all exploitation now.
 
-        await auditLog({
-          engagementId: state.engagementId,
-          operatorId: operatorCtx.id,
-          operatorName: operatorCtx.name,
-          actionType: "msf_exploit",
-          riskTier: "red",
-          target,
-          targetPort: Number(port),
-          moduleOrTool: module || cve,
-          resultStatus: success ? "success" : "failure",
-          resultDetail: success 
-            ? (isTrainingLabExploit && shellType === 'none'
-              ? `Exploit succeeded — web vulnerability confirmed. Evidence captured.`
-              : `Exploit succeeded — shell obtained (${shellType || 'reverse_shell'}). Session: ${shellSessionId}`)
-            : `Exploit failed. Output: ${exploitOutput.slice(0, 200)}`,
-          isTrainingLab: isTrainingLabExploit || undefined,
-        });
 
-        addLog(state, {
-          phase: "exploitation",
-          type: success ? "exploit_success" : "exploit_fail",
-          title: success
-            ? (isTrainingLabExploit && shellType === 'none'
-              ? `✅ Vulnerability Confirmed: ${target}`
-              : `✅ Shell Obtained: ${target}`)
-            : `❌ Exploit Failed: ${target}`,
-          detail: success
-            ? (isTrainingLabExploit && shellType === 'none'
-              ? `Successfully exploited ${service} on ${target}:${port}. Web vulnerability confirmed with evidence.\nEvidence: ${exploitOutput.slice(0, 300)}`
-              : `Successfully exploited ${service} on ${target}:${port}. ${shellType || 'Reverse shell'} session opened (${shellSessionId}).\nEvidence: ${exploitOutput.slice(0, 300)}`)
-            : `Exploitation of ${service} on ${target}:${port} failed.\nOutput: ${exploitOutput.slice(0, 300)}\nMoving to next target.`,
-          riskTier: "red",
-          data: { 
-            plan: plan ? { module: plan.selectedExploit?.modulePath, confidence: plan.confidence, reasoning: plan.reasoning?.slice(0, 300) } : null,
-            exploitOutput: exploitOutput.slice(0, 1000),
-            shellType,
-            shellSessionId,
-          },
-        });
-
-        // ── Evidence Integrity Gate: Blue Team Win (exploit failure = defense held) ──
-        if (!success) {
-          try {
-            const blueTeamContent = `Defense held: Exploit failed on ${target}:${port}. ` +
-              `Service: ${service || 'unknown'}. Module: ${module || cve || 'auto'}. ` +
-              `WAF: ${asset?.wafDetected || 'none'}. ` +
-              `Output: ${exploitOutput.slice(0, 500)}. ` +
-              `Engagement: ${state.engagementId}. Timestamp: ${new Date().toISOString()}`;
-            const blueTeamProvenance = buildProvenance({
-              tool: 'metasploit' as EvidenceSourceTool,
-              collectorHost: scanServerHost || 'ac3-platform',
-              rawOutput: blueTeamContent,
-              targetHost: target,
-              sourceIp: scanServerHost || 'unknown',
-              destinationIp: asset?.ip || target,
+          // ── Orchestrator State Updates (asset tracking, events, audit, evidence) ──
+          // These run regardless of which pipeline path was taken.
+          if (asset) {
+            asset.exploitAttempts.push({
+              module: module || cve || "auto",
+              success,
+              sessionId: shellSessionId,
+              cve: cve || undefined,
+              service: service || undefined,
+              port: Number(port) || undefined,
+              target: target || undefined,
+              confidence: plan?.confidence ?? undefined,
+              reasoning: plan?.reasoning?.slice(0, 500) || undefined,
+              selectedExploit: plan?.selectedExploit ? {
+                modulePath: plan.selectedExploit.modulePath,
+                payload: plan.selectedExploit.payloadOptions?.[0] || shellPayload || undefined,
+                options: plan.selectedExploit.opsecRisk ? { opsecRisk: plan.selectedExploit.opsecRisk } : undefined,
+              } : undefined,
+              exploitOutput: exploitOutput.slice(0, 2000) || undefined,
+              shellType: shellType || undefined,
+              timestamp: exploitStartTime,
+              durationMs: Date.now() - exploitStartTime,
             });
-            const blueTeamGate = evidenceGate({
-              content: blueTeamContent,
-              provenance: blueTeamProvenance,
-              engagementId: String(state.engagementId),
-              evidenceType: 'blue_team_win',
-              sourceTool: 'metasploit' as EvidenceSourceTool,
-            });
-            const blueTeamEvidenceId = `blue-team-win-${target}-${port}-${Date.now()}`;
-            createIntegrityEnvelope({
-              engagementId: String(state.engagementId),
-              evidenceId: blueTeamEvidenceId,
-              content: blueTeamContent,
-              provenance: blueTeamProvenance,
-              sourceTool: 'metasploit' as EvidenceSourceTool,
-            });
-            recordCustodyEvent({
-              engagementId: String(state.engagementId),
-              evidenceId: blueTeamEvidenceId,
-              action: blueTeamGate.passed ? 'integrity_verified' : 'integrity_flagged',
-              performedBy: 'Evidence Gate',
-              details: `Blue team win evidence (exploit blocked): ${blueTeamGate.passed ? 'passed' : 'flagged'}`,
-            });
-          } catch (btGateErr: any) {
-            addLog(state, { phase: 'exploitation', type: 'warning', title: '⚠️ Blue Team Evidence Gate Error', detail: btGateErr.message });
           }
-        }
-
-        // ── Training Bridge: capture exploit outcome ──
-        captureExploitOutcome({
-          engagementId: state.engagementId,
-          target,
-          port: Number(port),
-          cve: cve || undefined,
-          service: service || undefined,
-          module: module || undefined,
-          success,
-          exploitOutput: exploitOutput.slice(0, 1000),
-          shellType: shellType || undefined,
-          planConfidence: plan?.confidence,
-          planReasoning: plan?.reasoning?.slice(0, 500),
-        }).catch(() => {});
-
-        // ── Feedback Loop: record exploit result for cross-engagement learning ──
-        try {
-          const { recordExploitResult } = await import("./exploit-feedback-integration");
-          await recordExploitResult({
+  
+          emitExploitResult({
+            jobId: state.stats.exploitsAttempted,
+            module: module || cve || "auto",
+            targetIp: target,
+            success,
+            engagementId: state.engagementId,
+          });
+  
+          await auditLog({
+            engagementId: state.engagementId,
+            operatorId: operatorCtx.id,
+            operatorName: operatorCtx.name,
+            actionType: "msf_exploit",
+            riskTier: "red",
+            target,
+            targetPort: Number(port),
+            moduleOrTool: module || cve,
+            resultStatus: success ? "success" : "failure",
+            resultDetail: success
+              ? (isTrainingLabExploit && shellType === 'none'
+                ? `Exploit succeeded (enhanced pipeline) — web vulnerability confirmed. Evidence captured.`
+                : `Exploit succeeded (enhanced pipeline) — shell obtained (${shellType || 'reverse_shell'}). Session: ${shellSessionId}`)
+              : `Exploit failed (enhanced pipeline). Output: ${exploitOutput.slice(0, 200)}`,
+            isTrainingLab: isTrainingLabExploit || undefined,
+          });
+  
+          // ── Evidence Integrity Gate: Blue Team Win (exploit failure = defense held) ──
+          if (!success) {
+            try {
+              const blueTeamContent = `Defense held: Exploit failed on ${target}:${port}. ` +
+                `Service: ${service || 'unknown'}. Module: ${module || cve || 'auto'}. ` +
+                `WAF: ${(asset as any)?.wafDetected || 'none'}. ` +
+                `Output: ${exploitOutput.slice(0, 500)}. ` +
+                `Engagement: ${state.engagementId}. Timestamp: ${new Date().toISOString()}`;
+              const blueTeamProvenance = buildProvenance({
+                tool: 'metasploit' as EvidenceSourceTool,
+                collectorHost: scanServerHost || 'ac3-platform',
+                rawOutput: blueTeamContent,
+                targetHost: target,
+                sourceIp: scanServerHost || 'unknown',
+                destinationIp: asset?.ip || target,
+              });
+              const blueTeamGate = evidenceGate({
+                content: blueTeamContent,
+                provenance: blueTeamProvenance,
+                engagementId: String(state.engagementId),
+                evidenceType: 'blue_team_win',
+                sourceTool: 'metasploit' as EvidenceSourceTool,
+              });
+              const blueTeamEvidenceId = `blue-team-win-${target}-${port}-${Date.now()}`;
+              createIntegrityEnvelope({
+                engagementId: String(state.engagementId),
+                evidenceId: blueTeamEvidenceId,
+                content: blueTeamContent,
+                provenance: blueTeamProvenance,
+                sourceTool: 'metasploit' as EvidenceSourceTool,
+              });
+              recordCustodyEvent({
+                engagementId: String(state.engagementId),
+                evidenceId: blueTeamEvidenceId,
+                action: blueTeamGate.passed ? 'integrity_verified' : 'integrity_flagged',
+                performedBy: 'Evidence Gate',
+                details: `Blue team win evidence (exploit blocked): ${blueTeamGate.passed ? 'passed' : 'flagged'}`,
+              });
+            } catch (btGateErr: any) {
+              addLog(state, { phase: 'exploitation', type: 'warning', title: '⚠️ Blue Team Evidence Gate Error', detail: (btGateErr as any).message });
+            }
+          }
+  
+          // ── Training Bridge: capture exploit outcome ──
+          captureExploitOutcome({
             engagementId: state.engagementId,
             target,
             port: Number(port),
-            service: service || "unknown",
             cve: cve || undefined,
+            service: service || undefined,
             module: module || undefined,
             success,
-            exploitOutput: exploitOutput.slice(0, 2000),
+            exploitOutput: exploitOutput.slice(0, 1000),
             shellType: shellType || undefined,
-            executionMs: Date.now() - (exploitStartTime || Date.now()),
-            errorMessage: success ? undefined : exploitOutput.slice(0, 500),
-            exploitCategory: generatedExploit?.reasoningChain?.context?.includes("sql_injection") ? "sql_injection" : undefined,
-            generatedExploitCode: generatedExploit?.code ? "yes" : undefined,
-            targetVersion: asset?.ports?.find(p => p.port === Number(port))?.version || undefined,
-          });
-        } catch (fbErr: any) {
-          console.warn(`[FeedbackLoop] Failed to record exploit result:`, fbErr.message);
-        }
-
-        // ── Phase 3: Automated Exploit Retry ──────────────────────────────────
-        // When an exploit fails, analyze the failure, select an adaptive strategy,
-        // and retry with a revised exploit up to maxRetries times.
-        if (!success && generatedExploit?.code) {
-          try {
-            const {
-              analyzeFailure, selectRetryStrategy, createRetrySession,
-              shouldRetry: shouldRetryCheck, recordRetryAttempt, getBackoffDelay,
-              buildRetryPromptSection,
-            } = await import("./exploit-retry-engine");
-            const { buildFeedbackContextForExploit } = await import("./exploit-feedback-integration");
-            const { generateFunctionalExploit: retryGenerate } = await import("./functional-exploit-generator");
-            const { executeRawCommand: retryExec } = await import("./scan-server-executor");
-
-            const retrySession = createRetrySession(
-              state.engagementId, target, Number(port), service || "unknown",
-              { code: generatedExploit.code, language: generatedExploit.language, reasoningChain: generatedExploit.reasoningChain },
-              { maxRetries: state.trainingLabMode ? 3 : 2 },
-              cve || undefined, module || undefined
-            );
-
-            let retrySuccess = false;
-            while (!retrySession.complete) {
-              const failureAnalysis = analyzeFailure(exploitOutput, undefined, retrySession.attempts);
-              const retryDecision = shouldRetryCheck(retrySession, failureAnalysis);
-              if (!retryDecision.shouldRetry) {
-                addLog(state, { phase: "exploitation", type: "info", title: `🔄 Retry Skipped: ${target}:${port}`, detail: retryDecision.reason });
-                retrySession.complete = true;
-                retrySession.outcome = "exhausted";
-                break;
-              }
-
-              // Backoff delay
-              const delay = getBackoffDelay(retrySession);
-              addLog(state, { phase: "exploitation", type: "info", title: `🔄 Retry #${retrySession.retryCount + 1}: ${target}:${port}`, detail: `${failureAnalysis.category} detected. Strategy: ${failureAnalysis.suggestedAdjustments[0]?.type || 'standard'}. Waiting ${delay}ms...` });
-              await new Promise(r => setTimeout(r, delay));
-
-              // Get fresh feedback context
-              let retryFeedback: any = null;
-              try { retryFeedback = await buildFeedbackContextForExploit(state.engagementId, target, Number(port), service || "unknown"); } catch {}
-
-              const retryStrategy = selectRetryStrategy(failureAnalysis, retryFeedback, retrySession.attempts, retrySession.config);
-              const retryPrompt = buildRetryPromptSection(retrySession, failureAnalysis, retryStrategy);
-
-              // Generate revised exploit with retry context
-              const retryStartTime = Date.now();
-              try {
-                const vulnForRetry = asset?.vulns.find(v => v.cve === cve || v.title.includes(service));
-                const retryExploit = await retryGenerate({
-                  vulnerability: {
-                    cve: cve || undefined,
-                    title: vulnForRetry?.title || `${service} exploit`,
-                    severity: vulnForRetry?.severity || 'critical',
-                    description: (vulnForRetry?.description || `Vulnerability in ${service} on port ${port}`) + `\n\n${retryPrompt}`,
-                    service: service || 'http',
-                    port: Number(port),
-                  },
-                  target: {
-                    hostname: target,
-                    ip: asset?.ip || undefined,
-                    os: asset?.os || undefined,
-                    technologies: asset?.technologies || [],
-                    wafDetected: (asset as any)?.wafDetected || undefined,
-                    ports: asset?.ports?.map(p => ({ port: p.port, service: p.service, version: p.version })) || [],
-                  },
-                  includeEvasion: retryStrategy.evasionRequired,
-                  trainingLabMode: state.trainingLabMode === true,
-                  attackerHost: scanServerHost || undefined,
-                  attackerPort: 4444,
-                });
-
-                if (retryExploit?.code) {
-                  // Execute retry exploit
-                  const retryFileName = `exploit_retry_${state.engagementId}_${retrySession.retryCount}_${Date.now()}.py`;
-                  const retryB64 = Buffer.from(retryExploit.code).toString('base64');
-                  await retryExec(`echo '${retryB64}' | base64 -d > /tmp/${retryFileName}`, 15);
-                  if (retryExploit.prerequisites?.length > 0) {
-                    const pkgs = retryExploit.prerequisites.filter(p => /^[a-zA-Z0-9_-]+$/.test(p)).slice(0, 5);
-                    if (pkgs.length > 0) try { await retryExec(`pip3 install --quiet ${pkgs.join(' ')} 2>/dev/null || true`, 30); } catch {}
-                  }
-                  const retryTimeout = state.trainingLabMode ? 120 : 60;
-                  const retryResult = await retryExec(`cd /tmp && timeout ${retryTimeout} python3 ${retryFileName} 2>&1 || true`, retryTimeout + 30);
-                  const retryOutput = typeof retryResult === 'string' ? retryResult : (retryResult?.stdout || retryResult?.stderr || '');
-
-                  // Check success
-                  const shellIndicators = [/shell.*opened/i, /session.*opened/i, /meterpreter/i, /uid=\d+/i, /root@/i, /www-data@/i];
-                  const webIndicators = [/EXPLOIT_SUCCESS/i, /successfully.*exploit/i, /vulnerability.*confirmed/i, /injection.*successful/i, /extracted.*data/i];
-                  retrySuccess = shellIndicators.some(re => re.test(retryOutput)) ||
-                    (state.trainingLabMode === true && webIndicators.some(re => re.test(retryOutput)) && !/EXPLOIT_FAILED/i.test(retryOutput));
-
-                  recordRetryAttempt(retrySession, {
-                    attemptNumber: retrySession.retryCount + 1,
-                    timestamp: Date.now(),
-                    strategy: retryStrategy,
-                    failureAnalysis,
-                    adjustmentsApplied: failureAnalysis.suggestedAdjustments.slice(0, 3),
-                    exploitModified: true,
-                    result: { success: retrySuccess, output: retryOutput.slice(0, 2000), executionMs: Date.now() - retryStartTime },
-                    reasoningTrail: retryStrategy.reasoning,
-                  });
-
-                  addLog(state, {
-                    phase: "exploitation",
-                    type: retrySuccess ? "exploit_success" : "exploit_fail",
-                    title: retrySuccess ? `✅ Retry #${retrySession.retryCount} Succeeded: ${target}` : `❌ Retry #${retrySession.retryCount} Failed: ${target}`,
-                    detail: `Strategy: ${retryStrategy.approach}. ${retryOutput.slice(0, 500)}`,
-                    data: { retrySessionId: retrySession.sessionId, attemptNumber: retrySession.retryCount },
-                  });
-
-                  if (retrySuccess) {
-                    // Update the main success/output variables
-                    success = true;
-                    exploitOutput = retryOutput;
-                    shellType = retryExploit.shellType || undefined;
-                    shellPayload = retryExploit.shellPayload || undefined;
-                    if (asset) {
-                      asset.status = "compromised";
-                      state.stats.exploitsSucceeded++;
-                      const hasShell = /shell.*opened|session.*opened|meterpreter|uid=\d+|root@|www-data@/i.test(retryOutput);
-                      if (!isTrainingLabExploit || hasShell) state.stats.sessionsOpened++;
-                    }
-                    shellSessionId = `session-${genId()}`;
-                    break;
-                  }
-                  // Update exploitOutput for next iteration's failure analysis
-                  exploitOutput = retryOutput;
-                } else {
-                  recordRetryAttempt(retrySession, {
-                    attemptNumber: retrySession.retryCount + 1,
-                    timestamp: Date.now(),
-                    strategy: retryStrategy,
-                    failureAnalysis,
-                    adjustmentsApplied: [],
-                    exploitModified: false,
-                    result: { success: false, output: "Retry generator produced no code", executionMs: Date.now() - retryStartTime },
-                    reasoningTrail: retryStrategy.reasoning,
-                  });
-                }
-              } catch (retryErr: any) {
-                recordRetryAttempt(retrySession, {
-                  attemptNumber: retrySession.retryCount + 1,
-                  timestamp: Date.now(),
-                  strategy: retryStrategy,
-                  failureAnalysis,
-                  adjustmentsApplied: [],
-                  exploitModified: false,
-                  result: { success: false, output: retryErr.message, executionMs: Date.now() - retryStartTime },
-                  reasoningTrail: retryStrategy.reasoning,
-                });
-                addLog(state, { phase: "exploitation", type: "warning", title: `Retry Error: ${target}`, detail: retryErr.message });
-              }
-            }
-
-            // Log final retry session outcome
-            if (retrySession.attempts.length > 0) {
-              addLog(state, {
-                phase: "exploitation",
-                type: retrySession.outcome === "success" ? "info" : "warning",
-                title: `🔄 Retry Session Complete: ${target}:${port}`,
-                detail: `Outcome: ${retrySession.outcome}. Attempts: ${retrySession.retryCount}. Total retry time: ${retrySession.totalRetryMs}ms.`,
-                data: { retrySessionId: retrySession.sessionId, outcome: retrySession.outcome, attempts: retrySession.retryCount },
-              });
-            }
-          } catch (retryEngineErr: any) {
-            console.warn(`[RetryEngine] Failed to run retry engine:`, retryEngineErr.message);
+            planConfidence: plan?.confidence,
+            planReasoning: plan?.reasoning?.slice(0, 500),
+          }).catch(() => {});
+  
+          // Auto-trigger post-exploitation playbook when a shell is obtained
+          if (success) {
+            onShellObtained({
+              engagementId: state.engagementId,
+              targetHost: target,
+              exploitOutput: exploitOutput.slice(0, 2000),
+              shellType: shellType || undefined,
+              objectives: engagement?.objectives ? [engagement.objectives].flat() : undefined,
+            }).catch((err: any) => {
+              console.warn(`[PostExploit] Auto-trigger failed for engagement #${state.engagementId}:`, err.message);
+            });
           }
-        }
-
-        // Auto-trigger post-exploitation playbook when a shell is obtained
-        if (success) {
-          onShellObtained({
-            engagementId: state.engagementId,
-            targetHost: target,
-            exploitOutput: exploitOutput.slice(0, 2000),
-            shellType: shellType || undefined,
-            objectives: engagement?.objectives ? [engagement.objectives].flat() : undefined,
-          }).catch((err: any) => {
-            console.warn(`[PostExploit] Auto-trigger failed for engagement #${state.engagementId}:`, err.message);
-          });
-        }
       } catch (e: any) {
         // Record the failed attempt with error evidence
         if (asset) {

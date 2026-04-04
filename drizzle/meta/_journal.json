@@ -414,6 +414,13 @@
       "when": 1775172494787,
       "tag": "0058_kind_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1775264065535,
+      "tag": "0059_perfect_madame_hydra",
+      "breakpoints": true
     }
   ]
 }
