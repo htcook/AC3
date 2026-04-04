@@ -1,12 +1,13 @@
 import React, { ComponentType, lazy, LazyExoticComponent } from "react";
 import AppShell from "@/components/AppShell";
 import HubTabs from "@/components/HubTabs";
-import { FileText, Briefcase, BarChart3, Copy } from "lucide-react";
+import { FileText, Briefcase, BarChart3, Copy, Globe } from "lucide-react";
 
 const ReportGenerator = lazy(() => import("./ReportGenerator"));
 const PostEngagementReport = lazy(() => import("./PostEngagementReport"));
 const BiaReport = lazy(() => import("./BiaReport"));
 const ReportTemplates = lazy(() => import("./ReportTemplates"));
+const DomainIntelReports = lazy(() => import("./DomainIntelReports"));
 
 const tabs: {
   id: string;
@@ -14,6 +15,12 @@ const tabs: {
   icon?: ComponentType<{ className?: string }>;
   component: LazyExoticComponent<ComponentType<any>> | ComponentType<any>;
 }[] = [
+  {
+    id: "domain-intel",
+    label: "Domain Intelligence",
+    icon: Globe,
+    component: DomainIntelReports,
+  },
   {
     id: "generator",
     label: "Report Generator",
@@ -51,7 +58,7 @@ const ReportsHub = () => {
           </h1>
         </div>
         <p className="mt-2 text-gray-500">
-          Report generation, engagement reports, BIA, and templates
+          Report generation, engagement reports, domain intelligence, BIA, and templates
         </p>
         <div className="mt-4">
           <HubTabs tabs={tabs} storageKey="reports-hub" />

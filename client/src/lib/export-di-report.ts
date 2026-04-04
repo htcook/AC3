@@ -80,22 +80,47 @@ export async function exportDiEasmReport(
       const findings = asset.postureFindings || (asset.analysis ? (() => { try { return JSON.parse(asset.analysis)?.postureFindings || []; } catch { return []; } })() : []);
       for (const f of (findings as any[])) {
         const tags: string[] = [];
-        if (f.category === 'vulnerability' || f.finding?.includes('CVE-')) tags.push('vulnerability');
-        if (f.finding?.match(/CVE-\d{4}-\d+/)) tags.push('cve');
-        if (f.category === 'credential' || f.finding?.toLowerCase().includes('credential')) tags.push('leaked_credential');
+        // Use title field (which has the full CVE title) or fall back to finding
+        const titleOrFinding = f.title || f.finding || '';
+        if (f.category === 'vulnerability' || f.category === 'CISA KEV' || f.category === 'Known CVE' || f.category === 'Exploitable CVE' || f.category === '0-Day' || titleOrFinding.includes('CVE-')) tags.push('vulnerability');
+        if (titleOrFinding.match(/CVE-\d{4}-\d+/)) tags.push('cve');
+        if (f.kevListed) tags.push('kev');
+        if (f.category === 'credential' || titleOrFinding.toLowerCase().includes('credential')) tags.push('leaked_credential');
         if (f.category === 'darkweb') tags.push('darkweb');
+
+        // Extract CVE ID from title (e.g. "CVE-2013-0431: Oracle JRE Sandbox Bypass...")
+        const cveMatch = titleOrFinding.match(/CVE-\d{4}-\d+/);
+        const cveId = (f.cveIds && f.cveIds[0]) || cveMatch?.[0] || undefined;
+
+        // Build a proper description from available evidence fields
+        const description = f.evidenceDetail || f.evidenceChain?.join(' → ') || f.remediation || titleOrFinding;
+
+        // Use the numeric severity directly (posture findings already have numeric severity)
+        const severity = typeof f.severity === 'number' ? f.severity
+          : f.severity === 'critical' ? 9 : f.severity === 'high' ? 7 : f.severity === 'medium' ? 5 : 3;
+
+        // Build corroboration label for the report
+        const corroborationLabel = f.corroborationTier === 'confirmed' ? '[CONFIRMED]'
+          : f.corroborationTier === 'probable' ? '[PROBABLE]'
+          : f.versionMatchConfirmed === false ? '[UNCONFIRMED VERSION]' : '';
+
         synth.push({
-          name: f.finding || f.title || 'Finding',
-          source: f.source || 'posture_analysis',
-          domain: asset.hostname || domain,
+          name: titleOrFinding,
+          source: f.source || f.evidenceBasis || 'posture_analysis',
+          domain: f.assetHostname || asset.hostname || domain,
           tags,
           assetType: f.category || 'finding',
           evidence: {
-            severity: f.severity === 'critical' ? 9 : f.severity === 'high' ? 7 : f.severity === 'medium' ? 5 : 3,
-            cve_id: f.finding?.match(/CVE-\d{4}-\d+/)?.[0] || undefined,
-            hostname: asset.hostname,
-            description: f.remediation || f.finding,
-            title: f.finding,
+            severity,
+            cve_id: cveId,
+            hostname: f.assetHostname || asset.hostname,
+            description: truncate(description, 200),
+            title: titleOrFinding,
+            corroboration: corroborationLabel,
+            kevListed: f.kevListed || false,
+            exploitAvailable: f.exploitAvailable || false,
+            detectedVersion: f.detectedVersion || undefined,
+            cvssScore: f.cvssScore || undefined,
           },
           firstSeen: asset.createdAt || null,
         });
@@ -282,7 +307,13 @@ export async function exportDiEasmReport(
   doc.text(`Total Findings: ${scan.totalFindings ?? 0}`, metricsX, y + 25);
   const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
   doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
-  const scanDuration = scan.durationMs || scan.domainHealth?.durationMs;
+  // Calculate scan duration: sum all connector durations for accurate total
+  // (scan.durationMs is root-level and often undefined; domainHealth.durationMs is just one connector)
+  const connectorResultsForDuration = scan.passiveRecon?.connectorResults || scan.connectorResults || [];
+  const totalConnectorDurationMs = connectorResultsForDuration.reduce(
+    (sum: number, cr: any) => sum + (cr.durationMs || 0), 0
+  );
+  const scanDuration = scan.durationMs || (totalConnectorDurationMs > 0 ? totalConnectorDurationMs : null);
   doc.text(`Scan Duration: ${scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A'}`, metricsX, y + 39);
 
   // Classification & metadata
@@ -1232,32 +1263,81 @@ export async function exportDiEasmReport(
   );
 
   if (vulnObs.length > 0) {
-    y = subheading('Identified Vulnerabilities', y);
+    // Separate confirmed vs unconfirmed vulnerabilities
+    const confirmedVulns = vulnObs.filter((o: any) => o.evidence?.corroboration === '[CONFIRMED]');
+    const probableVulns = vulnObs.filter((o: any) => o.evidence?.corroboration !== '[CONFIRMED]');
 
-    autoTable!(doc, {
-      startY: y,
-      head: [['CVE / Finding', 'Asset', 'Severity', 'Source', 'Description']],
-      body: vulnObs.slice(0, 30).map((o: any) => [
-        o.evidence?.cve_id || truncate(o.name, 25),
-        truncate(o.evidence?.hostname || o.domain, 25),
-        getSeverityLabel(o.evidence?.severity || 5),
-        o.source || 'N/A',
-        truncate(o.evidence?.description || o.evidence?.title, 40),
-      ]),
-      theme: 'grid',
-      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
-      alternateRowStyles: { fillColor: [241, 245, 249] },
-      margin: { left: margin, right: margin },
-      didParseCell: (data: any) => {
-        if (data.section === 'body' && data.column.index === 2) {
-          const text = String(data.cell.text);
-          if (text === 'Critical') data.cell.styles.textColor = [220, 38, 38];
-          else if (text === 'High') data.cell.styles.textColor = [234, 88, 12];
-        }
-      },
-    });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    if (confirmedVulns.length > 0) {
+      y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Finding Name', 'Asset', 'Sev', 'CVSS', 'Version']],
+        body: confirmedVulns.slice(0, 20).map((o: any) => [
+          o.evidence?.cve_id || 'N/A',
+          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 40),
+          truncate(o.evidence?.hostname || o.domain, 20),
+          getSeverityLabel(o.evidence?.severity || 5),
+          o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
+          o.evidence?.detectedVersion || 'N/A',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 3) {
+            const text = String(data.cell.text);
+            if (text === 'Critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (text === 'High') data.cell.styles.textColor = [234, 88, 12];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    if (probableVulns.length > 0) {
+      y = checkPageBreak(y, 40);
+      y = subheading(`Probable Vulnerabilities — Version Unconfirmed (${probableVulns.length})`, y);
+
+      // Add a disclaimer note
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(113, 113, 122);
+      y = writeText('Note: These findings are based on product-family matching against CISA KEV and vulnerability feeds. The specific software version was not confirmed during scanning. Severity is capped at 6/10 until version confirmation.', margin, y, contentWidth, 7);
+      y += 3;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Finding Name', 'Asset', 'Sev', 'Status', 'Evidence']],
+        body: probableVulns.slice(0, 30).map((o: any) => [
+          o.evidence?.cve_id || 'N/A',
+          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 35),
+          truncate(o.evidence?.hostname || o.domain, 18),
+          getSeverityLabel(o.evidence?.severity || 5),
+          o.evidence?.kevListed ? 'KEV Listed' : o.evidence?.exploitAvailable ? 'Exploit Avail.' : 'Known CVE',
+          truncate(o.evidence?.description || '', 35),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 3) {
+            const text = String(data.cell.text);
+            if (text === 'Medium') data.cell.styles.textColor = [202, 138, 4];
+          }
+          if (data.section === 'body' && data.column.index === 4) {
+            const text = String(data.cell.text);
+            if (text === 'KEV Listed') data.cell.styles.textColor = [220, 38, 38];
+            else if (text === 'Exploit Avail.') data.cell.styles.textColor = [234, 88, 12];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════

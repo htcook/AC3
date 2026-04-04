@@ -11,9 +11,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Globe, Search, ArrowLeft, Target, Loader2, RotateCcw, Trash2,
   ChevronUp, ChevronDown, Filter, Calendar, Shield, AlertTriangle,
-  CheckCircle2, Clock, XCircle, Zap
+  CheckCircle2, Clock, XCircle, Zap, FileText
 } from "lucide-react";
 import { toast } from "sonner";
+import { exportDiEasmReport } from "@/lib/export-di-report";
 
 type SortField = "updatedAt" | "createdAt" | "primaryDomain" | "status" | "overallRiskScore" | "totalAssets";
 type SortDir = "asc" | "desc";
@@ -338,6 +339,7 @@ export default function ScanHistory() {
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
                               {canView && (
+                                <>
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -346,6 +348,31 @@ export default function ScanHistory() {
                                 >
                                   <Target className="h-3.5 w-3.5 mr-1" /> View
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-cyan-400 hover:text-cyan-300"
+                                  onClick={async () => {
+                                    try {
+                                      toast.info('Generating EASM report...');
+                                      const response = await fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: scan.id }))}`);
+                                      const result = await response.json();
+                                      const fullData = result?.result?.data;
+                                      if (!fullData?.scan) { toast.error('Failed to load scan data'); return; }
+                                      const fullScan = fullData.scan;
+                                      const pipeline = fullScan.pipelineOutput || {};
+                                      const assets = fullData.assets || [];
+                                      const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
+                                      await exportDiEasmReport(fullScan.primaryDomain, fullScanData);
+                                      toast.success('EASM report generated');
+                                    } catch (err: any) {
+                                      toast.error('Report failed: ' + (err.message || 'Unknown error'));
+                                    }
+                                  }}
+                                >
+                                  <FileText className="h-3.5 w-3.5 mr-1" /> Report
+                                </Button>
+                                </>
                               )}
                               {canRetry && (
                                 <Button

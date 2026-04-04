@@ -268,6 +268,7 @@ const TECH_TO_KEV_PATTERNS: Record<string, { vendors: string[]; products: string
   "mssql": { vendors: ["microsoft"], products: ["sql server"] },
   "sql server": { vendors: ["microsoft"], products: ["sql server"] },
   // Java — ONLY matches Java SE, NOT log4j/struts/tomcat
+  // IMPORTANT: "javascript" must NOT match this pattern. See PATTERN_EXCLUSIONS below.
   "java": { vendors: ["oracle"], products: ["java se", "jre", "jdk"] },
   "spring": { vendors: ["vmware", "spring"], products: ["spring framework", "spring cloud"] },
   // Security
@@ -499,6 +500,12 @@ export function matchTechnologiesAgainstKev(
     "linux", "unix", "cloud", "saas", "platform",
   ]);
 
+  // Exclusion map: when a tech name matches a pattern key via substring,
+  // but the tech is actually a DIFFERENT product (e.g. "javascript" ≠ "java").
+  const PATTERN_EXCLUSIONS: Record<string, string[]> = {
+    "java": ["javascript", "javafx"],  // "javascript".includes("java") is true but JavaScript ≠ Java SE
+  };
+
   technologies.forEach(tech => {
     const parsed = extractVersion(tech);
     const techLower = parsed.name;
@@ -514,6 +521,9 @@ export function matchTechnologiesAgainstKev(
       // Only forward match: detected tech must contain the pattern key
       // e.g. "nginx" includes "nginx" ✓, but "api" does NOT include "apache" ✓
       if (techLower.includes(pattern) || techLower === pattern) {
+        // Check exclusions: "javascript" should NOT match the "java" pattern
+        const exclusions = PATTERN_EXCLUSIONS[pattern];
+        if (exclusions && exclusions.some(ex => techLower.includes(ex))) continue;
         catalog.vulnerabilities.forEach(kev => {
           if (seen.has(kev.cveID)) return;
 
