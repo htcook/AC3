@@ -1,1 +1,0 @@
-import{b as r}from"./index-BOtELk7k.js";function u(t,n){if(typeof t=="string")return r(t,n);const{title:o,description:e,variant:i}=t;return i==="destructive"?r.error(o||"Error",{description:e}):r(o||"",{description:e})}function f(){return{toast:u}}export{f as u};

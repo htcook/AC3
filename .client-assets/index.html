@@ -14,11 +14,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Serif+JP:wght@700;900&display=swap" rel="stylesheet" />
     <!-- KaTeX CSS from CDN (fonts loaded from CDN instead of bundled, saves 59 files / 1.2MB) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.min.css" crossorigin="anonymous" />
-    <script type="module" crossorigin src="/assets/index-BOtELk7k.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-CNUBSWxq.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-lucide-CiBEf-cV.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-shiki-vWAFM-dM.js">
-    <link rel="stylesheet" crossorigin href="/assets/style-DCHV4MLz.css">
+    <script type="module" crossorigin src="/assets/index-BKy1TUpX.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-DUY8EPVE.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-lucide-BCo4YH0M.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-shiki-AkHZj_E3.js">
+    <link rel="stylesheet" crossorigin href="/assets/style-BrZ7z-DY.css">
   </head>
 
   <body>
@@ -86,8 +86,8 @@ Error generating stack: `+l.message+`
     <script>
       // Only load analytics when env vars are configured
       (function() {
-        var endpoint = "https://manus-analytics.com";
-        var websiteId = "7e0b5b26-1e80-440f-bbfc-f773d581dfa9";
+        var endpoint = "%VITE_ANALYTICS_ENDPOINT%";
+        var websiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
         if (endpoint && !endpoint.includes('VITE_ANALYTICS') && websiteId && !websiteId.includes('VITE_ANALYTICS')) {
           var s = document.createElement('script');
           s.defer = true;

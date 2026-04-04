@@ -1,1 +1,0 @@
-import{a as o,r as e}from"./vendor-react-CNUBSWxq.js";const t=e.createContext(!1),n=({children:s})=>o.jsxDEV(t.Provider,{"data-loc":"client/src/contexts/EmbedContext.tsx:10",value:!0,children:s},void 0,!1,{fileName:"/home/ubuntu/caldera-dashboard/client/src/contexts/EmbedContext.tsx",lineNumber:10,columnNumber:3},void 0),a=()=>e.useContext(t);export{n as E,a as u};
