@@ -116,8 +116,8 @@ describe('Re-run From Phase (rerunFromPhase)', () => {
   it('correctly identifies phases to keep and clear', async () => {
     const source = readSrc('server/lib/engagement-orchestrator.ts');
 
-    // Check the phase order is correct
-    expect(source).toContain("'recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'");
+    // Check the phase order is correct (includes social_engineering phase)
+    expect(source).toContain("'recon', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit'");
 
     // Check selective data clearing logic exists
     expect(source).toContain('phasesToKeep');
@@ -143,7 +143,7 @@ describe('Re-run From Phase (rerunFromPhase)', () => {
     expect(source).toContain("state.stats.zapScansRun = 0");
   });
 
-  it('clears exploit data when re-running from exploitation or earlier', async () => {
+  it('clears social_engineering/exploit data when re-running from exploitation or earlier', async () => {
     const source = readSrc('server/lib/engagement-orchestrator.ts');
 
     expect(source).toContain('Re-running from exploitation or earlier: clear exploit data');

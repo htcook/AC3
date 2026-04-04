@@ -210,11 +210,12 @@ async function generateSingleNarrative(
   ].filter(Boolean).join(' | ') : '';
 
   try {
-    const response = await invokeLLM({
+     const response = await invokeLLM({
+      _caller: 'attack-narrative-generator:generateNarrative',
       messages: [
         {
           role: 'system',
-          content: `You are an expert penetration tester writing professional attack narratives for a pentest report. Your narratives must be:
+          content: `You are an expert penetration tester writing detailed attack narratives for a pentest report. Your narratives must be:
 1. Evidence-based — every claim must reference specific tool output or captured data
 2. Technically precise — include exact commands, endpoints, parameters, and responses
 3. Business-relevant — explain what an attacker could achieve and the real-world impact
@@ -309,12 +310,10 @@ ${evidenceContext}`,
             additionalProperties: false,
           },
         },
-      },
+       },
     });
-
     const content = response.choices?.[0]?.message?.content;
     if (!content) return null;
-
     const parsed = JSON.parse(content);
     return {
       id: `narr-${input.engagementId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -362,6 +361,7 @@ async function generateBatchNarratives(
 
   try {
     const response = await invokeLLM({
+      _caller: 'attack-narrative-generator:batchNarratives',
       messages: [
         {
           role: 'system',
@@ -370,12 +370,10 @@ async function generateBatchNarratives(
         {
           role: 'user',
           content: `Generate narratives for these ${findings.length} findings. Return JSON array where each element has: title, attackPath, businessImpact, technicalImpact, remediationAction, effort (low/medium/high), mitreTechniques (array of strings).
-
 ${findingSummaries}`,
         },
       ],
     });
-
     const content = response.choices?.[0]?.message?.content;
     if (!content) return [];
 
@@ -435,6 +433,7 @@ export async function generateExecutiveSummary(
 
   try {
     const response = await invokeLLM({
+      _caller: 'attack-narrative-generator:executiveSummary',
       messages: [
         {
           role: 'system',
@@ -459,7 +458,6 @@ WAF/CDN: ${input.targetProfile?.waf || 'None detected'} / ${input.targetProfile?
         },
       ],
     });
-
     return response.choices?.[0]?.message?.content || 'Executive summary generation failed.';
   } catch (err: any) {
     return `Executive summary generation failed: ${err.message}`;

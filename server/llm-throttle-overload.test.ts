@@ -46,7 +46,8 @@ describe("throttledLLMCall overloaded signature", () => {
   });
 
   it("falls back to invokeLLM when _directFn is not set", () => {
-    expect(throttleSrc).toContain("await invokeLLM({ _caller: \"llm-throttle\", ...entry.params })");
+    // The fallback uses entry.params._caller with 'llm-throttle' as default
+    expect(throttleSrc).toContain("await invokeLLM({ _caller: entry.params._caller || 'llm-throttle', ...entry.params })");
   });
 });
 

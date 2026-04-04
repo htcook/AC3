@@ -95,11 +95,11 @@ export function throttledLLMCall(
   let directFn: (() => Promise<InvokeResult>) | undefined;
 
   if (typeof paramsOrLabelOrFn === 'function') {
-    // throttledLLMCall(() => invokeLLM({...}))
+    // throttledLLMCall(() => invoke({...}))
     directFn = paramsOrLabelOrFn;
     params = { messages: [], _caller: 'legacy-callback' };
   } else if (typeof paramsOrLabelOrFn === 'string') {
-    // throttledLLMCall("label", () => invokeLLM({...}))
+    // throttledLLMCall("label", () => invoke({...}))
     directFn = maybeFn as (() => Promise<InvokeResult>);
     params = { messages: [], _caller: paramsOrLabelOrFn };
   } else {
@@ -255,7 +255,7 @@ async function processEntry(entry: QueueEntry): Promise<void> {
     // Use direct callback for legacy callers, otherwise use standard invokeLLM
     const result = entry._directFn
       ? await entry._directFn()
-      : await invokeLLM({ _caller: "llm-throttle", ...entry.params });
+      : await invokeLLM({ _caller: entry.params._caller || 'llm-throttle', ...entry.params });
     activeCount--;
     
     // Success: cool down the delay

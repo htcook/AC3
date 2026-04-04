@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 
+const isCI = !!process.env.CI;
+
 describe("Dehashed V2 API Key Validation", () => {
-  it("should authenticate successfully with the V2 API key", async () => {
+  it.skipIf(isCI)("should authenticate successfully with the V2 API key", async () => {
     const apiKey = process.env.DEHASHED_API_KEY;
     expect(apiKey).toBeTruthy();
 

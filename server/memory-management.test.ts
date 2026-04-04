@@ -162,6 +162,7 @@ describe("Orchestrator ZAP Timeout Handling", () => {
   });
 
   it("should log poll errors instead of silently catching", () => {
-    expect(orchestratorSrc).toContain("ZAP Poll Error:");
+    // The orchestrator logs poll errors with failure count context
+    expect(orchestratorSrc).toContain("ZAP Poll Error (");
   });
 });

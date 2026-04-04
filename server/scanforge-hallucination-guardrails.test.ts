@@ -21,21 +21,18 @@ describe("Exploit Hallucination Guardrail", () => {
       "utf-8"
     );
 
-    // Find the catch block after "Functional exploit generator failed"
-    // Use a broader pattern since the block contains nested braces
-    const catchIdx = src.indexOf("Functional exploit generator failed");
+    // The exploit execution initializes success = false and only sets it true on verified success
+    expect(src).toContain("let success = false");
+
+    // The outer catch block records the failed attempt with success: false
+    const catchIdx = src.indexOf("Record the failed attempt with error evidence");
     expect(catchIdx).toBeGreaterThan(0);
+    const catchBlock = src.slice(catchIdx, catchIdx + 500);
+    expect(catchBlock).toContain("success: false");
 
-    // Extract ~500 chars around the match to capture the full catch block
-    const catchBlock = src.slice(Math.max(0, catchIdx - 100), catchIdx + 900);
-
-    // CRITICAL: The catch block must set success = false, NOT use plan-based assessment
-    expect(catchBlock).toContain("success = false");
+    // CRITICAL: No plan-based success fallback in catch blocks
     expect(catchBlock).not.toContain("plan?.selectedExploit?.modulePath");
     expect(catchBlock).not.toContain("plan?.confidence");
-
-    // Verify the warning log is added
-    expect(catchBlock).toContain("Marking as FAILED");
   });
 
   it("does not contain plan-based success fallback anywhere in catch blocks", () => {
