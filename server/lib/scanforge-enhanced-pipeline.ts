@@ -32,12 +32,12 @@ import type { VerificationResult } from './exploit-verification-engine';
 import { encodePayload, selectEvasionStrategy, applyWafEvasion } from './payload-encoding-engine';
 import type { EncodingResult, EvasionStrategy } from './payload-encoding-engine';
 import { createIterativeLoop, IterativeExploitLoop } from './iterative-exploit-loop';
-import type { IterationResult, IterativeConfig } from './iterative-exploit-loop';
+import type { IterationResult } from './iterative-exploit-loop';
 import { planExploitChain, ExploitChainPlanner } from './exploit-chain-planner';
 import type { ExploitChain, ChainStep } from './exploit-chain-planner';
 import { BugBountySafeMode, createSafeMode } from './bug-bounty-safe-mode';
 import type { SafeModeConfig, SafetyCheckResult } from './bug-bounty-safe-mode';
-import { resolveDependencies, checkDependencies } from './exploit-dependency-manager';
+import { resolveDependencies, checkDependencies, buildManifest, inferDependencies } from './exploit-dependency-manager';
 import type { DependencyManifest, DependencyCheckResult } from './exploit-dependency-manager';
 import { StealthController, createStealthController } from './stealth-controls';
 import type { StealthConfig, StealthDecision } from './stealth-controls';
@@ -301,12 +301,21 @@ export async function executeEnhancedExploit(
   {
     const stageStart = Date.now();
     try {
-      const depCheck = await checkDependencies(currentCode, request.language);
-      if (!depCheck.satisfied) {
-        console.log(`[EnhancedPipeline] Resolving ${depCheck.missing.length} missing dependencies`);
-        await resolveDependencies(depCheck.missing, request.language);
+      // Build a proper DependencyManifest from the exploit code
+      const lang = (request.language === 'python' || request.language === 'bash') ? request.language : 'bash';
+      const manifest = buildManifest(
+        request.exploitId,
+        currentCode,
+        lang as 'python' | 'bash',
+        request.vulnClass,
+      );
+      const depCheck = await checkDependencies(manifest);
+      if (!depCheck.ready) {
+        const missing = [...depCheck.missingRequired, ...depCheck.missingOptional];
+        console.log(`[EnhancedPipeline] Resolving ${missing.length} missing dependencies`);
+        await resolveDependencies(missing, request.language);
       }
-      stages.push({ name: 'dependency-resolution', status: 'completed', durationMs: Date.now() - stageStart, details: depCheck.satisfied ? 'All deps satisfied' : `Resolved ${depCheck.missing.length} deps` });
+      stages.push({ name: 'dependency-resolution', status: 'completed', durationMs: Date.now() - stageStart, details: depCheck.ready ? 'All deps satisfied' : `Resolved ${depCheck.missingRequired.length} required + ${depCheck.missingOptional.length} optional deps` });
     } catch (err: any) {
       errors.push({ stage: 'dependency-resolution', message: err.message, recoverable: true });
       stages.push({ name: 'dependency-resolution', status: 'failed', durationMs: Date.now() - stageStart });
@@ -364,7 +373,7 @@ export async function executeEnhancedExploit(
   try {
     if (request.enableIterative && request.maxIterations && request.maxIterations > 1) {
       // Use iterative exploitation loop
-      const iterativeConfig: IterativeConfig = {
+      const iterativeConfig = {
         maxIterations: request.maxIterations,
         adaptOnFailure: true,
         vulnClass: request.vulnClass,
