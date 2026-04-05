@@ -534,6 +534,7 @@ ASSET DEDUPLICATION & SCOPING RULES:
 - Do NOT create assets for third-party SaaS provider hostnames that the organization does not own or operate. Examples: outlook.office365.com, login.microsoftonline.com, mail.google.com, accounts.google.com, *.salesforce.com, *.zendesk.com, *.cloudflare.com. Instead, note the SaaS dependency as a tag on the root domain asset (e.g., tags: ["uses_o365", "uses_cloudflare"]).
 - Do NOT create assets for DNS infrastructure (nameservers, SOA records). NS records like dns1.p02.nsone.net are third-party DNS providers, not target assets. Record DNS provider info as metadata on the root domain.
 - Do NOT create assets for MX record hostnames that point to third-party email providers (e.g., *.mail.protection.outlook.com, aspmx.l.google.com). Note the email provider as a tag on the root domain.
+- TECHNOLOGY LIST ACCURACY: Do NOT list server-side products managed by a third-party provider as technologies on the client's assets. For example, if MX records point to Microsoft 365 (*.mail.protection.outlook.com), list "Microsoft 365" as the technology — NOT "Microsoft Exchange" or "Exchange Server". The client uses M365 as a SaaS service; they do NOT run Exchange Server on-premise. Similarly, if email is Google Workspace, do NOT list "Gmail Server" — list "Google Workspace". Only list server products (Exchange, Postfix, Sendmail, etc.) when there is evidence the client operates their own mail server.
 
 Generate assets based on passive recon data. Be specific to the sector and client type. For ${org.clientType} clients, emphasize:
 ${org.clientType === "msp" ? "- Multi-tenant management portals, RMM tools, PSA platforms, client VPN endpoints, backup systems" : ""}
@@ -2401,6 +2402,11 @@ export async function runDomainIntelPipeline(
     });
   }
 
+  // Declare emailSecurityReport early so Stage 3.45 and KEV matching can reference it.
+  // It gets populated in Stage 3.9 below.
+  let emailSecurityReport: any = undefined;
+  let hasMx = false;
+
   await yieldEventLoop();
   // Stage 3.5: CISA KEV Enrichment
   const preKevSnapshot = snapshotScores();
@@ -2431,6 +2437,26 @@ export async function runDomainIntelPipeline(
         // FIX: Per-asset KEV matching. We run matchTechnologiesAgainstKev per-asset
         // using only THAT asset's technologies, so findings are never cross-contaminated.
         // We also build a per-asset seen set to avoid duplicate CVEs on the same asset.
+        // ── Managed-provider product exclusion ──
+        // When a managed mail provider is detected (e.g. Microsoft 365, Google Workspace),
+        // KEV matches for products that belong to the provider's infrastructure should NOT
+        // be attributed to the client. For example, if M365 is the mail provider, Exchange
+        // Server CVEs are the provider's responsibility — the client doesn't run Exchange.
+        const _mpName = emailSecurityReport?.managedProvider?.name
+          || emailSecurityReport?.mx?.provider || null;
+        const MANAGED_PROVIDER_PRODUCTS: Record<string, string[]> = {
+          'Microsoft 365': ['exchange server', 'exchange', 'outlook', 'sharepoint'],
+          'Google Workspace': ['gmail'],
+          'Proofpoint': ['proofpoint'],
+          'Mimecast': ['mimecast'],
+        };
+        const managedProducts = _mpName ? (MANAGED_PROVIDER_PRODUCTS[_mpName] || []) : [];
+        const isManagedProviderProduct = (kevProduct: string): boolean => {
+          if (managedProducts.length === 0) return false;
+          const p = kevProduct.toLowerCase();
+          return managedProducts.some(mp => p.includes(mp));
+        };
+
         let kevIdx = 0;
         for (const a of analyses) {
           kevIdx++;
@@ -2449,6 +2475,8 @@ export async function runDomainIntelPipeline(
             // not just the matchedOn field (which could be a generic vendor name like "Microsoft").
             // This prevents "Microsoft IIS v10.0" from confirming a SharePoint KEV entry.
             const confirmedKevMatches = assetKevMatches.filter(m => {
+              // Skip managed provider products — these CVEs belong to the provider, not the client
+              if (isManagedProviderProduct(m.product || '')) return false;
               const kevProductLower = (m.product || '').toLowerCase();
               return Object.entries(versions).some(([tech]) => {
                 const techLower = tech.toLowerCase();
@@ -2467,6 +2495,11 @@ export async function runDomainIntelPipeline(
             // Add KEV posture findings with full evidence and corroboration
             // Use uniqueAssetKevMatches to skip CVEs already present on this asset
             uniqueAssetKevMatches.forEach(m => {
+              // Skip managed provider products entirely — these CVEs are the provider's responsibility
+              if (isManagedProviderProduct(m.product || '')) {
+                console.log(`[DomainIntel] KEV skip: ${m.cveID} (${m.product}) on ${a.asset.hostname} — product managed by ${_mpName}`);
+                return;
+              }
               // Check if we have a detected version for this technology
               // FIX: Match against the KEV PRODUCT name, not the matchedOn pattern.
               // Previously, matchedOn="Microsoft" would match "Microsoft IIS" version,
@@ -2879,8 +2912,6 @@ export async function runDomainIntelPipeline(
 
   await yieldEventLoop();
   // Stage 3.9: Email Security Analysis — check SPF/DKIM/DMARC for phishing weaknesses
-  let emailSecurityReport: any = undefined;
-  let hasMx = false;
   try {
     const { analyzeEmailSecurity, generateEmailPostureFindings } = await import('./lib/email-security-analyzer');
     emailSecurityReport = await analyzeEmailSecurity(org.primaryDomain);
@@ -2994,6 +3025,53 @@ export async function runDomainIntelPipeline(
     }
   } catch (err: any) {
     console.warn(`[DomainIntel] Non-mail asset filter failed (non-fatal): ${err.message}`);
+  }
+
+  // Stage 3.95: Managed provider technology stripping
+  // Now that emailSecurityReport is populated, strip managed-provider server products
+  // from asset technology lists. This prevents false positive KEV/CVE matches on
+  // re-scans or any future enrichment that reads technologies.
+  {
+    const _detectedMailProvider = emailSecurityReport?.managedProvider?.name
+      || emailSecurityReport?.mx?.provider || null;
+    const MANAGED_TECH_REPLACEMENTS: Record<string, { strip: RegExp[]; replace?: string }> = {
+      'Microsoft 365': {
+        strip: [/^microsoft exchange$/i, /^exchange server$/i, /^exchange$/i, /^outlook\.com$/i],
+        replace: 'Microsoft 365',
+      },
+      'Google Workspace': {
+        strip: [/^gmail server$/i, /^google mail$/i],
+        replace: 'Google Workspace',
+      },
+    };
+    const techRule = _detectedMailProvider ? MANAGED_TECH_REPLACEMENTS[_detectedMailProvider] : null;
+    if (techRule) {
+      let techStripped = 0;
+      for (const a of analyses) {
+        if (!a.asset.technologies || !Array.isArray(a.asset.technologies)) continue;
+        const before = a.asset.technologies.length;
+        a.asset.technologies = a.asset.technologies.filter((t: string) => {
+          const shouldStrip = techRule.strip.some(re => re.test(t));
+          if (shouldStrip) techStripped++;
+          return !shouldStrip;
+        });
+        if (techRule.replace && before !== a.asset.technologies.length) {
+          if (!a.asset.technologies.some((t: string) => t.toLowerCase() === techRule.replace!.toLowerCase())) {
+            a.asset.technologies.push(techRule.replace);
+          }
+        }
+        if (a.asset.technologyVersions) {
+          for (const key of Object.keys(a.asset.technologyVersions)) {
+            if (techRule.strip.some(re => re.test(key))) {
+              delete (a.asset.technologyVersions as Record<string, string>)[key];
+            }
+          }
+        }
+      }
+      if (techStripped > 0) {
+        console.log(`[DomainIntel] Stage 3.95 Tech Cleanup: Stripped ${techStripped} managed-provider technologies from asset lists (${_detectedMailProvider} detected as mail provider)`);
+      }
+    }
   }
 
   // Recalculate vulnRiskScore for each asset now that all findings (LLM + vuln feed + KEV + Shodan + PORT + EMAIL) are in place
