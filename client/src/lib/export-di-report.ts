@@ -662,7 +662,7 @@ export async function exportDiReport(
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('BOTTOM LINE UP FRONT', margin + 3, y + 2);
+  doc.text('EXECUTIVE SUMMARY', margin + 3, y + 2);
   y += 7;
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(30, 41, 59);
