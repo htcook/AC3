@@ -355,9 +355,18 @@ export async function exportDiEasmReport(
   const wafNgfw = scan.wafNgfwDetection || {};
   const crossModuleEnrichment = scan.crossModuleEnrichment || {};
 
-  // Helper: add page with header
-  function addSectionPage(title: string): number {
+  // ─── Table of Contents tracking ──────────────────────────────────────
+  const tocEntries: { title: string; pageNum: number; sectionNum: string }[] = [];
+  let sectionCounter = 0;
+
+  // Helper: add page with header (also records TOC entry)
+  function addSectionPage(title: string, opts?: { skipToc?: boolean }): number {
     doc.addPage();
+    const pageNum = (doc as any).internal.getNumberOfPages();
+    if (!opts?.skipToc) {
+      sectionCounter++;
+      tocEntries.push({ title, pageNum, sectionNum: String(sectionCounter) });
+    }
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, pageWidth, 22, 'F');
     doc.setTextColor(255, 255, 255);
@@ -498,6 +507,12 @@ export async function exportDiEasmReport(
   doc.setTextColor(100, 116, 139);
   doc.text('CONFIDENTIAL — For authorized recipients only', margin, pageHeight - 15);
   doc.text('AC3 Platform — Domain Intelligence Module', margin, pageHeight - 10);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // TABLE OF CONTENTS (placeholder page — filled in after all sections render)
+  // ═══════════════════════════════════════════════════════════════════════
+  doc.addPage();
+  const tocPageNum = (doc as any).internal.getNumberOfPages();
 
   // ═══════════════════════════════════════════════════════════════════════
   // 2. EXECUTIVE SUMMARY
@@ -1925,6 +1940,70 @@ export async function exportDiEasmReport(
     margin: { left: margin, right: margin },
     columnStyles: { 0: { cellWidth: 40 } },
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENDER TABLE OF CONTENTS (go back to the reserved TOC page)
+  // ═══════════════════════════════════════════════════════════════════════
+  doc.setPage(tocPageNum);
+
+  // Dark header bar
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Table of Contents', margin, 14);
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(domain, pageWidth - margin - doc.getTextWidth(domain), 14);
+
+  let tocY = 35;
+  const tocPageCount = (doc as any).internal.getNumberOfPages();
+
+  for (const entry of tocEntries) {
+    // Section number
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    const numText = `${entry.sectionNum}.`;
+    doc.text(numText, margin, tocY);
+
+    // Section title
+    const titleX = margin + 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text(entry.title, titleX, tocY);
+
+    // Dotted leader line
+    const titleWidth = doc.getTextWidth(entry.title);
+    const leaderStartX = titleX + titleWidth + 2;
+    const pageNumText = String(entry.pageNum);
+    doc.setFontSize(10);
+    const pageNumWidth = doc.getTextWidth(pageNumText);
+    const leaderEndX = pageWidth - margin - pageNumWidth - 2;
+
+    if (leaderEndX > leaderStartX + 5) {
+      doc.setTextColor(180, 180, 180);
+      doc.setFontSize(8);
+      let dotX = leaderStartX;
+      while (dotX < leaderEndX) {
+        doc.text('.', dotX, tocY);
+        dotX += 2;
+      }
+    }
+
+    // Page number (right-aligned)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(pageNumText, pageWidth - margin - pageNumWidth, tocY);
+
+    // Clickable link area covering the entire row
+    doc.link(margin, tocY - 4, contentWidth, 6, { pageNumber: entry.pageNum });
+
+    tocY += 8;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // FOOTER ON ALL PAGES
