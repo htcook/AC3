@@ -492,7 +492,15 @@ export async function exportDiReport(
   );
   const _confirmedCount = _confirmedVulnFindings.length;
   doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
-  const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
+  // Count data sources: prefer connectors with observations, fallback to total connectors, then unique observation sources
+  const _connectorResultsWithObs = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0);
+  const connectorCount = (_connectorResultsWithObs?.length > 0)
+    ? _connectorResultsWithObs.length
+    : (scan.connectorResults?.length > 0)
+      ? scan.connectorResults.length
+      : (scan.passiveRecon?.connectorResults?.length > 0)
+        ? scan.passiveRecon.connectorResults.length
+        : new Set(observations.map((o: any) => o.source || o.connector || 'unknown')).size || 0;
   doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
   // Calculate scan duration: sum all connector durations for accurate total
   // (scan.durationMs is root-level and often undefined; domainHealth.durationMs is just one connector)
@@ -556,11 +564,39 @@ export async function exportDiReport(
   // ─── BLUF (Bottom Line Up Front) ─────────────────────────────────────
   // Build a single data-driven paragraph that concisely summarizes the entire report.
   const _totalAssets = scan.totalAssets ?? assets.length ?? 0;
-  const _confirmedFc = scan.confirmedFindingsCount ?? _confirmedCount;
-  const _probableFc = scan.probableFindingsCount ?? 0;
-  const _potentialFc = scan.potentialFindingsCount ?? 0;
-  const _totalFindings = scan.totalFindings ?? (_confirmedFc + _probableFc + _potentialFc);
-  const _kevCount = observations.filter((o: any) => o.evidence?.kevListed || o.tags?.includes('kev')).length;
+  // Compute findings breakdown — prefer scan-level counts, fallback to counting observations directly
+  let _confirmedFc = scan.confirmedFindingsCount ?? 0;
+  let _probableFc = scan.probableFindingsCount ?? 0;
+  let _potentialFc = scan.potentialFindingsCount ?? 0;
+  const _totalFindings = scan.totalFindings ?? observations.length ?? 0;
+
+  // If scan-level breakdown counts are all zero but we have findings, compute from observations
+  if (_confirmedFc === 0 && _probableFc === 0 && _potentialFc === 0 && _totalFindings > 0) {
+    _confirmedFc = observations.filter((o: any) =>
+      o.evidence?.corroboration === '[CONFIRMED]' ||
+      o.confidence === 'confirmed'
+    ).length;
+    _probableFc = observations.filter((o: any) =>
+      o.evidence?.corroboration === '[PROBABLE]' ||
+      o.confidence === 'probable'
+    ).length;
+    _potentialFc = observations.filter((o: any) =>
+      o.evidence?.corroboration === '[POTENTIAL]' ||
+      o.confidence === 'potential'
+    ).length;
+    // Anything unclassified goes into potential
+    const _classified = _confirmedFc + _probableFc + _potentialFc;
+    if (_classified < _totalFindings) {
+      _potentialFc += (_totalFindings - _classified);
+    }
+  }
+
+  // KEV count — require explicit kevListed evidence flag; tag-only matching is too loose
+  const _kevCount = observations.filter((o: any) =>
+    o.evidence?.kevListed === true ||
+    o.evidence?.kevMatch === true ||
+    (o.evidence?.kevData && Object.keys(o.evidence.kevData).length > 0)
+  ).length;
   const _breachExposures = scan.breachData?.totalExposures ?? 0;
   const _breachEmails = scan.breachData?.uniqueEmails ?? 0;
   const _emailGrade = scan.emailSecurity?.overallGrade || (domainHealth.emailSecurity as any)?.grade || null;
@@ -624,11 +660,12 @@ export async function exportDiReport(
     blufParts.push(`Email security posture is grade ${_emailGrade}.`);
   }
 
-  // Blacklist
+  // Blacklist — include the actual IP address for specificity
+  const _blIp = domainHealth.blacklist?.ip || '';
   if (_blacklistCount > 0) {
-    blufParts.push(`IP is listed on ${_blacklistCount} DNSBL(s) (${_blacklistActionable} actionable).`);
+    blufParts.push(`${_blIp ? `IP ${_blIp}` : 'Primary IP'} is listed on ${_blacklistCount} DNSBL(s) (${_blacklistActionable} actionable).`);
   } else if (domainHealth.blacklist) {
-    blufParts.push(`IP is clean across all monitored blacklists.`);
+    blufParts.push(`${_blIp ? `IP ${_blIp}` : 'Primary IP'} is clean across all ${domainHealth.blacklist.totalChecked || ''} monitored blacklists.`);
   }
 
   // Compliance
