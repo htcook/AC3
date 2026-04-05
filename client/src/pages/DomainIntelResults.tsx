@@ -31,7 +31,7 @@ import CorroborationPanel from "@/components/CorroborationPanel";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import { exportScanAssets, exportFindings, exportThreatActors, exportExecutiveSummary, exportExecutiveSummaryWithValidation, exportValidationReportPdf, exportValidationResultsCsv } from "@/lib/export-utils";
-import { exportDiEasmReport } from "@/lib/export-di-report";
+import { exportDiReport } from "@/lib/export-di-report";
 import { KpiStrip } from "@/components/KpiStrip";
 import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
@@ -657,8 +657,8 @@ export default function DomainIntelResults() {
               className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
               onClick={() => {
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                exportDiEasmReport(scan.primaryDomain, fullScanData);
-                toast.success('Generating full EASM report PDF \u2014 this may take a moment');
+                exportDiReport(scan.primaryDomain, fullScanData);
+                toast.success('Generating Domain Intelligence report PDF — this may take a moment');
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -678,10 +678,10 @@ export default function DomainIntelResults() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                exportDiEasmReport(scan.primaryDomain, fullScanData);
-                toast.success('Full EASM report export started — this may take a moment');
+                exportDiReport(scan.primaryDomain, fullScanData);
+                toast.success('Domain Intelligence report export started — this may take a moment');
               }}>
-                <ShieldAlert className="h-4 w-4 mr-2" /> Full EASM Report (PDF)
+                <ShieldAlert className="h-4 w-4 mr-2" /> Full DI Report (PDF)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {
                 // Check if validation data is available for enhanced export

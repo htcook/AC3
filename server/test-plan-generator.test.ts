@@ -247,8 +247,8 @@ describe("Dehashed Connector", () => {
   });
 });
 
-// ─── DI EASM Report Export ──────────────────────────────────────────────
-// Note: The DI EASM report export is a client-side module at
+// ─── DI Report Export ───────────────────────────────────────────────────
+// Note: The DI report export is a client-side module at
 // client/src/lib/export-di-report.ts (uses jsPDF in-browser).
 // It cannot be tested in vitest server context due to DOM dependencies.
-// The export function is: exportDiEasmReport()
+// The export function is: exportDiReport()

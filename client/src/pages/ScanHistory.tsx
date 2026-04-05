@@ -14,7 +14,7 @@ import {
   CheckCircle2, Clock, XCircle, Zap, FileText
 } from "lucide-react";
 import { toast } from "sonner";
-import { exportDiEasmReport } from "@/lib/export-di-report";
+import { exportDiReport } from "@/lib/export-di-report";
 
 type SortField = "updatedAt" | "createdAt" | "primaryDomain" | "status" | "overallRiskScore" | "totalAssets";
 type SortDir = "asc" | "desc";
@@ -354,7 +354,7 @@ export default function ScanHistory() {
                                   className="h-7 px-2 text-cyan-400 hover:text-cyan-300"
                                   onClick={async () => {
                                     try {
-                                      toast.info('Generating EASM report...');
+                                      toast.info('Generating DI report...');
                                       const response = await fetch(`/api/trpc/domainIntel.getScan?input=${encodeURIComponent(JSON.stringify({ id: scan.id }))}`);
                                       const result = await response.json();
                                       const fullData = result?.result?.data;
@@ -363,8 +363,8 @@ export default function ScanHistory() {
                                       const pipeline = fullScan.pipelineOutput || {};
                                       const assets = fullData.assets || [];
                                       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
-                                      await exportDiEasmReport(fullScan.primaryDomain, fullScanData);
-                                      toast.success('EASM report generated');
+                                      await exportDiReport(fullScan.primaryDomain, fullScanData);
+                                      toast.success('DI report generated');
                                     } catch (err: any) {
                                       toast.error('Report failed: ' + (err.message || 'Unknown error'));
                                     }

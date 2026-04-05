@@ -62,7 +62,7 @@ function truncate(str: string | null | undefined, max: number): string {
 /**
  * Export a comprehensive Domain Intelligence PDF report
  */
-export async function exportDiEasmReport(
+export async function exportDiReport(
   domain: string,
   scan: any,
 ): Promise<void> {

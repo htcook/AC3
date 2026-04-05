@@ -285,10 +285,10 @@ describe("Credential Source Classification", () => {
 
 // ─── DI PDF Report Export Tests ─────────────────────────────────────────────
 
-describe("DI EASM PDF Report Export", () => {
-  it("should export generateDiEasmReport function", async () => {
+describe("DI PDF Report Export", () => {
+  it("should export exportDiReport function", async () => {
     const mod = await import("../client/src/lib/export-di-report");
-    expect(mod.exportDiEasmReport).toBeDefined();
-    expect(typeof mod.exportDiEasmReport).toBe("function");
+    expect(mod.exportDiReport).toBeDefined();
+    expect(typeof mod.exportDiReport).toBe("function");
   });
 });

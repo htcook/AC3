@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
-import { exportDiEasmReport } from "@/lib/export-di-report";
+import { exportDiReport } from "@/lib/export-di-report";
 const CLIENT_TYPES = [
   { value: "msp", label: "MSP / Managed Service Provider", icon: Server },
   { value: "enterprise", label: "Enterprise", icon: Building2 },
@@ -690,7 +690,7 @@ export default function DomainIntel() {
                             className="h-6 px-2 text-[10px] text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toast.info('Generating EASM report PDF — please wait...');
+                              toast.info('Generating Domain Intelligence report PDF — please wait...');
                               // Navigate to results page which has the full data for export
                               navigate(`/domain-intel/${scan.id}`);
                             }}

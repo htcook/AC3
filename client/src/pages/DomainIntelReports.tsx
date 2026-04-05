@@ -11,7 +11,7 @@ import {
   AlertTriangle, CheckCircle2, Loader2, Brain, ExternalLink, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { exportDiEasmReport } from "@/lib/export-di-report";
+import { exportDiReport } from "@/lib/export-di-report";
 
 function riskBadge(score: number | null | undefined) {
   if (!score) return <Badge variant="outline" className="text-[10px] text-muted-foreground">N/A</Badge>;
@@ -63,8 +63,8 @@ export default function DomainIntelReports() {
       const pipeline = fullScan.pipelineOutput || {};
       const assets = fullData.assets || [];
       const fullScanData = { ...fullScan, ...pipeline, assets, observations: pipeline?.observations || [] };
-      await exportDiEasmReport(fullScan.primaryDomain, fullScanData);
-      toast.success("EASM report PDF generated successfully");
+      await exportDiReport(fullScan.primaryDomain, fullScanData);
+      toast.success("Domain Intelligence report PDF generated successfully");
     } catch (err: any) {
       toast.error("Report generation failed: " + (err.message || "Unknown error"));
     } finally {
@@ -105,7 +105,7 @@ export default function DomainIntelReports() {
               {search ? "No matching scans found" : "No completed domain intelligence scans yet"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Run a Domain Intelligence scan to generate EASM reports
+              Run a Domain Intelligence scan to generate reports
             </p>
           </CardContent>
         </Card>
@@ -159,7 +159,7 @@ export default function DomainIntelReports() {
                     ) : (
                       <Download className="h-3.5 w-3.5 mr-1" />
                     )}
-                    EASM Report
+                    DI Report
                   </Button>
                   <Button
                     variant="ghost"

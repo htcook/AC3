@@ -174,7 +174,7 @@ describe("Engagement Report Download Button", () => {
 // ─── DI Scan Report Button ──────────────────────────────────────────────────
 
 describe("DI Scan Report Button", () => {
-  it("should only show EASM Report button for completed scans", () => {
+  it("should only show DI Report button for completed scans", () => {
     const completedScan = { status: "completed" };
     const runningScan = { status: "passive_recon" };
     const failedScan = { status: "failed" };
