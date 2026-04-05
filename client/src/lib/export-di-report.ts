@@ -736,44 +736,93 @@ export async function exportDiReport(
   });
   y = (doc as any).lastAutoTable.finalY + 4;
 
-  // Full asset inventory table
+  // Full asset inventory table — comprehensive subdomain & asset listing
   if (assets.length > 0) {
-    y = subheading('Discovered Assets', y);
+    y = subheading('Discovered Subdomains & Assets', y);
+
+    // Helper: extract primary IP from DNS A records
+    const extractIp = (a: any): string => {
+      if (a.dnsRecords) {
+        const aRecs = Array.isArray(a.dnsRecords.A) ? a.dnsRecords.A : [];
+        if (aRecs.length > 0) return String(aRecs[0]);
+        const aaaaRecs = Array.isArray(a.dnsRecords.AAAA) ? a.dnsRecords.AAAA : [];
+        if (aaaaRecs.length > 0) return String(aaaaRecs[0]);
+      }
+      return '—';
+    };
+
+    // Helper: infer hosting provider from hostname, CNAME, or IP reverse DNS patterns
+    const inferProvider = (a: any): string => {
+      const hostname = (a.hostname || '').toLowerCase();
+      const cnames = Array.isArray(a.dnsRecords?.CNAME) ? a.dnsRecords.CNAME.map((c: any) => String(c).toLowerCase()) : [];
+      const ip = extractIp(a);
+      const allText = [hostname, ...cnames, ip].join(' ');
+      if (allText.includes('amazonaws') || allText.includes('aws') || allText.includes('cloudfront')) return 'AWS';
+      if (allText.includes('azure') || allText.includes('microsoft') || allText.includes('outlook') || allText.includes('.live.')) return 'Microsoft';
+      if (allText.includes('google') || allText.includes('gcp') || allText.includes('googleapis') || allText.includes('ghs.')) return 'Google Cloud';
+      if (allText.includes('cloudflare')) return 'Cloudflare';
+      if (allText.includes('digitalocean')) return 'DigitalOcean';
+      if (allText.includes('netlify')) return 'Netlify';
+      if (allText.includes('vercel')) return 'Vercel';
+      if (allText.includes('heroku')) return 'Heroku';
+      if (allText.includes('siteground')) return 'SiteGround';
+      if (allText.includes('godaddy')) return 'GoDaddy';
+      if (allText.includes('github')) return 'GitHub';
+      if (allText.includes('fastly')) return 'Fastly';
+      if (allText.includes('akamai')) return 'Akamai';
+      return '—';
+    };
+
+    // Sort by risk score descending
+    const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore ?? 0) - (a.hybridRiskScore ?? 0));
 
     autoTable!(doc, {
       startY: y,
-      head: [['Hostname', 'Type', 'Risk', 'Band', 'Mission Function', 'Technologies']],
-      body: assets.slice(0, 50).map((a: any) => [
-        truncate(a.hostname || a.name, 35),
+      head: [['Hostname', 'IP Address', 'Type', 'Risk', 'Band', 'Hosting', 'Technologies']],
+      body: sortedAssets.map((a: any) => [
+        truncate(a.hostname || a.name, 30),
+        extractIp(a),
         (a.assetType || 'unknown').replace(/_/g, ' '),
         String(a.hybridRiskScore ?? 0),
         (a.riskBand || 'N/A').toUpperCase(),
-        truncate(a.missionFunction, 20),
-        truncate(Array.isArray(a.technologies) ? a.technologies.join(', ') : '', 30),
+        inferProvider(a),
+        truncate(Array.isArray(a.technologies) ? a.technologies.join(', ') : '', 25),
       ]),
       theme: 'grid',
-      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
       alternateRowStyles: { fillColor: [241, 245, 249] },
+      columnStyles: {
+        0: { cellWidth: 42 },  // Hostname
+        1: { cellWidth: 25 },  // IP
+        2: { cellWidth: 22 },  // Type
+        3: { cellWidth: 12 },  // Risk
+        4: { cellWidth: 16 },  // Band
+        5: { cellWidth: 22 },  // Hosting
+        6: { cellWidth: 'auto' },  // Technologies
+      },
       margin: { left: margin, right: margin },
       didParseCell: (data: any) => {
-        if (data.section === 'body' && data.column.index === 3) {
+        if (data.section === 'body' && data.column.index === 4) {
           const text = String(data.cell.text).toUpperCase();
           if (text === 'CRITICAL') data.cell.styles.textColor = [220, 38, 38];
           else if (text === 'HIGH') data.cell.styles.textColor = [234, 88, 12];
           else if (text === 'MEDIUM') data.cell.styles.textColor = [202, 138, 4];
+          else if (text === 'LOW') data.cell.styles.textColor = [22, 163, 74];
         }
       },
       didDrawPage: () => addFooter(doc, margin, pageWidth, pageHeight),
     });
     y = (doc as any).lastAutoTable.finalY + 4;
 
-    if (assets.length > 50) {
-      doc.setTextColor(113, 113, 122);
-      doc.setFontSize(7);
-      doc.text(`Showing top 50 of ${assets.length} assets. Full inventory available in CSV export.`, margin, y);
-      y += 4;
-    }
+    // Summary line
+    doc.setTextColor(113, 113, 122);
+    doc.setFontSize(7);
+    const critCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'critical').length;
+    const highCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'high').length;
+    const medCount = assets.filter((a: any) => (a.riskBand || '').toLowerCase() === 'medium').length;
+    doc.text(`Total: ${assets.length} assets discovered — ${critCount} critical, ${highCount} high, ${medCount} medium risk`, margin, y);
+    y += 6;
   }
 
   // ═══════════════════════════════════════════════════════════════════════

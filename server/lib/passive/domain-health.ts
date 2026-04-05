@@ -27,6 +27,14 @@ function makeAssetId(domain: string, name: string, source: string): string {
 
 // ─── DNSBL Zones ────────────────────────────────────────────────────
 // Comprehensive list of DNS-based blacklists (same scope as MXToolbox)
+/** Domain-based blocklists — query with domain name, NOT reversed IP */
+const DOMAIN_BASED_ZONES = [
+  "dbl.spamhaus.org",   // Spamhaus Domain Block List
+  "multi.surbl.org",    // SURBL domain reputation
+  "multi.uribl.com",    // URIBL domain reputation
+];
+
+/** IP-based blocklists — query with reversed IP octets */
 const DNSBL_ZONES = [
   // Spamhaus
   "zen.spamhaus.org",
@@ -91,12 +99,6 @@ const DNSBL_ZONES = [
   "gl.suomispam.net",
   // ORBS
   "dnsbl.inps.de",
-  // SpamHaus DBL (domain-based)
-  "dbl.spamhaus.org",
-  // SURBL (domain-based)
-  "multi.surbl.org",
-  // URIBL (domain-based)
-  "multi.uribl.com",
   // Abusix Mail Intelligence
   "dnsbl.abusix.zone",
   // Spam and Open Relay Blocking System
@@ -411,7 +413,7 @@ function getReturnCodeMeaning(zone: string, code: string): string {
   return `Listed on ${zone} (return code ${code})`;
 }
 
-async function checkDnsbl(ip: string, timeoutMs: number): Promise<DnsblResult> {
+async function checkDnsbl(ip: string, timeoutMs: number, domain?: string): Promise<DnsblResult> {
   const reversed = ip.split(".").reverse().join(".");
   const now = Date.now();
   const resolver = new Resolver();
@@ -435,8 +437,14 @@ async function checkDnsbl(ip: string, timeoutMs: number): Promise<DnsblResult> {
   }
 
   // Step 2: Run all DNSBL lookups in parallel with per-query timeout
-  const checks = DNSBL_ZONES.map(async (zone) => {
-    const query = `${reversed}.${zone}`;
+  // Combine IP-based zones (reversed IP) and domain-based zones (domain name)
+  const allZones: { zone: string; isDomainBased: boolean }[] = [
+    ...DNSBL_ZONES.map(zone => ({ zone, isDomainBased: false })),
+    ...(domain ? DOMAIN_BASED_ZONES.map(zone => ({ zone, isDomainBased: true })) : []),
+  ];
+  const checks = allZones.map(async ({ zone, isDomainBased }) => {
+    // Domain-based zones use the domain name; IP-based zones use reversed IP octets
+    const query = isDomainBased ? `${domain}.${zone}` : `${reversed}.${zone}`;
     try {
       // Use resolve4 with TTL option for cache age estimation
       let addrs: string[] = [];
@@ -520,7 +528,7 @@ async function checkDnsbl(ip: string, timeoutMs: number): Promise<DnsblResult> {
           zone,
           result: addrs,
           reason,
-          lookupUrl: buildLookupUrl(zone, ip),
+          lookupUrl: buildLookupUrl(zone, isDomainBased ? (domain || ip) : ip),
           category: classification.category,
           severity: finalSeverity,
           actionRequired: finalActionRequired,
@@ -1056,7 +1064,7 @@ export async function runDomainHealthCheck(domain: string, timeoutMs = 30000): P
   // Step 3: Run all checks in parallel
   const [dnsblResult, smtpResults, dnsHealthResult, ptrResults, ipInfoResults, tcpResults, spfResult, dmarcResult, mailPortResults] = await Promise.all([
     // DNSBL check on primary IP
-    primaryIp ? checkDnsbl(primaryIp, timeoutMs) : Promise.resolve(null),
+    primaryIp ? checkDnsbl(primaryIp, timeoutMs, domain) : Promise.resolve(null),
 
     // SMTP test on all MX servers (max 3)
     Promise.all(

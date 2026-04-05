@@ -1,0 +1,36 @@
+DNSdumpster Results for aceofcloud.com
+=======================================
+
+A Records (subdomains from dataset):
+- portal.aceofcloud.com → 52.7.152.16 (AMAZON-AES, ec2-52-7-152-16.compute-1.amazonaws.com)
+- api.prod.aceofcloud.com → 52.7.152.16 (AMAZON-AES, ec2-52-7-152-16.compute-1.amazonaws.com)
+
+MX Records:
+- 0 aceofcloud-com.mail.protection.outlook.com → 52.101.194.4 (MICROSOFT-CORP-MSN-AS-BLOCK)
+
+NS Records:
+- dns1.p01.nsone.net → 198.51.44.1 (NSONE Inc)
+- dns2.p01.nsone.net → 198.51.45.1 (NSONE Inc)
+- dns3.p01.nsone.net → 198.51.44.65 (NSONE Inc)
+
+NS Records (continued):
+- dns4.p01.nsone.net → 198.51.45.65 (NSONE Inc)
+
+TXT Records:
+- "v=spf1 include:spf.protection.outlook.com include:sender.zohoinvoice.com -all"
+
+Network Map shows:
+- aceofcloud.com (root)
+- DNS → dns1-4.p01.nsone.net → NSONE Inc IPs
+- MX → 0.aceofcloud-com.mail.protection.outlook.com → 52.101.194.4 (Microsoft)
+- A records → portal.aceofcloud.com + api.prod.aceofcloud.com → 52.7.152.16 (Amazon)
+
+DNSdumpster Total Subdomains Found: 2 (portal, api.prod)
+
+=== COMPARISON WITH OUR SCAN ===
+Our scan found 17 total assets. DNSdumpster found only 2 A record subdomains.
+So our scan is actually finding MORE assets than DNSdumpster, not fewer.
+The user's concern may be about:
+1. Assets visible in the UI heatmap but missing from the PDF report
+2. Subdomains discovered by other sources (crt.sh, SecurityTrails) not appearing
+3. The PDF report not listing all discovered subdomains in a dedicated section
