@@ -439,4 +439,52 @@ describe("Registration Risk Assessment Logic", () => {
 
     expect(risks).toHaveLength(0);
   });
+
+  it("should correctly match status codes with spaces (e.g. 'client transfer prohibited')", () => {
+    // This was the root cause of false positives: RDAP returns space-separated status codes
+    // but the old code checked for camelCase 'clienttransferprohibited' without stripping spaces
+    const domainRegistration = {
+      dnssec: true,
+      status: ["client delete prohibited", "client renew prohibited", "client transfer prohibited", "client update prohibited"],
+      expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    // Normalize: strip spaces and lowercase (the fix)
+    const normalizedStatuses = domainRegistration.status.map((s: string) => s.toLowerCase().replace(/\s+/g, ''));
+    const hasTransferLock = normalizedStatuses.some((s: string) => s.includes('clienttransferprohibited'));
+    const hasDeleteLock = normalizedStatuses.some((s: string) => s.includes('clientdeleteprohibited'));
+
+    expect(hasTransferLock).toBe(true);
+    expect(hasDeleteLock).toBe(true);
+  });
+
+  it("should detect missing locks even with other space-separated status codes present", () => {
+    const domainRegistration = {
+      dnssec: false,
+      status: ["client renew prohibited", "client update prohibited"],
+      expirationDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const normalizedStatuses = domainRegistration.status.map((s: string) => s.toLowerCase().replace(/\s+/g, ''));
+    const hasTransferLock = normalizedStatuses.some((s: string) => s.includes('clienttransferprohibited'));
+    const hasDeleteLock = normalizedStatuses.some((s: string) => s.includes('clientdeleteprohibited'));
+
+    expect(hasTransferLock).toBe(false);
+    expect(hasDeleteLock).toBe(false);
+  });
+
+  it("should handle mixed camelCase and space-separated status codes", () => {
+    const domainRegistration = {
+      dnssec: true,
+      status: ["clientTransferProhibited", "client delete prohibited"],
+      expirationDate: new Date(Date.now() + 200 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const normalizedStatuses = domainRegistration.status.map((s: string) => s.toLowerCase().replace(/\s+/g, ''));
+    const hasTransferLock = normalizedStatuses.some((s: string) => s.includes('clienttransferprohibited'));
+    const hasDeleteLock = normalizedStatuses.some((s: string) => s.includes('clientdeleteprohibited'));
+
+    expect(hasTransferLock).toBe(true);
+    expect(hasDeleteLock).toBe(true);
+  });
 });

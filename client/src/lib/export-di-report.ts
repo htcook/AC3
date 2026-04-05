@@ -1180,32 +1180,169 @@ export async function exportDiReport(
     });
     y = (doc as any).lastAutoTable.finalY + 4;
 
-    // Registration risk assessment
-    y = checkPageBreak(y, 30);
-    const regRisks: string[] = [];
-    if (!domainRegistration.dnssec) regRisks.push('DNSSEC is not enabled — domain is vulnerable to DNS spoofing and cache poisoning attacks.');
-    if (domainRegistration.expirationDate) {
-      const daysLeft = Math.ceil((new Date(domainRegistration.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      if (daysLeft < 30) regRisks.push(`Domain expires in ${daysLeft} days — immediate renewal required to prevent domain hijacking.`);
-      else if (daysLeft < 90) regRisks.push(`Domain expires in ${daysLeft} days — schedule renewal to prevent accidental lapse.`);
-    }
-    const hasClientTransferProhibited = domainRegistration.status?.some((s: string) => s.toLowerCase().includes('clienttransferprohibited'));
-    if (!hasClientTransferProhibited) regRisks.push('Transfer lock (clientTransferProhibited) is not set — domain may be vulnerable to unauthorized transfer.');
-    const hasClientDeleteProhibited = domainRegistration.status?.some((s: string) => s.toLowerCase().includes('clientdeleteprohibited'));
-    if (!hasClientDeleteProhibited) regRisks.push('Delete lock (clientDeleteProhibited) is not set — domain could be accidentally or maliciously deleted.');
+    // Registration risk assessment — with evidence citations and correct status matching
+    y = checkPageBreak(y, 50);
+    y = subheading('Registration Risk Assessment', y);
 
-    if (regRisks.length > 0) {
-      y = subheading('Registration Risk Assessment', y);
-      for (const risk of regRisks) {
-        y = checkPageBreak(y, 8);
-        doc.setFontSize(7);
-        doc.setTextColor(146, 64, 14);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`\u26A0  ${risk}`, margin + 2, y);
-        y += 4;
-      }
-      y += 2;
+    // Normalize status codes: strip spaces and lowercase for reliable matching
+    const normalizedStatuses = (domainRegistration.status || []).map((s: string) => s.toLowerCase().replace(/\s+/g, ''));
+    const rawStatuses = (domainRegistration.status || []);
+
+    // Check each security control
+    const hasTransferLock = normalizedStatuses.some((s: string) => s.includes('clienttransferprohibited'));
+    const hasDeleteLock = normalizedStatuses.some((s: string) => s.includes('clientdeleteprohibited'));
+    const hasDnssec = !!domainRegistration.dnssec;
+
+    // Build risk items: { status: 'risk'|'ok', title, detail, evidence }
+    interface RegRiskItem { status: 'risk' | 'warning' | 'ok'; title: string; detail: string; evidence: string; }
+    const regItems: RegRiskItem[] = [];
+
+    // 1. DNSSEC
+    if (!hasDnssec) {
+      regItems.push({
+        status: 'risk',
+        title: 'DNSSEC is not enabled',
+        detail: 'Without DNSSEC, DNS responses for this domain cannot be cryptographically verified. This leaves the domain vulnerable to DNS spoofing and cache poisoning attacks, where an attacker could redirect visitors to malicious servers.',
+        evidence: `RDAP query returned dnssecData: unsigned (no delegation signer records found).`,
+      });
+    } else {
+      regItems.push({
+        status: 'ok',
+        title: 'DNSSEC is enabled',
+        detail: 'DNS responses are cryptographically signed, protecting against spoofing and cache poisoning.',
+        evidence: `RDAP query confirmed dnssecData: signed (delegation signer records present).`,
+      });
     }
+
+    // 2. Domain expiry
+    if (domainRegistration.expirationDate) {
+      const expiryDate = new Date(domainRegistration.expirationDate);
+      const daysLeft = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const expiryStr = expiryDate.toLocaleDateString();
+      if (daysLeft < 30) {
+        regItems.push({
+          status: 'risk',
+          title: `Domain expires in ${daysLeft} days`,
+          detail: 'Immediate renewal is required. If the domain lapses, it becomes available for anyone to register, which could lead to domain hijacking, brand impersonation, or loss of email and web services.',
+          evidence: `RDAP expiration date: ${expiryStr} (${daysLeft} days from report date).`,
+        });
+      } else if (daysLeft < 90) {
+        regItems.push({
+          status: 'warning',
+          title: `Domain expires in ${daysLeft} days`,
+          detail: 'Schedule renewal soon to prevent accidental lapse. Domain expiry can disrupt all services tied to this domain.',
+          evidence: `RDAP expiration date: ${expiryStr} (${daysLeft} days from report date).`,
+        });
+      } else {
+        regItems.push({
+          status: 'ok',
+          title: `Domain registration is current`,
+          detail: `The domain is registered for another ${daysLeft} days, providing adequate time before renewal is needed.`,
+          evidence: `RDAP expiration date: ${expiryStr} (${daysLeft} days from report date).`,
+        });
+      }
+    }
+
+    // 3. Transfer lock
+    if (!hasTransferLock) {
+      regItems.push({
+        status: 'risk',
+        title: 'Transfer lock is not set',
+        detail: 'Without the clientTransferProhibited status code, the domain could be transferred to another registrar without authorization. An attacker with access to the registrar account could move the domain.',
+        evidence: `RDAP status codes: [${rawStatuses.join(', ')}]. The clientTransferProhibited flag is absent.`,
+      });
+    } else {
+      const matchedStatus = rawStatuses.find((s: string) => s.toLowerCase().replace(/\s+/g, '').includes('clienttransferprohibited')) || 'clientTransferProhibited';
+      regItems.push({
+        status: 'ok',
+        title: 'Transfer lock is enabled',
+        detail: 'The domain is protected against unauthorized transfers to other registrars.',
+        evidence: `RDAP status codes include "${matchedStatus}".`,
+      });
+    }
+
+    // 4. Delete lock
+    if (!hasDeleteLock) {
+      regItems.push({
+        status: 'risk',
+        title: 'Delete lock is not set',
+        detail: 'Without the clientDeleteProhibited status code, the domain could be accidentally or maliciously deleted from the registry, causing complete loss of all DNS-dependent services.',
+        evidence: `RDAP status codes: [${rawStatuses.join(', ')}]. The clientDeleteProhibited flag is absent.`,
+      });
+    } else {
+      const matchedStatus = rawStatuses.find((s: string) => s.toLowerCase().replace(/\s+/g, '').includes('clientdeleteprohibited')) || 'clientDeleteProhibited';
+      regItems.push({
+        status: 'ok',
+        title: 'Delete lock is enabled',
+        detail: 'The domain is protected against accidental or malicious deletion.',
+        evidence: `RDAP status codes include "${matchedStatus}".`,
+      });
+    }
+
+    // Render each item as a styled card
+    for (const item of regItems) {
+      y = checkPageBreak(y, 22);
+
+      // Status indicator and title
+      const statusColors: Record<string, [number, number, number]> = {
+        risk: [220, 38, 38],    // red
+        warning: [234, 88, 12], // orange
+        ok: [22, 163, 74],      // green
+      };
+      const statusIcons: Record<string, string> = {
+        risk: '[RISK]',
+        warning: '[WARNING]',
+        ok: '[OK]',
+      };
+      const color = statusColors[item.status] || [113, 113, 122];
+
+      // Draw a thin colored left border
+      doc.setDrawColor(color[0], color[1], color[2]);
+      doc.setLineWidth(0.8);
+      doc.line(margin + 1, y - 2.5, margin + 1, y + 12);
+
+      // Status label + title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(statusIcons[item.status], margin + 3, y);
+      doc.setTextColor(30, 30, 30);
+      doc.text(item.title, margin + 3 + doc.getTextWidth(statusIcons[item.status]) + 2, y);
+      y += 3.5;
+
+      // Detail text
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(60, 60, 60);
+      const detailLines = doc.splitTextToSize(item.detail, contentWidth - 8);
+      for (const line of detailLines) {
+        doc.text(line, margin + 3, y);
+        y += 2.8;
+      }
+
+      // Evidence citation
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6);
+      doc.setTextColor(100, 116, 139);
+      const evidenceLines = doc.splitTextToSize(`Evidence: ${item.evidence}`, contentWidth - 8);
+      for (const line of evidenceLines) {
+        y = checkPageBreak(y, 6);
+        doc.text(line, margin + 3, y);
+        y += 2.5;
+      }
+
+      y += 3;
+    }
+
+    // Summary count
+    const riskCount = regItems.filter(i => i.status === 'risk').length;
+    const warnCount = regItems.filter(i => i.status === 'warning').length;
+    const okCount = regItems.filter(i => i.status === 'ok').length;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(113, 113, 122);
+    doc.text(`Assessment: ${riskCount} risk${riskCount !== 1 ? 's' : ''}, ${warnCount} warning${warnCount !== 1 ? 's' : ''}, ${okCount} passed`, margin, y);
+    y += 5;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
