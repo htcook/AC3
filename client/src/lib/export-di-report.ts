@@ -130,17 +130,44 @@ export async function exportDiEasmReport(
   })();
 
   // Normalize domainHealth: pipeline stores categories as dnsHealth/mailSecurity/blacklist
-  // but report expects dns/emailSecurity/ssl/blacklist
+  // but report expects dns/emailSecurity/ssl/blacklist.
+  // Data sources:
+  //   - domainHealth.categories.dnsHealth.details → NS records, SOA, zone transfer
+  //   - domainHealth.categories.mailSecurity.details → MX records, SPF, DMARC
+  //   - domainHealth.categories.reverseDs.details → IP addresses with PTR records
+  //   - domainHealth.categories.connectivity.details → port connectivity status
+  //   - scan.emailSecurityReport → full email security analysis (SPF/DKIM/DMARC with records)
+  //   - scan.discoveredSubdomains → subdomain IPs (A record proxies)
+  //   - scan.discoveredPorts → open ports from Shodan/Censys
   const rawDomainHealth = scan.domainHealth || {};
+  // Prefer emailSecurityReport from the pipeline trimmedOutput (stored as emailSecurityReport)
+  const emailSecReport = scan.emailSecurityReport || scan.pipelineOutput?.emailSecurityReport || scan.pipelineOutput?.emailSecurity || null;
   const domainHealth = (() => {
     const cats = rawDomainHealth.categories || {};
     const normalized: any = { ...rawDomainHealth };
+
     // Map dnsHealth → dns
+    // dnsHealth.details has: nameservers (NS records), soaConsistent, nsConsistent, etc.
+    // A records come from reverseDs.details (IPs with PTR records)
+    // MX records come from mailSecurity.details.mxRecords
     if (cats.dnsHealth && !normalized.dns) {
       const dh = cats.dnsHealth.details || {};
+      const ms = cats.mailSecurity?.details || {};
+      // Extract A record IPs from reverseDs (these are the resolved IPs for the domain)
+      const reverseDsDetails = Array.isArray(cats.reverseDs?.details) ? cats.reverseDs.details : [];
+      const aRecordIps = reverseDsDetails
+        .filter((r: any) => r.ip && r.matchesForwardDns)
+        .map((r: any) => r.ip);
+      // Also pull IPs from discoveredSubdomains for the primary domain
+      const primaryDomainSubs = (scan.discoveredSubdomains || [])
+        .filter((s: any) => s.ip && s.name?.toLowerCase() === domain.toLowerCase())
+        .map((s: any) => s.ip);
+      const allARecords = [...new Set([...aRecordIps, ...primaryDomainSubs])];
+
       normalized.dns = {
-        aRecords: dh.nameservers?.map((ns: any) => ns.name || ns) || [],
+        aRecords: allARecords.length > 0 ? allARecords : [],
         nsRecords: dh.nameservers?.map((ns: any) => ns.name || ns) || [],
+        mxRecords: ms.mxRecords || emailSecReport?.mx?.records || [],
         soaConsistent: dh.soaConsistent,
         nsConsistent: dh.nsConsistent,
         zoneTransferBlocked: dh.zoneTransferBlocked,
@@ -149,19 +176,44 @@ export async function exportDiEasmReport(
         grade: cats.dnsHealth.grade,
       };
     }
-    // Map mailSecurity → emailSecurity
-    if (cats.mailSecurity && !normalized.emailSecurity) {
-      const ms = cats.mailSecurity.details || {};
-      normalized.emailSecurity = {
-        spf: ms.spf ? { present: ms.spf.exists || !!ms.spf.record, record: ms.spf.record || '' } : { present: false },
-        dkim: { present: false }, // DKIM not directly available from this connector
-        dmarc: ms.dmarc ? { present: ms.dmarc.exists || !!ms.dmarc.record, policy: ms.dmarc.policy || 'none', record: ms.dmarc.record || '' } : { present: false },
-        spoofable: ms.spoofable,
-        spoofReason: ms.spoofReason,
-        score: cats.mailSecurity.score,
-        grade: cats.mailSecurity.grade,
-      };
+
+    // Map emailSecurity — prefer the full emailSecurityReport over mailSecurity category
+    // emailSecurityReport has richer data: full SPF record, DKIM selector results, DMARC with policy details
+    if (!normalized.emailSecurity) {
+      if (emailSecReport) {
+        // Use the full email security report (has SPF records, DKIM selectors, DMARC policy)
+        const spf = emailSecReport.spf || {};
+        const dkim = emailSecReport.dkim || {};
+        const dmarc = emailSecReport.dmarc || {};
+        const dkimFound = Array.isArray(dkim.selectorResults)
+          ? dkim.selectorResults.some((s: any) => s.exists)
+          : false;
+        normalized.emailSecurity = {
+          spf: { present: spf.exists || !!spf.record, record: spf.record || '', score: spf.score },
+          dkim: { present: dkimFound, selectors: dkim.selectorResults?.filter((s: any) => s.exists) || [], score: dkim.score },
+          dmarc: { present: dmarc.exists || !!dmarc.record, policy: dmarc.policy || 'none', record: dmarc.record || '', score: dmarc.score },
+          spoofable: emailSecReport.phishingDifficultyRating === 'easy' || emailSecReport.phishingDifficultyRating === 'trivial',
+          overallScore: emailSecReport.overallScore,
+          overallGrade: emailSecReport.overallGrade,
+          phishingDifficulty: emailSecReport.phishingDifficultyRating,
+          score: emailSecReport.overallScore,
+          grade: emailSecReport.overallGrade,
+        };
+      } else if (cats.mailSecurity) {
+        // Fallback to mailSecurity category from domainHealth connector
+        const ms = cats.mailSecurity.details || {};
+        normalized.emailSecurity = {
+          spf: ms.spf ? { present: ms.spf.exists || !!ms.spf.record, record: ms.spf.record || '' } : { present: false },
+          dkim: { present: false },
+          dmarc: ms.dmarc ? { present: ms.dmarc.exists || !!ms.dmarc.record, policy: ms.dmarc.policy || 'none', record: ms.dmarc.record || '' } : { present: false },
+          spoofable: ms.spoofable,
+          spoofReason: ms.spoofReason,
+          score: cats.mailSecurity.score,
+          grade: cats.mailSecurity.grade,
+        };
+      }
     }
+
     // Map blacklist category
     if (cats.blacklist && !normalized.blacklist) {
       const bl = cats.blacklist.details || {};
@@ -178,6 +230,37 @@ export async function exportDiEasmReport(
         grade: cats.blacklist.grade,
       };
     }
+
+    // Map connectivity category — port reachability status
+    if (cats.connectivity && !normalized.connectivity) {
+      const connDetails = Array.isArray(cats.connectivity.details) ? cats.connectivity.details : [];
+      normalized.connectivity = {
+        ports: connDetails.map((c: any) => ({
+          host: c.host || c.ip,
+          port: c.port,
+          connected: c.connected,
+          latencyMs: c.latencyMs,
+        })),
+        score: cats.connectivity.score,
+        grade: cats.connectivity.grade,
+      };
+    }
+
+    // Map reverseDs category — PTR records and IP resolution
+    if (cats.reverseDs && !normalized.reverseDns) {
+      const rdDetails = Array.isArray(cats.reverseDs.details) ? cats.reverseDs.details : [];
+      normalized.reverseDns = {
+        records: rdDetails.map((r: any) => ({
+          ip: r.ip,
+          hostnames: r.hostnames || [],
+          hasPtrRecord: r.hasPtrRecord,
+          matchesForwardDns: r.matchesForwardDns,
+        })),
+        score: cats.reverseDs.score,
+        grade: cats.reverseDs.grade,
+      };
+    }
+
     // Add overall health summary
     normalized.overallScore = rawDomainHealth.overallScore;
     normalized.overallGrade = rawDomainHealth.overallGrade;
@@ -649,21 +732,49 @@ export async function exportDiEasmReport(
     y = subheading('Email Security Posture', y);
     const email = domainHealth.emailSecurity;
     const emailRows: string[][] = [];
-    // Check for managed provider context from pipeline data
-    const emailSecReport = scan.pipelineOutput?.emailSecurity;
+    // Check for managed provider context — try managedProvider field first,
+    // then infer from mx.provider for scans that predate the managedProvider feature
     const managedProvider = emailSecReport?.managedProvider;
     const mxProvider = emailSecReport?.mx?.provider;
+    // Known managed providers for inference when managedProvider field is absent
+    const KNOWN_MANAGED_PROVIDERS: Record<string, { serverNote: string; responsibilities: string[] }> = {
+      'Microsoft 365': { serverNote: 'Mail server infrastructure (Exchange Online) is managed by Microsoft. Server-level CVEs are Microsoft\'s responsibility.', responsibilities: ['SPF/DKIM/DMARC configuration', 'Tenant configuration', 'Conditional Access policies'] },
+      'Google Workspace': { serverNote: 'Mail server infrastructure (Gmail) is managed by Google. Server-level CVEs are Google\'s responsibility.', responsibilities: ['SPF/DKIM/DMARC configuration', 'Workspace admin console', 'Security settings'] },
+      'Proofpoint': { serverNote: 'Email filtering is managed by Proofpoint. Gateway-level security is Proofpoint\'s responsibility.', responsibilities: ['SPF/DKIM/DMARC configuration', 'Policy configuration'] },
+      'Mimecast': { serverNote: 'Email security is managed by Mimecast. Gateway-level security is Mimecast\'s responsibility.', responsibilities: ['SPF/DKIM/DMARC configuration', 'Policy configuration'] },
+      'Zoho Mail': { serverNote: 'Mail server infrastructure is managed by Zoho. Server-level security is Zoho\'s responsibility.', responsibilities: ['SPF/DKIM/DMARC configuration'] },
+      'ProtonMail': { serverNote: 'Mail server infrastructure is managed by Proton AG with end-to-end encryption.', responsibilities: ['SPF/DKIM/DMARC configuration'] },
+    };
 
     if (managedProvider?.isManaged) {
       emailRows.push(['Mail Provider', `${managedProvider.name} (Managed Service)`]);
       emailRows.push(['Server Security', `Managed by ${managedProvider.name} — server-level CVEs are provider responsibility`]);
       emailRows.push(['Customer Scope', managedProvider.customerResponsibilities?.slice(0, 3).join(', ') || 'SPF/DKIM/DMARC configuration']);
+    } else if (mxProvider && KNOWN_MANAGED_PROVIDERS[mxProvider]) {
+      // Infer managed provider from mx.provider when managedProvider field is absent
+      const inferred = KNOWN_MANAGED_PROVIDERS[mxProvider];
+      emailRows.push(['Mail Provider', `${mxProvider} (Managed Service)`]);
+      emailRows.push(['Server Security', inferred.serverNote]);
+      emailRows.push(['Customer Scope', inferred.responsibilities.join(', ')]);
     } else if (mxProvider) {
       emailRows.push(['Mail Provider', mxProvider]);
     }
     emailRows.push(['SPF', email.spf?.present ? `Present — ${truncate(email.spf.record, 60)}` : 'MISSING']);
-    emailRows.push(['DKIM', email.dkim?.present ? 'Present' : 'NOT DETECTED']);
-    emailRows.push(['DMARC', email.dmarc?.present ? `Present — Policy: ${email.dmarc.policy || 'none'}` : 'MISSING']);
+    // Show DKIM with selector details if available
+    const dkimStatus = email.dkim?.present
+      ? `Present${email.dkim.selectors?.length ? ` (${email.dkim.selectors.map((s: any) => s.selector).join(', ')})` : ''}`
+      : 'NOT DETECTED';
+    emailRows.push(['DKIM', dkimStatus]);
+    emailRows.push(['DMARC', email.dmarc?.present ? `Present — Policy: ${email.dmarc.policy || 'none'}${email.dmarc.record ? ` — ${truncate(email.dmarc.record, 50)}` : ''}` : 'MISSING']);
+    // Add phishing difficulty if available
+    if (email.phishingDifficulty) {
+      const phishColor = email.phishingDifficulty === 'hard' || email.phishingDifficulty === 'very_hard' ? 'LOW RISK' : email.phishingDifficulty === 'moderate' ? 'MODERATE RISK' : 'HIGH RISK';
+      emailRows.push(['Phishing Difficulty', `${email.phishingDifficulty.replace(/_/g, ' ').toUpperCase()} (${phishColor})`]);
+    }
+    // Add email security score if available
+    if (email.overallScore !== undefined) {
+      emailRows.push(['Email Security Score', `${email.overallScore}/100 (Grade: ${email.overallGrade || 'N/A'})`]);
+    }
 
     autoTable!(doc, {
       startY: y,
@@ -769,6 +880,88 @@ export async function exportDiEasmReport(
       doc.text('NOT LISTED ON ANY MONITORED BLACKLISTS', margin + 5, y + 7);
       y += 16;
     }
+  }
+
+  // DNS Security Details (zone transfer, recursion, SOA consistency)
+  if (domainHealth.dns) {
+    const dns = domainHealth.dns;
+    const securityRows: string[][] = [];
+    if (dns.zoneTransferBlocked !== undefined) securityRows.push(['Zone Transfer', dns.zoneTransferBlocked ? 'Blocked (Secure)' : 'ALLOWED (Insecure)']);
+    if (dns.recursionDisabled !== undefined) securityRows.push(['Open Recursion', dns.recursionDisabled ? 'Disabled (Secure)' : 'ENABLED (Insecure)']);
+    if (dns.soaConsistent !== undefined) securityRows.push(['SOA Consistency', dns.soaConsistent ? 'Consistent' : 'INCONSISTENT']);
+    if (dns.nsConsistent !== undefined) securityRows.push(['NS Consistency', dns.nsConsistent ? 'Consistent' : 'INCONSISTENT']);
+    if (securityRows.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('DNS Security Configuration', y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Check', 'Status']],
+        body: securityRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 35 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 1) {
+            const text = String(data.cell.text);
+            if (text.includes('ALLOWED') || text.includes('ENABLED') || text.includes('INCONSISTENT')) {
+              data.cell.styles.textColor = [220, 38, 38];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+  }
+
+  // Reverse DNS / PTR Records
+  if (domainHealth.reverseDns?.records?.length > 0) {
+    y = checkPageBreak(y, 30);
+    y = subheading('Reverse DNS (PTR Records)', y);
+    autoTable!(doc, {
+      startY: y,
+      head: [['IP Address', 'PTR Hostname(s)', 'Forward Match']],
+      body: domainHealth.reverseDns.records.slice(0, 15).map((r: any) => [
+        r.ip || 'N/A',
+        truncate((r.hostnames || []).join(', '), 50),
+        r.matchesForwardDns ? 'Yes' : 'No',
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      margin: { left: margin, right: margin },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  }
+
+  // Port Connectivity Status
+  if (domainHealth.connectivity?.ports?.length > 0) {
+    y = checkPageBreak(y, 30);
+    y = subheading('Port Connectivity', y);
+    autoTable!(doc, {
+      startY: y,
+      head: [['Host', 'Port', 'Status', 'Latency']],
+      body: domainHealth.connectivity.ports.slice(0, 20).map((p: any) => [
+        p.host || 'N/A',
+        String(p.port),
+        p.connected ? 'Open' : 'Closed/Filtered',
+        p.latencyMs ? `${p.latencyMs}ms` : 'N/A',
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      margin: { left: margin, right: margin },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 2) {
+          const text = String(data.cell.text);
+          if (text === 'Open') data.cell.styles.textColor = [22, 163, 74];
+          else data.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
