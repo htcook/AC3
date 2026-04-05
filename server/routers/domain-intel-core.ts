@@ -400,6 +400,53 @@ export const domainIntelRouter = router({
                 );
                 return healthObs?.evidence?.fullReport || null;
               })(),
+              // Domain Registration (RDAP/WHOIS) data extracted from passive recon
+              domainRegistration: (() => {
+                if (!result.passiveRecon?.allObservations) return null;
+                const rdapObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
+                );
+                if (!rdapObs?.evidence) return null;
+                const ev = rdapObs.evidence as any;
+                return {
+                  registrar: ev.registrar || null,
+                  registrationDate: ev.events?.registration || null,
+                  expirationDate: ev.events?.expiration || null,
+                  lastChanged: ev.events?.last_changed || null,
+                  status: ev.status || [],
+                  nameservers: ev.nameservers || [],
+                  dnssec: ev.secureDNS?.delegationSigned || false,
+                  handle: ev.handle || ev.ldhName || null,
+                };
+              })(),
+              // SSL/TLS certificates extracted from Shodan/Censys passive recon
+              sslCertificates: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const certMap = new Map<string, any>();
+                for (const obs of result.passiveRecon.allObservations) {
+                  const ev = obs.evidence as any;
+                  if (!ev?.ssl_subject && !ev?.ssl_issuer) continue;
+                  const key = `${ev.ssl_subject || ''}|${ev.ssl_issuer || ''}`;
+                  if (certMap.has(key)) {
+                    const existing = certMap.get(key);
+                    if (!existing.hosts.includes(obs.name || obs.ip)) {
+                      existing.hosts.push(obs.name || obs.ip);
+                    }
+                    if (!existing.ports.includes(ev.port)) {
+                      existing.ports.push(ev.port);
+                    }
+                    continue;
+                  }
+                  certMap.set(key, {
+                    subject: ev.ssl_subject || null,
+                    issuer: ev.ssl_issuer || null,
+                    expires: ev.ssl_expires || null,
+                    hosts: [obs.name || obs.ip],
+                    ports: ev.port ? [ev.port] : [],
+                  });
+                }
+                return Array.from(certMap.values()).slice(0, 20);
+              })(),
             };
 
             // ── Delta Comparison: Compare with previous scan for the same domain ──
@@ -965,9 +1012,31 @@ export const domainIntelRouter = router({
                 );
                 return healthObs?.evidence?.fullReport || null;
               })(),
+              // Domain Registration (RDAP/WHOIS) data
+              domainRegistration: (() => {
+                if (!result.passiveRecon?.allObservations) return null;
+                const rdapObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
+                );
+                if (!rdapObs?.evidence) return null;
+                const ev = rdapObs.evidence as any;
+                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+              })(),
+              // SSL/TLS certificates from Shodan/Censys
+              sslCertificates: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const certMap = new Map<string, any>();
+                for (const obs of result.passiveRecon.allObservations) {
+                  const ev = obs.evidence as any;
+                  if (!ev?.ssl_subject && !ev?.ssl_issuer) continue;
+                  const key = `${ev.ssl_subject || ''}|${ev.ssl_issuer || ''}`;
+                  if (certMap.has(key)) { const ex = certMap.get(key); if (!ex.hosts.includes(obs.name || obs.ip)) ex.hosts.push(obs.name || obs.ip); if (!ex.ports.includes(ev.port)) ex.ports.push(ev.port); continue; }
+                  certMap.set(key, { subject: ev.ssl_subject || null, issuer: ev.ssl_issuer || null, expires: ev.ssl_expires || null, hosts: [obs.name || obs.ip], ports: ev.port ? [ev.port] : [] });
+                }
+                return Array.from(certMap.values()).slice(0, 20);
+              })(),
               retriedAt: new Date().toISOString(),
             };
-
             await db.updateDomainIntelScan(scanId, {
               status: 'scan_complete',
               totalAssets: result.totalAssets,
@@ -1413,13 +1482,35 @@ export const domainIntelRouter = router({
                 const healthObs = result.passiveRecon?.allObservations?.find(
                   (o: any) => o.source === 'domain_health' && o.tags?.includes('health_score')
                 );
-                return healthObs?.evidence?.fullReport || null;
+                 return healthObs?.evidence?.fullReport || null;
+              })(),
+              // Domain Registration (RDAP/WHOIS) data
+              domainRegistration: (() => {
+                if (!result.passiveRecon?.allObservations) return null;
+                const rdapObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
+                );
+                if (!rdapObs?.evidence) return null;
+                const ev = rdapObs.evidence as any;
+                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+              })(),
+              // SSL/TLS certificates from Shodan/Censys
+              sslCertificates: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const certMap = new Map<string, any>();
+                for (const obs of result.passiveRecon.allObservations) {
+                  const ev = obs.evidence as any;
+                  if (!ev?.ssl_subject && !ev?.ssl_issuer) continue;
+                  const key = `${ev.ssl_subject || ''}|${ev.ssl_issuer || ''}`;
+                  if (certMap.has(key)) { const ex = certMap.get(key); if (!ex.hosts.includes(obs.name || obs.ip)) ex.hosts.push(obs.name || obs.ip); if (!ex.ports.includes(ev.port)) ex.ports.push(ev.port); continue; }
+                  certMap.set(key, { subject: ev.ssl_subject || null, issuer: ev.ssl_issuer || null, expires: ev.ssl_expires || null, hosts: [obs.name || obs.ip], ports: ev.port ? [ev.port] : [] });
+                }
+                return Array.from(certMap.values()).slice(0, 20);
               })(),
               // Preserve the previous snapshot for comparison
               previousSnapshot,
               refreshedAt: new Date().toISOString(),
             };
-
             if (wasFullEngagement) {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -2577,8 +2668,30 @@ export const domainIntelRouter = router({
                 );
                 return healthObs?.evidence?.fullReport || null;
               })(),
+              // Domain Registration (RDAP/WHOIS) data
+              domainRegistration: (() => {
+                if (!result.passiveRecon?.allObservations) return null;
+                const rdapObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
+                );
+                if (!rdapObs?.evidence) return null;
+                const ev = rdapObs.evidence as any;
+                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+              })(),
+              // SSL/TLS certificates from Shodan/Censys
+              sslCertificates: (() => {
+                if (!result.passiveRecon?.allObservations) return [];
+                const certMap = new Map<string, any>();
+                for (const obs of result.passiveRecon.allObservations) {
+                  const ev = obs.evidence as any;
+                  if (!ev?.ssl_subject && !ev?.ssl_issuer) continue;
+                  const key = `${ev.ssl_subject || ''}|${ev.ssl_issuer || ''}`;
+                  if (certMap.has(key)) { const ex = certMap.get(key); if (!ex.hosts.includes(obs.name || obs.ip)) ex.hosts.push(obs.name || obs.ip); if (!ex.ports.includes(ev.port)) ex.ports.push(ev.port); continue; }
+                  certMap.set(key, { subject: ev.ssl_subject || null, issuer: ev.ssl_issuer || null, expires: ev.ssl_expires || null, hosts: [obs.name || obs.ip], ports: ev.port ? [ev.port] : [] });
+                }
+                return Array.from(certMap.values()).slice(0, 20);
+              })(),
             };
-
             const finalStatus = scanOnly ? 'scan_complete' : 'completed';
             await db.updateDomainIntelScan(scanId, {
               status: finalStatus,

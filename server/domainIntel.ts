@@ -2546,20 +2546,58 @@ export async function runDomainIntelPipeline(
                 return;
               }
               // Check if we have a detected version for this technology
-              // FIX: Match against the KEV PRODUCT name, not the matchedOn pattern.
+              // FIX: Match against the KEV PRODUCT name with product specificity.
               // Previously, matchedOn="Microsoft" would match "Microsoft IIS" version,
               // falsely confirming a SharePoint or Windows CLFS KEV entry.
+              // PRODUCT_ALIASES: Map common tech names to their specific product names
+              const PRODUCT_ALIASES: Record<string, string[]> = {
+                'apache': ['http server', 'httpd', 'apache2'],
+                'nginx': ['nginx'],
+                'iis': ['internet information services', 'iis'],
+                'openssl': ['openssl'],
+                'jquery': ['jquery'],
+              };
               const versions = a.asset.technologyVersions || {};
               const kevProductLower = (m.product || '').toLowerCase();
-              const detectedVersion = Object.entries(versions).find(
-                ([tech]) => {
-                  const techLower = tech.toLowerCase();
-                  return techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+              const kevVendorLower = (m.vendorProject || '').toLowerCase();
+              const matchedOnLower = (m.matchedOn || '').toLowerCase();
+
+              // Product-specific version lookup: find a version ONLY if the detected
+              // tech actually IS the specific product the CVE is about
+              let detectedVersion: string | undefined;
+              let productSpecificMatch = false;
+              for (const [tech, ver] of Object.entries(versions)) {
+                const techLower = tech.toLowerCase();
+                // Direct product match: tech name contains product or vice versa
+                const directMatch = techLower.includes(kevProductLower) || kevProductLower.includes(techLower);
+                // Alias match: e.g., tech "Apache" → aliases ["http server", "httpd"]
+                const aliases = PRODUCT_ALIASES[techLower] || [];
+                const aliasMatch = aliases.some(alias => kevProductLower.includes(alias) || alias.includes(kevProductLower));
+
+                if (directMatch || aliasMatch) {
+                  detectedVersion = ver;
+                  productSpecificMatch = true;
+                  break;
                 }
-              )?.[1] || undefined;
-              // KEV entries are product-family matches unless we have a version
-              // KEV is always at least "probable" because it's a confirmed CVE on a confirmed product family
-              const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
+              }
+              // If no product-specific match, check if we have a vendor-only match
+              // (e.g., tech "Apache" detected, CVE is for "Apache OFBiz")
+              // In this case, do NOT use the version — it belongs to a different product
+              if (!productSpecificMatch) {
+                // Fallback: check if matchedOn is just a vendor name
+                for (const [tech, ver] of Object.entries(versions)) {
+                  const techLower = tech.toLowerCase();
+                  if (techLower.includes(matchedOnLower) || matchedOnLower.includes(techLower)) {
+                    // Found a version via vendor match — but this is NOT product-specific
+                    // Do NOT set detectedVersion — it would be wrong product's version
+                    break;
+                  }
+                }
+              }
+
+              // KEV entries require product-specific version match for "confirmed"
+              // Vendor-only matches (e.g., "Apache" tech → "Apache OFBiz" CVE) stay "probable"
+              const tier: CorroborationTier = (productSpecificMatch && detectedVersion) ? "confirmed" : "probable";
               const severityCap = tier === "confirmed" ? 10 : 6;
               const rawSeverity = m.knownRansomware ? 10 : 9;
               const cappedSeverity = Math.min(rawSeverity, severityCap);
@@ -2567,10 +2605,12 @@ export async function runDomainIntelPipeline(
                 `Technology "${m.matchedOn}" detected on asset "${a.asset.hostname}"`,
                 `Matched against CISA KEV entry ${m.cveID} (${m.vendorProject} ${m.product})`,
               ];
-              if (detectedVersion) {
-                evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED`);
+              if (productSpecificMatch && detectedVersion) {
+                evidenceChain.push(`Detected version: ${detectedVersion} of ${m.product} — product-specific match CONFIRMED`);
+              } else if (detectedVersion && !productSpecificMatch) {
+                evidenceChain.push(`Technology "${m.matchedOn}" detected but version belongs to a different ${kevVendorLower} product — not ${m.product}. Severity capped.`);
               } else {
-                evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
+                evidenceChain.push(`No specific version detected for ${m.product} — product-family match only (severity capped at ${severityCap}/10)`);
               }
               evidenceChain.push(`KEV status: actively exploited in the wild. Due date: ${m.dueDate}`);
               if (m.knownRansomware) evidenceChain.push(`Ransomware association confirmed`);
@@ -2591,9 +2631,9 @@ export async function runDomainIntelPipeline(
                 cvssScore: m.knownRansomware ? 9.8 : 9.0,
                 affectedAssets: [a.asset.hostname],
                 evidenceBasis: "kev_match" as const,
-                evidenceDetail: detectedVersion
-                  ? `CONFIRMED: Technology "${m.matchedOn}" v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}.`
-                  : `PROBABLE: Technology "${m.matchedOn}" on ${a.asset.hostname} matches CISA KEV product family ${m.vendorProject} ${m.product}. Version not confirmed — severity capped. Due date: ${m.dueDate}.`,
+                evidenceDetail: (productSpecificMatch && detectedVersion)
+                  ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}.`
+                  : `PROBABLE: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected.'} Severity capped. Due date: ${m.dueDate}.`,
                 corroborationTier: tier,
                 detectedVersion,
                 versionMatchConfirmed: !!detectedVersion,
@@ -2662,10 +2702,57 @@ export async function runDomainIntelPipeline(
           if (a.postureFindings.some(f => f.cveIds?.includes(vuln.cveId))) continue;
 
           // Determine corroboration tier based on version evidence
+          // FIX: Product-specific version lookup — don't use Apache httpd version for OFBiz CVEs
+          const VULN_PRODUCT_ALIASES: Record<string, string[]> = {
+            'apache': ['http server', 'httpd', 'apache2'],
+            'nginx': ['nginx'],
+            'iis': ['internet information services', 'iis'],
+            'openssl': ['openssl'],
+            'jquery': ['jquery'],
+          };
           const versions = a.asset.technologyVersions || {};
-          const detectedVersion = Object.entries(versions).find(
-            ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
-          )?.[1] || undefined;
+          const vulnProductLower = (vuln.product || '').toLowerCase();
+          const vulnVendorLower = (vuln.vendor || '').toLowerCase();
+          let detectedVersion: string | undefined;
+          let isProductSpecificVuln = false;
+
+          // Check match specificity from vuln-feeds if available
+          const matchSpec = (vulnMatch as any)._matchSpecificity;
+          if (matchSpec === 'vendor_only') {
+            // Vendor-only match: tech "Apache" matched vendor "Apache" but NOT product "OFBiz"
+            // Do NOT use any version — it belongs to a different product
+            isProductSpecificVuln = false;
+          } else {
+            // Try product-specific version lookup
+            for (const [tech, ver] of Object.entries(versions)) {
+              const tl = tech.toLowerCase();
+              const directMatch = tl.includes(vulnProductLower) || vulnProductLower.includes(tl);
+              const aliases = VULN_PRODUCT_ALIASES[tl] || [];
+              const aliasMatch = aliases.some(a => vulnProductLower.includes(a) || a.includes(vulnProductLower));
+              if (directMatch || aliasMatch) {
+                detectedVersion = ver;
+                isProductSpecificVuln = true;
+                break;
+              }
+            }
+            // If no product-specific match found, fall back to tech name match
+            // but only if the tech name IS the product (not just the vendor)
+            if (!isProductSpecificVuln) {
+              const techEntry = Object.entries(versions).find(
+                ([tech]) => tech.toLowerCase().includes(techLower) || techLower.includes(tech.toLowerCase())
+              );
+              if (techEntry) {
+                // Check if this is actually a product match or just vendor
+                const techName = techEntry[0].toLowerCase();
+                const isVendorOnly = (techName === vulnVendorLower || vulnVendorLower.includes(techName))
+                  && !techName.includes(vulnProductLower) && !vulnProductLower.includes(techName);
+                if (!isVendorOnly) {
+                  detectedVersion = techEntry[1];
+                  isProductSpecificVuln = true;
+                }
+              }
+            }
+          }
 
           // VERSION-AWARE FILTERING: If we have a detected version AND the CVE has
           // version range data, verify the detected version is actually affected.
@@ -2677,8 +2764,9 @@ export async function runDomainIntelPipeline(
             }
           }
 
-          // With version: confirmed. Without: probable (we have a real CVE, just no version confirmation)
-          const tier: CorroborationTier = detectedVersion ? "confirmed" : "probable";
+          // Product-specific version match required for "confirmed"
+          // Vendor-only matches stay "probable" even if a version was detected
+          const tier: CorroborationTier = (isProductSpecificVuln && detectedVersion) ? "confirmed" : "probable";
           const severityCap = tier === "confirmed" ? 10 : 6;
           const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
           const cappedSeverity = Math.min(rawSeverity, severityCap);
@@ -2687,14 +2775,16 @@ export async function runDomainIntelPipeline(
             `${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} (CVSS: ${vuln.cvssScore || "N/A"})`,
             `Sources: ${vuln.sources.join(", ")}`,
           ];
-          if (detectedVersion) {
+          if (isProductSpecificVuln && detectedVersion) {
             if (vuln.affectedVersionRange) {
-              evidenceChain.push(`Detected version: ${detectedVersion} — CONFIRMED within affected range (${vuln.affectedVersionRange})`);
+              evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — CONFIRMED within affected range (${vuln.affectedVersionRange})`);
             } else {
-              evidenceChain.push(`Detected version: ${detectedVersion} — version-specific match CONFIRMED (no version range data to verify against)`);
+              evidenceChain.push(`Detected version: ${detectedVersion} of ${vuln.product || vulnMatch.technology} — product-specific match CONFIRMED`);
             }
+          } else if (!isProductSpecificVuln) {
+            evidenceChain.push(`Technology "${vulnMatch.technology}" matches ${vulnVendorLower} vendor but specific product ${vuln.product || 'unknown'} not individually confirmed — severity capped at ${severityCap}/10`);
           } else {
-            evidenceChain.push(`No specific version detected — product-family match only (severity capped at ${severityCap}/10)`);
+            evidenceChain.push(`No specific version detected for ${vuln.product || vulnMatch.technology} — product-family match only (severity capped at ${severityCap}/10)`);
           }
           if (vuln.kevListed) evidenceChain.push(`Listed on CISA KEV — actively exploited in the wild`);
           if (vuln.exploitAvailable) evidenceChain.push(`Public exploit available`);
@@ -2722,9 +2812,9 @@ export async function runDomainIntelPipeline(
             cvssScore: vuln.cvssScore || undefined,
             affectedAssets: [a.asset.hostname],
             evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
-            evidenceDetail: detectedVersion
-              ? `CONFIRMED: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology}${vuln.affectedVersionRange ? ` (affected: ${vuln.affectedVersionRange})` : ''}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
-              : `PROBABLE: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
+                evidenceDetail: (isProductSpecificVuln && detectedVersion)
+                  ? `CONFIRMED: ${vuln.cveId} affects ${vuln.product || vulnMatch.technology} v${detectedVersion}${vuln.affectedVersionRange ? ` (affected range: ${vuln.affectedVersionRange})` : ''}. Detected on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+                  : `PROBABLE: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but ${!isProductSpecificVuln ? `specific product ${vuln.product || 'unknown'} not individually confirmed` : 'version not detected'}. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
             corroborationTier: tier,
             detectedVersion,
             versionMatchConfirmed: !!detectedVersion,

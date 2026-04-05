@@ -1,7 +1,7 @@
 /**
- * Domain Intelligence EASM PDF Report Export
+ * Domain Intelligence PDF Report Export
  * 
- * Generates a comprehensive, client-ready External Attack Surface Management
+ * Generates a comprehensive, client-ready Domain Intelligence
  * report from DI scan results. Designed for proposal delivery, client
  * presentations, and compliance documentation.
  * 
@@ -10,6 +10,9 @@
  *   2. Executive Summary — risk gauge, key metrics, narrative
  *   3. Attack Surface Inventory — assets by type, criticality, risk band
  *   4. Domain Health & Blacklist Status — DNS, SSL, DNSBL, email security
+ *  4b. Domain Registration Details — RDAP/WHOIS registrar, expiry, DNSSEC, locks
+ *  4c. SSL Certificate Health — primary cert, discovered certs, expiry warnings
+ *  4d. Risky Service Exposure — high/medium risk ports, service classification
  *   5. Breach & Credential Exposure — 1st-party vs 3rd-party classification
  *   6. Dark Web & Ransomware Intelligence — threat group attribution
  *   7. Vulnerability & Technology Landscape — CVEs, tech stack, WAF/NGFW
@@ -57,7 +60,7 @@ function truncate(str: string | null | undefined, max: number): string {
 }
 
 /**
- * Export a comprehensive Domain Intelligence EASM PDF report
+ * Export a comprehensive Domain Intelligence PDF report
  */
 export async function exportDiEasmReport(
   domain: string,
@@ -428,8 +431,8 @@ export async function exportDiEasmReport(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
-  doc.text('External Attack Surface', margin, 55);
-  doc.text('Management Report', margin, 67);
+  doc.text('Domain Intelligence', margin, 55);
+  doc.text('Report', margin, 67);
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'normal');
@@ -1063,6 +1066,345 @@ export async function exportDiEasmReport(
       },
     });
     y = (doc as any).lastAutoTable.finalY + 4;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 4b. DOMAIN REGISTRATION DETAILS (RDAP/WHOIS)
+  // ═══════════════════════════════════════════════════════════════════════
+  const domainRegistration = scan.domainRegistration || scan.pipelineOutput?.domainRegistration || null;
+  if (domainRegistration) {
+    y = addSectionPage('Domain Registration Details');
+
+    // Registration data table
+    const regRows: string[][] = [];
+    regRows.push(['Registrar', domainRegistration.registrar || 'N/A']);
+    regRows.push(['Domain Handle', domainRegistration.handle || domainRegistration.ldhName || domain]);
+    regRows.push(['Registration Date', domainRegistration.registrationDate ? new Date(domainRegistration.registrationDate).toLocaleDateString() : 'N/A']);
+    regRows.push(['Expiration Date', domainRegistration.expirationDate ? new Date(domainRegistration.expirationDate).toLocaleDateString() : 'N/A']);
+    regRows.push(['Last Changed', domainRegistration.lastChanged ? new Date(domainRegistration.lastChanged).toLocaleDateString() : 'N/A']);
+    // Calculate days until expiration
+    if (domainRegistration.expirationDate) {
+      const daysUntilExpiry = Math.ceil((new Date(domainRegistration.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      regRows.push(['Days Until Expiry', String(daysUntilExpiry)]);
+    }
+    regRows.push(['DNSSEC', domainRegistration.dnssec ? 'Enabled (Delegation Signed)' : 'Not Enabled']);
+    if (domainRegistration.nameservers?.length > 0) {
+      regRows.push(['Nameservers', domainRegistration.nameservers.join(', ')]);
+    }
+    if (domainRegistration.status?.length > 0) {
+      regRows.push(['Status Codes', domainRegistration.status.join(', ')]);
+    }
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Property', 'Value']],
+      body: regRows,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { cellWidth: 40 } },
+      didParseCell: (data: any) => {
+        if (data.section === 'body') {
+          const label = String(data.row.cells[0]?.text || '');
+          const value = String(data.cell.text);
+          // Highlight expiring domains
+          if (label === 'Days Until Expiry') {
+            const days = parseInt(value);
+            if (!isNaN(days) && days < 30) {
+              data.cell.styles.textColor = [220, 38, 38];
+              data.cell.styles.fontStyle = 'bold';
+            } else if (!isNaN(days) && days < 90) {
+              data.cell.styles.textColor = [234, 88, 12];
+            }
+          }
+          // Highlight DNSSEC not enabled
+          if (label === 'DNSSEC' && value === 'Not Enabled') {
+            data.cell.styles.textColor = [234, 88, 12];
+          }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Registration risk assessment
+    y = checkPageBreak(y, 30);
+    const regRisks: string[] = [];
+    if (!domainRegistration.dnssec) regRisks.push('DNSSEC is not enabled — domain is vulnerable to DNS spoofing and cache poisoning attacks.');
+    if (domainRegistration.expirationDate) {
+      const daysLeft = Math.ceil((new Date(domainRegistration.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysLeft < 30) regRisks.push(`Domain expires in ${daysLeft} days — immediate renewal required to prevent domain hijacking.`);
+      else if (daysLeft < 90) regRisks.push(`Domain expires in ${daysLeft} days — schedule renewal to prevent accidental lapse.`);
+    }
+    const hasClientTransferProhibited = domainRegistration.status?.some((s: string) => s.toLowerCase().includes('clienttransferprohibited'));
+    if (!hasClientTransferProhibited) regRisks.push('Transfer lock (clientTransferProhibited) is not set — domain may be vulnerable to unauthorized transfer.');
+    const hasClientDeleteProhibited = domainRegistration.status?.some((s: string) => s.toLowerCase().includes('clientdeleteprohibited'));
+    if (!hasClientDeleteProhibited) regRisks.push('Delete lock (clientDeleteProhibited) is not set — domain could be accidentally or maliciously deleted.');
+
+    if (regRisks.length > 0) {
+      y = subheading('Registration Risk Assessment', y);
+      for (const risk of regRisks) {
+        y = checkPageBreak(y, 8);
+        doc.setFontSize(7);
+        doc.setTextColor(146, 64, 14);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`\u26A0  ${risk}`, margin + 2, y);
+        y += 4;
+      }
+      y += 2;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 4c. SSL CERTIFICATE HEALTH
+  // ═══════════════════════════════════════════════════════════════════════
+  const sslCertificates = scan.sslCertificates || scan.pipelineOutput?.sslCertificates || [];
+  // Also include the domainHealth SSL data if available
+  const domainHealthSsl = domainHealth.ssl;
+  if (sslCertificates.length > 0 || domainHealthSsl) {
+    y = addSectionPage('SSL Certificate Health');
+
+    // Primary domain SSL from domain health check
+    if (domainHealthSsl) {
+      y = subheading('Primary Domain Certificate', y);
+      const sslRows: string[][] = [];
+      sslRows.push(['Subject', domainHealthSsl.subject || 'N/A']);
+      sslRows.push(['Issuer', domainHealthSsl.issuer || 'N/A']);
+      sslRows.push(['Valid From', domainHealthSsl.validFrom || 'N/A']);
+      sslRows.push(['Valid To', domainHealthSsl.validTo || 'N/A']);
+      sslRows.push(['Days Until Expiry', String(domainHealthSsl.daysUntilExpiry ?? 'N/A')]);
+      sslRows.push(['Protocol', domainHealthSsl.protocol || 'N/A']);
+      if (domainHealthSsl.sans?.length) sslRows.push(['SANs', truncate(domainHealthSsl.sans.join(', '), 80)]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Property', 'Value']],
+        body: sslRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { cellWidth: 35 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body') {
+            const label = String(data.row.cells[0]?.text || '');
+            if (label === 'Days Until Expiry') {
+              const days = parseInt(String(data.cell.text));
+              if (!isNaN(days) && days < 30) {
+                data.cell.styles.textColor = [220, 38, 38];
+                data.cell.styles.fontStyle = 'bold';
+              } else if (!isNaN(days) && days < 90) {
+                data.cell.styles.textColor = [234, 88, 12];
+              }
+            }
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+    }
+
+    // Certificates discovered via Shodan/Censys passive recon
+    if (sslCertificates.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading(`Discovered Certificates (${sslCertificates.length})`, y);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Subject (CN)', 'Issuer', 'Expires', 'Hosts', 'Ports']],
+        body: sslCertificates.map((cert: any) => [
+          truncate(cert.subject || 'N/A', 30),
+          truncate(cert.issuer || 'N/A', 25),
+          cert.expires ? new Date(cert.expires).toLocaleDateString() : 'N/A',
+          truncate((cert.hosts || []).join(', '), 30),
+          (cert.ports || []).join(', ') || 'N/A',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 2) {
+            const text = String(data.cell.text);
+            if (text !== 'N/A') {
+              const expiryDate = new Date(text);
+              const daysLeft = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              if (daysLeft < 0) {
+                data.cell.styles.textColor = [220, 38, 38];
+                data.cell.styles.fontStyle = 'bold';
+              } else if (daysLeft < 30) {
+                data.cell.styles.textColor = [234, 88, 12];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+
+      // SSL risk assessment
+      const sslRisks: string[] = [];
+      for (const cert of sslCertificates) {
+        if (cert.expires) {
+          const daysLeft = Math.ceil((new Date(cert.expires).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          if (daysLeft < 0) sslRisks.push(`Certificate for ${cert.subject || 'unknown'} EXPIRED ${Math.abs(daysLeft)} days ago — immediate replacement required.`);
+          else if (daysLeft < 30) sslRisks.push(`Certificate for ${cert.subject || 'unknown'} expires in ${daysLeft} days — schedule renewal.`);
+        }
+      }
+      const selfSigned = sslCertificates.filter((c: any) => c.subject && c.issuer && c.subject === c.issuer);
+      if (selfSigned.length > 0) {
+        sslRisks.push(`${selfSigned.length} self-signed certificate(s) detected — browsers will show security warnings and MITM attacks are possible.`);
+      }
+
+      if (sslRisks.length > 0) {
+        y = checkPageBreak(y, 20);
+        y = subheading('Certificate Risk Assessment', y);
+        for (const risk of sslRisks) {
+          y = checkPageBreak(y, 8);
+          doc.setFontSize(7);
+          doc.setTextColor(146, 64, 14);
+          doc.setFont('helvetica', 'normal');
+          const riskLines = doc.splitTextToSize(`\u26A0  ${risk}`, contentWidth - 4);
+          for (const line of riskLines) {
+            doc.text(line, margin + 2, y);
+            y += 3.5;
+          }
+          y += 1;
+        }
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 4d. RISKY SERVICE EXPOSURE
+  // ═══════════════════════════════════════════════════════════════════════
+  const discoveredPorts = scan.discoveredPorts || scan.pipelineOutput?.discoveredPorts || [];
+  const riskyPorts = discoveredPorts.filter((p: any) => {
+    // Flag high-risk and medium-risk services
+    const highRisk = [21, 23, 25, 135, 139, 445, 1433, 1521, 3306, 3389, 5432, 5900, 5901, 6379, 9200, 11211, 27017];
+    const mediumRisk = [53, 110, 143, 161, 389, 636, 2049, 5060];
+    return highRisk.includes(p.port) || mediumRisk.includes(p.port);
+  });
+
+  if (riskyPorts.length > 0) {
+    y = addSectionPage('Risky Service Exposure');
+
+    // Summary box
+    const highRiskCount = riskyPorts.filter((p: any) => [21, 23, 135, 139, 445, 1433, 1521, 3306, 3389, 5432, 5900, 5901, 6379, 9200, 11211, 27017].includes(p.port)).length;
+    const medRiskCount = riskyPorts.length - highRiskCount;
+    const summaryColor: [number, number, number] = highRiskCount > 0 ? [153, 27, 27] : [234, 88, 12];
+    doc.setFillColor(summaryColor[0], summaryColor[1], summaryColor[2]);
+    doc.roundedRect(margin, y, contentWidth, 20, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${riskyPorts.length} Risky Service${riskyPorts.length !== 1 ? 's' : ''} Exposed`, margin + 5, y + 8);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${highRiskCount} High Risk  \u2022  ${medRiskCount} Medium Risk  \u2022  ${discoveredPorts.length} Total Open Ports`, margin + 5, y + 15);
+    y += 24;
+
+    // Service risk classification reference
+    const serviceRiskMap: Record<number, { service: string; severity: number; riskLevel: string; rationale: string }> = {
+      21:   { service: 'FTP', severity: 8, riskLevel: 'HIGH', rationale: 'Cleartext credential transmission, automated scanner target' },
+      23:   { service: 'Telnet', severity: 9, riskLevel: 'CRITICAL', rationale: 'All data including credentials transmitted in cleartext' },
+      25:   { service: 'SMTP', severity: 5, riskLevel: 'HIGH', rationale: 'Open relay abuse for spam/phishing if misconfigured' },
+      53:   { service: 'DNS', severity: 4, riskLevel: 'MEDIUM', rationale: 'Open resolver — DDoS amplification risk' },
+      110:  { service: 'POP3', severity: 5, riskLevel: 'MEDIUM', rationale: 'Cleartext credential transmission' },
+      135:  { service: 'MS-RPC', severity: 7, riskLevel: 'HIGH', rationale: 'Windows RPC endpoint mapper — common exploit target' },
+      139:  { service: 'NetBIOS', severity: 7, riskLevel: 'HIGH', rationale: 'Windows file sharing exposure' },
+      143:  { service: 'IMAP', severity: 5, riskLevel: 'MEDIUM', rationale: 'Cleartext credential transmission' },
+      161:  { service: 'SNMP', severity: 6, riskLevel: 'MEDIUM', rationale: 'Community string auth — information disclosure' },
+      389:  { service: 'LDAP', severity: 6, riskLevel: 'MEDIUM', rationale: 'Directory information and user account leakage' },
+      445:  { service: 'SMB', severity: 8, riskLevel: 'HIGH', rationale: 'Primary ransomware propagation vector (EternalBlue)' },
+      636:  { service: 'LDAPS', severity: 4, riskLevel: 'MEDIUM', rationale: 'Encrypted but still exposes directory services' },
+      1433: { service: 'MSSQL', severity: 8, riskLevel: 'HIGH', rationale: 'Direct database attack vector' },
+      1521: { service: 'Oracle DB', severity: 8, riskLevel: 'HIGH', rationale: 'Direct database attack vector' },
+      2049: { service: 'NFS', severity: 7, riskLevel: 'MEDIUM', rationale: 'File system exposure if misconfigured' },
+      3306: { service: 'MySQL', severity: 8, riskLevel: 'HIGH', rationale: 'Direct database attack and credential brute-force' },
+      3389: { service: 'RDP', severity: 9, riskLevel: 'CRITICAL', rationale: '#1 ransomware initial access vector' },
+      5060: { service: 'SIP', severity: 5, riskLevel: 'MEDIUM', rationale: 'Toll fraud and eavesdropping risk' },
+      5432: { service: 'PostgreSQL', severity: 7, riskLevel: 'HIGH', rationale: 'Direct database attack vector' },
+      5900: { service: 'VNC', severity: 9, riskLevel: 'CRITICAL', rationale: 'Weak auth, screen data exposure' },
+      5901: { service: 'VNC', severity: 9, riskLevel: 'CRITICAL', rationale: 'Weak auth, screen data exposure' },
+      6379: { service: 'Redis', severity: 8, riskLevel: 'HIGH', rationale: 'Often unauthenticated — arbitrary command execution' },
+      9200: { service: 'Elasticsearch', severity: 8, riskLevel: 'HIGH', rationale: 'Data exfiltration and cluster manipulation' },
+      11211: { service: 'Memcached', severity: 7, riskLevel: 'HIGH', rationale: 'DDoS amplification and data leakage' },
+      27017: { service: 'MongoDB', severity: 8, riskLevel: 'HIGH', rationale: '#1 database ransomware target' },
+    };
+
+    // Risky services table
+    autoTable!(doc, {
+      startY: y,
+      head: [['Port', 'Service', 'Host', 'Risk', 'Sev', 'Rationale']],
+      body: riskyPorts
+        .sort((a: any, b: any) => (serviceRiskMap[b.port]?.severity || 0) - (serviceRiskMap[a.port]?.severity || 0))
+        .map((p: any) => {
+          const risk = serviceRiskMap[p.port] || { service: p.product || `Port ${p.port}`, severity: 5, riskLevel: 'MEDIUM', rationale: 'Unknown service exposure' };
+          return [
+            String(p.port),
+            risk.service,
+            truncate(p.hostname || p.ip || 'N/A', 30),
+            risk.riskLevel,
+            `${risk.severity}/10`,
+            truncate(risk.rationale, 50),
+          ];
+        }),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 14 } },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 3) {
+          const text = String(data.cell.text);
+          if (text === 'CRITICAL') { data.cell.styles.textColor = [153, 27, 27]; data.cell.styles.fontStyle = 'bold'; }
+          else if (text === 'HIGH') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+          else if (text === 'MEDIUM') { data.cell.styles.textColor = [234, 88, 12]; }
+        }
+        if (data.section === 'body' && data.column.index === 4) {
+          const sev = parseInt(String(data.cell.text));
+          if (sev >= 9) data.cell.styles.textColor = [153, 27, 27];
+          else if (sev >= 7) data.cell.styles.textColor = [220, 38, 38];
+          else if (sev >= 5) data.cell.styles.textColor = [234, 88, 12];
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Exposure narrative
+    y = checkPageBreak(y, 30);
+    y = subheading('Exposure Analysis', y);
+    const criticalPorts = riskyPorts.filter((p: any) => (serviceRiskMap[p.port]?.severity || 0) >= 9);
+    const dbPorts = riskyPorts.filter((p: any) => [1433, 1521, 3306, 5432, 6379, 9200, 27017].includes(p.port));
+    const remoteAccessPorts = riskyPorts.filter((p: any) => [21, 23, 3389, 5900, 5901].includes(p.port));
+
+    const narrativeParts: string[] = [];
+    if (criticalPorts.length > 0) {
+      narrativeParts.push(`${criticalPorts.length} critical-severity service(s) are directly exposed to the internet (${criticalPorts.map((p: any) => serviceRiskMap[p.port]?.service || `Port ${p.port}`).join(', ')}). These represent the highest-priority remediation targets as they are commonly exploited in ransomware and targeted attacks.`);
+    }
+    if (dbPorts.length > 0) {
+      narrativeParts.push(`${dbPorts.length} database service(s) are externally accessible (${dbPorts.map((p: any) => serviceRiskMap[p.port]?.service || `Port ${p.port}`).join(', ')}). Exposed databases are primary targets for data exfiltration and database ransomware campaigns.`);
+    }
+    if (remoteAccessPorts.length > 0) {
+      narrativeParts.push(`${remoteAccessPorts.length} remote access service(s) detected (${remoteAccessPorts.map((p: any) => serviceRiskMap[p.port]?.service || `Port ${p.port}`).join(', ')}). These services should be restricted to VPN access or replaced with more secure alternatives.`);
+    }
+
+    if (narrativeParts.length > 0) {
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      doc.setFont('helvetica', 'normal');
+      for (const part of narrativeParts) {
+        y = checkPageBreak(y, 15);
+        const lines = doc.splitTextToSize(part, contentWidth - 4);
+        for (const line of lines) {
+          doc.text(line, margin + 2, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -2057,7 +2399,7 @@ export async function exportDiEasmReport(
     doc.text('CONFIDENTIAL — For authorized recipients only', margin, pageHeight - 8);
   }
 
-  doc.save(`EASM_Report_${domain}_${dateStamp()}.pdf`);
+  doc.save(`DI_Report_${domain}_${dateStamp()}.pdf`);
 }
 
 // Helper: add footer to current page

@@ -802,6 +802,16 @@ export async function matchTechnologiesAgainstAllFeeds(
 
   const versions = detectedVersions || {};
 
+  // PRODUCT_ALIASES: Map common tech names to their specific product names
+  // e.g., "Apache" commonly refers to "Apache HTTP Server", not OFBiz/Tomcat
+  const PRODUCT_ALIASES: Record<string, string[]> = {
+    'apache': ['http server', 'httpd', 'apache2'],
+    'nginx': ['nginx'],
+    'iis': ['internet information services', 'iis'],
+    'openssl': ['openssl'],
+    'jquery': ['jquery'],
+  };
+
   for (const tech of technologies) {
     const techLower = tech.toLowerCase().trim();
     if (techLower.length < 3) continue;
@@ -817,15 +827,31 @@ export async function matchTechnologiesAgainstAllFeeds(
       // IMPORTANT: require non-empty vendor/product for reverse includes checks
       // to prevent CVEs with empty vendor/product from matching everything
       // (since 'anything'.includes('') is always true in JavaScript)
+      // FIX: Track whether this is a product-specific or vendor-only match
+      const directProductMatch = (productLower.length >= 3 && productLower.includes(techLower)) ||
+        (productLower.length >= 3 && techLower.includes(productLower));
+
+      // Alias-based product match: e.g., tech "Apache" → aliases ["http server", "httpd"]
+      const aliases = PRODUCT_ALIASES[techLower] || [];
+      const aliasProductMatch = aliases.some(alias =>
+        (productLower.includes(alias) || alias.includes(productLower)) && productLower.length >= 3
+      );
+
+      // Title match: tech name appears in CVE title, but only if tech is NOT just the vendor name
+      const techIsVendorName = vendorLower.length >= 3 && (techLower === vendorLower || vendorLower.includes(techLower));
+      const titleMatch = titleLower.length >= 3 && titleLower.includes(techLower) && !techIsVendorName;
+
+      const isProductMatch = directProductMatch || aliasProductMatch || titleMatch;
+
+      // Vendor-only match: tech matches vendor but NOT the specific product
+      const vendorMatch = !isProductMatch && vendorLower.length >= 3 &&
+        (vendorLower.includes(techLower) || techLower.includes(vendorLower));
+
       if (
-        (techLower.length >= 4 && (
-          (vendorLower.length >= 3 && vendorLower.includes(techLower)) ||
-          (productLower.length >= 3 && productLower.includes(techLower)) ||
-          (titleLower.length >= 3 && titleLower.includes(techLower)) ||
-          (vendorLower.length >= 3 && techLower.includes(vendorLower)) ||
-          (productLower.length >= 3 && techLower.includes(productLower))
-        ))
+        (techLower.length >= 4 && (isProductMatch || vendorMatch))
       ) {
+        // Tag the entry with match specificity for downstream use
+        (entry as any)._matchSpecificity = isProductMatch ? 'product' : 'vendor_only';
         matchedVulns.push(entry);
       }
     }
@@ -865,11 +891,14 @@ export async function matchTechnologiesAgainstAllFeeds(
       const hasExploit = exploitCount > 0;
 
       // Tier classification:
-      // confirmed = KEV-listed OR in-the-wild 0-day OR version-matched with exploit
-      // probable  = version detected (can compare) OR has public exploit
+      // confirmed = (KEV-listed OR in-the-wild 0-day OR version-matched with exploit)
+      //             AND product-specific match (not vendor-only)
+      // probable  = version detected OR has public exploit OR vendor-only match
       // potential = name-only match, no version info, no exploit evidence
+      // FIX: Check if ANY matched vuln is product-specific (not vendor-only)
+      const hasProductSpecificMatch = matchedVulns.some(v => (v as any)._matchSpecificity === 'product');
       let tier: CorroborationTier;
-      if (hasKev || hasZeroDay || (hasVersionMatch && hasExploit)) {
+      if ((hasKev || hasZeroDay || (hasVersionMatch && hasExploit)) && hasProductSpecificMatch) {
         tier = 'confirmed';
       } else if (hasVersionMatch || hasExploit) {
         tier = 'probable';
@@ -878,9 +907,11 @@ export async function matchTechnologiesAgainstAllFeeds(
       }
 
       // Per-vuln tier counts — use filteredVulns
+      // FIX: Only count as confirmed if it's a product-specific match
       let techConfirmed = 0, techProbable = 0, techPotential = 0;
       for (const v of filteredVulns) {
-        if (v.kevListed || v.inTheWild) techConfirmed++;
+        const isVulnProductSpecific = (v as any)._matchSpecificity === 'product';
+        if ((v.kevListed || v.inTheWild) && isVulnProductSpecific) techConfirmed++;
         else if (hasVersionMatch || v.exploitAvailable) techProbable++;
         else techPotential++;
       }
@@ -911,7 +942,8 @@ export async function matchTechnologiesAgainstAllFeeds(
         confirmedVulnCount: techConfirmed,
         probableVulnCount: techProbable,
         potentialVulnCount: techPotential,
-      });
+        _matchSpecificity: hasProductSpecificMatch ? 'product' : 'vendor_only',
+      } as any);
 
       totalVulns += filteredVulns.length;
       totalExploits += exploitCount;
