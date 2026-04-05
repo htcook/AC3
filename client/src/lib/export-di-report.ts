@@ -74,8 +74,30 @@ export async function exportDiEasmReport(
 
   // Build synthetic observations from asset postureFindings when observations array is empty
   const rawObservations = scan.observations || [];
+
+  // Detect managed mail provider for CVE filtering
+  const _emailSecReportForProvider = scan.emailSecurityReport || scan.pipelineOutput?.emailSecurityReport || scan.pipelineOutput?.emailSecurity || null;
+  const _managedMailProvider = _emailSecReportForProvider?.managedProvider?.isManaged
+    ? _emailSecReportForProvider.managedProvider.name
+    : (['Microsoft 365', 'Google Workspace', 'Proofpoint', 'Mimecast', 'Zoho Mail', 'ProtonMail']
+        .find(p => p === _emailSecReportForProvider?.mx?.provider) || null);
+  // Hostnames that belong to the managed mail provider (e.g. outlook.com for M365)
+  const _managedMailHosts = new Set<string>();
+  if (_managedMailProvider) {
+    for (const asset of (scan.assets || [])) {
+      const h = (asset.hostname || '').toLowerCase();
+      if (_managedMailProvider === 'Microsoft 365' && (h.includes('outlook.com') || h.includes('microsoft.com') || h.includes('office365') || h.includes('protection.outlook'))) _managedMailHosts.add(asset.hostname);
+      else if (_managedMailProvider === 'Google Workspace' && (h.includes('google.com') || h.includes('gmail.com') || h.includes('googlemail'))) _managedMailHosts.add(asset.hostname);
+      else if (_managedMailProvider === 'Proofpoint' && h.includes('proofpoint')) _managedMailHosts.add(asset.hostname);
+      else if (_managedMailProvider === 'Mimecast' && h.includes('mimecast')) _managedMailHosts.add(asset.hostname);
+    }
+  }
+
   const observations: any[] = rawObservations.length > 0 ? rawObservations : (() => {
     const synth: any[] = [];
+    // Track CVE deduplication: same CVE across multiple assets → single observation with asset list
+    const cveDedup = new Map<string, any>();
+
     for (const asset of assets) {
       const findings = asset.postureFindings || (asset.analysis ? (() => { try { return JSON.parse(asset.analysis)?.postureFindings || []; } catch { return []; } })() : []);
       for (const f of (findings as any[])) {
@@ -93,7 +115,7 @@ export async function exportDiEasmReport(
         const cveId = (f.cveIds && f.cveIds[0]) || cveMatch?.[0] || undefined;
 
         // Build a proper description from available evidence fields
-        const description = f.evidenceDetail || f.evidenceChain?.join(' → ') || f.remediation || titleOrFinding;
+        const description = f.evidenceDetail || f.evidenceChain?.join(' \u2192 ') || f.remediation || titleOrFinding;
 
         // Use the numeric severity directly (posture findings already have numeric severity)
         const severity = typeof f.severity === 'number' ? f.severity
@@ -104,16 +126,38 @@ export async function exportDiEasmReport(
           : f.corroborationTier === 'probable' ? '[PROBABLE]'
           : f.versionMatchConfirmed === false ? '[UNCONFIRMED VERSION]' : '';
 
-        synth.push({
+        // Check if this CVE is on a managed provider host
+        const assetHostname = f.assetHostname || asset.hostname || '';
+        const isOnManagedHost = _managedMailHosts.has(assetHostname);
+
+        // Deduplicate CVEs: merge same CVE across assets into one observation
+        if (cveId && cveDedup.has(cveId)) {
+          const existing = cveDedup.get(cveId);
+          if (!existing.evidence.affectedHosts.includes(assetHostname)) {
+            existing.evidence.affectedHosts.push(assetHostname);
+          }
+          // Upgrade tier if this instance is confirmed
+          if (corroborationLabel === '[CONFIRMED]' && existing.evidence.corroboration !== '[CONFIRMED]') {
+            existing.evidence.corroboration = '[CONFIRMED]';
+            existing.evidence.detectedVersion = f.detectedVersion || existing.evidence.detectedVersion;
+            existing.evidence.severity = severity;
+          }
+          // Track managed host status
+          if (isOnManagedHost) existing.evidence.hasProviderManagedInstance = true;
+          continue;
+        }
+
+        const obs = {
           name: titleOrFinding,
           source: f.source || f.evidenceBasis || 'posture_analysis',
-          domain: f.assetHostname || asset.hostname || domain,
+          domain: assetHostname || domain,
           tags,
           assetType: f.category || 'finding',
           evidence: {
             severity,
             cve_id: cveId,
-            hostname: f.assetHostname || asset.hostname,
+            hostname: assetHostname,
+            affectedHosts: [assetHostname],
             description: truncate(description, 200),
             title: titleOrFinding,
             corroboration: corroborationLabel,
@@ -121,11 +165,25 @@ export async function exportDiEasmReport(
             exploitAvailable: f.exploitAvailable || false,
             detectedVersion: f.detectedVersion || undefined,
             cvssScore: f.cvssScore || undefined,
+            hasProviderManagedInstance: isOnManagedHost,
+            providerManagedOnly: false, // will be set after dedup
           },
           firstSeen: asset.createdAt || null,
-        });
+        };
+        if (cveId) cveDedup.set(cveId, obs);
+        synth.push(obs);
       }
     }
+
+    // Post-process: mark CVEs that ONLY appear on managed hosts
+    for (const obs of synth) {
+      if (obs.evidence?.cve_id && obs.evidence.hasProviderManagedInstance) {
+        const allHostsManaged = obs.evidence.affectedHosts.every((h: string) => _managedMailHosts.has(h));
+        obs.evidence.providerManagedOnly = allHostsManaged;
+        if (allHostsManaged) obs.tags.push('provider_managed');
+      }
+    }
+
     return synth;
   })();
 
@@ -387,7 +445,11 @@ export async function exportDiEasmReport(
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
-  doc.text(`Total Findings: ${scan.totalFindings ?? 0}`, metricsX, y + 25);
+  // Count findings excluding provider-managed CVEs
+  const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
+  const _confirmedCount = _clientFindings.filter((o: any) => o.evidence?.corroboration === '[CONFIRMED]').length;
+  const _totalClientFindings = scan.totalFindings ?? _clientFindings.length;
+  doc.text(`Total Findings: ${_totalClientFindings}${_confirmedCount > 0 ? ` (${_confirmedCount} confirmed)` : ''}`, metricsX, y + 25);
   const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
   doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
   // Calculate scan duration: sum all connector durations for accurate total
@@ -1508,26 +1570,40 @@ export async function exportDiEasmReport(
     y = (doc as any).lastAutoTable.finalY + 8;
   }
 
-  // Vulnerability observations
+  // Vulnerability observations — separated into tiers with managed provider filtering
   const vulnObs = observations.filter((o: any) =>
     o.tags?.includes('vulnerability') || o.tags?.includes('cve') || o.evidence?.cve_id
   );
 
   if (vulnObs.length > 0) {
-    // Separate confirmed vs unconfirmed vulnerabilities
-    const confirmedVulns = vulnObs.filter((o: any) => o.evidence?.corroboration === '[CONFIRMED]');
-    const probableVulns = vulnObs.filter((o: any) => o.evidence?.corroboration !== '[CONFIRMED]');
+    // Tier 1: Confirmed (version-matched) — NOT on provider-managed-only hosts
+    const confirmedVulns = vulnObs.filter((o: any) =>
+      o.evidence?.corroboration === '[CONFIRMED]' && !o.evidence?.providerManagedOnly
+    );
+    // Tier 2: Probable (product-family match, no version confirmation) — NOT provider-managed-only
+    const probableVulns = vulnObs.filter((o: any) =>
+      o.evidence?.corroboration !== '[CONFIRMED]' && !o.evidence?.providerManagedOnly && !o.tags?.includes('provider_managed')
+    );
+    // Tier 3: Provider-managed CVEs — on managed hosts only (e.g. Exchange CVEs on M365)
+    const managedVulns = vulnObs.filter((o: any) => o.evidence?.providerManagedOnly);
+
+    // Helper to format asset column with dedup count
+    const formatAssetCol = (o: any) => {
+      const hosts = o.evidence?.affectedHosts || [o.evidence?.hostname || o.domain];
+      if (hosts.length === 1) return truncate(hosts[0], 22);
+      return `${truncate(hosts[0], 16)} +${hosts.length - 1}`;
+    };
 
     if (confirmedVulns.length > 0) {
       y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
 
       autoTable!(doc, {
         startY: y,
-        head: [['CVE ID', 'Finding Name', 'Asset', 'Sev', 'CVSS', 'Version']],
+        head: [['CVE ID', 'Finding Name', 'Assets', 'Sev', 'CVSS', 'Version']],
         body: confirmedVulns.slice(0, 20).map((o: any) => [
           o.evidence?.cve_id || 'N/A',
           truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 40),
-          truncate(o.evidence?.hostname || o.domain, 20),
+          formatAssetCol(o),
           getSeverityLabel(o.evidence?.severity || 5),
           o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
           o.evidence?.detectedVersion || 'N/A',
@@ -1550,7 +1626,7 @@ export async function exportDiEasmReport(
 
     if (probableVulns.length > 0) {
       y = checkPageBreak(y, 40);
-      y = subheading(`Probable Vulnerabilities — Version Unconfirmed (${probableVulns.length})`, y);
+      y = subheading(`Probable Vulnerabilities \u2014 Version Unconfirmed (${probableVulns.length})`, y);
 
       // Add a disclaimer note
       doc.setFontSize(7);
@@ -1561,11 +1637,11 @@ export async function exportDiEasmReport(
 
       autoTable!(doc, {
         startY: y,
-        head: [['CVE ID', 'Finding Name', 'Asset', 'Sev', 'Status', 'Evidence']],
+        head: [['CVE ID', 'Finding Name', 'Assets', 'Sev', 'Status', 'Evidence']],
         body: probableVulns.slice(0, 30).map((o: any) => [
           o.evidence?.cve_id || 'N/A',
           truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 35),
-          truncate(o.evidence?.hostname || o.domain, 18),
+          formatAssetCol(o),
           getSeverityLabel(o.evidence?.severity || 5),
           o.evidence?.kevListed ? 'KEV Listed' : o.evidence?.exploitAvailable ? 'Exploit Avail.' : 'Known CVE',
           truncate(o.evidence?.description || '', 35),
@@ -1586,6 +1662,36 @@ export async function exportDiEasmReport(
             else if (text === 'Exploit Avail.') data.cell.styles.textColor = [234, 88, 12];
           }
         },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Provider-managed CVEs — shown for transparency but clearly marked as provider responsibility
+    if (managedVulns.length > 0) {
+      y = checkPageBreak(y, 40);
+      y = subheading(`Provider-Managed CVEs \u2014 ${_managedMailProvider || 'Managed Service'} Responsibility (${managedVulns.length})`, y);
+
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(113, 113, 122);
+      y = writeText(`The following CVEs affect infrastructure managed by ${_managedMailProvider || 'the mail provider'}. Patching and mitigation is the provider\'s responsibility. These are excluded from the client risk score.`, margin, y, contentWidth, 7);
+      y += 3;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Finding Name', 'Sev', 'CVSS', 'Status']],
+        body: managedVulns.slice(0, 20).map((o: any) => [
+          o.evidence?.cve_id || 'N/A',
+          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 45),
+          getSeverityLabel(o.evidence?.severity || 5),
+          o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
+          'Provider Managed',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [100, 116, 139] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        margin: { left: margin, right: margin },
       });
       y = (doc as any).lastAutoTable.finalY + 8;
     }

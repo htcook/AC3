@@ -814,13 +814,16 @@ export async function matchTechnologiesAgainstAllFeeds(
       const titleLower = (entry.title || "").toLowerCase();
 
       // Match against vendor, product, or title
+      // IMPORTANT: require non-empty vendor/product for reverse includes checks
+      // to prevent CVEs with empty vendor/product from matching everything
+      // (since 'anything'.includes('') is always true in JavaScript)
       if (
         (techLower.length >= 4 && (
-          vendorLower.includes(techLower) ||
-          productLower.includes(techLower) ||
-          titleLower.includes(techLower) ||
-          techLower.includes(vendorLower) ||
-          techLower.includes(productLower)
+          (vendorLower.length >= 3 && vendorLower.includes(techLower)) ||
+          (productLower.length >= 3 && productLower.includes(techLower)) ||
+          (titleLower.length >= 3 && titleLower.includes(techLower)) ||
+          (vendorLower.length >= 3 && techLower.includes(vendorLower)) ||
+          (productLower.length >= 3 && techLower.includes(productLower))
         ))
       ) {
         matchedVulns.push(entry);

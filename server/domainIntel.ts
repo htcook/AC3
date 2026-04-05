@@ -2540,7 +2540,7 @@ export async function runDomainIntelPipeline(
           const cappedSeverity = Math.min(rawSeverity, severityCap);
           const evidenceChain: string[] = [
             `Technology "${vulnMatch.technology}" detected on asset "${a.asset.hostname}"`,
-            `${vuln.cveId} affects ${vuln.vendor} ${vuln.product} (CVSS: ${vuln.cvssScore || "N/A"})`,
+            `${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} (CVSS: ${vuln.cvssScore || "N/A"})`,
             `Sources: ${vuln.sources.join(", ")}`,
           ];
           if (detectedVersion) {
@@ -2561,7 +2561,7 @@ export async function runDomainIntelPipeline(
             assetRef: a.asset.assetId,
             assetHostname: a.asset.hostname,
             category: vuln.kevListed ? "CISA KEV" : vuln.inTheWild ? "0-Day" : vuln.exploitAvailable ? "Exploitable CVE" : "Known CVE",
-            title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"} (${vuln.vendor} ${vuln.product})`,
+            title: `${vuln.cveId}: ${vuln.title || vuln.description?.substring(0, 100) || "Vulnerability"}${vuln.vendor || vuln.product ? ` (${[vuln.vendor, vuln.product].filter(Boolean).join(' ')})` : ''}`,
             severity: cappedSeverity,
             likelihood: detectedVersion
               ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
@@ -2570,7 +2570,7 @@ export async function runDomainIntelPipeline(
             recommendedControls: [
               vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
               `Monitor for exploitation of ${vuln.cveId}`,
-              ...(!detectedVersion ? [`Verify ${vuln.vendor} ${vuln.product} version on ${a.asset.hostname} to confirm vulnerability`] : []),
+              ...(!detectedVersion ? [`Verify ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} version on ${a.asset.hostname} to confirm vulnerability`] : []),
             ],
             cveIds: [vuln.cveId],
             kevListed: vuln.kevListed,
@@ -2579,8 +2579,8 @@ export async function runDomainIntelPipeline(
             affectedAssets: [a.asset.hostname],
             evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
             evidenceDetail: detectedVersion
-              ? `CONFIRMED: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product}${vuln.affectedVersionRange ? ` (affected: ${vuln.affectedVersionRange})` : ''}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
-              : `PROBABLE: ${vuln.cveId} affects ${vuln.vendor} ${vuln.product} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
+              ? `CONFIRMED: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology}${vuln.affectedVersionRange ? ` (affected: ${vuln.affectedVersionRange})` : ''}. Detected version ${detectedVersion} on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
+              : `PROBABLE: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but version not confirmed. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
             corroborationTier: tier,
             detectedVersion,
             versionMatchConfirmed: !!detectedVersion,
