@@ -2808,7 +2808,10 @@ export default function DomainIntelResults() {
                                   </div>
                                 )}
                                 {f.detectedVersion && (
-                                  <p className="text-[10px] text-emerald-400 font-mono mt-0.5">Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}</p>
+                                  <p className="text-[10px] text-emerald-400 font-mono mt-0.5">
+                                    Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}
+                                    {f.affectedVersions && <span className="text-muted-foreground/70"> (affected range: {f.affectedVersions})</span>}
+                                  </p>
                                 )}
                                 {!f.detectedVersion && f.corroborationTier === "probable" && (
                                    <div className="mt-1 space-y-0.5">
@@ -2819,6 +2822,9 @@ export default function DomainIntelResults() {
                                      </div>
                                    </div>
                                  )}
+                                {f.nvdDescription && (
+                                  <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{f.nvdDescription}</p>
+                                )}
                                 {f.evidenceDetail && (
                                   <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
                                 )}
@@ -4957,9 +4963,16 @@ export default function DomainIntelResults() {
                                   {f.detectedVersion && (
                                     <div className="flex items-center gap-1 mt-1">
                                       <Database className="h-3 w-3 text-emerald-400" />
-                                      <span className="text-[11px] text-emerald-400 font-mono">Detected version: {f.detectedVersion}</span>
+                                      <span className="text-[11px] text-emerald-400 font-mono">
+                                        Detected version: {f.detectedVersion}
+                                        {f.affectedVersions && <span className="text-muted-foreground/70"> (affected range: {f.affectedVersions})</span>}
+                                      </span>
                                       {f.versionMatchConfirmed && <Badge className="text-[9px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50 ml-1">VERSION MATCH</Badge>}
                                     </div>
+                                  )}
+                                  {/* NVD vulnerability description */}
+                                  {f.nvdDescription && (
+                                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{f.nvdDescription}</p>
                                   )}
                                    {!f.detectedVersion && f.corroborationTier === "probable" && (
                                      <div className="mt-1 space-y-1">
@@ -5201,6 +5214,9 @@ export default function DomainIntelResults() {
                                     <AlertTriangle className="h-3 w-3 text-yellow-400" />
                                     <span className="text-[11px] text-yellow-400">Version not detected — product-family match only (severity capped)</span>
                                   </div>
+                                  {f.nvdDescription && (
+                                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{f.nvdDescription}</p>
+                                  )}
                                 </div>
                                 <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
                                   {f.kevListed && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50"><Skull className="h-3 w-3 mr-0.5" /> KEV</Badge>}

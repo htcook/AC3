@@ -143,7 +143,12 @@ export async function exportDiEasmReport(
           if (corroborationLabel === '[CONFIRMED]' && existing.evidence.corroboration !== '[CONFIRMED]') {
             existing.evidence.corroboration = '[CONFIRMED]';
             existing.evidence.detectedVersion = f.detectedVersion || existing.evidence.detectedVersion;
+            existing.evidence.affectedVersions = f.affectedVersions || existing.evidence.affectedVersions;
             existing.evidence.severity = severity;
+          }
+          // Merge NVD description if not already present
+          if (f.nvdDescription && !existing.evidence.nvdDescription) {
+            existing.evidence.nvdDescription = f.nvdDescription;
           }
           // Track managed host status
           if (isOnManagedHost) existing.evidence.hasProviderManagedInstance = true;
@@ -167,7 +172,9 @@ export async function exportDiEasmReport(
             kevListed: f.kevListed || false,
             exploitAvailable: f.exploitAvailable || false,
             detectedVersion: f.detectedVersion || undefined,
+            affectedVersions: f.affectedVersions || undefined,
             cvssScore: f.cvssScore || undefined,
+            nvdDescription: f.nvdDescription || undefined,
             hasProviderManagedInstance: isOnManagedHost,
             providerManagedOnly: false, // will be set after dedup
           },
@@ -1625,24 +1632,28 @@ export async function exportDiEasmReport(
     const kevListed = o.evidence?.kevListed;
     const description = o.evidence?.description || '';
     const corroboration = o.evidence?.corroboration || '';
+    const affectedVersions = o.evidence?.affectedVersions || '';
 
     // Build evidence summary line from available data
     const evidenceParts: string[] = [];
     if (corroboration === '[CONFIRMED]' && version && version !== 'N/A') {
-      evidenceParts.push(`Version ${version} detected and confirmed vulnerable`);
+      if (affectedVersions) {
+        evidenceParts.push(`Version ${version} confirmed within affected range (${affectedVersions})`);
+      } else {
+        evidenceParts.push(`Version ${version} detected and confirmed vulnerable`);
+      }
     }
     if (kevListed) evidenceParts.push('Listed in CISA Known Exploited Vulnerabilities catalog');
     if (o.evidence?.exploitAvailable) evidenceParts.push('Public exploit available');
     const evidenceSummary = evidenceParts.length > 0 ? evidenceParts.join(' \u2022 ') : '';
 
-    // Extract NVD description if present (appended to evidenceDetail after "NVD: ")
-    let nvdDesc = '';
-    if (description) {
+    // Get NVD description: prefer dedicated field, fall back to parsing from evidenceDetail
+    let nvdDesc = o.evidence?.nvdDescription || '';
+    if (!nvdDesc && description) {
       const nvdMatch = description.match(/NVD:\s*(.+)$/s);
       if (nvdMatch) {
         nvdDesc = nvdMatch[1].trim();
       } else if (!description.startsWith('CONFIRMED:') && !description.startsWith('PROBABLE:')) {
-        // Use the raw description if it's not a corroboration prefix
         nvdDesc = description;
       }
     }

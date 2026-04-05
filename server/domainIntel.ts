@@ -113,6 +113,7 @@ export interface PostureFinding {
   affectedVersions?: string; // The CVE's affected version range (e.g. "< 1.21.0")
   versionMatchConfirmed?: boolean; // True if detected version falls within affected range
   evidenceChain?: string[]; // Step-by-step evidence trail
+  nvdDescription?: string; // NVD vulnerability description for display
 }
 
 export interface TestVector {
@@ -2798,6 +2799,10 @@ export async function runDomainIntelPipeline(
             // Add NVD description to evidence detail if not already present
             if (nvd.description && !f.evidenceDetail?.includes(nvd.description.substring(0, 40))) {
               f.evidenceDetail = (f.evidenceDetail || '') + ` NVD: ${nvd.description}`;
+            }
+            // Store NVD description as a dedicated field for UI/PDF display
+            if (nvd.description && !f.nvdDescription) {
+              f.nvdDescription = nvd.description;
             }
             // Update CVSS score from NVD if we have a more authoritative score
             if (nvd.cvssV3Score && (!f.cvssScore || f.evidenceBasis === 'kev_match')) {
