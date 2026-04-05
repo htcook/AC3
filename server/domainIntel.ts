@@ -33,6 +33,7 @@ import { discoverOrgDomains, type OrgDiscoveryResult } from "./lib/org-domain-di
 import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/llm-post-enrichment-analysis";
 import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
 import { applyCarverFeedbackLoop, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
+import { createAssetOwnershipFilter, partitionByOwnership } from "../shared/managed-provider-filter";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -1510,34 +1511,17 @@ export async function generateScanOnlySummary(
   opts?: { managedProviderName?: string | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
   // ── Filter out managed provider and third-party assets ──
-  // These assets (e.g. outlook.com for M365, nsone.net from reverse WHOIS) are NOT
-  // part of the client's attack surface. Their CVEs must NOT appear in the
-  // confirmed/probable lists sent to the LLM, or the summary will be inaccurate.
-  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
-    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
-    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
-    'Proofpoint': [/proofpoint/i],
-    'Mimecast': [/mimecast/i],
-    'Zoho Mail': [/zoho/i],
-  };
-  const mpName = opts?.managedProviderName || null;
-  const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
-    ? MANAGED_HOST_PATTERNS[mpName] : [];
-  const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
-
-  const isClientOwnedAsset = (a: AssetAnalysis): boolean => {
-    const h = (a.asset.hostname || '').toLowerCase();
-    const tags: string[] = a.asset.tags || [];
-    if (managedPatterns.some(p => p.test(h))) return false;
-    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
-      && !h.includes(primaryBase);
-    if (isReverseWhoisThirdParty) return false;
-    return true;
-  };
-
-  const clientAnalyses = analyses.filter(isClientOwnedAsset);
-  const managedAnalyses = analyses.filter(a => !isClientOwnedAsset(a));
+  const ownershipFilter = createAssetOwnershipFilter({
+    managedProviderName: opts?.managedProviderName,
+    primaryDomain: org.primaryDomain,
+  });
+  const { clientOwned: clientAnalyses, excluded: managedAnalyses } = partitionByOwnership(
+    analyses,
+    (a) => ({ hostname: a.asset.hostname, tags: a.asset.tags }),
+    ownershipFilter,
+  );
   const managedAssetHostnames = new Set(managedAnalyses.map(a => a.asset.hostname?.toLowerCase()));
+  const mpName = ownershipFilter.managedProviderName;
 
   const criticalAssets = clientAnalyses.filter(a => a.riskBand === 'critical' || a.riskBand === 'high');
   // Client-owned findings only — exclude findings from managed/third-party assets
@@ -1671,30 +1655,16 @@ export async function generateSummaries(
   opts?: { managedProviderName?: string | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
   // ── Filter out managed provider and third-party assets ──
-  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
-    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
-    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
-    'Proofpoint': [/proofpoint/i],
-    'Mimecast': [/mimecast/i],
-    'Zoho Mail': [/zoho/i],
-  };
-  const mpName = opts?.managedProviderName || null;
-  const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
-    ? MANAGED_HOST_PATTERNS[mpName] : [];
-  const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
-
-  const isClientOwnedAsset = (a: AssetAnalysis): boolean => {
-    const h = (a.asset.hostname || '').toLowerCase();
-    const tags: string[] = a.asset.tags || [];
-    if (managedPatterns.some(p => p.test(h))) return false;
-    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
-      && !h.includes(primaryBase);
-    if (isReverseWhoisThirdParty) return false;
-    return true;
-  };
-
-  const clientAnalyses = analyses.filter(isClientOwnedAsset);
-  const managedAnalyses = analyses.filter(a => !isClientOwnedAsset(a));
+  const ownershipFilter = createAssetOwnershipFilter({
+    managedProviderName: opts?.managedProviderName,
+    primaryDomain: org.primaryDomain,
+  });
+  const { clientOwned: clientAnalyses, excluded: managedAnalyses } = partitionByOwnership(
+    analyses,
+    (a) => ({ hostname: a.asset.hostname, tags: a.asset.tags }),
+    ownershipFilter,
+  );
+  const mpName = ownershipFilter.managedProviderName;
 
   const criticalAssets = clientAnalyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
   const clientFindings = clientAnalyses.flatMap(a => a.postureFindings);
@@ -3248,28 +3218,13 @@ export async function runDomainIntelPipeline(
   //   (e.g. nsone.net, sender.zohoinvoice.com) inflate the score unfairly
   const managedProviderName = emailSecurityReport?.managedProvider?.name
     || emailSecurityReport?.mx?.provider || null;
-  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
-    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
-    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
-    'Proofpoint': [/proofpoint/i],
-    'Mimecast': [/mimecast/i],
-    'Zoho Mail': [/zoho/i],
-  };
-  const managedPatterns = managedProviderName && MANAGED_HOST_PATTERNS[managedProviderName]
-    ? MANAGED_HOST_PATTERNS[managedProviderName] : [];
-
-  const clientOwnedAnalyses = analyses.filter(a => {
-    const h = (a.asset.hostname || '').toLowerCase();
-    const tags: string[] = a.asset.tags || [];
-    // Exclude managed mail provider infrastructure
-    if (managedPatterns.some(p => p.test(h))) return false;
-    // Exclude third-party assets from reverse WHOIS that the org doesn't own
-    // (they have 'reverse_whois' + 'related_domain' tags and hostname doesn't contain the primary domain)
-    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
-      && !h.includes(org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, ''));
-    if (isReverseWhoisThirdParty) return false;
-    return true;
+  const riskOwnershipFilter = createAssetOwnershipFilter({
+    managedProviderName,
+    primaryDomain: org.primaryDomain,
   });
+  const clientOwnedAnalyses = analyses.filter(a =>
+    riskOwnershipFilter.isClientOwned({ hostname: a.asset.hostname, tags: a.asset.tags })
+  );
 
   const riskScores = clientOwnedAnalyses.map(a => a.hybridRiskScore);
   const overallRisk = riskScores.length > 0

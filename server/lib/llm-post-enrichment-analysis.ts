@@ -15,6 +15,7 @@
 
 import type { AssetAnalysis, OrgProfile } from "../domainIntel";
 import type { CrossModuleEnrichmentResult } from "./cross-module-enrichment";
+import { createAssetOwnershipFilter } from "../../shared/managed-provider-filter";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -105,38 +106,19 @@ export async function runPostEnrichmentAnalysis(
     const owaspCtx = getOwaspVulnCorrelationContext();
 
     // ── Filter out managed provider and third-party assets ──
-    // Same logic as generateScanOnlySummary: exclude assets that are not
-    // the client's responsibility (managed mail infrastructure, reverse WHOIS third-party).
-    // Without this filter, the LLM will attribute Exchange/SharePoint CVEs on outlook.com
-    // to the client, producing inaccurate and misleading analysis.
-    const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
-      'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
-      'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
-      'Proofpoint': [/proofpoint/i],
-      'Mimecast': [/mimecast/i],
-      'Zoho Mail': [/zoho/i],
-    };
     // Detect managed provider from email findings
     const allEmailFindings = analyses.flatMap(a => a.postureFindings.filter(f => f.category?.startsWith('Email Security')));
     const managedProviderFinding = allEmailFindings.find(f => f.id?.includes('managed-provider'));
     const mpName = managedProviderFinding
       ? (managedProviderFinding.title?.match(/Managed by (.+?)(?:\s*[\-\u2014]|$)/)?.[1] || null)
       : null;
-    const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
-      ? MANAGED_HOST_PATTERNS[mpName] : [];
-    const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
-
-    const isClientOwned = (a: { asset: { hostname?: string; tags?: string[] } }): boolean => {
-      const h = (a.asset.hostname || '').toLowerCase();
-      const tags: string[] = a.asset.tags || [];
-      if (managedPatterns.some(p => p.test(h))) return false;
-      const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
-        && !h.includes(primaryBase);
-      if (isReverseWhoisThirdParty) return false;
-      return true;
-    };
-
-    const clientAnalyses = analyses.filter(isClientOwned);
+    const ownershipFilter = createAssetOwnershipFilter({
+      managedProviderName: mpName,
+      primaryDomain: org.primaryDomain,
+    });
+    const clientAnalyses = analyses.filter(a =>
+      ownershipFilter.isClientOwned({ hostname: a.asset.hostname, tags: a.asset.tags })
+    );
     const excludedCount = analyses.length - clientAnalyses.length;
 
     // Build a concise summary of all enriched data for the LLM (client-owned only)

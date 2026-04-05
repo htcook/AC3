@@ -14,9 +14,12 @@
  *   6. Dark Web & Ransomware Intelligence — threat group attribution
  *   7. Vulnerability & Technology Landscape — CVEs, tech stack, WAF/NGFW
  *   8. Threat Actor Assessment — attributed groups, TTPs, IOCs
+ *  8b. Provider-Managed Infrastructure — excluded assets, CVEs, risk impact
  *   9. Prioritized Recommendations — CARVER-ranked remediation actions
  *  10. Appendix — data sources, scan metadata, methodology
  */
+
+import { createAssetOwnershipFilter } from '../../../shared/managed-provider-filter';
 
 // Dynamic imports to reduce bundle size
 let _jsPDF: typeof import('jspdf').default | null = null;
@@ -81,15 +84,15 @@ export async function exportDiEasmReport(
     ? _emailSecReportForProvider.managedProvider.name
     : (['Microsoft 365', 'Google Workspace', 'Proofpoint', 'Mimecast', 'Zoho Mail', 'ProtonMail']
         .find(p => p === _emailSecReportForProvider?.mx?.provider) || null);
-  // Hostnames that belong to the managed mail provider (e.g. outlook.com for M365)
+  // Use the shared ownership filter to identify managed provider hosts
+  const _ownershipFilter = createAssetOwnershipFilter({
+    managedProviderName: _managedMailProvider,
+    primaryDomain: scan.primaryDomain || scan.pipelineOutput?.orgProfile?.primaryDomain || '',
+  });
   const _managedMailHosts = new Set<string>();
-  if (_managedMailProvider) {
-    for (const asset of (scan.assets || [])) {
-      const h = (asset.hostname || '').toLowerCase();
-      if (_managedMailProvider === 'Microsoft 365' && (h.includes('outlook.com') || h.includes('microsoft.com') || h.includes('office365') || h.includes('protection.outlook'))) _managedMailHosts.add(asset.hostname);
-      else if (_managedMailProvider === 'Google Workspace' && (h.includes('google.com') || h.includes('gmail.com') || h.includes('googlemail'))) _managedMailHosts.add(asset.hostname);
-      else if (_managedMailProvider === 'Proofpoint' && h.includes('proofpoint')) _managedMailHosts.add(asset.hostname);
-      else if (_managedMailProvider === 'Mimecast' && h.includes('mimecast')) _managedMailHosts.add(asset.hostname);
+  for (const asset of (scan.assets || [])) {
+    if (!_ownershipFilter.isClientOwned({ hostname: asset.hostname, tags: asset.tags })) {
+      _managedMailHosts.add(asset.hostname);
     }
   }
 
@@ -1709,6 +1712,85 @@ export async function exportDiEasmReport(
         margin: { left: margin, right: margin },
       });
       y = (doc as any).lastAutoTable.finalY + 8;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 8b. PROVIDER-MANAGED INFRASTRUCTURE
+  // ═══════════════════════════════════════════════════════════════════════
+  if (_managedMailProvider || _managedMailHosts.size > 0) {
+    y = addSectionPage('Provider-Managed Infrastructure');
+
+    // Intro paragraph
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    const managedIntro = `The following assets are hosted on infrastructure managed by a third-party provider${_managedMailProvider ? ` (${_managedMailProvider})` : ''}. Vulnerabilities on these assets are the responsibility of the managed service provider, not the client organization. These assets and their associated CVEs have been excluded from the client risk score calculation.`;
+    const introLines = doc.splitTextToSize(managedIntro, contentWidth);
+    doc.text(introLines, margin, y);
+    y += introLines.length * 4 + 6;
+
+    // Managed assets table
+    const managedAssets = assets.filter((a: any) => _managedMailHosts.has(a.hostname));
+    if (managedAssets.length > 0) {
+      y = subheading('Managed Assets', y);
+      autoTable!(doc, {
+        startY: y,
+        head: [['Hostname', 'Asset Type', 'Provider', 'Risk Exclusion Reason']],
+        body: managedAssets.map((a: any) => [
+          truncate(a.hostname, 35),
+          a.assetType || a.type || 'Infrastructure',
+          _managedMailProvider || 'Third-Party Provider',
+          a.tags?.includes('reverse_whois') ? 'Reverse WHOIS — third-party registrant'
+            : a.tags?.includes('related_domain') ? 'Related domain — different registrant'
+            : `Managed by ${_managedMailProvider || 'provider'}`,
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7.5 },
+        bodyStyles: { fontSize: 7, textColor: [60, 60, 60] },
+        columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 30 }, 2: { cellWidth: 35 } },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Managed CVEs table (provider-managed only)
+    const managedOnlyCves = observations.filter((o: any) => o.evidence?.providerManagedOnly && o.evidence?.cve_id);
+    if (managedOnlyCves.length > 0) {
+      y = subheading(`CVEs on Provider-Managed Infrastructure (${managedOnlyCves.length})`, y);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text('These CVEs exist on provider-managed infrastructure and are NOT counted in the client risk score.', margin, y);
+      y += 5;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Title', 'Severity', 'Affected Host(s)', 'KEV Listed']],
+        body: managedOnlyCves.slice(0, 25).map((o: any) => [
+          o.evidence?.cve_id || 'N/A',
+          truncate(o.name, 45),
+          getSeverityLabel(o.evidence?.severity || 0),
+          truncate(o.evidence?.affectedHosts?.join(', ') || o.domain, 35),
+          o.evidence?.kevListed ? 'Yes' : 'No',
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7.5 },
+        bodyStyles: { fontSize: 7, textColor: [100, 100, 100] },
+        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 55 }, 2: { cellWidth: 20 }, 3: { cellWidth: 40 } },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Risk score impact note
+    const exclusions = scan.pipelineOutput?.riskScoreExclusions || scan.riskScoreExclusions || [];
+    if (exclusions.length > 0) {
+      y = subheading('Risk Score Impact', y);
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const impactText = `${exclusions.length} asset(s) excluded from the overall risk score: ${exclusions.map((e: any) => `${e.hostname} (${e.reason})`).join('; ')}. The reported risk score of ${scan.overallRiskScore ?? 'N/A'}/100 reflects only client-owned infrastructure.`;
+      const impactLines = doc.splitTextToSize(impactText, contentWidth);
+      doc.text(impactLines, margin, y);
+      y += impactLines.length * 4 + 6;
     }
   }
 
