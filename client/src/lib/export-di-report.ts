@@ -1607,6 +1607,81 @@ export async function exportDiEasmReport(
     o.tags?.includes('vulnerability') || o.tags?.includes('cve') || o.evidence?.cve_id
   );
 
+  // Helper: render a grouped CVE card (header bar + finding name + affected hosts)
+  const renderCveCard = (
+    o: any,
+    headerColor: [number, number, number],
+    textColor: [number, number, number],
+    hostLabelColor: [number, number, number],
+    showVersion: boolean,
+    showKev: boolean,
+  ): void => {
+    const cveId = o.evidence?.cve_id || 'N/A';
+    const findingName = o.name?.replace(/^CVE-\d{4}-\d+:\s*/, '') || 'Unknown';
+    const sev = getSeverityLabel(o.evidence?.severity || 5);
+    const cvss = o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A';
+    const version = o.evidence?.detectedVersion || 'N/A';
+    const hosts: string[] = o.evidence?.affectedHosts || [o.evidence?.hostname || domain];
+    const kevListed = o.evidence?.kevListed;
+
+    // Estimate card height: header(8) + finding(5) + hosts(hosts.length * 3.5) + padding(4)
+    const estimatedHeight = 8 + 5 + Math.max(hosts.length * 3.5, 4) + 4;
+    y = checkPageBreak(y, estimatedHeight);
+
+    // ── Header bar ──
+    doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
+    doc.roundedRect(margin, y, contentWidth, 7, 1.5, 1.5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(cveId, margin + 2, y + 4.5);
+    // Right-aligned metadata chips
+    const chips: string[] = [`Sev: ${sev}`, `CVSS: ${cvss}`];
+    if (showVersion) chips.push(`Ver: ${version}`);
+    if (showKev && kevListed) chips.push('KEV');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    let chipX = pageWidth - margin - 2;
+    for (let i = chips.length - 1; i >= 0; i--) {
+      const cw = doc.getTextWidth(chips[i]) + 4;
+      chipX -= cw;
+      doc.setFillColor(255, 255, 255, 0.2 as any);
+      doc.roundedRect(chipX, y + 1, cw, 5, 1, 1, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(chips[i], chipX + 2, y + 4.5);
+      chipX -= 2;
+    }
+    y += 8;
+
+    // ── Finding name ──
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    const nameLines = doc.splitTextToSize(findingName, contentWidth - 4);
+    for (const line of nameLines) {
+      y = checkPageBreak(y, 5);
+      doc.text(line, margin + 2, y);
+      y += 3.2;
+    }
+    y += 1;
+
+    // ── Affected hosts ──
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(hostLabelColor[0], hostLabelColor[1], hostLabelColor[2]);
+    y = checkPageBreak(y, 5);
+    doc.text(`Affected Assets (${hosts.length}):`, margin + 2, y);
+    y += 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    for (const host of hosts) {
+      y = checkPageBreak(y, 4);
+      doc.text(`\u2022  ${host}`, margin + 4, y);
+      y += 3;
+    }
+    y += 2;
+  };
+
   if (vulnObs.length > 0) {
     // Tier 1: Confirmed (version-matched) — NOT on provider-managed-only hosts
     const confirmedVulns = vulnObs.filter((o: any) =>
@@ -1616,40 +1691,15 @@ export async function exportDiEasmReport(
     // Tier 3: Provider-managed CVEs — on managed hosts only (e.g. Exchange CVEs on M365)
     const managedVulns = vulnObs.filter((o: any) => o.evidence?.providerManagedOnly);
 
-    // Helper to format asset column — show ALL affected hosts
-    const formatAssetCol = (o: any) => {
-      const hosts = o.evidence?.affectedHosts || [o.evidence?.hostname || o.domain];
-      return hosts.join('\n');
-    };
-
     if (confirmedVulns.length > 0) {
       y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
 
-      autoTable!(doc, {
-        startY: y,
-        head: [['CVE ID', 'Finding Name', 'Assets', 'Sev', 'CVSS', 'Version']],
-        body: confirmedVulns.map((o: any) => [
-          o.evidence?.cve_id || 'N/A',
-          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 40),
-          formatAssetCol(o),
-          getSeverityLabel(o.evidence?.severity || 5),
-          o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
-          o.evidence?.detectedVersion || 'N/A',
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
-        alternateRowStyles: { fillColor: [241, 245, 249] },
-        margin: { left: margin, right: margin },
-        didParseCell: (data: any) => {
-          if (data.section === 'body' && data.column.index === 3) {
-            const text = String(data.cell.text);
-            if (text === 'Critical') data.cell.styles.textColor = [220, 38, 38];
-            else if (text === 'High') data.cell.styles.textColor = [234, 88, 12];
-          }
-        },
-      });
-      y = (doc as any).lastAutoTable.finalY + 5;
+      for (const vuln of confirmedVulns) {
+        const sevScore = vuln.evidence?.severity || 5;
+        const headerColor: [number, number, number] = sevScore >= 9 ? [153, 27, 27] : sevScore >= 7 ? [194, 65, 12] : [30, 41, 59];
+        renderCveCard(vuln, headerColor, [51, 65, 85], [30, 41, 59], true, true);
+      }
+      y += 2;
     }
 
     // Probable vulnerabilities intentionally excluded from client-facing reports.
@@ -1666,23 +1716,10 @@ export async function exportDiEasmReport(
       y = writeText(`The following CVEs affect infrastructure managed by ${_managedMailProvider || 'the mail provider'}. Patching and mitigation is the provider\'s responsibility. These are excluded from the client risk score.`, margin, y, contentWidth, 7);
       y += 3;
 
-      autoTable!(doc, {
-        startY: y,
-        head: [['CVE ID', 'Finding Name', 'Sev', 'CVSS', 'Status']],
-        body: managedVulns.map((o: any) => [
-          o.evidence?.cve_id || 'N/A',
-          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 55),
-          getSeverityLabel(o.evidence?.severity || 5),
-          o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
-          'Provider Managed',
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [100, 116, 139] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { left: margin, right: margin },
-      });
-      y = (doc as any).lastAutoTable.finalY + 5;
+      for (const vuln of managedVulns) {
+        renderCveCard(vuln, [71, 85, 105], [100, 116, 139], [71, 85, 105], false, true);
+      }
+      y += 2;
     }
   }
 
@@ -1733,23 +1770,10 @@ export async function exportDiEasmReport(
       doc.text('These CVEs exist on provider-managed infrastructure and are NOT counted in the client risk score.', margin, y);
       y += 5;
 
-      autoTable!(doc, {
-        startY: y,
-        head: [['CVE ID', 'Title', 'Severity', 'Affected Host(s)', 'KEV Listed']],
-        body: managedOnlyCves.map((o: any) => [
-          o.evidence?.cve_id || 'N/A',
-          truncate(o.name, 55),
-          getSeverityLabel(o.evidence?.severity || 0),
-          (o.evidence?.affectedHosts || [o.domain]).join('\n'),
-          o.evidence?.kevListed ? 'Yes' : 'No',
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [100, 116, 139], textColor: [255, 255, 255], fontSize: 7.5 },
-        bodyStyles: { fontSize: 7, textColor: [100, 100, 100] },
-        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 55 }, 2: { cellWidth: 20 }, 3: { cellWidth: 40 } },
-        margin: { left: margin, right: margin },
-      });
-      y = (doc as any).lastAutoTable.finalY + 4;
+      for (const cve of managedOnlyCves) {
+        renderCveCard(cve, [100, 116, 139], [100, 100, 100], [100, 116, 139], false, true);
+      }
+      y += 2;
     }
 
     // Risk score exclusion note
