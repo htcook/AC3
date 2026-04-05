@@ -131,8 +131,8 @@ describe("Managed Provider Filtering in LLM Prompts", () => {
     });
 
     // Should show 1 client-owned, 2 excluded
-    expect(capturedPrompt).toContain('1 client-owned');
-    expect(capturedPrompt).toContain('2 managed/third-party excluded');
+    expect(capturedPrompt).toContain('Digital Assets Discovered: 1');
+    expect(capturedPrompt).toContain('2 third-party managed assets excluded');
   });
 
   it("should exclude reverse WHOIS third-party assets even without managed provider", async () => {
@@ -210,6 +210,6 @@ describe("Managed Provider Filtering in LLM Prompts", () => {
     });
 
     // Should show only 1 KEV finding (client-owned), not 4
-    expect(capturedPrompt).toContain('KEV-listed Findings (client-owned only): 1');
+    expect(capturedPrompt).toContain('Actively Exploited Vulnerabilities (per government alerts): 1');
   });
 });

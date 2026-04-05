@@ -56,6 +56,38 @@ export interface ShodanVulnVerification {
   cpe?: string[];
 }
 
+// ─── Protocol Version Filtering ────────────────────────────────────────
+
+/**
+ * Detect HTTP protocol versions that should NOT be stored as product versions.
+ * Shodan banners often report HTTP/1.0, HTTP/1.1, HTTP/2 as the "version" field
+ * when the product is an HTTP server. These are protocol versions, not software versions.
+ */
+const PROTOCOL_VERSION_PATTERNS = new Set(['1.0', '1.1', '2', '2.0', '3', '3.0']);
+const HTTP_PRODUCT_INDICATORS = ['http', 'www', 'web', 'cloudflare', 'akamai', 'fastly', 'varnish', 'cdn'];
+
+export function isProtocolVersion(product: string, version: string): boolean {
+  if (!version) return false;
+  const ver = version.trim();
+  const prod = product.toLowerCase().trim();
+
+  // Check if this looks like an HTTP protocol version (1.0, 1.1, 2.0, etc.)
+  if (PROTOCOL_VERSION_PATTERNS.has(ver)) {
+    // If the product name contains HTTP-related keywords, this is likely a protocol version
+    if (HTTP_PRODUCT_INDICATORS.some(kw => prod.includes(kw))) return true;
+    // If the product is empty or generic, also treat as protocol version
+    if (!prod || prod === 'unknown' || prod === 'n/a') return true;
+  }
+
+  // Also catch "HTTP/2" style versions stored as just the number
+  if (/^\d+(\.\d+)?$/.test(ver) && parseFloat(ver) <= 3.0) {
+    // Very low version numbers on HTTP-related products are almost certainly protocol versions
+    if (HTTP_PRODUCT_INDICATORS.some(kw => prod.includes(kw))) return true;
+  }
+
+  return false;
+}
+
 // ─── Product Name Normalization ─────────────────────────────────────────
 
 /**
@@ -184,6 +216,9 @@ export function extractShodanVersionEvidence(
     // Skip entries without useful product/version data
     if (!product && !version && cpe.length === 0 && vulns.length === 0) continue;
 
+    // Filter out HTTP protocol versions (e.g., "2.0" from HTTP/2)
+    const cleanVersion = isProtocolVersion(product, version) ? '' : version;
+
     const key = `${ip}:${port}:${product}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -192,7 +227,7 @@ export function extractShodanVersionEvidence(
       ip,
       port,
       product,
-      version,
+      version: cleanVersion,
       cpe,
       vulns,
       bannerSnippet: banner,
@@ -252,7 +287,8 @@ export function enrichAssetsWithShodanData(
 
     for (const ev of matchingEvidence) {
       // 1. Add version data from Shodan product/version fields
-      if (ev.product && ev.version) {
+      // Skip protocol versions that leaked through
+      if (ev.product && ev.version && !isProtocolVersion(ev.product, ev.version)) {
         const canonicalName = matchShodanProductToTech(ev.product);
         if (canonicalName) {
           // Check if we already have this technology

@@ -25,7 +25,7 @@ async function invokeLLMWithTimeout(params: Parameters<typeof invokeLLM>[0], tim
 }
 import { fetchKevCatalog, matchTechnologiesAgainstKev, calculateKevRiskBoost, getKevChainSteps, type KevMatch } from "./lib/kev-service";
 import { runPassiveRecon, type PassiveReconResult, type ScanMode } from "./lib/passive/index";
-import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings } from "./lib/shodan-verifier";
+import { enrichAssetsWithShodanData, verifyCvesWithShodanData, createShodanPostureFindings, isProtocolVersion } from "./lib/shodan-verifier";
 import { matchExploitsToFindings, type ExploitMatch } from "./lib/exploit-matcher";
 import { ENV } from "./_core/env";
 import { runCrossModuleEnrichment, type CrossModuleEnrichmentResult } from "./lib/cross-module-enrichment";
@@ -1550,42 +1550,41 @@ export async function generateScanOnlySummary(
   const kevProbable = kevFindings.filter(f => !f.versionMatchConfirmed);
 
   const corroborationBlock = `
-CORROBORATION BREAKDOWN (CRITICAL — you MUST reflect this in your summary):
-- CONFIRMED findings (version detected + matched to CVE): ${confirmedFindings.length}
-- PROBABLE findings (product family detected, version NOT confirmed): ${probableFindings.length}
-- UNCONFIRMED/INFERRED findings (LLM inference or technology match only): ${unconfirmedFindings.length}
-- Version-confirmed vulnerabilities: ${versionConfirmedCount}
-- KEV-listed findings: ${kevFindings.length} (${kevConfirmed.length} version-confirmed, ${kevProbable.length} product-family only)
+FINDINGS CONFIDENCE BREAKDOWN:
+- High-confidence findings (software version verified): ${confirmedFindings.length}
+- Moderate-confidence findings (software detected but version not yet verified): ${probableFindings.length}
+- Low-confidence findings (inferred from technology patterns): ${unconfirmedFindings.length}
+- Actively exploited vulnerabilities (CISA alerts): ${kevFindings.length} (${kevConfirmed.length} verified, ${kevProbable.length} require further investigation)
 
-RULES FOR WRITING THE SUMMARY:
-1. NEVER describe probable or unconfirmed findings as definitive risks. Use language like "potential exposure" or "product family detected but version unconfirmed".
-2. ALWAYS state the corroboration tier when referencing specific CVEs.
-3. If ALL KEV findings are probable (no version confirmation), say "N KEV-listed products were detected but no specific vulnerable versions were confirmed. Further version enumeration is recommended."
-4. Do NOT claim critical risk from probable-only findings.
-5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, do NOT describe the posture as "critical" or "high risk".
-6. Include a brief "Evidence Confidence" note at the end of the executive summary.
-7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable.
-8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client's attack surface. Do NOT include them in risk characterization.
+WRITING RULES — THIS IS FOR A NON-TECHNICAL EXECUTIVE AUDIENCE:
+1. Write in plain business English. Avoid acronyms like CVE, KEV, CVSS, DMARC, SPF, DKIM unless absolutely necessary — and if used, explain them in parentheses on first use.
+2. Focus on BUSINESS IMPACT: what could go wrong, what data is at risk, what operations could be disrupted.
+3. Use confidence levels ("verified", "likely", "possible") instead of technical terms like "confirmed", "probable", "corroboration tier".
+4. Do NOT overstate risk. If most findings are unverified, say so clearly: "Several potential issues were identified that require further investigation to confirm."
+5. Frame recommendations as business decisions, not technical tasks: "We recommend authorizing a deeper assessment" rather than "Run active version enumeration."
+6. If email infrastructure is managed by a third party (e.g., Microsoft 365), note that those systems are the provider's responsibility and focus on what the organization controls.
+7. Third-party assets (e.g., outlook.com) are NOT part of the organization's risk profile.
+8. End with a brief "Confidence Note" explaining the proportion of verified vs. unverified findings.
+9. Do NOT use the word "corroboration" anywhere in the summary.
 
-OVERALL RISK SCORE CONTEXT (CRITICAL — your tone MUST match this):
+OVERALL RISK SCORE CONTEXT:
 - Overall Risk Score: ${prelimOverallRisk}/100 (${prelimRiskBand.toUpperCase()})
-- Peak Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
-- Risk Band Thresholds: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
+- Highest Individual Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
+- Scale: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
 
-TONE CALIBRATION RULES:
-- If overall risk is LOW: Use measured, calm language. Do NOT use words like "critical", "severe", "alarming", or "urgent". Frame findings as areas for improvement, not emergencies. A LOW score means the overall posture is acceptable with room for hardening.
-- If overall risk is MEDIUM: Use moderate concern. Acknowledge risks without dramatizing.
-- If overall risk is HIGH: Express clear concern with specific remediation urgency.
-- If overall risk is CRITICAL: Use urgent language with immediate action recommendations.
-- If peak asset risk is significantly higher than overall risk, you may note that "while the average risk posture is ${prelimRiskBand}, N specific assets present elevated risk" — but do NOT let individual outliers override the overall tone.
-- The executive summary's overall characterization MUST align with the ${prelimRiskBand.toUpperCase()} rating.
+TONE RULES:
+- LOW risk: Calm, reassuring. Frame findings as improvement opportunities, not emergencies.
+- MEDIUM risk: Moderate concern. Acknowledge areas needing attention without alarm.
+- HIGH risk: Clear concern with specific urgency for remediation.
+- CRITICAL risk: Urgent language with immediate action recommendations.
+- Your overall tone MUST match the ${prelimRiskBand.toUpperCase()} rating.
 `;
 
   const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
-    `- [CONFIRMED] ${f.title} (severity: ${f.severity}/10, version: ${f.detectedVersion || 'N/A'}, CVSS: ${f.cvssScore || 'N/A'})`
+    `- [Verified] ${f.title} (risk level: ${f.severity}/10)`
   ).join('\n');
   const probableFindingsList = probableFindings.slice(0, 5).map(f =>
-    `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
+    `- [Requires investigation] ${f.title} (risk level: ${f.severity}/10)`
   ).join('\n');
 
   // Build managed provider exclusion context for the LLM
@@ -1607,26 +1606,27 @@ TONE CALIBRATION RULES:
     return parts.join('\n');
   })();
 
-  const prompt = `Generate a scan summary for a domain intelligence reconnaissance:
+  const prompt = `Generate an executive-level summary for a preliminary security assessment:
 
-Organization: ${org.customerName} (${org.sector}, ${org.clientType})
-Total Assets Discovered: ${clientAnalyses.length} client-owned (${managedAnalyses.length} managed/third-party excluded)
-Critical/High Risk Assets: ${criticalAssets.length}
-Total Client Posture Findings: ${allFindings.length}
-KEV-listed Findings (client-owned only): ${kevFindings.length}
+Organization: ${org.customerName} (${org.sector})
+Digital Assets Discovered: ${clientAnalyses.length} (${managedAnalyses.length} third-party managed assets excluded)
+High-Risk Assets: ${criticalAssets.length}
+Security Findings: ${allFindings.length}
+Actively Exploited Vulnerabilities (per government alerts): ${kevFindings.length}
 ${corroborationBlock}
 ${managedProviderContext}
-Top Risk Assets (client-owned only):
-${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join('\n')}
+Highest-Risk Assets:
+${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100`).join('\n')}
 
-Confirmed Findings (version-matched, client-owned assets only):
-${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected on client-owned assets)'}
+Verified Findings (confirmed through software version detection):
+${confirmedFindingsList || '(none — no vulnerabilities verified at this stage)'}
 
-Probable Findings (product family match, version unconfirmed, client-owned assets only):
+Findings Requiring Further Investigation:
 ${probableFindingsList || '(none)'}
+
 Provide:
-1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas with their corroboration tier, and a recommendation on whether to proceed with a full engagement. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Clearly distinguish confirmed vs probable findings. Note that campaign design and threat actor matching have not yet been performed \u2014 this is a pre-engagement scan.
+1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, and whether a deeper assessment is recommended. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A brief technical summary for the security team covering attack surface details and risk posture. This can use technical language. Note that this is a preliminary assessment — detailed threat actor profiling has not yet been performed.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -1634,7 +1634,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
     const response = await invokeLLMWithTimeout({
       _priority: 'bulk' as const,
       messages: [
-        { role: 'system', content: 'You are a cybersecurity report writer. Return only valid JSON.' },
+        { role: 'system', content: 'You are a business risk advisor writing for non-technical executives. Use clear, plain language. Avoid cybersecurity jargon. Return only valid JSON.' },
         { role: 'user', content: prompt },
       ],
       response_format: {
@@ -1713,43 +1713,42 @@ export async function generateSummaries(
   const kevProbable = kevFindings.filter(f => !f.versionMatchConfirmed);
 
   const corroborationBlock = `
-CORROBORATION BREAKDOWN (CRITICAL — you MUST reflect this in your summary):
-- CONFIRMED findings (version detected + matched to CVE): ${confirmedFindings.length}
-- PROBABLE findings (product family detected, version NOT confirmed): ${probableFindings.length}
-- UNCONFIRMED/INFERRED findings (LLM inference or technology match only): ${unconfirmedFindings.length}
-- Version-confirmed vulnerabilities: ${versionConfirmedCount}
-- KEV-listed findings: ${kevFindings.length} (${kevConfirmed.length} version-confirmed, ${kevProbable.length} product-family only)
+FINDINGS CONFIDENCE BREAKDOWN:
+- High-confidence findings (software version verified): ${confirmedFindings.length}
+- Moderate-confidence findings (software detected but version not yet verified): ${probableFindings.length}
+- Low-confidence findings (inferred from technology patterns): ${unconfirmedFindings.length}
+- Actively exploited vulnerabilities (per government alerts): ${kevFindings.length} (${kevConfirmed.length} verified, ${kevProbable.length} require further investigation)
 
-RULES FOR WRITING THE EXECUTIVE SUMMARY:
-1. NEVER describe probable or unconfirmed findings as definitive risks. Use language like "potential exposure" or "product family detected but version unconfirmed".
-2. ALWAYS state the corroboration tier when referencing specific CVEs. Example: "CVE-2024-1234 (confirmed \u2014 v2.1.3 detected)" vs "CVE-2024-5678 (probable \u2014 Apache detected but version unconfirmed)".
-3. If ALL KEV findings are probable (no version confirmation), say "N KEV-listed products were detected but no specific vulnerable versions were confirmed. Further version enumeration is recommended."
-4. Do NOT claim critical risk from probable-only findings. Probable findings indicate potential exposure requiring version verification, not confirmed vulnerability.
-5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, the summary should NOT describe the posture as "critical" or "high risk" based solely on probable matches.
-6. Include a brief "Evidence Confidence" note at the end of the executive summary stating how many findings are confirmed vs probable.
-7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable. Provider-managed CVEs are excluded from the client risk score.
-8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client’s attack surface and are excluded from the overall risk score. Do NOT include them in risk characterization.
+WRITING RULES — THIS IS FOR A NON-TECHNICAL EXECUTIVE AUDIENCE:
+1. Write in plain business English. Avoid acronyms like CVE, KEV, CVSS, DMARC, SPF, DKIM unless absolutely necessary — and if used, explain them in parentheses on first use.
+2. Focus on BUSINESS IMPACT: what could go wrong, what data is at risk, what operations could be disrupted.
+3. Use confidence levels ("verified", "likely", "possible") instead of technical terms like "confirmed", "probable", "corroboration tier".
+4. Do NOT overstate risk. If most findings are unverified, say so clearly.
+5. Frame recommendations as business decisions, not technical tasks.
+6. If email infrastructure is managed by a third party (e.g., Microsoft 365), note that those systems are the provider's responsibility and focus on what the organization controls.
+7. Third-party assets (e.g., outlook.com) are NOT part of the organization's risk profile.
+8. End with a brief "Confidence Note" explaining the proportion of verified vs. unverified findings.
+9. Do NOT use the word "corroboration" anywhere in the summary.
 
-OVERALL RISK SCORE CONTEXT (CRITICAL — your tone MUST match this):
+OVERALL RISK SCORE CONTEXT:
 - Overall Risk Score: ${prelimOverallRisk}/100 (${prelimRiskBand.toUpperCase()})
-- Peak Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
-- Risk Band Thresholds: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
+- Highest Individual Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
+- Scale: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
 
-TONE CALIBRATION RULES:
-- If overall risk is LOW: Use measured, calm language. Do NOT use words like "critical", "severe", "alarming", or "urgent". Frame findings as areas for improvement, not emergencies.
-- If overall risk is MEDIUM: Use moderate concern. Acknowledge risks without dramatizing.
-- If overall risk is HIGH: Express clear concern with specific remediation urgency.
-- If overall risk is CRITICAL: Use urgent language with immediate action recommendations.
-- If peak asset risk is significantly higher than overall risk, you may note that "while the average risk posture is ${prelimRiskBand}, N specific assets present elevated risk" — but do NOT let individual outliers override the overall tone.
-- The executive summary's overall characterization MUST align with the ${prelimRiskBand.toUpperCase()} rating.
+TONE RULES:
+- LOW risk: Calm, reassuring. Frame findings as improvement opportunities, not emergencies.
+- MEDIUM risk: Moderate concern. Acknowledge areas needing attention without alarm.
+- HIGH risk: Clear concern with specific urgency for remediation.
+- CRITICAL risk: Urgent language with immediate action recommendations.
+- Your overall tone MUST match the ${prelimRiskBand.toUpperCase()} rating.
 `;
 
-  // ── Build finding lists with corroboration labels ──
+  // ── Build finding lists with plain-language labels ──
   const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
-    `- [CONFIRMED] ${f.title} (severity: ${f.severity}/10, version: ${f.detectedVersion || 'N/A'}, CVSS: ${f.cvssScore || 'N/A'})`
+    `- [Verified] ${f.title} (risk level: ${f.severity}/10)`
   ).join("\n");
   const probableFindingsList = probableFindings.slice(0, 5).map(f =>
-    `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
+    `- [Requires investigation] ${f.title} (risk level: ${f.severity}/10)`
   ).join("\n");
 
   // Build managed provider exclusion context
@@ -1771,31 +1770,32 @@ TONE CALIBRATION RULES:
     return parts.join('\n');
   })();
 
-  const prompt = `Generate two summaries for a security assessment:
+  const prompt = `Generate an executive-level summary for a comprehensive security assessment:
 
-Organization: ${org.customerName} (${org.sector}, ${org.clientType})
-Total Assets Discovered: ${clientAnalyses.length} client-owned (${managedAnalyses.length} managed/third-party excluded)
-Critical/High Risk Assets: ${criticalAssets.length}
-Total Client Posture Findings: ${allFindings.length}
-Recommended Campaigns: ${campaigns.length}
+Organization: ${org.customerName} (${org.sector})
+Digital Assets Discovered: ${clientAnalyses.length} (${managedAnalyses.length} third-party managed assets excluded)
+High-Risk Assets: ${criticalAssets.length}
+Security Findings: ${allFindings.length}
+Recommended Security Exercises: ${campaigns.length}
+Actively Exploited Vulnerabilities (per government alerts): ${kevFindings.length}
 ${corroborationBlock}
 ${managedProviderContext}
-Top Risk Assets (client-owned only):
-${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join("\n")}
+Highest-Risk Assets:
+${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100`).join("\n")}
 
-Confirmed Findings (version-matched, client-owned assets only):
-${confirmedFindingsList || '(none \u2014 no version-confirmed vulnerabilities detected on client-owned assets)'}
+Verified Findings (confirmed through software version detection):
+${confirmedFindingsList || '(none — no vulnerabilities verified at this stage)'}
 
-Probable Findings (product family match, version unconfirmed, client-owned assets only):
+Findings Requiring Further Investigation:
 ${probableFindingsList || '(none)'}
 
-Campaigns Designed:
+Recommended Security Exercises:
 ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}
 ${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings with their corroboration tier, and recommended actions. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A technical threat model summary covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths. Clearly distinguish confirmed vs probable attack vectors.
+1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, what security exercises are recommended, and what actions leadership should authorize. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A technical threat model summary for the security team covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths. This can use technical language.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -1803,7 +1803,7 @@ Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
     const response = await invokeLLMWithTimeout({
       _priority: 'bulk' as const,
       messages: [
-        { role: "system", content: "You are a cybersecurity report writer. Return only valid JSON." },
+        { role: "system", content: "You are a business risk advisor writing for non-technical executives. Use clear, plain language. Avoid cybersecurity jargon. Return only valid JSON." },
         { role: "user", content: prompt },
       ],
       response_format: {
@@ -2177,14 +2177,20 @@ export async function runDomainIntelPipeline(
       const technologyVersions: Record<string, string> = {};
       if (obs.evidence?.product) {
         technologies.push(obs.evidence.product);
-        if (obs.evidence.version) technologyVersions[obs.evidence.product] = obs.evidence.version;
+        // Filter out HTTP protocol versions (e.g., "2.0" from HTTP/2)
+        if (obs.evidence.version && !isProtocolVersion(obs.evidence.product, obs.evidence.version)) {
+          technologyVersions[obs.evidence.product] = obs.evidence.version;
+        }
       }
       if (obs.evidence?.technologies) {
         for (const t of obs.evidence.technologies) {
           if (typeof t === 'string') technologies.push(t);
           else if (t?.name) {
             technologies.push(t.name);
-            if (t.version) technologyVersions[t.name] = t.version;
+            // Filter out HTTP protocol versions
+            if (t.version && !isProtocolVersion(t.name, t.version)) {
+              technologyVersions[t.name] = t.version;
+            }
           }
         }
       }
@@ -2725,6 +2731,8 @@ export async function runDomainIntelPipeline(
           } else {
             // Try product-specific version lookup
             for (const [tech, ver] of Object.entries(versions)) {
+              // Skip protocol versions that leaked through earlier stages
+              if (isProtocolVersion(tech, ver)) continue;
               const tl = tech.toLowerCase();
               const directMatch = tl.includes(vulnProductLower) || vulnProductLower.includes(tl);
               const aliases = VULN_PRODUCT_ALIASES[tl] || [];
