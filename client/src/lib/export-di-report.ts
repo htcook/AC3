@@ -461,6 +461,21 @@ export async function exportDiEasmReport(
   const scanDuration = scan.durationMs || (totalConnectorDurationMs > 0 ? totalConnectorDurationMs : null);
   doc.text(`Scan Duration: ${scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A'}`, metricsX, y + 39);
 
+  // Risk score exclusion footnote
+  const riskExclusions = scan.riskScoreExclusions || scan.pipelineOutput?.riskScoreExclusions;
+  if (riskExclusions && riskExclusions.excludedCount > 0) {
+    y += 54; // below the risk box
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      `\u2020 Risk score calculated from ${riskExclusions.clientOwnedCount} client-owned assets. ` +
+      `${riskExclusions.excludedCount} managed provider / third-party asset(s) excluded from scoring.`,
+      margin, y
+    );
+    doc.setFont('helvetica', 'normal');
+  }
+
   // Classification & metadata
   y = 165;
   doc.setTextColor(148, 163, 184);

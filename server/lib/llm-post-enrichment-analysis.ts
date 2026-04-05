@@ -104,17 +104,52 @@ export async function runPostEnrichmentAnalysis(
     const pentestCtx = buildKnowledgeContextForLLM('analyst', 1500);
     const owaspCtx = getOwaspVulnCorrelationContext();
 
-    // Build a concise summary of all enriched data for the LLM
-    const confirmedFindings = analyses.flatMap(a =>
+    // ── Filter out managed provider and third-party assets ──
+    // Same logic as generateScanOnlySummary: exclude assets that are not
+    // the client's responsibility (managed mail infrastructure, reverse WHOIS third-party).
+    // Without this filter, the LLM will attribute Exchange/SharePoint CVEs on outlook.com
+    // to the client, producing inaccurate and misleading analysis.
+    const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
+      'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
+      'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
+      'Proofpoint': [/proofpoint/i],
+      'Mimecast': [/mimecast/i],
+      'Zoho Mail': [/zoho/i],
+    };
+    // Detect managed provider from email findings
+    const allEmailFindings = analyses.flatMap(a => a.postureFindings.filter(f => f.category?.startsWith('Email Security')));
+    const managedProviderFinding = allEmailFindings.find(f => f.id?.includes('managed-provider'));
+    const mpName = managedProviderFinding
+      ? (managedProviderFinding.title?.match(/Managed by (.+?)(?:\s*[\-\u2014]|$)/)?.[1] || null)
+      : null;
+    const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
+      ? MANAGED_HOST_PATTERNS[mpName] : [];
+    const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
+
+    const isClientOwned = (a: { asset: { hostname?: string; tags?: string[] } }): boolean => {
+      const h = (a.asset.hostname || '').toLowerCase();
+      const tags: string[] = a.asset.tags || [];
+      if (managedPatterns.some(p => p.test(h))) return false;
+      const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
+        && !h.includes(primaryBase);
+      if (isReverseWhoisThirdParty) return false;
+      return true;
+    };
+
+    const clientAnalyses = analyses.filter(isClientOwned);
+    const excludedCount = analyses.length - clientAnalyses.length;
+
+    // Build a concise summary of all enriched data for the LLM (client-owned only)
+    const confirmedFindings = clientAnalyses.flatMap(a =>
       a.postureFindings.filter(f => f.corroborationTier === "confirmed")
     );
-    const probableFindings = analyses.flatMap(a =>
+    const probableFindings = clientAnalyses.flatMap(a =>
       a.postureFindings.filter(f => f.corroborationTier === "probable")
     );
-    const criticalAssets = analyses
+    const criticalAssets = clientAnalyses
       .filter(a => a.assetCriticalityBand === "critical" || a.assetCriticalityBand === "high")
       .slice(0, 10);
-    const highRiskAssets = analyses
+    const highRiskAssets = clientAnalyses
       .filter(a => a.riskBand === "critical" || a.riskBand === "high")
       .slice(0, 10);
 
@@ -129,10 +164,11 @@ export async function runPostEnrichmentAnalysis(
 - Compliance: ${org.complianceFlags?.join(", ") || "None specified"}
 
 ## Scan Summary
-- Total Assets Analyzed: ${analyses.length}
-- Confirmed Findings: ${confirmedFindings.length}
-- Probable Findings: ${probableFindings.length}
+- Total Assets Analyzed: ${clientAnalyses.length} client-owned${excludedCount > 0 ? ` (${excludedCount} managed provider/third-party assets excluded)` : ''}
+- Confirmed Findings (client-owned only): ${confirmedFindings.length}
+- Probable Findings (client-owned only): ${probableFindings.length}
 - Critical/High Risk Assets: ${highRiskAssets.length}
+${excludedCount > 0 ? `\nNOTE: ${excludedCount} managed provider/third-party asset(s) have been excluded from this analysis. Their CVEs (e.g., Exchange, SharePoint on provider infrastructure) are NOT the client's responsibility. Do NOT reference them as client risks.` : ''}
 
 ## Critical Assets (Top 10)
 ${criticalAssets.map(a => `- ${a.asset.hostname} [${a.assetCriticalityBand}] — Mission: ${a.missionFunction}, Service: ${a.essentialService}, Risk: ${a.hybridRiskScore}/100 (${a.riskBand})`).join("\n")}
@@ -141,7 +177,7 @@ ${criticalAssets.map(a => `- ${a.asset.hostname} [${a.assetCriticalityBand}] —
 ${confirmedFindings.slice(0, 15).map(f => `- [${f.severity}/10] ${f.title} on ${f.assetHostname} — ${f.evidenceDetail?.substring(0, 100) || ""}`).join("\n")}
 
 ## Technologies Detected
-${Array.from(new Set(analyses.flatMap(a => a.asset.technologies || []))).slice(0, 30).join(", ")}
+${Array.from(new Set(clientAnalyses.flatMap(a => a.asset.technologies || []))).slice(0, 30).join(", ")}
 
 ## Cross-Module Intelligence
 ${crossModuleData ? `

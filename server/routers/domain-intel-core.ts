@@ -657,7 +657,11 @@ export const domainIntelRouter = router({
             }
 
             // Generate full summaries (with campaigns)
-            const summaries = await generateSummaries(analyses, campaigns, orgProfile);
+            const emailSecReport = pipeline?.emailSecurityReport || pipeline?.emailSecurity;
+            const summaries = await generateSummaries(analyses, campaigns, orgProfile, undefined, {
+              managedProviderName: emailSecReport?.managedProvider?.name
+                || emailSecReport?.mx?.provider || null
+            });
 
             // Update scan with engagement results — merge threat actor matches into existing trimmed output
             const pipelineOutputWithMatches = {
@@ -1471,7 +1475,11 @@ export const domainIntelRouter = router({
               }));
               const kevEnrichment = result.kevEnrichment;
               const campaigns = await generateCampaignRecommendations(analyses, orgProfile, kevEnrichment);
-              const summaries = await generateSummaries(analyses, campaigns, orgProfile);
+              const emailSecReport2 = trimmedOutput?.emailSecurityReport || (result as any).emailSecurity;
+              const summaries = await generateSummaries(analyses, campaigns, orgProfile, undefined, {
+                managedProviderName: emailSecReport2?.managedProvider?.name
+                  || emailSecReport2?.mx?.provider || null
+              });
 
               trimmedOutput.threatActorMatches = threatActorMatches;
 

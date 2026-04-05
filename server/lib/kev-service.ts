@@ -788,17 +788,20 @@ export function calculateKevRiskBoost(kevMatches: KevMatch[]): {
   const potential = kevMatches.filter(m => m.matchQuality !== "exact_product");
   const ransomwareMatches = kevMatches.filter(m => m.knownRansomware && m.matchQuality !== "fuzzy");
 
-  // Only confirmed matches get full boost; fuzzy matches get minimal boost
+  // CONFIRMED-ONLY BOOST: Only version-confirmed KEV matches contribute to the risk
+  // score boost. Potential matches (product-family or vendor-only) are advisory only
+  // and do NOT inflate the risk score. This prevents false-positive KEV matches from
+  // artificially elevating the overall risk assessment.
   const confirmedBoost = confirmed.reduce((sum, m) => sum + Math.min(m.severityBoost, 10), 0);
-  const potentialBoost = potential.reduce((sum, m) => sum + Math.min(m.severityBoost, 3), 0);
-  const maxBoost = Math.min(confirmedBoost + potentialBoost, 20);
+  // Potential matches get ZERO boost — they are informational only
+  const maxBoost = Math.min(confirmedBoost, 20);
 
   const parts: string[] = [];
   if (confirmed.length > 0) {
     parts.push(`${confirmed.length} confirmed KEV match${confirmed.length > 1 ? "es" : ""} (version-verified)`);
   }
   if (potential.length > 0) {
-    parts.push(`${potential.length} potential match${potential.length > 1 ? "es" : ""} (version unconfirmed)`);
+    parts.push(`${potential.length} potential match${potential.length > 1 ? "es" : ""} (version unconfirmed, advisory only — no risk boost applied)`);
   }
   if (ransomwareMatches.length > 0) {
     parts.push(`${ransomwareMatches.length} linked to known ransomware campaigns`);
@@ -810,7 +813,7 @@ export function calculateKevRiskBoost(kevMatches: KevMatch[]): {
     criticalKevCount: confirmed.length,
     confirmedCount: confirmed.length,
     potentialCount: potential.length,
-    summary: parts.join(". ") + `. Risk score boosted by ${maxBoost} points.`,
+    summary: parts.join(". ") + (maxBoost > 0 ? `. Risk score boosted by ${maxBoost} points (confirmed matches only).` : `. No risk score boost applied (no version-confirmed matches).`),
   };
 }
 

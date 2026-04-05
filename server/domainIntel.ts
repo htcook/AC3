@@ -1506,10 +1506,44 @@ Return JSON: { "campaigns": [...] }`;
 
 export async function generateScanOnlySummary(
   analyses: AssetAnalysis[],
-  org: OrgProfile
+  org: OrgProfile,
+  opts?: { managedProviderName?: string | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
-  const criticalAssets = analyses.filter(a => a.riskBand === 'critical' || a.riskBand === 'high');
-  const allFindings = analyses.flatMap(a => a.postureFindings);
+  // ── Filter out managed provider and third-party assets ──
+  // These assets (e.g. outlook.com for M365, nsone.net from reverse WHOIS) are NOT
+  // part of the client's attack surface. Their CVEs must NOT appear in the
+  // confirmed/probable lists sent to the LLM, or the summary will be inaccurate.
+  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
+    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
+    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
+    'Proofpoint': [/proofpoint/i],
+    'Mimecast': [/mimecast/i],
+    'Zoho Mail': [/zoho/i],
+  };
+  const mpName = opts?.managedProviderName || null;
+  const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
+    ? MANAGED_HOST_PATTERNS[mpName] : [];
+  const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
+
+  const isClientOwnedAsset = (a: AssetAnalysis): boolean => {
+    const h = (a.asset.hostname || '').toLowerCase();
+    const tags: string[] = a.asset.tags || [];
+    if (managedPatterns.some(p => p.test(h))) return false;
+    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
+      && !h.includes(primaryBase);
+    if (isReverseWhoisThirdParty) return false;
+    return true;
+  };
+
+  const clientAnalyses = analyses.filter(isClientOwnedAsset);
+  const managedAnalyses = analyses.filter(a => !isClientOwnedAsset(a));
+  const managedAssetHostnames = new Set(managedAnalyses.map(a => a.asset.hostname?.toLowerCase()));
+
+  const criticalAssets = clientAnalyses.filter(a => a.riskBand === 'critical' || a.riskBand === 'high');
+  // Client-owned findings only — exclude findings from managed/third-party assets
+  const clientFindings = clientAnalyses.flatMap(a => a.postureFindings);
+  const managedFindings = managedAnalyses.flatMap(a => a.postureFindings);
+  const allFindings = clientFindings; // LLM only sees client-owned findings
   const kevFindings = allFindings.filter(f => (f as any).kevListed);
 
   // ── Corroboration breakdown for scan-only summary accuracy ──
@@ -1546,31 +1580,42 @@ RULES FOR WRITING THE SUMMARY:
     `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
   ).join('\n');
 
+  // Build managed provider exclusion context for the LLM
+  const managedProviderContext = (() => {
+    const parts: string[] = [];
+    if (managedAnalyses.length > 0) {
+      parts.push(`MANAGED/THIRD-PARTY ASSET EXCLUSION:`);
+      parts.push(`${managedAnalyses.length} asset(s) excluded from this analysis because they are managed provider or third-party infrastructure:`);
+      managedAnalyses.forEach(a => {
+        const findingCount = a.postureFindings.length;
+        parts.push(`- ${a.asset.hostname} (${findingCount} findings excluded — NOT the client's responsibility)`);
+      });
+      if (mpName) {
+        parts.push(`\nMail infrastructure is managed by ${mpName}. Mail server CVEs (e.g., Exchange, SharePoint) on these hosts are the provider's responsibility, NOT the client's.`);
+      }
+      parts.push(`Only customer-controlled DNS authentication settings (SPF/DKIM/DMARC) are actionable for the client.`);
+      parts.push(`DO NOT mention these excluded assets or their CVEs as client risks.\n`);
+    }
+    return parts.join('\n');
+  })();
+
   const prompt = `Generate a scan summary for a domain intelligence reconnaissance:
 
 Organization: ${org.customerName} (${org.sector}, ${org.clientType})
-Total Assets Discovered: ${analyses.length}
+Total Assets Discovered: ${clientAnalyses.length} client-owned (${managedAnalyses.length} managed/third-party excluded)
 Critical/High Risk Assets: ${criticalAssets.length}
-Total Posture Findings: ${allFindings.length}
-KEV-listed Findings: ${kevFindings.length}
+Total Client Posture Findings: ${allFindings.length}
+KEV-listed Findings (client-owned only): ${kevFindings.length}
 ${corroborationBlock}
-Top Risk Assets:
+${managedProviderContext}
+Top Risk Assets (client-owned only):
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join('\n')}
 
-Confirmed Findings (version-matched):
-${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected)'}
+Confirmed Findings (version-matched, client-owned assets only):
+${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected on client-owned assets)'}
 
-Probable Findings (product family match, version unconfirmed):
+Probable Findings (product family match, version unconfirmed, client-owned assets only):
 ${probableFindingsList || '(none)'}
-
-${(() => {
-  const emailFindings = allFindings.filter(f => f.category?.startsWith('Email Security'));
-  const managedProviderFinding = emailFindings.find(f => f.id?.includes('managed-provider'));
-  if (managedProviderFinding) {
-    return `MANAGED MAIL PROVIDER CONTEXT:\n${managedProviderFinding.evidenceDetail}\nIMPORTANT: When discussing email security, clearly state that mail server infrastructure is managed by the provider. Only discuss customer-controlled DNS authentication settings (SPF/DKIM/DMARC) as actionable findings. Do NOT attribute mail server CVEs to the customer.\n`;
-  }
-  return '';
-})()}
 Provide:
 1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas with their corroboration tier, and a recommendation on whether to proceed with a full engagement. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
 2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Clearly distinguish confirmed vs probable findings. Note that campaign design and threat actor matching have not yet been performed \u2014 this is a pre-engagement scan.
@@ -1622,10 +1667,38 @@ export async function generateSummaries(
   analyses: AssetAnalysis[],
   campaigns: CampaignRecommendation[],
   org: OrgProfile,
-  historicalContext?: string
+  historicalContext?: string,
+  opts?: { managedProviderName?: string | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
-  const criticalAssets = analyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
-  const allFindings = analyses.flatMap(a => a.postureFindings);
+  // ── Filter out managed provider and third-party assets ──
+  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
+    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
+    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
+    'Proofpoint': [/proofpoint/i],
+    'Mimecast': [/mimecast/i],
+    'Zoho Mail': [/zoho/i],
+  };
+  const mpName = opts?.managedProviderName || null;
+  const managedPatterns = mpName && MANAGED_HOST_PATTERNS[mpName]
+    ? MANAGED_HOST_PATTERNS[mpName] : [];
+  const primaryBase = org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, '');
+
+  const isClientOwnedAsset = (a: AssetAnalysis): boolean => {
+    const h = (a.asset.hostname || '').toLowerCase();
+    const tags: string[] = a.asset.tags || [];
+    if (managedPatterns.some(p => p.test(h))) return false;
+    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
+      && !h.includes(primaryBase);
+    if (isReverseWhoisThirdParty) return false;
+    return true;
+  };
+
+  const clientAnalyses = analyses.filter(isClientOwnedAsset);
+  const managedAnalyses = analyses.filter(a => !isClientOwnedAsset(a));
+
+  const criticalAssets = clientAnalyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
+  const clientFindings = clientAnalyses.flatMap(a => a.postureFindings);
+  const allFindings = clientFindings; // LLM only sees client-owned findings
 
   // ── Corroboration breakdown for exec summary accuracy ──
   const confirmedFindings = allFindings.filter(f => f.corroborationTier === 'confirmed');
@@ -1663,35 +1736,46 @@ RULES FOR WRITING THE EXECUTIVE SUMMARY:
     `- [PROBABLE — version unconfirmed] ${f.title} (severity: ${f.severity}/10, CVSS: ${f.cvssScore || 'N/A'})`
   ).join("\n");
 
+  // Build managed provider exclusion context
+  const managedProviderContext = (() => {
+    const parts: string[] = [];
+    if (managedAnalyses.length > 0) {
+      parts.push(`MANAGED/THIRD-PARTY ASSET EXCLUSION:`);
+      parts.push(`${managedAnalyses.length} asset(s) excluded from this analysis because they are managed provider or third-party infrastructure:`);
+      managedAnalyses.forEach(a => {
+        const findingCount = a.postureFindings.length;
+        parts.push(`- ${a.asset.hostname} (${findingCount} findings excluded \u2014 NOT the client's responsibility)`);
+      });
+      if (mpName) {
+        parts.push(`\nMail infrastructure is managed by ${mpName}. Mail server CVEs (e.g., Exchange, SharePoint) on these hosts are the provider's responsibility, NOT the client's.`);
+      }
+      parts.push(`Only customer-controlled DNS authentication settings (SPF/DKIM/DMARC) are actionable for the client.`);
+      parts.push(`DO NOT mention these excluded assets or their CVEs as client risks.\n`);
+    }
+    return parts.join('\n');
+  })();
+
   const prompt = `Generate two summaries for a security assessment:
 
 Organization: ${org.customerName} (${org.sector}, ${org.clientType})
-Total Assets Discovered: ${analyses.length}
+Total Assets Discovered: ${clientAnalyses.length} client-owned (${managedAnalyses.length} managed/third-party excluded)
 Critical/High Risk Assets: ${criticalAssets.length}
-Total Posture Findings: ${allFindings.length}
+Total Client Posture Findings: ${allFindings.length}
 Recommended Campaigns: ${campaigns.length}
 ${corroborationBlock}
-Top Risk Assets:
+${managedProviderContext}
+Top Risk Assets (client-owned only):
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100 [${a.riskBand}]`).join("\n")}
 
-Confirmed Findings (version-matched):
-${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detected)'}
+Confirmed Findings (version-matched, client-owned assets only):
+${confirmedFindingsList || '(none \u2014 no version-confirmed vulnerabilities detected on client-owned assets)'}
 
-Probable Findings (product family match, version unconfirmed):
+Probable Findings (product family match, version unconfirmed, client-owned assets only):
 ${probableFindingsList || '(none)'}
 
 Campaigns Designed:
 ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}
-
-${(() => {
-  // Add managed mail provider context if available
-  const emailFindings = allFindings.filter(f => f.category?.startsWith('Email Security'));
-  const managedProviderFinding = emailFindings.find(f => f.id?.includes('managed-provider'));
-  if (managedProviderFinding) {
-    return `MANAGED MAIL PROVIDER CONTEXT:\n${managedProviderFinding.evidenceDetail}\nIMPORTANT: When discussing email security, clearly state that mail server infrastructure is managed by the provider. Only discuss customer-controlled DNS authentication settings (SPF/DKIM/DMARC) as actionable findings. Do NOT attribute mail server CVEs to the customer.`;
-  }
-  return '';
-})()}${historicalContext ? `\n\n${historicalContext}` : ''}
+${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
 1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings with their corroboration tier, and recommended actions. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
@@ -3058,7 +3142,10 @@ export async function runDomainIntelPipeline(
         console.log(`[DomainIntel] Stage 3.99: Running LLM post-enrichment analysis`);
         return runPostEnrichmentAnalysis(analyses, org, crossModuleEnrichment);
       })(),
-      generateScanOnlySummary(analyses, org),
+      generateScanOnlySummary(analyses, org, {
+        managedProviderName: emailSecurityReport?.managedProvider?.name
+          || emailSecurityReport?.mx?.provider || null
+      }),
     ]);
     if (peResult.status === 'fulfilled') {
       postEnrichmentAnalysis = peResult.value;
@@ -3102,7 +3189,10 @@ export async function runDomainIntelPipeline(
       console.error(`[DomainIntel] Campaign generation failed (non-fatal): ${campaignResult.reason?.message || campaignResult.reason}`);
     }
     // Stage 5: Summaries depend on campaigns, so must run after
-    summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined);
+    summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined, {
+      managedProviderName: emailSecurityReport?.managedProvider?.name
+        || emailSecurityReport?.mx?.provider || null
+    });
   }
 
   // ─── Stage 3.995: CARVER Feedback Loop ─────────────────────────────────────
