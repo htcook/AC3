@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Globe, Search, FileText, Download, Eye, Shield,
-  AlertTriangle, CheckCircle2, Loader2, Brain, ExternalLink,
+  AlertTriangle, CheckCircle2, Loader2, Brain, ExternalLink, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { exportDiEasmReport } from "@/lib/export-di-report";
@@ -26,6 +26,12 @@ export default function DomainIntelReports() {
   const scansQuery = trpc.domainIntel.listScans.useQuery();
   const [search, setSearch] = useState("");
   const [generatingId, setGeneratingId] = useState<number | null>(null);
+
+  // Delete scan mutation
+  const deleteScan = trpc.domainIntel.deleteScan.useMutation({
+    onSuccess: () => { toast.success('Scan deleted'); scansQuery.refetch(); },
+    onError: (err: any) => { toast.error(`Delete failed: ${err.message || 'Unknown error'}`); },
+  });
 
   // Only show completed scans that can generate reports
   const completedScans = useMemo(() => {
@@ -154,6 +160,20 @@ export default function DomainIntelReports() {
                       <Download className="h-3.5 w-3.5 mr-1" />
                     )}
                     EASM Report
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    disabled={deleteScan.isPending}
+                    onClick={() => {
+                      if (confirm(`Delete scan for ${scan.primaryDomain}? This will remove all associated data and cannot be undone.`)) {
+                        deleteScan.mutate({ scanId: scan.id });
+                      }
+                    }}
+                    title="Delete scan"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardContent>

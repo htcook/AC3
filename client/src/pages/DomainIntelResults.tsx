@@ -18,7 +18,7 @@ import {
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
-  Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks
+  Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -141,6 +141,12 @@ export default function DomainIntelResults() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const scanId = Number(params.id);
+
+  // Delete scan mutation
+  const deleteScanMut = trpc.domainIntel.deleteScan.useMutation({
+    onSuccess: () => { toast.success('Scan deleted'); navigate('/domain-intel'); },
+    onError: (err: any) => { toast.error(`Delete failed: ${sanitizeErrorForToast(err)}`); },
+  });
   const [expandedAsset, setExpandedAsset] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
@@ -631,6 +637,20 @@ export default function DomainIntelResults() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            disabled={deleteScanMut.isPending}
+            onClick={() => {
+              if (confirm(`Delete scan for ${scan.primaryDomain}? This will remove all associated data and cannot be undone.`)) {
+                deleteScanMut.mutate({ scanId: scan.id });
+              }
+            }}
+            title="Delete scan"
+          >
+            {deleteScanMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </Button>
           {(scan.status === 'completed' || scan.status === 'scan_complete') && (
             <Button
               size="sm"
@@ -638,7 +658,7 @@ export default function DomainIntelResults() {
               onClick={() => {
                 const fullScanData = { ...scan, ...pipeline, assets, observations: pipeline?.observations || [] };
                 exportDiEasmReport(scan.primaryDomain, fullScanData);
-                toast.success('Generating full EASM report PDF — this may take a moment');
+                toast.success('Generating full EASM report PDF \u2014 this may take a moment');
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-1.5" />
