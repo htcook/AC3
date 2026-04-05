@@ -1739,7 +1739,7 @@ export default function DomainIntelResults() {
                         );
                       }
                       // Standard LLM-analyzed asset findings display
-                      const confirmedOnly = [...kevFindings, ...confirmedFindings.filter((f: any) => !f.kevListed)];
+                      const confirmedOnly = [...confirmedFindings];
                       return (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
@@ -1756,8 +1756,7 @@ export default function DomainIntelResults() {
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <Badge className="text-[9px] px-1 py-0 text-emerald-400 bg-emerald-500/20 border-emerald-500/40">CONFIRMED</Badge>
                                       {f.kevListed && <Badge className="text-[9px] px-1 py-0 bg-red-600/30 text-red-300 border-red-500/50">KEV</Badge>}
-                                      {f.kevListed && f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-emerald-600/30 text-emerald-300 border-emerald-500/50">CONFIRMED</Badge>}
-                                      {f.kevListed && !f.versionMatchConfirmed && <Badge className="text-[9px] px-1 py-0 bg-amber-600/30 text-amber-300 border-amber-500/50">POTENTIAL</Badge>}
+                                      {f.detectedVersion && <Badge className="text-[9px] px-1 py-0 bg-cyan-600/30 text-cyan-300 border-cyan-500/50">Ver: {f.detectedVersion}</Badge>}
                                       {(() => { const t = (f.title || '').toLowerCase(); return (t.includes('remote code') || t.includes('rce') || t.includes('auth bypass') || t.includes('authentication bypass') || t.includes('ssrf') || t.includes('unauthenticated') || t.includes('pre-auth') || t.includes('command injection') || t.includes('sql injection')) ? <Badge className="text-[9px] px-1 py-0 bg-rose-600/30 text-rose-300 border-rose-500/50 animate-pulse">REMOTE ACCESS</Badge> : null; })()}
                                       <span className="font-medium">{f.title}</span>
                                       <span className="text-muted-foreground ml-auto">Sev: {f.severity}/10</span>
