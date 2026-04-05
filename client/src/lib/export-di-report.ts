@@ -402,12 +402,12 @@ export async function exportDiEasmReport(
 
   // Helper: section subheading
   function subheading(text: string, y: number): number {
-    y = checkPageBreak(y, 20);
+    y = checkPageBreak(y, 18);
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(text, margin, y);
-    y += 6;
+    y += 5;
     return y;
   }
 
@@ -457,11 +457,10 @@ export async function exportDiEasmReport(
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
-  // Count findings excluding provider-managed CVEs
+  // Count only confirmed (version-matched) findings — probable/unconfirmed excluded from client reports
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
   const _confirmedCount = _clientFindings.filter((o: any) => o.evidence?.corroboration === '[CONFIRMED]').length;
-  const _totalClientFindings = scan.totalFindings ?? _clientFindings.length;
-  doc.text(`Total Findings: ${_totalClientFindings}${_confirmedCount > 0 ? ` (${_confirmedCount} confirmed)` : ''}`, metricsX, y + 25);
+  doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
   const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
   doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
   // Calculate scan duration: sum all connector durations for accurate total
@@ -525,7 +524,7 @@ export async function exportDiEasmReport(
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     y = writeText(scan.executiveSummary, margin, y, contentWidth);
-    y += 6;
+    y += 3;
   }
 
   // Threat model summary
@@ -535,7 +534,7 @@ export async function exportDiEasmReport(
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     y = writeText(scan.threatModelSummary, margin, y, contentWidth);
-    y += 6;
+    y += 3;
   }
 
   // LLM post-enrichment analysis
@@ -545,7 +544,7 @@ export async function exportDiEasmReport(
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     y = writeText(llmAnalysis.executiveBrief, margin, y, contentWidth);
-    y += 6;
+    y += 3;
   }
 
   // Organization Profile section (from DI pipeline orgProfile)
@@ -571,7 +570,7 @@ export async function exportDiEasmReport(
       margin: { left: margin, right: margin },
       columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 5;
   }
 
   // Business Intelligence section (from pipeline crawl)
@@ -585,7 +584,7 @@ export async function exportDiEasmReport(
       const summaryLines = doc.splitTextToSize(bizIntel.businessSummary, contentWidth);
       if (y + summaryLines.length * 4 > pageHeight - 25) { doc.addPage(); y = 20; }
       doc.text(summaryLines, margin, y);
-      y += summaryLines.length * 4 + 4;
+      y += summaryLines.length * 4 + 2;
     }
     const bizRows: string[][] = [];
     if (bizIntel.services?.length > 0) bizRows.push(['Services', bizIntel.services.join(', ')]);
@@ -609,14 +608,14 @@ export async function exportDiEasmReport(
         margin: { left: margin, right: margin },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 }, 1: { cellWidth: contentWidth - 45 } },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
     // Confidence indicator
     if (bizIntel.confidence != null) {
       doc.setFontSize(6.5);
       doc.setTextColor(148, 163, 184);
       doc.text(`Business intelligence confidence: ${Math.round(bizIntel.confidence * 100)}% (source: passive web crawl of public pages)`, margin, y);
-      y += 6;
+      y += 4;
     }
   }
 
@@ -650,7 +649,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 5;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -687,7 +686,7 @@ export async function exportDiEasmReport(
     alternateRowStyles: { fillColor: [241, 245, 249] },
     margin: { left: margin, right: margin },
   });
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 4;
 
   // Risk distribution table
   y = subheading('Risk Distribution', y);
@@ -721,7 +720,7 @@ export async function exportDiEasmReport(
       }
     },
   });
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 4;
 
   // Full asset inventory table
   if (assets.length > 0) {
@@ -753,13 +752,13 @@ export async function exportDiEasmReport(
       },
       didDrawPage: () => addFooter(doc, margin, pageWidth, pageHeight),
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
 
     if (assets.length > 50) {
       doc.setTextColor(113, 113, 122);
       doc.setFontSize(7);
       doc.text(`Showing top 50 of ${assets.length} assets. Full inventory available in CSV export.`, margin, y);
-      y += 6;
+      y += 4;
     }
   }
 
@@ -793,7 +792,7 @@ export async function exportDiEasmReport(
     const catText = catEntries.join(' | ');
     doc.text(truncate(catText, 120), margin + 40, y + 18);
     doc.text(truncate(catText.slice(catText.indexOf('|', 60) + 2), 120), margin + 40, y + 23);
-    y += 38;
+    y += 34;
   }
 
   // DNS configuration
@@ -818,7 +817,7 @@ export async function exportDiEasmReport(
         margin: { left: margin, right: margin },
         columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: contentWidth - 30 } },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
   }
 
@@ -889,7 +888,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // SSL/TLS
@@ -924,7 +923,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // Blacklist / DNSBL status
@@ -965,7 +964,7 @@ export async function exportDiEasmReport(
           }
         },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     } else {
       doc.setFillColor(240, 253, 244);
       doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
@@ -973,7 +972,7 @@ export async function exportDiEasmReport(
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.text('NOT LISTED ON ANY MONITORED BLACKLISTS', margin + 5, y + 7);
-      y += 16;
+      y += 12;
     }
   }
 
@@ -1007,7 +1006,7 @@ export async function exportDiEasmReport(
           }
         },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
   }
 
@@ -1028,7 +1027,7 @@ export async function exportDiEasmReport(
       bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // Port Connectivity Status
@@ -1056,7 +1055,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1129,7 +1128,7 @@ export async function exportDiEasmReport(
     doc.setTextColor(148, 163, 184);
     doc.text(`Unclassified: ${unknownSourceObs.length}`, margin + 145, y + 24);
   }
-  y += 38;
+  y += 34;
 
   // Breach data summary from pipeline (when observations are empty but breachData exists)
   if (credentialObs.length === 0 && breachDataFallback.totalExposures > 0) {
@@ -1149,7 +1148,7 @@ export async function exportDiEasmReport(
     doc.text(`Passwords Exposed: ${breachDataFallback.passwordsExposed || 0}`, col1X, y + 14);
     doc.text(`Hashed Passwords: ${breachDataFallback.hashedPasswordsExposed || 0}`, col2X, y + 14);
     doc.text(`Credential Pairs: ${breachDataFallback.credentialPairs || 0}`, col3X, y + 14);
-    y += 28;
+    y += 24;
 
     // Breach sources table
     if (breachDataFallback.breachSources?.length > 0) {
@@ -1164,7 +1163,7 @@ export async function exportDiEasmReport(
         alternateRowStyles: { fillColor: [241, 245, 249] },
         margin: { left: margin, right: margin },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
   }
 
@@ -1187,7 +1186,7 @@ export async function exportDiEasmReport(
     doc.text(`Subdomains Found: ${bsEvidence.unique_subdomains_found || 0}`, col1X, y + 14);
     doc.text(`Unique IPs: ${bsEvidence.unique_ips_found || 0}`, col2X, y + 14);
     doc.text(`Credentials Exposed: ${bsEvidence.credentials_exposed || 0}`, col3X, y + 14);
-    y += 28;
+    y += 24;
   }
 
   // Dehashed breach database breakdown
@@ -1198,7 +1197,7 @@ export async function exportDiEasmReport(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     doc.text('Individual breach databases where organization credentials were found.', margin, y);
-    y += 6;
+    y += 4;
 
     autoTable!(doc, {
       startY: y,
@@ -1228,7 +1227,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // 1st-party breaches (critical — these are breaches of the target's own systems)
@@ -1266,7 +1265,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // 3rd-party credential reuse
@@ -1294,7 +1293,7 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [241, 245, 249] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
 
     if (thirdPartyObs.length > 25) {
       doc.setTextColor(113, 113, 122);
@@ -1380,7 +1379,7 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [254, 242, 242] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // IAB listings
@@ -1402,10 +1401,10 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [254, 242, 242] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
-  // Stealer log / compromised employee data
+  // Stealer log & compromised employee data
   if (stealerObs.length > 0) {
     y = subheading('Stealer Log & Compromised Employee Data', y);
 
@@ -1424,7 +1423,7 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [241, 245, 249] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1510,7 +1509,7 @@ export async function exportDiEasmReport(
           alternateRowStyles: { fillColor: [241, 245, 249] },
           margin: { left: margin, right: margin },
         });
-        y = (doc as any).lastAutoTable.finalY + 8;
+        y = (doc as any).lastAutoTable.finalY + 4;
       }
 
       // Relevant IOCs
@@ -1578,7 +1577,7 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [241, 245, 249] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // WAF/NGFW detection
@@ -1600,7 +1599,7 @@ export async function exportDiEasmReport(
       alternateRowStyles: { fillColor: [241, 245, 249] },
       margin: { left: margin, right: margin },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // Vulnerability observations — separated into tiers with managed provider filtering
@@ -1613,18 +1612,14 @@ export async function exportDiEasmReport(
     const confirmedVulns = vulnObs.filter((o: any) =>
       o.evidence?.corroboration === '[CONFIRMED]' && !o.evidence?.providerManagedOnly
     );
-    // Tier 2: Probable (product-family match, no version confirmation) — NOT provider-managed-only
-    const probableVulns = vulnObs.filter((o: any) =>
-      o.evidence?.corroboration !== '[CONFIRMED]' && !o.evidence?.providerManagedOnly && !o.tags?.includes('provider_managed')
-    );
+    // Tier 2: Probable vulns excluded from client-facing reports (only confirmed shown)
     // Tier 3: Provider-managed CVEs — on managed hosts only (e.g. Exchange CVEs on M365)
     const managedVulns = vulnObs.filter((o: any) => o.evidence?.providerManagedOnly);
 
-    // Helper to format asset column with dedup count
+    // Helper to format asset column — show ALL affected hosts
     const formatAssetCol = (o: any) => {
       const hosts = o.evidence?.affectedHosts || [o.evidence?.hostname || o.domain];
-      if (hosts.length === 1) return truncate(hosts[0], 22);
-      return `${truncate(hosts[0], 16)} +${hosts.length - 1}`;
+      return hosts.join('\n');
     };
 
     if (confirmedVulns.length > 0) {
@@ -1633,7 +1628,7 @@ export async function exportDiEasmReport(
       autoTable!(doc, {
         startY: y,
         head: [['CVE ID', 'Finding Name', 'Assets', 'Sev', 'CVSS', 'Version']],
-        body: confirmedVulns.slice(0, 20).map((o: any) => [
+        body: confirmedVulns.map((o: any) => [
           o.evidence?.cve_id || 'N/A',
           truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 40),
           formatAssetCol(o),
@@ -1654,50 +1649,11 @@ export async function exportDiEasmReport(
           }
         },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 5;
     }
 
-    if (probableVulns.length > 0) {
-      y = checkPageBreak(y, 40);
-      y = subheading(`Probable Vulnerabilities \u2014 Version Unconfirmed (${probableVulns.length})`, y);
-
-      // Add a disclaimer note
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(113, 113, 122);
-      y = writeText('Note: These findings are based on product-family matching against CISA KEV and vulnerability feeds. The specific software version was not confirmed during scanning. Severity is capped at 6/10 until version confirmation.', margin, y, contentWidth, 7);
-      y += 3;
-
-      autoTable!(doc, {
-        startY: y,
-        head: [['CVE ID', 'Finding Name', 'Assets', 'Sev', 'Status', 'Evidence']],
-        body: probableVulns.slice(0, 30).map((o: any) => [
-          o.evidence?.cve_id || 'N/A',
-          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 35),
-          formatAssetCol(o),
-          getSeverityLabel(o.evidence?.severity || 5),
-          o.evidence?.kevListed ? 'KEV Listed' : o.evidence?.exploitAvailable ? 'Exploit Avail.' : 'Known CVE',
-          truncate(o.evidence?.description || '', 35),
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
-        alternateRowStyles: { fillColor: [241, 245, 249] },
-        margin: { left: margin, right: margin },
-        didParseCell: (data: any) => {
-          if (data.section === 'body' && data.column.index === 3) {
-            const text = String(data.cell.text);
-            if (text === 'Medium') data.cell.styles.textColor = [202, 138, 4];
-          }
-          if (data.section === 'body' && data.column.index === 4) {
-            const text = String(data.cell.text);
-            if (text === 'KEV Listed') data.cell.styles.textColor = [220, 38, 38];
-            else if (text === 'Exploit Avail.') data.cell.styles.textColor = [234, 88, 12];
-          }
-        },
-      });
-      y = (doc as any).lastAutoTable.finalY + 8;
-    }
+    // Probable vulnerabilities intentionally excluded from client-facing reports.
+    // Only confirmed (version-matched) findings are shown to avoid assumptions.
 
     // Provider-managed CVEs — shown for transparency but clearly marked as provider responsibility
     if (managedVulns.length > 0) {
@@ -1713,9 +1669,9 @@ export async function exportDiEasmReport(
       autoTable!(doc, {
         startY: y,
         head: [['CVE ID', 'Finding Name', 'Sev', 'CVSS', 'Status']],
-        body: managedVulns.slice(0, 20).map((o: any) => [
+        body: managedVulns.map((o: any) => [
           o.evidence?.cve_id || 'N/A',
-          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 45),
+          truncate(o.name?.replace(/^CVE-\d{4}-\d+:\s*/, ''), 55),
           getSeverityLabel(o.evidence?.severity || 5),
           o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A',
           'Provider Managed',
@@ -1726,7 +1682,7 @@ export async function exportDiEasmReport(
         alternateRowStyles: { fillColor: [248, 250, 252] },
         margin: { left: margin, right: margin },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 5;
     }
   }
 
@@ -1742,7 +1698,7 @@ export async function exportDiEasmReport(
     const managedIntro = `The following assets are hosted on infrastructure managed by a third-party provider${_managedMailProvider ? ` (${_managedMailProvider})` : ''}. Vulnerabilities on these assets are the responsibility of the managed service provider, not the client organization. These assets and their associated CVEs have been excluded from the client risk score calculation.`;
     const introLines = doc.splitTextToSize(managedIntro, contentWidth);
     doc.text(introLines, margin, y);
-    y += introLines.length * 4 + 6;
+    y += introLines.length * 4 + 3;
 
     // Managed assets table
     const managedAssets = assets.filter((a: any) => _managedMailHosts.has(a.hostname));
@@ -1765,7 +1721,7 @@ export async function exportDiEasmReport(
         columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 30 }, 2: { cellWidth: 35 } },
         margin: { left: margin, right: margin },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
 
     // Managed CVEs table (provider-managed only)
@@ -1780,11 +1736,11 @@ export async function exportDiEasmReport(
       autoTable!(doc, {
         startY: y,
         head: [['CVE ID', 'Title', 'Severity', 'Affected Host(s)', 'KEV Listed']],
-        body: managedOnlyCves.slice(0, 25).map((o: any) => [
+        body: managedOnlyCves.map((o: any) => [
           o.evidence?.cve_id || 'N/A',
-          truncate(o.name, 45),
+          truncate(o.name, 55),
           getSeverityLabel(o.evidence?.severity || 0),
-          truncate(o.evidence?.affectedHosts?.join(', ') || o.domain, 35),
+          (o.evidence?.affectedHosts || [o.domain]).join('\n'),
           o.evidence?.kevListed ? 'Yes' : 'No',
         ]),
         theme: 'grid',
@@ -1793,10 +1749,10 @@ export async function exportDiEasmReport(
         columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 55 }, 2: { cellWidth: 20 }, 3: { cellWidth: 40 } },
         margin: { left: margin, right: margin },
       });
-      y = (doc as any).lastAutoTable.finalY + 8;
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
 
-    // Risk score impact note
+    // Risk score exclusion note
     const exclusions = scan.pipelineOutput?.riskScoreExclusions || scan.riskScoreExclusions || [];
     if (exclusions.length > 0) {
       y = subheading('Risk Score Impact', y);
@@ -1805,7 +1761,7 @@ export async function exportDiEasmReport(
       const impactText = `${exclusions.length} asset(s) excluded from the overall risk score: ${exclusions.map((e: any) => `${e.hostname} (${e.reason})`).join('; ')}. The reported risk score of ${scan.overallRiskScore ?? 'N/A'}/100 reflects only client-owned infrastructure.`;
       const impactLines = doc.splitTextToSize(impactText, contentWidth);
       doc.text(impactLines, margin, y);
-      y += impactLines.length * 4 + 6;
+      y += impactLines.length * 4 + 3;
     }
   }
 
@@ -1839,7 +1795,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // Attack chains / blind spots from LLM analysis
@@ -1856,7 +1812,7 @@ export async function exportDiEasmReport(
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       y = writeText(truncate(chain.description || chain.narrative, 300), margin + 3, y, contentWidth - 6, 7);
-      y += 4;
+      y += 3;
     }
   }
 
@@ -1896,7 +1852,7 @@ export async function exportDiEasmReport(
         }
       },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = (doc as any).lastAutoTable.finalY + 4;
   }
 
   // Discovery coverage
@@ -1922,7 +1878,7 @@ export async function exportDiEasmReport(
     ['Scan Mode', scan.scanMode || 'standard'],
     ['Started', scan.createdAt ? new Date(scan.createdAt).toLocaleString() : 'N/A'],
     ['Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)} seconds` : 'N/A'],
-    ['Total Findings', String(scan.totalFindings || observations.length)],
+    ['Confirmed Findings', String(_confirmedCount)],
     ['Total Assets', String(scan.totalAssets || assets.length)],
     ['Data Sources', String(connectorCount)],
     ['Web Crawl', scan.pipelineCrawl ? `${scan.pipelineCrawl.totalCrawled}/${scan.pipelineCrawl.totalAssets} assets crawled (${scan.pipelineCrawl.totalFindings} findings, grade: ${scan.pipelineCrawl.worstGrade})` : 'Not run'],
