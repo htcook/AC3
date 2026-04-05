@@ -549,33 +549,170 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Executive Summary');
 
-  // Executive summary narrative
-  if (scan.executiveSummary) {
-    doc.setTextColor(51, 65, 85);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    y = writeText(scan.executiveSummary, margin, y, contentWidth);
-    y += 3;
+  // Pre-compute critical/high asset lists (used in BLUF and later sections)
+  const criticalAssets = assets.filter((a: any) => a.riskBand === 'critical' || a.hybridRiskScore >= 80);
+  const highAssets = assets.filter((a: any) => a.riskBand === 'high' || (a.hybridRiskScore >= 60 && a.hybridRiskScore < 80));
+
+  // ─── BLUF (Bottom Line Up Front) ─────────────────────────────────────
+  // Build a single data-driven paragraph that concisely summarizes the entire report.
+  const _totalAssets = scan.totalAssets ?? assets.length ?? 0;
+  const _confirmedFc = scan.confirmedFindingsCount ?? _confirmedCount;
+  const _probableFc = scan.probableFindingsCount ?? 0;
+  const _potentialFc = scan.potentialFindingsCount ?? 0;
+  const _totalFindings = scan.totalFindings ?? (_confirmedFc + _probableFc + _potentialFc);
+  const _kevCount = observations.filter((o: any) => o.evidence?.kevListed || o.tags?.includes('kev')).length;
+  const _breachExposures = scan.breachData?.totalExposures ?? 0;
+  const _breachEmails = scan.breachData?.uniqueEmails ?? 0;
+  const _emailGrade = scan.emailSecurity?.overallGrade || (domainHealth.emailSecurity as any)?.grade || null;
+  const _complianceScore = scan.complianceScan?.complianceScore ?? null;
+  const _containerHits = scan.containerExposure?.totalHits ?? 0;
+  const _exploitTotal = scan.exploitMatches ? (scan.exploitMatches.totalMetasploit + scan.exploitMatches.totalExploitDb + scan.exploitMatches.totalCalderaAbilities) : 0;
+  const _oemCredCount = scan.oemCredentials?.length ?? 0;
+  const _confirmedLogins = scan.credentialTestSummary?.successfulLogins ?? 0;
+  const _scanDelta = scan.scanDelta;
+  const _blCritical = criticalAssets.length;
+  const _blHigh = highAssets.length;
+  const _blacklistCount = domainHealth.blacklist?.listings?.length ?? 0;
+  const _blacklistActionable = domainHealth.blacklist?.listings?.filter((l: any) => l.actionRequired !== false)?.length ?? 0;
+
+  // Compose BLUF
+  const blufParts: string[] = [];
+
+  // Opening: risk posture
+  blufParts.push(`${domain} presents a ${riskBand.toUpperCase()} risk posture (${riskScore}/100) based on passive analysis of ${_totalAssets} discovered asset(s) across ${connectorCount} intelligence sources.`);
+
+  // Findings breakdown
+  if (_totalFindings > 0) {
+    const findingBreakdown: string[] = [];
+    if (_confirmedFc > 0) findingBreakdown.push(`${_confirmedFc} confirmed`);
+    if (_probableFc > 0) findingBreakdown.push(`${_probableFc} probable`);
+    if (_potentialFc > 0) findingBreakdown.push(`${_potentialFc} potential`);
+    blufParts.push(`The scan identified ${_totalFindings} total finding(s) (${findingBreakdown.join(', ')}).`);
   }
 
-  // Threat model summary
-  if (scan.threatModelSummary) {
-    y = subheading('Threat Model Assessment', y);
-    doc.setTextColor(51, 65, 85);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    y = writeText(scan.threatModelSummary, margin, y, contentWidth);
-    y += 3;
+  // Critical/high assets
+  if (_blCritical > 0 || _blHigh > 0) {
+    const riskParts: string[] = [];
+    if (_blCritical > 0) riskParts.push(`${_blCritical} critical`);
+    if (_blHigh > 0) riskParts.push(`${_blHigh} high`);
+    blufParts.push(`${riskParts.join(' and ')} risk asset(s) require immediate attention.`);
   }
 
-  // LLM post-enrichment analysis
-  if (llmAnalysis.executiveBrief) {
-    y = subheading('AI-Enhanced Analysis', y);
-    doc.setTextColor(51, 65, 85);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    y = writeText(llmAnalysis.executiveBrief, margin, y, contentWidth);
+  // KEV
+  if (_kevCount > 0) {
+    blufParts.push(`${_kevCount} finding(s) are listed in CISA's Known Exploited Vulnerabilities catalog.`);
+  }
+
+  // Exploit availability
+  if (_exploitTotal > 0) {
+    blufParts.push(`${_exploitTotal} public exploit(s) were matched (${scan.exploitMatches?.totalMetasploit || 0} Metasploit, ${scan.exploitMatches?.totalExploitDb || 0} ExploitDB, ${scan.exploitMatches?.totalCalderaAbilities || 0} Caldera).`);
+  }
+
+  // Breach exposure
+  if (_breachExposures > 0) {
+    blufParts.push(`Breach intelligence shows ${_breachExposures} credential exposure(s) across ${_breachEmails} unique email(s).`);
+  }
+
+  // Default credentials
+  if (_oemCredCount > 0) {
+    const loginNote = _confirmedLogins > 0 ? ` — ${_confirmedLogins} confirmed accessible` : '';
+    blufParts.push(`${_oemCredCount} default/OEM credential set(s) matched to discovered services${loginNote}.`);
+  }
+
+  // Email security
+  if (_emailGrade) {
+    blufParts.push(`Email security posture is grade ${_emailGrade}.`);
+  }
+
+  // Blacklist
+  if (_blacklistCount > 0) {
+    blufParts.push(`IP is listed on ${_blacklistCount} DNSBL(s) (${_blacklistActionable} actionable).`);
+  } else if (domainHealth.blacklist) {
+    blufParts.push(`IP is clean across all monitored blacklists.`);
+  }
+
+  // Compliance
+  if (_complianceScore !== null) {
+    blufParts.push(`External compliance scan scored ${_complianceScore}% (${scan.complianceScan?.passed}/${scan.complianceScan?.totalChecks} checks passed).`);
+  }
+
+  // Container exposure
+  if (_containerHits > 0) {
+    blufParts.push(`${_containerHits} exposed container service(s) detected (${scan.containerExposure?.criticalFindings || 0} critical).`);
+  }
+
+  // Scan delta trend
+  if (_scanDelta && _scanDelta.riskDelta !== null) {
+    const direction = _scanDelta.riskDelta > 0 ? 'increased' : _scanDelta.riskDelta < 0 ? 'decreased' : 'unchanged';
+    const deltaAbs = Math.abs(_scanDelta.riskDelta);
+    blufParts.push(`Compared to the previous scan (#${_scanDelta.scanNumber - 1}), risk has ${direction}${deltaAbs > 0 ? ` by ${deltaAbs} points` : ''} (${_scanDelta.previousRiskScore} → ${riskScore}).`);
+  }
+
+  // Top recommendation
+  if (llmAnalysis.recommendations?.length > 0) {
+    const topRec = llmAnalysis.recommendations[0];
+    const recText = topRec.recommendation || topRec.title || (typeof topRec === 'string' ? topRec : '');
+    if (recText) blufParts.push(`Top priority: ${truncate(recText, 120)}.`);
+  }
+
+  // Render BLUF
+  const blufText = blufParts.join(' ');
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(margin, y - 2, contentWidth, 6, 1, 1, 'F'); // subtle header bar
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('BOTTOM LINE UP FRONT', margin + 3, y + 2);
+  y += 7;
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(8.5);
+  y = writeText(blufText, margin, y, contentWidth, 8.5);
+  y += 5;
+
+  // ─── Key Metrics Dashboard (compact table) ───────────────────────────
+  const dashboardRows: string[][] = [
+    ['Risk Score', `${riskScore}/100 (${riskBand.toUpperCase()})`],
+    ['Total Assets', String(_totalAssets)],
+    ['Findings', `${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential`],
+  ];
+  if (_kevCount > 0) dashboardRows.push(['CISA KEV Matches', String(_kevCount)]);
+  if (_exploitTotal > 0) dashboardRows.push(['Public Exploits Matched', String(_exploitTotal)]);
+  if (_breachExposures > 0) dashboardRows.push(['Breach Exposures', `${_breachExposures} exposures, ${_breachEmails} emails`]);
+  if (_oemCredCount > 0) dashboardRows.push(['Default Credentials', `${_oemCredCount} matched${_confirmedLogins > 0 ? `, ${_confirmedLogins} confirmed` : ''}`]);
+  if (_emailGrade) dashboardRows.push(['Email Security', `Grade ${_emailGrade}`]);
+  if (_complianceScore !== null) dashboardRows.push(['Compliance Score', `${_complianceScore}%`]);
+  if (_blacklistCount > 0) dashboardRows.push(['Blacklist Status', `${_blacklistActionable} actionable / ${_blacklistCount} total`]);
+  else if (domainHealth.blacklist) dashboardRows.push(['Blacklist Status', 'Clean']);
+  if (_containerHits > 0) dashboardRows.push(['Container Exposure', `${_containerHits} services (${scan.containerExposure?.criticalFindings || 0} critical)`]);
+  if (_scanDelta && _scanDelta.riskDelta !== null) {
+    const arrow = _scanDelta.riskDelta > 0 ? '\u2191' : _scanDelta.riskDelta < 0 ? '\u2193' : '\u2192';
+    dashboardRows.push(['Trend vs Previous', `${arrow} ${Math.abs(_scanDelta.riskDelta)} pts (scan #${_scanDelta.scanNumber})`]);
+  }
+  dashboardRows.push(['Data Sources', String(connectorCount)]);
+  dashboardRows.push(['Scan Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A']);
+
+  autoTable!(doc, {
+    startY: y,
+    head: [['Metric', 'Value']],
+    body: dashboardRows,
+    theme: 'grid',
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+    bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+    alternateRowStyles: { fillColor: [241, 245, 249] },
+    margin: { left: margin, right: margin },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 5;
+
+  // ─── Confidence Statement ────────────────────────────────────────────
+  if (llmAnalysis.confidenceStatement) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    y = writeText(llmAnalysis.confidenceStatement, margin, y, contentWidth, 7);
     y += 3;
+    doc.setFont('helvetica', 'normal');
   }
 
   // Organization Profile section (from DI pipeline orgProfile)
@@ -650,9 +787,7 @@ export async function exportDiReport(
     }
   }
 
-  // Key risk findings summary table
-  const criticalAssets = assets.filter((a: any) => a.riskBand === 'critical' || a.hybridRiskScore >= 80);
-  const highAssets = assets.filter((a: any) => a.riskBand === 'high' || (a.hybridRiskScore >= 60 && a.hybridRiskScore < 80));
+  // Key risk findings summary table (criticalAssets/highAssets already computed above)
 
   if (criticalAssets.length > 0 || highAssets.length > 0) {
     y = subheading('Critical & High Risk Assets', y);
@@ -2529,7 +2664,618 @@ export async function exportDiReport(
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 9. PRIORITIZED RECOMMENDATIONS
+  // 9. EXPLOIT AVAILABILITY & DEFAULT CREDENTIALS
+  // ═══════════════════════════════════════════════════════════════════════
+  const _hasExploits = scan.exploitMatches && (scan.exploitMatches.totalMetasploit > 0 || scan.exploitMatches.totalExploitDb > 0 || scan.exploitMatches.totalCalderaAbilities > 0);
+  const _hasOemCreds = (scan.oemCredentials?.length ?? 0) > 0;
+  const _hasCredTests = scan.credentialTestSummary && scan.credentialTestSummary.totalTargets > 0;
+  if (_hasExploits || _hasOemCreds || _hasCredTests) {
+    y = addSectionPage('Exploit Availability & Default Credentials');
+
+    // Exploit matches
+    if (_hasExploits) {
+      y = subheading('Public Exploit Availability', y);
+      const em = scan.exploitMatches!;
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      y = writeText(
+        `${em.totalMetasploit + em.totalExploitDb + em.totalCalderaAbilities} public exploit(s) matched to discovered technologies. ` +
+        `${em.remoteAccessCount} provide remote access capability. ` +
+        `Breakdown: ${em.totalMetasploit} Metasploit module(s), ${em.totalExploitDb} ExploitDB entry(ies), ${em.totalCalderaAbilities} Caldera ability(ies).`,
+        margin, y, contentWidth, 8
+      );
+      y += 3;
+
+      // Individual exploit matches table
+      if (em.matches?.length > 0) {
+        autoTable!(doc, {
+          startY: y,
+          head: [['Source', 'Module / ID', 'Technology', 'Severity', 'Remote Access']],
+          body: em.matches.slice(0, 30).map((m: any) => [
+            m.source || 'Unknown',
+            truncate(m.moduleName || m.exploitId || m.abilityName || 'N/A', 50),
+            truncate(m.matchedTechnology || m.cve || 'N/A', 25),
+            m.severity || m.rank || 'N/A',
+            m.remoteAccess ? 'Yes' : 'No',
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 4) {
+              if (String(data.cell.text) === 'Yes') data.cell.styles.textColor = [220, 38, 38];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+
+    // OEM / Default Credentials
+    if (_hasOemCreds) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Default / OEM Credential Matches', y);
+      const creds = scan.oemCredentials!;
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      y = writeText(
+        `${creds.length} default credential set(s) matched to discovered services. ` +
+        `These are vendor-shipped credentials that may not have been changed during deployment.`,
+        margin, y, contentWidth, 8
+      );
+      y += 3;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Vendor', 'Product', 'Protocol', 'Port', 'Username', 'Access Level', 'Matched Asset']],
+        body: creds.slice(0, 25).map((c: any) => [
+          c.vendor || 'N/A',
+          truncate(c.product || 'N/A', 20),
+          c.protocol || 'N/A',
+          c.port ? String(c.port) : 'N/A',
+          c.username || 'N/A',
+          c.accessLevel || 'N/A',
+          truncate(c.matchedAsset || 'N/A', 30),
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [254, 242, 242] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // Credential Test Results
+    if (_hasCredTests) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Automated Credential Testing Results', y);
+      const ct = scan.credentialTestSummary!;
+      const ctSummaryRows: string[][] = [
+        ['Targets Tested', String(ct.totalTargets)],
+        ['Credentials Tested', String(ct.totalCredentialsTested)],
+        ['Successful Logins', String(ct.successfulLogins)],
+        ['Failed Attempts', String(ct.failedAttempts)],
+        ['Timeouts', String(ct.timeouts)],
+        ['Errors', String(ct.errors)],
+      ];
+      autoTable!(doc, {
+        startY: y,
+        head: [['Metric', 'Count']],
+        body: ctSummaryRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 } },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.row.index === 2) { // Successful Logins row
+            const val = parseInt(String(data.cell.text), 10);
+            if (val > 0 && data.column.index === 1) data.cell.styles.textColor = [220, 38, 38];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+
+      // Confirmed credentials detail
+      if (ct.confirmedCredentials?.length > 0) {
+        y = checkPageBreak(y, 20);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(220, 38, 38);
+        doc.text('CONFIRMED ACCESSIBLE CREDENTIALS:', margin, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['Host', 'Port', 'Protocol', 'Vendor', 'Product', 'Username', 'Access']],
+          body: ct.confirmedCredentials.map((cc: any) => [
+            cc.host || 'N/A',
+            String(cc.port || 'N/A'),
+            cc.protocol || 'N/A',
+            cc.vendor || 'N/A',
+            truncate(cc.product || 'N/A', 15),
+            cc.username || 'N/A',
+            cc.accessLevel || 'N/A',
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [254, 242, 242] },
+          margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 10. COMPLIANCE & CONTAINER EXPOSURE
+  // ═══════════════════════════════════════════════════════════════════════
+  const _hasCompliance = scan.complianceScan && scan.complianceScan.totalChecks > 0;
+  const _hasContainers = scan.containerExposure && scan.containerExposure.totalHits > 0;
+  if (_hasCompliance || _hasContainers) {
+    y = addSectionPage('Compliance & Container Exposure');
+
+    // SCAP/STIG Compliance
+    if (_hasCompliance) {
+      const cs = scan.complianceScan!;
+      y = subheading(`Compliance Assessment (${cs.scanType || 'SCAP'})`, y);
+
+      // Score summary
+      const csRows: string[][] = [
+        ['Compliance Score', `${cs.complianceScore}%`],
+        ['Benchmark', cs.benchmarkProfile || 'N/A'],
+        ['Total Checks', String(cs.totalChecks)],
+        ['Passed', String(cs.passed)],
+        ['Failed', String(cs.failed)],
+        ['Not Applicable', String(cs.notApplicable)],
+        ['Manual Review', String(cs.manualReview)],
+      ];
+      autoTable!(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: csRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+
+      // Failed checks detail
+      const failedChecks = cs.checks?.filter((c: any) => c.status === 'fail' || c.status === 'failed') || [];
+      if (failedChecks.length > 0) {
+        y = checkPageBreak(y, 20);
+        y = subheading('Failed Compliance Checks', y);
+        autoTable!(doc, {
+          startY: y,
+          head: [['Check ID', 'Title', 'Severity', 'Category', 'Remediation']],
+          body: failedChecks.slice(0, 25).map((c: any) => [
+            c.stigId || c.checkId || 'N/A',
+            truncate(c.title || 'N/A', 40),
+            c.severity || 'N/A',
+            truncate(c.category || 'N/A', 20),
+            truncate(c.remediation || 'N/A', 40),
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 2) {
+              const sev = String(data.cell.text).toLowerCase();
+              if (sev === 'high' || sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+              else if (sev === 'medium') data.cell.styles.textColor = [234, 88, 12];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+
+    // Container Exposure
+    if (_hasContainers) {
+      y = checkPageBreak(y, 30);
+      const ce = scan.containerExposure!;
+      y = subheading('Container Infrastructure Exposure', y);
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      y = writeText(
+        `${ce.totalHits} exposed container service(s) detected across ${ce.subdomainsProbed?.length || 0} probed host(s) ` +
+        `(${ce.totalProbes} total probes). ${ce.criticalFindings} critical and ${ce.highFindings} high severity finding(s).`,
+        margin, y, contentWidth, 8
+      );
+      y += 3;
+
+      if (ce.findings?.length > 0) {
+        autoTable!(doc, {
+          startY: y,
+          head: [['Service', 'Category', 'Port', 'Severity', 'Auth', 'Risk Description']],
+          body: ce.findings.slice(0, 20).map((f: any) => [
+            f.service || 'N/A',
+            f.category || 'N/A',
+            String(f.port || 'N/A'),
+            f.severity || 'N/A',
+            f.authenticated ? 'Yes' : 'No',
+            truncate(f.riskDescription || 'N/A', 45),
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 3) {
+              const sev = String(data.cell.text).toLowerCase();
+              if (sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+              else if (sev === 'high') data.cell.styles.textColor = [234, 88, 12];
+            }
+            if (data.section === 'body' && data.column.index === 4) {
+              if (String(data.cell.text) === 'No') data.cell.styles.textColor = [220, 38, 38];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 11. CROSS-MODULE INTELLIGENCE & CARVER PROFILE
+  // ═══════════════════════════════════════════════════════════════════════
+  const cme = scan.crossModuleEnrichment;
+  const carver = scan.carverRiskCard;
+  const carverFb = scan.carverFeedback;
+  const _hasCme = cme && cme.summary && cme.summary.modulesRun > 0;
+  const _hasCarver = carver && (carver.scores || carver.sector);
+  const _hasScanDelta = scan.scanDelta && scan.scanDelta.previousScanId;
+  if (_hasCme || _hasCarver || _hasScanDelta) {
+    y = addSectionPage('Cross-Module Intelligence & CARVER Profile');
+
+    // CARVER Risk Card
+    if (_hasCarver) {
+      y = subheading('CARVER Risk Profile', y);
+      const carverRows: string[][] = [];
+      if (carver.sector) carverRows.push(['Inferred Sector', carver.sector]);
+      if (carver.naics) carverRows.push(['NAICS Code', carver.naics]);
+      if (carver.regulatoryProfile?.length > 0) carverRows.push(['Regulatory Profile', carver.regulatoryProfile.join(', ')]);
+      if (carver.scores) {
+        if (carver.scores.hybrid !== undefined) carverRows.push(['Hybrid Risk Score', String(carver.scores.hybrid)]);
+        if (carver.scores.carverShock !== undefined) carverRows.push(['CARVER+Shock Score', String(carver.scores.carverShock)]);
+        if (carver.scores.priorityTier) carverRows.push(['Priority Tier', carver.scores.priorityTier]);
+      }
+      if (carver.confidence !== undefined) carverRows.push(['Confidence', `${(carver.confidence * 100).toFixed(0)}%`]);
+      if (carver.threatLikelihood) carverRows.push(['Threat Likelihood', carver.threatLikelihood]);
+      if (carver.calderaPriority) carverRows.push(['Caldera Priority', carver.calderaPriority]);
+
+      if (carverRows.length > 0) {
+        autoTable!(doc, {
+          startY: y,
+          head: [['Attribute', 'Value']],
+          body: carverRows,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+          bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+          margin: { left: margin, right: margin },
+          columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 } },
+        });
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
+
+      // Top drivers
+      if (carver.topDrivers?.length > 0) {
+        y = checkPageBreak(y, 15);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('Top Risk Drivers:', margin, y);
+        y += 3;
+        doc.setFont('helvetica', 'normal');
+        for (const driver of carver.topDrivers.slice(0, 5)) {
+          y = checkPageBreak(y, 4);
+          doc.setFontSize(7);
+          doc.text(`\u2022 ${truncate(typeof driver === 'string' ? driver : driver.description || driver.name || JSON.stringify(driver), 100)}`, margin + 3, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+
+      // Recommended actions
+      if (carver.recommendedActions?.length > 0) {
+        y = checkPageBreak(y, 15);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CARVER Recommended Actions:', margin, y);
+        y += 3;
+        doc.setFont('helvetica', 'normal');
+        for (const action of carver.recommendedActions.slice(0, 5)) {
+          y = checkPageBreak(y, 4);
+          doc.setFontSize(7);
+          doc.text(`\u2022 ${truncate(typeof action === 'string' ? action : action.description || action.action || JSON.stringify(action), 100)}`, margin + 3, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+    }
+
+    // Cross-Module Enrichment Summary
+    if (_hasCme) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Cross-Module Enrichment', y);
+      const cmeSummary = cme!.summary;
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      y = writeText(
+        `${cmeSummary.modulesSucceeded}/${cmeSummary.modulesRun} enrichment modules completed successfully. ` +
+        `${cmeSummary.totalCorrelations} cross-module correlation(s) identified, ` +
+        `${cmeSummary.totalNewFindings} new finding(s) generated, ` +
+        `${cmeSummary.totalRiskAdjustments} risk adjustment(s) applied.`,
+        margin, y, contentWidth, 8
+      );
+      y += 4;
+
+      // Bug Bounty
+      if (cme!.bugBounty?.status === 'success') {
+        y = checkPageBreak(y, 15);
+        const bb = cme!.bugBounty;
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Bug Bounty: ${bb.hasBugBountyProgram ? `Active (${bb.programName || 'Unknown program'})` : 'No program detected'}`, margin, y);
+        y += 3.5;
+        doc.setFont('helvetica', 'normal');
+        if (bb.inScopeAssets?.length > 0) {
+          doc.setFontSize(7);
+          doc.text(`In-scope assets: ${bb.inScopeAssets.slice(0, 5).join(', ')}${bb.inScopeAssets.length > 5 ? ` (+${bb.inScopeAssets.length - 5} more)` : ''}`, margin + 3, y);
+          y += 3.5;
+        }
+        if (bb.historicalVulnPatterns?.length > 0) {
+          doc.setFontSize(7);
+          doc.text(`Historical vuln patterns: ${bb.historicalVulnPatterns.slice(0, 3).map((p: any) => `${p.cwe} (${p.count}x)`).join(', ')}`, margin + 3, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+
+      // OpSec Gaps
+      if (cme!.opsec?.status === 'success' && cme!.opsec.defensiveGaps?.length > 0) {
+        y = checkPageBreak(y, 20);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('Operational Security Gaps:', margin, y);
+        y += 4;
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['Category', 'Severity', 'Description', 'Affected Assets']],
+          body: cme!.opsec.defensiveGaps.slice(0, 10).map((g: any) => [
+            g.category || 'N/A',
+            g.severity || 'N/A',
+            truncate(g.description || 'N/A', 50),
+            truncate((g.affectedAssets || []).join(', '), 30),
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 1) {
+              const sev = String(data.cell.text).toLowerCase();
+              if (sev === 'high' || sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+              else if (sev === 'medium') data.cell.styles.textColor = [234, 88, 12];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
+
+      // Discovery Deep Dive
+      const dd = cme!.discoveryDeepDive;
+      if (dd?.status === 'success') {
+        // DNS History Changes
+        if (dd.dnsHistoryChanges?.length > 0) {
+          y = checkPageBreak(y, 20);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(30, 41, 59);
+          doc.text('DNS History Changes:', margin, y);
+          y += 4;
+
+          autoTable!(doc, {
+            startY: y,
+            head: [['Domain', 'Previous IP', 'Current IP', 'Changed']],
+            body: dd.dnsHistoryChanges.slice(0, 10).map((c: any) => [
+              truncate(c.domain || 'N/A', 35),
+              c.oldIp || 'N/A',
+              c.newIp || 'N/A',
+              c.changedAt || 'N/A',
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+            bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+            alternateRowStyles: { fillColor: [241, 245, 249] },
+            margin: { left: margin, right: margin },
+          });
+          y = (doc as any).lastAutoTable.finalY + 4;
+        }
+
+        // Certificate Findings
+        if (dd.certificateFindings?.length > 0) {
+          y = checkPageBreak(y, 20);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Certificate Findings:', margin, y);
+          y += 4;
+
+          autoTable!(doc, {
+            startY: y,
+            head: [['Subject', 'Issue', 'Severity']],
+            body: dd.certificateFindings.slice(0, 10).map((f: any) => [
+              truncate(f.subject || 'N/A', 40),
+              truncate(f.issue || 'N/A', 50),
+              f.severity || 'N/A',
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+            bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+            alternateRowStyles: { fillColor: [241, 245, 249] },
+            margin: { left: margin, right: margin },
+          });
+          y = (doc as any).lastAutoTable.finalY + 4;
+        }
+
+        // Infrastructure Insights
+        if (dd.infrastructureInsights?.length > 0) {
+          y = checkPageBreak(y, 15);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Infrastructure Insights:', margin, y);
+          y += 3.5;
+          doc.setFont('helvetica', 'normal');
+          for (const insight of dd.infrastructureInsights.slice(0, 5)) {
+            y = checkPageBreak(y, 4);
+            doc.setFontSize(7);
+            doc.text(`\u2022 [${insight.type || 'info'}] ${truncate(insight.detail || '', 90)} (confidence: ${((insight.confidence || 0) * 100).toFixed(0)}%)`, margin + 3, y);
+            y += 3.5;
+          }
+          y += 2;
+        }
+      }
+
+      // Cross-module correlations
+      const allCorrelations: any[] = [
+        ...(cme!.bugBounty?.correlations || []),
+        ...(cme!.opsec?.correlations || []),
+        ...(cme!.discoveryDeepDive?.correlations || []),
+        ...(cme!.threatIntel?.correlations || []),
+      ];
+      if (allCorrelations.length > 0) {
+        y = checkPageBreak(y, 20);
+        y = subheading('Cross-Module Correlations', y);
+        autoTable!(doc, {
+          startY: y,
+          head: [['Source', 'Target', 'Type', 'Description', 'Confidence', 'Risk Impact']],
+          body: allCorrelations.slice(0, 15).map((c: any) => [
+            c.sourceModule || 'N/A',
+            c.targetModule || 'N/A',
+            c.correlationType || 'N/A',
+            truncate(c.description || 'N/A', 40),
+            `${((c.confidence || 0) * 100).toFixed(0)}%`,
+            c.riskImpact > 0 ? `+${c.riskImpact}` : String(c.riskImpact || 0),
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          margin: { left: margin, right: margin },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 5) {
+              const val = parseInt(String(data.cell.text), 10);
+              if (val > 0) data.cell.styles.textColor = [220, 38, 38];
+              else if (val < 0) data.cell.styles.textColor = [22, 163, 74];
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
+    }
+
+    // Scan Delta / Trend Analysis
+    if (_hasScanDelta) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Scan Trend Analysis', y);
+      const sd = scan.scanDelta!;
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      y = writeText(
+        `This is scan #${sd.scanNumber} for ${domain}. Previous scan was conducted on ${sd.previousScanDate || 'unknown date'}.`,
+        margin, y, contentWidth, 8
+      );
+      y += 3;
+
+      const deltaRows: string[][] = [];
+      if (sd.riskDelta !== null) {
+        const arrow = sd.riskDelta > 0 ? '\u2191' : sd.riskDelta < 0 ? '\u2193' : '\u2192';
+        deltaRows.push(['Risk Score', `${sd.previousRiskScore} \u2192 ${riskScore} (${arrow} ${Math.abs(sd.riskDelta)} pts)`]);
+      }
+      if (sd.assetDelta !== null) {
+        deltaRows.push(['Total Assets', `${sd.previousTotalAssets} \u2192 ${_totalAssets} (${sd.assetDelta >= 0 ? '+' : ''}${sd.assetDelta})`]);
+      }
+      if (sd.findingsDelta !== null) {
+        deltaRows.push(['Total Findings', `${sd.previousTotalFindings} \u2192 ${_totalFindings} (${sd.findingsDelta >= 0 ? '+' : ''}${sd.findingsDelta})`]);
+      }
+      deltaRows.push(['New Assets', String(sd.newAssets?.length ?? 0)]);
+      deltaRows.push(['Removed Assets', String(sd.removedAssets?.length ?? 0)]);
+      deltaRows.push(['Persistent Assets', String(sd.persistentAssets?.length ?? 0)]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Metric', 'Change']],
+        body: deltaRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+        margin: { left: margin, right: margin },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
+
+      // New assets list
+      if (sd.newAssets?.length > 0) {
+        y = checkPageBreak(y, 15);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Newly Discovered Assets:', margin, y);
+        y += 3;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        for (const asset of sd.newAssets.slice(0, 15)) {
+          y = checkPageBreak(y, 4);
+          doc.text(`\u2022 ${truncate(asset, 80)}`, margin + 3, y);
+          y += 3.5;
+        }
+        if (sd.newAssets.length > 15) {
+          doc.setFont('helvetica', 'italic');
+          doc.text(`... and ${sd.newAssets.length - 15} more`, margin + 3, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+
+      // Removed assets list
+      if (sd.removedAssets?.length > 0) {
+        y = checkPageBreak(y, 15);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Assets No Longer Detected:', margin, y);
+        y += 3;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        for (const asset of sd.removedAssets.slice(0, 15)) {
+          y = checkPageBreak(y, 4);
+          doc.text(`\u2022 ${truncate(asset, 80)}`, margin + 3, y);
+          y += 3.5;
+        }
+        if (sd.removedAssets.length > 15) {
+          doc.setFont('helvetica', 'italic');
+          doc.text(`... and ${sd.removedAssets.length - 15} more`, margin + 3, y);
+          y += 3.5;
+        }
+        y += 2;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 12. PRIORITIZED RECOMMENDATIONS
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Prioritized Recommendations');
 
