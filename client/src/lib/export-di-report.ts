@@ -285,18 +285,35 @@ export async function exportDiReport(
       }
     }
 
-    // Map blacklist category
+    // Map blacklist category — preserve all rich data fields from the DNSBL engine
     if (cats.blacklist && !normalized.blacklist) {
       const bl = cats.blacklist.details || {};
       normalized.blacklist = {
-        listings: (bl.listed || []).map((l: any) => ({
-          zone: typeof l === 'string' ? l : l.zone || l.name || 'Unknown',
-          category: typeof l === 'string' ? 'listed' : l.category || 'listed',
-          severity: typeof l === 'string' ? 'medium' : l.severity || 'medium',
-          reason: typeof l === 'string' ? l : l.reason || l.txtReason || '',
-        })),
+        listings: (bl.listed || []).map((l: any) => {
+          if (typeof l === 'string') {
+            return { zone: l, category: 'listed', severity: 'medium', reason: l, returnCodeMeaning: '', returnCodes: [], lookupUrl: '', actionRequired: true, falsePositiveIndicators: [], ip: bl.ip || '' };
+          }
+          return {
+            zone: l.zone || l.name || 'Unknown',
+            category: l.category || 'listed',
+            severity: l.severity || 'medium',
+            reason: l.reason || l.txtReason || '',
+            returnCodeMeaning: l.returnCodeMeaning || '',
+            returnCodes: l.returnCodes || l.result || [],
+            lookupUrl: l.lookupUrl || '',
+            actionRequired: l.actionRequired !== false,
+            falsePositiveIndicators: l.falsePositiveIndicators || [],
+            ip: l.ip || bl.ip || '',
+          };
+        }),
         clean: bl.clean || [],
         totalChecked: bl.totalChecked || 0,
+        ip: bl.ip || '',
+        reverseDns: bl.reverseDns || [],
+        isCloudHosted: bl.isCloudHosted || false,
+        cloudProvider: bl.cloudProvider || null,
+        actionableCount: bl.actionableCount || 0,
+        informationalCount: bl.informationalCount || 0,
         score: cats.blacklist.score,
         grade: cats.blacklist.grade,
       };
@@ -994,48 +1011,171 @@ export async function exportDiReport(
     y = subheading('Blacklist / DNSBL Status', y);
     const bl = domainHealth.blacklist;
 
-    if (bl.listings && bl.listings.length > 0) {
-      // Warning box
-      doc.setFillColor(254, 242, 242);
-      doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
-      doc.setTextColor(220, 38, 38);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`LISTED ON ${bl.listings.length} BLACKLIST(S)`, margin + 5, y + 7);
-      y += 16;
+    // Summary context line: IP checked, total zones, cloud hosting
+    const checkedIp = bl.ip || '';
+    const totalChecked = bl.totalChecked || 0;
+    if (checkedIp || totalChecked) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      const parts: string[] = [];
+      if (checkedIp) parts.push(`IP checked: ${checkedIp}`);
+      if (totalChecked) parts.push(`${totalChecked} DNSBL zones queried`);
+      if (bl.isCloudHosted && bl.cloudProvider) parts.push(`Cloud-hosted: ${bl.cloudProvider}`);
+      doc.text(parts.join('  |  '), margin, y);
+      y += 4;
+    }
 
+    if (bl.listings && bl.listings.length > 0) {
+      // Separate actionable vs informational listings
+      const actionable = bl.listings.filter((l: any) => l.actionRequired !== false);
+      const informational = bl.listings.filter((l: any) => l.actionRequired === false);
+
+      // Summary box — differentiate actionable vs informational
+      if (actionable.length > 0) {
+        doc.setFillColor(254, 242, 242);
+        doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+        doc.setTextColor(220, 38, 38);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        const summaryText = informational.length > 0
+          ? `${actionable.length} ACTIONABLE LISTING(S) + ${informational.length} INFORMATIONAL`
+          : `LISTED ON ${actionable.length} BLACKLIST(S)`;
+        doc.text(summaryText, margin + 5, y + 7);
+        y += 16;
+      } else {
+        // All listings are informational — show as amber/info, not red
+        doc.setFillColor(255, 251, 235);
+        doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+        doc.setTextColor(146, 64, 14);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${informational.length} INFORMATIONAL LISTING(S) — NO ACTION REQUIRED`, margin + 5, y + 7);
+        y += 16;
+      }
+
+      // Main listings table — show returnCodeMeaning as primary reason, with evidence
       autoTable!(doc, {
         startY: y,
-        head: [['Zone', 'Category', 'Severity', 'Reason', 'False Positive?']],
-        body: bl.listings.slice(0, 20).map((l: any) => [
+        head: [['Zone', 'Return Code', 'Meaning', 'Severity', 'Action?']],
+        body: bl.listings.map((l: any) => [
           l.zone || 'N/A',
-          (l.category || 'unknown').replace(/_/g, ' '),
+          (l.returnCodes || []).join(', ') || 'N/A',
+          truncate(l.returnCodeMeaning || l.reason || 'No classification available', 60),
           (l.severity || 'unknown').toUpperCase(),
-          truncate(l.reason || l.txtReason || 'No reason provided', 50),
-          l.isFalsePositive ? `Yes — ${truncate(l.falsePositiveReason, 30)}` : 'No',
+          l.actionRequired !== false ? 'Required' : 'Informational',
         ]),
         theme: 'grid',
-        headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
-        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
         alternateRowStyles: { fillColor: [254, 242, 242] },
+        columnStyles: { 0: { cellWidth: 35 }, 1: { cellWidth: 22 }, 2: { cellWidth: 65 }, 3: { cellWidth: 18 }, 4: { cellWidth: 22 } },
         margin: { left: margin, right: margin },
         didParseCell: (data: any) => {
-          if (data.section === 'body' && data.column.index === 2) {
-            const text = String(data.cell.text).toUpperCase();
-            if (text === 'CRITICAL') data.cell.styles.textColor = [220, 38, 38];
-            else if (text === 'HIGH') data.cell.styles.textColor = [234, 88, 12];
+          if (data.section === 'body') {
+            // Color severity column
+            if (data.column.index === 3) {
+              const text = String(data.cell.text).toUpperCase();
+              if (text === 'CRITICAL') data.cell.styles.textColor = [220, 38, 38];
+              else if (text === 'HIGH') data.cell.styles.textColor = [234, 88, 12];
+              else if (text === 'INFORMATIONAL') data.cell.styles.textColor = [100, 116, 139];
+            }
+            // Color action column
+            if (data.column.index === 4) {
+              const text = String(data.cell.text);
+              if (text === 'Informational') {
+                data.cell.styles.textColor = [100, 116, 139];
+                data.cell.styles.fontStyle = 'italic';
+              }
+            }
           }
         },
       });
       y = (doc as any).lastAutoTable.finalY + 4;
+
+      // TXT reason evidence table (if any listings have TXT reasons from the blacklist)
+      const listingsWithTxtReason = bl.listings.filter((l: any) => l.reason && l.reason.trim());
+      if (listingsWithTxtReason.length > 0) {
+        y = checkPageBreak(y, 25);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Blacklist TXT Record Evidence (raw responses from DNS)', margin, y);
+        y += 4;
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['Zone', 'TXT Record Response']],
+          body: listingsWithTxtReason.map((l: any) => [
+            l.zone || 'N/A',
+            truncate(l.reason, 90),
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+          bodyStyles: { fontSize: 5.5, cellPadding: 1.5, textColor: [71, 85, 105], fontStyle: 'italic' },
+          columnStyles: { 0: { cellWidth: 35 } },
+          margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
+
+      // False positive analysis (if any listings have FP indicators)
+      const listingsWithFp = bl.listings.filter((l: any) => l.falsePositiveIndicators && l.falsePositiveIndicators.length > 0);
+      if (listingsWithFp.length > 0) {
+        y = checkPageBreak(y, 25);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(146, 64, 14);
+        doc.text('False Positive Analysis', margin, y);
+        y += 4;
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['Zone', 'False Positive Indicator']],
+          body: listingsWithFp.flatMap((l: any) =>
+            (l.falsePositiveIndicators || []).map((fp: string) => [
+              l.zone || 'N/A',
+              truncate(fp, 90),
+            ])
+          ),
+          theme: 'grid',
+          headStyles: { fillColor: [146, 64, 14], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [146, 64, 14] },
+          alternateRowStyles: { fillColor: [255, 251, 235] },
+          columnStyles: { 0: { cellWidth: 35 } },
+          margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 4;
+      }
+
+      // Verification links
+      y = checkPageBreak(y, 12);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(5.5);
+      doc.setTextColor(100, 116, 139);
+      const verifyUrl = checkedIp
+        ? `https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${checkedIp}`
+        : 'https://mxtoolbox.com/blacklists.aspx';
+      doc.text(`Verify results: ${verifyUrl}`, margin, y);
+      y += 4;
     } else {
       doc.setFillColor(240, 253, 244);
       doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
       doc.setTextColor(22, 163, 74);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text('NOT LISTED ON ANY MONITORED BLACKLISTS', margin + 5, y + 7);
+      const cleanText = totalChecked > 0
+        ? `NOT LISTED ON ANY OF ${totalChecked} MONITORED BLACKLISTS`
+        : 'NOT LISTED ON ANY MONITORED BLACKLISTS';
+      doc.text(cleanText, margin + 5, y + 7);
       y += 12;
+      if (checkedIp) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(5.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`IP checked: ${checkedIp}  |  Verify: https://mxtoolbox.com/SuperTool.aspx?action=blacklist%3a${checkedIp}`, margin, y);
+        y += 4;
+      }
     }
   }
 
