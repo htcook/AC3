@@ -1654,7 +1654,7 @@ export async function exportDiEasmReport(
     y += 8;
 
     // ── Finding name ──
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setTextColor(30, 30, 30);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     const nameLines = doc.splitTextToSize(findingName, contentWidth - 4);
@@ -1668,12 +1668,12 @@ export async function exportDiEasmReport(
     // ── Affected hosts ──
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(hostLabelColor[0], hostLabelColor[1], hostLabelColor[2]);
+    doc.setTextColor(60, 60, 60);
     y = checkPageBreak(y, 5);
     doc.text(`Affected Assets (${hosts.length}):`, margin + 2, y);
     y += 3;
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    doc.setTextColor(50, 50, 50);
     for (const host of hosts) {
       y = checkPageBreak(y, 4);
       doc.text(`\u2022  ${host}`, margin + 4, y);
@@ -1688,8 +1688,7 @@ export async function exportDiEasmReport(
       o.evidence?.corroboration === '[CONFIRMED]' && !o.evidence?.providerManagedOnly
     );
     // Tier 2: Probable vulns excluded from client-facing reports (only confirmed shown)
-    // Tier 3: Provider-managed CVEs — on managed hosts only (e.g. Exchange CVEs on M365)
-    const managedVulns = vulnObs.filter((o: any) => o.evidence?.providerManagedOnly);
+    // Tier 3: Provider-managed CVEs removed — unproven product-family KEV matches
 
     if (confirmedVulns.length > 0) {
       y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
@@ -1705,22 +1704,9 @@ export async function exportDiEasmReport(
     // Probable vulnerabilities intentionally excluded from client-facing reports.
     // Only confirmed (version-matched) findings are shown to avoid assumptions.
 
-    // Provider-managed CVEs — shown for transparency but clearly marked as provider responsibility
-    if (managedVulns.length > 0) {
-      y = checkPageBreak(y, 40);
-      y = subheading(`Provider-Managed CVEs \u2014 ${_managedMailProvider || 'Managed Service'} Responsibility (${managedVulns.length})`, y);
-
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(113, 113, 122);
-      y = writeText(`The following CVEs affect infrastructure managed by ${_managedMailProvider || 'the mail provider'}. Patching and mitigation is the provider\'s responsibility. These are excluded from the client risk score.`, margin, y, contentWidth, 7);
-      y += 3;
-
-      for (const vuln of managedVulns) {
-        renderCveCard(vuln, [71, 85, 105], [100, 116, 139], [71, 85, 105], false, true);
-      }
-      y += 2;
-    }
+    // Provider-managed CVEs removed from report — these are unproven product-family
+    // KEV matches without version confirmation and cannot be verified as client vulnerabilities.
+    // Managed provider infrastructure patching is the provider's responsibility.
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1761,20 +1747,8 @@ export async function exportDiEasmReport(
       y = (doc as any).lastAutoTable.finalY + 4;
     }
 
-    // Managed CVEs table (provider-managed only)
-    const managedOnlyCves = observations.filter((o: any) => o.evidence?.providerManagedOnly && o.evidence?.cve_id);
-    if (managedOnlyCves.length > 0) {
-      y = subheading(`CVEs on Provider-Managed Infrastructure (${managedOnlyCves.length})`, y);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text('These CVEs exist on provider-managed infrastructure and are NOT counted in the client risk score.', margin, y);
-      y += 5;
-
-      for (const cve of managedOnlyCves) {
-        renderCveCard(cve, [100, 116, 139], [100, 100, 100], [100, 116, 139], false, true);
-      }
-      y += 2;
-    }
+    // Managed CVEs removed from report — unproven product-family KEV matches
+    // without version confirmation. Provider is responsible for their own patching.
 
     // Risk score exclusion note
     const exclusions = scan.pipelineOutput?.riskScoreExclusions || scan.riskScoreExclusions || [];
