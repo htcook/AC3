@@ -2811,8 +2811,14 @@ export default function DomainIntelResults() {
                                   <p className="text-[10px] text-emerald-400 font-mono mt-0.5">Version: {f.detectedVersion} {f.versionMatchConfirmed ? "✔ matched" : ""}</p>
                                 )}
                                 {!f.detectedVersion && f.corroborationTier === "probable" && (
-                                  <p className="text-[10px] text-yellow-400 mt-0.5">Version unconfirmed — severity capped</p>
-                                )}
+                                   <div className="mt-1 space-y-0.5">
+                                     <p className="text-[10px] text-yellow-400">Version unconfirmed — severity capped</p>
+                                     <div className="flex items-center gap-1 bg-yellow-500/10 rounded px-1.5 py-0.5 border border-yellow-500/20">
+                                       <Search className="h-2.5 w-2.5 text-yellow-400 shrink-0" />
+                                       <p className="text-[9px] text-yellow-300">Version enumeration recommended — run active scan (Nmap, banner grab) to confirm version and upgrade to confirmed finding</p>
+                                     </div>
+                                   </div>
+                                 )}
                                 {f.evidenceDetail && (
                                   <p className="text-[10px] text-muted-foreground/70 mt-0.5 italic">{f.evidenceDetail}</p>
                                 )}
@@ -4955,12 +4961,18 @@ export default function DomainIntelResults() {
                                       {f.versionMatchConfirmed && <Badge className="text-[9px] bg-emerald-600/30 text-emerald-300 border-emerald-500/50 ml-1">VERSION MATCH</Badge>}
                                     </div>
                                   )}
-                                  {!f.detectedVersion && f.corroborationTier === "probable" && (
-                                    <div className="flex items-center gap-1 mt-1">
-                                      <AlertTriangle className="h-3 w-3 text-yellow-400" />
-                                      <span className="text-[11px] text-yellow-400">Version not detected — product-family match only (severity capped)</span>
-                                    </div>
-                                  )}
+                                   {!f.detectedVersion && f.corroborationTier === "probable" && (
+                                     <div className="mt-1 space-y-1">
+                                       <div className="flex items-center gap-1">
+                                         <AlertTriangle className="h-3 w-3 text-yellow-400" />
+                                         <span className="text-[11px] text-yellow-400">Version not detected — product-family match only (severity capped)</span>
+                                       </div>
+                                       <div className="flex items-center gap-1.5 bg-yellow-500/10 rounded px-2 py-1 border border-yellow-500/20">
+                                         <Search className="h-3 w-3 text-yellow-400 shrink-0" />
+                                         <span className="text-[10px] text-yellow-300">Version enumeration recommended — run Nmap service scan (<code className="text-yellow-200">nmap -sV</code>), banner grab, or authenticated version check to confirm and upgrade this finding</span>
+                                       </div>
+                                     </div>
+                                   )}
                                 </div>
 
                                 <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
@@ -5147,6 +5159,13 @@ export default function DomainIntelResults() {
                         <Badge className={`text-[10px] ${tierLabels.probable.color}`}>{tierLabels.probable.label}</Badge>
                         <span className="text-[10px] text-muted-foreground">{tierLabels.probable.desc}</span>
                         <span className="text-[10px] text-muted-foreground ml-auto">({probable.length} finding{probable.length !== 1 ? "s" : ""})</span>
+                      </div>
+                      <div className="flex items-start gap-2 bg-yellow-500/10 rounded-md px-3 py-2 border border-yellow-500/20 mb-2">
+                        <Search className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-[11px] text-yellow-300 font-medium">Version Enumeration Recommended</p>
+                          <p className="text-[10px] text-yellow-300/80 mt-0.5">These findings matched a known product but the specific version could not be confirmed passively. Run active version enumeration (<code className="text-yellow-200 bg-yellow-500/20 px-1 rounded">nmap -sV</code>, banner grab, or authenticated scan) to confirm versions and upgrade findings to confirmed tier.</p>
+                        </div>
                       </div>
                       {probable.map((f: any, i: number) => {
                         const confidencePct = Math.round((f.confidence || 0) * 100);

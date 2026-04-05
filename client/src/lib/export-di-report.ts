@@ -1701,8 +1701,29 @@ export async function exportDiEasmReport(
       y += 2;
     }
 
-    // Probable vulnerabilities intentionally excluded from client-facing reports.
-    // Only confirmed (version-matched) findings are shown to avoid assumptions.
+    // Probable findings — show count and version enumeration recommendation
+    const probableVulns = vulnObs.filter((o: any) =>
+      o.evidence?.corroboration === '[PROBABLE]' && !o.evidence?.providerManagedOnly
+    );
+    if (probableVulns.length > 0) {
+      y = checkPageBreak(y, 30);
+      // Yellow recommendation box
+      const boxY = y;
+      doc.setFillColor(255, 251, 235); // warm yellow bg
+      doc.setDrawColor(234, 179, 8); // yellow border
+      doc.roundedRect(margin, boxY, contentWidth, 24, 2, 2, 'FD');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(146, 64, 14); // amber-800
+      doc.text(`Version Enumeration Recommended — ${probableVulns.length} Probable Finding${probableVulns.length !== 1 ? 's' : ''}`, margin + 4, boxY + 6);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 53, 15); // amber-900
+      const recText = `${probableVulns.length} additional finding${probableVulns.length !== 1 ? 's' : ''} matched known products (e.g., ${probableVulns.slice(0, 3).map((v: any) => v.evidence?.findingName?.split(':')[0] || v.evidence?.cveIds?.[0] || 'CVE').join(', ')}${probableVulns.length > 3 ? '...' : ''}) but the installed version could not be confirmed passively. Run active version enumeration (nmap -sV, banner grab, or authenticated scan) to confirm versions and upgrade these to confirmed findings.`;
+      const recLines = doc.splitTextToSize(recText, contentWidth - 8);
+      doc.text(recLines, margin + 4, boxY + 11);
+      y = boxY + 26;
+    }
 
     // Provider-managed CVEs removed from report — these are unproven product-family
     // KEV matches without version confirmation and cannot be verified as client vulnerabilities.
