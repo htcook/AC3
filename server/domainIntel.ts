@@ -1524,6 +1524,15 @@ export async function generateScanOnlySummary(
   const managedAssetHostnames = new Set(managedAnalyses.map(a => a.asset.hostname?.toLowerCase()));
   const mpName = ownershipFilter.managedProviderName;
 
+  // Compute preliminary overall risk score for tone calibration
+  const clientRiskScores = clientAnalyses.map(a => a.hybridRiskScore);
+  const prelimOverallRisk = clientRiskScores.length > 0
+    ? Math.round(clientRiskScores.reduce((s, v) => s + v, 0) / clientRiskScores.length)
+    : 0;
+  const prelimRiskBand = prelimOverallRisk >= 90 ? 'critical' : prelimOverallRisk >= 70 ? 'high' : prelimOverallRisk >= 40 ? 'medium' : 'low';
+  const maxAssetRisk = clientRiskScores.length > 0 ? Math.max(...clientRiskScores) : 0;
+  const maxRiskBand = maxAssetRisk >= 90 ? 'critical' : maxAssetRisk >= 70 ? 'high' : maxAssetRisk >= 40 ? 'medium' : 'low';
+
   const criticalAssets = clientAnalyses.filter(a => a.riskBand === 'critical' || a.riskBand === 'high');
   // Client-owned findings only — exclude findings from managed/third-party assets
   const clientFindings = clientAnalyses.flatMap(a => a.postureFindings);
@@ -1556,6 +1565,19 @@ RULES FOR WRITING THE SUMMARY:
 6. Include a brief "Evidence Confidence" note at the end of the executive summary.
 7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable.
 8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client's attack surface. Do NOT include them in risk characterization.
+
+OVERALL RISK SCORE CONTEXT (CRITICAL — your tone MUST match this):
+- Overall Risk Score: ${prelimOverallRisk}/100 (${prelimRiskBand.toUpperCase()})
+- Peak Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
+- Risk Band Thresholds: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
+
+TONE CALIBRATION RULES:
+- If overall risk is LOW: Use measured, calm language. Do NOT use words like "critical", "severe", "alarming", or "urgent". Frame findings as areas for improvement, not emergencies. A LOW score means the overall posture is acceptable with room for hardening.
+- If overall risk is MEDIUM: Use moderate concern. Acknowledge risks without dramatizing.
+- If overall risk is HIGH: Express clear concern with specific remediation urgency.
+- If overall risk is CRITICAL: Use urgent language with immediate action recommendations.
+- If peak asset risk is significantly higher than overall risk, you may note that "while the average risk posture is ${prelimRiskBand}, N specific assets present elevated risk" — but do NOT let individual outliers override the overall tone.
+- The executive summary's overall characterization MUST align with the ${prelimRiskBand.toUpperCase()} rating.
 `;
 
   const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
@@ -1667,6 +1689,15 @@ export async function generateSummaries(
   );
   const mpName = ownershipFilter.managedProviderName;
 
+  // Compute preliminary overall risk score for tone calibration
+  const clientRiskScores = clientAnalyses.map(a => a.hybridRiskScore);
+  const prelimOverallRisk = clientRiskScores.length > 0
+    ? Math.round(clientRiskScores.reduce((s, v) => s + v, 0) / clientRiskScores.length)
+    : 0;
+  const prelimRiskBand = prelimOverallRisk >= 90 ? 'critical' : prelimOverallRisk >= 70 ? 'high' : prelimOverallRisk >= 40 ? 'medium' : 'low';
+  const maxAssetRisk = clientRiskScores.length > 0 ? Math.max(...clientRiskScores) : 0;
+  const maxRiskBand = maxAssetRisk >= 90 ? 'critical' : maxAssetRisk >= 70 ? 'high' : maxAssetRisk >= 40 ? 'medium' : 'low';
+
   const criticalAssets = clientAnalyses.filter(a => a.riskBand === "critical" || a.riskBand === "high");
   const clientFindings = clientAnalyses.flatMap(a => a.postureFindings);
   const allFindings = clientFindings; // LLM only sees client-owned findings
@@ -1696,7 +1727,20 @@ RULES FOR WRITING THE EXECUTIVE SUMMARY:
 5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, the summary should NOT describe the posture as "critical" or "high risk" based solely on probable matches.
 6. Include a brief "Evidence Confidence" note at the end of the executive summary stating how many findings are confirmed vs probable.
 7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable. Provider-managed CVEs are excluded from the client risk score.
-8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client\u2019s attack surface and are excluded from the overall risk score. Do NOT include them in risk characterization.
+8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client’s attack surface and are excluded from the overall risk score. Do NOT include them in risk characterization.
+
+OVERALL RISK SCORE CONTEXT (CRITICAL — your tone MUST match this):
+- Overall Risk Score: ${prelimOverallRisk}/100 (${prelimRiskBand.toUpperCase()})
+- Peak Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
+- Risk Band Thresholds: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
+
+TONE CALIBRATION RULES:
+- If overall risk is LOW: Use measured, calm language. Do NOT use words like "critical", "severe", "alarming", or "urgent". Frame findings as areas for improvement, not emergencies.
+- If overall risk is MEDIUM: Use moderate concern. Acknowledge risks without dramatizing.
+- If overall risk is HIGH: Express clear concern with specific remediation urgency.
+- If overall risk is CRITICAL: Use urgent language with immediate action recommendations.
+- If peak asset risk is significantly higher than overall risk, you may note that "while the average risk posture is ${prelimRiskBand}, N specific assets present elevated risk" — but do NOT let individual outliers override the overall tone.
+- The executive summary's overall characterization MUST align with the ${prelimRiskBand.toUpperCase()} rating.
 `;
 
   // ── Build finding lists with corroboration labels ──

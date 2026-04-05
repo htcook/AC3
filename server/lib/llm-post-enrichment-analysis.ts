@@ -124,6 +124,15 @@ export async function runPostEnrichmentAnalysis(
     );
     const excludedCount = analyses.length - clientAnalyses.length;
 
+    // Compute preliminary overall risk score for tone calibration
+    const clientRiskScores = clientAnalyses.map(a => a.hybridRiskScore);
+    const prelimOverallRisk = clientRiskScores.length > 0
+      ? Math.round(clientRiskScores.reduce((s, v) => s + v, 0) / clientRiskScores.length)
+      : 0;
+    const prelimRiskBand = prelimOverallRisk >= 90 ? 'critical' : prelimOverallRisk >= 70 ? 'high' : prelimOverallRisk >= 40 ? 'medium' : 'low';
+    const maxAssetRisk = clientRiskScores.length > 0 ? Math.max(...clientRiskScores) : 0;
+    const maxRiskBand = maxAssetRisk >= 90 ? 'critical' : maxAssetRisk >= 70 ? 'high' : maxAssetRisk >= 40 ? 'medium' : 'low';
+
     // Build comprehensive evidence inventory for the LLM (client-owned only)
     const confirmedFindings = clientAnalyses.flatMap(a =>
       a.postureFindings.filter(f => f.corroborationTier === "confirmed")
@@ -191,6 +200,13 @@ export async function runPostEnrichmentAnalysis(
 - Critical/High Criticality Assets: ${criticalAssets.length}
 - High Risk Assets: ${highRiskAssets.length}
 
+## Overall Risk Score Context
+- Overall Risk Score: ${prelimOverallRisk}/100 (${prelimRiskBand.toUpperCase()})
+- Peak Asset Risk: ${maxAssetRisk}/100 (${maxRiskBand.toUpperCase()})
+- Risk Band Thresholds: LOW (0-39), MEDIUM (40-69), HIGH (70-89), CRITICAL (90-100)
+
+TONE CALIBRATION: Your overallAssessment and all severity language MUST align with the ${prelimRiskBand.toUpperCase()} overall risk rating. If overall risk is LOW, use measured language and frame findings as improvement areas, not emergencies. Do NOT use "critical", "severe", or "urgent" language when the overall risk is LOW. If peak asset risk is higher than overall, you may note specific elevated-risk assets without overriding the overall tone.
+
 ## Critical Assets
 ${criticalAssets.map(a => `- ${a.asset.hostname} [criticality: ${a.assetCriticalityBand}] — Mission: ${a.missionFunction}, Service: ${a.essentialService}, Risk: ${a.hybridRiskScore}/100 (${a.riskBand}), Vuln Risk: ${a.vulnRiskScore}/100 (${a.vulnRiskBand})`).join("\n") || "None identified"}
 
@@ -220,7 +236,7 @@ ${crossModuleData ? `
 3. **Prioritized Recommendations**: Rank by confirmed severity and exploitability. Each recommendation must reference specific findings.
 4. **Cross-Finding Correlations**: Identify how confirmed findings on the same or related assets amplify risk when combined.
 5. **Threat Actor Mapping**: ONLY include actors whose documented TTPs match specific confirmed findings. Cite which findings match which techniques.
-6. **Overall Assessment**: Summarize the CONFIRMED risk posture. State what is known vs. unknown. Do not inflate risk based on assumptions.
+6. **Overall Assessment**: Summarize the CONFIRMED risk posture calibrated to the ${prelimRiskBand.toUpperCase()} overall risk rating. State what is known vs. unknown. Do not inflate risk based on assumptions. Your tone MUST match the overall risk band.
 7. **Confidence Statement**: Explicitly state what the analysis is confident about (based on confirmed data) and what remains uncertain.
 
 Return valid JSON matching the schema.
