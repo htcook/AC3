@@ -2603,8 +2603,19 @@ export async function runDomainIntelPipeline(
 
               // KEV entries require product-specific version match for "confirmed"
               // Vendor-only matches (e.g., "Apache" tech → "Apache OFBiz" CVE) stay "probable"
-              const tier: CorroborationTier = (productSpecificMatch && detectedVersion) ? "confirmed" : "probable";
-              const severityCap = tier === "confirmed" ? 10 : 6;
+              // FIX: Without ANY version evidence, downgrade to "potential" — we only know the
+              // product family is present, not that a vulnerable version is running.
+              let tier: CorroborationTier;
+              if (productSpecificMatch && detectedVersion) {
+                tier = "confirmed";
+              } else if (detectedVersion || productSpecificMatch) {
+                // Has version (wrong product) or product match (no version) — probable
+                tier = "probable";
+              } else {
+                // No version AND no product-specific match — potential only
+                tier = "potential";
+              }
+              const severityCap = tier === "confirmed" ? 10 : tier === "probable" ? 6 : 4;
               const rawSeverity = m.knownRansomware ? 10 : 9;
               const cappedSeverity = Math.min(rawSeverity, severityCap);
               const evidenceChain: string[] = [
@@ -2628,8 +2639,8 @@ export async function runDomainIntelPipeline(
                 category: "CISA KEV",
                 title: `${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? " [RANSOMWARE]" : ""}`,
                 severity: cappedSeverity,
-                likelihood: detectedVersion ? 9 : 6, // Lower likelihood without version confirmation
-                confidence: detectedVersion ? 0.95 : 0.7,
+                likelihood: detectedVersion ? 9 : (productSpecificMatch ? 5 : 3), // Scale with evidence quality
+                confidence: detectedVersion ? 0.95 : (productSpecificMatch ? 0.6 : 0.35),
                 recommendedControls: [m.requiredAction, `Patch ${m.product} immediately`, "Monitor for exploitation indicators"],
                 cveIds: [m.cveID],
                 kevListed: true,
@@ -2639,7 +2650,7 @@ export async function runDomainIntelPipeline(
                 evidenceBasis: "kev_match" as const,
                 evidenceDetail: (productSpecificMatch && detectedVersion)
                   ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}.`
-                  : `PROBABLE: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected.'} Severity capped. Due date: ${m.dueDate}.`,
+                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected — product family match only.'} Severity capped at ${severityCap}/10. Due date: ${m.dueDate}.`,
                 corroborationTier: tier,
                 detectedVersion,
                 versionMatchConfirmed: !!detectedVersion,
@@ -2774,8 +2785,16 @@ export async function runDomainIntelPipeline(
 
           // Product-specific version match required for "confirmed"
           // Vendor-only matches stay "probable" even if a version was detected
-          const tier: CorroborationTier = (isProductSpecificVuln && detectedVersion) ? "confirmed" : "probable";
-          const severityCap = tier === "confirmed" ? 10 : 6;
+          // FIX: Without ANY version evidence, downgrade to "potential"
+          let tier: CorroborationTier;
+          if (isProductSpecificVuln && detectedVersion) {
+            tier = "confirmed";
+          } else if (detectedVersion || isProductSpecificVuln) {
+            tier = "probable";
+          } else {
+            tier = "potential";
+          }
+          const severityCap = tier === "confirmed" ? 10 : tier === "probable" ? 6 : 4;
           const rawSeverity = vuln.cvssScore ? Math.round(vuln.cvssScore) : 5;
           const cappedSeverity = Math.min(rawSeverity, severityCap);
           const evidenceChain: string[] = [
@@ -2807,8 +2826,10 @@ export async function runDomainIntelPipeline(
             severity: cappedSeverity,
             likelihood: detectedVersion
               ? (vuln.kevListed ? 9 : vuln.inTheWild ? 8 : vuln.exploitAvailable ? 7 : 5)
-              : Math.min(vuln.kevListed ? 6 : vuln.inTheWild ? 5 : vuln.exploitAvailable ? 4 : 3, 6),
-            confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : (vuln.cvssScore ? 0.6 : 0.4),
+              : isProductSpecificVuln
+                ? Math.min(vuln.kevListed ? 5 : vuln.exploitAvailable ? 4 : 3, 5)
+                : Math.min(vuln.kevListed ? 3 : vuln.exploitAvailable ? 2 : 2, 3),
+            confidence: detectedVersion ? (vuln.cvssScore ? 0.9 : 0.75) : isProductSpecificVuln ? (vuln.cvssScore ? 0.55 : 0.4) : 0.3,
             recommendedControls: [
               vuln.patchAvailable ? `Apply patch for ${vuln.cveId}` : `Mitigate ${vuln.cveId} — no patch available`,
               `Monitor for exploitation of ${vuln.cveId}`,
@@ -2822,7 +2843,7 @@ export async function runDomainIntelPipeline(
             evidenceBasis: vuln.kevListed ? "kev_match" as const : vuln.exploitAvailable ? "confirmed_cve" as const : "vuln_feed" as const,
                 evidenceDetail: (isProductSpecificVuln && detectedVersion)
                   ? `CONFIRMED: ${vuln.cveId} affects ${vuln.product || vulnMatch.technology} v${detectedVersion}${vuln.affectedVersionRange ? ` (affected range: ${vuln.affectedVersionRange})` : ''}. Detected on ${a.asset.hostname}. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`
-                  : `PROBABLE: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but ${!isProductSpecificVuln ? `specific product ${vuln.product || 'unknown'} not individually confirmed` : 'version not detected'}. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
+                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: ${vuln.cveId} affects ${[vuln.vendor, vuln.product].filter(Boolean).join(' ') || vulnMatch.technology} product family. Technology "${vulnMatch.technology}" detected on ${a.asset.hostname} but ${!isProductSpecificVuln ? `specific product ${vuln.product || 'unknown'} not individually confirmed` : 'version not detected — product family match only'}. Severity capped at ${severityCap}/10. CVSS: ${vuln.cvssScore || "N/A"}. Sources: ${vuln.sources.join(", ")}.`,
             corroborationTier: tier,
             detectedVersion,
             versionMatchConfirmed: !!detectedVersion,
