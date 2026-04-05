@@ -233,112 +233,587 @@ function gradeSecurityHeaders(analysis: SecurityHeaderAnalysis): string {
 interface TechPattern {
   name: string;
   category: string;
-  patterns: { type: "header" | "meta" | "html" | "script" | "cookie"; regex: RegExp; versionGroup?: number }[];
+  /** cpe is the CPE 2.3 product name for NVD/KEV matching (e.g. "apache:http_server") */
+  cpe?: string;
+  patterns: { type: "header" | "meta" | "html" | "script" | "cookie" | "url"; regex: RegExp; versionGroup?: number; confidence?: number }[];
 }
 
+// ─── Comprehensive Technology Fingerprinting Patterns ─────────────────────
+// Inspired by Wappalyzer's open-source pattern database.
+// Each pattern includes version extraction groups where possible.
+// Confidence levels: header=95, cookie=90, html/script=85, meta=80, url=75
+
 const TECH_PATTERNS: TechPattern[] = [
-  // Web servers
-  { name: "Nginx", category: "Web Server", patterns: [
-    { type: "header", regex: /nginx\/?(\S+)?/i, versionGroup: 1 },
+  // ═══ Web Servers ═══
+  { name: "Nginx", category: "Web Server", cpe: "nginx:nginx", patterns: [
+    { type: "header", regex: /server:\s*nginx\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "header", regex: /nginx\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
   ]},
-  { name: "Apache", category: "Web Server", patterns: [
-    { type: "header", regex: /Apache\/?(\S+)?/i, versionGroup: 1 },
+  { name: "Apache HTTP Server", category: "Web Server", cpe: "apache:http_server", patterns: [
+    { type: "header", regex: /server:\s*Apache\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "header", regex: /Apache\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
   ]},
-  { name: "IIS", category: "Web Server", patterns: [
-    { type: "header", regex: /Microsoft-IIS\/?(\S+)?/i, versionGroup: 1 },
+  { name: "Microsoft IIS", category: "Web Server", cpe: "microsoft:internet_information_services", patterns: [
+    { type: "header", regex: /Microsoft-IIS\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
   ]},
+  { name: "LiteSpeed", category: "Web Server", cpe: "litespeedtech:litespeed_web_server", patterns: [
+    { type: "header", regex: /LiteSpeed\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Caddy", category: "Web Server", cpe: "caddyserver:caddy", patterns: [
+    { type: "header", regex: /Caddy/i, confidence: 90 },
+  ]},
+  { name: "OpenResty", category: "Web Server", cpe: "openresty:openresty", patterns: [
+    { type: "header", regex: /openresty\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Tomcat", category: "Web Server", cpe: "apache:tomcat", patterns: [
+    { type: "header", regex: /Apache-Coyote\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+    { type: "header", regex: /Tomcat\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /Apache Tomcat\/?([\d.]+)?/i, versionGroup: 1, confidence: 85 },
+  ]},
+  { name: "Gunicorn", category: "Web Server", patterns: [
+    { type: "header", regex: /gunicorn\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Envoy", category: "Web Server", patterns: [
+    { type: "header", regex: /envoy/i, confidence: 90 },
+  ]},
+
+  // ═══ CDN / Edge ═══
   { name: "Cloudflare", category: "CDN", patterns: [
-    { type: "header", regex: /cloudflare/i },
-    { type: "cookie", regex: /__cfduid|__cf_bm/i },
+    { type: "header", regex: /server:\s*cloudflare/i, confidence: 95 },
+    { type: "header", regex: /cf-ray/i, confidence: 95 },
+    { type: "cookie", regex: /__cfduid|__cf_bm|cf_clearance/i, confidence: 90 },
   ]},
   { name: "AWS CloudFront", category: "CDN", patterns: [
-    { type: "header", regex: /CloudFront/i },
+    { type: "header", regex: /CloudFront/i, confidence: 95 },
+    { type: "header", regex: /x-amz-cf-id/i, confidence: 95 },
   ]},
-  // Frameworks
-  { name: "Express.js", category: "Framework", patterns: [
-    { type: "header", regex: /Express/i },
+  { name: "Fastly", category: "CDN", patterns: [
+    { type: "header", regex: /x-served-by:.*cache/i, confidence: 85 },
+    { type: "header", regex: /via:.*varnish/i, confidence: 75 },
+    { type: "header", regex: /x-fastly-request-id/i, confidence: 95 },
   ]},
+  { name: "Akamai", category: "CDN", patterns: [
+    { type: "header", regex: /x-akamai/i, confidence: 95 },
+    { type: "header", regex: /akamai/i, confidence: 85 },
+  ]},
+  { name: "Varnish", category: "Cache", patterns: [
+    { type: "header", regex: /varnish\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+    { type: "header", regex: /x-varnish/i, confidence: 90 },
+  ]},
+  { name: "KeyCDN", category: "CDN", patterns: [
+    { type: "header", regex: /keycdn/i, confidence: 90 },
+  ]},
+  { name: "StackPath", category: "CDN", patterns: [
+    { type: "header", regex: /stackpath/i, confidence: 90 },
+  ]},
+  { name: "Sucuri", category: "CDN", patterns: [
+    { type: "header", regex: /sucuri/i, confidence: 90 },
+    { type: "header", regex: /x-sucuri-id/i, confidence: 95 },
+  ]},
+
+  // ═══ Languages / Runtimes ═══
+  { name: "PHP", category: "Language", cpe: "php:php", patterns: [
+    { type: "header", regex: /x-powered-by:\s*PHP\/?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "header", regex: /PHP\/?([\d.]+)/i, versionGroup: 1, confidence: 90 },
+    { type: "cookie", regex: /PHPSESSID/i, confidence: 85 },
+    { type: "html", regex: /\.php(?:\?|"|\'|\s)/i, confidence: 70 },
+  ]},
+  { name: "Python", category: "Language", cpe: "python:python", patterns: [
+    { type: "header", regex: /Python\/?([\d.]+)?/i, versionGroup: 1, confidence: 85 },
+    { type: "header", regex: /WSGIServer/i, confidence: 80 },
+  ]},
+  { name: "Node.js", category: "Language", cpe: "nodejs:node.js", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Express/i, confidence: 85 },
+  ]},
+  { name: "Ruby", category: "Language", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Phusion Passenger/i, confidence: 85 },
+    { type: "header", regex: /x-runtime/i, confidence: 75 },
+  ]},
+  { name: "ASP.NET", category: "Framework", cpe: "microsoft:asp.net", patterns: [
+    { type: "header", regex: /x-powered-by:\s*ASP\.NET/i, confidence: 95 },
+    { type: "header", regex: /x-aspnet-version:\s*([\d.]+)/i, versionGroup: 1, confidence: 95 },
+    { type: "header", regex: /x-aspnetmvc-version:\s*([\d.]+)/i, versionGroup: 1, confidence: 95 },
+    { type: "cookie", regex: /ASP\.NET_SessionId|\.ASPXAUTH/i, confidence: 90 },
+    { type: "html", regex: /__VIEWSTATE|__EVENTVALIDATION/i, confidence: 85 },
+  ]},
+  { name: "Java", category: "Language", cpe: "oracle:jdk", patterns: [
+    { type: "header", regex: /x-powered-by:\s*(?:JSP|Servlet|JSF)\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+    { type: "cookie", regex: /JSESSIONID/i, confidence: 85 },
+    { type: "html", regex: /\.jsp(?:\?|"|\'|\s)/i, confidence: 75 },
+  ]},
+  { name: "Go", category: "Language", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Go/i, confidence: 85 },
+  ]},
+  { name: "Perl", category: "Language", cpe: "perl:perl", patterns: [
+    { type: "header", regex: /mod_perl\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+  ]},
+
+  // ═══ JavaScript Frameworks ═══
+  { name: "React", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /data-reactroot|data-reactid|__NEXT_DATA__/i, confidence: 90 },
+    { type: "script", regex: /react(?:\.production|\.development)\.min\.js/i, confidence: 90 },
+    { type: "script", regex: /react-dom[-.]([\d.]+)/i, versionGroup: 1, confidence: 85 },
+    { type: "html", regex: /react[-.]dom[-.]([\d.]+)/i, versionGroup: 1, confidence: 85 },
+  ]},
+  { name: "Vue.js", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /data-v-[a-f0-9]{6,}/i, confidence: 90 },
+    { type: "script", regex: /vue(?:\.min)?\.js/i, confidence: 85 },
+    { type: "script", regex: /vue@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /vue[-.]([\d.]+)/i, versionGroup: 1, confidence: 80 },
+    { type: "html", regex: /vue[-.](?:router|resource)/i, confidence: 85 },
+  ]},
+  { name: "Angular", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /ng-version="([\d.]+)"/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /ng-app|ng-controller|ng-model/i, confidence: 85 },
+    { type: "script", regex: /angular(?:\.min)?\.js/i, confidence: 85 },
+    { type: "script", regex: /angular[-@]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Svelte", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /svelte-[a-z0-9]+|__svelte/i, confidence: 85 },
+    { type: "script", regex: /svelte/i, confidence: 75 },
+  ]},
+  { name: "Ember.js", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /ember-view|data-ember/i, confidence: 90 },
+    { type: "script", regex: /ember(?:\.min)?\.js/i, confidence: 85 },
+  ]},
+  { name: "Backbone.js", category: "JavaScript Framework", patterns: [
+    { type: "script", regex: /backbone(?:\.min)?\.js/i, confidence: 85 },
+    { type: "script", regex: /backbone[-.]([\d.]+)/i, versionGroup: 1, confidence: 85 },
+  ]},
+  { name: "Alpine.js", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /x-data|x-bind|x-on|x-show/i, confidence: 80 },
+    { type: "script", regex: /alpinejs|alpine(?:\.min)?\.js/i, confidence: 85 },
+  ]},
+  { name: "Preact", category: "JavaScript Framework", patterns: [
+    { type: "script", regex: /preact(?:\.min)?\.js/i, confidence: 85 },
+    { type: "script", regex: /preact[-@]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Stimulus", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /data-controller|data-action|data-target/i, confidence: 75 },
+    { type: "script", regex: /stimulus(?:\.min)?\.js/i, confidence: 85 },
+  ]},
+  { name: "HTMX", category: "JavaScript Framework", patterns: [
+    { type: "html", regex: /hx-get|hx-post|hx-trigger|hx-swap/i, confidence: 90 },
+    { type: "script", regex: /htmx(?:\.min)?\.js/i, confidence: 90 },
+    { type: "script", regex: /htmx\.org@([\d.]+)/i, versionGroup: 1, confidence: 95 },
+  ]},
+
+  // ═══ Full-Stack / Meta Frameworks ═══
   { name: "Next.js", category: "Framework", patterns: [
-    { type: "header", regex: /__next/i },
-    { type: "html", regex: /_next\/static/i },
-    { type: "meta", regex: /next-head-count/i },
+    { type: "html", regex: /_next\/static/i, confidence: 95 },
+    { type: "html", regex: /__NEXT_DATA__/i, confidence: 95 },
+    { type: "header", regex: /x-nextjs-cache/i, confidence: 95 },
+    { type: "meta", regex: /next-head-count/i, confidence: 90 },
+    { type: "script", regex: /_next\/static\/chunks\/webpack-([a-f0-9]+)/i, confidence: 90 },
   ]},
-  { name: "React", category: "JavaScript Library", patterns: [
-    { type: "html", regex: /react[-.](?:dom|router)|__NEXT_DATA__|data-reactroot/i },
-    { type: "script", regex: /react(?:\.production|\.development)/i },
+  { name: "Nuxt.js", category: "Framework", patterns: [
+    { type: "html", regex: /__nuxt|nuxt-link|data-n-head/i, confidence: 90 },
+    { type: "script", regex: /_nuxt\//i, confidence: 90 },
   ]},
-  { name: "Vue.js", category: "JavaScript Library", patterns: [
-    { type: "html", regex: /data-v-[a-f0-9]+|vue[-.](?:router|resource)/i },
-    { type: "script", regex: /vue(?:\.min)?\.js/i },
+  { name: "Gatsby", category: "Framework", patterns: [
+    { type: "html", regex: /gatsby-/i, confidence: 85 },
+    { type: "html", regex: /___gatsby/i, confidence: 95 },
+    { type: "meta", regex: /generator=Gatsby\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
   ]},
-  { name: "Angular", category: "JavaScript Library", patterns: [
-    { type: "html", regex: /ng-(?:app|controller|model|version)|angular(?:\.min)?\.js/i },
+  { name: "Remix", category: "Framework", patterns: [
+    { type: "html", regex: /data-remix|__remix/i, confidence: 90 },
+    { type: "script", regex: /remix/i, confidence: 70 },
   ]},
+  { name: "Astro", category: "Framework", patterns: [
+    { type: "html", regex: /astro-island|data-astro/i, confidence: 90 },
+    { type: "meta", regex: /generator=Astro\s*v?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "SvelteKit", category: "Framework", patterns: [
+    { type: "html", regex: /__sveltekit/i, confidence: 90 },
+  ]},
+
+  // ═══ Backend Frameworks ═══
+  { name: "Express.js", category: "Framework", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Express/i, confidence: 95 },
+  ]},
+  { name: "Django", category: "Framework", cpe: "djangoproject:django", patterns: [
+    { type: "cookie", regex: /csrftoken|django/i, confidence: 80 },
+    { type: "html", regex: /csrfmiddlewaretoken/i, confidence: 85 },
+    { type: "header", regex: /x-frame-options.*SAMEORIGIN/i, confidence: 50 },
+  ]},
+  { name: "Flask", category: "Framework", patterns: [
+    { type: "header", regex: /Werkzeug\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Ruby on Rails", category: "Framework", cpe: "rubyonrails:rails", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Phusion Passenger/i, confidence: 80 },
+    { type: "header", regex: /x-runtime/i, confidence: 70 },
+    { type: "cookie", regex: /_rails_session|_session_id/i, confidence: 85 },
+    { type: "html", regex: /csrf-token|authenticity_token/i, confidence: 75 },
+    { type: "meta", regex: /csrf-token/i, confidence: 75 },
+  ]},
+  { name: "Laravel", category: "Framework", cpe: "laravel:laravel", patterns: [
+    { type: "cookie", regex: /laravel_session|XSRF-TOKEN/i, confidence: 80 },
+    { type: "html", regex: /laravel/i, confidence: 60 },
+  ]},
+  { name: "Spring", category: "Framework", cpe: "vmware:spring_framework", patterns: [
+    { type: "header", regex: /x-application-context/i, confidence: 85 },
+    { type: "cookie", regex: /JSESSIONID/i, confidence: 60 },
+    { type: "html", regex: /spring/i, confidence: 50 },
+  ]},
+  { name: "FastAPI", category: "Framework", patterns: [
+    { type: "html", regex: /FastAPI/i, confidence: 80 },
+    { type: "header", regex: /uvicorn/i, confidence: 75 },
+  ]},
+  { name: "Koa", category: "Framework", patterns: [
+    { type: "header", regex: /x-powered-by:\s*koa/i, confidence: 90 },
+  ]},
+  { name: "Hapi", category: "Framework", patterns: [
+    { type: "header", regex: /x-powered-by:\s*hapi/i, confidence: 90 },
+  ]},
+  { name: "CakePHP", category: "Framework", cpe: "cakephp:cakephp", patterns: [
+    { type: "cookie", regex: /cakephp/i, confidence: 85 },
+  ]},
+  { name: "Symfony", category: "Framework", cpe: "sensiolabs:symfony", patterns: [
+    { type: "cookie", regex: /symfony/i, confidence: 85 },
+    { type: "header", regex: /x-debug-token/i, confidence: 90 },
+  ]},
+  { name: "CodeIgniter", category: "Framework", cpe: "codeigniter:codeigniter", patterns: [
+    { type: "cookie", regex: /ci_session/i, confidence: 85 },
+  ]},
+
+  // ═══ CMS ═══
+  { name: "WordPress", category: "CMS", cpe: "wordpress:wordpress", patterns: [
+    { type: "html", regex: /wp-content|wp-includes/i, confidence: 95 },
+    { type: "meta", regex: /generator=WordPress\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /wp-json/i, confidence: 90 },
+    { type: "script", regex: /wp-(?:content|includes)\/js\//i, confidence: 90 },
+    { type: "html", regex: /wp-embed\.min\.js\?ver=([\d.]+)/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Drupal", category: "CMS", cpe: "drupal:drupal", patterns: [
+    { type: "html", regex: /drupal\.js|Drupal\.settings|sites\/default\/files/i, confidence: 90 },
+    { type: "header", regex: /x-drupal-cache|x-drupal-dynamic-cache/i, confidence: 95 },
+    { type: "meta", regex: /generator=Drupal\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /drupal\.js\?([a-z0-9]+)/i, confidence: 85 },
+  ]},
+  { name: "Joomla", category: "CMS", cpe: "joomla:joomla\\!", patterns: [
+    { type: "html", regex: /\/media\/jui\/|\/components\/com_/i, confidence: 85 },
+    { type: "meta", regex: /generator=Joomla[!]?\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Magento", category: "CMS", cpe: "magento:magento", patterns: [
+    { type: "html", regex: /mage\/cookies|Mage\.Cookies/i, confidence: 90 },
+    { type: "cookie", regex: /frontend=|MAGE_/i, confidence: 80 },
+    { type: "html", regex: /\/static\/version\d+/i, confidence: 80 },
+  ]},
+  { name: "Ghost", category: "CMS", patterns: [
+    { type: "meta", regex: /generator=Ghost\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /ghost-(?:url|api)/i, confidence: 85 },
+  ]},
+  { name: "Squarespace", category: "CMS", patterns: [
+    { type: "html", regex: /squarespace\.com|sqsp\.net/i, confidence: 90 },
+    { type: "html", regex: /Static\.SQUARESPACE_CONTEXT/i, confidence: 95 },
+  ]},
+  { name: "Wix", category: "CMS", patterns: [
+    { type: "html", regex: /wix\.com|wixsite\.com|_wix_browser_sess/i, confidence: 90 },
+    { type: "meta", regex: /generator=Wix\.com/i, confidence: 95 },
+  ]},
+  { name: "Webflow", category: "CMS", patterns: [
+    { type: "html", regex: /webflow\.com|w-webflow/i, confidence: 90 },
+    { type: "meta", regex: /generator=Webflow/i, confidence: 95 },
+  ]},
+  { name: "Hugo", category: "CMS", patterns: [
+    { type: "meta", regex: /generator=Hugo\s*([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Jekyll", category: "CMS", patterns: [
+    { type: "meta", regex: /generator=Jekyll\s*v?([\d.]+)?/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "Contentful", category: "CMS", patterns: [
+    { type: "html", regex: /contentful\.com/i, confidence: 80 },
+    { type: "script", regex: /contentful/i, confidence: 75 },
+  ]},
+  { name: "Strapi", category: "CMS", patterns: [
+    { type: "header", regex: /x-powered-by:\s*Strapi/i, confidence: 95 },
+  ]},
+
+  // ═══ JavaScript Libraries ═══
   { name: "jQuery", category: "JavaScript Library", patterns: [
-    { type: "script", regex: /jquery[-.](\d+\.\d+(?:\.\d+)?)/i, versionGroup: 1 },
-    { type: "html", regex: /jquery(?:\.min)?\.js/i },
+    { type: "script", regex: /jquery[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 95 },
+    { type: "script", regex: /jquery\/([\d.]+)\/jquery/i, versionGroup: 1, confidence: 95 },
+    { type: "script", regex: /jquery@([\d.]+)/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /jquery(?:\.min)?\.js/i, confidence: 80 },
   ]},
-  // CMS
-  { name: "WordPress", category: "CMS", patterns: [
-    { type: "html", regex: /wp-content|wp-includes|wp-json/i },
-    { type: "meta", regex: /WordPress\s*(\d+\.\d+(?:\.\d+)?)?/i, versionGroup: 1 },
+  { name: "jQuery UI", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /jquery-ui[-.]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /jquery\.ui/i, confidence: 85 },
+    { type: "html", regex: /ui-widget|ui-dialog|ui-datepicker/i, confidence: 80 },
   ]},
-  { name: "Drupal", category: "CMS", patterns: [
-    { type: "html", regex: /drupal\.js|Drupal\.settings|sites\/default\/files/i },
-    { type: "header", regex: /X-Drupal/i },
+  { name: "Bootstrap", category: "CSS Framework", patterns: [
+    { type: "script", regex: /bootstrap[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /bootstrap(?:\.min)?\.css/i, confidence: 85 },
+    { type: "script", regex: /bootstrap@([\d.]+)/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /class="[^"]*(?:navbar-|btn-|col-(?:sm|md|lg|xl)-)/i, confidence: 70 },
   ]},
-  { name: "Joomla", category: "CMS", patterns: [
-    { type: "html", regex: /\/media\/jui\/|\/components\/com_/i },
-    { type: "meta", regex: /Joomla/i },
+  { name: "Tailwind CSS", category: "CSS Framework", patterns: [
+    { type: "html", regex: /class="[^"]*(?:flex|grid|text-|bg-|p-|m-|w-|h-)[a-z0-9-]+(?:\s|")/i, confidence: 60 },
+    { type: "script", regex: /tailwindcss|tailwind(?:\.min)?\.css/i, confidence: 90 },
   ]},
-  // Analytics
+  { name: "Lodash", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /lodash[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /lodash@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Moment.js", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /moment[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /moment@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "D3.js", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /d3[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /d3@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Chart.js", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /chart[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /chart\.js@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Three.js", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /three[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /three@([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Socket.io", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /socket\.io[-.]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+    { type: "script", regex: /socket\.io(?:\.min)?\.js/i, confidence: 85 },
+  ]},
+  { name: "Axios", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /axios[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 85 },
+  ]},
+  { name: "Underscore.js", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /underscore[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Handlebars", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /handlebars[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "Modernizr", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /modernizr[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /class="[^"]*(?:no-)?js\s/i, confidence: 50 },
+  ]},
+  { name: "RequireJS", category: "JavaScript Library", patterns: [
+    { type: "script", regex: /require[-.]([\d.]+)(?:\.min)?\.js/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /data-main/i, confidence: 70 },
+  ]},
+  { name: "Webpack", category: "Build Tool", patterns: [
+    { type: "html", regex: /webpackJsonp|__webpack_require__/i, confidence: 85 },
+    { type: "script", regex: /webpack/i, confidence: 70 },
+  ]},
+  { name: "Vite", category: "Build Tool", patterns: [
+    { type: "html", regex: /@vite\/client/i, confidence: 95 },
+    { type: "script", regex: /vite\/modulepreload-polyfill/i, confidence: 90 },
+  ]},
+
+  // ═══ Analytics & Marketing ═══
   { name: "Google Analytics", category: "Analytics", patterns: [
-    { type: "script", regex: /google-analytics\.com|googletagmanager\.com|gtag/i },
+    { type: "script", regex: /google-analytics\.com\/(?:analytics|ga)\.js/i, confidence: 95 },
+    { type: "script", regex: /googletagmanager\.com\/gtag/i, confidence: 90 },
+    { type: "html", regex: /gtag\(|ga\('create'/i, confidence: 85 },
   ]},
   { name: "Google Tag Manager", category: "Analytics", patterns: [
-    { type: "html", regex: /googletagmanager\.com\/gtm\.js/i },
+    { type: "html", regex: /googletagmanager\.com\/gtm\.js/i, confidence: 95 },
+    { type: "html", regex: /GTM-[A-Z0-9]+/i, confidence: 90 },
   ]},
-  // Security
+  { name: "Hotjar", category: "Analytics", patterns: [
+    { type: "script", regex: /hotjar\.com/i, confidence: 90 },
+    { type: "html", regex: /hj\('identify'\)|_hjSettings/i, confidence: 90 },
+  ]},
+  { name: "Mixpanel", category: "Analytics", patterns: [
+    { type: "script", regex: /cdn\.mxpnl\.com|mixpanel/i, confidence: 90 },
+  ]},
+  { name: "Segment", category: "Analytics", patterns: [
+    { type: "script", regex: /cdn\.segment\.com|analytics\.js/i, confidence: 85 },
+  ]},
+  { name: "Heap", category: "Analytics", patterns: [
+    { type: "script", regex: /heap-\d+\.js|heapanalytics\.com/i, confidence: 90 },
+  ]},
+  { name: "Matomo", category: "Analytics", patterns: [
+    { type: "script", regex: /matomo\.js|piwik\.js/i, confidence: 90 },
+  ]},
+  { name: "Facebook Pixel", category: "Analytics", patterns: [
+    { type: "script", regex: /connect\.facebook\.net\/.*\/fbevents\.js/i, confidence: 95 },
+    { type: "html", regex: /fbq\('init'/i, confidence: 90 },
+  ]},
+  { name: "HubSpot", category: "Marketing", patterns: [
+    { type: "script", regex: /js\.hs-scripts\.com|js\.hubspot\.com/i, confidence: 90 },
+    { type: "html", regex: /hubspot/i, confidence: 65 },
+  ]},
+  { name: "Intercom", category: "Marketing", patterns: [
+    { type: "script", regex: /widget\.intercom\.io|intercomcdn\.com/i, confidence: 90 },
+    { type: "html", regex: /intercomSettings/i, confidence: 85 },
+  ]},
+  { name: "Drift", category: "Marketing", patterns: [
+    { type: "script", regex: /js\.driftt\.com|drift\.com/i, confidence: 90 },
+  ]},
+  { name: "Zendesk", category: "Marketing", patterns: [
+    { type: "script", regex: /static\.zdassets\.com|zopim/i, confidence: 90 },
+  ]},
+  { name: "Crisp", category: "Marketing", patterns: [
+    { type: "script", regex: /client\.crisp\.chat/i, confidence: 90 },
+  ]},
+  { name: "Tawk.to", category: "Marketing", patterns: [
+    { type: "script", regex: /embed\.tawk\.to/i, confidence: 90 },
+  ]},
+
+  // ═══ Security ═══
   { name: "reCAPTCHA", category: "Security", patterns: [
-    { type: "script", regex: /recaptcha/i },
-    { type: "html", regex: /g-recaptcha/i },
+    { type: "script", regex: /google\.com\/recaptcha/i, confidence: 95 },
+    { type: "html", regex: /g-recaptcha/i, confidence: 90 },
   ]},
   { name: "hCaptcha", category: "Security", patterns: [
-    { type: "script", regex: /hcaptcha\.com/i },
+    { type: "script", regex: /hcaptcha\.com/i, confidence: 95 },
   ]},
-  // E-commerce
+  { name: "Turnstile", category: "Security", patterns: [
+    { type: "script", regex: /challenges\.cloudflare\.com\/turnstile/i, confidence: 95 },
+  ]},
+
+  // ═══ E-commerce ═══
   { name: "Shopify", category: "E-commerce", patterns: [
-    { type: "html", regex: /cdn\.shopify\.com|Shopify\.theme/i },
+    { type: "html", regex: /cdn\.shopify\.com|Shopify\.theme/i, confidence: 95 },
+    { type: "html", regex: /myshopify\.com/i, confidence: 90 },
   ]},
-  { name: "WooCommerce", category: "E-commerce", patterns: [
-    { type: "html", regex: /woocommerce|wc-cart/i },
+  { name: "WooCommerce", category: "E-commerce", cpe: "woocommerce:woocommerce", patterns: [
+    { type: "html", regex: /woocommerce|wc-cart/i, confidence: 90 },
+    { type: "html", regex: /wc-block-/i, confidence: 85 },
   ]},
-  // Hosting / Platform
+  { name: "Magento", category: "E-commerce", cpe: "magento:magento", patterns: [
+    { type: "html", regex: /mage\/cookies|Mage\.Cookies/i, confidence: 90 },
+    { type: "cookie", regex: /frontend=|MAGE_/i, confidence: 80 },
+  ]},
+  { name: "BigCommerce", category: "E-commerce", patterns: [
+    { type: "html", regex: /bigcommerce\.com/i, confidence: 85 },
+  ]},
+  { name: "PrestaShop", category: "E-commerce", cpe: "prestashop:prestashop", patterns: [
+    { type: "html", regex: /prestashop/i, confidence: 80 },
+    { type: "meta", regex: /generator=PrestaShop/i, confidence: 95 },
+  ]},
+
+  // ═══ Hosting / Platform ═══
   { name: "Vercel", category: "Hosting", patterns: [
-    { type: "header", regex: /vercel/i },
+    { type: "header", regex: /x-vercel-id/i, confidence: 95 },
+    { type: "header", regex: /server:\s*vercel/i, confidence: 95 },
   ]},
   { name: "Netlify", category: "Hosting", patterns: [
-    { type: "header", regex: /netlify/i },
+    { type: "header", regex: /x-nf-request-id/i, confidence: 95 },
+    { type: "header", regex: /server:\s*netlify/i, confidence: 95 },
   ]},
-  // PHP
-  { name: "PHP", category: "Language", patterns: [
-    { type: "header", regex: /PHP\/?(\S+)?/i, versionGroup: 1 },
-    { type: "cookie", regex: /PHPSESSID/i },
+  { name: "Heroku", category: "Hosting", patterns: [
+    { type: "header", regex: /heroku/i, confidence: 85 },
+    { type: "html", regex: /herokuapp\.com/i, confidence: 90 },
   ]},
-  // ASP.NET
-  { name: "ASP.NET", category: "Framework", patterns: [
-    { type: "header", regex: /ASP\.NET/i },
-    { type: "cookie", regex: /ASP\.NET_SessionId|\.ASPXAUTH/i },
+  { name: "AWS", category: "Hosting", patterns: [
+    { type: "header", regex: /x-amz-request-id|AmazonS3/i, confidence: 90 },
+    { type: "html", regex: /\.s3\.amazonaws\.com|s3\..*\.amazonaws\.com/i, confidence: 85 },
+  ]},
+  { name: "Google Cloud", category: "Hosting", patterns: [
+    { type: "header", regex: /x-cloud-trace-context/i, confidence: 85 },
+    { type: "header", regex: /server:\s*Google Frontend/i, confidence: 90 },
+  ]},
+  { name: "Azure", category: "Hosting", patterns: [
+    { type: "header", regex: /x-azure-ref|x-ms-request-id/i, confidence: 90 },
+    { type: "html", regex: /azurewebsites\.net|azure\.com/i, confidence: 85 },
+  ]},
+  { name: "DigitalOcean", category: "Hosting", patterns: [
+    { type: "header", regex: /x-do-/i, confidence: 85 },
+    { type: "html", regex: /digitaloceanspaces\.com/i, confidence: 85 },
+  ]},
+  { name: "Firebase", category: "Hosting", patterns: [
+    { type: "html", regex: /firebaseapp\.com|firebase\.js/i, confidence: 90 },
+    { type: "script", regex: /firebase[-@]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+  ]},
+  { name: "GitHub Pages", category: "Hosting", patterns: [
+    { type: "header", regex: /server:\s*GitHub\.com/i, confidence: 95 },
+    { type: "html", regex: /github\.io/i, confidence: 80 },
+  ]},
+  { name: "Render", category: "Hosting", patterns: [
+    { type: "header", regex: /x-render-origin-server/i, confidence: 95 },
+    { type: "html", regex: /onrender\.com/i, confidence: 85 },
+  ]},
+  { name: "Fly.io", category: "Hosting", patterns: [
+    { type: "header", regex: /fly-request-id/i, confidence: 95 },
+  ]},
+  { name: "Railway", category: "Hosting", patterns: [
+    { type: "html", regex: /railway\.app/i, confidence: 80 },
+  ]},
+
+  // ═══ Databases (exposed indicators) ═══
+  { name: "MongoDB", category: "Database", cpe: "mongodb:mongodb", patterns: [
+    { type: "header", regex: /mongodb/i, confidence: 75 },
+    { type: "html", regex: /mongodb/i, confidence: 50 },
+  ]},
+  { name: "Redis", category: "Database", cpe: "redis:redis", patterns: [
+    { type: "header", regex: /redis/i, confidence: 75 },
+  ]},
+  { name: "Elasticsearch", category: "Database", cpe: "elastic:elasticsearch", patterns: [
+    { type: "header", regex: /x-elastic-product/i, confidence: 90 },
+    { type: "html", regex: /"cluster_name".*"cluster_uuid"/i, confidence: 95 },
+  ]},
+
+  // ═══ Crypto / TLS ═══
+  { name: "OpenSSL", category: "Security Library", cpe: "openssl:openssl", patterns: [
+    { type: "header", regex: /OpenSSL\/?([\d.]+[a-z]?)/i, versionGroup: 1, confidence: 95 },
+  ]},
+  { name: "mod_ssl", category: "Security Library", patterns: [
+    { type: "header", regex: /mod_ssl\/?([\d.]+)?/i, versionGroup: 1, confidence: 90 },
+  ]},
+
+  // ═══ Mail ═══
+  { name: "Microsoft 365", category: "Email", patterns: [
+    { type: "html", regex: /outlook\.office365\.com|protection\.outlook\.com/i, confidence: 85 },
+  ]},
+  { name: "Google Workspace", category: "Email", patterns: [
+    { type: "html", regex: /aspmx\.l\.google\.com|google\.com.*mail/i, confidence: 80 },
+  ]},
+
+  // ═══ Font / Icon Services ═══
+  { name: "Google Fonts", category: "Font", patterns: [
+    { type: "html", regex: /fonts\.googleapis\.com|fonts\.gstatic\.com/i, confidence: 90 },
+  ]},
+  { name: "Font Awesome", category: "Font", patterns: [
+    { type: "html", regex: /font-awesome|fontawesome/i, confidence: 85 },
+    { type: "script", regex: /fontawesome[-@]([\d.]+)/i, versionGroup: 1, confidence: 90 },
+    { type: "html", regex: /fa-(?:solid|regular|brands|light)/i, confidence: 80 },
+  ]},
+
+  // ═══ Payment ═══
+  { name: "Stripe", category: "Payment", patterns: [
+    { type: "script", regex: /js\.stripe\.com\/v(\d+)/i, versionGroup: 1, confidence: 95 },
+    { type: "html", regex: /stripe/i, confidence: 60 },
+  ]},
+  { name: "PayPal", category: "Payment", patterns: [
+    { type: "script", regex: /paypal\.com\/sdk/i, confidence: 95 },
+    { type: "html", regex: /paypal/i, confidence: 60 },
+  ]},
+  { name: "Square", category: "Payment", patterns: [
+    { type: "script", regex: /squareup\.com|square\.js/i, confidence: 90 },
+  ]},
+
+  // ═══ Reverse Proxy / Load Balancer ═══
+  { name: "HAProxy", category: "Load Balancer", cpe: "haproxy:haproxy", patterns: [
+    { type: "header", regex: /haproxy/i, confidence: 90 },
+    { type: "cookie", regex: /SERVERID/i, confidence: 70 },
+  ]},
+  { name: "Traefik", category: "Reverse Proxy", patterns: [
+    { type: "header", regex: /traefik/i, confidence: 90 },
+  ]},
+
+  // ═══ Containerization ═══
+  { name: "Docker", category: "Container", patterns: [
+    { type: "header", regex: /docker/i, confidence: 75 },
+  ]},
+  { name: "Kubernetes", category: "Container", patterns: [
+    { type: "header", regex: /x-kubernetes/i, confidence: 90 },
   ]},
 ];
 
-function detectTechnologies(
+// ─── Enhanced Technology Detection ──────────────────────────────────────────
+// Multi-signal detection: tries all patterns per tech and picks the highest-confidence
+// match with the best version extraction.
+
+export function detectTechnologies(
   headers: Record<string, string>,
   html: string,
   $: cheerio.CheerioAPI,
 ): DetectedTechnology[] {
   const detected: DetectedTechnology[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, { confidence: number; version?: string }>();
 
   const headerStr = Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join("\n");
   const scripts = $("script[src]").map((_, el) => $(el).attr("src") || "").get().join("\n");
@@ -348,32 +823,92 @@ function detectTechnologies(
     return `${name}=${content}`;
   }).get().join("\n");
   const cookieStr = headers["set-cookie"] || "";
+  // Also extract inline script content for deeper fingerprinting
+  const inlineScripts = $("script:not([src])").map((_, el) => $(el).html() || "").get().join("\n").slice(0, 50000);
+  // Combine link hrefs for CSS detection
+  const linkHrefs = $("link[href]").map((_, el) => $(el).attr("href") || "").get().join("\n");
 
   for (const tech of TECH_PATTERNS) {
-    if (seen.has(tech.name)) continue;
+    let bestMatch: { version?: string; confidence: number; evidence: string } | null = null;
 
     for (const pattern of tech.patterns) {
       let source = "";
       switch (pattern.type) {
         case "header": source = headerStr; break;
-        case "html": source = html; break;
-        case "script": source = scripts; break;
+        case "html": source = html.slice(0, 200000) + "\n" + inlineScripts; break;
+        case "script": source = scripts + "\n" + linkHrefs; break;
         case "meta": source = metas; break;
         case "cookie": source = cookieStr; break;
+        case "url": source = scripts + "\n" + linkHrefs; break;
       }
 
       const match = source.match(pattern.regex);
       if (match) {
         const version = pattern.versionGroup ? match[pattern.versionGroup] || undefined : undefined;
+        const conf = pattern.confidence ?? 85;
+        // Prefer matches with version info, then higher confidence
+        if (!bestMatch ||
+            (version && !bestMatch.version) ||
+            (version && bestMatch.version && conf > bestMatch.confidence) ||
+            (!version && !bestMatch.version && conf > bestMatch.confidence)) {
+          bestMatch = {
+            version,
+            confidence: conf,
+            evidence: `Matched ${pattern.type}: ${pattern.regex.source.slice(0, 80)}`,
+          };
+        }
+      }
+    }
+
+    if (bestMatch) {
+      const existing = seen.get(tech.name);
+      if (!existing || bestMatch.confidence > existing.confidence ||
+          (bestMatch.version && !existing.version)) {
+        seen.set(tech.name, { confidence: bestMatch.confidence, version: bestMatch.version });
+        // Remove old entry if upgrading
+        const idx = detected.findIndex(d => d.name === tech.name);
+        if (idx >= 0) detected.splice(idx, 1);
         detected.push({
           name: tech.name,
-          version,
+          version: bestMatch.version,
           category: tech.category,
-          confidence: 85,
-          evidence: `Matched ${pattern.type}: ${pattern.regex.source}`,
+          confidence: bestMatch.confidence,
+          evidence: bestMatch.evidence,
         });
-        seen.add(tech.name);
-        break;
+      }
+    }
+  }
+
+  // ─── Secondary: Extract versions from inline script globals ───
+  // Many libraries expose version via window globals
+  const versionGlobals: { name: string; regex: RegExp; category: string }[] = [
+    { name: "jQuery", regex: /jQuery\.fn\.jquery\s*=\s*["']([\d.]+)["']/i, category: "JavaScript Library" },
+    { name: "jQuery", regex: /jQuery\s*=.*version:\s*["']([\d.]+)["']/i, category: "JavaScript Library" },
+    { name: "Lodash", regex: /\.VERSION\s*=\s*["']([\d.]+)["']/i, category: "JavaScript Library" },
+    { name: "React", regex: /React(?:DOM)?\.version\s*=\s*["']([\d.]+)["']/i, category: "JavaScript Framework" },
+    { name: "Vue.js", regex: /Vue\.version\s*=\s*["']([\d.]+)["']/i, category: "JavaScript Framework" },
+    { name: "Angular", regex: /VERSION\s*=.*full:\s*["']([\d.]+)["']/i, category: "JavaScript Framework" },
+    { name: "Bootstrap", regex: /Bootstrap\s*v([\d.]+)/i, category: "CSS Framework" },
+  ];
+  for (const vg of versionGlobals) {
+    const m = inlineScripts.match(vg.regex);
+    if (m && m[1]) {
+      const existing = seen.get(vg.name);
+      if (!existing || !existing.version) {
+        seen.set(vg.name, { confidence: 90, version: m[1] });
+        const idx = detected.findIndex(d => d.name === vg.name);
+        if (idx >= 0) {
+          detected[idx].version = m[1];
+          detected[idx].confidence = Math.max(detected[idx].confidence, 90);
+        } else {
+          detected.push({
+            name: vg.name,
+            version: m[1],
+            category: vg.category,
+            confidence: 90,
+            evidence: `Inline script global version: ${vg.regex.source.slice(0, 60)}`,
+          });
+        }
       }
     }
   }

@@ -110,6 +110,7 @@ export interface EmailSecurityReport {
   phishingDifficultyRating: "trivial" | "easy" | "moderate" | "difficult" | "very_difficult";
   phishingSummary: string;
   recommendations: string[];
+  managedProvider?: ManagedProviderInfo | null; // Managed provider context for shared responsibility
 }
 
 // ─── Common DKIM Selectors ──────────────────────────────────────────
@@ -147,6 +148,90 @@ const MAIL_PROVIDERS: Record<string, string> = {
   "mailgun.org": "Mailgun",
   "sendgrid.net": "SendGrid",
 };
+
+// ─── Managed Provider Classification ─────────────────────────────────
+// Managed providers handle mail server infrastructure (patching, TLS, relay security).
+// Customer is only responsible for DNS-level settings (SPF, DKIM, DMARC).
+// Self-hosted mail means the customer owns the full stack.
+
+interface ManagedProviderInfo {
+  name: string;
+  isManaged: boolean;       // true = commercial SaaS provider manages the mail server
+  tier: "enterprise" | "business" | "basic" | "self_hosted";
+  serverSecurityNote: string; // Context for reports about who owns server-level risk
+  customerResponsibilities: string[]; // What the customer still controls
+}
+
+const MANAGED_PROVIDER_DETAILS: Record<string, Omit<ManagedProviderInfo, "name">> = {
+  "Microsoft 365": {
+    isManaged: true,
+    tier: "enterprise",
+    serverSecurityNote: "Mail server infrastructure (Exchange Online) is managed by Microsoft. Server-level CVEs, TLS configuration, relay security, and anti-spam/anti-malware are Microsoft's responsibility under their shared responsibility model. Customer risk is limited to DNS authentication settings (SPF/DKIM/DMARC) and tenant configuration.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing enablement", "DMARC policy enforcement", "Tenant-level security settings", "Conditional Access policies", "Anti-phishing policy tuning"],
+  },
+  "Google Workspace": {
+    isManaged: true,
+    tier: "enterprise",
+    serverSecurityNote: "Mail server infrastructure (Gmail) is managed by Google. Server-level CVEs, TLS, and relay security are Google's responsibility. Customer risk is limited to DNS authentication settings (SPF/DKIM/DMARC) and Workspace admin console configuration.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing enablement", "DMARC policy enforcement", "Workspace admin security settings", "Advanced Protection enrollment"],
+  },
+  "Proofpoint": {
+    isManaged: true,
+    tier: "enterprise",
+    serverSecurityNote: "Mail is routed through Proofpoint's cloud email security gateway. Server-level security is Proofpoint's responsibility. Customer manages DNS settings and Proofpoint policy configuration.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy", "Proofpoint policy tuning", "Quarantine management"],
+  },
+  "Mimecast": {
+    isManaged: true,
+    tier: "enterprise",
+    serverSecurityNote: "Mail is routed through Mimecast's cloud email security platform. Server-level security is Mimecast's responsibility.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy", "Mimecast policy configuration"],
+  },
+  "Barracuda": {
+    isManaged: true,
+    tier: "business",
+    serverSecurityNote: "Mail is filtered through Barracuda's email security gateway. Server-level security is managed by Barracuda.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy", "Barracuda policy tuning"],
+  },
+  "Barracuda ESS": {
+    isManaged: true,
+    tier: "business",
+    serverSecurityNote: "Mail is filtered through Barracuda Email Security Service. Server-level security is managed by Barracuda.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy"],
+  },
+  "Zoho Mail": {
+    isManaged: true,
+    tier: "business",
+    serverSecurityNote: "Mail server infrastructure is managed by Zoho. Server-level security is Zoho's responsibility.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy", "Zoho admin settings"],
+  },
+  "ProtonMail": {
+    isManaged: true,
+    tier: "enterprise",
+    serverSecurityNote: "Mail server infrastructure is managed by Proton AG with end-to-end encryption. Server-level security is Proton's responsibility.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy"],
+  },
+  "Cloudflare Email": {
+    isManaged: true,
+    tier: "business",
+    serverSecurityNote: "Email routing is managed by Cloudflare. Server-level security depends on the destination mail server.",
+    customerResponsibilities: ["SPF record configuration", "DKIM signing", "DMARC policy", "Cloudflare email routing rules"],
+  },
+};
+
+/**
+ * Classify the mail provider and return managed provider context.
+ * Returns null if the provider is self-hosted or unknown.
+ */
+export function classifyMailProvider(provider: string | null): ManagedProviderInfo | null {
+  if (!provider) return null;
+  const details = MANAGED_PROVIDER_DETAILS[provider];
+  if (!details) {
+    // Unknown provider — assume self-hosted
+    return { name: provider, isManaged: false, tier: "self_hosted", serverSecurityNote: `Mail provider "${provider}" is not a recognized managed service. Server-level security may be the customer's responsibility.`, customerResponsibilities: ["Full mail server security stack", "SPF/DKIM/DMARC configuration", "TLS configuration", "Patching and updates"] };
+  }
+  return { name: provider, ...details };
+}
 
 // ─── SPF Analysis ───────────────────────────────────────────────────
 
@@ -612,6 +697,9 @@ export async function analyzeEmailSecurity(domain: string): Promise<EmailSecurit
   // Generate recommendations
   const recommendations = generateRecommendations(spf, dkim, dmarc, mx);
 
+  // Classify managed provider
+  const managedProvider = classifyMailProvider(mx.provider);
+
   return {
     domain,
     analyzedAt: new Date().toISOString(),
@@ -626,6 +714,7 @@ export async function analyzeEmailSecurity(domain: string): Promise<EmailSecurit
     phishingDifficultyRating,
     phishingSummary,
     recommendations,
+    managedProvider,
   };
 }
 
@@ -730,6 +819,9 @@ export function generateEmailPostureFindings(
     return findings;
   }
 
+  const managedProvider = report.managedProvider;
+  const isManaged = managedProvider?.isManaged ?? false;
+
   const allWeaknesses = [
     ...report.spf.weaknesses.map(w => ({ ...w, component: "SPF" })),
     ...report.dkim.weaknesses.map(w => ({ ...w, component: "DKIM" })),
@@ -745,18 +837,55 @@ export function generateEmailPostureFindings(
     info: 1.5,
   };
 
+  // MX-level weaknesses (server infrastructure) are the provider's responsibility
+  // when using a managed service. Reduce severity and add context.
+  const MX_SERVER_WEAKNESS_IDS = new Set(["mx-single", "mx-none", "mx-open-relay", "mx-no-starttls"]);
+
   for (const w of allWeaknesses) {
+    let severity = severityMap[w.severity] || 5;
+    let evidenceDetail = w.description;
+    let title = w.title;
+
+    // For managed providers, MX infrastructure weaknesses are the provider's responsibility
+    if (isManaged && w.component === "MX" && MX_SERVER_WEAKNESS_IDS.has(w.id)) {
+      severity = Math.max(1.0, severity * 0.3); // Reduce to ~30% — provider manages this
+      title = `${w.title} [Managed by ${managedProvider!.name}]`;
+      evidenceDetail = `${w.description}\n\nNote: ${managedProvider!.serverSecurityNote}`;
+    }
+
+    // For managed providers, add context to SPF/DKIM/DMARC findings
+    // These are still the customer's responsibility but the context helps
+    if (isManaged && (w.component === "SPF" || w.component === "DKIM" || w.component === "DMARC")) {
+      evidenceDetail = `${w.description}\n\nMail Provider: ${managedProvider!.name} (managed). Customer responsibilities: ${managedProvider!.customerResponsibilities.join(", ")}.`;
+    }
+
     findings.push({
       id: `email-${w.id}-${domain}`,
       assetRef: domain,
       category: `Email Security (${w.component})`,
-      title: w.title,
-      severity: severityMap[w.severity] || 5,
+      title,
+      severity,
       confidence: 1.0, // DNS-verified findings are always confirmed
-      evidenceDetail: w.description,
+      evidenceDetail,
       corroborationTier: "confirmed",
       phishingRelevance: w.phishingRelevance,
       remediation: getRemediation(w.id),
+    });
+  }
+
+  // Add a summary finding for managed provider context
+  if (isManaged) {
+    findings.push({
+      id: `email-managed-provider-${domain}`,
+      assetRef: domain,
+      category: "Email Security (Provider)",
+      title: `Mail Infrastructure Managed by ${managedProvider!.name}`,
+      severity: 0, // Informational — this is a positive finding
+      confidence: 1.0,
+      evidenceDetail: `${managedProvider!.serverSecurityNote} MX records point to ${managedProvider!.name} infrastructure. Server-level CVEs (e.g., Exchange, Postfix vulnerabilities) do NOT apply to this customer's risk posture. Customer responsibilities: ${managedProvider!.customerResponsibilities.join(", ")}.`,
+      corroborationTier: "confirmed",
+      phishingRelevance: "Managed email providers typically include anti-phishing, anti-spam, and anti-malware filtering. However, DNS authentication (SPF/DKIM/DMARC) remains the customer's responsibility and directly impacts phishing campaign viability.",
+      remediation: "Ensure DNS authentication records (SPF, DKIM, DMARC) are properly configured for your managed provider. Review provider-specific security settings and policies.",
     });
   }
 
@@ -794,7 +923,14 @@ function generatePhishingSummary(
   if (!dmarc.exists) parts.push("No DMARC policy — no enforcement on authentication failures.");
   else if (dmarc.policy === "none") parts.push("DMARC policy is 'none' — authentication failures are only monitored, not enforced.");
 
-  if (mx.provider) parts.push(`Mail provider: ${mx.provider}.`);
+  if (mx.provider) {
+    const providerInfo = classifyMailProvider(mx.provider);
+    if (providerInfo?.isManaged) {
+      parts.push(`Mail provider: ${mx.provider} (managed service — server-level security is ${mx.provider}'s responsibility). Customer controls: DNS authentication (SPF/DKIM/DMARC) and tenant configuration.`);
+    } else {
+      parts.push(`Mail provider: ${mx.provider}.`);
+    }
+  }
 
   return parts.join(" ");
 }

@@ -256,6 +256,7 @@ export interface PipelineResult {
     dkim: { selectorsFound: string[]; score: number; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
     dmarc: { exists: boolean; record: string | null; policy: string | null; score: number; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
     mx: { records: Array<{ priority: number; exchange: string }>; provider: string | null; weaknesses: Array<{ id: string; severity: string; title: string; description: string; phishingRelevance: string }> };
+    managedProvider?: { name: string; isManaged: boolean; tier: string; serverSecurityNote: string; customerResponsibilities: string[] } | null;
   };
   discoveryCoverage?: {
     coverageScore: number;
@@ -1668,7 +1669,17 @@ Probable Findings (product family match, version unconfirmed):
 ${probableFindingsList || '(none)'}
 
 Campaigns Designed:
-${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}${historicalContext ? `\n\n${historicalContext}` : ''}
+${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("\n")}
+
+${(() => {
+  // Add managed mail provider context if available
+  const emailFindings = allFindings.filter(f => f.category?.startsWith('Email Security'));
+  const managedProviderFinding = emailFindings.find(f => f.id?.includes('managed-provider'));
+  if (managedProviderFinding) {
+    return `MANAGED MAIL PROVIDER CONTEXT:\n${managedProviderFinding.evidenceDetail}\nIMPORTANT: When discussing email security, clearly state that mail server infrastructure is managed by the provider. Only discuss customer-controlled DNS authentication settings (SPF/DKIM/DMARC) as actionable findings. Do NOT attribute mail server CVEs to the customer.`;
+  }
+  return '';
+})()}${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
 1. "executiveSummary": A 2-3 paragraph executive summary suitable for C-level presentation. Include overall risk posture, key findings with their corroboration tier, and recommended actions. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
@@ -2361,7 +2372,7 @@ export async function runDomainIntelPipeline(
           const assetTechs = (a.asset.technologies || []).filter(Boolean);
           if (assetTechs.length === 0) continue;
           // Run KEV matching using ONLY this asset's own technologies
-          const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog);
+          const assetKevMatches = matchTechnologiesAgainstKev(assetTechs, kevCatalog, a.asset.technologyVersions as Record<string, string> | undefined);
           // Deduplicate: skip CVEs already present as posture findings on this asset
           const existingCves = new Set(a.postureFindings.flatMap(f => f.cveIds || []));
           const uniqueAssetKevMatches = assetKevMatches.filter(m => !existingCves.has(m.cveID));

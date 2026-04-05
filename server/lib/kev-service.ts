@@ -487,7 +487,8 @@ function mapKevToTechniques(kev: KevEntry): string[] {
  */
 export function matchTechnologiesAgainstKev(
   technologies: string[],
-  catalog: KevCatalog
+  catalog: KevCatalog,
+  technologyVersions?: Record<string, string>
 ): KevMatch[] {
   const matches: KevMatch[] = [];
   const seen = new Set<string>();
@@ -507,8 +508,26 @@ export function matchTechnologiesAgainstKev(
   };
 
   technologies.forEach(tech => {
-    const parsed = extractVersion(tech);
+    let parsed = extractVersion(tech);
     const techLower = parsed.name;
+
+    // If no version was extracted from the tech string, check the technologyVersions map
+    // This allows crawl-detected versions (stored separately) to feed into KEV matching
+    if (!parsed.version && technologyVersions) {
+      // Try exact match first, then case-insensitive match
+      const mapVersion = technologyVersions[tech] || technologyVersions[techLower] ||
+        Object.entries(technologyVersions).find(([k]) => k.toLowerCase() === techLower)?.[1];
+      if (mapVersion) {
+        const parts = mapVersion.split(".").map(p => parseInt(p, 10));
+        parsed = {
+          name: techLower,
+          version: mapVersion,
+          major: isNaN(parts[0]) ? null : parts[0],
+          minor: isNaN(parts[1]) ? null : (parts[1] ?? null),
+          patch: isNaN(parts[2]) ? null : (parts[2] ?? null),
+        };
+      }
+    }
 
     // Phase 1: Mapped product matching with version awareness
     // IMPORTANT: Only match if the detected tech name contains the pattern key.

@@ -649,6 +649,18 @@ export async function exportDiEasmReport(
     y = subheading('Email Security Posture', y);
     const email = domainHealth.emailSecurity;
     const emailRows: string[][] = [];
+    // Check for managed provider context from pipeline data
+    const emailSecReport = scan.pipelineOutput?.emailSecurity;
+    const managedProvider = emailSecReport?.managedProvider;
+    const mxProvider = emailSecReport?.mx?.provider;
+
+    if (managedProvider?.isManaged) {
+      emailRows.push(['Mail Provider', `${managedProvider.name} (Managed Service)`]);
+      emailRows.push(['Server Security', `Managed by ${managedProvider.name} — server-level CVEs are provider responsibility`]);
+      emailRows.push(['Customer Scope', managedProvider.customerResponsibilities?.slice(0, 3).join(', ') || 'SPF/DKIM/DMARC configuration']);
+    } else if (mxProvider) {
+      emailRows.push(['Mail Provider', mxProvider]);
+    }
     emailRows.push(['SPF', email.spf?.present ? `Present — ${truncate(email.spf.record, 60)}` : 'MISSING']);
     emailRows.push(['DKIM', email.dkim?.present ? 'Present' : 'NOT DETECTED']);
     emailRows.push(['DMARC', email.dmarc?.present ? `Present — Policy: ${email.dmarc.policy || 'none'}` : 'MISSING']);

@@ -254,6 +254,34 @@ export async function runPipelineCrawlStage(
         console.error(`[PipelineCrawl] CARVER scoring failed for ${hostname}: ${err.message}`);
       }
 
+      // ── Step 3b: Merge crawl-detected technology versions into asset ──
+      if (page.detectedTechnologies.length > 0) {
+        // Ensure technologyVersions map exists on the asset
+        if (!analysis.asset.technologyVersions) {
+          (analysis.asset as any).technologyVersions = {};
+        }
+        // Ensure technologies array exists
+        if (!analysis.asset.technologies) {
+          (analysis.asset as any).technologies = [];
+        }
+        const techSet = new Set((analysis.asset.technologies || []).map((t: string) => t.toLowerCase()));
+
+        for (const dt of page.detectedTechnologies) {
+          // Add technology name if not already present
+          if (!techSet.has(dt.name.toLowerCase())) {
+            analysis.asset.technologies.push(dt.name);
+            techSet.add(dt.name.toLowerCase());
+          }
+          // Write version to technologyVersions map (prefer higher-confidence version)
+          if (dt.version) {
+            const existing = (analysis.asset.technologyVersions as Record<string, string>)[dt.name];
+            if (!existing) {
+              (analysis.asset.technologyVersions as Record<string, string>)[dt.name] = dt.version;
+            }
+          }
+        }
+      }
+
       assetCrawls.push({
         hostname,
         url,
