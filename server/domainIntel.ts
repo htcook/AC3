@@ -1535,6 +1535,8 @@ RULES FOR WRITING THE SUMMARY:
 4. Do NOT claim critical risk from probable-only findings.
 5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, do NOT describe the posture as "critical" or "high risk".
 6. Include a brief "Evidence Confidence" note at the end of the executive summary.
+7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable.
+8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client's attack surface. Do NOT include them in risk characterization.
 `;
 
   const confirmedFindingsList = confirmedFindings.slice(0, 5).map(f =>
@@ -1561,9 +1563,17 @@ ${confirmedFindingsList || '(none — no version-confirmed vulnerabilities detec
 Probable Findings (product family match, version unconfirmed):
 ${probableFindingsList || '(none)'}
 
+${(() => {
+  const emailFindings = allFindings.filter(f => f.category?.startsWith('Email Security'));
+  const managedProviderFinding = emailFindings.find(f => f.id?.includes('managed-provider'));
+  if (managedProviderFinding) {
+    return `MANAGED MAIL PROVIDER CONTEXT:\n${managedProviderFinding.evidenceDetail}\nIMPORTANT: When discussing email security, clearly state that mail server infrastructure is managed by the provider. Only discuss customer-controlled DNS authentication settings (SPF/DKIM/DMARC) as actionable findings. Do NOT attribute mail server CVEs to the customer.\n`;
+  }
+  return '';
+})()}
 Provide:
 1. "executiveSummary": A 2-3 paragraph reconnaissance summary describing the attack surface discovered, key risk areas with their corroboration tier, and a recommendation on whether to proceed with a full engagement. End with a brief "Evidence Confidence" note. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Clearly distinguish confirmed vs probable findings. Note that campaign design and threat actor matching have not yet been performed — this is a pre-engagement scan.
+2. "threatModelSummary": A brief technical summary of the attack surface and risk posture. Clearly distinguish confirmed vs probable findings. Note that campaign design and threat actor matching have not yet been performed \u2014 this is a pre-engagement scan.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -1636,11 +1646,13 @@ CORROBORATION BREAKDOWN (CRITICAL — you MUST reflect this in your summary):
 
 RULES FOR WRITING THE EXECUTIVE SUMMARY:
 1. NEVER describe probable or unconfirmed findings as definitive risks. Use language like "potential exposure" or "product family detected but version unconfirmed".
-2. ALWAYS state the corroboration tier when referencing specific CVEs. Example: "CVE-2024-1234 (confirmed — v2.1.3 detected)" vs "CVE-2024-5678 (probable — Apache detected but version unconfirmed)".
+2. ALWAYS state the corroboration tier when referencing specific CVEs. Example: "CVE-2024-1234 (confirmed \u2014 v2.1.3 detected)" vs "CVE-2024-5678 (probable \u2014 Apache detected but version unconfirmed)".
 3. If ALL KEV findings are probable (no version confirmation), say "N KEV-listed products were detected but no specific vulnerable versions were confirmed. Further version enumeration is recommended."
 4. Do NOT claim critical risk from probable-only findings. Probable findings indicate potential exposure requiring version verification, not confirmed vulnerability.
 5. The overall risk characterization must be proportional: if 0 confirmed CVEs exist, the summary should NOT describe the posture as "critical" or "high risk" based solely on probable matches.
 6. Include a brief "Evidence Confidence" note at the end of the executive summary stating how many findings are confirmed vs probable.
+7. If managed mail provider infrastructure is detected (e.g., Microsoft 365, Google Workspace), do NOT attribute mail server CVEs to the client. State that mail infrastructure is provider-managed and only customer-controlled settings (SPF/DKIM/DMARC) are actionable. Provider-managed CVEs are excluded from the client risk score.
+8. Third-party assets discovered via reverse WHOIS (e.g., outlook.com, nsone.net) are NOT part of the client\u2019s attack surface and are excluded from the overall risk score. Do NOT include them in risk characterization.
 `;
 
   // ── Build finding lists with corroboration labels ──
@@ -3138,11 +3150,46 @@ export async function runDomainIntelPipeline(
 
   // Compute overall risk — KEV boost is already baked into per-asset hybridRiskScores,
   // so we no longer add an additional overall KEV boost (was double-counting)
-  const riskScores = analyses.map(a => a.hybridRiskScore);
+  //
+  // Exclude managed provider assets from the overall risk score:
+  // - Assets on managed mail infrastructure (e.g. outlook.com for M365) have CVEs that
+  //   are the provider's responsibility, not the client's
+  // - Third-party assets discovered via reverse WHOIS that the org doesn't operate
+  //   (e.g. nsone.net, sender.zohoinvoice.com) inflate the score unfairly
+  const managedProviderName = emailSecurityReport?.managedProvider?.name
+    || emailSecurityReport?.mx?.provider || null;
+  const MANAGED_HOST_PATTERNS: Record<string, RegExp[]> = {
+    'Microsoft 365': [/outlook\.com$/i, /microsoft\.com$/i, /office365/i, /protection\.outlook/i],
+    'Google Workspace': [/google\.com$/i, /gmail\.com$/i, /googlemail/i],
+    'Proofpoint': [/proofpoint/i],
+    'Mimecast': [/mimecast/i],
+    'Zoho Mail': [/zoho/i],
+  };
+  const managedPatterns = managedProviderName && MANAGED_HOST_PATTERNS[managedProviderName]
+    ? MANAGED_HOST_PATTERNS[managedProviderName] : [];
+
+  const clientOwnedAnalyses = analyses.filter(a => {
+    const h = (a.asset.hostname || '').toLowerCase();
+    const tags: string[] = a.asset.tags || [];
+    // Exclude managed mail provider infrastructure
+    if (managedPatterns.some(p => p.test(h))) return false;
+    // Exclude third-party assets from reverse WHOIS that the org doesn't own
+    // (they have 'reverse_whois' + 'related_domain' tags and hostname doesn't contain the primary domain)
+    const isReverseWhoisThirdParty = tags.includes('reverse_whois') && tags.includes('related_domain')
+      && !h.includes(org.primaryDomain.toLowerCase().replace(/\.[^.]+$/, ''));
+    if (isReverseWhoisThirdParty) return false;
+    return true;
+  });
+
+  const riskScores = clientOwnedAnalyses.map(a => a.hybridRiskScore);
   const overallRisk = riskScores.length > 0
     ? Math.round(riskScores.reduce((s, v) => s + v, 0) / riskScores.length)
     : 0;
   const overallBand = riskBand(overallRisk);
+  const excludedFromRiskCount = analyses.length - clientOwnedAnalyses.length;
+  if (excludedFromRiskCount > 0) {
+    console.log(`[DomainIntel] Risk score: excluded ${excludedFromRiskCount} managed/third-party assets from overall risk calculation (${analyses.length} total, ${clientOwnedAnalyses.length} client-owned)`);
+  }
 
   await yieldEventLoop();
   // Stage 6: Post-scan FP auto-flagging — mark findings that match known FP hashes
@@ -3487,6 +3534,12 @@ export async function runDomainIntelPipeline(
     carverRiskCard,
     overallRiskScore: overallRisk,
     overallRiskBand: overallBand,
+    riskScoreExclusions: excludedFromRiskCount > 0 ? {
+      excludedCount: excludedFromRiskCount,
+      totalAnalyzed: analyses.length,
+      clientOwnedCount: clientOwnedAnalyses.length,
+      reason: 'Managed provider and third-party reverse-WHOIS assets excluded from overall risk calculation',
+    } : undefined,
     executiveSummary: summaries.executiveSummary,
     threatModelSummary: summaries.threatModelSummary,
     // @ts-ignore
