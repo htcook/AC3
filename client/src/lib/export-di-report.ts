@@ -467,9 +467,13 @@ export async function exportDiReport(
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
-  // Count only confirmed (version-matched) findings — probable/unconfirmed excluded from client reports
+  // Count only confirmed CVE/vulnerability findings — exclude non-CVE findings and provider-managed-only
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
-  const _confirmedCount = _clientFindings.filter((o: any) => o.evidence?.corroboration === '[CONFIRMED]').length;
+  const _confirmedVulnFindings = _clientFindings.filter((o: any) =>
+    o.evidence?.corroboration === '[CONFIRMED]' &&
+    (o.tags?.includes('vulnerability') || o.tags?.includes('cve') || o.evidence?.cve_id)
+  );
+  const _confirmedCount = _confirmedVulnFindings.length;
   doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
   const connectorCount = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0)?.length ?? scan.connectorResults?.length ?? 0;
   doc.text(`Data Sources Queried: ${connectorCount}`, metricsX, y + 32);
@@ -1970,20 +1974,27 @@ export async function exportDiReport(
     const sev = getSeverityLabel(o.evidence?.severity || 5);
     const cvss = o.evidence?.cvssScore ? String(o.evidence.cvssScore) : 'N/A';
     const version = o.evidence?.detectedVersion || 'N/A';
-    const hosts: string[] = o.evidence?.affectedHosts || [o.evidence?.hostname || domain];
+    // Filter out managed provider hosts from the display list
+    const rawHosts: string[] = o.evidence?.affectedHosts || [o.evidence?.hostname || domain];
+    const hosts: string[] = rawHosts.filter((h: string) => !_managedMailHosts.has(h));
+    if (hosts.length === 0) hosts.push(domain); // Fallback if all hosts were managed
     const kevListed = o.evidence?.kevListed;
     const description = o.evidence?.description || '';
     const corroboration = o.evidence?.corroboration || '';
     const affectedVersions = o.evidence?.affectedVersions || '';
 
     // Build evidence summary line from available data
+    // Suppress protocol-like versions (1.0, 1.1, 2.0, 2, 3) that are likely HTTP protocol, not product versions
+    const isProtocolVersion = /^[123](\.\d)?$/.test(version);
     const evidenceParts: string[] = [];
-    if (corroboration === '[CONFIRMED]' && version && version !== 'N/A') {
+    if (corroboration === '[CONFIRMED]' && version && version !== 'N/A' && !isProtocolVersion) {
       if (affectedVersions) {
         evidenceParts.push(`Version ${version} confirmed within affected range (${affectedVersions})`);
       } else {
         evidenceParts.push(`Version ${version} detected and confirmed vulnerable`);
       }
+    } else if (corroboration === '[CONFIRMED]') {
+      evidenceParts.push('Confirmed vulnerable based on product detection');
     }
     if (kevListed) evidenceParts.push('Listed in CISA Known Exploited Vulnerabilities catalog');
     if (o.evidence?.exploitAvailable) evidenceParts.push('Public exploit available');
@@ -2015,7 +2026,7 @@ export async function exportDiReport(
     doc.text(cveId, margin + 3, y + 6);
     // Right-aligned metadata chips
     const chips: string[] = [`Sev: ${sev}`, `CVSS: ${cvss}`];
-    if (showVersion && version !== 'N/A') chips.push(`Ver: ${version}`);
+    if (showVersion && version !== 'N/A' && !isProtocolVersion) chips.push(`Ver: ${version}`);
     if (showKev && kevListed) chips.push('KEV');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
