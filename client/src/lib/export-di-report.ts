@@ -1607,12 +1607,12 @@ export async function exportDiEasmReport(
     o.tags?.includes('vulnerability') || o.tags?.includes('cve') || o.evidence?.cve_id
   );
 
-  // Helper: render a grouped CVE card (header bar + finding name + affected hosts)
+  // Helper: render a grouped CVE card (header bar + finding name + evidence + affected hosts)
   const renderCveCard = (
     o: any,
     headerColor: [number, number, number],
-    textColor: [number, number, number],
-    hostLabelColor: [number, number, number],
+    _textColor: [number, number, number],
+    _hostLabelColor: [number, number, number],
     showVersion: boolean,
     showKev: boolean,
   ): void => {
@@ -1623,63 +1623,117 @@ export async function exportDiEasmReport(
     const version = o.evidence?.detectedVersion || 'N/A';
     const hosts: string[] = o.evidence?.affectedHosts || [o.evidence?.hostname || domain];
     const kevListed = o.evidence?.kevListed;
+    const description = o.evidence?.description || '';
+    const corroboration = o.evidence?.corroboration || '';
 
-    // Estimate card height: header(8) + finding(5) + hosts(hosts.length * 3.5) + padding(4)
-    const estimatedHeight = 8 + 5 + Math.max(hosts.length * 3.5, 4) + 4;
+    // Build evidence summary line from available data
+    const evidenceParts: string[] = [];
+    if (corroboration === '[CONFIRMED]' && version && version !== 'N/A') {
+      evidenceParts.push(`Version ${version} detected and confirmed vulnerable`);
+    }
+    if (kevListed) evidenceParts.push('Listed in CISA Known Exploited Vulnerabilities catalog');
+    if (o.evidence?.exploitAvailable) evidenceParts.push('Public exploit available');
+    const evidenceSummary = evidenceParts.length > 0 ? evidenceParts.join(' \u2022 ') : '';
+
+    // Extract NVD description if present (appended to evidenceDetail after "NVD: ")
+    let nvdDesc = '';
+    if (description) {
+      const nvdMatch = description.match(/NVD:\s*(.+)$/s);
+      if (nvdMatch) {
+        nvdDesc = nvdMatch[1].trim();
+      } else if (!description.startsWith('CONFIRMED:') && !description.startsWith('PROBABLE:')) {
+        // Use the raw description if it's not a corroboration prefix
+        nvdDesc = description;
+      }
+    }
+
+    // Estimate card height: header(10) + name(5) + evidence(4) + nvd(8) + hosts(hosts.length * 3.5) + padding(6)
+    const hasEvidence = evidenceSummary.length > 0;
+    const hasNvd = nvdDesc.length > 0;
+    const estimatedHeight = 10 + 6 + (hasEvidence ? 5 : 0) + (hasNvd ? 10 : 0) + Math.max(hosts.length * 3.5, 4) + 6;
     y = checkPageBreak(y, estimatedHeight);
 
-    // ── Header bar ──
+    // ── Header bar (taller for readability) ──
     doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-    doc.roundedRect(margin, y, contentWidth, 7, 1.5, 1.5, 'F');
+    doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text(cveId, margin + 2, y + 4.5);
+    doc.text(cveId, margin + 3, y + 6);
     // Right-aligned metadata chips
     const chips: string[] = [`Sev: ${sev}`, `CVSS: ${cvss}`];
-    if (showVersion) chips.push(`Ver: ${version}`);
+    if (showVersion && version !== 'N/A') chips.push(`Ver: ${version}`);
     if (showKev && kevListed) chips.push('KEV');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let chipX = pageWidth - margin - 2;
+    let chipX = pageWidth - margin - 3;
     for (let i = chips.length - 1; i >= 0; i--) {
       const cw = doc.getTextWidth(chips[i]) + 4;
       chipX -= cw;
       doc.setFillColor(255, 255, 255, 0.2 as any);
-      doc.roundedRect(chipX, y + 1, cw, 5, 1, 1, 'F');
+      doc.roundedRect(chipX, y + 2, cw, 5, 1, 1, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.text(chips[i], chipX + 2, y + 4.5);
+      doc.text(chips[i], chipX + 2, y + 5.5);
       chipX -= 2;
     }
-    y += 8;
+    y += 12; // Clear gap below header bar
 
     // ── Finding name ──
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(7);
+    doc.setTextColor(20, 20, 20);
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    const nameLines = doc.splitTextToSize(findingName, contentWidth - 4);
+    const nameLines = doc.splitTextToSize(findingName, contentWidth - 6);
     for (const line of nameLines) {
       y = checkPageBreak(y, 5);
-      doc.text(line, margin + 2, y);
-      y += 3.2;
+      doc.text(line, margin + 3, y);
+      y += 3.5;
     }
     y += 1;
+
+    // ── NVD Description (if available) ──
+    if (hasNvd) {
+      doc.setTextColor(60, 60, 60);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      const nvdLines = doc.splitTextToSize(nvdDesc, contentWidth - 8);
+      const maxNvdLines = Math.min(nvdLines.length, 3); // Cap at 3 lines
+      for (let i = 0; i < maxNvdLines; i++) {
+        y = checkPageBreak(y, 4);
+        doc.text(nvdLines[i] + (i === maxNvdLines - 1 && nvdLines.length > 3 ? '...' : ''), margin + 3, y);
+        y += 2.8;
+      }
+      y += 1;
+    }
+
+    // ── Evidence / Corroboration summary ──
+    if (hasEvidence) {
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(22, 101, 52); // green-800 for confirmed evidence
+      y = checkPageBreak(y, 4);
+      const evidenceLines = doc.splitTextToSize(`Evidence: ${evidenceSummary}`, contentWidth - 8);
+      for (const line of evidenceLines.slice(0, 2)) {
+        doc.text(line, margin + 3, y);
+        y += 2.8;
+      }
+      y += 1;
+    }
 
     // ── Affected hosts ──
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(60, 60, 60);
-    y = checkPageBreak(y, 5);
-    doc.text(`Affected Assets (${hosts.length}):`, margin + 2, y);
-    y += 3;
-    doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
+    y = checkPageBreak(y, 5);
+    doc.text(`Affected Assets (${hosts.length}):`, margin + 3, y);
+    y += 3.5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
     for (const host of hosts) {
       y = checkPageBreak(y, 4);
-      doc.text(`\u2022  ${host}`, margin + 4, y);
+      doc.text(`\u2022  ${host}`, margin + 5, y);
       y += 3;
     }
-    y += 2;
+    y += 4; // Clear gap before next card
   };
 
   if (vulnObs.length > 0) {
