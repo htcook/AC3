@@ -658,13 +658,19 @@ export async function exportDiReport(
   // Opening: risk posture
   blufParts.push(`${domain} presents a ${riskBand.toUpperCase()} risk posture (${riskScore}/100) based on passive analysis of ${_totalAssets} discovered asset(s) across ${connectorCount} intelligence sources.`);
 
-  // Findings breakdown
+  // Findings breakdown — prefer unique CVE counts for clarity
+  const _uniqueCve = scan.uniqueCveSummary;
   if (_totalFindings > 0) {
     const findingBreakdown: string[] = [];
     if (_confirmedFc > 0) findingBreakdown.push(`${_confirmedFc} confirmed`);
     if (_probableFc > 0) findingBreakdown.push(`${_probableFc} probable`);
     if (_potentialFc > 0) findingBreakdown.push(`${_potentialFc} potential`);
-    blufParts.push(`The scan identified ${_totalFindings} total finding(s) (${findingBreakdown.join(', ')}).`);
+    if (_uniqueCve && _uniqueCve.uniqueCveCount > 0 && _uniqueCve.uniqueCveCount < _totalFindings) {
+      // Show unique CVEs prominently, total instances as context
+      blufParts.push(`The scan identified ${_uniqueCve.uniqueCveCount} unique vulnerabilities across ${_totalAssets} asset(s) (${_totalFindings} total finding instances: ${findingBreakdown.join(', ')}). On average, each vulnerability affects ${_uniqueCve.averageAssetsPerCve} asset(s).`);
+    } else {
+      blufParts.push(`The scan identified ${_totalFindings} total finding(s) (${findingBreakdown.join(', ')}).`);
+    }
   }
 
   // Critical/high assets
@@ -675,9 +681,13 @@ export async function exportDiReport(
     blufParts.push(`${riskParts.join(' and ')} risk asset(s) require immediate attention.`);
   }
 
-  // KEV
+  // KEV — use unique CVE count when available
   if (_kevCount > 0) {
-    blufParts.push(`${_kevCount} finding(s) are listed in CISA's Known Exploited Vulnerabilities catalog.`);
+    if (_uniqueCve && _uniqueCve.uniqueKevCveCount > 0 && _uniqueCve.uniqueKevCveCount < _kevCount) {
+      blufParts.push(`${_uniqueCve.uniqueKevCveCount} unique CISA KEV vulnerabilities were identified across ${_kevCount} finding instance(s).`);
+    } else {
+      blufParts.push(`${_kevCount} finding(s) are listed in CISA's Known Exploited Vulnerabilities catalog.`);
+    }
   }
 
   // Exploit availability
@@ -764,9 +774,13 @@ export async function exportDiReport(
     ['Risk Score (Avg)', `${riskScore}/100 (${riskBand.toUpperCase()})`],
     ['Peak Asset Risk', `${peakAssetScore}/100 (${peakBand})`],
     ['Total Assets', String(_totalAssets)],
-    ['Findings', `${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential`],
+    ['Findings', _uniqueCve && _uniqueCve.uniqueCveCount > 0 && _uniqueCve.uniqueCveCount < _totalFindings
+      ? `${_uniqueCve.uniqueCveCount} unique CVEs (${_totalFindings} instances: ${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential)`
+      : `${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential`],
   ];
-  if (_kevCount > 0) dashboardRows.push(['CISA KEV Matches', String(_kevCount)]);
+  if (_kevCount > 0) dashboardRows.push(['CISA KEV Matches', _uniqueCve && _uniqueCve.uniqueKevCveCount > 0 && _uniqueCve.uniqueKevCveCount < _kevCount
+    ? `${_uniqueCve.uniqueKevCveCount} unique (${_kevCount} instances)`
+    : String(_kevCount)]);
   if (_exploitTotal > 0) dashboardRows.push(['Public Exploits Matched', String(_exploitTotal)]);
   if (_breachExposures > 0) dashboardRows.push(['Breach Exposures', `${_breachExposures} exposures, ${_breachEmails} emails`]);
   if (_oemCredCount > 0) dashboardRows.push(['Default Credentials', `${_oemCredCount} matched${_confirmedLogins > 0 ? `, ${_confirmedLogins} confirmed` : ''}`]);
@@ -3867,7 +3881,9 @@ export async function exportDiReport(
     ['Scan Mode', scan.scanMode || 'standard'],
     ['Started', scan.createdAt ? new Date(scan.createdAt).toLocaleString() : 'N/A'],
     ['Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)} seconds` : 'N/A'],
-    ['Total Findings', String(_totalFindings)],
+    ['Total Findings', _uniqueCve && _uniqueCve.uniqueCveCount > 0
+      ? `${_uniqueCve.uniqueCveCount} unique CVEs (${_totalFindings} instances across ${_totalAssets} assets, avg ${_uniqueCve.averageAssetsPerCve} assets/CVE)`
+      : String(_totalFindings)],
     ['Confirmed Findings', String(_confirmedCount)],
     ['Total Assets', String(scan.totalAssets || assets.length)],
     ['Data Sources', String(connectorCount)],

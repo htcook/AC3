@@ -234,6 +234,14 @@ export interface PipelineResult {
   confirmedFindingsCount: number;
   probableFindingsCount: number;
   potentialFindingsCount: number;
+  uniqueCveSummary?: {
+    uniqueCveCount: number;
+    uniqueConfirmedCveCount: number;
+    uniqueKevCveCount: number;
+    totalFindingInstances: number;
+    averageAssetsPerCve: number;
+    mostWidespreadCves: Array<{ cveId: string; affectedAssetCount: number }>;
+  };
   kevEnrichment?: KevEnrichment;
   passiveRecon?: PassiveReconResult;
   breachData?: BreachDataSummary;
@@ -1552,12 +1560,30 @@ export async function generateScanOnlySummary(
   const kevConfirmed = kevFindings.filter(f => f.versionMatchConfirmed);
   const kevProbable = kevFindings.filter(f => !f.versionMatchConfirmed);
 
+  // ── Unique CVE deduplication for LLM context ──
+  // Count unique CVEs vs total instances so the LLM reports meaningful numbers
+  const blufAllCves = new Set<string>();
+  const blufKevCves = new Set<string>();
+  const blufConfirmedCves = new Set<string>();
+  for (const f of allFindings) {
+    if (f.cveIds) {
+      for (const cve of f.cveIds) {
+        blufAllCves.add(cve);
+        if ((f as any).kevListed) blufKevCves.add(cve);
+        if (f.corroborationTier === 'confirmed') blufConfirmedCves.add(cve);
+      }
+    }
+  }
+
   const corroborationBlock = `
 FINDINGS CONFIDENCE BREAKDOWN:
-- High-confidence findings (software version verified): ${confirmedFindings.length}
-- Moderate-confidence findings (software detected but version not yet verified): ${probableFindings.length}
-- Low-confidence findings (inferred from technology patterns): ${unconfirmedFindings.length}
-- Actively exploited vulnerabilities (CISA alerts): ${kevFindings.length} (${kevConfirmed.length} verified, ${kevProbable.length} require further investigation)
+IMPORTANT: When reporting vulnerability counts, use UNIQUE CVE counts (not total instances).
+Many of the same vulnerabilities appear across multiple assets — report the unique count and note how many assets are affected.
+- Unique vulnerabilities identified: ${blufAllCves.size} distinct CVEs across ${allFindings.length} finding instances on ${clientAnalyses.length} assets
+- High-confidence (software version verified): ${confirmedFindings.length} instances (${blufConfirmedCves.size} unique CVEs)
+- Moderate-confidence (software detected, version unverified): ${probableFindings.length} instances
+- Low-confidence (inferred from technology patterns): ${unconfirmedFindings.length} instances
+- Actively exploited vulnerabilities (CISA alerts): ${blufKevCves.size} unique CVEs across ${kevFindings.length} instances (${kevConfirmed.length} verified, ${kevProbable.length} require further investigation)
 
 WRITING RULES — THIS IS FOR A NON-TECHNICAL EXECUTIVE AUDIENCE:
 1. Write in plain business English. Avoid acronyms like CVE, KEV, CVSS, DMARC, SPF, DKIM unless absolutely necessary — and if used, explain them in parentheses on first use.
@@ -2686,6 +2712,49 @@ export async function runDomainIntelPipeline(
             });
           }
         }
+        // ── Per-asset KEV finding cap ──
+        // For large scans (e.g., 500+ assets sharing Apache/nginx/jQuery), the same KEV
+        // entries get duplicated across every asset. Cap per-asset KEV findings to prevent
+        // combinatorial explosion (e.g., 25 KEV entries × 500 assets = 12,500 findings).
+        // Keep the highest-severity KEV findings per asset; summarize the rest.
+        const MAX_KEV_PER_ASSET = 15;
+        let kevCapped = 0;
+        for (const a of analyses) {
+          const kevFindings = a.postureFindings.filter(f => f.category === 'CISA KEV');
+          if (kevFindings.length > MAX_KEV_PER_ASSET) {
+            // Sort by severity desc, then by confidence desc
+            kevFindings.sort((x, y) => (y.severity - x.severity) || ((y.confidence || 0) - (x.confidence || 0)));
+            const keep = new Set(kevFindings.slice(0, MAX_KEV_PER_ASSET).map(f => f.id));
+            const removed = kevFindings.filter(f => !keep.has(f.id));
+            // Remove excess findings from postureFindings
+            a.postureFindings = a.postureFindings.filter(f => f.category !== 'CISA KEV' || keep.has(f.id));
+            // Add a summary finding for the capped entries
+            const removedCves = removed.map(f => f.cveIds?.[0]).filter(Boolean);
+            a.postureFindings.push({
+              id: `kev-summary-${a.asset.assetId}`,
+              assetRef: a.asset.assetId,
+              assetHostname: a.asset.hostname,
+              category: 'CISA KEV',
+              title: `${removed.length} additional KEV entries affect this asset's technology stack`,
+              severity: Math.max(...removed.map(f => f.severity), 1),
+              likelihood: 3,
+              confidence: 0.3,
+              recommendedControls: ['Review full CISA KEV catalog for this technology stack', 'Prioritize patching based on CVSS score and exploit availability'],
+              cveIds: removedCves as string[],
+              kevListed: true,
+              exploitAvailable: false,
+              affectedAssets: [a.asset.hostname],
+              evidenceBasis: 'kev_match' as const,
+              evidenceDetail: `SUMMARY: ${removed.length} additional CISA KEV entries match technologies on ${a.asset.hostname}. Top ${MAX_KEV_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
+              corroborationTier: 'potential',
+              evidenceChain: [`${removed.length} additional KEV entries consolidated into summary to prevent report inflation`],
+            });
+            kevCapped += removed.length;
+          }
+        }
+        if (kevCapped > 0) {
+          console.log(`[DomainIntel] KEV cap: consolidated ${kevCapped} excess KEV findings across assets (max ${MAX_KEV_PER_ASSET} per asset)`);
+        }
         console.log(`[DomainIntel] KEV enrichment: ${kevMatches.length} matches, ${chainSteps.length} chain steps, boost=${boost.riskBoost}`);
       }
     }
@@ -2880,6 +2949,51 @@ export async function runDomainIntelPipeline(
       }
       totalVulnsFound += vulnResult.totalVulns;
       totalTechsMatched += vulnResult.matches.length;
+    }
+    // ── Per-asset vuln feed finding cap ──
+    // Same multiplication problem as KEV: if 500 assets share Apache, each gets 5 CVEs = 2,500 findings.
+    // Cap per-asset vuln feed findings to keep reports actionable.
+    const MAX_VULN_PER_ASSET = 15;
+    let vulnCapped = 0;
+    for (const a of analyses) {
+      const vulnFindings = a.postureFindings.filter(f => 
+        f.evidenceBasis === 'vuln_feed' || f.evidenceBasis === 'confirmed_cve'
+      );
+      if (vulnFindings.length > MAX_VULN_PER_ASSET) {
+        // Sort by CVSS desc, then severity desc
+        vulnFindings.sort((x, y) => ((y.cvssScore || 0) - (x.cvssScore || 0)) || (y.severity - x.severity));
+        const keep = new Set(vulnFindings.slice(0, MAX_VULN_PER_ASSET).map(f => f.id));
+        const removed = vulnFindings.filter(f => !keep.has(f.id));
+        // Remove excess findings
+        a.postureFindings = a.postureFindings.filter(f => 
+          (f.evidenceBasis !== 'vuln_feed' && f.evidenceBasis !== 'confirmed_cve') || keep.has(f.id)
+        );
+        // Add summary finding
+        const removedCves = removed.map(f => f.cveIds?.[0]).filter(Boolean);
+        a.postureFindings.push({
+          id: `vf-summary-${a.asset.assetId}`,
+          assetRef: a.asset.assetId,
+          assetHostname: a.asset.hostname,
+          category: 'Known CVE',
+          title: `${removed.length} additional CVEs affect this asset's technology stack`,
+          severity: Math.max(...removed.map(f => f.severity), 1),
+          likelihood: 3,
+          confidence: 0.3,
+          recommendedControls: ['Review full CVE list for this technology stack', 'Prioritize patching by CVSS score'],
+          cveIds: removedCves as string[],
+          kevListed: false,
+          exploitAvailable: false,
+          affectedAssets: [a.asset.hostname],
+          evidenceBasis: 'vuln_feed' as const,
+          evidenceDetail: `SUMMARY: ${removed.length} additional CVEs match technologies on ${a.asset.hostname}. Top ${MAX_VULN_PER_ASSET} shown individually above. Full list: ${removedCves.slice(0, 10).join(', ')}${removedCves.length > 10 ? ` and ${removedCves.length - 10} more` : ''}.`,
+          corroborationTier: 'potential',
+          evidenceChain: [`${removed.length} additional CVE findings consolidated into summary to prevent report inflation`],
+        });
+        vulnCapped += removed.length;
+      }
+    }
+    if (vulnCapped > 0) {
+      console.log(`[DomainIntel] Vuln feed cap: consolidated ${vulnCapped} excess vuln findings across assets (max ${MAX_VULN_PER_ASSET} per asset)`);
     }
     console.log(`[DomainIntel] Vuln feed enrichment: ${totalVulnsFound} vulns across ${totalTechsMatched} technologies (per-asset matching)`);
   } catch (err: any) {
@@ -3555,6 +3669,39 @@ export async function runDomainIntelPipeline(
   const probableFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'probable').length, 0);
   const potentialFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'potential' || !f.corroborationTier).length, 0);
 
+  // ── Unique CVE deduplication summary ──
+  // For large scans, the same CVE appears across many assets. Track unique CVEs
+  // separately from total (CVE × asset) instances so the report can show both.
+  const allCveIds = new Set<string>();
+  const confirmedCveIds = new Set<string>();
+  const kevCveIds = new Set<string>();
+  const cveToAssets = new Map<string, Set<string>>();
+  for (const a of analyses) {
+    for (const f of a.postureFindings) {
+      if (f.cveIds) {
+        for (const cve of f.cveIds) {
+          allCveIds.add(cve);
+          if (!cveToAssets.has(cve)) cveToAssets.set(cve, new Set());
+          cveToAssets.get(cve)!.add(a.asset.hostname);
+          if (f.corroborationTier === 'confirmed') confirmedCveIds.add(cve);
+          if ((f as any).kevListed) kevCveIds.add(cve);
+        }
+      }
+    }
+  }
+  const uniqueCveSummary = {
+    uniqueCveCount: allCveIds.size,
+    uniqueConfirmedCveCount: confirmedCveIds.size,
+    uniqueKevCveCount: kevCveIds.size,
+    totalFindingInstances: totalFindings,
+    averageAssetsPerCve: allCveIds.size > 0 ? Math.round((Array.from(cveToAssets.values()).reduce((s, set) => s + set.size, 0) / allCveIds.size) * 10) / 10 : 0,
+    mostWidespreadCves: Array.from(cveToAssets.entries())
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, 10)
+      .map(([cve, assets]) => ({ cveId: cve, affectedAssetCount: assets.size })),
+  };
+  console.log(`[DomainIntel] Dedup summary: ${uniqueCveSummary.uniqueCveCount} unique CVEs across ${totalFindings} finding instances (avg ${uniqueCveSummary.averageAssetsPerCve} assets/CVE)`);
+
   // Extract breach data summary from Dehashed passive recon observations
   let breachData: BreachDataSummary | undefined;
   if (passiveRecon) {
@@ -3886,6 +4033,7 @@ export async function runDomainIntelPipeline(
     confirmedFindingsCount,
     probableFindingsCount,
     potentialFindingsCount,
+    uniqueCveSummary,
     kevEnrichment,
     passiveRecon,
     breachData,
