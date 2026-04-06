@@ -969,13 +969,15 @@ export default function DomainIntelResults() {
             onClick: () => setActiveTab('coverage'),
           },
           {
-            label: "Total Findings",
+            label: "Unique Findings",
             value: scan.totalFindings || 0,
             icon: <Bug className="h-4 w-4 text-yellow-400" />,
             delta: findingsDelta,
             deltaPercent: findingsDeltaPct,
             deltaInverted: true,
-            subtitle: scanDelta ? `prev: ${prevFindings ?? '?'}` : undefined,
+            subtitle: (pipeline?.uniqueCveSummary as any)?.totalFindingInstances
+              ? `${(pipeline.uniqueCveSummary as any).totalFindingInstances.toLocaleString()} instances across assets`
+              : scanDelta ? `prev: ${prevFindings ?? '?'}` : undefined,
             onClick: () => setActiveTab('vulns'),
           },
         ];
@@ -1045,7 +1047,7 @@ export default function DomainIntelResults() {
                       {deltaAssets !== 0 && <p className={`text-[10px] ${color(deltaAssets)}`}>{fmt(deltaAssets)} from previous</p>}
                     </div>
                     <div className="rounded-lg border border-border/50 p-2.5 text-center">
-                      <p className="text-muted-foreground mb-1">Findings</p>
+                      <p className="text-muted-foreground mb-1">Unique Findings</p>
                       <p className="font-bold text-base">{scan.totalFindings || 0}</p>
                       {deltaFindings !== 0 && <p className={`text-[10px] ${color(deltaFindings)}`}>{fmt(deltaFindings)} from previous</p>}
                     </div>
@@ -1217,9 +1219,9 @@ export default function DomainIntelResults() {
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold">{(scan as any).confirmedFindings ?? scan.totalFindings ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">Confirmed Findings</p>
-            {(scan as any).confirmedFindings != null && scan.totalFindings != null && scan.totalFindings > (scan as any).confirmedFindings && (
-              <p className="text-[10px] text-muted-foreground">{scan.totalFindings} total ({(scan as any).probableFindings || 0} probable, {(scan as any).potentialFindings || 0} potential)</p>
+            <p className="text-xs text-muted-foreground mt-1">Unique Confirmed Findings</p>
+            {(pipeline?.uniqueCveSummary as any)?.totalFindingInstances > 0 && (
+              <p className="text-[10px] text-muted-foreground">{(pipeline.uniqueCveSummary as any).totalFindingInstances.toLocaleString()} total instances across {scan.totalAssets} assets</p>
             )}
           </CardContent>
         </Card>
@@ -1418,7 +1420,7 @@ export default function DomainIntelResults() {
                   </div>
                   {/* Findings Delta */}
                   <div className="rounded-lg border border-zinc-700/50 p-3 text-center">
-                    <div className="text-xs text-muted-foreground mb-1">Total Findings</div>
+                    <div className="text-xs text-muted-foreground mb-1">Unique Findings</div>
                     <div className="flex items-center justify-center gap-2">
                       <span className="text-lg font-mono text-zinc-400">{scanDelta.previousTotalFindings ?? '—'}</span>
                       <span className="text-zinc-500">→</span>
@@ -1426,8 +1428,11 @@ export default function DomainIntelResults() {
                     </div>
                     {scanDelta.findingsDelta != null && (
                       <div className={`text-xs mt-1 font-medium ${scanDelta.findingsDelta > 0 ? 'text-red-400' : scanDelta.findingsDelta < 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
-                        {scanDelta.findingsDelta > 0 ? '+' : ''}{scanDelta.findingsDelta} findings
+                        {scanDelta.findingsDelta > 0 ? '+' : ''}{scanDelta.findingsDelta} unique findings
                       </div>
+                    )}
+                    {scanDelta.previousTotalFindings != null && scan.totalFindings != null && scanDelta.previousTotalFindings > scan.totalFindings * 5 && (
+                      <div className="text-[9px] text-muted-foreground mt-1 italic">Previous count used raw instances; current uses unique CVEs</div>
                     )}
                   </div>
                 </div>

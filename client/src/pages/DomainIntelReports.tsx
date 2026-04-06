@@ -126,7 +126,7 @@ export default function DomainIntelReports() {
                     {riskBadge(scan.overallRiskScore)}
                     {scan.totalFindings > 0 && (
                       <Badge variant="outline" className="text-[10px]">
-                        {scan.totalFindings} findings
+                        {scan.totalFindings} unique findings
                       </Badge>
                     )}
                   </div>

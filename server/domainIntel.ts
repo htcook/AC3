@@ -3668,43 +3668,71 @@ export async function runDomainIntelPipeline(
     }
   }
 
-  const totalFindings = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
-  const confirmedFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'confirmed').length, 0);
-  const probableFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'probable').length, 0);
-  const potentialFindingsCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'potential' || !f.corroborationTier).length, 0);
+  // ── Finding count: raw instance count (CVE × asset pairs) ──
+  const totalFindingInstances = analyses.reduce((s, a) => s + a.postureFindings.length, 0);
+  const confirmedInstanceCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'confirmed').length, 0);
+  const probableInstanceCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'probable').length, 0);
+  const potentialInstanceCount = analyses.reduce((s, a) => s + a.postureFindings.filter((f: any) => f.corroborationTier === 'potential' || !f.corroborationTier).length, 0);
 
-  // ── Unique CVE deduplication summary ──
-  // For large scans, the same CVE appears across many assets. Track unique CVEs
-  // separately from total (CVE × asset) instances so the report can show both.
+  // ── Unique CVE deduplication — THIS is the headline finding count ──
+  // For large scans, the same CVE appears across many assets. The headline
+  // "totalFindings" should reflect UNIQUE vulnerabilities, not (CVE × asset) pairs.
+  // Instance counts are preserved for drill-down and per-asset detail.
   const allCveIds = new Set<string>();
   const confirmedCveIds = new Set<string>();
+  const probableCveIds = new Set<string>();
+  const potentialCveIds = new Set<string>();
   const kevCveIds = new Set<string>();
   const cveToAssets = new Map<string, Set<string>>();
+  // Also count non-CVE findings (posture issues without a CVE ID)
+  let nonCveConfirmedCount = 0;
+  let nonCveProbableCount = 0;
+  let nonCvePotentialCount = 0;
+  const nonCveFingerprintsSeen = new Set<string>();
   for (const a of analyses) {
     for (const f of a.postureFindings) {
-      if (f.cveIds) {
+      if (f.cveIds && f.cveIds.length > 0) {
         for (const cve of f.cveIds) {
           allCveIds.add(cve);
           if (!cveToAssets.has(cve)) cveToAssets.set(cve, new Set());
           cveToAssets.get(cve)!.add(a.asset.hostname);
           if (f.corroborationTier === 'confirmed') confirmedCveIds.add(cve);
+          else if (f.corroborationTier === 'probable') probableCveIds.add(cve);
+          else potentialCveIds.add(cve);
           if ((f as any).kevListed) kevCveIds.add(cve);
+        }
+      } else {
+        // Non-CVE finding — deduplicate by title fingerprint
+        const fp = (f.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60);
+        if (!nonCveFingerprintsSeen.has(fp)) {
+          nonCveFingerprintsSeen.add(fp);
+          if (f.corroborationTier === 'confirmed') nonCveConfirmedCount++;
+          else if (f.corroborationTier === 'probable') nonCveProbableCount++;
+          else nonCvePotentialCount++;
         }
       }
     }
   }
+
+  // Headline counts: unique CVEs + unique non-CVE findings
+  const totalNonCveUnique = nonCveConfirmedCount + nonCveProbableCount + nonCvePotentialCount;
+  const totalFindings = allCveIds.size + totalNonCveUnique;
+  const confirmedFindingsCount = confirmedCveIds.size + nonCveConfirmedCount;
+  const probableFindingsCount = probableCveIds.size + nonCveProbableCount;
+  const potentialFindingsCount = potentialCveIds.size + nonCvePotentialCount;
+
   const uniqueCveSummary = {
     uniqueCveCount: allCveIds.size,
     uniqueConfirmedCveCount: confirmedCveIds.size,
     uniqueKevCveCount: kevCveIds.size,
-    totalFindingInstances: totalFindings,
+    totalFindingInstances: totalFindingInstances,
     averageAssetsPerCve: allCveIds.size > 0 ? Math.round((Array.from(cveToAssets.values()).reduce((s, set) => s + set.size, 0) / allCveIds.size) * 10) / 10 : 0,
     mostWidespreadCves: Array.from(cveToAssets.entries())
       .sort((a, b) => b[1].size - a[1].size)
       .slice(0, 10)
       .map(([cve, assets]) => ({ cveId: cve, affectedAssetCount: assets.size })),
   };
-  console.log(`[DomainIntel] Dedup summary: ${uniqueCveSummary.uniqueCveCount} unique CVEs across ${totalFindings} finding instances (avg ${uniqueCveSummary.averageAssetsPerCve} assets/CVE)`);
+  console.log(`[DomainIntel] Finding counts: ${totalFindings} unique findings (${allCveIds.size} unique CVEs + ${totalNonCveUnique} non-CVE) from ${totalFindingInstances} instances across ${analyses.length} assets (avg ${uniqueCveSummary.averageAssetsPerCve} assets/CVE)`);
 
   // Extract breach data summary from Dehashed passive recon observations
   let breachData: BreachDataSummary | undefined;
