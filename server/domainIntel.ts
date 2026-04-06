@@ -2605,6 +2605,23 @@ export async function runDomainIntelPipeline(
               // Vendor-only matches (e.g., "Apache" tech → "Apache OFBiz" CVE) stay "probable"
               // FIX: Without ANY version evidence, downgrade to "potential" — we only know the
               // product family is present, not that a vulnerable version is running.
+              //
+              // VERSION RANGE CHECK: If the KEV entry has version range data from NVD,
+              // verify the detected version is actually within the affected range.
+              // This prevents listing CVEs for versions that have been patched.
+              let versionInRange = true;
+              if (productSpecificMatch && detectedVersion && (m as any).affectedVersionRange) {
+                try {
+                  const { isVersionAffected } = await import("./lib/dynamic-cpe-matcher");
+                  versionInRange = isVersionAffected(detectedVersion, (m as any).affectedVersionRange);
+                  if (!versionInRange) {
+                    console.log(`[DomainIntel] KEV version filter: ${m.cveID} skipped — ${m.product} v${detectedVersion} is NOT in affected range (${(m as any).affectedVersionRange})`);
+                  }
+                } catch { /* fallback: assume affected */ }
+              }
+              // If version is confirmed but NOT in affected range, skip entirely
+              if (productSpecificMatch && detectedVersion && !versionInRange) return;
+
               let tier: CorroborationTier;
               if (productSpecificMatch && detectedVersion) {
                 tier = "confirmed";
@@ -2649,11 +2666,11 @@ export async function runDomainIntelPipeline(
                 affectedAssets: [a.asset.hostname],
                 evidenceBasis: "kev_match" as const,
                 evidenceDetail: (productSpecificMatch && detectedVersion)
-                  ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}.`
-                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected — product family match only.'} Severity capped at ${severityCap}/10. Due date: ${m.dueDate}.`,
+                  ? `CONFIRMED: ${m.product} v${detectedVersion} on ${a.asset.hostname} matches CISA KEV entry ${m.cveID}. Due date: ${m.dueDate}. Note: Version-based match \u2014 backported patches may apply on managed hosting.`
+                  : `${tier === 'probable' ? 'PROBABLE' : 'POTENTIAL'}: Technology "${m.matchedOn}" on ${a.asset.hostname} matches ${m.vendorProject} product family but specific product ${m.product} not individually confirmed. ${detectedVersion ? `Detected version ${detectedVersion} belongs to a different product.` : 'Version not detected \u2014 product family match only.'} Severity capped at ${severityCap}/10. Due date: ${m.dueDate}.`,
                 corroborationTier: tier,
                 detectedVersion,
-                versionMatchConfirmed: !!detectedVersion,
+                versionMatchConfirmed: !!(detectedVersion && versionInRange),
                 evidenceChain,
               });
             });
@@ -3473,14 +3490,23 @@ export async function runDomainIntelPipeline(
   );
 
   const riskScores = clientOwnedAnalyses.map(a => a.hybridRiskScore);
+  // Max-weighted risk scoring: blend the peak asset risk with the average.
+  // This prevents high-risk assets from being diluted by many low-risk subdomains.
+  // Formula: 60% max + 40% average — ensures the overall score reflects the worst-case
+  // while still accounting for the breadth of the attack surface.
+  const maxRisk = riskScores.length > 0 ? Math.max(...riskScores) : 0;
+  const avgRisk = riskScores.length > 0
+    ? riskScores.reduce((s, v) => s + v, 0) / riskScores.length
+    : 0;
   const overallRisk = riskScores.length > 0
-    ? Math.round(riskScores.reduce((s, v) => s + v, 0) / riskScores.length)
+    ? Math.round(maxRisk * 0.6 + avgRisk * 0.4)
     : 0;
   const overallBand = riskBand(overallRisk);
   const excludedFromRiskCount = analyses.length - clientOwnedAnalyses.length;
   if (excludedFromRiskCount > 0) {
     console.log(`[DomainIntel] Risk score: excluded ${excludedFromRiskCount} managed/third-party assets from overall risk calculation (${analyses.length} total, ${clientOwnedAnalyses.length} client-owned)`);
   }
+  console.log(`[DomainIntel] Risk scoring: max=${maxRisk}, avg=${Math.round(avgRisk)}, blended=${overallRisk} (60% max + 40% avg), band=${overallBand}`);
 
   await yieldEventLoop();
   // Stage 6: Post-scan FP auto-flagging — mark findings that match known FP hashes

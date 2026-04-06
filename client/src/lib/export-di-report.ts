@@ -733,15 +733,15 @@ export async function exportDiReport(
     if (recText) blufParts.push(`Top priority: ${truncate(recText, 120)}.`);
   }
 
+  // Sanity check: flag when LOW score contradicts high-severity findings
+  const _hasHighSevFindings = _confirmedFc > 5 || _kevCount > 5 || _confirmedLogins > 0 || _blCritical > 0;
+  if (riskScore <= 30 && _hasHighSevFindings) {
+    blufParts.push(`Note: The overall risk score is a blended average across all ${_totalAssets} asset(s). Individual high-risk assets may present significantly greater exposure than the aggregate score suggests. Version-based CVE matching may overcount vulnerabilities on systems with backported security patches (common on managed hosting). Active verification is recommended.`);
+  }
+
   // Render BLUF
   const blufText = blufParts.join(' ');
-  doc.setFillColor(241, 245, 249);
-  doc.roundedRect(margin, y - 2, contentWidth, 6, 1, 1, 'F'); // subtle header bar
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text('EXECUTIVE SUMMARY', margin + 3, y + 2);
-  y += 7;
+  // Section header already rendered by addSectionPage — go straight to BLUF text
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(8.5);
@@ -749,8 +749,12 @@ export async function exportDiReport(
   y += 5;
 
   // ─── Key Metrics Dashboard (compact table) ───────────────────────────
+  // Compute peak asset risk for context
+  const peakAssetScore = assets.length > 0 ? Math.max(...assets.map((a: any) => a.hybridRiskScore || 0)) : 0;
+  const peakBand = peakAssetScore >= 80 ? 'CRITICAL' : peakAssetScore >= 60 ? 'HIGH' : peakAssetScore >= 40 ? 'MEDIUM' : peakAssetScore >= 20 ? 'LOW' : 'MINIMAL';
   const dashboardRows: string[][] = [
-    ['Risk Score', `${riskScore}/100 (${riskBand.toUpperCase()})`],
+    ['Risk Score (Avg)', `${riskScore}/100 (${riskBand.toUpperCase()})`],
+    ['Peak Asset Risk', `${peakAssetScore}/100 (${peakBand})`],
     ['Total Assets', String(_totalAssets)],
     ['Findings', `${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential`],
   ];
@@ -2660,19 +2664,39 @@ export async function exportDiReport(
       y += 1;
     }
 
-    // ── Affected hosts ──
+    // ── Affected hosts (compact: inline for 4+ hosts, bullets for 1-3) ──
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(50, 50, 50);
     y = checkPageBreak(y, 5);
-    doc.text(`Affected Assets (${hosts.length}):`, margin + 3, y);
-    y += 3.5;
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(60, 60, 60);
-    for (const host of hosts) {
-      y = checkPageBreak(y, 4);
-      doc.text(`\u2022  ${host}`, margin + 5, y);
-      y += 3;
+    if (hosts.length <= 3) {
+      doc.text(`Affected Assets (${hosts.length}):`, margin + 3, y);
+      y += 3.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      for (const host of hosts) {
+        y = checkPageBreak(y, 4);
+        doc.text(`\u2022  ${host}`, margin + 5, y);
+        y += 3;
+      }
+    } else {
+      // Compact inline: "Affected Assets (10): host1, host2, host3, ... +7 more"
+      const MAX_INLINE = 3;
+      const shown = hosts.slice(0, MAX_INLINE).join(', ');
+      const remaining = hosts.length - MAX_INLINE;
+      const inlineText = remaining > 0 ? `${shown}, +${remaining} more` : shown;
+      doc.text(`Affected Assets (${hosts.length}): `, margin + 3, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      const labelWidth = doc.getTextWidth(`Affected Assets (${hosts.length}): `);
+      const assetLines = doc.splitTextToSize(inlineText, contentWidth - 6 - labelWidth);
+      doc.text(assetLines[0], margin + 3 + labelWidth, y);
+      y += 3.5;
+      for (let i = 1; i < assetLines.length; i++) {
+        y = checkPageBreak(y, 4);
+        doc.text(assetLines[i], margin + 5, y);
+        y += 3;
+      }
     }
     y += 4; // Clear gap before next card
   };
@@ -2687,6 +2711,19 @@ export async function exportDiReport(
 
     if (confirmedVulns.length > 0) {
       y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
+
+      // Backport disclaimer
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(100, 116, 139);
+      y = checkPageBreak(y, 5);
+      const disclaimerText = 'Note: Vulnerabilities are matched by detected software version. Systems with backported security patches (common on managed hosting, RHEL, Ubuntu) may not be affected despite version match. Active verification recommended.';
+      const disclaimerLines = doc.splitTextToSize(disclaimerText, contentWidth - 6);
+      for (const line of disclaimerLines) {
+        doc.text(line, margin + 3, y);
+        y += 2.8;
+      }
+      y += 2;
 
       for (const vuln of confirmedVulns) {
         const sevScore = vuln.evidence?.severity || 5;
@@ -2803,11 +2840,28 @@ export async function exportDiReport(
       y += 3;
 
       // Individual exploit matches table
-      if (em.matches?.length > 0) {
+      // Filter out exploit entries with no meaningful data (no source, module, or technology)
+      const meaningfulMatches = (em.matches || []).filter((m: any) => {
+        const hasSource = m.source && m.source !== 'Unknown' && m.source !== 'N/A';
+        const hasModule = m.moduleName || m.exploitId || m.abilityName;
+        const hasTech = m.matchedTechnology || m.cve;
+        const hasSeverity = m.severity && m.severity !== 'N/A' && m.severity !== 'Unknown';
+        // Require at least source + one of module/tech to be meaningful
+        return (hasSource && (hasModule || hasTech)) || (hasModule && hasTech) || hasSeverity;
+      });
+      if (meaningfulMatches.length > 0) {
+        if (meaningfulMatches.length < (em.matches?.length || 0)) {
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(100, 116, 139);
+          y = checkPageBreak(y, 5);
+          doc.text(`Showing ${meaningfulMatches.length} exploit(s) with verified source data (${(em.matches?.length || 0) - meaningfulMatches.length} unattributed entries omitted).`, margin, y);
+          y += 4;
+        }
         autoTable!(doc, {
           startY: y,
           head: [['Source', 'Module / ID', 'Technology', 'Severity', 'Remote Access']],
-          body: em.matches.slice(0, 30).map((m: any) => [
+          body: meaningfulMatches.slice(0, 30).map((m: any) => [
             m.source || 'Unknown',
             truncate(m.moduleName || m.exploitId || m.abilityName || 'N/A', 50),
             truncate(m.matchedTechnology || m.cve || 'N/A', 25),
@@ -3440,15 +3494,18 @@ export async function exportDiReport(
     finalRecommendations = autoRecs;
   }
 
+  // Humanize underscore/snake_case values for display
+  const humanize = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
   if (finalRecommendations.length > 0) {
     autoTable!(doc, {
       startY: y,
       head: [['Priority', 'Recommendation', 'Category', 'Effort']],
       body: finalRecommendations.slice(0, 20).map((r: any, i: number) => [
         `P${i + 1}`,
-        truncate(r.recommendation || r.title || r, 120),
-        truncate(r.category || 'General', 30),
-        r.effort || 'N/A',
+        truncate(r.recommendation || r.title || r, 150),
+        humanize(truncate(r.category || 'General', 30)),
+        humanize(r.effort || 'N/A'),
       ]),
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
@@ -3637,6 +3694,7 @@ export async function exportDiReport(
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    if (i === 1) continue; // Cover page has its own footer — skip to avoid double footer
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 30, pageHeight - 8);

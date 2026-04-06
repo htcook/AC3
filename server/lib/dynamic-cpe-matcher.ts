@@ -208,16 +208,24 @@ async function queryNvdByCpe(
       const cvssV3Meta = cve.metrics?.cvssMetricV31?.[0] ||
                          cve.metrics?.cvssMetricV30?.[0];
       
-      // Extract affected version range from CPE match
+      // Extract affected version range from CPE match — check ALL nodes and cpeMatch entries
+      // to find the most specific version range for this product.
       let affectedVersionRange: string | null = null;
-      const cpeMatch = cve.configurations?.[0]?.nodes?.[0]?.cpeMatch?.[0];
-      if (cpeMatch) {
-        const parts: string[] = [];
-        if (cpeMatch.versionStartIncluding) parts.push(`>= ${cpeMatch.versionStartIncluding}`);
-        if (cpeMatch.versionStartExcluding) parts.push(`> ${cpeMatch.versionStartExcluding}`);
-        if (cpeMatch.versionEndIncluding) parts.push(`<= ${cpeMatch.versionEndIncluding}`);
-        if (cpeMatch.versionEndExcluding) parts.push(`< ${cpeMatch.versionEndExcluding}`);
-        if (parts.length > 0) affectedVersionRange = parts.join(", ");
+      const allNodes = (cve.configurations || []).flatMap((c: any) => c.nodes || []);
+      for (const node of allNodes) {
+        for (const cpeMatch of (node.cpeMatch || [])) {
+          const parts: string[] = [];
+          if (cpeMatch.versionStartIncluding) parts.push(`>= ${cpeMatch.versionStartIncluding}`);
+          if (cpeMatch.versionStartExcluding) parts.push(`> ${cpeMatch.versionStartExcluding}`);
+          if (cpeMatch.versionEndIncluding) parts.push(`<= ${cpeMatch.versionEndIncluding}`);
+          if (cpeMatch.versionEndExcluding) parts.push(`< ${cpeMatch.versionEndExcluding}`);
+          if (parts.length > 0) {
+            // Prefer the most specific range (one with both start and end bounds)
+            if (!affectedVersionRange || parts.length > (affectedVersionRange.split(',').length)) {
+              affectedVersionRange = parts.join(", ");
+            }
+          }
+        }
       }
       
       const score = cvssV3?.baseScore ?? null;
@@ -489,19 +497,22 @@ interface ParsedVersion {
   major: number;
   minor: number;
   patch: number;
+  patchLevel: number; // e.g., the "2" in OpenSSH 9.3p2
   rest: string;
 }
 
 function parseVersion(version: string): ParsedVersion | null {
   const cleaned = version.replace(/^v/i, "").trim();
-  const match = cleaned.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(.*)$/);
+  // Match versions like: 8.7, 9.3p2, 4.98.2, 1.21.0-rc1
+  const match = cleaned.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:p(\d+))?(.*)$/);
   if (!match) return null;
   
   return {
     major: parseInt(match[1], 10),
     minor: parseInt(match[2] || "0", 10),
     patch: parseInt(match[3] || "0", 10),
-    rest: match[4] || "",
+    patchLevel: parseInt(match[4] || "0", 10), // OpenSSH p-suffix
+    rest: match[5] || "",
   };
 }
 
@@ -509,5 +520,6 @@ function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   if (a.major !== b.major) return a.major - b.major;
   if (a.minor !== b.minor) return a.minor - b.minor;
   if (a.patch !== b.patch) return a.patch - b.patch;
+  if (a.patchLevel !== b.patchLevel) return a.patchLevel - b.patchLevel;
   return 0;
 }
