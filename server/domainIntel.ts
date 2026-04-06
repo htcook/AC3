@@ -2545,6 +2545,12 @@ export async function runDomainIntelPipeline(
             }
             // Add KEV posture findings with full evidence and corroboration
             // Use uniqueAssetKevMatches to skip CVEs already present on this asset
+            // Pre-import isVersionAffected so we don't need await inside forEach
+            let _isVersionAffected: ((v: string, r: string) => boolean) | null = null;
+            try {
+              const cpeMod = await import("./lib/dynamic-cpe-matcher");
+              _isVersionAffected = cpeMod.isVersionAffected;
+            } catch { /* fallback: skip version range checks */ }
             uniqueAssetKevMatches.forEach(m => {
               // Skip managed provider products entirely — these CVEs are the provider's responsibility
               if (isManagedProviderProduct(m.product || '')) {
@@ -2612,10 +2618,11 @@ export async function runDomainIntelPipeline(
               let versionInRange = true;
               if (productSpecificMatch && detectedVersion && (m as any).affectedVersionRange) {
                 try {
-                  const { isVersionAffected } = await import("./lib/dynamic-cpe-matcher");
-                  versionInRange = isVersionAffected(detectedVersion, (m as any).affectedVersionRange);
-                  if (!versionInRange) {
-                    console.log(`[DomainIntel] KEV version filter: ${m.cveID} skipped — ${m.product} v${detectedVersion} is NOT in affected range (${(m as any).affectedVersionRange})`);
+                  if (_isVersionAffected) {
+                    versionInRange = _isVersionAffected(detectedVersion, (m as any).affectedVersionRange);
+                    if (!versionInRange) {
+                      console.log(`[DomainIntel] KEV version filter: ${m.cveID} skipped — ${m.product} v${detectedVersion} is NOT in affected range (${(m as any).affectedVersionRange})`);
+                    }
                   }
                 } catch { /* fallback: assume affected */ }
               }
