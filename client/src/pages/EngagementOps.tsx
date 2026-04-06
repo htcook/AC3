@@ -532,8 +532,10 @@ function renderFeedEntry(entry: OpsLogEntry) {
     entry.type === 'llm_decision' || entry.type === 'tool_match' ||
     entry.type === 'exploit_success' || entry.type === 'credential_test' ||
     entry.type === 'phase_complete' || entry.data.output || entry.data.command ||
-    entry.data.findings || entry.data.reasoning || entry.data.tools
+    entry.data.findings || entry.data.reasoning || entry.data.tools ||
+    entry.data.failureAnalysis
   );
+  const fa = entry.data?.failureAnalysis as { category?: string; description?: string; indicators?: string[]; retryable?: boolean; retryConfidence?: number; suggestedAdjustments?: Array<{ type: string; description: string; priority: number }> } | undefined;
   return (
     <Collapsible key={entry.id}>
       <div
@@ -541,6 +543,7 @@ function renderFeedEntry(entry: OpsLogEntry) {
           entry.type === "phase_complete" ? "bg-green-500/5 border border-green-500/10" :
           entry.type === "approval_request" ? "bg-orange-500/5 border border-orange-500/10" :
           entry.type === "exploit_success" ? "bg-red-500/5 border border-red-500/10" :
+          (entry.type === "exploit_fail" && fa) ? "bg-amber-500/5 border border-amber-500/10" :
           entry.type === "error" ? "bg-red-500/5 border border-red-500/10" :
           entry.type === "llm_decision" ? "bg-cyan-500/5 border border-cyan-500/10" :
           entry.type === "tool_match" ? "bg-purple-500/5 border border-purple-500/10" :
@@ -555,6 +558,19 @@ function renderFeedEntry(entry: OpsLogEntry) {
               <div className="flex items-center gap-2">
                 <span className="font-medium text-foreground">{entry.title}</span>
                 {riskBadge(entry.riskTier)}
+                {fa?.category && (
+                  <Badge variant="outline" className={`text-[9px] font-mono uppercase tracking-wide ${
+                    fa.category === 'waf_blocked' ? 'text-orange-400 border-orange-500/40 bg-orange-500/10' :
+                    fa.category === 'payload_detected' ? 'text-red-400 border-red-500/40 bg-red-500/10' :
+                    fa.category === 'auth_required' ? 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' :
+                    fa.category === 'timeout' ? 'text-blue-400 border-blue-500/40 bg-blue-500/10' :
+                    fa.category === 'network_error' || fa.category === 'port_closed' || fa.category === 'service_unavailable' ? 'text-slate-400 border-slate-500/40 bg-slate-500/10' :
+                    fa.category === 'version_mismatch' ? 'text-purple-400 border-purple-500/40 bg-purple-500/10' :
+                    fa.category === 'exploit_error' || fa.category === 'dependency_missing' ? 'text-pink-400 border-pink-500/40 bg-pink-500/10' :
+                    fa.category === 'defense_active' ? 'text-cyan-400 border-cyan-500/40 bg-cyan-500/10' :
+                    'text-muted-foreground border-border/50'
+                  }`}>{fa.category.replace(/_/g, ' ')}</Badge>
+                )}
                 {entry.data?.target && (
                   <Badge variant="outline" className="text-[9px] text-muted-foreground border-border/50 font-mono">{entry.data.target}</Badge>
                 )}
@@ -613,6 +629,41 @@ function renderFeedEntry(entry: OpsLogEntry) {
                       <span className="text-[10px] text-muted-foreground">...and {entry.data.findings.length - 5} more</span>
                     )}
                   </div>
+                </div>
+              )}
+              {/* Failure Analysis Panel */}
+              {fa && (
+                <div className="bg-amber-500/5 border border-amber-500/10 rounded px-2 py-1.5 space-y-1">
+                  <span className="text-[10px] text-amber-400 uppercase font-semibold tracking-wider block">Failure Analysis</span>
+                  {fa.description && (
+                    <p className="text-[11px] text-foreground/90">{fa.description}</p>
+                  )}
+                  {fa.indicators && fa.indicators.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      <span className="text-[10px] text-muted-foreground">Indicators:</span>
+                      {fa.indicators.map((ind, i) => (
+                        <Badge key={i} variant="outline" className="text-[9px] text-amber-300 border-amber-500/30 bg-amber-500/5">{ind}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className={`text-[10px] font-medium ${fa.retryable ? 'text-green-400' : 'text-red-400'}`}>
+                      {fa.retryable ? `Retryable (${Math.round((fa.retryConfidence || 0) * 100)}% confidence)` : 'Not retryable'}
+                    </span>
+                  </div>
+                  {fa.suggestedAdjustments && fa.suggestedAdjustments.length > 0 && (
+                    <div className="mt-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-medium block mb-0.5">Suggested Adjustments</span>
+                      <div className="space-y-0.5">
+                        {fa.suggestedAdjustments.slice(0, 4).map((adj, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                            <span className="text-amber-400 font-mono flex-none">P{adj.priority}</span>
+                            <span className="text-foreground/80">{adj.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {entry.data?.durationMs && (

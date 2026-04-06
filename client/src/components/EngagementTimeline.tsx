@@ -201,14 +201,17 @@ export function buildTimelineEvents(
     }
 
     // Exploit events
-    if (entry.phase === "exploitation" && (entry.type === "exploit_result" || entry.type === "exploit_success" || entry.type === "exploit_failure")) {
+    if (entry.phase === "exploitation" && (entry.type === "exploit_result" || entry.type === "exploit_success" || entry.type === "exploit_failure" || entry.type === "exploit_fail")) {
+      const failureCategory = entry.data?.failureAnalysis?.category;
       events.push({
         id: `exploit_${entry.id}`,
         timestamp: entry.timestamp,
         type: "exploit",
         phase: entry.phase,
         title: entry.title,
-        detail: entry.detail,
+        detail: failureCategory
+          ? `[${failureCategory.replace(/_/g, ' ').toUpperCase()}] ${entry.data?.failureAnalysis?.description || entry.detail}`
+          : entry.detail,
         success: entry.type === "exploit_success" || entry.data?.success === true,
         asset: entry.data?.target,
         riskTier: entry.riskTier,
