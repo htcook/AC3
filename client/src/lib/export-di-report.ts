@@ -726,6 +726,14 @@ export async function exportDiReport(
     blufParts.push(`Compared to the previous scan (#${_scanDelta.scanNumber - 1}), risk has ${direction}${deltaAbs > 0 ? ` by ${deltaAbs} points` : ''} (${_scanDelta.previousRiskScore} → ${riskScore}).`);
   }
 
+  // Threat actor matching
+  const _tmData = scan.threatMatching;
+  if (_tmData && _tmData.summary.totalMatched > 0) {
+    const topGroup = _tmData.matchedGroups[0];
+    const groupTypes = [...new Set(_tmData.matchedGroups.map((g: any) => g.groupType))];
+    blufParts.push(`Threat intelligence catalog matching identified ${_tmData.summary.totalMatched} threat group(s) with TTP overlap (${groupTypes.map((t: string) => t.toUpperCase()).join(', ')}), led by ${topGroup.groupName} (score: ${topGroup.matchScore}/100). ${_tmData.summary.totalAttackPaths} viable attack path(s) were synthesized from confirmed findings across ${_tmData.summary.uniqueTechniques} MITRE ATT&CK techniques.`);
+  }
+
   // Top recommendation
   if (llmAnalysis.recommendations?.length > 0) {
     const topRec = llmAnalysis.recommendations[0];
@@ -770,6 +778,10 @@ export async function exportDiReport(
   if (_scanDelta && _scanDelta.riskDelta !== null) {
     const arrow = _scanDelta.riskDelta > 0 ? '\u2191' : _scanDelta.riskDelta < 0 ? '\u2193' : '\u2192';
     dashboardRows.push(['Trend vs Previous', `${arrow} ${Math.abs(_scanDelta.riskDelta)} pts (scan #${_scanDelta.scanNumber})`]);
+  }
+  if (_tmData && _tmData.summary.totalMatched > 0) {
+    dashboardRows.push(['Threat Groups Matched', `${_tmData.summary.totalMatched} groups (top: ${_tmData.matchedGroups[0]?.groupName || 'N/A'})`]);
+    dashboardRows.push(['Attack Paths Identified', `${_tmData.summary.totalAttackPaths} paths, ${_tmData.summary.uniqueTechniques} techniques`]);
   }
   dashboardRows.push(['Data Sources', String(connectorCount)]);
   dashboardRows.push(['Scan Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A']);
@@ -3444,8 +3456,259 @@ export async function exportDiReport(
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // 12. PRIORITIZED RECOMMENDATIONS
+   // ═════════════════════════════════════════════════════════════════════
+  // 12. THREAT LANDSCAPE & ATTACK PATH ANALYSIS
+  // ═════════════════════════════════════════════════════════════════════
+  if (_tmData && _tmData.summary.totalMatched > 0) {
+    y = startSection('Threat Landscape & Attack Path Analysis', y, 80);
+
+    // Context paragraph explaining what this section is and why it matters
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(8);
+    const tmIntro = `This section cross-references the discovered attack surface against the Ace C3 master threat group catalog — a curated intelligence repository of ${_tmData.summary.totalGroupsAnalyzed} APT, ransomware, cybercrime, and hacktivist groups with their associated TTPs, tools, exploited CVEs, and target sectors. Unlike generic threat feeds, this analysis is deterministic: each match is grounded in specific overlap between the target’s confirmed vulnerabilities, detected technologies, and exposed services and the threat group’s documented operational patterns. ${_tmData.summary.totalMatched} group(s) were identified with meaningful TTP overlap, and ${_tmData.summary.totalAttackPaths} realistic attack path(s) were synthesized from confirmed scan findings.`;
+    y = writeText(tmIntro, margin, y, contentWidth, 8);
+    y += 4;
+
+    // ─── 12a. Matched Threat Groups ────────────────────────────────────
+    y = subheading('Matched Threat Groups', y);
+
+    // Summary table of top matched groups
+    const tmGroupRows: string[][] = _tmData.matchedGroups.slice(0, 10).map((g: any) => [
+      g.groupName,
+      g.groupType.toUpperCase(),
+      g.origin || 'Unknown',
+      `${g.matchScore}/100`,
+      g.riskLevel.toUpperCase(),
+      String(g.matchedCVEs?.length || 0),
+      String(g.matchedTechniques?.length || 0),
+      g.active ? 'Active' : 'Inactive',
+    ]);
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Group', 'Type', 'Origin', 'Score', 'Risk', 'CVE Overlap', 'TTP Overlap', 'Status']],
+      body: tmGroupRows,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 28 },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 16 },
+        4: { cellWidth: 14 },
+        5: { cellWidth: 18 },
+        6: { cellWidth: 18 },
+        7: { cellWidth: 14 },
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // ─── 12b. Detailed Group Profiles with Reasoning ──────────────────
+    const topGroups = _tmData.matchedGroups.slice(0, 5);
+    for (const group of topGroups) {
+      y = checkPageBreak(y, 60);
+
+      // Group header bar
+      const riskColors: Record<string, [number, number, number]> = {
+        critical: [220, 38, 38], high: [234, 88, 12], medium: [202, 138, 4], low: [22, 163, 74],
+      };
+      const gColor = riskColors[group.riskLevel] || [113, 113, 122];
+
+      doc.setFillColor(gColor[0], gColor[1], gColor[2]);
+      doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${group.groupName} (${group.groupType.toUpperCase()})`, margin + 3, y + 7);
+      doc.setFontSize(7);
+      doc.text(`Score: ${group.matchScore}/100 | ${group.riskLevel.toUpperCase()}`, margin + contentWidth - 55, y + 7);
+      y += 13;
+
+      // Aliases and origin
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(7);
+      if (group.aliases?.length > 0) {
+        doc.text(`Also known as: ${group.aliases.slice(0, 5).join(', ')}`, margin, y);
+        y += 3.5;
+      }
+      doc.text(`Origin: ${group.origin || 'Unknown'} | Motivation: ${group.motivation || 'Unknown'} | Targets: ${(group.targetSectors || []).slice(0, 4).join(', ')}`, margin, y);
+      y += 5;
+
+      // Match rationale — the key reasoning paragraph
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Match Rationale:', margin, y);
+      y += 3.5;
+      doc.setFont('helvetica', 'normal');
+      y = writeText(group.matchRationale || 'General profile overlap based on sector and technique applicability.', margin + 2, y, contentWidth - 4, 7.5);
+      y += 2;
+
+      // Scoring breakdown table
+      y = checkPageBreak(y, 30);
+      const breakdownRows: string[][] = [
+        ['CVE Exploitation Overlap (30%)', `${group.scoreBreakdown?.cveScore || 0}/100`, group.matchedCVEs?.length > 0 ? group.matchedCVEs.slice(0, 3).join(', ') : 'No direct CVE overlap'],
+        ['MITRE Technique Alignment (25%)', `${group.scoreBreakdown?.techniqueScore || 0}/100`, group.matchedTechniques?.length > 0 ? `${group.matchedTechniques.length} techniques across ${[...new Set(group.matchedTechniques.map((t: any) => t.tactic))].length} tactics` : 'No technique overlap'],
+        ['Tool/Technology Correlation (20%)', `${group.scoreBreakdown?.toolScore || 0}/100`, group.matchedTools?.length > 0 ? group.matchedTools.slice(0, 3).join(', ') : 'No tool overlap'],
+        ['Sector Targeting (15%)', `${group.scoreBreakdown?.sectorScore || 0}/100`, `${group.sectorRelevance || 0}% sector relevance`],
+        ['Initial Access Viability (10%)', `${group.scoreBreakdown?.initialAccessScore || 0}/100`, group.matchedInitialAccess?.length > 0 ? group.matchedInitialAccess.slice(0, 2).join(', ') : 'No viable IA methods'],
+      ];
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Scoring Dimension', 'Score', 'Evidence']],
+        body: breakdownRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        margin: { left: margin + 2, right: margin + 2 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 48 },
+          1: { cellWidth: 20 },
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 3;
+
+      // Defense recommendations
+      if (group.defenseRecommendations?.length > 0) {
+        y = checkPageBreak(y, 15);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text('Priority Defense Recommendations:', margin, y);
+        y += 3.5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        for (const rec of group.defenseRecommendations.slice(0, 3)) {
+          y = checkPageBreak(y, 5);
+          doc.text(`\u2022 ${truncate(rec, 120)}`, margin + 3, y);
+          y += 3.5;
+        }
+      }
+      y += 4;
+    }
+
+    // ─── 12c. Synthesized Attack Paths ─────────────────────────────────
+    if (_tmData.attackPaths?.length > 0) {
+      y = subheading('Synthesized Attack Paths', y);
+
+      // Context paragraph
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(7.5);
+      const apIntro = `The following attack paths were synthesized by chaining confirmed scan findings through MITRE ATT&CK kill chain phases. Each step is grounded in an actual discovery from the scan — a confirmed CVE, an exposed service, or a detected technology — and attributed to threat groups whose TTPs match the path. These are not theoretical; they represent realistic adversary workflows against this specific attack surface.`;
+      y = writeText(apIntro, margin, y, contentWidth, 7.5);
+      y += 4;
+
+      for (const path of _tmData.attackPaths.slice(0, 4)) {
+        y = checkPageBreak(y, 50);
+
+        // Path header
+        const pathRiskColor = path.overallRisk >= 70 ? [220, 38, 38] : path.overallRisk >= 50 ? [234, 88, 12] : path.overallRisk >= 30 ? [202, 138, 4] : [22, 163, 74];
+        doc.setFillColor(pathRiskColor[0] as number, pathRiskColor[1] as number, pathRiskColor[2] as number);
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${path.id}: ${truncate(path.name, 70)}`, margin + 3, y + 5.5);
+        doc.setFontSize(6.5);
+        doc.text(`Risk: ${path.overallRisk}/100 | Likelihood: ${path.likelihood}/5 | Impact: ${path.impact}/5`, margin + contentWidth - 65, y + 5.5);
+        y += 11;
+
+        // Path description
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        y = writeText(path.description, margin + 2, y, contentWidth - 4, 7.5);
+        y += 2;
+
+        // Attribution
+        if (path.attributedGroups?.length > 0) {
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(100, 116, 139);
+          doc.text(`Attributed to: ${path.attributedGroups.join(', ')}`, margin + 2, y);
+          y += 4;
+        }
+
+        // Kill chain steps table
+        const stepRows: string[][] = path.steps.map((s: any) => [
+          String(s.order),
+          s.phase,
+          `${s.mitreTechnique}\n${s.techniqueName}`,
+          truncate(s.targetAsset, 30),
+          truncate(s.evidence, 80),
+          s.difficulty?.toUpperCase() || 'N/A',
+        ]);
+
+        autoTable!(doc, {
+          startY: y,
+          head: [['#', 'Kill Chain Phase', 'MITRE Technique', 'Target', 'Evidence', 'Difficulty']],
+          body: stepRows,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: margin + 2, right: margin + 2 },
+          columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: 25, fontStyle: 'bold' },
+            2: { cellWidth: 28 },
+            3: { cellWidth: 25 },
+            5: { cellWidth: 18 },
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+
+    // ─── 12d. MITRE ATT&CK Technique Heatmap ──────────────────────────
+    const surfaceRelevantTechniques = (_tmData.techniqueHeatmap || []).filter((t: any) => t.surfaceRelevant);
+    if (surfaceRelevantTechniques.length > 0) {
+      y = checkPageBreak(y, 40);
+      y = subheading('MITRE ATT&CK Technique Coverage (Surface-Relevant)', y);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(7.5);
+      y = writeText(`${surfaceRelevantTechniques.length} of ${_tmData.techniqueHeatmap.length} total techniques from matched threat groups are directly relevant to the discovered attack surface. These techniques have corresponding services, technologies, or vulnerabilities on the target.`, margin, y, contentWidth, 7.5);
+      y += 3;
+
+      const heatmapRows: string[][] = surfaceRelevantTechniques.slice(0, 20).map((t: any) => [
+        t.techniqueId,
+        truncate(t.techniqueName, 35),
+        t.tactic,
+        t.groups.slice(0, 3).join(', '),
+        t.relatedFinding ? truncate(t.relatedFinding, 40) : 'Service-level match',
+      ]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Technique ID', 'Technique Name', 'Tactic', 'Used By', 'Related Finding']],
+        body: heatmapRows,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 22 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 28 },
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 13. PRIORITIZED RECOMMENDATIONSS
   // ═══════════════════════════════════════════════════════════════════════
   y = startSection('Prioritized Recommendations', y, 60);
 

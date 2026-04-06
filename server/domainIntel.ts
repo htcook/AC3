@@ -34,6 +34,7 @@ import { runPostEnrichmentAnalysis, type PostEnrichmentAnalysis } from "./lib/ll
 import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiCommand, type WafNgfwAssessment } from "./lib/waf-ngfw-detection";
 import { applyCarverFeedbackLoop, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
 import { createAssetOwnershipFilter, partitionByOwnership } from "../shared/managed-provider-filter";
+import { runDIThreatMatching, type DIThreatMatchResult } from "./lib/di-threat-matching";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -409,6 +410,8 @@ export interface PipelineResult {
     removedAssets: string[]; // hostnames in previous scan but not in current
     persistentAssets: string[]; // hostnames in both scans
   };
+  /** Deterministic threat actor matching & attack path analysis from master catalog */
+  threatMatching?: DIThreatMatchResult;
 }
 
 export interface BreachDataSummary {
@@ -3819,6 +3822,15 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] CARVER risk card generation failed (non-fatal): ${carverErr.message}`);
   }
 
+  // ─── Stage 4.5: Threat Actor Matching & Attack Path Analysis ────────
+  let threatMatchingResult: DIThreatMatchResult | undefined;
+  try {
+    threatMatchingResult = runDIThreatMatching(analyses, org, kevEnrichment, crossModuleEnrichment);
+    console.log(`[DomainIntel] Threat Matching: ${threatMatchingResult.summary.totalMatched} groups matched (top: ${threatMatchingResult.summary.topGroupName || 'none'}, score: ${threatMatchingResult.summary.topGroupScore}), ${threatMatchingResult.summary.totalAttackPaths} attack paths, ${threatMatchingResult.summary.uniqueTechniques} techniques`);
+  } catch (err: any) {
+    console.error(`[DomainIntel] Threat matching failed (non-fatal): ${err.message}`);
+  }
+
   // ─── Compute Scan Delta (cross-session comparison) ──────────────────
   let scanDelta: PipelineResult['scanDelta'] | undefined;
   try {
@@ -3892,5 +3904,6 @@ export async function runDomainIntelPipeline(
     wafNgfwAssessment,
     scanDelta,
     pipelineCrawl: pipelineCrawlResult,
+    threatMatching: threatMatchingResult,
   };
 }
