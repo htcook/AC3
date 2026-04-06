@@ -406,6 +406,47 @@ export async function exportDiReport(
     return 30;
   }
 
+  // Helper: smart section start — only adds a new page if remaining space is insufficient.
+  // minContentHeight = minimum space (in mm) needed below the header for meaningful content.
+  // If enough space remains on the current page, renders a section header inline with a divider.
+  // Returns the new y position after the header.
+  function startSection(title: string, currentY: number, minContentHeight: number = 80, opts?: { skipToc?: boolean }): number {
+    const headerHeight = 22;
+    const spaceNeeded = headerHeight + minContentHeight;
+    const remainingSpace = pageHeight - currentY - 15; // 15mm bottom margin
+
+    if (remainingSpace < spaceNeeded) {
+      // Not enough space — force a new page with full-width header bar
+      return addSectionPage(title, opts);
+    }
+
+    // Enough space — render inline section header with divider
+    const pageNum = (doc as any).internal.getNumberOfPages();
+    if (!opts?.skipToc) {
+      sectionCounter++;
+      tocEntries.push({ title, pageNum, sectionNum: String(sectionCounter) });
+    }
+
+    // Separator line
+    currentY += 6;
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.setLineWidth(0.3);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 8;
+
+    // Section header bar (inline, narrower than full-page version)
+    doc.setFillColor(15, 23, 42);
+    doc.roundedRect(margin, currentY, contentWidth, 16, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, margin + 5, currentY + 11);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(domain, margin + contentWidth - doc.getTextWidth(domain) - 5, currentY + 11);
+    return currentY + 22;
+  }
+
   // Helper: check page break
   function checkPageBreak(y: number, needed: number = 30): number {
     if (y > pageHeight - needed) {
@@ -1447,7 +1488,7 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   const domainRegistration = scan.domainRegistration || scan.pipelineOutput?.domainRegistration || null;
   if (domainRegistration) {
-    y = addSectionPage('Domain Registration Details');
+    y = startSection('Domain Registration Details', y, 60);
 
     // Registration data table
     const regRows: string[][] = [];
@@ -1673,7 +1714,7 @@ export async function exportDiReport(
   // Also include the domainHealth SSL data if available
   const domainHealthSsl = domainHealth.ssl;
   if (sslCertificates.length > 0 || domainHealthSsl) {
-    y = addSectionPage('SSL Certificate Health');
+    y = startSection('SSL Certificate Health', y, 60);
 
     // Primary domain SSL from domain health check
     if (domainHealthSsl) {
@@ -1798,7 +1839,7 @@ export async function exportDiReport(
   });
 
   if (riskyPorts.length > 0) {
-    y = addSectionPage('Risky Service Exposure');
+    y = startSection('Risky Service Exposure', y, 50);
 
     // Summary box
     const highRiskCount = riskyPorts.filter((p: any) => [21, 23, 135, 139, 445, 1433, 1521, 3306, 3389, 5432, 5900, 5901, 6379, 9200, 11211, 27017].includes(p.port)).length;
@@ -1963,7 +2004,7 @@ export async function exportDiReport(
   }
 
   if (_hasBreachData) {
-  y = addSectionPage('Breach & Credential Exposure');
+  y = startSection('Breach & Credential Exposure', y, 60);
 
   // Breach overview box
   doc.setFillColor(30, 41, 59);
@@ -2214,7 +2255,7 @@ export async function exportDiReport(
   }
 
   if (hasDarkwebHits) {
-  y = addSectionPage('Dark Web & Ransomware Intelligence');
+  y = startSection('Dark Web & Ransomware Intelligence', y, 60);
 
   // Summary box
     doc.setFillColor(50, 20, 20);
@@ -2307,7 +2348,7 @@ export async function exportDiReport(
   // 7. THREAT ACTOR ASSESSMENT
   // ═══════════════════════════════════════════════════════════════════════
   if (threatGroupObs.length > 0) {
-    y = addSectionPage('Threat Actor Assessment');
+    y = startSection('Threat Actor Assessment', y, 80);
 
     for (const tg of threatGroupObs.slice(0, 5)) {
       y = checkPageBreak(y, 60);
@@ -2423,7 +2464,7 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   // 8. VULNERABILITY & TECHNOLOGY LANDSCAPE
   // ═══════════════════════════════════════════════════════════════════════
-  y = addSectionPage('Vulnerability & Technology Landscape');
+  y = startSection('Vulnerability & Technology Landscape', y, 60);
 
   // Technology stack — deduplicate similar technologies
   const _techAliases: Record<string, string> = {
@@ -2688,7 +2729,7 @@ export async function exportDiReport(
   // 8b. PROVIDER-MANAGED INFRASTRUCTURE
   // ═══════════════════════════════════════════════════════════════════════
   if (_managedMailProvider || _managedMailHosts.size > 0) {
-    y = addSectionPage('Provider-Managed Infrastructure');
+    y = startSection('Provider-Managed Infrastructure', y, 60);
 
     // Intro paragraph
     doc.setFontSize(9);
@@ -2745,7 +2786,7 @@ export async function exportDiReport(
   const _hasOemCreds = (scan.oemCredentials?.length ?? 0) > 0;
   const _hasCredTests = scan.credentialTestSummary && scan.credentialTestSummary.totalTargets > 0;
   if (_hasExploits || _hasOemCreds || _hasCredTests) {
-    y = addSectionPage('Exploit Availability & Default Credentials');
+    y = startSection('Exploit Availability & Default Credentials', y, 50);
 
     // Exploit matches
     if (_hasExploits) {
@@ -2893,7 +2934,7 @@ export async function exportDiReport(
   const _hasCompliance = scan.complianceScan && scan.complianceScan.totalChecks > 0;
   const _hasContainers = scan.containerExposure && scan.containerExposure.totalHits > 0;
   if (_hasCompliance || _hasContainers) {
-    y = addSectionPage('Compliance & Container Exposure');
+    y = startSection('Compliance & Container Exposure', y, 50);
 
     // SCAP/STIG Compliance
     if (_hasCompliance) {
@@ -3011,7 +3052,7 @@ export async function exportDiReport(
   const _hasCarver = carver && (carver.scores || carver.sector);
   const _hasScanDelta = scan.scanDelta && scan.scanDelta.previousScanId;
   if (_hasCme || _hasCarver || _hasScanDelta) {
-    y = addSectionPage('Cross-Module Intelligence & CARVER Profile');
+    y = startSection('Cross-Module Intelligence & CARVER Profile', y, 60);
 
     // CARVER Risk Card
     if (_hasCarver) {
@@ -3352,7 +3393,7 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   // 12. PRIORITIZED RECOMMENDATIONS
   // ═══════════════════════════════════════════════════════════════════════
-  y = addSectionPage('Prioritized Recommendations');
+  y = startSection('Prioritized Recommendations', y, 60);
 
   // Build recommendations: prefer LLM-generated, fallback to data-driven from scan findings
   let finalRecommendations = llmAnalysis.recommendations || [];
