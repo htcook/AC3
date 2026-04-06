@@ -484,13 +484,13 @@ export async function exportDiReport(
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
-  // Count only confirmed CVE/vulnerability findings — exclude non-CVE findings and provider-managed-only
+  // Count confirmed findings — use corroboration tag (same method as BLUF breakdown)
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
-  const _confirmedVulnFindings = _clientFindings.filter((o: any) =>
-    o.evidence?.corroboration === '[CONFIRMED]' &&
-    (o.tags?.includes('vulnerability') || o.tags?.includes('cve') || o.evidence?.cve_id)
-  );
-  const _confirmedCount = _confirmedVulnFindings.length;
+  // Primary: scan-level count. Fallback: count observations with [CONFIRMED] corroboration or 'confirmed' confidence
+  const _confirmedCount = scan.confirmedFindingsCount ||
+    _clientFindings.filter((o: any) =>
+      o.evidence?.corroboration === '[CONFIRMED]' || o.confidence === 'confirmed'
+    ).length;
   doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
   // Count data sources: prefer connectors with observations, fallback to total connectors, then unique observation sources
   const _connectorResultsWithObs = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0);
@@ -1114,8 +1114,17 @@ export async function exportDiReport(
     emailRows.push(['DMARC', email.dmarc?.present ? `Present — Policy: ${email.dmarc.policy || 'none'}${email.dmarc.record ? ` — ${truncate(email.dmarc.record, 50)}` : ''}` : 'MISSING']);
     // Add phishing difficulty if available
     if (email.phishingDifficulty) {
-      const phishColor = email.phishingDifficulty === 'hard' || email.phishingDifficulty === 'very_hard' ? 'LOW RISK' : email.phishingDifficulty === 'moderate' ? 'MODERATE RISK' : 'HIGH RISK';
-      emailRows.push(['Phishing Difficulty', `${email.phishingDifficulty.replace(/_/g, ' ').toUpperCase()} (${phishColor})`]);
+      // Phishing difficulty = how hard it is to spoof. Hard = good (low risk). Easy = bad (high risk).
+      const diffLabel = email.phishingDifficulty.replace(/_/g, ' ').toUpperCase();
+      let phishDesc: string;
+      if (email.phishingDifficulty === 'hard' || email.phishingDifficulty === 'very_hard') {
+        phishDesc = `${diffLabel} to spoof — strong protections in place`;
+      } else if (email.phishingDifficulty === 'moderate') {
+        phishDesc = `${diffLabel} to spoof — some protections but gaps remain`;
+      } else {
+        phishDesc = `${diffLabel} to spoof — domain is vulnerable to impersonation`;
+      }
+      emailRows.push(['Phishing Difficulty', phishDesc]);
     }
     // Add email security score if available
     if (email.overallScore !== undefined) {
@@ -1912,25 +1921,19 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   // 5. BREACH & CREDENTIAL EXPOSURE
   // ═══════════════════════════════════════════════════════════════════════
-  y = addSectionPage('Breach & Credential Exposure');
 
-  // Filter credential observations
+  // Pre-compute breach data to decide whether to render a full page
   const credentialObs = observations.filter((o: any) =>
     o.assetType === 'credential' ||
     o.tags?.includes('leaked_credential') ||
     o.tags?.includes('credential_breach')
   );
-
-  // Dehashed breach database summaries
   const breachDbObs = observations.filter((o: any) =>
     o.tags?.includes('breach_database') && o.source === 'dehashed'
   );
-
-  // Dehashed overall breach summary
   const breachSummaryObs = observations.find((o: any) =>
     o.tags?.includes('breach_summary') && o.source === 'dehashed'
   );
-
   const firstPartyObs = credentialObs.filter((o: any) =>
     o.evidence?.credential_source === 'first_party' || o.tags?.includes('first_party_breach')
   );
@@ -1940,12 +1943,27 @@ export async function exportDiReport(
   const unknownSourceObs = credentialObs.filter((o: any) =>
     !o.tags?.includes('first_party_breach') && !o.tags?.includes('third_party_breach')
   );
-
-  // Fallback: use scan.breachData if observations don't have breach info
   const breachDataFallback = scan.breachData || {};
   const totalLeaked = credentialObs.length || breachDataFallback.totalExposures || 0;
   const uniqueEmails = breachDataFallback.uniqueEmails || 0;
   const uniqueBreachSources = breachDataFallback.uniqueBreachSources || 0;
+
+  // Only create a full section page if there is breach data to show
+  const _hasBreachData = totalLeaked > 0 || breachDbObs.length > 0 || breachSummaryObs;
+  if (!_hasBreachData) {
+    // Compact inline note — no wasted page
+    y = checkPageBreak(y, 20);
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+    doc.setTextColor(22, 163, 74);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Breach & Credential Exposure: No leaked credentials or breach data detected.', margin + 5, y + 8);
+    y += 16;
+  }
+
+  if (_hasBreachData) {
+  y = addSectionPage('Breach & Credential Exposure');
 
   // Breach overview box
   doc.setFillColor(30, 41, 59);
@@ -2153,12 +2171,13 @@ export async function exportDiReport(
       y += 6;
     }
   }
+  } // end _hasBreachData
 
   // ═══════════════════════════════════════════════════════════════════════
   // 6. DARK WEB & RANSOMWARE INTELLIGENCE
   // ═══════════════════════════════════════════════════════════════════════
-  y = addSectionPage('Dark Web & Ransomware Intelligence');
 
+  // Pre-compute dark web data
   const darkwebObs = observations.filter((o: any) =>
     o.tags?.includes('darkweb') ||
     o.tags?.includes('ransomware_listing') ||
@@ -2180,9 +2199,24 @@ export async function exportDiReport(
   const stealerObs = darkwebObs.filter((o: any) => o.tags?.includes('stealer_log') || o.tags?.includes('compromised_employee'));
   const threatGroupObs = darkwebObs.filter((o: any) => o.tags?.includes('threat_group'));
 
-  // Summary box
   const hasDarkwebHits = darkwebObs.length > 0;
+
+  if (!hasDarkwebHits) {
+    // Compact inline note — no wasted page
+    y = checkPageBreak(y, 20);
+    doc.setFillColor(240, 253, 244);
+    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, 'F');
+    doc.setTextColor(22, 163, 74);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Dark Web & Ransomware Intelligence: No dark web mentions detected.', margin + 5, y + 8);
+    y += 16;
+  }
+
   if (hasDarkwebHits) {
+  y = addSectionPage('Dark Web & Ransomware Intelligence');
+
+  // Summary box
     doc.setFillColor(50, 20, 20);
     doc.roundedRect(margin, y, contentWidth, 25, 3, 3, 'F');
     doc.setTextColor(220, 38, 38);
@@ -2192,22 +2226,14 @@ export async function exportDiReport(
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 200, 200);
-    const parts = [];
+    const parts: string[] = [];
     if (ransomwareObs.length > 0) parts.push(`${ransomwareObs.length} ransomware`);
     if (iabObs.length > 0) parts.push(`${iabObs.length} IAB`);
     if (dataLeakObs.length > 0) parts.push(`${dataLeakObs.length} data leak`);
     if (stealerObs.length > 0) parts.push(`${stealerObs.length} stealer log`);
     if (threatGroupObs.length > 0) parts.push(`${threatGroupObs.length} threat group`);
     doc.text(parts.join(' | '), margin + 5, y + 18);
-  } else {
-    doc.setFillColor(240, 253, 244);
-    doc.roundedRect(margin, y, contentWidth, 15, 3, 3, 'F');
-    doc.setTextColor(22, 163, 74);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('NO DARK WEB MENTIONS DETECTED', margin + 5, y + 10);
-  }
-  y += hasDarkwebHits ? 32 : 22;
+  y += 32;
 
   // Ransomware listings
   if (ransomwareObs.length > 0) {
@@ -2392,18 +2418,30 @@ export async function exportDiReport(
       }
     }
   }
+  } // end hasDarkwebHits
 
   // ═══════════════════════════════════════════════════════════════════════
   // 8. VULNERABILITY & TECHNOLOGY LANDSCAPE
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Vulnerability & Technology Landscape');
 
-  // Technology stack
+  // Technology stack — deduplicate similar technologies
+  const _techAliases: Record<string, string> = {
+    'Express.js': 'Express', 'express.js': 'Express', 'express': 'Express',
+    'Node.js': 'Node.js', 'node.js': 'Node.js', 'node': 'Node.js',
+    'Next.js': 'Next.js', 'next.js': 'Next.js', 'nextjs': 'Next.js',
+    'Nuxt.js': 'Nuxt.js', 'nuxt.js': 'Nuxt.js', 'nuxtjs': 'Nuxt.js',
+    'React.js': 'React', 'react.js': 'React', 'ReactJS': 'React',
+    'Vue.js': 'Vue.js', 'vue.js': 'Vue.js', 'VueJS': 'Vue.js',
+    'Tailwind CSS': 'Tailwind CSS', 'tailwindcss': 'Tailwind CSS', 'TailwindCSS': 'Tailwind CSS',
+    'jQuery': 'jQuery', 'jquery': 'jQuery', 'JQuery': 'jQuery',
+  };
   const allTechs = new Map<string, number>();
   for (const asset of assets) {
     if (Array.isArray(asset.technologies)) {
       for (const tech of asset.technologies) {
-        allTechs.set(tech, (allTechs.get(tech) || 0) + 1);
+        const normalized = _techAliases[tech] || tech;
+        allTechs.set(normalized, (allTechs.get(normalized) || 0) + 1);
       }
     }
   }
@@ -2894,10 +2932,10 @@ export async function exportDiReport(
           head: [['Check ID', 'Title', 'Severity', 'Category', 'Remediation']],
           body: failedChecks.slice(0, 25).map((c: any) => [
             c.stigId || c.checkId || 'N/A',
-            truncate(c.title || 'N/A', 40),
+            truncate(c.title || 'N/A', 50),
             c.severity || 'N/A',
-            truncate(c.category || 'N/A', 20),
-            truncate(c.remediation || 'N/A', 40),
+            (c.category || 'N/A').replace(/_/g, ' '),
+            truncate(c.remediation || 'N/A', 80),
           ]),
           theme: 'grid',
           headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
@@ -3316,15 +3354,59 @@ export async function exportDiReport(
   // ═══════════════════════════════════════════════════════════════════════
   y = addSectionPage('Prioritized Recommendations');
 
-  // LLM-generated recommendations
-  if (llmAnalysis.recommendations?.length > 0) {
+  // Build recommendations: prefer LLM-generated, fallback to data-driven from scan findings
+  let finalRecommendations = llmAnalysis.recommendations || [];
+  if (finalRecommendations.length === 0) {
+    // Generate data-driven recommendations from actual scan data
+    const autoRecs: any[] = [];
+    // From compliance failed checks
+    const _compFailedChecks = scan.complianceScan?.checks?.filter((c: any) => c.status === 'fail' || c.status === 'failed') || [];
+    for (const fc of _compFailedChecks.slice(0, 8)) {
+      autoRecs.push({
+        recommendation: fc.remediation || `Remediate: ${fc.title}`,
+        title: fc.title || fc.stigId || fc.checkId || 'Compliance Fix',
+        category: fc.category || 'Compliance',
+        effort: fc.severity === 'high' || fc.severity === 'critical' ? 'Immediate' : fc.severity === 'medium' ? 'Short-term' : 'Medium-term',
+      });
+    }
+    // From registration risks
+    if (domainHealth.registration) {
+      const reg = domainHealth.registration;
+      if (reg.dnssecEnabled === false || reg.dnssec === 'unsigned' || reg.dnssec === 'Not Enabled') {
+        autoRecs.push({ recommendation: 'Enable DNSSEC to protect against DNS spoofing and cache poisoning attacks.', title: 'Enable DNSSEC', category: 'DNS Security', effort: 'Short-term' });
+      }
+      const daysLeft = reg.daysUntilExpiry ?? reg.daysToExpiry;
+      if (daysLeft !== undefined && daysLeft <= 30) {
+        autoRecs.push({ recommendation: `Domain expires in ${daysLeft} days. Renew immediately and enable auto-renewal to prevent domain hijacking.`, title: 'Renew Domain', category: 'Domain Management', effort: 'Immediate' });
+      }
+    }
+    // From email security
+    if (email.dmarc?.policy === 'none') {
+      autoRecs.push({ recommendation: 'Upgrade DMARC policy from "none" to "quarantine" or "reject" to prevent email spoofing.', title: 'Enforce DMARC Policy', category: 'Email Security', effort: 'Short-term' });
+    }
+    // From blacklist
+    if (_blacklistCount > 0) {
+      autoRecs.push({ recommendation: `Investigate and remediate ${_blacklistCount} DNSBL listing(s) to restore email deliverability and IP reputation.`, title: 'Address Blacklist Listings', category: 'IP Reputation', effort: 'Immediate' });
+    }
+    // From exploit matches
+    if (_exploitTotal > 0) {
+      autoRecs.push({ recommendation: `${_exploitTotal} public exploit(s) map to discovered technologies. Prioritize patching affected components.`, title: 'Patch Exploitable Components', category: 'Vulnerability Management', effort: 'Immediate' });
+    }
+    // From OEM credentials
+    if (scan.oemCredentials?.length > 0) {
+      autoRecs.push({ recommendation: `${scan.oemCredentials.length} default credential match(es) detected. Change all default passwords immediately.`, title: 'Change Default Credentials', category: 'Access Control', effort: 'Immediate' });
+    }
+    finalRecommendations = autoRecs;
+  }
+
+  if (finalRecommendations.length > 0) {
     autoTable!(doc, {
       startY: y,
       head: [['Priority', 'Recommendation', 'Category', 'Effort']],
-      body: llmAnalysis.recommendations.slice(0, 20).map((r: any, i: number) => [
+      body: finalRecommendations.slice(0, 20).map((r: any, i: number) => [
         `P${i + 1}`,
-        truncate(r.recommendation || r.title || r, 60),
-        truncate(r.category || 'General', 20),
+        truncate(r.recommendation || r.title || r, 120),
+        truncate(r.category || 'General', 30),
         r.effort || 'N/A',
       ]),
       theme: 'grid',
@@ -3424,6 +3506,7 @@ export async function exportDiReport(
     ['Scan Mode', scan.scanMode || 'standard'],
     ['Started', scan.createdAt ? new Date(scan.createdAt).toLocaleString() : 'N/A'],
     ['Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)} seconds` : 'N/A'],
+    ['Total Findings', String(_totalFindings)],
     ['Confirmed Findings', String(_confirmedCount)],
     ['Total Assets', String(scan.totalAssets || assets.length)],
     ['Data Sources', String(connectorCount)],
