@@ -2626,113 +2626,79 @@ export async function exportDiReport(
       }
     }
 
-    // Estimate card height: header(10) + name(5) + evidence(4) + nvd(8) + hosts(hosts.length * 3.5) + padding(6)
+    // Estimate card height: header(7) + name(4) + evidence(3) + nvd(7) + hosts(3) + padding(3)
     const hasEvidence = evidenceSummary.length > 0;
     const hasNvd = nvdDesc.length > 0;
-    const estimatedHeight = 10 + 6 + (hasEvidence ? 5 : 0) + (hasNvd ? 10 : 0) + Math.max(hosts.length * 3.5, 4) + 6;
+    const estimatedHeight = 7 + 5 + (hasEvidence ? 4 : 0) + (hasNvd ? 8 : 0) + 4 + 3;
     y = checkPageBreak(y, estimatedHeight);
 
-    // ── Header bar (taller for readability) ──
+    // ── Header bar (compact) ──
     doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]);
-    doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, 'F');
+    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text(cveId, margin + 3, y + 6);
+    doc.text(cveId, margin + 2, y + 4.5);
     // Right-aligned metadata chips
     const chips: string[] = [`Sev: ${sev}`, `CVSS: ${cvss}`];
     if (showVersion && version !== 'N/A' && !isProtocolVersion) chips.push(`Ver: ${version}`);
     if (showKev && kevListed) chips.push('KEV');
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    let chipX = pageWidth - margin - 3;
+    doc.setFontSize(5.5);
+    let chipX = pageWidth - margin - 2;
     for (let i = chips.length - 1; i >= 0; i--) {
-      const cw = doc.getTextWidth(chips[i]) + 4;
+      const cw = doc.getTextWidth(chips[i]) + 3;
       chipX -= cw;
       doc.setFillColor(255, 255, 255, 0.2 as any);
-      doc.roundedRect(chipX, y + 2, cw, 5, 1, 1, 'F');
+      doc.roundedRect(chipX, y + 1.5, cw, 4, 0.8, 0.8, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.text(chips[i], chipX + 2, y + 5.5);
-      chipX -= 2;
+      doc.text(chips[i], chipX + 1.5, y + 4.2);
+      chipX -= 1.5;
     }
-    y += 12; // Clear gap below header bar
+    y += 9; // Compact gap below header
 
-    // ── Finding name ──
+    // ── Finding name (single line, truncated) ──
     doc.setTextColor(20, 20, 20);
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    const nameLines = doc.splitTextToSize(findingName, contentWidth - 6);
-    for (const line of nameLines) {
-      y = checkPageBreak(y, 5);
-      doc.text(line, margin + 3, y);
-      y += 3.5;
+    const truncatedName = findingName.length > 120 ? findingName.substring(0, 117) + '...' : findingName;
+    const nameLines = doc.splitTextToSize(truncatedName, contentWidth - 4);
+    for (const line of nameLines.slice(0, 2)) {
+      doc.text(line, margin + 2, y);
+      y += 3;
     }
-    y += 1;
 
-    // ── NVD Description (if available) ──
+    // ── NVD Description (compact, max 2 lines) ──
     if (hasNvd) {
       doc.setTextColor(60, 60, 60);
-      doc.setFontSize(6.5);
-      doc.setFont('helvetica', 'normal');
-      const nvdLines = doc.splitTextToSize(nvdDesc, contentWidth - 8);
-      const maxNvdLines = Math.min(nvdLines.length, 3); // Cap at 3 lines
-      for (let i = 0; i < maxNvdLines; i++) {
-        y = checkPageBreak(y, 4);
-        doc.text(nvdLines[i] + (i === maxNvdLines - 1 && nvdLines.length > 3 ? '...' : ''), margin + 3, y);
-        y += 2.8;
-      }
-      y += 1;
-    }
-
-    // ── Evidence / Corroboration summary ──
-    if (hasEvidence) {
       doc.setFontSize(6);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(22, 101, 52); // green-800 for confirmed evidence
-      y = checkPageBreak(y, 4);
-      const evidenceLines = doc.splitTextToSize(`Evidence: ${evidenceSummary}`, contentWidth - 8);
-      for (const line of evidenceLines.slice(0, 2)) {
-        doc.text(line, margin + 3, y);
-        y += 2.8;
+      doc.setFont('helvetica', 'normal');
+      const nvdLines = doc.splitTextToSize(nvdDesc, contentWidth - 6);
+      const maxNvdLines = Math.min(nvdLines.length, 2);
+      for (let i = 0; i < maxNvdLines; i++) {
+        doc.text(nvdLines[i] + (i === maxNvdLines - 1 && nvdLines.length > 2 ? '...' : ''), margin + 2, y);
+        y += 2.5;
       }
-      y += 1;
     }
 
-    // ── Affected hosts (compact: inline for 4+ hosts, bullets for 1-3) ──
-    doc.setFontSize(6.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(50, 50, 50);
-    y = checkPageBreak(y, 5);
-    if (hosts.length <= 3) {
-      doc.text(`Affected Assets (${hosts.length}):`, margin + 3, y);
-      y += 3.5;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      for (const host of hosts) {
-        y = checkPageBreak(y, 4);
-        doc.text(`\u2022  ${host}`, margin + 5, y);
-        y += 3;
-      }
-    } else {
-      // Compact inline: "Affected Assets (10): host1, host2, host3, ... +7 more"
-      const MAX_INLINE = 3;
-      const shown = hosts.slice(0, MAX_INLINE).join(', ');
-      const remaining = hosts.length - MAX_INLINE;
-      const inlineText = remaining > 0 ? `${shown}, +${remaining} more` : shown;
-      doc.text(`Affected Assets (${hosts.length}): `, margin + 3, y);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      const labelWidth = doc.getTextWidth(`Affected Assets (${hosts.length}): `);
-      const assetLines = doc.splitTextToSize(inlineText, contentWidth - 6 - labelWidth);
-      doc.text(assetLines[0], margin + 3 + labelWidth, y);
-      y += 3.5;
-      for (let i = 1; i < assetLines.length; i++) {
-        y = checkPageBreak(y, 4);
-        doc.text(assetLines[i], margin + 5, y);
-        y += 3;
-      }
+    // ── Evidence + Affected hosts (single compact line) ──
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(22, 101, 52);
+    const evidenceShort = hasEvidence ? evidenceSummary.substring(0, 100) + (evidenceSummary.length > 100 ? '...' : '') : '';
+    // Always use inline host display
+    const MAX_INLINE = 3;
+    const shown = hosts.slice(0, MAX_INLINE).join(', ');
+    const remaining = hosts.length - MAX_INLINE;
+    const hostText = remaining > 0 ? `${shown}, +${remaining} more` : shown;
+    if (evidenceShort) {
+      doc.text(`Evidence: ${evidenceShort}`, margin + 2, y);
+      y += 2.5;
     }
-    y += 4; // Clear gap before next card
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Affected Assets (${hosts.length}): ${hostText}`, margin + 2, y);
+    y += 4; // Compact gap before next card
   };
 
   if (vulnObs.length > 0) {
@@ -2765,10 +2731,123 @@ export async function exportDiReport(
       }
       y += 2;
 
-      for (const vuln of confirmedVulns) {
-        const sevScore = vuln.evidence?.severity || 5;
-        const headerColor: [number, number, number] = sevScore >= 9 ? [153, 27, 27] : sevScore >= 7 ? [194, 65, 12] : [30, 41, 59];
-        renderCveCard(vuln, headerColor, [51, 65, 85], [30, 41, 59], true, true);
+      // Sort by severity (critical first), then KEV-listed first
+      const sortedConfirmed = [...confirmedVulns].sort((a: any, b: any) => {
+        const sevA = a.evidence?.severity || 0;
+        const sevB = b.evidence?.severity || 0;
+        if (sevB !== sevA) return sevB - sevA;
+        const kevA = a.evidence?.kevListed ? 1 : 0;
+        const kevB = b.evidence?.kevListed ? 1 : 0;
+        return kevB - kevA;
+      });
+
+      // Tier 1: Top 20 critical/KEV vulns get individual cards
+      const MAX_INDIVIDUAL_CARDS = 20;
+      const topVulns = sortedConfirmed.slice(0, MAX_INDIVIDUAL_CARDS);
+      const remainingVulns = sortedConfirmed.slice(MAX_INDIVIDUAL_CARDS);
+
+      if (topVulns.length > 0) {
+        y = checkPageBreak(y, 10);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Top ${topVulns.length} Critical Findings (detailed)`, margin, y);
+        y += 5;
+
+        for (const vuln of topVulns) {
+          const sevScore = vuln.evidence?.severity || 5;
+          const headerColor: [number, number, number] = sevScore >= 9 ? [153, 27, 27] : sevScore >= 7 ? [194, 65, 12] : [30, 41, 59];
+          renderCveCard(vuln, headerColor, [51, 65, 85], [30, 41, 59], true, true);
+        }
+      }
+
+      // Tier 2: Remaining vulns as compact autoTable grouped by technology
+      if (remainingVulns.length > 0) {
+        y = checkPageBreak(y, 20);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Additional Confirmed Findings (${remainingVulns.length})`, margin, y);
+        y += 3;
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 116, 139);
+        doc.text('Grouped by technology for efficient remediation planning.', margin, y);
+        y += 5;
+
+        // Group remaining vulns by technology
+        const techGroups = new Map<string, any[]>();
+        for (const v of remainingVulns) {
+          const tech = v.evidence?.technology || v.evidence?.findingName?.match(/\(([^)]+)\)$/)?.[1] || 'Other';
+          if (!techGroups.has(tech)) techGroups.set(tech, []);
+          techGroups.get(tech)!.push(v);
+        }
+
+        // Sort groups by count descending
+        const sortedGroups = [...techGroups.entries()].sort((a, b) => b[1].length - a[1].length);
+
+        for (const [tech, vulns] of sortedGroups) {
+          y = checkPageBreak(y, 15);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(51, 65, 85);
+          doc.text(`${tech} (${vulns.length} CVEs)`, margin + 2, y);
+          y += 4;
+
+          const tableBody = vulns.map((v: any) => {
+            const cveId = v.evidence?.cve_id || 'N/A';
+            const name = (v.name?.replace(/^CVE-\d{4}-\d+:\s*/, '') || 'Unknown');
+            const truncName = name.length > 60 ? name.substring(0, 57) + '...' : name;
+            const sev = getSeverityLabel(v.evidence?.severity || 5);
+            const cvss = v.evidence?.cvssScore ? String(v.evidence.cvssScore) : 'N/A';
+            const ver = v.evidence?.detectedVersion || '-';
+            const kev = v.evidence?.kevListed ? 'Yes' : '-';
+            const rawHosts: string[] = v.evidence?.affectedHosts || [v.evidence?.hostname || domain];
+            const hosts = rawHosts.filter((h: string) => !_managedMailHosts.has(h));
+            const hostCount = hosts.length;
+            return [cveId, truncName, sev, cvss, ver, kev, String(hostCount)];
+          });
+
+          autoTable!(doc, {
+            startY: y,
+            head: [['CVE ID', 'Description', 'Sev', 'CVSS', 'Ver', 'KEV', 'Assets']],
+            body: tableBody,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 5.5, cellPadding: 1.2, overflow: 'linebreak' },
+            headStyles: {
+              fillColor: [51, 65, 85],
+              textColor: [255, 255, 255],
+              fontSize: 5.5,
+              fontStyle: 'bold',
+              cellPadding: 1.5,
+            },
+            columnStyles: {
+              0: { cellWidth: 24, fontStyle: 'bold' },
+              1: { cellWidth: 62 },
+              2: { cellWidth: 14, halign: 'center' as const },
+              3: { cellWidth: 12, halign: 'center' as const },
+              4: { cellWidth: 16, halign: 'center' as const },
+              5: { cellWidth: 10, halign: 'center' as const },
+              6: { cellWidth: 14, halign: 'center' as const },
+            },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            didParseCell: (data: any) => {
+              // Color severity cells
+              if (data.section === 'body' && data.column.index === 2) {
+                const val = data.cell.raw;
+                if (val === 'Critical') data.cell.styles.textColor = [153, 27, 27];
+                else if (val === 'High') data.cell.styles.textColor = [194, 65, 12];
+                else if (val === 'Medium') data.cell.styles.textColor = [161, 98, 7];
+              }
+              // Color KEV cells
+              if (data.section === 'body' && data.column.index === 5 && data.cell.raw === 'Yes') {
+                data.cell.styles.textColor = [153, 27, 27];
+                data.cell.styles.fontStyle = 'bold';
+              }
+            },
+          });
+          y = (doc as any).lastAutoTable.finalY + 4;
+        }
       }
       y += 2;
     }
