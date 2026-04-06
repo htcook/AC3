@@ -8110,7 +8110,12 @@ ${(() => {
                 `Evidence: ${exploitOutput.slice(0, 300)}`
               : `Enhanced pipeline failed on ${service} at ${target}:${port}.\n` +
                 `Pipeline: ${enhancedOutcome.enhancedPipelineResult?.status || 'N/A'}\n` +
-                `Output: ${exploitOutput.slice(0, 300)}`,
+                (enhancedOutcome.failureAnalysis
+                  ? `Failure: [${enhancedOutcome.failureAnalysis.category.toUpperCase()}] ${enhancedOutcome.failureAnalysis.description}\n` +
+                    (enhancedOutcome.failureAnalysis.indicators.length > 0 ? `Indicators: ${enhancedOutcome.failureAnalysis.indicators.join(', ')}\n` : '') +
+                    (enhancedOutcome.failureAnalysis.retryable ? `Retryable: yes (confidence ${Math.round(enhancedOutcome.failureAnalysis.retryConfidence * 100)}%)\n` : 'Retryable: no\n') +
+                    (enhancedOutcome.failureAnalysis.suggestedAdjustments.length > 0 ? `Suggested: ${enhancedOutcome.failureAnalysis.suggestedAdjustments.slice(0, 3).map(a => a.description).join('; ')}` : '')
+                  : `Output: ${exploitOutput.slice(0, 300)}`),
             riskTier: 'red',
             data: {
               enhancedPipeline: true,
@@ -8121,6 +8126,8 @@ ${(() => {
               reasonerAction: enhancedOutcome.reasonerDecision?.action?.type,
               highestAccess: enhancedOutcome.highestAccessLevel,
               totalDurationMs: enhancedOutcome.totalDurationMs,
+              // Structured failure analysis for frontend rendering
+              failureAnalysis: enhancedOutcome.failureAnalysis || undefined,
             },
           });
 
