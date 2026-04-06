@@ -3722,7 +3722,152 @@ export async function exportDiReport(
   }
 
   // ═════════════════════════════════════════════════════════════════════
-  // 13. PRIORITIZED RECOMMENDATIONSS
+  // 13. TECHNOLOGY STACK ANALYSIS & MOST WIDESPREAD VULNERABILITIES
+  // ═══════════════════════════════════════════════════════════════════════
+  const _tsg = scan.techStackGrouping;
+  if (_tsg && _tsg.summary.totalGroups > 0) {
+    y = startSection('Technology Stack Analysis', y, 80);
+
+    // Intro paragraph with context
+    const stackIntro = _tsg.summary.stackOverlapPercentage > 30
+      ? `Across ${_tsg.summary.totalAssets} analyzed assets, ${_tsg.summary.uniqueStacks} unique technology stacks were identified. ${_tsg.summary.stackOverlapPercentage}% of assets share a stack with at least one other asset, meaning vulnerabilities in common technologies have a multiplied blast radius. The largest group (${_tsg.summary.largestGroupSize} assets) runs ${truncate(_tsg.summary.largestGroupLabel, 80)}.`
+      : `Across ${_tsg.summary.totalAssets} analyzed assets, ${_tsg.summary.uniqueStacks} unique technology stacks were identified. Technology diversity is relatively high, with an average of ${_tsg.summary.averageGroupSize} assets per stack.`;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8.5);
+    y = writeText(stackIntro, margin, y, contentWidth, 8.5);
+    y += 4;
+
+    // Stack Groups table (top 10)
+    y = subheading('Technology Stack Groups (Top 10 by Size)', y);
+    const stackRows = _tsg.groups.slice(0, 10).map((g: any) => [
+      truncate(g.stackLabel, 50),
+      String(g.assetCount),
+      String(g.totalUniqueCves),
+      String(g.sharedCves?.length || 0),
+      `${g.avgRiskScore}/100 (${g.riskBand.toUpperCase()})`,
+    ]);
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Technology Stack', 'Assets', 'Total CVEs', 'Shared CVEs', 'Avg Risk']],
+      body: stackRows,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+      alternateRowStyles: { fillColor: [241, 245, 249] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 18, halign: 'center' as const },
+        2: { cellWidth: 22, halign: 'center' as const },
+        3: { cellWidth: 22, halign: 'center' as const },
+        4: { cellWidth: 35 },
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // Shared Vulnerabilities detail for the largest group
+    const largestGroup = _tsg.groups[0];
+    if (largestGroup && largestGroup.sharedCves?.length > 0) {
+      y = checkPageBreak(y, 40);
+      y = subheading(`Shared Vulnerabilities: ${truncate(largestGroup.stackLabel, 50)} (${largestGroup.assetCount} assets)`, y);
+      const sharedContext = `These ${largestGroup.sharedCves.length} vulnerabilities affect ALL ${largestGroup.assetCount} assets in this stack group. Patching or mitigating any of these addresses the risk across the entire group simultaneously.`;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(8);
+      y = writeText(sharedContext, margin, y, contentWidth, 8);
+      y += 3;
+
+      const sharedRows = largestGroup.sharedCves.slice(0, 10).map((c: any) => [
+        c.cveId,
+        truncate(c.title, 50),
+        String(c.severity) + '/10',
+        c.cvssScore ? String(c.cvssScore) : 'N/A',
+        c.kevListed ? 'YES' : 'No',
+        c.exploitAvailable ? 'YES' : 'No',
+        c.corroborationTier?.toUpperCase() || 'N/A',
+      ]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Description', 'Severity', 'CVSS', 'KEV', 'Exploit', 'Confidence']],
+        body: sharedRows,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 24 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 16, halign: 'center' as const },
+          3: { cellWidth: 14, halign: 'center' as const },
+          4: { cellWidth: 12, halign: 'center' as const },
+          5: { cellWidth: 14, halign: 'center' as const },
+          6: { cellWidth: 20, halign: 'center' as const },
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // Most Widespread Vulnerabilities
+    if (_tsg.mostWidespreadVulns?.length > 0) {
+      y = checkPageBreak(y, 40);
+      y = subheading('Most Widespread Vulnerabilities', y);
+      const widespreadContext = `These vulnerabilities affect the highest number of assets. Remediating them provides the greatest reduction in aggregate exposure.`;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(51, 65, 85);
+      doc.setFontSize(8);
+      y = writeText(widespreadContext, margin, y, contentWidth, 8);
+      y += 3;
+
+      const widespreadRows = _tsg.mostWidespreadVulns.slice(0, 15).map((v: any) => [
+        v.cveId,
+        truncate(v.title, 45),
+        String(v.severity) + '/10',
+        v.cvssScore ? String(v.cvssScore) : 'N/A',
+        `${v.affectedAssetCount} (${v.affectedPercentage}%)`,
+        v.kevListed ? 'YES' : 'No',
+        v.exploitAvailable ? 'YES' : 'No',
+      ]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['CVE ID', 'Description', 'Severity', 'CVSS', 'Affected Assets', 'KEV', 'Exploit']],
+        body: widespreadRows,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+        bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 24 },
+          1: { cellWidth: 48 },
+          2: { cellWidth: 16, halign: 'center' as const },
+          3: { cellWidth: 14, halign: 'center' as const },
+          4: { cellWidth: 25, halign: 'center' as const },
+          5: { cellWidth: 12, halign: 'center' as const },
+          6: { cellWidth: 14, halign: 'center' as const },
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+    }
+
+    // Remediation efficiency note
+    y = checkPageBreak(y, 25);
+    const remediationNote = _tsg.summary.stackOverlapPercentage > 30
+      ? `Remediation Efficiency: Because ${_tsg.summary.stackOverlapPercentage}% of assets share technology stacks, patching common components (e.g., updating ${truncate(_tsg.summary.largestGroupLabel, 40)}) can address vulnerabilities across ${_tsg.summary.largestGroupSize} assets simultaneously. Prioritize stack-level remediation over per-asset patching for maximum efficiency.`
+      : `Remediation Note: Technology diversity across the asset base means most vulnerabilities are isolated to specific assets. Per-asset remediation plans are recommended.`;
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(7.5);
+    y = writeText(remediationNote, margin, y, contentWidth, 7.5);
+    y += 5;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 14. PRIORITIZED RECOMMENDATIONS
   // ═══════════════════════════════════════════════════════════════════════
   y = startSection('Prioritized Recommendations', y, 60);
 

@@ -35,6 +35,8 @@ import { runWafNgfwAssessment, buildScanForgeDiscoveryCommand, buildNucleiComman
 import { applyCarverFeedbackLoop, type CarverFeedbackResult } from "./lib/carver-feedback-loop";
 import { createAssetOwnershipFilter, partitionByOwnership } from "../shared/managed-provider-filter";
 import { runDIThreatMatching, type DIThreatMatchResult } from "./lib/di-threat-matching";
+import type { TechStackGroupingResult } from "./lib/tech-stack-grouping";
+import { computeTechStackGrouping } from "./lib/tech-stack-grouping";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -420,6 +422,8 @@ export interface PipelineResult {
   };
   /** Deterministic threat actor matching & attack path analysis from master catalog */
   threatMatching?: DIThreatMatchResult;
+  /** Technology stack grouping — clusters assets by shared tech stack */
+  techStackGrouping?: TechStackGroupingResult;
 }
 
 export interface BreachDataSummary {
@@ -4053,5 +4057,16 @@ export async function runDomainIntelPipeline(
     scanDelta,
     pipelineCrawl: pipelineCrawlResult,
     threatMatching: threatMatchingResult,
+    techStackGrouping: (() => {
+      try {
+        console.log(`[DomainIntel] Stage 4.6: Computing technology stack grouping...`);
+        const tsg = computeTechStackGrouping(analyses);
+        console.log(`[DomainIntel] Tech stack grouping: ${tsg.summary.uniqueStacks} unique stacks across ${tsg.summary.totalAssets} assets (largest: ${tsg.summary.largestGroupSize} assets, overlap: ${tsg.summary.stackOverlapPercentage}%)`);
+        return tsg;
+      } catch (err: any) {
+        console.error(`[DomainIntel] Tech stack grouping failed (non-fatal): ${err.message}`);
+        return undefined;
+      }
+    })(),
   };
 }
