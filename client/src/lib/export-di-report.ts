@@ -128,9 +128,13 @@ export async function exportDiReport(
           : f.severity === 'critical' ? 9 : f.severity === 'high' ? 7 : f.severity === 'medium' ? 5 : 3;
 
         // Build corroboration label for the report
+        // CRITICAL: Every finding MUST get an explicit tier label. Findings without a label
+        // would fall through filters and incorrectly appear in the wrong section.
         const corroborationLabel = f.corroborationTier === 'confirmed' ? '[CONFIRMED]'
           : f.corroborationTier === 'probable' ? '[PROBABLE]'
-          : f.versionMatchConfirmed === false ? '[UNCONFIRMED VERSION]' : '';
+          : f.corroborationTier === 'potential' ? '[POTENTIAL]'
+          : f.versionMatchConfirmed === false ? '[POTENTIAL]'
+          : '[POTENTIAL]'; // Default: anything without explicit tier is potential
 
         // Check if this CVE is on a managed provider host
         const assetHostname = f.assetHostname || asset.hostname || '';
@@ -142,9 +146,16 @@ export async function exportDiReport(
           if (!existing.evidence.affectedHosts.includes(assetHostname)) {
             existing.evidence.affectedHosts.push(assetHostname);
           }
-          // Upgrade tier if this instance is confirmed
-          if (corroborationLabel === '[CONFIRMED]' && existing.evidence.corroboration !== '[CONFIRMED]') {
-            existing.evidence.corroboration = '[CONFIRMED]';
+          // Track per-tier instance counts for this CVE
+          if (!existing.evidence._tierCounts) existing.evidence._tierCounts = { confirmed: 0, probable: 0, potential: 0 };
+          if (corroborationLabel === '[CONFIRMED]') existing.evidence._tierCounts.confirmed++;
+          else if (corroborationLabel === '[PROBABLE]') existing.evidence._tierCounts.probable++;
+          else existing.evidence._tierCounts.potential++;
+          // Upgrade tier if this instance has stronger evidence
+          // Priority: CONFIRMED > PROBABLE > POTENTIAL
+          const tierRank = (t: string) => t === '[CONFIRMED]' ? 3 : t === '[PROBABLE]' ? 2 : 1;
+          if (tierRank(corroborationLabel) > tierRank(existing.evidence.corroboration || '[POTENTIAL]')) {
+            existing.evidence.corroboration = corroborationLabel;
             existing.evidence.detectedVersion = f.detectedVersion || existing.evidence.detectedVersion;
             existing.evidence.affectedVersions = f.affectedVersions || existing.evidence.affectedVersions;
             existing.evidence.severity = severity;
@@ -525,13 +536,14 @@ export async function exportDiReport(
   doc.setFont('helvetica', 'normal');
   const metricsX = margin + 50;
   doc.text(`Total Assets Discovered: ${scan.totalAssets ?? assets.length ?? 0}`, metricsX, y + 18);
-  // Count confirmed findings — use corroboration tag (same method as BLUF breakdown)
+  // Count confirmed findings — use observation-level counting (same as vuln section)
+  // This ensures the cover page number matches what the vulnerability details section shows
   const _clientFindings = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
-  // Primary: scan-level count. Fallback: count observations with [CONFIRMED] corroboration or 'confirmed' confidence
-  const _confirmedCount = scan.confirmedFindingsCount ||
-    _clientFindings.filter((o: any) =>
-      o.evidence?.corroboration === '[CONFIRMED]' || o.confidence === 'confirmed'
-    ).length;
+  const _coverConfirmedCount = _clientFindings.filter((o: any) =>
+    o.evidence?.corroboration === '[CONFIRMED]' || o.confidence === 'confirmed'
+  ).length;
+  // Fallback to scan-level count only if observation counting yields zero
+  const _confirmedCount = _coverConfirmedCount > 0 ? _coverConfirmedCount : (scan.confirmedFindingsCount || 0);
   doc.text(`Confirmed Findings: ${_confirmedCount}`, metricsX, y + 25);
   // Count data sources: prefer connectors with observations, fallback to total connectors, then unique observation sources
   const _connectorResultsWithObs = scan.passiveRecon?.connectorResults?.filter((c: any) => c.observationCount > 0);
@@ -605,32 +617,30 @@ export async function exportDiReport(
   // ─── BLUF (Bottom Line Up Front) ─────────────────────────────────────
   // Build a single data-driven paragraph that concisely summarizes the entire report.
   const _totalAssets = scan.totalAssets ?? assets.length ?? 0;
-  // Compute findings breakdown — prefer scan-level counts, fallback to counting observations directly
-  let _confirmedFc = scan.confirmedFindingsCount ?? 0;
-  let _probableFc = scan.probableFindingsCount ?? 0;
-  let _potentialFc = scan.potentialFindingsCount ?? 0;
-  const _totalFindings = scan.totalFindings ?? observations.length ?? 0;
-
-  // If scan-level breakdown counts are all zero but we have findings, compute from observations
-  if (_confirmedFc === 0 && _probableFc === 0 && _potentialFc === 0 && _totalFindings > 0) {
-    _confirmedFc = observations.filter((o: any) =>
-      o.evidence?.corroboration === '[CONFIRMED]' ||
-      o.confidence === 'confirmed'
-    ).length;
-    _probableFc = observations.filter((o: any) =>
-      o.evidence?.corroboration === '[PROBABLE]' ||
-      o.confidence === 'probable'
-    ).length;
-    _potentialFc = observations.filter((o: any) =>
-      o.evidence?.corroboration === '[POTENTIAL]' ||
-      o.confidence === 'potential'
-    ).length;
-    // Anything unclassified goes into potential
-    const _classified = _confirmedFc + _probableFc + _potentialFc;
-    if (_classified < _totalFindings) {
-      _potentialFc += (_totalFindings - _classified);
-    }
-  }
+  // Compute findings breakdown — ALWAYS use observation-level counting to ensure
+  // consistency between the BLUF, cover page, and vulnerability details section.
+  // The observation synthesis deduplicates CVEs across assets, so these counts
+  // represent unique vulnerabilities, not (CVE × asset) instance pairs.
+  const _clientObs = observations.filter((o: any) => !o.evidence?.providerManagedOnly);
+  let _confirmedFc = _clientObs.filter((o: any) =>
+    o.evidence?.corroboration === '[CONFIRMED]' ||
+    o.confidence === 'confirmed'
+  ).length;
+  let _probableFc = _clientObs.filter((o: any) =>
+    o.evidence?.corroboration === '[PROBABLE]' ||
+    o.confidence === 'probable'
+  ).length;
+  let _potentialFc = _clientObs.filter((o: any) =>
+    o.evidence?.corroboration === '[POTENTIAL]' ||
+    o.evidence?.corroboration === '[UNCONFIRMED VERSION]' ||
+    o.confidence === 'potential'
+  ).length;
+  // Anything unclassified goes into potential
+  const _classifiedTotal = _confirmedFc + _probableFc + _potentialFc;
+  const _unclassified = _clientObs.length - _classifiedTotal;
+  if (_unclassified > 0) _potentialFc += _unclassified;
+  // Total findings = observation count (deduplicated)
+  const _totalFindings = _clientObs.length;
 
   // KEV count — require explicit kevListed evidence flag; tag-only matching is too loose
   const _kevCount = observations.filter((o: any) =>
@@ -774,9 +784,7 @@ export async function exportDiReport(
     ['Risk Score (Avg)', `${riskScore}/100 (${riskBand.toUpperCase()})`],
     ['Peak Asset Risk', `${peakAssetScore}/100 (${peakBand})`],
     ['Total Assets', String(_totalAssets)],
-    ['Findings', _uniqueCve && _uniqueCve.uniqueCveCount > 0 && _uniqueCve.uniqueCveCount < _totalFindings
-      ? `${_uniqueCve.uniqueCveCount} unique CVEs (${_totalFindings} instances: ${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential)`
-      : `${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential`],
+    ['Findings (Unique)', `${_totalFindings} unique (${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential)${_uniqueCve && _uniqueCve.totalFindingInstances > _totalFindings ? ` — ${_uniqueCve.totalFindingInstances} instances across ${_totalAssets} assets` : ''}`],
   ];
   if (_kevCount > 0) dashboardRows.push(['CISA KEV Matches', _uniqueCve && _uniqueCve.uniqueKevCveCount > 0 && _uniqueCve.uniqueKevCveCount < _kevCount
     ? `${_uniqueCve.uniqueKevCveCount} unique (${_kevCount} instances)`
@@ -2732,8 +2740,14 @@ export async function exportDiReport(
     const confirmedVulns = vulnObs.filter((o: any) =>
       o.evidence?.corroboration === '[CONFIRMED]' && !o.evidence?.providerManagedOnly
     );
-    // Tier 2: Probable vulns excluded from client-facing reports (only confirmed shown)
-    // Tier 3: Provider-managed CVEs removed — unproven product-family KEV matches
+    // Tier 2: Probable — product detected but version not confirmed
+    const probableVulns = vulnObs.filter((o: any) =>
+      o.evidence?.corroboration === '[PROBABLE]' && !o.evidence?.providerManagedOnly
+    );
+    // Tier 3: Potential — product-family match only, no version evidence
+    const potentialVulns = vulnObs.filter((o: any) =>
+      (o.evidence?.corroboration === '[POTENTIAL]' || o.evidence?.corroboration === '[UNCONFIRMED VERSION]' || !o.evidence?.corroboration) && !o.evidence?.providerManagedOnly
+    );
 
     if (confirmedVulns.length > 0) {
       y = subheading(`Confirmed Vulnerabilities (${confirmedVulns.length})`, y);
@@ -2759,10 +2773,6 @@ export async function exportDiReport(
       y += 2;
     }
 
-    // Probable findings — show count and version enumeration recommendation
-    const probableVulns = vulnObs.filter((o: any) =>
-      o.evidence?.corroboration === '[PROBABLE]' && !o.evidence?.providerManagedOnly
-    );
     if (probableVulns.length > 0) {
       y = checkPageBreak(y, 30);
       // Yellow recommendation box
@@ -2781,6 +2791,27 @@ export async function exportDiReport(
       const recLines = doc.splitTextToSize(recText, contentWidth - 8);
       doc.text(recLines, margin + 4, boxY + 11);
       y = boxY + 26;
+    }
+
+    // Potential findings — show count and investigation recommendation
+    if (potentialVulns.length > 0) {
+      y = checkPageBreak(y, 30);
+      // Blue recommendation box
+      const potBoxY = y;
+      doc.setFillColor(239, 246, 255); // blue-50 bg
+      doc.setDrawColor(59, 130, 246); // blue-500 border
+      doc.roundedRect(margin, potBoxY, contentWidth, 24, 2, 2, 'FD');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 64, 175); // blue-800
+      doc.text(`Investigation Recommended \u2014 ${potentialVulns.length} Potential Finding${potentialVulns.length !== 1 ? 's' : ''}`, margin + 4, potBoxY + 6);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 58, 138); // blue-900
+      const potText = `${potentialVulns.length} finding${potentialVulns.length !== 1 ? 's' : ''} matched technology product families (e.g., ${potentialVulns.slice(0, 3).map((v: any) => v.evidence?.cve_id || v.evidence?.title?.match(/CVE-\d+-\d+/)?.[0] || 'CVE').join(', ')}${potentialVulns.length > 3 ? '...' : ''}) but the specific product and version could not be confirmed from external observation. These require internal verification to determine applicability.`;
+      const potLines = doc.splitTextToSize(potText, contentWidth - 8);
+      doc.text(potLines, margin + 4, potBoxY + 11);
+      y = potBoxY + 26;
     }
 
     // Provider-managed CVEs removed from report — these are unproven product-family
@@ -4026,10 +4057,8 @@ export async function exportDiReport(
     ['Scan Mode', scan.scanMode || 'standard'],
     ['Started', scan.createdAt ? new Date(scan.createdAt).toLocaleString() : 'N/A'],
     ['Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)} seconds` : 'N/A'],
-    ['Total Findings', _uniqueCve && _uniqueCve.uniqueCveCount > 0
-      ? `${_uniqueCve.uniqueCveCount} unique CVEs (${_totalFindings} instances across ${_totalAssets} assets, avg ${_uniqueCve.averageAssetsPerCve} assets/CVE)`
-      : String(_totalFindings)],
-    ['Confirmed Findings', String(_confirmedCount)],
+    ['Total Findings (Unique)', `${_totalFindings} unique findings (${_confirmedFc} confirmed, ${_probableFc} probable, ${_potentialFc} potential)${_uniqueCve && _uniqueCve.totalFindingInstances > _totalFindings ? ` — ${_uniqueCve.totalFindingInstances} total instances across ${_totalAssets} assets` : ''}`],
+    ['Confirmed Findings', String(_confirmedFc)],
     ['Total Assets', String(scan.totalAssets || assets.length)],
     ['Data Sources', String(connectorCount)],
     ['Web Crawl', scan.pipelineCrawl ? `${scan.pipelineCrawl.totalCrawled}/${scan.pipelineCrawl.totalAssets} assets crawled (${scan.pipelineCrawl.totalFindings} findings, grade: ${scan.pipelineCrawl.worstGrade})` : 'Not run'],
