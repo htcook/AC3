@@ -43,6 +43,13 @@
       "when": 1775520995726,
       "tag": "0005_broken_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775525564437,
+      "tag": "0006_ancient_silvermane",
+      "breakpoints": true
     }
   ]
 }
