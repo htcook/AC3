@@ -3195,3 +3195,247 @@ export async function getEngagementFindings(engagementId: number) {
   return db.select().from(engagementFindings)
     .where(eq(engagementFindings.engagementId, engagementId));
 }
+
+
+// ─── Adaptive Strategy: Graduation Score Persistence ─────────────────────────
+
+export async function insertGraduationScore(data: {
+  domain: string;
+  sector?: string | null;
+  scanId?: number | null;
+  engagementId?: number | null;
+  pipelineType?: string;
+  scores: {
+    recon_analyst: number;
+    exploit_selector: number;
+    evasion_optimizer: number;
+    cognitive_core: number;
+    cloud_assessor: number;
+    supply_chain_analyst: number;
+  };
+  summary?: string | null;
+}): Promise<void> {
+  const database = await getDb();
+  if (!database) return;
+  const overall = Math.round(
+    Object.values(data.scores).reduce((s, v) => s + v, 0) / Object.keys(data.scores).length
+  );
+  await database.insert(schema.scanGraduationScores).values({
+    domain: data.domain.toLowerCase(),
+    sector: data.sector || null,
+    scanId: data.scanId || null,
+    engagementId: data.engagementId || null,
+    pipelineType: data.pipelineType || 'di_scan',
+    reconAnalyst: data.scores.recon_analyst,
+    exploitSelector: data.scores.exploit_selector,
+    evasionOptimizer: data.scores.evasion_optimizer,
+    cognitiveCore: data.scores.cognitive_core,
+    cloudAssessor: data.scores.cloud_assessor,
+    supplyChainAnalyst: data.scores.supply_chain_analyst,
+    overallScore: overall,
+    summary: data.summary || null,
+  });
+}
+
+export async function getGraduationScoresForDomain(domain: string, limit = 20): Promise<Array<{
+  id: number;
+  domain: string;
+  sector: string | null;
+  scanId: number | null;
+  pipelineType: string;
+  reconAnalyst: number;
+  exploitSelector: number;
+  evasionOptimizer: number;
+  cognitiveCore: number;
+  cloudAssessor: number;
+  supplyChainAnalyst: number;
+  overallScore: number;
+  createdAt: string;
+}>> {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select()
+    .from(schema.scanGraduationScores)
+    .where(eq(schema.scanGraduationScores.domain, domain.toLowerCase()))
+    .orderBy(sql`created_at DESC`)
+    .limit(limit) as any;
+}
+
+export async function getGraduationScoresBySector(sector: string, limit = 100): Promise<Array<{
+  id: number;
+  domain: string;
+  sector: string | null;
+  reconAnalyst: number;
+  exploitSelector: number;
+  evasionOptimizer: number;
+  cognitiveCore: number;
+  cloudAssessor: number;
+  supplyChainAnalyst: number;
+  overallScore: number;
+  createdAt: string;
+}>> {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select()
+    .from(schema.scanGraduationScores)
+    .where(eq(schema.scanGraduationScores.sector, sector))
+    .orderBy(sql`created_at DESC`)
+    .limit(limit) as any;
+}
+
+export async function getAvgGraduationScoresBySector(sector: string): Promise<{
+  recon_analyst: number;
+  exploit_selector: number;
+  evasion_optimizer: number;
+  cognitive_core: number;
+  cloud_assessor: number;
+  supply_chain_analyst: number;
+  overall: number;
+  sampleCount: number;
+} | null> {
+  const database = await getDb();
+  if (!database) return null;
+  const rows = await database.select({
+    avgRecon: sql<number>`AVG(recon_analyst)`,
+    avgExploit: sql<number>`AVG(exploit_selector)`,
+    avgEvasion: sql<number>`AVG(evasion_optimizer)`,
+    avgCognitive: sql<number>`AVG(cognitive_core)`,
+    avgCloud: sql<number>`AVG(cloud_assessor)`,
+    avgSupplyChain: sql<number>`AVG(supply_chain_analyst)`,
+    avgOverall: sql<number>`AVG(overall_score)`,
+    cnt: sql<number>`COUNT(*)`,
+  })
+    .from(schema.scanGraduationScores)
+    .where(eq(schema.scanGraduationScores.sector, sector));
+  const r = rows[0];
+  if (!r || r.cnt === 0) return null;
+  return {
+    recon_analyst: Math.round(r.avgRecon),
+    exploit_selector: Math.round(r.avgExploit),
+    evasion_optimizer: Math.round(r.avgEvasion),
+    cognitive_core: Math.round(r.avgCognitive),
+    cloud_assessor: Math.round(r.avgCloud),
+    supply_chain_analyst: Math.round(r.avgSupplyChain),
+    overall: Math.round(r.avgOverall),
+    sampleCount: r.cnt,
+  };
+}
+
+// ─── Adaptive Strategy: Connector Performance Persistence ────────────────────
+
+export async function insertConnectorPerformance(data: {
+  connector: string;
+  domain: string;
+  sector?: string | null;
+  scanId: number;
+  observations: number;
+  durationMs: number;
+  status: 'completed' | 'failed' | 'skipped' | 'timeout';
+  rateLimited?: boolean;
+}): Promise<void> {
+  const database = await getDb();
+  if (!database) return;
+  await database.insert(schema.connectorPerformanceHistory).values({
+    connector: data.connector,
+    domain: data.domain.toLowerCase(),
+    sector: data.sector || null,
+    scanId: data.scanId,
+    observations: data.observations,
+    durationMs: data.durationMs,
+    status: data.status,
+    rateLimited: data.rateLimited ? 1 : 0,
+  });
+}
+
+export async function bulkInsertConnectorPerformance(entries: Array<{
+  connector: string;
+  domain: string;
+  sector?: string | null;
+  scanId: number;
+  observations: number;
+  durationMs: number;
+  status: 'completed' | 'failed' | 'skipped' | 'timeout';
+  rateLimited?: boolean;
+}>): Promise<void> {
+  const database = await getDb();
+  if (!database || entries.length === 0) return;
+  const values = entries.map(e => ({
+    connector: e.connector,
+    domain: e.domain.toLowerCase(),
+    sector: e.sector || null,
+    scanId: e.scanId,
+    observations: e.observations,
+    durationMs: e.durationMs,
+    status: e.status,
+    rateLimited: e.rateLimited ? 1 : 0,
+  }));
+  // Batch in chunks of 50 to avoid oversized queries
+  for (let i = 0; i < values.length; i += 50) {
+    const chunk = values.slice(i, i + 50);
+    await database.insert(schema.connectorPerformanceHistory).values(chunk);
+  }
+}
+
+export async function getConnectorPerformanceForDomain(domain: string, limit = 500): Promise<Array<{
+  connector: string;
+  domain: string;
+  sector: string | null;
+  scanId: number;
+  observations: number;
+  durationMs: number;
+  status: string;
+  createdAt: string;
+}>> {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select()
+    .from(schema.connectorPerformanceHistory)
+    .where(eq(schema.connectorPerformanceHistory.domain, domain.toLowerCase()))
+    .orderBy(sql`created_at DESC`)
+    .limit(limit) as any;
+}
+
+export async function getConnectorPerformanceBySector(sector: string, limit = 1000): Promise<Array<{
+  connector: string;
+  domain: string;
+  observations: number;
+  durationMs: number;
+  status: string;
+  createdAt: string;
+}>> {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select()
+    .from(schema.connectorPerformanceHistory)
+    .where(eq(schema.connectorPerformanceHistory.sector, sector))
+    .orderBy(sql`created_at DESC`)
+    .limit(limit) as any;
+}
+
+export async function getConnectorAvgsBySector(sector: string): Promise<Array<{
+  connector: string;
+  avgObservations: number;
+  avgDurationMs: number;
+  failureRate: number;
+  totalRuns: number;
+}>> {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database.select({
+    connector: schema.connectorPerformanceHistory.connector,
+    avgObs: sql<number>`AVG(observations)`,
+    avgDur: sql<number>`AVG(duration_ms)`,
+    totalRuns: sql<number>`COUNT(*)`,
+    failCount: sql<number>`SUM(CASE WHEN status IN ('failed','timeout') THEN 1 ELSE 0 END)`,
+  })
+    .from(schema.connectorPerformanceHistory)
+    .where(eq(schema.connectorPerformanceHistory.sector, sector))
+    .groupBy(schema.connectorPerformanceHistory.connector);
+  return rows.map(r => ({
+    connector: r.connector,
+    avgObservations: Math.round(r.avgObs * 10) / 10,
+    avgDurationMs: Math.round(r.avgDur),
+    failureRate: r.totalRuns > 0 ? Math.round((r.failCount / r.totalRuns) * 100) / 100 : 0,
+    totalRuns: r.totalRuns,
+  }));
+}

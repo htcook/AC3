@@ -9,6 +9,7 @@ import {
   formatStrategySummary,
   _resetStores,
   type ConnectorPerformance,
+  type SectorInsights,
 } from './adaptive-scan-strategy';
 import type { GraduationResult } from './post-pipeline-graduation';
 
@@ -28,6 +29,23 @@ describe('adaptive-scan-strategy', () => {
       ...overrides,
     };
   }
+
+  function makeSectorInsights(overrides?: Partial<SectorInsights>): SectorInsights {
+    return {
+      sector: 'fintech',
+      sampleCount: 15,
+      avgScores: makeScores({ recon_analyst: 65, cloud_assessor: 45 }),
+      connectorAvgs: [
+        { connector: 'shodan', avgObservations: 12, avgDurationMs: 3000, failureRate: 0.1, totalRuns: 10 },
+        { connector: 'censys', avgObservations: 8, avgDurationMs: 4000, failureRate: 0.2, totalRuns: 8 },
+        { connector: 'cloud_assets', avgObservations: 6, avgDurationMs: 5000, failureRate: 0.05, totalRuns: 12 },
+        { connector: 'github_leaks', avgObservations: 3, avgDurationMs: 2000, failureRate: 0.5, totalRuns: 6 },
+      ],
+      ...overrides,
+    };
+  }
+
+  // ─── Recording + History ──────────────────────────────────────────
 
   describe('recordGraduationScores + getDomainHistory', () => {
     it('should store and retrieve graduation scores', () => {
@@ -49,6 +67,13 @@ describe('adaptive-scan-strategy', () => {
       recordGraduationScores('Example.COM', makeScores());
       const history = getDomainHistory('example.com');
       expect(history).not.toBeNull();
+    });
+
+    it('should accept opts with sector and scanId', () => {
+      recordGraduationScores('sector.com', makeScores(), { sector: 'fintech', scanId: 42 });
+      const history = getDomainHistory('sector.com');
+      expect(history).not.toBeNull();
+      expect(history!.avgGraduationScores!.recon_analyst).toBe(60);
     });
   });
 
@@ -83,7 +108,17 @@ describe('adaptive-scan-strategy', () => {
       expect(statuses).toContain('skipped');
       expect(statuses).toContain('failed');
     });
+
+    it('should accept sector parameter in recordConnectorResults', () => {
+      recordConnectorResults('sector-test.com', 1, [
+        { connector: 'shodan', observations: [1], errors: [], durationMs: 1000, rateLimited: false },
+      ], 'healthcare');
+      const history = getDomainHistory('sector-test.com');
+      expect(history!.connectorPerformance).toHaveLength(1);
+    });
   });
+
+  // ─── Strategy — No History ────────────────────────────────────────
 
   describe('computeAdaptiveStrategy — no history', () => {
     it('should return a default strategy with 0 confidence', () => {
@@ -94,8 +129,11 @@ describe('adaptive-scan-strategy', () => {
       expect(strategy.evasionPreset.name).toBe('standard');
       expect(strategy.focusAreas).toHaveLength(0);
       expect(strategy.basedOn.scanCount).toBe(0);
+      expect(strategy.basedOn.sectorLearningApplied).toBe(false);
     });
   });
+
+  // ─── Strategy — With History ──────────────────────────────────────
 
   describe('computeAdaptiveStrategy — with history', () => {
     it('should increase depth for high recon_analyst scores', () => {
@@ -160,16 +198,16 @@ describe('adaptive-scan-strategy', () => {
     });
   });
 
+  // ─── Connector Ranking ────────────────────────────────────────────
+
   describe('connector ranking', () => {
     it('should rank connectors higher that historically yield more observations', () => {
-      // Shodan always returns lots of data
       for (let i = 0; i < 3; i++) {
         recordConnectorPerformance({
           connector: 'shodan', domain: 'ranked.com', observations: 20,
           durationMs: 2000, status: 'completed', scanId: i, timestamp: Date.now(),
         });
       }
-      // Censys always fails
       for (let i = 0; i < 3; i++) {
         recordConnectorPerformance({
           connector: 'censys', domain: 'ranked.com', observations: 0,
@@ -228,6 +266,130 @@ describe('adaptive-scan-strategy', () => {
     });
   });
 
+  // ─── Cross-Domain Sector Learning ─────────────────────────────────
+
+  describe('sector learning', () => {
+    it('should apply sector insights when domain has no history', () => {
+      const sectorInsights = makeSectorInsights();
+      const strategy = computeAdaptiveStrategy('new-fintech.com', { sector: 'fintech' }, sectorInsights);
+
+      expect(strategy.basedOn.sectorLearningApplied).toBe(true);
+      expect(strategy.basedOn.sectorSampleCount).toBe(15);
+      expect(strategy.rationale.some(r => r.includes('Sector learning'))).toBe(true);
+    });
+
+    it('should use sector avg scores for scan depth when no domain history', () => {
+      const sectorInsights = makeSectorInsights({
+        avgScores: makeScores({ recon_analyst: 80 }),
+      });
+      const strategy = computeAdaptiveStrategy('new-sector.com', { sector: 'fintech' }, sectorInsights);
+
+      // recon_analyst=80 should trigger DEEP scan depth
+      expect(strategy.scanDepth.maxConcurrent).toBeGreaterThan(5);
+      expect(strategy.scanDepth.enableRecursiveDiscovery).toBe(true);
+    });
+
+    it('should use sector avg scores for evasion when no domain history', () => {
+      const sectorInsights = makeSectorInsights({
+        avgScores: makeScores({ evasion_optimizer: 25 }),
+      });
+      const strategy = computeAdaptiveStrategy('new-evasion.com', { sector: 'fintech' }, sectorInsights);
+
+      expect(strategy.evasionPreset.name).toBe('aggressive');
+    });
+
+    it('should use sector avg scores for focus areas when no domain history', () => {
+      const sectorInsights = makeSectorInsights({
+        avgScores: makeScores({ cloud_assessor: 10, supply_chain_analyst: 15 }),
+      });
+      const strategy = computeAdaptiveStrategy('new-focus.com', { sector: 'fintech' }, sectorInsights);
+
+      expect(strategy.focusAreas.length).toBeGreaterThan(0);
+      const cloudArea = strategy.focusAreas.find(a => a.area.includes('Cloud'));
+      expect(cloudArea).toBeDefined();
+    });
+
+    it('should use sector connector avgs for ranking when no domain history', () => {
+      const sectorInsights = makeSectorInsights({
+        connectorAvgs: [
+          { connector: 'shodan', avgObservations: 20, avgDurationMs: 2000, failureRate: 0.05, totalRuns: 20 },
+          { connector: 'github_leaks', avgObservations: 1, avgDurationMs: 8000, failureRate: 0.7, totalRuns: 10 },
+        ],
+      });
+      const strategy = computeAdaptiveStrategy('new-ranking.com', { sector: 'fintech' }, sectorInsights);
+
+      const shodanRank = strategy.connectorRanking.find(r => r.connector === 'shodan');
+      const githubRank = strategy.connectorRanking.find(r => r.connector === 'github_leaks');
+      expect(shodanRank!.score).toBeGreaterThan(githubRank!.score);
+      expect(shodanRank!.reason).toContain('[sector]');
+    });
+
+    it('should give sector-based boost to connectors with high sector runs and observations', () => {
+      const sectorInsights = makeSectorInsights({
+        connectorAvgs: [
+          { connector: 'cloud_assets', avgObservations: 8, avgDurationMs: 3000, failureRate: 0.02, totalRuns: 15 },
+        ],
+      });
+      const strategy = computeAdaptiveStrategy('sector-boost.com', { sector: 'fintech' }, sectorInsights);
+      const cloudConn = strategy.connectorRanking.find(r => r.connector === 'cloud_assets');
+      expect(cloudConn!.reason).toContain('Sector boost');
+    });
+
+    it('should prefer domain history over sector insights when both available', () => {
+      recordGraduationScores('existing.com', makeScores({ recon_analyst: 20 }));
+      const sectorInsights = makeSectorInsights({
+        avgScores: makeScores({ recon_analyst: 80 }),
+      });
+      const strategy = computeAdaptiveStrategy('existing.com', { sector: 'fintech' }, sectorInsights);
+
+      // Domain history (recon=20) should take precedence over sector (recon=80)
+      expect(strategy.basedOn.sectorLearningApplied).toBe(false);
+      expect(strategy.scanDepth.maxConcurrent).toBe(10); // BROAD mode for low recon
+    });
+
+    it('should have partial confidence from sector data alone', () => {
+      const sectorInsights = makeSectorInsights({ sampleCount: 8 });
+      const strategy = computeAdaptiveStrategy('sector-only.com', { sector: 'fintech' }, sectorInsights);
+
+      expect(strategy.confidence).toBeGreaterThan(0);
+      expect(strategy.confidence).toBeLessThanOrEqual(0.5);
+    });
+
+    it('should not auto-exclude connectors based on sector failure rate (only domain-level)', () => {
+      const sectorInsights = makeSectorInsights({
+        connectorAvgs: [
+          { connector: 'bad_sector_conn', avgObservations: 0, avgDurationMs: 30000, failureRate: 0.95, totalRuns: 10 },
+        ],
+      });
+      const strategy = computeAdaptiveStrategy('sector-noexclude.com', { sector: 'fintech' }, sectorInsights);
+      const conn = strategy.connectorRanking.find(r => r.connector === 'bad_sector_conn');
+      // Should still be included (auto-exclude only applies to domain-level data)
+      // Score will be low but not auto-excluded
+      expect(conn!.reason).not.toContain('Auto-excluded');
+    });
+  });
+
+  // ─── basedOn metadata ─────────────────────────────────────────────
+
+  describe('basedOn metadata', () => {
+    it('should track sectorLearningApplied and sectorSampleCount', () => {
+      const sectorInsights = makeSectorInsights({ sampleCount: 25 });
+      const strategy = computeAdaptiveStrategy('meta.com', { sector: 'fintech' }, sectorInsights);
+      expect(strategy.basedOn.sectorLearningApplied).toBe(true);
+      expect(strategy.basedOn.sectorSampleCount).toBe(25);
+    });
+
+    it('should show sectorLearningApplied=false when domain has history', () => {
+      recordGraduationScores('has-history.com', makeScores());
+      const sectorInsights = makeSectorInsights();
+      const strategy = computeAdaptiveStrategy('has-history.com', { sector: 'fintech' }, sectorInsights);
+      expect(strategy.basedOn.sectorLearningApplied).toBe(false);
+      expect(strategy.basedOn.graduationDataAvailable).toBe(true);
+    });
+  });
+
+  // ─── applyConnectorStrategy ───────────────────────────────────────
+
   describe('applyConnectorStrategy', () => {
     it('should filter and reorder connectors based on strategy', () => {
       for (let i = 0; i < 4; i++) {
@@ -247,12 +409,12 @@ describe('adaptive-scan-strategy', () => {
         { name: 'unknown', collect: () => {} },
       ];
       const result = applyConnectorStrategy(connectors, strategy);
-      // 'bad' should be excluded (>80% failure)
       expect(result.find(c => c.name === 'bad')).toBeUndefined();
-      // 'good' should be first (highest score)
       expect(result[0].name).toBe('good');
     });
   });
+
+  // ─── formatStrategySummary ────────────────────────────────────────
 
   describe('formatStrategySummary', () => {
     it('should produce a readable summary string', () => {
@@ -265,7 +427,16 @@ describe('adaptive-scan-strategy', () => {
       expect(summary).toContain('Evasion:');
       expect(summary).toContain('Connectors:');
     });
+
+    it('should include sector learning info when applied', () => {
+      const sectorInsights = makeSectorInsights();
+      const strategy = computeAdaptiveStrategy('sector-summary.com', { sector: 'fintech' }, sectorInsights);
+      const summary = formatStrategySummary(strategy);
+      expect(summary).toContain('sector');
+    });
   });
+
+  // ─── Confidence Scaling ───────────────────────────────────────────
 
   describe('confidence scaling', () => {
     it('should scale confidence with scan count up to 1.0', () => {

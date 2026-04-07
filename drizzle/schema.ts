@@ -6875,3 +6875,50 @@ export const fingerprintCache = mysqlTable("fingerprint_cache", {
 	index("fc_host_port_idx").on(table.fcHost, table.fcPort),
 	index("fc_expires_idx").on(table.fcExpiresAt),
 ]);
+
+
+// ─── Adaptive Scan Strategy: Graduation Score Persistence ─────────────────────
+export const scanGraduationScores = mysqlTable("scan_graduation_scores", {
+	id: int().autoincrement().notNull(),
+	domain: varchar({ length: 255 }).notNull(),
+	sector: varchar({ length: 128 }),
+	scanId: int("scan_id"),
+	engagementId: int("engagement_id"),
+	pipelineType: varchar("pipeline_type", { length: 32 }).default('di_scan').notNull(),
+	reconAnalyst: int("recon_analyst").notNull(),
+	exploitSelector: int("exploit_selector").notNull(),
+	evasionOptimizer: int("evasion_optimizer").notNull(),
+	cognitiveCore: int("cognitive_core").notNull(),
+	cloudAssessor: int("cloud_assessor").notNull(),
+	supplyChainAnalyst: int("supply_chain_analyst").notNull(),
+	overallScore: int("overall_score").notNull(),
+	summary: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("sgs_domain_idx").on(table.domain),
+	index("sgs_sector_idx").on(table.sector),
+	index("sgs_scan_id_idx").on(table.scanId),
+	index("sgs_created_at_idx").on(table.createdAt),
+]);
+
+// ─── Adaptive Scan Strategy: Connector Performance History ────────────────────
+export const connectorPerformanceHistory = mysqlTable("connector_performance_history", {
+	id: int().autoincrement().notNull(),
+	connector: varchar({ length: 128 }).notNull(),
+	domain: varchar({ length: 255 }).notNull(),
+	sector: varchar({ length: 128 }),
+	scanId: int("scan_id").notNull(),
+	observations: int().default(0).notNull(),
+	durationMs: int("duration_ms").default(0).notNull(),
+	status: mysqlEnum(['completed', 'failed', 'skipped', 'timeout']).default('completed').notNull(),
+	rateLimited: tinyint("rate_limited").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("cph_connector_domain_idx").on(table.connector, table.domain),
+	index("cph_sector_idx").on(table.sector),
+	index("cph_scan_id_idx").on(table.scanId),
+	index("cph_connector_sector_idx").on(table.connector, table.sector),
+	index("cph_created_at_idx").on(table.createdAt),
+]);
