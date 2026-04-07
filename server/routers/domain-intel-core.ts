@@ -71,6 +71,24 @@ export const domainIntelRouter = router({
             console.log(`[DomainIntel] Pipeline started for scan ${scanId}: ${input.primaryDomain}`);
             const { runDomainIntelPipeline } = await import('../domainIntel');
 
+            // ═══ ADAPTIVE STRATEGY — Compute scan tuning from graduation history ═══
+            let adaptiveStrategy: any = null;
+            try {
+              const { computeAdaptiveStrategy, formatStrategySummary } = await import('../lib/adaptive-scan-strategy');
+              adaptiveStrategy = computeAdaptiveStrategy(pipelineInput.primaryDomain, {
+                forceScanMode: pipelineInput.scanMode || undefined,
+                sector: pipelineInput.sector,
+              });
+              if (adaptiveStrategy.confidence > 0) {
+                console.log(formatStrategySummary(adaptiveStrategy));
+              }
+            } catch (stratErr: any) {
+              console.warn(`[DomainIntel] Adaptive strategy computation failed (non-fatal):`, stratErr.message);
+            }
+
+            // Apply adaptive scan depth if available
+            const effectiveScanMode = adaptiveStrategy?.scanDepth?.scanMode || pipelineInput.scanMode || 'standard';
+
             await db.updateDomainIntelScan(scanId, { status: 'discovering' });
 
             const result = await runDomainIntelPipeline(
@@ -89,7 +107,7 @@ export const domainIntelRouter = router({
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
               },
-              { scanMode: pipelineInput.scanMode || 'standard', skipEngagement: !!pipelineInput.scanOnly, scopedAssets: pipelineInput.scopedAssets }
+              { scanMode: effectiveScanMode as any, skipEngagement: !!pipelineInput.scanOnly, scopedAssets: pipelineInput.scopedAssets }
             );
 
             // Store discovered assets — batch inserts to avoid oversized queries
@@ -511,6 +529,14 @@ export const domainIntelRouter = router({
                 const metrics = extractDIScanMetrics(scanId, pipelineInput.primaryDomain, result, durationMs);
                 const graduation = await runPostPipelineGraduation(metrics);
                 console.log(`[DomainIntel] \u{1F393} Graduation for scan ${scanId} (scan-only): ${graduation.summary}`);
+                // Record graduation scores + connector performance for adaptive strategy
+                try {
+                  const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores);
+                  if (result.passiveRecon?.connectorResults) {
+                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                  }
+                } catch {}
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
               }
@@ -580,6 +606,14 @@ export const domainIntelRouter = router({
                 const metrics = extractDIScanMetrics(scanId, pipelineInput.primaryDomain, result, durationMs);
                 const graduation = await runPostPipelineGraduation(metrics);
                 console.log(`[DomainIntel] \u{1F393} Graduation for scan ${scanId} (full): ${graduation.summary}`);
+                // Record graduation scores + connector performance for adaptive strategy
+                try {
+                  const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores);
+                  if (result.passiveRecon?.connectorResults) {
+                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                  }
+                } catch {}
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
               }
@@ -1085,6 +1119,13 @@ export const domainIntelRouter = router({
               const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, durationMs);
               const graduation = await runPostPipelineGraduation(metrics);
               console.log(`[DomainIntel] \u{1F393} Graduation for retry scan ${scanId}: ${graduation.summary}`);
+              try {
+                const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                recordGraduationScores(scan.primaryDomain, graduation.scores);
+                if (result.passiveRecon?.connectorResults) {
+                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                }
+              } catch {}
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for retry scan ${scanId} (non-fatal):`, gradErr.message);
             }
@@ -1244,6 +1285,13 @@ export const domainIntelRouter = router({
                 const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, 0);
                 const graduation = await runPostPipelineGraduation(metrics);
                 console.log(`[DomainIntel] \u{1F393} Graduation for bulk-retry scan ${scanId}: ${graduation.summary}`);
+                try {
+                  const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                  recordGraduationScores(scan.primaryDomain, graduation.scores);
+                  if (result.passiveRecon?.connectorResults) {
+                    recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                  }
+                } catch {}
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for bulk-retry scan ${scanId} (non-fatal):`, gradErr.message);
               }
@@ -1661,6 +1709,13 @@ export const domainIntelRouter = router({
               const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, durationMs);
               const graduation = await runPostPipelineGraduation(metrics);
               console.log(`[DomainIntel] \u{1F393} Graduation for refresh scan ${scanId}: ${graduation.summary}`);
+              try {
+                const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                recordGraduationScores(scan.primaryDomain, graduation.scores);
+                if (result.passiveRecon?.connectorResults) {
+                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                }
+              } catch {}
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for refresh scan ${scanId} (non-fatal):`, gradErr.message);
             }
@@ -2772,6 +2827,13 @@ export const domainIntelRouter = router({
               const metrics = extractDIScanMetrics(scanId, cleanDomain, result, durationMs);
               const graduation = await runPostPipelineGraduation(metrics);
               console.log(`[DomainIntel] \u{1F393} Graduation for quick scan ${scanId}: ${graduation.summary}`);
+              try {
+                const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
+                recordGraduationScores(cleanDomain, graduation.scores);
+                if (result.passiveRecon?.connectorResults) {
+                  recordConnectorResults(cleanDomain, scanId, result.passiveRecon.connectorResults);
+                }
+              } catch {}
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for quick scan ${scanId} (non-fatal):`, gradErr.message);
             }
