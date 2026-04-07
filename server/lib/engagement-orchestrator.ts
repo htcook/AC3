@@ -3891,7 +3891,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             title: `🔍 Fingerprinting Skipped: ${fmtTarget(asset, target)}`,
             detail: `Service fingerprinting failed (non-blocking): ${fpErr.message}`,
           });
-               // ── Step 2a.1: Banner-Based WAF/IDS Detection ─────────────────────
+        }
+
+        // ── Step 2a.1: Banner-Based WAF/IDS Detection ─────────────────────
         // Detect WAF/IDS/firewall signatures from TCP-level fingerprint banners.
         // This complements HTTP-based WAF detection by catching network-level appliances.
         try {
