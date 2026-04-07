@@ -50,6 +50,13 @@
       "when": 1775525564437,
       "tag": "0006_ancient_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1775529537787,
+      "tag": "0007_striped_santa_claus",
+      "breakpoints": true
     }
   ]
 }

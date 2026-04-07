@@ -66,6 +66,7 @@ export const domainIntelRouter = router({
         // The frontend will poll getScanStatus for progress
         const pipelineInput = { ...input };
         setImmediate(async () => {
+          const _pipelineStartMs = Date.now();
           try {
             console.log(`[DomainIntel] Pipeline started for scan ${scanId}: ${input.primaryDomain}`);
             const { runDomainIntelPipeline } = await import('../domainIntel');
@@ -503,6 +504,16 @@ export const domainIntelRouter = router({
               });
               console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); } catch {}
+              // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+              try {
+                const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+                const durationMs = Date.now() - _pipelineStartMs;
+                const metrics = extractDIScanMetrics(scanId, pipelineInput.primaryDomain, result, durationMs);
+                const graduation = await runPostPipelineGraduation(metrics);
+                console.log(`[DomainIntel] \u{1F393} Graduation for scan ${scanId} (scan-only): ${graduation.summary}`);
+              } catch (gradErr: any) {
+                console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
+              }
               // Auto-crawl discovered web assets (fire-and-forget)
               setImmediate(async () => {
                 try {
@@ -562,6 +573,16 @@ export const domainIntelRouter = router({
 
               console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
               try { const { emitReconComplete, emitSystemNotification } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
+              // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+              try {
+                const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+                const durationMs = Date.now() - _pipelineStartMs;
+                const metrics = extractDIScanMetrics(scanId, pipelineInput.primaryDomain, result, durationMs);
+                const graduation = await runPostPipelineGraduation(metrics);
+                console.log(`[DomainIntel] \u{1F393} Graduation for scan ${scanId} (full): ${graduation.summary}`);
+              } catch (gradErr: any) {
+                console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
+              }
 
               // Auto-harvest credentials from passive recon observations into engagement credential list
               if (pipelineInput.engagementId && result.passiveRecon?.allObservations) {
@@ -821,6 +842,7 @@ export const domainIntelRouter = router({
         const orgProfile = scan.orgProfile as any;
         const scanId = input.scanId;
         setImmediate(async () => {
+          const _pipelineStartMs = Date.now();
           try {
             console.log(`[DomainIntel] Retrying pipeline for scan ${scanId}: ${scan.primaryDomain}`);
             const { runDomainIntelPipeline } = await import('../domainIntel');
@@ -1056,6 +1078,16 @@ export const domainIntelRouter = router({
 
             console.log(`[DomainIntel] Retry completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
             try { const { emitReconComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: scan.primaryDomain, findings: result.totalFindings || 0, engagementId: scan.engagementId || undefined }); } catch {}
+            // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+            try {
+              const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+              const durationMs = Date.now() - _pipelineStartMs;
+              const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, durationMs);
+              const graduation = await runPostPipelineGraduation(metrics);
+              console.log(`[DomainIntel] \u{1F393} Graduation for retry scan ${scanId}: ${graduation.summary}`);
+            } catch (gradErr: any) {
+              console.warn(`[DomainIntel] Graduation failed for retry scan ${scanId} (non-fatal):`, gradErr.message);
+            }
           } catch (err: any) {
             console.error(`[DomainIntel] Retry pipeline failed for scan ${scanId}:`, err.message, err.stack?.substring(0, 500));
             await db.updateDomainIntelScan(scanId, {
@@ -1206,6 +1238,15 @@ export const domainIntelRouter = router({
                 pipelineOutput: { retriedAt: new Date().toISOString(), bulkRetry: true },
               });
               console.log(`[DomainIntel] Bulk retry completed for scan ${scanId}: ${scan.primaryDomain}`);
+              // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+              try {
+                const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+                const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, 0);
+                const graduation = await runPostPipelineGraduation(metrics);
+                console.log(`[DomainIntel] \u{1F393} Graduation for bulk-retry scan ${scanId}: ${graduation.summary}`);
+              } catch (gradErr: any) {
+                console.warn(`[DomainIntel] Graduation failed for bulk-retry scan ${scanId} (non-fatal):`, gradErr.message);
+              }
             } catch (err: any) {
               console.error(`[DomainIntel] Bulk retry failed for scan ${scanId}: ${err.message}`);
               await db.updateDomainIntelScan(scanId, {
@@ -1293,6 +1334,7 @@ export const domainIntelRouter = router({
         const scanId = input.scanId;
         const orgProfile = scan.orgProfile as any;
         setImmediate(async () => {
+          const _pipelineStartMs = Date.now();
           try {
             console.log(`[DomainIntel] Refresh pipeline started for scan ${scanId}: ${scan.primaryDomain}`);
             const { runDomainIntelPipeline } = await import('../domainIntel');
@@ -1610,6 +1652,17 @@ export const domainIntelRouter = router({
                 pipelineOutput: trimmedOutput,
               });
               console.log(`[DomainIntel] Refresh (scan-only) completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            }
+
+            // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+            try {
+              const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+              const durationMs = Date.now() - _pipelineStartMs;
+              const metrics = extractDIScanMetrics(scanId, scan.primaryDomain, result, durationMs);
+              const graduation = await runPostPipelineGraduation(metrics);
+              console.log(`[DomainIntel] \u{1F393} Graduation for refresh scan ${scanId}: ${graduation.summary}`);
+            } catch (gradErr: any) {
+              console.warn(`[DomainIntel] Graduation failed for refresh scan ${scanId} (non-fatal):`, gradErr.message);
             }
 
             // Emit events
@@ -2421,6 +2474,7 @@ export const domainIntelRouter = router({
         const scanMode = input.scanMode || 'standard';
         const scanOnly = input.scanOnly !== false;
         setImmediate(async () => {
+          const _pipelineStartMs = Date.now();
           try {
             console.log(`[DomainIntel] Quick scan started for ${cleanDomain} (scan ${scanId})`);
 
@@ -2711,6 +2765,16 @@ export const domainIntelRouter = router({
             });
 
             console.log(`[DomainIntel] Quick scan completed for ${cleanDomain}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+            // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
+            try {
+              const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
+              const durationMs = Date.now() - _pipelineStartMs;
+              const metrics = extractDIScanMetrics(scanId, cleanDomain, result, durationMs);
+              const graduation = await runPostPipelineGraduation(metrics);
+              console.log(`[DomainIntel] \u{1F393} Graduation for quick scan ${scanId}: ${graduation.summary}`);
+            } catch (gradErr: any) {
+              console.warn(`[DomainIntel] Graduation failed for quick scan ${scanId} (non-fatal):`, gradErr.message);
+            }
             try {
               const { emitReconComplete, emitSystemNotification } = await import('../lib/ws-event-hub');
               emitReconComplete({ scanId, domain: cleanDomain, findings: result.totalFindings || 0 });

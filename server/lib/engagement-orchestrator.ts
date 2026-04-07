@@ -11504,96 +11504,19 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
       console.warn(`[Notification] Completion notification failed for #${engagementId}:`, notifErr.message);
     }
 
-    // ═══ GRADUATION SYSTEM — Record engagement outcomes for specialist model advancement ═══
+    // ═══ GRADUATION SYSTEM — Record engagement outcomes via shared post-pipeline-graduation module ═══
     try {
-      const { recordScenarioResult, recordTrainingData } = await import('./graduation-lab-bridge');
-      const totalVulnsForGrad = state.stats.vulnsFound || 0;
-      const verifiedForGrad = (state.stats as any).verifiedVulns || 0;
-      const exploitSuccessRate = state.stats.exploitsAttempted > 0
-        ? state.stats.exploitsSucceeded / state.stats.exploitsAttempted
-        : 0;
-      const evidenceRate = totalVulnsForGrad > 0 ? verifiedForGrad / totalVulnsForGrad : 0;
-
-      // Score each specialist model based on their contribution to the engagement
-      // recon_analyst: scored on asset discovery and port enumeration
-      const reconScore = Math.min(100, (state.assets.length * 15) + (state.stats.portsFound * 3));
-      recordScenarioResult({
-        model: 'recon_analyst',
-        scenarioId: `eng-${engagementId}-recon`,
-        passed: state.assets.length > 0 && state.stats.portsFound > 0,
-        score: reconScore,
-        maxScore: 100,
-      });
-
-      // exploit_selector: scored on exploit success rate and evidence quality
-      const exploitScore = Math.round(
-        (exploitSuccessRate * 50) + (evidenceRate * 30) + (totalVulnsForGrad > 10 ? 20 : totalVulnsForGrad * 2)
-      );
-      recordScenarioResult({
-        model: 'exploit_selector',
-        scenarioId: `eng-${engagementId}-exploit`,
-        passed: exploitSuccessRate > 0 || verifiedForGrad > 5,
-        score: Math.min(100, exploitScore),
-        maxScore: 100,
-      });
-
-      // evasion_optimizer: scored on whether scans completed without being blocked
-      const evasionState = (state as any).evasionState;
-      const wasBlocked = evasionState?.currentLevel > 1;
-      const evasionRecovered = evasionState?.escalationHistory?.length > 0;
-      const evasionScore = wasBlocked ? (evasionRecovered ? 70 : 30) : 90;
-      recordScenarioResult({
-        model: 'evasion_optimizer',
-        scenarioId: `eng-${engagementId}-evasion`,
-        passed: !wasBlocked || evasionRecovered,
-        score: evasionScore,
-        maxScore: 100,
-      });
-
-      // cognitive_core: scored on overall engagement quality (evidence, coverage, accuracy)
-      const owaspCoverage = (state as any).owaspCoverage;
-      const coverageScore = owaspCoverage?.tested ? Math.round((owaspCoverage.tested / 25) * 40) : 20;
-      const cognitiveScore = Math.min(100, coverageScore + Math.round(evidenceRate * 40) + (totalVulnsForGrad > 0 ? 20 : 0));
-      recordScenarioResult({
-        model: 'cognitive_core',
-        scenarioId: `eng-${engagementId}-cognitive`,
-        passed: cognitiveScore >= 50,
-        score: cognitiveScore,
-        maxScore: 100,
-      });
-
-      // Record training data from successful exploit attempts
-      const successfulExploits = state.assets.flatMap(a =>
-        (a.exploitAttempts || []).filter((e: any) => e.succeeded)
-      );
-      if (successfulExploits.length > 0) {
-        const trainingExamples = successfulExploits.map((e: any) => ({
-          id: `train-${engagementId}-${e.id || Date.now()}`,
-          model: 'exploit_selector' as const,
-          input: JSON.stringify({
-            target: e.target,
-            vuln: e.vulnTitle || e.technique,
-            tool: e.tool,
-            command: e.command,
-          }),
-          expectedOutput: JSON.stringify({
-            succeeded: true,
-            technique: e.technique,
-            evidence: e.rawEvidence?.slice(0, 500),
-          }),
-          quality: 'high' as const,
-          source: `engagement-${engagementId}`,
-          metadata: { engagementId: String(engagementId), phase: 'exploitation' },
-        }));
-        recordTrainingData('exploit_selector', trainingExamples);
-      }
+      const { runPostPipelineGraduation, extractEngagementMetrics } = await import('./post-pipeline-graduation');
+      const engMetrics = extractEngagementMetrics(engagementId, state);
+      const graduation = await runPostPipelineGraduation(engMetrics);
 
       addLog(state, {
         phase: 'completed', type: 'info',
-        title: `🎓 Graduation: ${4} specialist models scored`,
-        detail: `Recon: ${reconScore}/100 | Exploit: ${Math.min(100, exploitScore)}/100 | Evasion: ${evasionScore}/100 | Cognitive: ${cognitiveScore}/100 | Training examples: ${successfulExploits.length}`,
+        title: `🎓 Graduation: ${graduation.modelsScored} specialist models scored`,
+        detail: `Recon: ${graduation.scores.recon_analyst}/100 | Exploit: ${graduation.scores.exploit_selector}/100 | Evasion: ${graduation.scores.evasion_optimizer}/100 | Cognitive: ${graduation.scores.cognitive_core}/100 | Cloud: ${graduation.scores.cloud_assessor}/100 | SupplyChain: ${graduation.scores.supply_chain_analyst}/100 | Training examples: ${graduation.trainingExamplesCollected}`,
       });
       broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      console.log(`[Graduation] 🎓 Engagement #${engagementId}: ${graduation.summary}`);
     } catch (gradErr: any) {
       console.warn(`[Graduation] Failed to record engagement outcomes for #${engagementId}:`, gradErr.message);
     }

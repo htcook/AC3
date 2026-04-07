@@ -1145,7 +1145,7 @@ export const engagementAutomationRouter = router({
         trainingStats = await getTrainingStats();
       } catch { /* bridge may not have data */ }
 
-      // Get graduation summary
+      // Get graduation summary (telemetry-based tiers)
       let graduationSummary = { totalCallers: 0, tier1: 0, tier2: 0, tier3: 0, tier4: 0, tier5: 0 };
       try {
         const { llmTelemetry } = await import('../../drizzle/schema');
@@ -1168,6 +1168,13 @@ export const engagementAutomationRouter = router({
         }
       } catch { /* telemetry may be empty */ }
 
+      // Get full graduation lab summary from the bridge
+      let labSummary: any = null;
+      try {
+        const { getGraduationLabSummary } = await import('../lib/graduation-lab-bridge');
+        labSummary = getGraduationLabSummary();
+      } catch { /* bridge may not have data yet */ }
+
       return {
         engagements: statuses,
         activeCount: statuses.filter(s => s.isRunning).length,
@@ -1178,6 +1185,7 @@ export const engagementAutomationRouter = router({
         totalExploitSuccesses: statuses.reduce((s, e) => s + e.exploitsSucceeded, 0),
         trainingStats,
         graduationSummary,
+        labSummary,
       };
     }),
 });
