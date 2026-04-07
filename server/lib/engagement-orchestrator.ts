@@ -95,6 +95,7 @@ import {
 import { validateLLMEvidence, type GuardrailContext } from "./llm-evidence-guardrail";
 import { SERVER_INSTANCE_ID } from "./server-instance";
 import { capLLMContext as _capLLMContext } from "./memory-manager";
+import { enrichPortServices } from "./service-resolver";
 import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult, type ScanForgeCredential } from "../scanforge/engine/engagement-integration";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
@@ -2493,6 +2494,8 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
               });
             }
           }
+          // Resolve any remaining "unknown" service labels
+          enrichPortServices(existing.ports, passiveRecon.services || []);
           // Defer passive vulns to pendingVulns — they will be promoted to vulns at vuln_detection phase start
           for (const v of passiveVulns) {
             const isDupe = existing.pendingVulns.some((pv: any) => {
@@ -2511,11 +2514,15 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             hostname: assetHostname,
             ip: asset.asset?.ip || asset.ip,
             type: asset.asset?.assetType === "web_application" ? "web_app" : "unknown",
-            ports: passiveRecon.services.map(svc => ({
-              port: svc.port,
-              service: svc.service || 'unknown',
-              version: svc.version || '',
-            })),
+            ports: (() => {
+              const ports = passiveRecon.services.map(svc => ({
+                port: svc.port,
+                service: svc.service || 'unknown',
+                version: svc.version || '',
+              }));
+              enrichPortServices(ports, passiveRecon.services || []);
+              return ports;
+            })(),
             vulns: [],
             pendingVulns: passiveVulns,
             zapFindings: [],
@@ -3646,6 +3653,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             service: p.service || 'unknown',
             version: p.product ? `${p.product}${p.version ? ' ' + p.version : ''}`.trim() : undefined,
           }));
+
+          // ── SERVICE RESOLUTION ──
+          // Replace "unknown" service labels using passive recon + well-known port mapping
+          enrichPortServices(asset.ports, (asset.passiveRecon as any)?.services || []);
 
           // ── PASSIVE RECON PORT SEEDING ──────────────────────────────────────
           // If ScanForge found 0 ports but passive recon detected web services,

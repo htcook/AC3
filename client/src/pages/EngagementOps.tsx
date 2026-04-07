@@ -2361,13 +2361,40 @@ export default function EngagementOps() {
                         <div>
                           <h4 className="text-xs font-medium text-muted-foreground mb-1">Open Ports ({(selectedAssetData.ports || []).length})</h4>
                           <div className="space-y-0.5">
-                            {(selectedAssetData.ports || []).map((p, i) => (
-                              <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
-                                <span className="font-mono text-cyan-400 w-12">{p.port}</span>
-                                <span className="text-foreground">{p.service}</span>
-                                {p.version && <span className="text-muted-foreground">{p.version}</span>}
-                              </div>
-                            ))}
+                            {(selectedAssetData.ports || []).map((p, i) => {
+                              // Client-side fallback: resolve "unknown" services using well-known port map
+                              const COMMON_PORTS: Record<number, string> = {
+                                21:'ftp',22:'ssh',23:'telnet',25:'smtp',53:'dns',80:'http',110:'pop3',
+                                111:'rpcbind',135:'msrpc',139:'netbios',143:'imap',443:'https',445:'smb',
+                                465:'smtps',587:'submission',636:'ldaps',993:'imaps',995:'pop3s',
+                                1433:'mssql',1521:'oracle',1883:'mqtt',2049:'nfs',2222:'ssh',
+                                3000:'http-alt',3306:'mysql',3389:'rdp',4000:'http-alt',4443:'https-alt',
+                                5000:'http-alt',5432:'postgresql',5672:'amqp',5900:'vnc',5984:'couchdb',
+                                6379:'redis',6443:'kubernetes',6667:'irc',8000:'http-alt',8080:'http-proxy',
+                                8081:'http-alt',8090:'http-alt',8443:'https-alt',8888:'http-alt',
+                                9000:'http-alt',9090:'http-alt',9092:'kafka',9200:'elasticsearch',
+                                9443:'https-alt',10250:'kubelet',11211:'memcached',27017:'mongodb',
+                                50000:'jenkins-agent',
+                              };
+                              const displayService = (p.service && p.service !== 'unknown') ? p.service : (COMMON_PORTS[p.port] || 'unknown');
+                              const isInferred = p.service === 'unknown' || !p.service;
+                              const isResolved = displayService !== 'unknown';
+                              return (
+                                <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
+                                  <span className="font-mono text-cyan-400 w-12">{p.port}</span>
+                                  <span className={isInferred && isResolved ? 'text-yellow-300/90 italic' : isInferred ? 'text-muted-foreground italic' : 'text-foreground'}>
+                                    {displayService}
+                                  </span>
+                                  {isInferred && isResolved && (
+                                    <span className="text-[9px] text-yellow-500/60 border border-yellow-500/20 rounded px-1">inferred</span>
+                                  )}
+                                  {!isInferred && (
+                                    <span className="text-[9px] text-emerald-500/60 border border-emerald-500/20 rounded px-1">identified</span>
+                                  )}
+                                  {p.version && <span className="text-muted-foreground">{p.version}</span>}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -2750,12 +2777,32 @@ export default function EngagementOps() {
                     const nucleiResults = allToolResults.filter((tr: any) => tr.tool === 'nuclei');
                     const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
 
+                    // Well-known port fallback map for resolving "unknown" services
+                    const COMMON_PORTS: Record<number, string> = {
+                      21:'ftp',22:'ssh',23:'telnet',25:'smtp',53:'dns',80:'http',110:'pop3',
+                      111:'rpcbind',135:'msrpc',139:'netbios',143:'imap',443:'https',445:'smb',
+                      465:'smtps',587:'submission',636:'ldaps',993:'imaps',995:'pop3s',
+                      1433:'mssql',1521:'oracle',1883:'mqtt',2049:'nfs',2222:'ssh',
+                      3000:'http-alt',3306:'mysql',3389:'rdp',4000:'http-alt',4443:'https-alt',
+                      5000:'http-alt',5432:'postgresql',5672:'amqp',5900:'vnc',5984:'couchdb',
+                      6379:'redis',6443:'kubernetes',6667:'irc',8000:'http-alt',8080:'http-proxy',
+                      8081:'http-alt',8090:'http-alt',8443:'https-alt',8888:'http-alt',
+                      9000:'http-alt',9090:'http-alt',9092:'kafka',9200:'elasticsearch',
+                      9443:'https-alt',10250:'kubelet',11211:'memcached',27017:'mongodb',
+                      50000:'jenkins-agent',
+                    };
+                    const resolveService = (port: number, svc: string) => {
+                      if (svc && svc !== 'unknown') return svc;
+                      return COMMON_PORTS[port] || 'unknown';
+                    };
+
                     // Aggregate ports across all assets
                     const portMap = new Map<number, { count: number; services: Set<string>; assets: Set<string> }>();
                     for (const a of assets) {
                       for (const p of (a.knownPorts || [])) {
                         const port = typeof p === 'number' ? p : (p.port || 0);
-                        const svc = typeof p === 'object' ? (p.service || 'unknown') : 'unknown';
+                        const rawSvc = typeof p === 'object' ? (p.service || 'unknown') : 'unknown';
+                        const svc = resolveService(port, rawSvc);
                         if (!portMap.has(port)) portMap.set(port, { count: 0, services: new Set(), assets: new Set() });
                         const entry = portMap.get(port)!;
                         entry.count++;
@@ -2792,21 +2839,23 @@ export default function EngagementOps() {
                     }
                     const sortedTech = Array.from(techMap.entries()).sort((a, b) => b[1].count - a[1].count);
 
-                    // Aggregate services
+                    // Aggregate services (with fallback resolution)
                     const serviceMap = new Map<string, { count: number; ports: Set<number>; assets: Set<string> }>();
                     for (const a of assets) {
                       for (const p of (a.knownPorts || [])) {
-                        if (typeof p === 'object' && p.service) {
-                          if (!serviceMap.has(p.service)) serviceMap.set(p.service, { count: 0, ports: new Set(), assets: new Set() });
-                          const entry = serviceMap.get(p.service)!;
+                        if (typeof p === 'object') {
+                          const port = p.port || 0;
+                          const svcName = resolveService(port, p.service || 'unknown');
+                          if (!serviceMap.has(svcName)) serviceMap.set(svcName, { count: 0, ports: new Set(), assets: new Set() });
+                          const entry = serviceMap.get(svcName)!;
                           entry.count++;
-                          entry.ports.add(p.port || 0);
+                          entry.ports.add(port);
                           entry.assets.add(a.hostname);
                         }
                       }
                       // Also from passive recon services
                       for (const svc of (a.passiveRecon?.services || [])) {
-                        const name = svc.service || svc.name || 'unknown';
+                        const name = resolveService(svc.port || 0, svc.service || svc.name || 'unknown');
                         if (!serviceMap.has(name)) serviceMap.set(name, { count: 0, ports: new Set(), assets: new Set() });
                         const entry = serviceMap.get(name)!;
                         entry.count++;
