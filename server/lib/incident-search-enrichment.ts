@@ -12,7 +12,7 @@
  * - LLM training pipeline (incident context for future analysis)
  */
 
-import { db } from "../db";
+import { getDb } from "../db";
 import { threatActors, threatActorIocs, threatGroupEvents } from "../../drizzle/schema";
 import { eq, like, or, sql, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
@@ -59,6 +59,8 @@ export interface IncidentSearchResult {
 
 async function searchThreatCatalog(domain: string): Promise<IncidentMatch[]> {
   const matches: IncidentMatch[] = [];
+  const db = await getDb();
+  if (!db) return matches;
   
   // Extract org name from domain (e.g., "risk.lexisnexis.com" → "lexisnexis")
   const domainParts = domain.split(".");

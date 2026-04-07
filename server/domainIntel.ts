@@ -466,6 +466,24 @@ export interface PipelineResult {
     newActorsDiscovered: string[];
     newTTPsDiscovered: string[];
   };
+  affiliatedDomains?: {
+    targetDomain: string;
+    searchedAt: number;
+    registrantOrg: string | null;
+    registrantEmail: string | null;
+    affiliatedDomains: Array<{
+      domain: string;
+      relationship: string;
+      confidence: number;
+      source: string;
+      evidence: string;
+      registrantOrg?: string;
+      registrantEmail?: string;
+    }>;
+    totalDiscovered: number;
+    sourceBreakdown: Record<string, number>;
+    summary: string;
+  };
 }
 
 export interface BreachDataSummary {
@@ -4080,8 +4098,64 @@ export async function runDomainIntelPipeline(
       `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
       `risk floor contribution=${isResult.riskFloorContribution}`
     );
+
+    // Stage 4.56: Auto-ingest new actors/TTPs/IOCs back into threat catalog
+    try {
+      const { ingestIncidentSearchResults } = await import('./lib/incident-search-ingest');
+      const ingestResult = await ingestIncidentSearchResults(
+        isResult.catalogMatches,
+        isResult.webSearchMatches,
+        org.primaryDomain
+      );
+      if (incidentSearchResult) {
+        (incidentSearchResult as any).ingestResult = {
+          actorsCreated: ingestResult.actorsCreated,
+          actorsUpdated: ingestResult.actorsUpdated,
+          abilitiesCreated: ingestResult.abilitiesCreated,
+          iocsCreated: ingestResult.iocsCreated,
+          ttpKnowledgeCreated: ingestResult.ttpKnowledgeCreated,
+        };
+      }
+    } catch (ingestErr: any) {
+      console.error(`[DomainIntel] Stage 4.56 auto-ingest failed (non-fatal): ${ingestErr.message}`);
+    }
   } catch (err: any) {
     console.error(`[DomainIntel] Stage 4.55 incident search failed (non-fatal): ${err.message}`);
+  }
+
+  // ─── Stage 4.6: Affiliated Domain Discovery ────────────────────────
+  let affiliatedDomainsResult: PipelineResult['affiliatedDomains'] | undefined;
+  try {
+    const { runAffiliatedDomainDiscovery } = await import('./lib/affiliated-domain-discovery');
+    console.log(`[DomainIntel] Stage 4.6: Running affiliated domain discovery for ${org.primaryDomain}`);
+    const adResult = await runAffiliatedDomainDiscovery(
+      org.primaryDomain,
+      org.companyName || null
+    );
+    affiliatedDomainsResult = {
+      targetDomain: adResult.targetDomain,
+      searchedAt: adResult.searchedAt,
+      registrantOrg: adResult.registrantOrg,
+      registrantEmail: adResult.registrantEmail,
+      affiliatedDomains: adResult.affiliatedDomains.map(d => ({
+        domain: d.domain,
+        relationship: d.relationship,
+        confidence: d.confidence,
+        source: d.source,
+        evidence: d.evidence,
+        registrantOrg: d.registrantOrg,
+        registrantEmail: d.registrantEmail,
+      })),
+      totalDiscovered: adResult.totalDiscovered,
+      sourceBreakdown: adResult.sourceBreakdown,
+      summary: adResult.summary,
+    };
+    console.log(
+      `[DomainIntel] Affiliated domains: ${adResult.totalDiscovered} discovered ` +
+      `(registrant: ${adResult.registrantOrg || 'unknown'}) in ${Date.now() - adResult.searchedAt}ms`
+    );
+  } catch (err: any) {
+    console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed (non-fatal): ${err.message}`);
   }
 
   // ─── Compute Scan Delta (cross-session comparison) ──────────────────
@@ -4289,6 +4363,7 @@ export async function runDomainIntelPipeline(
     pipelineCrawl: pipelineCrawlResult,
     threatMatching: threatMatchingResult,
     incidentSearch: incidentSearchResult,
+    affiliatedDomains: affiliatedDomainsResult,
     techStackGrouping: (() => {
       try {
         console.log(`[DomainIntel] Stage 4.6: Computing technology stack grouping...`);

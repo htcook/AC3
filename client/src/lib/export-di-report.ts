@@ -772,6 +772,17 @@ export async function exportDiReport(
     blufParts.push(`${incParts.join(', ')}. This historical incident context significantly informs the risk assessment and defensive prioritization.`);
   }
 
+  // 5c. Affiliated Domain Discovery (attack surface expansion)
+  const _affDomainsBluf = scan.affiliatedDomains;
+  if (_affDomainsBluf && _affDomainsBluf.totalDiscovered > 0) {
+    const highConfAff = _affDomainsBluf.affiliatedDomains?.filter((d: any) => d.confidence >= 80).length || 0;
+    const affParts: string[] = [];
+    affParts.push(`Affiliated domain discovery identified ${_affDomainsBluf.totalDiscovered} additional domain(s) owned by or associated with the target organization`);
+    if (_affDomainsBluf.registrantOrg) affParts.push(`registered to ${_affDomainsBluf.registrantOrg}`);
+    if (highConfAff > 0) affParts.push(`${highConfAff} confirmed via reverse WHOIS`);
+    blufParts.push(`${affParts.join(', ')}. These affiliated domains expand the organization's attack surface and should be included in continuous monitoring and vulnerability management programs.`);
+  }
+
   // 6. Breach & Credential Exposure
   if (_breachExposures > 0 || _oemCredCount > 0) {
     const breachParts: string[] = [];
@@ -857,6 +868,10 @@ export async function exportDiReport(
     if (_incidentSearch.hasRecentBreach) incFlags.push('breach');
     if (_incidentSearch.hasActiveThreats) incFlags.push('active threats');
     dashboardRows.push(['Known Incidents', `${_incidentSearch.totalMatches} incident(s)${incFlags.length > 0 ? ` (${incFlags.join(', ')})` : ''}`]);
+  }
+  if (_affDomainsBluf && _affDomainsBluf.totalDiscovered > 0) {
+    const affHighConf = _affDomainsBluf.affiliatedDomains?.filter((d: any) => d.confidence >= 80).length || 0;
+    dashboardRows.push(['Affiliated Domains', `${_affDomainsBluf.totalDiscovered} discovered${affHighConf > 0 ? ` (${affHighConf} high confidence)` : ''}`]);
   }
   dashboardRows.push(['Data Sources', String(connectorCount)]);
   dashboardRows.push(['Scan Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A']);
@@ -2311,6 +2326,146 @@ export async function exportDiReport(
       doc.setFontSize(7);
       doc.text(`Showing 50 of ${credPairObs.length} exposed credential pairs. Full dataset available in platform.`, margin, y);
       y += 6;
+    }
+  }
+
+  // ─── Credential Reuse Risk Analysis ─────────────────────────────────
+  // Identify emails appearing in multiple breaches (high reuse risk)
+  const emailBreachMap = new Map<string, { breaches: string[]; hasPlaintext: boolean; hasHash: boolean }>(); 
+  for (const o of credentialObs) {
+    const email = (o as any).evidence?.email || (o as any).name || '';
+    if (!email || email === 'N/A') continue;
+    const key = email.toLowerCase();
+    const existing = emailBreachMap.get(key) || { breaches: [], hasPlaintext: false, hasHash: false };
+    const breachName = (o as any).evidence?.database_name || (o as any).evidence?.breach_name || 'Unknown';
+    if (!existing.breaches.includes(breachName)) existing.breaches.push(breachName);
+    if ((o as any).evidence?.has_plaintext_password) existing.hasPlaintext = true;
+    if ((o as any).evidence?.has_hashed_password) existing.hasHash = true;
+    emailBreachMap.set(key, existing);
+  }
+  const multiBreachEmails = Array.from(emailBreachMap.entries())
+    .filter(([_, v]) => v.breaches.length >= 2)
+    .sort((a, b) => b[1].breaches.length - a[1].breaches.length);
+
+  if (multiBreachEmails.length > 0) {
+    y = subheading('Credential Reuse Risk Analysis', y);
+
+    doc.setTextColor(220, 38, 38);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      `${multiBreachEmails.length} email(s) appear in multiple breach databases — indicating high credential reuse risk.`,
+      margin, y
+    );
+    y += 6;
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Email Address', 'Breaches Found In', 'Plaintext Exposed', 'Hash Exposed', 'Reuse Risk']],
+      body: multiBreachEmails.slice(0, 30).map(([email, data]) => [
+        truncate(email, 30),
+        String(data.breaches.length),
+        data.hasPlaintext ? 'YES' : 'No',
+        data.hasHash ? 'YES' : 'No',
+        data.breaches.length >= 5 ? 'CRITICAL' : data.breaches.length >= 3 ? 'HIGH' : 'MEDIUM',
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 55 },
+        1: { cellWidth: 25, halign: 'center' as any },
+        2: { cellWidth: 25, halign: 'center' as any },
+        3: { cellWidth: 25, halign: 'center' as any },
+        4: { cellWidth: 25, halign: 'center' as any },
+      },
+      didParseCell: (data: any) => {
+        if (data.section === 'body') {
+          if (data.column.index === 2 && String(data.cell.text) === 'YES') {
+            data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.column.index === 4) {
+            const risk = String(data.cell.text);
+            if (risk === 'CRITICAL') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+            else if (risk === 'HIGH') { data.cell.styles.textColor = [234, 88, 12]; data.cell.styles.fontStyle = 'bold'; }
+          }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Show which breaches each high-risk email appears in
+    const topRiskEmails = multiBreachEmails.filter(([_, v]) => v.breaches.length >= 3).slice(0, 10);
+    if (topRiskEmails.length > 0) {
+      y = checkPageBreak(y, 20);
+      doc.setTextColor(113, 113, 122);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'italic');
+      doc.text('High-risk accounts — breach sources detail:', margin, y);
+      y += 4;
+      for (const [email, data] of topRiskEmails) {
+        y = checkPageBreak(y, 8);
+        doc.setTextColor(51, 65, 85);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(truncate(email, 40), margin + 2, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`: ${data.breaches.slice(0, 8).join(', ')}${data.breaches.length > 8 ? ` +${data.breaches.length - 8} more` : ''}`, margin + 2 + doc.getTextWidth(truncate(email, 40)) + 1, y);
+        y += 5;
+      }
+      y += 2;
+    }
+  }
+
+  // ─── Password Strength Indicators ───────────────────────────────────
+  // Flag weak/common passwords found in breach data
+  const plaintextCreds = credentialObs.filter((o: any) => o.evidence?.has_plaintext_password && o.evidence?.password_preview);
+  if (plaintextCreds.length > 0) {
+    const commonPatterns = ['123456', 'password', 'qwerty', 'admin', 'letmein', 'welcome', 'monkey', 'dragon', 'master', 'abc123', '111111', 'iloveyou', 'trustno1', 'sunshine', 'princess'];
+    const weakCreds = plaintextCreds.filter((o: any) => {
+      const pw = (o.evidence?.password_preview || '').toLowerCase();
+      return pw.length < 8 || commonPatterns.some(p => pw.includes(p)) || /^[a-z]+$/.test(pw) || /^[0-9]+$/.test(pw);
+    });
+
+    if (weakCreds.length > 0) {
+      y = subheading('Weak Password Indicators', y);
+
+      doc.setTextColor(220, 38, 38);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.text(
+        `${weakCreds.length} of ${plaintextCreds.length} exposed plaintext passwords show weak patterns (short, common, or simple).`,
+        margin, y
+      );
+      y += 6;
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Email / Username', 'Password Pattern', 'Weakness', 'Breach Source']],
+        body: weakCreds.slice(0, 20).map((o: any) => {
+          const ev = o.evidence || {};
+          const pw = ev.password_preview || '';
+          let weakness = 'Unknown';
+          if (pw.length < 8) weakness = `Too short (${pw.length} chars)`;
+          else if (commonPatterns.some(p => pw.toLowerCase().includes(p))) weakness = 'Common password';
+          else if (/^[a-z]+$/.test(pw)) weakness = 'Letters only';
+          else if (/^[0-9]+$/.test(pw)) weakness = 'Numbers only';
+          return [
+            truncate(ev.email || ev.username || o.name || 'N/A', 30),
+            truncate(pw, 16),
+            weakness,
+            truncate(ev.database_name || ev.breach_name || 'Unknown', 25),
+          ];
+        }),
+        theme: 'grid',
+        headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+        alternateRowStyles: { fillColor: [254, 242, 242] },
+        margin: { left: margin, right: margin },
+      });
+      y = (doc as any).lastAutoTable.finalY + 4;
     }
   }
 
@@ -4156,9 +4311,117 @@ export async function exportDiReport(
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════
+  // ═  // ═════════════════════════════════════════════════════════════
+  // 12c. AFFILIATED DOMAIN DISCOVERY
+  // ═════════════════════════════════════════════════════════════
+  const _affDomains = scan.affiliatedDomains;
+  if (_affDomains && _affDomains.totalDiscovered > 0) {
+    y = startSection('Affiliated Domain Discovery', y, 80);
+
+    // Summary paragraph
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(51, 65, 85);
+    const affIntro = _affDomains.registrantOrg
+      ? `Reverse WHOIS, certificate transparency, and DNS correlation analysis identified ${_affDomains.totalDiscovered} domain(s) affiliated with the target organization (registered to: ${_affDomains.registrantOrg}). These domains represent the organization's broader attack surface and should be included in ongoing security monitoring.`
+      : `${_affDomains.totalDiscovered} affiliated domain(s) were discovered through certificate transparency logs, DNS correlation, and intelligence analysis. These domains may share infrastructure, credentials, or vulnerabilities with the primary target.`;
+    doc.text(affIntro, margin, y, { maxWidth: contentWidth });
+    y += Math.ceil(affIntro.length / 100) * 5 + 4;
+
+    // Registrant info box
+    if (_affDomains.registrantOrg || _affDomains.registrantEmail) {
+      y = checkPageBreak(y, 16);
+      doc.setFillColor(243, 232, 255); // light purple
+      doc.roundedRect(margin, y, contentWidth, 14, 2, 2, 'F');
+      doc.setTextColor(107, 33, 168);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      if (_affDomains.registrantOrg) {
+        doc.text(`Registrant Organization: ${_affDomains.registrantOrg}`, margin + 5, y + 6);
+      }
+      if (_affDomains.registrantEmail) {
+        doc.text(`Registrant Email: ${_affDomains.registrantEmail}`, margin + 5, y + 11);
+      }
+      doc.setFont('helvetica', 'normal');
+      y += 16;
+    }
+
+    // Status indicators
+    const highConf = _affDomains.affiliatedDomains.filter((d: any) => d.confidence >= 80).length;
+    const medConf = _affDomains.affiliatedDomains.filter((d: any) => d.confidence >= 50 && d.confidence < 80).length;
+    const lowConf = _affDomains.affiliatedDomains.filter((d: any) => d.confidence < 50).length;
+
+    y = checkPageBreak(y, 14);
+    autoTable!(doc, {
+      startY: y,
+      head: [['Metric', 'Value']],
+      body: [
+        ['Total Affiliated Domains', String(_affDomains.totalDiscovered)],
+        ['High Confidence (\u226580%)', String(highConf)],
+        ['Medium Confidence (50-79%)', String(medConf)],
+        ['Low Confidence (<50%)', String(lowConf)],
+        ...Object.entries(_affDomains.sourceBreakdown || {}).map(([src, count]) => [
+          `Source: ${src.replace(/_/g, ' ')}`, String(count)
+        ]),
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [107, 33, 168], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [250, 245, 255] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { cellWidth: 70, fontStyle: 'bold' }, 1: { cellWidth: 40 } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // Affiliated domains detail table
+    y = subheading('Discovered Affiliated Domains', y);
+    const sortedAff = [..._affDomains.affiliatedDomains]
+      .sort((a: any, b: any) => b.confidence - a.confidence);
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Domain', 'Relationship', 'Confidence', 'Source', 'Evidence']],
+      body: sortedAff.slice(0, 40).map((d: any) => [
+        d.domain,
+        (d.relationship || '').replace(/_/g, ' '),
+        `${d.confidence}%`,
+        (d.source || '').replace(/_/g, ' '),
+        truncate(d.evidence || '', 40),
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [107, 33, 168], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [250, 245, 255] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 35, fontStyle: 'bold' },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 18, halign: 'center' as any },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 55 },
+      },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 2) {
+          const conf = parseInt(String(data.cell.text).replace('%', ''));
+          if (conf >= 80) { data.cell.styles.textColor = [22, 163, 74]; data.cell.styles.fontStyle = 'bold'; }
+          else if (conf >= 50) { data.cell.styles.textColor = [217, 119, 6]; }
+          else { data.cell.styles.textColor = [148, 163, 184]; }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    if (sortedAff.length > 40) {
+      doc.setTextColor(113, 113, 122);
+      doc.setFontSize(7);
+      doc.text(`Showing 40 of ${sortedAff.length} affiliated domains. Full list available in platform.`, margin, y);
+      y += 6;
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════
   // 13. TECHNOLOGY STACK ANALYSIS & MOST WIDESPREAD VULNERABILITIES
-  // ═══════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════
   const _tsg = scan.techStackGrouping;
   if (_tsg && _tsg.summary.totalGroups > 0) {
     y = startSection('Technology Stack Analysis', y, 80);

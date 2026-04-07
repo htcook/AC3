@@ -41,6 +41,8 @@ import type { ValidationResultExport, ValidationRunExport } from "@/lib/export-u
 
 // Lazy-loaded sub-tabs (split from monolithic file for bundle optimization)
 const ScanMethodsTab = lazy(() => import("./domain-intel-tabs/ScanMethodsTab"));
+const IncidentSearchTab = lazy(() => import("./domain-intel-tabs/IncidentSearchTab"));
+const AffiliatedDomainsTab = lazy(() => import("./domain-intel-tabs/AffiliatedDomainsTab"));
 const VulnIntelSection = lazy(() => import("./domain-intel-tabs/VulnIntelSection"));
 const ValidateTop10Banner = lazy(() => import("./domain-intel-tabs/ValidateTop10Banner"));
 const AccuracyInsightsTab = lazy(() => import("./domain-intel-tabs/AccuracyInsightsTab"));
@@ -401,6 +403,8 @@ export default function DomainIntelResults() {
   const credentialTestSummary = pipeline?.credentialTestSummary as any;
   const oemCredentials = pipeline?.oemCredentials as any;
   const domainHealth = pipeline?.domainHealth as any;
+  const incidentSearch = pipeline?.incidentSearch as any;
+  const affiliatedDomains = pipeline?.affiliatedDomains as any;
   const scanDelta = pipeline?.scanDelta as { previousScanId: number; previousScanDate: string; scanNumber: number; riskDelta: number | null; previousRiskScore: number | null; assetDelta: number | null; previousTotalAssets: number | null; findingsDelta: number | null; previousTotalFindings: number | null; newAssets: string[]; removedAssets: string[]; persistentAssets: string[] } | undefined;
 
   // Build unified asset list: DB assets + pipeline subdomains not already in DB assets
@@ -1337,6 +1341,8 @@ export default function DomainIntelResults() {
               { value: 'campaigns', label: 'Campaigns', icon: <Crosshair className="h-3 w-3" />, count: campaigns.length, hidden: isEngagement ? false : true },
               { value: 'threat-model', label: 'Threat Model', icon: <ShieldAlert className="h-3 w-3" />, hidden: isEngagement ? false : true },
               { value: 'cve-actors', label: 'CVE Actors', icon: <Fingerprint className="h-3 w-3" /> },
+              { value: 'incidents', label: 'Incidents', icon: <Activity className="h-3 w-3" />, count: incidentSearch?.totalMatches || 0 },
+              { value: 'affiliated-domains', label: 'Affiliated Domains', icon: <Globe className="h-3 w-3" />, count: affiliatedDomains?.totalDiscovered || 0 },
               { value: 'entity-profile', label: 'Entity Profile', icon: <Box className="h-3 w-3" />, hidden: !pipeline?.entityProfile },
               { value: 'vendor-alerts', label: 'Vendor Alerts', icon: <ShieldQuestion className="h-3 w-3" />, hidden: !pipeline?.vendorCorrelation },
             ],
@@ -4790,6 +4796,16 @@ export default function DomainIntelResults() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Incident Intelligence Tab */}
+        <TabsContent value="incidents" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><IncidentSearchTab incidentSearch={incidentSearch} /></Suspense>
+        </TabsContent>
+
+        {/* Affiliated Domains Tab */}
+        <TabsContent value="affiliated-domains" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><AffiliatedDomainsTab affiliatedDomains={affiliatedDomains} /></Suspense>
         </TabsContent>
 
         {/* Discovery Coverage Tab */}
