@@ -466,6 +466,31 @@ export const domainIntelRouter = router({
                 }
                 return Array.from(certMap.values()).slice(0, 20);
               })(),
+              // Incident Search enrichment results (threat catalog + web search matches)
+              incidentSearch: result.incidentSearch ? {
+                totalMatches: result.incidentSearch.totalMatches,
+                catalogMatches: result.incidentSearch.catalogMatches?.slice(0, 50),
+                webSearchMatches: result.incidentSearch.webSearchMatches?.slice(0, 50),
+                hasRansomwareEvent: result.incidentSearch.hasRansomwareEvent,
+                hasRecentBreach: result.incidentSearch.hasRecentBreach,
+                hasActiveThreats: result.incidentSearch.hasActiveThreats,
+                riskFloorContribution: result.incidentSearch.riskFloorContribution,
+                newActorsDiscovered: result.incidentSearch.newActorsDiscovered,
+                newTTPsDiscovered: result.incidentSearch.newTTPsDiscovered,
+                summary: result.incidentSearch.summary,
+                searchedAt: result.incidentSearch.searchedAt,
+              } : undefined,
+              // Affiliated Domain Discovery results (reverse WHOIS, CT logs, DNS correlation, LLM)
+              affiliatedDomains: result.affiliatedDomains ? {
+                targetDomain: result.affiliatedDomains.targetDomain,
+                totalDiscovered: result.affiliatedDomains.totalDiscovered,
+                affiliatedDomains: result.affiliatedDomains.affiliatedDomains?.slice(0, 100),
+                registrantOrg: result.affiliatedDomains.registrantOrg,
+                registrantEmail: result.affiliatedDomains.registrantEmail,
+                sourceBreakdown: result.affiliatedDomains.sourceBreakdown,
+                summary: result.affiliatedDomains.summary,
+                searchedAt: result.affiliatedDomains.searchedAt,
+              } : undefined,
             };
 
             // ── Delta Comparison: Compare with previous scan for the same domain ──
@@ -2930,6 +2955,252 @@ export const domainIntelRouter = router({
           criticalFunctions: scan.criticalFunctions,
           complianceFlags: scan.complianceFlags,
         };
+      }),
+
+    // ─── Scan Affiliated Domains ─────────────────────────────────────
+    // Queue DI scans for affiliated domains discovered during a parent scan
+    scanAffiliatedDomains: protectedProcedure
+      .input(z.object({
+        parentScanId: z.number(),
+        domains: z.array(z.string().min(1)).min(1).max(50),
+        scanMode: z.enum(['strict_passive', 'standard', 'active']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Fetch parent scan for context inheritance
+        const parentScan = await db.getDomainIntelScanById(input.parentScanId);
+        if (!parentScan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Parent scan not found' });
+
+        const orgProfile = parentScan.orgProfile as any;
+        const results: { domain: string; scanId: number | null; status: string; message: string }[] = [];
+
+        for (const domain of input.domains) {
+          try {
+            // Check for existing scan of this domain
+            const existingScans = await db.getDomainIntelScans();
+            const existing = existingScans.find((s: any) =>
+              s.primaryDomain === domain &&
+              (s.status === 'discovering' || s.status === 'enriching' || s.status === 'analyzing' || s.status === 'scoring')
+            );
+            if (existing) {
+              results.push({ domain, scanId: existing.id, status: 'already_running', message: `Scan already in progress (status: ${existing.status})` });
+              continue;
+            }
+
+            // Create scan record inheriting parent context
+            const scanId = await db.createDomainIntelScan({
+              primaryDomain: domain,
+              additionalDomains: [],
+              clientType: parentScan.clientType || 'enterprise',
+              sector: parentScan.sector || 'technology',
+              engagementId: parentScan.engagementId || undefined,
+              orgProfile: {
+                customerName: orgProfile?.customerName || parentScan.primaryDomain,
+                primaryDomain: domain,
+                sector: parentScan.sector || 'technology',
+                clientType: parentScan.clientType || 'enterprise',
+                criticalFunctions: parentScan.criticalFunctions || [],
+                complianceFlags: parentScan.complianceFlags || [],
+                scopedAssets: [],
+                scanMode: input.scanMode || 'standard',
+                parentScanId: input.parentScanId,
+                affiliatedDomainScan: true,
+              },
+              criticalFunctions: parentScan.criticalFunctions || [],
+              complianceFlags: parentScan.complianceFlags || [],
+              notes: `Affiliated domain scan — discovered from parent scan #${input.parentScanId} (${parentScan.primaryDomain})`,
+              status: 'discovering',
+              createdBy: ctx.user.id,
+            });
+
+            // Run pipeline in background
+            const scanMode = input.scanMode || 'standard';
+            setImmediate(async () => {
+              try {
+                console.log(`[DomainIntel] Affiliated domain scan started: ${domain} (parent: ${parentScan.primaryDomain}, scanId: ${scanId})`);
+                const { runDomainIntelPipeline } = await import('../domainIntel');
+
+                const result = await runDomainIntelPipeline(
+                  {
+                    customerName: orgProfile?.customerName || parentScan.primaryDomain,
+                    primaryDomain: domain,
+                    additionalDomains: [],
+                    sector: parentScan.sector || 'technology',
+                    clientType: parentScan.clientType || 'enterprise',
+                    criticalFunctions: parentScan.criticalFunctions || [],
+                    complianceFlags: parentScan.complianceFlags || [],
+                  },
+                  async (stage) => {
+                    await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
+                  },
+                  { scanMode: scanMode as any, skipEngagement: true }
+                );
+
+                // Store assets
+                const assetRecords = result.assets.map(a => ({
+                  scanId,
+                  assetId: a.asset.assetId,
+                  hostname: a.asset.hostname,
+                  url: a.asset.url || null,
+                  assetType: a.asset.assetType,
+                  dnsRecords: a.asset.dnsRecords || null,
+                  dnsStatus: a.asset.dnsStatus || null,
+                  headers: a.asset.headers || null,
+                  technologies: a.asset.technologies || null,
+                  detectedTechnologies: (a.asset.technologies || []).map((t: string) => ({ name: t, version: '', category: 'inferred', confidence: 0.5 })),
+                  assetClasses: a.asset.assetClasses,
+                  tags: a.asset.tags,
+                  carverScores: a.carverScores,
+                  shockScores: a.shockScores,
+                  missionImpactScore: Math.round(a.missionImpactScore * 10),
+                  suggestedTier: a.suggestedTier,
+                  hybridRiskScore: a.hybridRiskScore,
+                  riskBand: a.riskBand,
+                  cvssEstimate: Math.round(a.cvssEstimate * 10),
+                  contextIndicators: a.contextIndicators,
+                  postureFindings: a.postureFindings,
+                  testVectors: a.testVectors,
+                  recommendedCalderaAbilities: a.testVectors.filter((v: any) => v.suggestedEmulation?.calderaAbilityHint).map((v: any) => v.suggestedEmulation),
+                  recommendedGophishTemplates: null,
+                  recommendedAttackChain: null,
+                  confidence: a.confidence,
+                  confidenceExplanation: a.contextIndicators,
+                  impactScore: a.impactScore || 0,
+                  likelihoodScore: a.likelihoodScore || 0,
+                  assetCriticalityScore: a.assetCriticalityScore || 0,
+                  assetCriticalityBand: a.assetCriticalityBand || 'low',
+                  vulnRiskScore: a.vulnRiskScore || 0,
+                  vulnRiskBand: a.vulnRiskBand || 'low',
+                  missionFunction: a.missionFunction || 'public_facing_services',
+                  essentialService: a.essentialService || 'general_server',
+                  businessImpactLevel: a.businessImpactLevel || 'moderate',
+                  deviceType: a.deviceType || 'unknown',
+                  platformType: a.platformType || 'unknown',
+                  missionJustification: a.missionJustification || '',
+                }));
+
+                if (assetRecords.length > 0) {
+                  const BATCH_SIZE = 5;
+                  for (let i = 0; i < assetRecords.length; i += BATCH_SIZE) {
+                    const batch = assetRecords.slice(i, i + BATCH_SIZE);
+                    try { await db.bulkCreateDiscoveredAssets(batch); } catch {
+                      for (const record of batch) {
+                        try { await db.createDiscoveredAsset(record); } catch {}
+                      }
+                    }
+                  }
+                }
+
+                // Store trimmed pipeline output
+                const trimmedAffOutput = {
+                  orgProfile: result.orgProfile,
+                  overallRiskScore: result.overallRiskScore,
+                  overallRiskBand: result.overallRiskBand,
+                  totalAssets: result.totalAssets,
+                  totalFindings: result.totalFindings,
+                  confirmedFindings: result.confirmedFindingsCount || 0,
+                  executiveSummary: result.executiveSummary,
+                  threatModelSummary: result.threatModelSummary,
+                  breachData: result.breachData,
+                  incidentSearch: result.incidentSearch ? {
+                    totalMatches: result.incidentSearch.totalMatches,
+                    hasRansomwareEvent: result.incidentSearch.hasRansomwareEvent,
+                    hasRecentBreach: result.incidentSearch.hasRecentBreach,
+                    summary: result.incidentSearch.summary,
+                  } : undefined,
+                  affiliatedDomains: result.affiliatedDomains ? {
+                    totalDiscovered: result.affiliatedDomains.totalDiscovered,
+                    affiliatedDomains: result.affiliatedDomains.affiliatedDomains?.slice(0, 50),
+                    summary: result.affiliatedDomains.summary,
+                  } : undefined,
+                  parentScanId: input.parentScanId,
+                  affiliatedDomainScan: true,
+                };
+
+                await db.updateDomainIntelScan(scanId, {
+                  status: 'scan_complete',
+                  totalAssets: result.totalAssets,
+                  totalFindings: result.totalFindings,
+                  confirmedFindings: result.confirmedFindingsCount || 0,
+                  overallRiskScore: result.overallRiskScore,
+                  overallRiskBand: result.overallRiskBand,
+                  executiveSummary: result.executiveSummary,
+                  threatModelSummary: result.threatModelSummary,
+                  campaignRecommendations: [],
+                  pipelineOutput: trimmedAffOutput,
+                });
+                console.log(`[DomainIntel] Affiliated domain scan complete: ${domain} — ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
+              } catch (err: any) {
+                console.error(`[DomainIntel] Affiliated domain scan failed for ${domain}:`, err.message);
+                await db.updateDomainIntelScan(scanId, {
+                  status: 'failed',
+                  pipelineOutput: { error: err.message, parentScanId: input.parentScanId, affiliatedDomainScan: true },
+                }).catch(() => {});
+              }
+            });
+
+            results.push({ domain, scanId, status: 'queued', message: 'Scan queued successfully' });
+          } catch (err: any) {
+            results.push({ domain, scanId: null, status: 'error', message: err.message });
+          }
+        }
+
+        return {
+          parentScanId: input.parentScanId,
+          parentDomain: parentScan.primaryDomain,
+          totalQueued: results.filter(r => r.status === 'queued').length,
+          totalSkipped: results.filter(r => r.status === 'already_running').length,
+          totalFailed: results.filter(r => r.status === 'error').length,
+          results,
+        };
+      }),
+
+    // ─── Get Affiliated Domain Scan Status ────────────────────────────
+    // Check scan status for affiliated domains from a parent scan
+    getAffiliatedDomainScans: protectedProcedure
+      .input(z.object({ parentScanId: z.number() }))
+      .query(async ({ input }) => {
+        const allScans = await db.getDomainIntelScans();
+        const affiliatedScans = allScans.filter((s: any) => {
+          const output = s.pipelineOutput as any;
+          const profile = s.orgProfile as any;
+          return (
+            (output?.parentScanId === input.parentScanId) ||
+            (output?.affiliatedDomainScan && profile?.parentScanId === input.parentScanId)
+          );
+        });
+
+        return affiliatedScans.map((s: any) => ({
+          scanId: s.id,
+          domain: s.primaryDomain,
+          status: s.status,
+          overallRiskScore: s.overallRiskScore,
+          overallRiskBand: s.overallRiskBand,
+          totalAssets: s.totalAssets,
+          totalFindings: s.totalFindings,
+          createdAt: s.createdAt,
+        }));
+      }),
+
+    // ─── Training Data Feedback ───────────────────────────────────────
+    rateTrainingExample: protectedProcedure
+      .input(z.object({
+        exampleId: z.string(),
+        rating: z.enum(['accurate', 'partially_accurate', 'inaccurate']),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updateDITrainingAnalystRating(
+          input.exampleId,
+          input.rating,
+          ctx.user.id,
+          input.notes,
+        );
+        return { success: true };
+      }),
+
+    getTrainingStats: protectedProcedure
+      .query(async () => {
+        return db.getDITrainingStats();
       }),
 
   });

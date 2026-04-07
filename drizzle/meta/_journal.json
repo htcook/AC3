@@ -71,6 +71,13 @@
       "when": 1775585392984,
       "tag": "0009_fantastic_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1775600597742,
+      "tag": "0010_huge_jubilee",
+      "breakpoints": true
     }
   ]
 }

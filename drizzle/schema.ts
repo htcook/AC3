@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, bigint, mysqlEnum, mediumtext, double, foreignKey, decimal, tinyint, longtext, float } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, text, timestamp, json, bigint, mysqlEnum, mediumtext, double, tinyint, foreignKey, float, decimal, longtext } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
@@ -169,7 +169,10 @@ export const ac3Reports = mysqlTable("ac3_reports", {
 	rptUpdatedAt: bigint("rpt_updated_at", { mode: "number" }).notNull(),
 	rptDocxUrl: text("rpt_docx_url"),
 	complianceFramework: varchar("compliance_framework", { length: 32 }).default('nist_800_53_r5').notNull(),
-	scopeExclusions: json("rpt_scope_exclusions"),
+	rptScopeExclusions: json("rpt_scope_exclusions"),
+	rptToolsUsed: json("rpt_tools_used"),
+	rptTestPhases: json("rpt_test_phases"),
+	engagementId: int("engagement_id"),
 },
 (table) => [
 	index("ac3_reports_rpt_report_id_unique").on(table.rptReportId),
@@ -388,6 +391,29 @@ export const adObjects = mysqlTable("ad_objects", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 });
 
+export const adjustmentEffectiveness = mysqlTable("adjustment_effectiveness", {
+	id: int().autoincrement().notNull(),
+	aeAdjustmentType: varchar("ae_adjustment_type", { length: 64 }).notNull(),
+	aeFailureCategory: varchar("ae_failure_category", { length: 64 }).notNull(),
+	aeService: varchar("ae_service", { length: 128 }).notNull(),
+	aeEngagementId: int("ae_engagement_id"),
+	aeTarget: varchar("ae_target", { length: 255 }),
+	aePort: int("ae_port"),
+	aeSuccess: tinyint("ae_success").notNull(),
+	aeRetryNumber: int("ae_retry_number"),
+	aeBasePriority: int("ae_base_priority"),
+	aeAdjustedPriority: int("ae_adjusted_priority"),
+	aeExecDurationMs: int("ae_exec_duration_ms"),
+	aeExploitOutput: text("ae_exploit_output"),
+	aeCreatedAt: timestamp("ae_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("ae_adj_type_idx").on(table.aeAdjustmentType),
+	index("ae_fail_cat_idx").on(table.aeFailureCategory),
+	index("ae_service_idx").on(table.aeService),
+	index("ae_composite_idx").on(table.aeAdjustmentType, table.aeFailureCategory, table.aeService),
+]);
+
 export const agentAuditLog = mysqlTable("agent_audit_log", {
 	id: int().autoincrement().notNull(),
 	agentId: varchar({ length: 36 }).notNull().references(() => agentDeployments.id, { onDelete: "cascade" } ),
@@ -520,6 +546,94 @@ export const aiAttackPlans = mysqlTable("ai_attack_plans", {
 	aapCreatedBy: varchar("aap_created_by", { length: 255 }),
 	aapCreatedAt: timestamp("aap_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const aiVulnResearchCodeSnippets = mysqlTable("ai_vuln_research_code_snippets", {
+	id: int().autoincrement().notNull(),
+	sessionId: int("session_id").notNull(),
+	filename: varchar({ length: 512 }).notNull(),
+	language: varchar({ length: 64 }),
+	content: mediumtext().notNull(),
+	lineCount: int("line_count"),
+	checksum: varchar({ length: 64 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("avrcs_session_idx").on(table.sessionId),
+]);
+
+export const aiVulnResearchFindings = mysqlTable("ai_vuln_research_findings", {
+	id: int().autoincrement().notNull(),
+	sessionId: int("session_id").notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	vulnType: varchar("vuln_type", { length: 128 }).notNull(),
+	severity: mysqlEnum(['critical','high','medium','low','informational']).notNull(),
+	cvssScore: float("cvss_score"),
+	cvssVector: varchar("cvss_vector", { length: 256 }),
+	cweId: varchar("cwe_id", { length: 32 }),
+	cveId: varchar("cve_id", { length: 64 }),
+	description: text().notNull(),
+	affectedCode: mediumtext("affected_code"),
+	filePath: varchar("file_path", { length: 1024 }),
+	lineStart: int("line_start"),
+	lineEnd: int("line_end"),
+	rootCause: text("root_cause"),
+	impact: text(),
+	exploitability: mysqlEnum(['trivial','easy','moderate','difficult','theoretical']),
+	pocCode: mediumtext("poc_code"),
+	pocLanguage: varchar("poc_language", { length: 64 }),
+	pocStatus: mysqlEnum("poc_status", ['not_generated','generating','generated','validated','failed']).default('not_generated'),
+	remediation: text(),
+	mitreTechniques: json("mitre_techniques"),
+	attackVector: varchar("attack_vector", { length: 256 }),
+	confidenceScore: float("confidence_score"),
+	llmReasoning: mediumtext("llm_reasoning"),
+	verified: tinyint().default(0),
+	exportedToBugBounty: tinyint("exported_to_bug_bounty").default(0),
+	bugBountyFindingId: int("bug_bounty_finding_id"),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("avrf_session_idx").on(table.sessionId),
+	index("avrf_severity_idx").on(table.severity),
+	index("avrf_vuln_type_idx").on(table.vulnType),
+	index("avrf_cwe_idx").on(table.cweId),
+	index("avrf_poc_status_idx").on(table.pocStatus),
+]);
+
+export const aiVulnResearchSessions = mysqlTable("ai_vuln_research_sessions", {
+	id: int().autoincrement().notNull(),
+	userId: int("user_id").notNull(),
+	title: varchar({ length: 512 }).notNull(),
+	description: text(),
+	targetType: mysqlEnum("target_type", ['source_code','github_repo','binary','config','protocol','firmware','custom']).notNull(),
+	targetName: varchar("target_name", { length: 512 }).notNull(),
+	targetVersion: varchar("target_version", { length: 128 }),
+	githubUrl: varchar("github_url", { length: 1024 }),
+	language: varchar({ length: 64 }),
+	researchPrompt: text("research_prompt").notNull(),
+	status: mysqlEnum(['pending','analyzing','completed','failed','cancelled']).default('pending').notNull(),
+	totalFindings: int("total_findings").default(0),
+	criticalCount: int("critical_count").default(0),
+	highCount: int("high_count").default(0),
+	mediumCount: int("medium_count").default(0),
+	lowCount: int("low_count").default(0),
+	llmModel: varchar("llm_model", { length: 128 }),
+	tokensUsed: int("tokens_used").default(0),
+	analysisTimeMs: int("analysis_time_ms"),
+	bugBountyProgramId: int("bug_bounty_program_id"),
+	engagementId: int("engagement_id"),
+	metadata: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("avrs_user_idx").on(table.userId),
+	index("avrs_status_idx").on(table.status),
+	index("avrs_target_idx").on(table.targetType),
+	index("avrs_program_idx").on(table.bugBountyProgramId),
+]);
 
 export const apiEndpoints = mysqlTable("api_endpoints", {
 	id: int().autoincrement().notNull(),
@@ -857,6 +971,53 @@ export const attackVectors = mysqlTable("attack_vectors", {
 	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
 
+export const benchmarkScanPlanRules = mysqlTable("benchmark_scan_plan_rules", {
+	id: int().autoincrement().notNull(),
+	ruleId: varchar("rule_id", { length: 64 }).notNull(),
+	sourceRunId: varchar("source_run_id", { length: 64 }).notNull(),
+	labId: varchar("lab_id", { length: 64 }).notNull(),
+	missedVulnTitle: varchar("missed_vuln_title", { length: 255 }).notNull(),
+	missedVulnCategory: varchar("missed_vuln_category", { length: 128 }).notNull(),
+	missedVulnSeverity: varchar("missed_vuln_severity", { length: 32 }).notNull(),
+	recommendedTool: varchar("recommended_tool", { length: 64 }).notNull(),
+	recommendedAction: text("recommended_action").notNull(),
+	recommendedFlags: text("recommended_flags"),
+	applicableCategories: json("applicable_categories"),
+	applicableLabTypes: json("applicable_lab_types"),
+	confidence: double().default(0.5),
+	isActive: tinyint("is_active").default(1),
+	appliedCount: int("applied_count").default(0),
+	lastAppliedAt: bigint("last_applied_at", { mode: "number" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("bspr_rule_id_idx").on(table.ruleId),
+	index("bspr_lab_id_idx").on(table.labId),
+	index("bspr_active_idx").on(table.isActive),
+]);
+
+export const benchmarkToolResults = mysqlTable("benchmark_tool_results", {
+	id: int().autoincrement().notNull(),
+	runId: varchar("run_id", { length: 64 }).notNull(),
+	labId: varchar("lab_id", { length: 64 }).notNull(),
+	tool: varchar({ length: 64 }).notNull(),
+	detectedVulns: json("detected_vulns"),
+	missedVulns: json("missed_vulns"),
+	falsePositiveVulns: json("false_positive_vulns"),
+	f1Score: double("f1_score"),
+	precision: double(),
+	recall: double(),
+	findingCount: int("finding_count").default(0),
+	scanDurationMs: int("scan_duration_ms"),
+	exitCode: int("exit_code"),
+	timedOut: tinyint("timed_out").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("btr_run_id_idx").on(table.runId),
+	index("btr_lab_tool_idx").on(table.labId, table.tool),
+]);
+
 export const bugBountyCorrelations = mysqlTable("bug_bounty_correlations", {
 	id: int().autoincrement().notNull(),
 	findingId: int("finding_id").notNull(),
@@ -1008,98 +1169,6 @@ export const bugBountySyncLogs = mysqlTable("bug_bounty_sync_logs", {
 	startedAt: timestamp("started_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 });
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// AI VULNERABILITY RESEARCH — LLM-powered code auditing, 0-day discovery, PoC generation
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export const aiVulnResearchSessions = mysqlTable("ai_vuln_research_sessions", {
-	id: int().autoincrement().notNull(),
-	userId: int("user_id").notNull(),
-	title: varchar({ length: 512 }).notNull(),
-	description: text(),
-	targetType: mysqlEnum("target_type", ['source_code','github_repo','binary','config','protocol','firmware','custom']).notNull(),
-	targetName: varchar("target_name", { length: 512 }).notNull(),
-	targetVersion: varchar("target_version", { length: 128 }),
-	githubUrl: varchar("github_url", { length: 1024 }),
-	language: varchar({ length: 64 }),
-	researchPrompt: text("research_prompt").notNull(),
-	status: mysqlEnum("status", ['pending','analyzing','completed','failed','cancelled']).default('pending').notNull(),
-	totalFindings: int("total_findings").default(0),
-	criticalCount: int("critical_count").default(0),
-	highCount: int("high_count").default(0),
-	mediumCount: int("medium_count").default(0),
-	lowCount: int("low_count").default(0),
-	llmModel: varchar("llm_model", { length: 128 }),
-	tokensUsed: int("tokens_used").default(0),
-	analysisTimeMs: int("analysis_time_ms"),
-	bugBountyProgramId: int("bug_bounty_program_id"),
-	engagementId: int("engagement_id"),
-	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-},
-(table) => [
-	index("avrs_user_idx").on(table.userId),
-	index("avrs_status_idx").on(table.status),
-	index("avrs_target_idx").on(table.targetType),
-	index("avrs_program_idx").on(table.bugBountyProgramId),
-]);
-
-export const aiVulnResearchFindings = mysqlTable("ai_vuln_research_findings", {
-	id: int().autoincrement().notNull(),
-	sessionId: int("session_id").notNull(),
-	title: varchar({ length: 512 }).notNull(),
-	vulnType: varchar("vuln_type", { length: 128 }).notNull(),
-	severity: mysqlEnum("severity", ['critical','high','medium','low','informational']).notNull(),
-	cvssScore: float("cvss_score"),
-	cvssVector: varchar("cvss_vector", { length: 256 }),
-	cweId: varchar("cwe_id", { length: 32 }),
-	cveId: varchar("cve_id", { length: 64 }),
-	description: text().notNull(),
-	affectedCode: mediumtext("affected_code"),
-	filePath: varchar("file_path", { length: 1024 }),
-	lineStart: int("line_start"),
-	lineEnd: int("line_end"),
-	rootCause: text("root_cause"),
-	impact: text(),
-	exploitability: mysqlEnum("exploitability", ['trivial','easy','moderate','difficult','theoretical']),
-	pocCode: mediumtext("poc_code"),
-	pocLanguage: varchar("poc_language", { length: 64 }),
-	pocStatus: mysqlEnum("poc_status", ['not_generated','generating','generated','validated','failed']).default('not_generated'),
-	remediation: text(),
-	mitreTechniques: json("mitre_techniques"),
-	attackVector: varchar("attack_vector", { length: 256 }),
-	confidenceScore: float("confidence_score"),
-	llmReasoning: mediumtext("llm_reasoning"),
-	verified: tinyint().default(0),
-	exportedToBugBounty: tinyint("exported_to_bug_bounty").default(0),
-	bugBountyFindingId: int("bug_bounty_finding_id"),
-	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-},
-(table) => [
-	index("avrf_session_idx").on(table.sessionId),
-	index("avrf_severity_idx").on(table.severity),
-	index("avrf_vuln_type_idx").on(table.vulnType),
-	index("avrf_cwe_idx").on(table.cweId),
-	index("avrf_poc_status_idx").on(table.pocStatus),
-]);
-
-export const aiVulnResearchCodeSnippets = mysqlTable("ai_vuln_research_code_snippets", {
-	id: int().autoincrement().notNull(),
-	sessionId: int("session_id").notNull(),
-	filename: varchar({ length: 512 }).notNull(),
-	language: varchar({ length: 64 }),
-	content: mediumtext().notNull(),
-	lineCount: int("line_count"),
-	checksum: varchar({ length: 64 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("avrcs_session_idx").on(table.sessionId),
-]);
 
 export const bugReports = mysqlTable("bug_reports", {
 	id: int().autoincrement().notNull(),
@@ -1745,6 +1814,26 @@ export const configScanResults = mysqlTable("config_scan_results", {
 	scannedAt: timestamp("scanned_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+export const connectorPerformanceHistory = mysqlTable("connector_performance_history", {
+	id: int().autoincrement().notNull(),
+	connector: varchar({ length: 128 }).notNull(),
+	domain: varchar({ length: 255 }).notNull(),
+	sector: varchar({ length: 128 }),
+	scanId: int("scan_id").notNull(),
+	observations: int().default(0).notNull(),
+	durationMs: int("duration_ms").default(0).notNull(),
+	status: mysqlEnum(['completed','failed','skipped','timeout']).default('completed').notNull(),
+	rateLimited: tinyint("rate_limited").default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("cph_connector_domain_idx").on(table.connector, table.domain),
+	index("cph_sector_idx").on(table.sector),
+	index("cph_scan_id_idx").on(table.scanId),
+	index("cph_connector_sector_idx").on(table.connector, table.sector),
+	index("cph_created_at_idx").on(table.createdAt),
+]);
+
 export const containerImageScans = mysqlTable("container_image_scans", {
 	id: int().autoincrement().notNull(),
 	registryId: int("registry_id").notNull(),
@@ -2019,6 +2108,23 @@ export const customerSharedReports = mysqlTable("customer_shared_reports", {
 (table) => [
 	index("csr_tenant_idx").on(table.csrTenantId),
 	index("csr_report_type_idx").on(table.csrReportType),
+]);
+
+export const cveEnrichment = mysqlTable("cve_enrichment", {
+	id: int().autoincrement().notNull(),
+	cveId: varchar("cve_id", { length: 32 }).notNull(),
+	description: text(),
+	cwes: json(),
+	cvssV3Score: float("cvss_v3_score"),
+	cvssV3Vector: varchar("cvss_v3_vector", { length: 128 }),
+	publishedDate: varchar("published_date", { length: 64 }),
+	lastModifiedDate: varchar("last_modified_date", { length: 64 }),
+	references: json(),
+	enrichedAt: bigint("enriched_at", { mode: "number" }).notNull(),
+	error: text(),
+},
+(table) => [
+	index("cve_enrichment_cve_id_unique").on(table.cveId),
 ]);
 
 export const darkwebEnrichedRecords = mysqlTable("darkweb_enriched_records", {
@@ -2705,6 +2811,37 @@ export const engagementCredentialLists = mysqlTable("engagement_credential_lists
 	index("ecl_domain_idx").on(table.eclDomain),
 ]);
 
+export const engagementFindings = mysqlTable("engagement_findings", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	resultId: int("result_id"),
+	title: varchar({ length: 512 }).notNull(),
+	severity: mysqlEnum(['critical','high','medium','low','info']).default('medium').notNull(),
+	cve: varchar({ length: 64 }),
+	cwe: varchar({ length: 128 }),
+	description: text(),
+	endpoint: text(),
+	hostname: varchar({ length: 255 }),
+	port: int(),
+	source: varchar({ length: 128 }),
+	tool: varchar({ length: 128 }),
+	corroborationTier: mysqlEnum("corroboration_tier", ['confirmed','corroborated','unverified']).default('unverified'),
+	rawEvidence: text("raw_evidence"),
+	screenshotPath: text("screenshot_path"),
+	exploitAttempted: tinyint("exploit_attempted").default(0),
+	exploitSucceeded: tinyint("exploit_succeeded").default(0),
+	exploitTechnique: varchar("exploit_technique", { length: 255 }),
+	owaspCategory: varchar("owasp_category", { length: 128 }),
+	mitreTechnique: varchar("mitre_technique", { length: 128 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("ef_engagement_idx").on(table.engagementId),
+	index("ef_result_idx").on(table.resultId),
+	index("ef_severity_idx").on(table.severity),
+	index("ef_corroboration_idx").on(table.corroborationTier),
+]);
+
 export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
 	id: int().autoincrement().notNull(),
 	engagementId: int("engagement_id").notNull(),
@@ -2765,6 +2902,46 @@ export const engagementReports = mysqlTable("engagement_reports", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const engagementResults = mysqlTable("engagement_results", {
+	id: int().autoincrement().notNull(),
+	engagementId: int("engagement_id").notNull(),
+	operatorId: int("operator_id"),
+	operatorName: varchar("operator_name", { length: 255 }),
+	engagementType: varchar("engagement_type", { length: 64 }),
+	targetDomain: text("target_domain"),
+	status: mysqlEnum(['completed','error','partial']).default('completed').notNull(),
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	durationMs: int("duration_ms"),
+	hostsScanned: int("hosts_scanned").default(0),
+	portsFound: int("ports_found").default(0),
+	vulnsFound: int("vulns_found").default(0),
+	verifiedVulns: int("verified_vulns").default(0),
+	unverifiedVulns: int("unverified_vulns").default(0),
+	exploitsAttempted: int("exploits_attempted").default(0),
+	exploitsSucceeded: int("exploits_succeeded").default(0),
+	sessionsOpened: int("sessions_opened").default(0),
+	zapScansRun: int("zap_scans_run").default(0),
+	criticalVulns: int("critical_vulns").default(0),
+	highVulns: int("high_vulns").default(0),
+	mediumVulns: int("medium_vulns").default(0),
+	lowVulns: int("low_vulns").default(0),
+	infoVulns: int("info_vulns").default(0),
+	owaspCoverageScore: int("owasp_coverage_score"),
+	owaspTotalTested: int("owasp_total_tested"),
+	owaspTotalPartial: int("owasp_total_partial"),
+	owaspTotalGaps: int("owasp_total_gaps"),
+	owaspCriticalGaps: json("owasp_critical_gaps"),
+	autoReportId: varchar("auto_report_id", { length: 128 }),
+	summaryJson: json("summary_json"),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("er_engagement_idx").on(table.engagementId),
+	index("er_operator_idx").on(table.operatorId),
+	index("er_status_idx").on(table.status),
+]);
 
 export const engagementShares = mysqlTable("engagement_shares", {
 	id: int().autoincrement().notNull(),
@@ -2861,6 +3038,7 @@ export const engagements = mysqlTable("engagements", {
 	engTenantId: int("eng_tenant_id"),
 	scanMode: mysqlEnum("scan_mode", ['strict_passive','standard','active']).default('strict_passive'),
 	autoResumeOnRestart: tinyint("auto_resume_on_restart").default(0),
+	domainIntelScanId: int("domain_intel_scan_id"),
 });
 
 export const errorIncidents = mysqlTable("error_incidents", {
@@ -3199,7 +3377,7 @@ export const exploitationAttempts = mysqlTable("exploitation_attempts", {
 	eaOperatorId: int("ea_operator_id"),
 	eaAttemptedAt: bigint("ea_attempted_at", { mode: "number" }).notNull(),
 	eaCompletedAt: bigint("ea_completed_at", { mode: "number" }),
-	screenshotUrls: json("screenshot_urls").$type<string[]>(),
+	screenshotUrls: json("screenshot_urls"),
 	eaCreatedAt: timestamp("ea_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	expaTenantId: int("expa_tenant_id"),
 });
@@ -3241,6 +3419,30 @@ export const fileTransfers = mysqlTable("file_transfers", {
 	transferCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	transferCompletedAt: timestamp({ mode: 'string' }),
 });
+
+export const fingerprintCache = mysqlTable("fingerprint_cache", {
+	fcId: int("fc_id").autoincrement().notNull(),
+	fcHost: varchar("fc_host", { length: 255 }).notNull(),
+	fcPort: int("fc_port").notNull(),
+	fcProtocol: varchar("fc_protocol", { length: 64 }),
+	fcProduct: varchar("fc_product", { length: 255 }),
+	fcVersion: varchar("fc_version", { length: 128 }),
+	fcBanner: text("fc_banner"),
+	fcOs: varchar("fc_os", { length: 255 }),
+	fcSecurityFlags: json("fc_security_flags"),
+	fcRiskIndicators: json("fc_risk_indicators"),
+	fcPotentialCves: json("fc_potential_cves"),
+	fcError: tinyint("fc_error").default(0),
+	fcConfidence: int("fc_confidence").default(0),
+	fcFingerprintedAt: bigint("fc_fingerprinted_at", { mode: "number" }).notNull(),
+	fcExpiresAt: bigint("fc_expires_at", { mode: "number" }).notNull(),
+	fcEngagementId: varchar("fc_engagement_id", { length: 64 }),
+	fcCreatedAt: timestamp("fc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("fc_host_port_idx").on(table.fcHost, table.fcPort),
+	index("fc_expires_idx").on(table.fcExpiresAt),
+]);
 
 export const fipsComplianceRecords = mysqlTable("fips_compliance_records", {
 	id: int().autoincrement().notNull(),
@@ -3467,7 +3669,7 @@ export const icsDevices = mysqlTable("ics_devices", {
 	icdHasDefaultCreds: tinyint("icd_has_default_creds").default(0),
 	icdHasKnownVulns: tinyint("icd_has_known_vulns").default(0),
 	icdRiskScore: double("icd_risk_score"),
-	icdDiscoverySource: mysqlEnum("icd_discovery_source", ['shodan','censys','scanforge-discovery','protocol_scan','manual','caldera']).default('manual'),
+	icdDiscoverySource: mysqlEnum("icd_discovery_source", ['shodan','censys','nmap','protocol_scan','manual','caldera']).default('manual'),
 	icdShodanData: json("icd_shodan_data"),
 	icdCensysData: json("icd_censys_data"),
 	icdLastSeen: timestamp("icd_last_seen", { mode: 'string' }),
@@ -3653,6 +3855,40 @@ export const jobQueueEntries = mysqlTable("job_queue_entries", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const knowledgeEntries = mysqlTable("knowledge_entries", {
+	id: int().autoincrement().notNull(),
+	entryId: varchar("entry_id", { length: 64 }).notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	category: varchar({ length: 64 }).notNull(),
+	subcategory: varchar({ length: 64 }),
+	description: text().notNull(),
+	mitreTechniqueIds: json("mitre_technique_ids"),
+	phase: varchar({ length: 64 }).notNull(),
+	targetPlatform: varchar("target_platform", { length: 32 }).default('both'),
+	requiredPrivilege: varchar("required_privilege", { length: 32 }),
+	tools: json(),
+	code: text(),
+	language: varchar({ length: 32 }),
+	prerequisites: json(),
+	detectionIndicators: json("detection_indicators"),
+	postExploitActions: json("post_exploit_actions"),
+	verificationSteps: json("verification_steps"),
+	opsecRisk: int("opsec_risk"),
+	confidence: int(),
+	source: varchar({ length: 255 }),
+	sourceUrl: varchar("source_url", { length: 512 }),
+	tags: json(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	createdBy: varchar("created_by", { length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("ke_entry_id_unique").on(table.entryId),
+	index("ke_category_idx").on(table.category),
+	index("ke_phase_idx").on(table.phase),
+]);
 
 export const ksiControlMappings = mysqlTable("ksi_control_mappings", {
 	id: int().autoincrement().notNull(),
@@ -4684,8 +4920,8 @@ export const ransomwareGroups = mysqlTable("ransomware_groups", {
 	activityScore: int().default(0),
 	trend: mysqlEnum(['surging','active','declining','dormant']).default('active'),
 	rwThreatLevel: mysqlEnum(['critical','high','medium','low']).default('medium'),
-	victims7d: int().default(0),
-	victims30d: int().default(0),
+	victims7D: int().default(0),
+	victims30D: int().default(0),
 	totalVictims: int().default(0),
 	topSectors: json(),
 	topCountries: json(),
@@ -4718,6 +4954,83 @@ export const recordingChunks = mysqlTable("recording_chunks", {
 	timestampMs: int().notNull(),
 	chunkCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const redteamCampaignLogs = mysqlTable("redteam_campaign_logs", {
+	id: int().autoincrement().notNull(),
+	campaignId: int("campaign_id").notNull(),
+	stageId: int("stage_id"),
+	logType: mysqlEnum("log_type", ['info','warning','error','success','action','decision','metric']).default('info').notNull(),
+	title: varchar({ length: 255 }).notNull(),
+	detail: text(),
+	metadata: json(),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("rtcl_campaign_id_idx").on(table.campaignId),
+	index("rtcl_stage_id_idx").on(table.stageId),
+	index("rtcl_log_type_idx").on(table.logType),
+]);
+
+export const redteamCampaignStages = mysqlTable("redteam_campaign_stages", {
+	id: int().autoincrement().notNull(),
+	campaignId: int("campaign_id").notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	description: text(),
+	stageOrder: int("stage_order").notNull(),
+	stageType: mysqlEnum("stage_type", ['recon','enumeration','vuln_scan','phishing','exploitation','post_exploit','lateral_move','c2_deploy','exfiltration','cleanup','custom']).notNull(),
+	engagementId: int("engagement_id"),
+	config: json(),
+	entryConditions: json("entry_conditions"),
+	exitConditions: json("exit_conditions"),
+	onSuccess: mysqlEnum("on_success", ['next','skip','goto','complete','pause']).default('next'),
+	onSuccessTarget: int("on_success_target"),
+	onFailure: mysqlEnum("on_failure", ['pause','retry','skip','abort','goto']).default('pause'),
+	onFailureTarget: int("on_failure_target"),
+	maxRetries: int("max_retries").default(1),
+	timeoutMinutes: int("timeout_minutes").default(60),
+	status: mysqlEnum(['pending','running','completed','failed','skipped','paused']).default('pending').notNull(),
+	result: json(),
+	error: text(),
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("rtcs_campaign_id_idx").on(table.campaignId),
+	index("rtcs_stage_order_idx").on(table.stageOrder),
+	index("rtcs_status_idx").on(table.status),
+]);
+
+export const redteamCampaigns = mysqlTable("redteam_campaigns", {
+	id: int().autoincrement().notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	description: text(),
+	customerName: varchar("customer_name", { length: 255 }),
+	objective: text(),
+	safetyLevel: mysqlEnum("safety_level", ['low','medium','high','critical']).default('medium'),
+	maxDurationHours: int("max_duration_hours").default(24),
+	autoAdvance: tinyint("auto_advance").default(1),
+	notifyOnStageComplete: tinyint("notify_on_stage_complete").default(1),
+	notifyOnCampaignComplete: tinyint("notify_on_campaign_complete").default(1),
+	createdBy: int("created_by"),
+	status: mysqlEnum(['draft','ready','running','paused','completed','failed','aborted']).default('draft').notNull(),
+	totalStages: int("total_stages").default(0),
+	completedStages: int("completed_stages").default(0),
+	failedStages: int("failed_stages").default(0),
+	skippedStages: int("skipped_stages").default(0),
+	currentStageOrder: int("current_stage_order"),
+	resultsSummary: json("results_summary"),
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	pausedAt: bigint("paused_at", { mode: "number" }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("rtc_status_idx").on(table.status),
+	index("rtc_created_by_idx").on(table.createdBy),
+]);
 
 export const regulatoryFrameworks = mysqlTable("regulatory_frameworks", {
 	id: int().autoincrement().notNull(),
@@ -5048,6 +5361,30 @@ export const samlIdpConfigs = mysqlTable("saml_idp_configs", {
 	samlIdpCreatedAt: timestamp("saml_idp_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	samlIdpUpdatedAt: timestamp("saml_idp_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const scanGraduationScores = mysqlTable("scan_graduation_scores", {
+	id: int().autoincrement().notNull(),
+	domain: varchar({ length: 255 }).notNull(),
+	sector: varchar({ length: 128 }),
+	scanId: int("scan_id"),
+	engagementId: int("engagement_id"),
+	pipelineType: varchar("pipeline_type", { length: 32 }).default('di_scan').notNull(),
+	reconAnalyst: int("recon_analyst").notNull(),
+	exploitSelector: int("exploit_selector").notNull(),
+	evasionOptimizer: int("evasion_optimizer").notNull(),
+	cognitiveCore: int("cognitive_core").notNull(),
+	cloudAssessor: int("cloud_assessor").notNull(),
+	supplyChainAnalyst: int("supply_chain_analyst").notNull(),
+	overallScore: int("overall_score").notNull(),
+	summary: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("sgs_domain_idx").on(table.domain),
+	index("sgs_sector_idx").on(table.sector),
+	index("sgs_scan_id_idx").on(table.scanId),
+	index("sgs_created_at_idx").on(table.createdAt),
+]);
 
 export const scanObservations = mysqlTable("scan_observations", {
 	id: int().autoincrement().notNull(),
@@ -5806,6 +6143,40 @@ export const threatIntelUpdates = mysqlTable("threat_intel_updates", {
 	durationMs: int(),
 });
 
+export const trainingBenchmarkRuns = mysqlTable("training_benchmark_runs", {
+	id: int().autoincrement().notNull(),
+	runId: varchar("run_id", { length: 64 }).notNull(),
+	labId: varchar("lab_id", { length: 64 }).notNull(),
+	labName: varchar("lab_name", { length: 255 }).notNull(),
+	targetUrl: varchar("target_url", { length: 512 }).notNull(),
+	scanProfile: mysqlEnum("scan_profile", ['quick','standard','deep']).default('standard').notNull(),
+	status: mysqlEnum(['pending','scanning','scoring','learning','completed','failed']).default('pending').notNull(),
+	overallF1: double("overall_f1"),
+	overallPrecision: double("overall_precision"),
+	overallRecall: double("overall_recall"),
+	totalGroundTruth: int("total_ground_truth"),
+	totalDetected: int("total_detected"),
+	truePositives: int("true_positives"),
+	falsePositives: int("false_positives"),
+	falseNegatives: int("false_negatives"),
+	toolBreakdownJson: json("tool_breakdown_json"),
+	coverageMatrixJson: json("coverage_matrix_json"),
+	scanPlanAdjustmentsJson: json("scan_plan_adjustments_json"),
+	learningEntriesGenerated: int("learning_entries_generated").default(0),
+	operatorId: int("operator_id"),
+	operatorName: varchar("operator_name", { length: 255 }),
+	startedAt: bigint("started_at", { mode: "number" }),
+	completedAt: bigint("completed_at", { mode: "number" }),
+	durationMs: int("duration_ms"),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("tbr_run_id_idx").on(table.runId),
+	index("tbr_lab_id_idx").on(table.labId),
+	index("tbr_status_idx").on(table.status),
+]);
+
 export const trainingGroundTruth = mysqlTable("training_ground_truth", {
 	id: int().autoincrement().notNull(),
 	targetPreset: varchar("target_preset", { length: 64 }).notNull(),
@@ -6524,406 +6895,6 @@ export const zapProxySessions = mysqlTable("zap_proxy_sessions", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
-
-// ─── Red Team Campaign Orchestrator Tables ──────────────────────────────────
-
-export const redteamCampaigns = mysqlTable("redteam_campaigns", {
-	id: int().autoincrement().notNull(),
-	name: varchar({ length: 255 }).notNull(),
-	description: text(),
-	customerName: varchar("customer_name", { length: 255 }),
-	objective: text(),
-	safetyLevel: mysqlEnum("safety_level", ['low','medium','high','critical']).default('medium'),
-	maxDurationHours: int("max_duration_hours").default(24),
-	autoAdvance: tinyint("auto_advance").default(1),
-	notifyOnStageComplete: tinyint("notify_on_stage_complete").default(1),
-	notifyOnCampaignComplete: tinyint("notify_on_campaign_complete").default(1),
-	createdBy: int("created_by"),
-	status: mysqlEnum(['draft','ready','running','paused','completed','failed','aborted']).default('draft').notNull(),
-	totalStages: int("total_stages").default(0),
-	completedStages: int("completed_stages").default(0),
-	failedStages: int("failed_stages").default(0),
-	skippedStages: int("skipped_stages").default(0),
-	currentStageOrder: int("current_stage_order"),
-	resultsSummary: json("results_summary"),
-	startedAt: bigint("started_at", { mode: "number" }),
-	completedAt: bigint("completed_at", { mode: "number" }),
-	pausedAt: bigint("paused_at", { mode: "number" }),
-	createdAt: bigint("created_at", { mode: "number" }).notNull(),
-	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-},
-(table) => [
-	index("rtc_status_idx").on(table.status),
-	index("rtc_created_by_idx").on(table.createdBy),
-]);
-
-export const redteamCampaignStages = mysqlTable("redteam_campaign_stages", {
-	id: int().autoincrement().notNull(),
-	campaignId: int("campaign_id").notNull(),
-	name: varchar({ length: 255 }).notNull(),
-	description: text(),
-	stageOrder: int("stage_order").notNull(),
-	stageType: mysqlEnum("stage_type", ['recon','enumeration','vuln_scan','phishing','exploitation','post_exploit','lateral_move','c2_deploy','exfiltration','cleanup','custom']).notNull(),
-	engagementId: int("engagement_id"),
-	config: json().default({}),
-	entryConditions: json("entry_conditions").default([]),
-	exitConditions: json("exit_conditions").default([]),
-	onSuccess: mysqlEnum("on_success", ['next','skip','goto','complete','pause']).default('next'),
-	onSuccessTarget: int("on_success_target"),
-	onFailure: mysqlEnum("on_failure", ['pause','retry','skip','abort','goto']).default('pause'),
-	onFailureTarget: int("on_failure_target"),
-	maxRetries: int("max_retries").default(1),
-	timeoutMinutes: int("timeout_minutes").default(60),
-	status: mysqlEnum(['pending','running','completed','failed','skipped','paused']).default('pending').notNull(),
-	result: json(),
-	error: text(),
-	startedAt: bigint("started_at", { mode: "number" }),
-	completedAt: bigint("completed_at", { mode: "number" }),
-	createdAt: bigint("created_at", { mode: "number" }).notNull(),
-	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
-},
-(table) => [
-	index("rtcs_campaign_id_idx").on(table.campaignId),
-	index("rtcs_stage_order_idx").on(table.stageOrder),
-	index("rtcs_status_idx").on(table.status),
-]);
-
-export const redteamCampaignLogs = mysqlTable("redteam_campaign_logs", {
-	id: int().autoincrement().notNull(),
-	campaignId: int("campaign_id").notNull(),
-	stageId: int("stage_id"),
-	logType: mysqlEnum("log_type", ['info','warning','error','success','action','decision','metric']).default('info').notNull(),
-	title: varchar({ length: 255 }).notNull(),
-	detail: text(),
-	metadata: json(),
-	createdAt: bigint("created_at", { mode: "number" }).notNull(),
-},
-(table) => [
-	index("rtcl_campaign_id_idx").on(table.campaignId),
-	index("rtcl_stage_id_idx").on(table.stageId),
-	index("rtcl_log_type_idx").on(table.logType),
-]);
-
-
-// ─── ScanForge Training Lab Benchmark Tables ────────────────────────────────
-
-export const trainingBenchmarkRuns = mysqlTable("training_benchmark_runs", {
-	id: int().autoincrement().notNull(),
-	runId: varchar("run_id", { length: 64 }).notNull(),
-	labId: varchar("lab_id", { length: 64 }).notNull(),
-	labName: varchar("lab_name", { length: 255 }).notNull(),
-	targetUrl: varchar("target_url", { length: 512 }).notNull(),
-	scanProfile: mysqlEnum("scan_profile", ['quick','standard','deep']).default('standard').notNull(),
-	status: mysqlEnum(['pending','scanning','scoring','learning','completed','failed']).default('pending').notNull(),
-	overallF1: double("overall_f1"),
-	overallPrecision: double("overall_precision"),
-	overallRecall: double("overall_recall"),
-	totalGroundTruth: int("total_ground_truth"),
-	totalDetected: int("total_detected"),
-	truePositives: int("true_positives"),
-	falsePositives: int("false_positives"),
-	falseNegatives: int("false_negatives"),
-	toolBreakdownJson: json("tool_breakdown_json"),
-	coverageMatrixJson: json("coverage_matrix_json"),
-	scanPlanAdjustmentsJson: json("scan_plan_adjustments_json"),
-	learningEntriesGenerated: int("learning_entries_generated").default(0),
-	operatorId: int("operator_id"),
-	operatorName: varchar("operator_name", { length: 255 }),
-	startedAt: bigint("started_at", { mode: "number" }),
-	completedAt: bigint("completed_at", { mode: "number" }),
-	durationMs: int("duration_ms"),
-	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("tbr_run_id_idx").on(table.runId),
-	index("tbr_lab_id_idx").on(table.labId),
-	index("tbr_status_idx").on(table.status),
-]);
-
-export const benchmarkToolResults = mysqlTable("benchmark_tool_results", {
-	id: int().autoincrement().notNull(),
-	runId: varchar("run_id", { length: 64 }).notNull(),
-	labId: varchar("lab_id", { length: 64 }).notNull(),
-	tool: varchar({ length: 64 }).notNull(),
-	detectedVulns: json("detected_vulns"),
-	missedVulns: json("missed_vulns"),
-	falsePositiveVulns: json("false_positive_vulns"),
-	f1Score: double("f1_score"),
-	precision: double(),
-	recall: double(),
-	findingCount: int("finding_count").default(0),
-	scanDurationMs: int("scan_duration_ms"),
-	exitCode: int("exit_code"),
-	timedOut: tinyint("timed_out").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("btr_run_id_idx").on(table.runId),
-	index("btr_lab_tool_idx").on(table.labId, table.tool),
-]);
-
-export const benchmarkScanPlanRules = mysqlTable("benchmark_scan_plan_rules", {
-	id: int().autoincrement().notNull(),
-	ruleId: varchar("rule_id", { length: 64 }).notNull(),
-	sourceRunId: varchar("source_run_id", { length: 64 }).notNull(),
-	labId: varchar("lab_id", { length: 64 }).notNull(),
-	missedVulnTitle: varchar("missed_vuln_title", { length: 255 }).notNull(),
-	missedVulnCategory: varchar("missed_vuln_category", { length: 128 }).notNull(),
-	missedVulnSeverity: varchar("missed_vuln_severity", { length: 32 }).notNull(),
-	recommendedTool: varchar("recommended_tool", { length: 64 }).notNull(),
-	recommendedAction: text("recommended_action").notNull(),
-	recommendedFlags: text("recommended_flags"),
-	applicableCategories: json("applicable_categories"),
-	applicableLabTypes: json("applicable_lab_types"),
-	confidence: double().default(0.5),
-	isActive: tinyint("is_active").default(1),
-	appliedCount: int("applied_count").default(0),
-	lastAppliedAt: bigint("last_applied_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("bspr_rule_id_idx").on(table.ruleId),
-	index("bspr_lab_id_idx").on(table.labId),
-	index("bspr_active_idx").on(table.isActive),
-]);
-
-
-export const knowledgeEntries = mysqlTable("knowledge_entries", {
-	id: int().autoincrement().notNull(),
-	entryId: varchar("entry_id", { length: 64 }).notNull(),
-	name: varchar({ length: 255 }).notNull(),
-	category: varchar({ length: 64 }).notNull(),
-	subcategory: varchar({ length: 64 }),
-	description: text().notNull(),
-	mitreTechniqueIds: json("mitre_technique_ids").$type<string[]>(),
-	phase: varchar({ length: 64 }).notNull(),
-	targetPlatform: varchar("target_platform", { length: 32 }).default('both'),
-	requiredPrivilege: varchar("required_privilege", { length: 32 }),
-	tools: json().$type<Array<{ name: string; command: string; description: string }>>(),
-	code: text(),
-	language: varchar({ length: 32 }),
-	prerequisites: json().$type<string[]>(),
-	detectionIndicators: json("detection_indicators").$type<string[]>(),
-	postExploitActions: json("post_exploit_actions").$type<string[]>(),
-	verificationSteps: json("verification_steps").$type<string[]>(),
-	opsecRisk: int("opsec_risk"),
-	confidence: int(),
-	source: varchar({ length: 255 }),
-	sourceUrl: varchar("source_url", { length: 512 }),
-	tags: json().$type<string[]>(),
-	isActive: tinyint("is_active").default(1).notNull(),
-	createdBy: varchar("created_by", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("ke_entry_id_unique").on(table.entryId),
-	index("ke_category_idx").on(table.category),
-	index("ke_phase_idx").on(table.phase),
-]);
-
-export const cveEnrichment = mysqlTable("cve_enrichment", {
-	id: int().autoincrement().notNull(),
-	cveId: varchar("cve_id", { length: 32 }).notNull(),
-	description: text(),
-	cwes: json().$type<string[]>(),
-	cvssV3Score: float("cvss_v3_score"),
-	cvssV3Vector: varchar("cvss_v3_vector", { length: 128 }),
-	publishedDate: varchar("published_date", { length: 64 }),
-	lastModifiedDate: varchar("last_modified_date", { length: 64 }),
-	references: json().$type<string[]>(),
-	enrichedAt: bigint("enriched_at", { mode: "number" }).notNull(),
-	error: text(),
-},
-(table) => [
-	index("cve_enrichment_cve_id_unique").on(table.cveId),
-]);
-
-// ═══ Engagement Result Persistence ═══════════════════════════════════════════
-// Stores structured engagement outcomes for dashboard visibility and historical analysis.
-
-export const engagementResults = mysqlTable("engagement_results", {
-	id: int().autoincrement().notNull(),
-	engagementId: int("engagement_id").notNull(),
-	operatorId: int("operator_id"),
-	operatorName: varchar("operator_name", { length: 255 }),
-	engagementType: varchar("engagement_type", { length: 64 }),
-	targetDomain: text("target_domain"),
-	status: mysqlEnum(['completed', 'error', 'partial']).default('completed').notNull(),
-	// Timing
-	startedAt: bigint("started_at", { mode: "number" }),
-	completedAt: bigint("completed_at", { mode: "number" }),
-	durationMs: int("duration_ms"),
-	// Stats
-	hostsScanned: int("hosts_scanned").default(0),
-	portsFound: int("ports_found").default(0),
-	vulnsFound: int("vulns_found").default(0),
-	verifiedVulns: int("verified_vulns").default(0),
-	unverifiedVulns: int("unverified_vulns").default(0),
-	exploitsAttempted: int("exploits_attempted").default(0),
-	exploitsSucceeded: int("exploits_succeeded").default(0),
-	sessionsOpened: int("sessions_opened").default(0),
-	zapScansRun: int("zap_scans_run").default(0),
-	// Severity breakdown
-	criticalVulns: int("critical_vulns").default(0),
-	highVulns: int("high_vulns").default(0),
-	mediumVulns: int("medium_vulns").default(0),
-	lowVulns: int("low_vulns").default(0),
-	infoVulns: int("info_vulns").default(0),
-	// OWASP coverage
-	owaspCoverageScore: int("owasp_coverage_score"),
-	owaspTotalTested: int("owasp_total_tested"),
-	owaspTotalPartial: int("owasp_total_partial"),
-	owaspTotalGaps: int("owasp_total_gaps"),
-	owaspCriticalGaps: json("owasp_critical_gaps").$type<string[]>(),
-	// Report reference
-	autoReportId: varchar("auto_report_id", { length: 128 }),
-	// Full summary JSON (attack narratives, test plan adherence, etc.)
-	summaryJson: json("summary_json"),
-	createdAt: bigint("created_at", { mode: "number" }).notNull(),
-},
-(table) => [
-	index("er_engagement_idx").on(table.engagementId),
-	index("er_operator_idx").on(table.operatorId),
-	index("er_status_idx").on(table.status),
-]);
-
-export const engagementFindings = mysqlTable("engagement_findings", {
-	id: int().autoincrement().notNull(),
-	engagementId: int("engagement_id").notNull(),
-	resultId: int("result_id"),
-	// Finding details
-	title: varchar({ length: 512 }).notNull(),
-	severity: mysqlEnum(['critical', 'high', 'medium', 'low', 'info']).default('medium').notNull(),
-	cve: varchar({ length: 64 }),
-	cwe: varchar({ length: 128 }),
-	description: text(),
-	endpoint: text(),
-	hostname: varchar({ length: 255 }),
-	port: int(),
-	// Source and evidence
-	source: varchar({ length: 128 }),
-	tool: varchar({ length: 128 }),
-	corroborationTier: mysqlEnum("corroboration_tier", ['confirmed', 'corroborated', 'unverified']).default('unverified'),
-	rawEvidence: text("raw_evidence"),
-	screenshotPath: text("screenshot_path"),
-	// Exploit info
-	exploitAttempted: tinyint("exploit_attempted").default(0),
-	exploitSucceeded: tinyint("exploit_succeeded").default(0),
-	exploitTechnique: varchar("exploit_technique", { length: 255 }),
-	// OWASP/MITRE mapping
-	owaspCategory: varchar("owasp_category", { length: 128 }),
-	mitreTechnique: varchar("mitre_technique", { length: 128 }),
-	createdAt: bigint("created_at", { mode: "number" }).notNull(),
-},
-(table) => [
-	index("ef_engagement_idx").on(table.engagementId),
-	index("ef_result_idx").on(table.resultId),
-	index("ef_severity_idx").on(table.severity),
-	index("ef_corroboration_idx").on(table.corroborationTier),
-]);
-
-
-export const adjustmentEffectiveness = mysqlTable("adjustment_effectiveness", {
-	id: int().autoincrement().notNull(),
-	aeAdjustmentType: varchar("ae_adjustment_type", { length: 64 }).notNull(),
-	aeFailureCategory: varchar("ae_failure_category", { length: 64 }).notNull(),
-	aeService: varchar("ae_service", { length: 128 }).notNull(),
-	aeEngagementId: int("ae_engagement_id"),
-	aeTarget: varchar("ae_target", { length: 255 }),
-	aePort: int("ae_port"),
-	aeSuccess: tinyint("ae_success").notNull(),
-	aeRetryNumber: int("ae_retry_number"),
-	aeBasePriority: int("ae_base_priority"),
-	aeAdjustedPriority: int("ae_adjusted_priority"),
-	aeExecDurationMs: int("ae_exec_duration_ms"),
-	aeExploitOutput: text("ae_exploit_output"),
-	aeCreatedAt: timestamp("ae_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("ae_adj_type_idx").on(table.aeAdjustmentType),
-	index("ae_fail_cat_idx").on(table.aeFailureCategory),
-	index("ae_service_idx").on(table.aeService),
-	index("ae_composite_idx").on(table.aeAdjustmentType, table.aeFailureCategory, table.aeService),
-]);
-
-
-// ─── Fingerprint Cache ─────────────────────────────────────────────────────
-// Caches service fingerprint results per (host, port) so repeat engagements
-// skip already-fingerprinted ports. Entries expire after a configurable TTL.
-export const fingerprintCache = mysqlTable("fingerprint_cache", {
-	fcId: int("fc_id").autoincrement().primaryKey().notNull(),
-	fcHost: varchar("fc_host", { length: 255 }).notNull(),
-	fcPort: int("fc_port").notNull(),
-	fcProtocol: varchar("fc_protocol", { length: 64 }),
-	fcProduct: varchar("fc_product", { length: 255 }),
-	fcVersion: varchar("fc_version", { length: 128 }),
-	fcBanner: text("fc_banner"),
-	fcOs: varchar("fc_os", { length: 255 }),
-	fcSecurityFlags: json("fc_security_flags"),
-	fcRiskIndicators: json("fc_risk_indicators"),
-	fcPotentialCves: json("fc_potential_cves"),
-	fcError: tinyint("fc_error").default(0),
-	fcConfidence: int("fc_confidence").default(0),
-	fcFingerprintedAt: bigint("fc_fingerprinted_at", { mode: "number" }).notNull(),
-	fcExpiresAt: bigint("fc_expires_at", { mode: "number" }).notNull(),
-	fcEngagementId: varchar("fc_engagement_id", { length: 64 }),
-	fcCreatedAt: timestamp("fc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("fc_host_port_idx").on(table.fcHost, table.fcPort),
-	index("fc_expires_idx").on(table.fcExpiresAt),
-]);
-
-
-// ─── Adaptive Scan Strategy: Graduation Score Persistence ─────────────────────
-export const scanGraduationScores = mysqlTable("scan_graduation_scores", {
-	id: int().autoincrement().notNull(),
-	domain: varchar({ length: 255 }).notNull(),
-	sector: varchar({ length: 128 }),
-	scanId: int("scan_id"),
-	engagementId: int("engagement_id"),
-	pipelineType: varchar("pipeline_type", { length: 32 }).default('di_scan').notNull(),
-	reconAnalyst: int("recon_analyst").notNull(),
-	exploitSelector: int("exploit_selector").notNull(),
-	evasionOptimizer: int("evasion_optimizer").notNull(),
-	cognitiveCore: int("cognitive_core").notNull(),
-	cloudAssessor: int("cloud_assessor").notNull(),
-	supplyChainAnalyst: int("supply_chain_analyst").notNull(),
-	overallScore: int("overall_score").notNull(),
-	summary: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("sgs_domain_idx").on(table.domain),
-	index("sgs_sector_idx").on(table.sector),
-	index("sgs_scan_id_idx").on(table.scanId),
-	index("sgs_created_at_idx").on(table.createdAt),
-]);
-
-// ─── Adaptive Scan Strategy: Connector Performance History ────────────────────
-export const connectorPerformanceHistory = mysqlTable("connector_performance_history", {
-	id: int().autoincrement().notNull(),
-	connector: varchar({ length: 128 }).notNull(),
-	domain: varchar({ length: 255 }).notNull(),
-	sector: varchar({ length: 128 }),
-	scanId: int("scan_id").notNull(),
-	observations: int().default(0).notNull(),
-	durationMs: int("duration_ms").default(0).notNull(),
-	status: mysqlEnum(['completed', 'failed', 'skipped', 'timeout']).default('completed').notNull(),
-	rateLimited: tinyint("rate_limited").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-},
-(table) => [
-	index("cph_connector_domain_idx").on(table.connector, table.domain),
-	index("cph_sector_idx").on(table.sector),
-	index("cph_scan_id_idx").on(table.scanId),
-	index("cph_connector_sector_idx").on(table.connector, table.sector),
-	index("cph_created_at_idx").on(table.createdAt),
-]);
-
-
 export const zeroDayCache = mysqlTable("zero_day_cache", {
 	id: int().autoincrement().notNull(),
 	cve: varchar({ length: 32 }).notNull(),
@@ -6937,7 +6908,7 @@ export const zeroDayCache = mysqlTable("zero_day_cache", {
 	analysisUrl: text("analysis_url"),
 	rootCauseAnalysis: text("root_cause_analysis"),
 	reportedBy: varchar("reported_by", { length: 512 }),
-	source: mysqlEnum(['project_zero', 'cisa_kev']).default('project_zero').notNull(),
+	source: mysqlEnum(['project_zero','cisa_kev']).default('project_zero').notNull(),
 	year: int(),
 	fetchedAt: timestamp("fetched_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 },
@@ -6957,9 +6928,9 @@ export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
 	cve: varchar({ length: 32 }).notNull(),
 	vendor: varchar({ length: 128 }).default('').notNull(),
 	product: varchar({ length: 128 }).default('').notNull(),
-	matchType: mysqlEnum("match_type", ['cve_exact', 'vendor_product', 'product_fuzzy']).default('product_fuzzy').notNull(),
-	confidence: mysqlEnum(['high', 'medium', 'low']).default('low').notNull(),
-	severity: mysqlEnum(['critical', 'high', 'medium']).default('medium').notNull(),
+	matchType: mysqlEnum("match_type", ['cve_exact','vendor_product','product_fuzzy']).default('product_fuzzy').notNull(),
+	confidence: mysqlEnum(['high','medium','low']).default('low').notNull(),
+	severity: mysqlEnum(['critical','high','medium']).default('medium').notNull(),
 	matchedAsset: varchar("matched_asset", { length: 255 }).notNull(),
 	zeroDayDescription: text("zero_day_description"),
 	zeroDayType: varchar("zero_day_type", { length: 128 }),
@@ -6974,4 +6945,43 @@ export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
 	index("zdsm_cve_idx").on(table.cve),
 	index("zdsm_severity_idx").on(table.severity),
 	index("zdsm_created_at_idx").on(table.createdAt),
+]);
+
+
+// ─── DI Incident Training Data ──────────────────────────────────────────────
+export const diIncidentTrainingData = mysqlTable("di_incident_training_data", {
+	id: int().autoincrement().notNull(),
+	exampleId: varchar("example_id", { length: 64 }).notNull(),
+	scanId: int("scan_id"),
+	domain: varchar({ length: 255 }).notNull(),
+	sector: varchar({ length: 128 }),
+	exampleType: mysqlEnum("example_type", [
+		'incident_context',
+		'actor_attribution',
+		'breach_pattern',
+		'ransomware_profile',
+		'attack_surface_map',
+	]).notNull(),
+	trainingMessages: json("training_messages").notNull(),
+	qualityScore: float("quality_score").notNull(),
+	qualityBand: mysqlEnum("quality_band", ['high', 'medium', 'low', 'rejected']).default('medium').notNull(),
+	incidentCount: int("incident_count").default(0).notNull(),
+	actorsDiscovered: int("actors_discovered").default(0).notNull(),
+	ttpsDiscovered: int("ttps_discovered").default(0).notNull(),
+	analystRating: mysqlEnum("analyst_rating", ['not_reviewed', 'accurate', 'partially_accurate', 'inaccurate']).default('not_reviewed').notNull(),
+	analystReviewedBy: int("analyst_reviewed_by"),
+	analystNotes: text("analyst_notes"),
+	usageCount: int("usage_count").default(0).notNull(),
+	lastUsedAt: bigint("last_used_at", { mode: "number" }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+},
+(table) => [
+	index("ditd_example_id_idx").on(table.exampleId),
+	index("ditd_domain_idx").on(table.domain),
+	index("ditd_sector_idx").on(table.sector),
+	index("ditd_type_idx").on(table.exampleType),
+	index("ditd_quality_idx").on(table.qualityBand),
+	index("ditd_rating_idx").on(table.analystRating),
+	index("ditd_scan_id_idx").on(table.scanId),
 ]);

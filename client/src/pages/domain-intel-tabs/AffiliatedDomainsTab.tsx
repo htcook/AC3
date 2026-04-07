@@ -1,10 +1,14 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+import { trpc } from "@/lib/trpc";
 import {
   Globe, Building2, ShieldCheck, Lock, Search, FileKey, Network,
-  ArrowUpRight, ChevronDown, ChevronUp, Info, Fingerprint
+  ChevronDown, ChevronUp, Info, Fingerprint, Radar, Loader2,
+  CheckCircle2, XCircle, Clock, ExternalLink, AlertTriangle
 } from "lucide-react";
 
 interface AffiliatedDomain {
@@ -51,7 +55,6 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   let label = "Low";
   if (confidence >= 80) { color = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"; label = "High"; }
   else if (confidence >= 50) { color = "text-amber-400 bg-amber-500/10 border-amber-500/30"; label = "Medium"; }
-  else { color = "text-slate-400 bg-slate-500/10 border-slate-500/30"; label = "Low"; }
 
   return (
     <Badge variant="outline" className={`text-[10px] font-mono ${color}`}>
@@ -60,9 +63,79 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
   );
 }
 
-export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliatedDomains: AffiliatedDomainResult | null | undefined }) {
+function ScanStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'scan_complete':
+    case 'completed':
+      return <Badge variant="outline" className="text-[10px] text-emerald-400 bg-emerald-500/10 border-emerald-500/30"><CheckCircle2 className="h-3 w-3 mr-1" />Scanned</Badge>;
+    case 'discovering':
+    case 'enriching':
+    case 'analyzing':
+    case 'scoring':
+      return <Badge variant="outline" className="text-[10px] text-cyan-400 bg-cyan-500/10 border-cyan-500/30 animate-pulse"><Loader2 className="h-3 w-3 mr-1 animate-spin" />{status}</Badge>;
+    case 'failed':
+    case 'error':
+      return <Badge variant="outline" className="text-[10px] text-red-400 bg-red-500/10 border-red-500/30"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
+    case 'queued':
+      return <Badge variant="outline" className="text-[10px] text-amber-400 bg-amber-500/10 border-amber-500/30"><Clock className="h-3 w-3 mr-1" />Queued</Badge>;
+    default:
+      return <Badge variant="outline" className="text-[10px] text-slate-400 bg-slate-500/10 border-slate-500/30">Not Scanned</Badge>;
+  }
+}
+
+export default function AffiliatedDomainsTab({
+  affiliatedDomains,
+  scanId,
+}: {
+  affiliatedDomains: AffiliatedDomainResult | null | undefined;
+  scanId: number;
+}) {
   const [filterSource, setFilterSource] = useState<string>("all");
   const [showAll, setShowAll] = useState(false);
+  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
+
+  // Fetch affiliated domain scan statuses
+  const { data: affiliatedScans, refetch: refetchScans } = trpc.domainIntel.getAffiliatedDomainScans.useQuery(
+    { parentScanId: scanId },
+    { refetchInterval: 10000 } // Poll every 10s for status updates
+  );
+
+  // Scan mutation
+  const scanMutation = trpc.domainIntel.scanAffiliatedDomains.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Affiliated Domain Scans Queued",
+        description: `${data.totalQueued} scan(s) queued, ${data.totalSkipped} already running, ${data.totalFailed} failed`,
+      });
+      refetchScans();
+      setSelectedDomains(new Set());
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to Queue Scans",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Build scan status map: domain → status
+  const scanStatusMap = useMemo(() => {
+    const map = new Map<string, { status: string; scanId: number; riskScore: number | null; riskBand: string | null; assets: number | null }>();
+    if (affiliatedScans) {
+      for (const s of affiliatedScans) {
+        map.set(s.domain, {
+          status: s.status || 'unknown',
+          scanId: s.scanId,
+          riskScore: s.overallRiskScore,
+          riskBand: s.overallRiskBand,
+          assets: s.totalAssets,
+        });
+      }
+    }
+    return map;
+  }, [affiliatedScans]);
 
   if (!affiliatedDomains) {
     return (
@@ -94,6 +167,55 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
   const highConfCount = domains.filter(d => d.confidence >= 80).length;
   const medConfCount = domains.filter(d => d.confidence >= 50 && d.confidence < 80).length;
   const lowConfCount = domains.filter(d => d.confidence < 50).length;
+
+  // Domains eligible for scanning (not already scanned or in progress)
+  const scannableDomains = useMemo(() => {
+    return domains.filter(d => {
+      const scanInfo = scanStatusMap.get(d.domain);
+      return !scanInfo || scanInfo.status === 'failed' || scanInfo.status === 'error';
+    }).map(d => d.domain);
+  }, [domains, scanStatusMap]);
+
+  const handleSelectAll = () => {
+    if (selectedDomains.size === scannableDomains.length) {
+      setSelectedDomains(new Set());
+    } else {
+      setSelectedDomains(new Set(scannableDomains));
+    }
+  };
+
+  const handleToggleDomain = (domain: string) => {
+    const next = new Set(selectedDomains);
+    if (next.has(domain)) next.delete(domain);
+    else next.add(domain);
+    setSelectedDomains(next);
+  };
+
+  const handleScanSelected = () => {
+    if (selectedDomains.size === 0) return;
+    scanMutation.mutate({
+      parentScanId: scanId,
+      domains: Array.from(selectedDomains),
+      scanMode: 'standard',
+    });
+  };
+
+  const handleScanAll = () => {
+    if (scannableDomains.length === 0) {
+      toast({ title: "All domains already scanned", description: "All affiliated domains have been scanned or are currently in progress." });
+      return;
+    }
+    // Limit to 20 at a time to avoid overwhelming the system
+    const batch = scannableDomains.slice(0, 20);
+    scanMutation.mutate({
+      parentScanId: scanId,
+      domains: batch,
+      scanMode: 'standard',
+    });
+  };
+
+  const scanningCount = affiliatedScans?.filter(s => ['discovering', 'enriching', 'analyzing', 'scoring'].includes(s.status || '')).length || 0;
+  const completedCount = affiliatedScans?.filter(s => s.status === 'scan_complete' || s.status === 'completed').length || 0;
 
   return (
     <div className="space-y-4">
@@ -128,7 +250,7 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-cyan-500/30 bg-cyan-500/5">
           <CardContent className="p-4 text-center">
             <p className="text-3xl font-bold text-cyan-400">{affiliatedDomains.totalDiscovered}</p>
@@ -153,7 +275,72 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
             <p className="text-xs text-muted-foreground mt-1">Low Confidence</p>
           </CardContent>
         </Card>
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-bold text-blue-400">{completedCount}</p>
+            <p className="text-xs text-muted-foreground mt-1">Scanned</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Scan Actions Bar */}
+      <Card className="border-border/50 bg-muted/10">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <Radar className="h-4 w-4 text-cyan-400" />
+              <span className="text-sm font-semibold">Attack Surface Expansion</span>
+              {scanningCount > 0 && (
+                <Badge variant="outline" className="text-[10px] text-cyan-400 bg-cyan-500/10 border-cyan-500/30 animate-pulse">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  {scanningCount} scanning
+                </Badge>
+              )}
+              {completedCount > 0 && (
+                <Badge variant="outline" className="text-[10px] text-emerald-400 bg-emerald-500/10 border-emerald-500/30">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  {completedCount} complete
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedDomains.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                  onClick={handleScanSelected}
+                  disabled={scanMutation.isPending}
+                >
+                  {scanMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Radar className="h-3 w-3 mr-1" />}
+                  Scan Selected ({selectedDomains.size})
+                </Button>
+              )}
+              <Button
+                size="sm"
+                className="h-7 text-xs bg-cyan-600 hover:bg-cyan-700 text-white"
+                onClick={handleScanAll}
+                disabled={scanMutation.isPending || scannableDomains.length === 0}
+              >
+                {scanMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Radar className="h-3 w-3 mr-1" />}
+                Scan All ({scannableDomains.length})
+              </Button>
+            </div>
+          </div>
+          {scannableDomains.length === 0 && domains.length > 0 && (
+            <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+              All affiliated domains have been scanned or are currently in progress.
+            </p>
+          )}
+          {domains.length > 20 && scannableDomains.length > 20 && (
+            <p className="text-[10px] text-amber-400 mt-2 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              "Scan All" will queue the first 20 domains. Select specific domains for targeted scanning.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Summary */}
       {affiliatedDomains.summary && (
@@ -201,22 +388,45 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/50">
+                <th className="text-left py-2 px-2 w-8">
+                  <Checkbox
+                    checked={selectedDomains.size === scannableDomains.length && scannableDomains.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Domain</th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Relationship</th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Confidence</th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Source</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Evidence</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Scan Status</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Risk</th>
               </tr>
             </thead>
             <tbody>
               {displayed.map((d, i) => {
                 const rel = relationshipConfig[d.relationship] || relationshipConfig.same_org;
+                const scanInfo = scanStatusMap.get(d.domain);
+                const isScannable = !scanInfo || scanInfo.status === 'failed' || scanInfo.status === 'error';
+                const isSelected = selectedDomains.has(d.domain);
+
                 return (
-                  <tr key={i} className="border-b border-border/30 hover:bg-muted/20">
+                  <tr key={i} className={`border-b border-border/30 hover:bg-muted/20 ${isSelected ? 'bg-cyan-500/5' : ''}`}>
+                    <td className="py-2 px-2">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => handleToggleDomain(d.domain)}
+                        disabled={!isScannable}
+                      />
+                    </td>
                     <td className="py-2 px-3">
                       <div className="flex items-center gap-2">
                         <Globe className="h-3 w-3 text-muted-foreground shrink-0" />
                         <span className="font-mono text-xs font-medium text-cyan-400">{d.domain}</span>
+                        {scanInfo?.scanId && (scanInfo.status === 'scan_complete' || scanInfo.status === 'completed') && (
+                          <a href={`/domain-intel/results/${scanInfo.scanId}`} className="text-muted-foreground hover:text-cyan-400">
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
                       </div>
                     </td>
                     <td className="py-2 px-3">
@@ -234,7 +444,24 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
                       </span>
                     </td>
                     <td className="py-2 px-3">
-                      <span className="text-xs text-muted-foreground line-clamp-2">{d.evidence}</span>
+                      <ScanStatusBadge status={scanInfo?.status || 'not_scanned'} />
+                    </td>
+                    <td className="py-2 px-3">
+                      {scanInfo?.riskScore != null ? (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-mono ${
+                            scanInfo.riskBand === 'critical' ? 'text-red-400 bg-red-500/10 border-red-500/30' :
+                            scanInfo.riskBand === 'high' ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+                            scanInfo.riskBand === 'medium' ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' :
+                            'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                          }`}
+                        >
+                          {scanInfo.riskScore} ({scanInfo.riskBand})
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -270,6 +497,72 @@ export default function AffiliatedDomainsTab({ affiliatedDomains }: { affiliated
             )}
           </Button>
         </div>
+      )}
+
+      {/* Affiliated Scan Results Summary */}
+      {affiliatedScans && affiliatedScans.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Radar className="h-4 w-4 text-cyan-400" />
+              Affiliated Domain Scan Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Domain</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Status</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Risk Score</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Assets</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Findings</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {affiliatedScans.map((s) => (
+                    <tr key={s.scanId} className="border-b border-border/30 hover:bg-muted/20">
+                      <td className="py-2 px-3">
+                        <span className="font-mono text-xs text-cyan-400">{s.domain}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <ScanStatusBadge status={s.status || 'unknown'} />
+                      </td>
+                      <td className="py-2 px-3">
+                        {s.overallRiskScore != null ? (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-mono ${
+                              s.overallRiskBand === 'critical' ? 'text-red-400 bg-red-500/10 border-red-500/30' :
+                              s.overallRiskBand === 'high' ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+                              s.overallRiskBand === 'medium' ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' :
+                              'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                            }`}
+                          >
+                            {s.overallRiskScore} ({s.overallRiskBand})
+                          </Badge>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
+                      <td className="py-2 px-3 text-xs font-mono">{s.totalAssets ?? '—'}</td>
+                      <td className="py-2 px-3 text-xs font-mono">{s.totalFindings ?? '—'}</td>
+                      <td className="py-2 px-3">
+                        {(s.status === 'scan_complete' || s.status === 'completed') && (
+                          <a href={`/domain-intel/results/${s.scanId}`}>
+                            <Button variant="outline" size="sm" className="h-6 text-[10px] px-2">
+                              <ExternalLink className="h-3 w-3 mr-1" />View
+                            </Button>
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Source Breakdown */}

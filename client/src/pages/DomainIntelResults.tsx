@@ -4805,7 +4805,7 @@ export default function DomainIntelResults() {
 
         {/* Affiliated Domains Tab */}
         <TabsContent value="affiliated-domains" className="space-y-4">
-          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><AffiliatedDomainsTab affiliatedDomains={affiliatedDomains} /></Suspense>
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><AffiliatedDomainsTab affiliatedDomains={affiliatedDomains} scanId={scanId} /></Suspense>
         </TabsContent>
 
         {/* Discovery Coverage Tab */}

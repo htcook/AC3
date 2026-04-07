@@ -3549,3 +3549,130 @@ export async function getZeroDayMatchStats() {
     undismissed: undismissed?.count || 0,
   };
 }
+
+
+// ─── DI Incident Training Data Helpers ──────────────────────────────────────
+
+import { diIncidentTrainingData } from "../drizzle/schema";
+
+export async function insertDITrainingExample(data: {
+  exampleId: string;
+  scanId: number;
+  domain: string;
+  sector?: string;
+  exampleType: 'incident_context' | 'actor_attribution' | 'breach_pattern' | 'ransomware_profile' | 'attack_surface_map';
+  trainingMessages: any;
+  qualityScore: number;
+  qualityBand: 'high' | 'medium' | 'low' | 'rejected';
+  incidentCount?: number;
+  actorsDiscovered?: number;
+  ttpsDiscovered?: number;
+  riskScoreAtScan?: number;
+  riskBandAtScan?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(diIncidentTrainingData).values(data);
+}
+
+export async function bulkInsertDITrainingExamples(examples: Array<{
+  exampleId: string;
+  scanId: number;
+  domain: string;
+  sector?: string;
+  exampleType: 'incident_context' | 'actor_attribution' | 'breach_pattern' | 'ransomware_profile' | 'attack_surface_map';
+  trainingMessages: any;
+  qualityScore: number;
+  qualityBand: 'high' | 'medium' | 'low' | 'rejected';
+  incidentCount?: number;
+  actorsDiscovered?: number;
+  ttpsDiscovered?: number;
+  riskScoreAtScan?: number;
+  riskBandAtScan?: string;
+}>) {
+  if (examples.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  // Batch insert in chunks of 10
+  for (let i = 0; i < examples.length; i += 10) {
+    const batch = examples.slice(i, i + 10);
+    await db.insert(diIncidentTrainingData).values(batch);
+  }
+}
+
+export async function getDITrainingExamplesForDomain(domain: string, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(diIncidentTrainingData)
+    .where(eq(diIncidentTrainingData.domain, domain))
+    .orderBy(desc(diIncidentTrainingData.qualityScore))
+    .limit(limit);
+}
+
+export async function getDITrainingExamplesForSector(sector: string, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(diIncidentTrainingData)
+    .where(eq(diIncidentTrainingData.sector, sector))
+    .orderBy(desc(diIncidentTrainingData.qualityScore))
+    .limit(limit);
+}
+
+export async function getHighQualityDITrainingExamples(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(diIncidentTrainingData)
+    .where(eq(diIncidentTrainingData.qualityBand, 'high'))
+    .orderBy(desc(diIncidentTrainingData.qualityScore))
+    .limit(limit);
+}
+
+export async function updateDITrainingAnalystRating(exampleId: string, rating: 'accurate' | 'partially_accurate' | 'inaccurate', analystId: number, notes?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(diIncidentTrainingData)
+    .set({
+      analystRating: rating,
+      analystId,
+      analystNotes: notes || null,
+      ratedAt: Date.now(),
+      // Adjust quality based on analyst feedback
+      qualityScore: rating === 'accurate' ? 0.95 : rating === 'partially_accurate' ? 0.6 : 0.1,
+      qualityBand: rating === 'accurate' ? 'high' : rating === 'partially_accurate' ? 'medium' : 'rejected',
+    })
+    .where(eq(diIncidentTrainingData.exampleId, exampleId));
+}
+
+export async function incrementDITrainingUsage(exampleIds: string[]) {
+  if (exampleIds.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  for (const eid of exampleIds) {
+    await db.update(diIncidentTrainingData)
+      .set({
+        usedInPromptCount: sql`${diIncidentTrainingData.usedInPromptCount} + 1`,
+        lastUsedAt: Date.now(),
+      })
+      .where(eq(diIncidentTrainingData.exampleId, eid));
+  }
+}
+
+export async function getDITrainingStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, high: 0, medium: 0, low: 0, rejected: 0, reviewed: 0, unreviewed: 0 };
+  const [total] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData);
+  const [high] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData).where(eq(diIncidentTrainingData.qualityBand, 'high'));
+  const [medium] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData).where(eq(diIncidentTrainingData.qualityBand, 'medium'));
+  const [low] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData).where(eq(diIncidentTrainingData.qualityBand, 'low'));
+  const [rejected] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData).where(eq(diIncidentTrainingData.qualityBand, 'rejected'));
+  const [reviewed] = await db.select({ count: sql<number>`count(*)` }).from(diIncidentTrainingData).where(sql`${diIncidentTrainingData.analystRating} != 'not_reviewed'`);
+  return {
+    total: total?.count || 0,
+    high: high?.count || 0,
+    medium: medium?.count || 0,
+    low: low?.count || 0,
+    rejected: rejected?.count || 0,
+    reviewed: reviewed?.count || 0,
+    unreviewed: (total?.count || 0) - (reviewed?.count || 0),
+  };
+}

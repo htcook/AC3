@@ -4158,6 +4158,24 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Stage 4.6 affiliated domain discovery failed (non-fatal): ${err.message}`);
   }
 
+  // ─── Stage 4.8: Training Data Collection ──────────────────────────
+  try {
+    const { collectTrainingData } = await import('./lib/incident-training-collector');
+    console.log(`[DomainIntel] Stage 4.8: Collecting training data from scan results`);
+    const trainingResult = await collectTrainingData({
+      scanId: 0, // Will be set by the router when persisting
+      domain: org.primaryDomain,
+      sector: org.sector || undefined,
+      incidentSearch: incidentSearchResult || null,
+      affiliatedDomains: affiliatedDomainsResult || undefined,
+      riskScore: 0, // Will be updated after final scoring
+      riskBand: 'unknown',
+    });
+    console.log(`[DomainIntel] Training data: ${trainingResult.totalExamples} examples (${trainingResult.highQualityCount} high-quality)`);
+  } catch (err: any) {
+    console.error(`[DomainIntel] Stage 4.8 training data collection failed (non-fatal): ${err.message}`);
+  }
+
   // ─── Compute Scan Delta (cross-session comparison) ──────────────────
   let scanDelta: PipelineResult['scanDelta'] | undefined;
   try {

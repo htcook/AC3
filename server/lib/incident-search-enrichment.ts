@@ -218,12 +218,19 @@ async function searchWebForIncidents(domain: string): Promise<IncidentMatch[]> {
   const orgName = domainParts.length >= 2 ? domainParts[domainParts.length - 2] : domain;
   const orgNameCapitalized = orgName.charAt(0).toUpperCase() + orgName.slice(1);
 
+  // Inject historical training context if available
+  let trainingContextBlock = "";
+  try {
+    const { getIncidentSearchPromptContext } = await import('./incident-training-context');
+    trainingContextBlock = await getIncidentSearchPromptContext(domain);
+  } catch { /* non-fatal */ }
+
   try {
     const response = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `You are a cybersecurity threat intelligence analyst. Search your knowledge for any known security incidents, ransomware attacks, data breaches, or threat actor activity targeting the specified organization or domain. Return ONLY factual, verified incidents — do not speculate or fabricate. If you have no knowledge of incidents, return an empty array.
+          content: `You are a cybersecurity threat intelligence analyst. Search your knowledge for any known security incidents, ransomware attacks, data breaches, or threat actor activity targeting the specified organization or domain. Return ONLY factual, verified incidents — do not speculate or fabricate. If you have no knowledge of incidents, return an empty array.${trainingContextBlock ? `\n\n${trainingContextBlock}` : ""}
 
 Return JSON matching this schema:
 {
