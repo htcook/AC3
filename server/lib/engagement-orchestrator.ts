@@ -3776,21 +3776,45 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // "inferred" service labels to "fingerprinted" with product/version/banner.
         try {
           const { autoFingerprint, summarizeFingerprints } = await import('./service-fingerprinter');
+          const { getCachedFingerprints, cacheFingerprints } = await import('./fingerprint-cache');
           const openPortNumbers = asset.ports.map(p => p.port);
           if (openPortNumbers.length > 0) {
+            // ── Check fingerprint cache first ──
+            const cacheLookup = await getCachedFingerprints(target, openPortNumbers);
+            const cacheNote = cacheLookup.hitCount > 0
+              ? ` (✅ ${cacheLookup.hitCount} cached, ${cacheLookup.missCount} to probe)`
+              : '';
+
             addLog(state, {
               phase: 'enumeration', type: 'info',
               title: `🔍 Service Fingerprinting: ${fmtTarget(asset, target)}`,
-              detail: `Running protocol-specific probes on ${openPortNumbers.length} ports: ${openPortNumbers.join(', ')}`,
+              detail: `Running protocol-specific probes on ${openPortNumbers.length} ports: ${openPortNumbers.join(', ')}${cacheNote}`,
             });
 
             const fpStart = Date.now();
-            const fpResults = await autoFingerprint(target, openPortNumbers, {
-              engagementId: state.engagementId,
-              operatorId: state.operatorId,
-              timeoutMs: 10000,
-              tryDefaultCreds: state.config.profile !== 'stealth',
-            });
+            let fpResults: any[];
+
+            if (cacheLookup.uncachedPorts.length > 0) {
+              // Probe only uncached ports
+              const freshResults = await autoFingerprint(target, cacheLookup.uncachedPorts, {
+                engagementId: state.engagementId,
+                operatorId: state.operatorId,
+                timeoutMs: 10000,
+                tryDefaultCreds: state.config.profile !== 'stealth',
+              });
+              // Merge cached + fresh results
+              fpResults = [...cacheLookup.cached, ...freshResults];
+              // Cache the fresh results for future runs
+              if (freshResults.length > 0) {
+                const cacheResult = await cacheFingerprints(target, freshResults, state.engagementId);
+                if (cacheResult.cached > 0) {
+                  console.log(`[FingerprintCache] Cached ${cacheResult.cached} new results for ${target}`);
+                }
+              }
+            } else {
+              // All ports were cached — no probing needed
+              fpResults = cacheLookup.cached;
+            }
             const fpDuration = Date.now() - fpStart;
 
             // Merge fingerprint results into asset port data
@@ -3867,9 +3891,53 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             title: `🔍 Fingerprinting Skipped: ${fmtTarget(asset, target)}`,
             detail: `Service fingerprinting failed (non-blocking): ${fpErr.message}`,
           });
+               // ── Step 2a.1: Banner-Based WAF/IDS Detection ─────────────────────
+        // Detect WAF/IDS/firewall signatures from TCP-level fingerprint banners.
+        // This complements HTTP-based WAF detection by catching network-level appliances.
+        try {
+          const { detectWafFromBanners, mergeBannerWafIntoAsset, generateEvasionProfile } = await import('./banner-waf-detector');
+          const fpResults = (asset as any).fingerprintResults;
+          if (fpResults && fpResults.length > 0) {
+            const bannerWafSummary = detectWafFromBanners(fpResults);
+            if (bannerWafSummary.detections.length > 0) {
+              const { wafVendor, newDetections } = mergeBannerWafIntoAsset(asset.wafDetected, bannerWafSummary.detections);
+              if (newDetections && wafVendor) {
+                asset.wafDetected = wafVendor;
+                state.stats.wafDetections = (state.stats.wafDetections || 0) + bannerWafSummary.detections.length;
+
+                // Generate evasion profile for downstream scanning
+                const evasionProfile = generateEvasionProfile(bannerWafSummary);
+                (asset as any).bannerEvasionProfile = evasionProfile;
+                (asset as any).bannerWafSummary = bannerWafSummary;
+
+                const categoryBreakdown = bannerWafSummary.detections.map(d =>
+                  `${d.port}/${d.protocol}: ${d.vendor} ${d.product} [${d.category}] (${d.confidence}% confidence)`
+                ).join('\n');
+
+                addLog(state, {
+                  phase: 'enumeration', type: 'waf_detected',
+                  title: `\ud83d\udee1\ufe0f Banner WAF/IDS Detected: ${fmtTarget(asset, target)} \u2014 ${bannerWafSummary.uniqueVendors.join(', ')}`,
+                  detail: `Security posture: ${bannerWafSummary.posture.replace('_', ' ')}\n` +
+                    `Detections:\n${categoryBreakdown}\n` +
+                    `Evasion: rate=${evasionProfile.rateMultiplier}x, fragment=${evasionProfile.useFragmentation}, encrypt=${evasionProfile.useEncryption}\n` +
+                    `Recommendations: ${bannerWafSummary.evasionRecommendations.slice(0, 3).join('; ')}`,
+                  data: {
+                    detections: bannerWafSummary.detections.map(d => ({
+                      vendor: d.vendor, product: d.product, category: d.category,
+                      port: d.port, confidence: d.confidence, matchedPattern: d.matchedPattern,
+                    })),
+                    posture: bannerWafSummary.posture,
+                    evasionProfile,
+                  },
+                });
+              }
+            }
+          }
+        } catch (bannerWafErr: any) {
+          /* Banner WAF detection is best-effort — don't block pipeline */
         }
 
-        // ── Step 2b: RDP/VoIP/Conferencing service-specific scanning ──────
+        // ── Step 2b: RDP/VoIP/Conferencing service-specific scanning ──────────
         try {
           const { isRdpVoipConferencingPort, getScanCommandsForService, getServiceForPort, buildExploitContextForLlm } = await import('./knowledge/rdp-voip-conferencing-knowledge');
           const rdpVoipPorts = discoveredPorts.filter(p => isRdpVoipConferencingPort(p.port) || ['rdp', 'sip', 'sips', 'h323', 'sccp', 'mgcp', 'ms-wbt-server'].includes(p.service));
@@ -5508,6 +5576,85 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       title: "Nuclei Scan Complete",
       detail: `Phase 3 nuclei found ${phase3NucleiFindings} new vulnerabilities across ${nucleiAssets.length} targets${phase3NucleiErrors > 0 ? ` (${phase3NucleiErrors} scans failed — SSH connection issues)` : ''}. Total vulns: ${totalVulns} (${priorVulns} from prior phases + ${phase3NucleiFindings} new)`,
     });
+
+    // ── Network-Level Nuclei Scans (non-HTTP services) ──
+    // Uses fingerprint data to run service-specific nuclei templates against non-HTTP ports
+    // (SSH, MySQL, Redis, SMB, etc.) — these are missed by the web-focused scan above.
+    try {
+      const { generateServiceScanTasks, getTemplateMappingSummary } = await import('./service-template-mapper');
+      const networkScanTasks: typeof nucleiScanTasks = [];
+      let networkScanFindings = 0;
+      let networkScanErrors = 0;
+
+      for (const asset of nucleiAssets) {
+        const fpResults = (asset as any).fingerprintResults;
+        if (!fpResults || fpResults.length === 0) continue;
+
+        // Filter to non-HTTP fingerprinted services
+        const nonHttpFps = fpResults.filter((fp: any) =>
+          !fp.error && fp.protocol &&
+          !['http', 'https', 'http-proxy', 'http-alt'].includes(fp.protocol) &&
+          ![80, 443, 8080, 8443, 8000, 3000, 5000].includes(fp.port)
+        );
+        if (nonHttpFps.length === 0) continue;
+
+        const target = asset.ip || asset.hostname;
+        const serviceTasks = generateServiceScanTasks(target, nonHttpFps, {
+          rateLimit: nucleiRateLimit,
+          maxTasks: 10,
+        });
+
+        const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
+        for (const st of serviceTasks) {
+          // Skip if already scanned (resume support)
+          const networkUrl = `${target}:${st.port}/${st.protocol}`;
+          if (state.completedScans?.nucleiCompleted.has(networkUrl)) continue;
+
+          networkScanTasks.push({
+            asset,
+            url: networkUrl,
+            nucleiArgs: st.nucleiArgs,
+            target,
+            techTags: st.mapping.tags,
+            assetVulnKeys,
+          });
+        }
+      }
+
+      if (networkScanTasks.length > 0) {
+        // Log summary of what we're about to scan
+        const allFps = nucleiAssets.flatMap((a: any) => (a.fingerprintResults || []).filter((fp: any) => !fp.error));
+        const summary = getTemplateMappingSummary(allFps);
+
+        addLog(state, {
+          phase: 'vuln_detection', type: 'info',
+          title: `🔌 Network-Level Nuclei: ${networkScanTasks.length} service-specific scans`,
+          detail: `Targeting non-HTTP services: ${summary.serviceBreakdown.map((s: any) => `${s.protocol}:${s.port}`).slice(0, 8).join(', ')}${summary.serviceBreakdown.length > 8 ? ` (+${summary.serviceBreakdown.length - 8} more)` : ''}\nUnique tags: ${summary.uniqueTags.slice(0, 10).join(', ')}${summary.versionMatchedCves.length > 0 ? `\nVersion-matched CVEs: ${summary.versionMatchedCves.join(', ')}` : ''}`,
+        });
+
+        // Execute network scan tasks in batches (reuse same executeNucleiTask)
+        for (let i = 0; i < networkScanTasks.length; i += NUCLEI_BATCH_SIZE) {
+          const batch = networkScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
+          if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+          await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
+          if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+          persistOpsStateDebounced(state.engagementId, 200);
+        }
+
+        addLog(state, {
+          phase: 'vuln_detection', type: 'scan_result',
+          title: 'Network Nuclei Scans Complete',
+          detail: `Service-specific scans finished. ${networkScanTasks.length} tasks executed across non-HTTP ports. Total vulns: ${state.stats.vulnsFound}`,
+        });
+      }
+    } catch (networkScanErr: any) {
+      console.error('[NetworkNuclei] Error:', networkScanErr.message);
+      addLog(state, {
+        phase: 'vuln_detection', type: 'warning',
+        title: 'Network Nuclei Scans Skipped',
+        detail: `Error initializing network-level scans: ${networkScanErr.message}`,
+      });
+    }
 
     // ── Training Lab: Second Nuclei pass without tags for broad coverage ──
     // The first pass uses technology/vuln-category tags which limits to matching templates.

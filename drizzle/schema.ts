@@ -6847,3 +6847,31 @@ export const adjustmentEffectiveness = mysqlTable("adjustment_effectiveness", {
 	index("ae_service_idx").on(table.aeService),
 	index("ae_composite_idx").on(table.aeAdjustmentType, table.aeFailureCategory, table.aeService),
 ]);
+
+
+// ─── Fingerprint Cache ─────────────────────────────────────────────────────
+// Caches service fingerprint results per (host, port) so repeat engagements
+// skip already-fingerprinted ports. Entries expire after a configurable TTL.
+export const fingerprintCache = mysqlTable("fingerprint_cache", {
+	fcId: int("fc_id").autoincrement().primaryKey().notNull(),
+	fcHost: varchar("fc_host", { length: 255 }).notNull(),
+	fcPort: int("fc_port").notNull(),
+	fcProtocol: varchar("fc_protocol", { length: 64 }),
+	fcProduct: varchar("fc_product", { length: 255 }),
+	fcVersion: varchar("fc_version", { length: 128 }),
+	fcBanner: text("fc_banner"),
+	fcOs: varchar("fc_os", { length: 255 }),
+	fcSecurityFlags: json("fc_security_flags"),
+	fcRiskIndicators: json("fc_risk_indicators"),
+	fcPotentialCves: json("fc_potential_cves"),
+	fcError: tinyint("fc_error").default(0),
+	fcConfidence: int("fc_confidence").default(0),
+	fcFingerprintedAt: bigint("fc_fingerprinted_at", { mode: "number" }).notNull(),
+	fcExpiresAt: bigint("fc_expires_at", { mode: "number" }).notNull(),
+	fcEngagementId: varchar("fc_engagement_id", { length: 64 }),
+	fcCreatedAt: timestamp("fc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("fc_host_port_idx").on(table.fcHost, table.fcPort),
+	index("fc_expires_idx").on(table.fcExpiresAt),
+]);

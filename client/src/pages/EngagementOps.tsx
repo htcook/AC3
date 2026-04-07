@@ -722,6 +722,46 @@ function renderFeedEntry(entry: OpsLogEntry) {
                   )}
                 </div>
               )}
+              {/* Banner WAF/IDS Detection Panel */}
+              {entry.data?.detections && Array.isArray(entry.data.detections) && entry.data.detections.length > 0 && (
+                <div className="bg-orange-500/5 border border-orange-500/10 rounded px-2 py-1.5 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-3 w-3 text-orange-400" />
+                    <span className="text-[10px] text-orange-400 uppercase font-semibold tracking-wider">Banner WAF/IDS Detections</span>
+                    {entry.data.posture && (
+                      <Badge variant="outline" className={`text-[9px] ${
+                        entry.data.posture === 'high_security' ? 'text-red-300 border-red-500/30 bg-red-500/10' :
+                        entry.data.posture === 'moderate_security' ? 'text-orange-300 border-orange-500/30 bg-orange-500/10' :
+                        'text-yellow-300 border-yellow-500/30 bg-yellow-500/10'
+                      }`}>{String(entry.data.posture).replace(/_/g, ' ')}</Badge>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    {(entry.data.detections as Array<{vendor: string; product: string; category: string; port: number; confidence: number; matchedPattern: string}>).map((d, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                        <Badge variant="outline" className={`text-[9px] flex-none ${
+                          d.category === 'waf' ? 'text-red-300 border-red-500/30' :
+                          d.category === 'ids_ips' ? 'text-orange-300 border-orange-500/30' :
+                          d.category === 'firewall' ? 'text-yellow-300 border-yellow-500/30' :
+                          'text-blue-300 border-blue-500/30'
+                        }`}>{d.category.replace(/_/g, ' ')}</Badge>
+                        <span className="text-orange-300 font-mono flex-none">{d.port}</span>
+                        <span className="text-foreground/90 font-medium">{d.vendor} {d.product}</span>
+                        <span className="text-muted-foreground/60 ml-auto">{d.confidence}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  {entry.data.evasionProfile && (
+                    <div className="flex flex-wrap gap-1.5 mt-1 pt-1 border-t border-orange-500/10">
+                      <span className="text-[10px] text-muted-foreground">Evasion:</span>
+                      {(entry.data.evasionProfile as any).useFragmentation && <Badge variant="outline" className="text-[9px] text-orange-300 border-orange-500/20">fragment</Badge>}
+                      {(entry.data.evasionProfile as any).useEncryption && <Badge variant="outline" className="text-[9px] text-orange-300 border-orange-500/20">encrypt</Badge>}
+                      {(entry.data.evasionProfile as any).skipAggressive && <Badge variant="outline" className="text-[9px] text-red-300 border-red-500/20">skip aggressive</Badge>}
+                      <span className="text-[10px] text-muted-foreground font-mono ml-auto">rate: {(entry.data.evasionProfile as any).rateMultiplier}x</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {entry.data?.durationMs && (
                 <span className="text-[10px] text-muted-foreground font-mono">Duration: {entry.data.durationMs}ms</span>
               )}
