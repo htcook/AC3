@@ -13,6 +13,13 @@
  *     and WAF detection history.
  *  4. Focus areas — route more resources to asset categories where cloud_assessor
  *     or supply_chain_analyst scores indicate gaps.
+ *  5. Cross-domain sector learning — when a domain has no history, use aggregated
+ *     performance data from other domains in the same sector.
+ * 
+ * Persistence: Data is written to the database (scanGraduationScores,
+ * connectorPerformanceHistory) and also cached in memory for fast lookups.
+ * On first query for a domain, the module hydrates from DB if the in-memory
+ * cache is empty.
  */
 
 import type { GraduationResult } from './post-pipeline-graduation';
@@ -41,6 +48,19 @@ export interface DomainScanHistory {
   sector?: string;
 }
 
+export interface SectorInsights {
+  sector: string;
+  sampleCount: number;
+  avgScores: GraduationResult['scores'] | null;
+  connectorAvgs: Array<{
+    connector: string;
+    avgObservations: number;
+    avgDurationMs: number;
+    failureRate: number;
+    totalRuns: number;
+  }>;
+}
+
 export interface AdaptiveScanStrategy {
   /** Connectors sorted by predicted value (highest first) */
   connectorRanking: ConnectorRank[];
@@ -59,6 +79,8 @@ export interface AdaptiveScanStrategy {
     scanCount: number;
     graduationDataAvailable: boolean;
     connectorHistoryCount: number;
+    sectorLearningApplied: boolean;
+    sectorSampleCount: number;
   };
 }
 
@@ -137,30 +159,189 @@ for (const [cat, connectors] of Object.entries(CONNECTOR_CATEGORIES)) {
   }
 }
 
-// ─── In-Memory Store ─────────────────────────────────────────────────
-// Graduation scores and connector performance are stored in memory and
-// also persisted to the database (see phase 4). This in-memory store
-// provides fast lookups during strategy computation.
+// ─── In-Memory Cache ─────────────────────────────────────────────────
+// Fast lookup layer. Hydrated from DB on first access per domain.
 
 const graduationStore = new Map<string, { scores: GraduationResult['scores']; timestamp: number }[]>();
 const connectorPerfStore = new Map<string, ConnectorPerformance[]>();
+const hydratedDomains = new Set<string>();
+const sectorInsightsCache = new Map<string, { insights: SectorInsights; cachedAt: number }>();
+const SECTOR_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// ─── DB Persistence Layer ────────────────────────────────────────────
 
 /**
- * Record graduation scores for a domain.
+ * Persist graduation scores to DB (fire-and-forget, non-blocking).
  */
-export function recordGraduationScores(domain: string, scores: GraduationResult['scores']): void {
+async function persistGraduationToDB(
+  domain: string,
+  scores: GraduationResult['scores'],
+  opts?: { sector?: string; scanId?: number; engagementId?: number; summary?: string }
+): Promise<void> {
+  try {
+    const { insertGraduationScore } = await import('../db');
+    await insertGraduationScore({
+      domain,
+      sector: opts?.sector || null,
+      scanId: opts?.scanId || null,
+      engagementId: opts?.engagementId || null,
+      scores,
+      summary: opts?.summary || null,
+    });
+  } catch (err: any) {
+    console.warn(`[AdaptiveStrategy] Failed to persist graduation scores for ${domain}:`, err.message);
+  }
+}
+
+/**
+ * Persist connector performance to DB (fire-and-forget, non-blocking).
+ */
+async function persistConnectorPerfToDB(
+  entries: Array<{ connector: string; domain: string; scanId: number; observations: number; durationMs: number; status: ConnectorPerformance['status']; rateLimited?: boolean }>,
+  sector?: string
+): Promise<void> {
+  try {
+    const { bulkInsertConnectorPerformance } = await import('../db');
+    await bulkInsertConnectorPerformance(entries.map(e => ({ ...e, sector: sector || null })));
+  } catch (err: any) {
+    console.warn(`[AdaptiveStrategy] Failed to persist connector performance:`, err.message);
+  }
+}
+
+/**
+ * Hydrate in-memory cache from DB for a specific domain.
+ * Only runs once per domain per server lifetime.
+ */
+async function hydrateFromDB(domain: string): Promise<void> {
+  const key = domain.toLowerCase();
+  if (hydratedDomains.has(key)) return;
+  hydratedDomains.add(key);
+
+  try {
+    const { getGraduationScoresForDomain, getConnectorPerformanceForDomain } = await import('../db');
+
+    // Hydrate graduation scores
+    const dbGrad = await getGraduationScoresForDomain(key, 20);
+    if (dbGrad.length > 0) {
+      const existing = graduationStore.get(key) || [];
+      const existingScanIds = new Set(existing.map(e => e.timestamp)); // rough dedup
+      for (const row of dbGrad) {
+        const ts = new Date(row.createdAt).getTime();
+        if (existingScanIds.has(ts)) continue;
+        existing.push({
+          scores: {
+            recon_analyst: row.reconAnalyst,
+            exploit_selector: row.exploitSelector,
+            evasion_optimizer: row.evasionOptimizer,
+            cognitive_core: row.cognitiveCore,
+            cloud_assessor: row.cloudAssessor,
+            supply_chain_analyst: row.supplyChainAnalyst,
+          },
+          timestamp: ts,
+        });
+      }
+      graduationStore.set(key, existing.slice(-20));
+    }
+
+    // Hydrate connector performance
+    const dbPerf = await getConnectorPerformanceForDomain(key, 500);
+    if (dbPerf.length > 0) {
+      const existing = connectorPerfStore.get(key) || [];
+      const existingScanConnectors = new Set(existing.map(e => `${e.scanId}:${e.connector}`));
+      for (const row of dbPerf) {
+        const dedupKey = `${row.scanId}:${row.connector}`;
+        if (existingScanConnectors.has(dedupKey)) continue;
+        existing.push({
+          connector: row.connector,
+          domain: row.domain,
+          observations: row.observations,
+          durationMs: row.durationMs,
+          status: row.status as ConnectorPerformance['status'],
+          scanId: row.scanId,
+          timestamp: new Date(row.createdAt).getTime(),
+        });
+      }
+      connectorPerfStore.set(key, existing.slice(-500));
+    }
+
+    const gradCount = graduationStore.get(key)?.length || 0;
+    const perfCount = connectorPerfStore.get(key)?.length || 0;
+    if (gradCount > 0 || perfCount > 0) {
+      console.log(`[AdaptiveStrategy] Hydrated ${key}: ${gradCount} graduation records, ${perfCount} connector records from DB`);
+    }
+  } catch (err: any) {
+    console.warn(`[AdaptiveStrategy] DB hydration failed for ${key} (non-fatal):`, err.message);
+  }
+}
+
+/**
+ * Load sector insights from DB with caching.
+ */
+async function loadSectorInsights(sector: string): Promise<SectorInsights | null> {
+  const cached = sectorInsightsCache.get(sector);
+  if (cached && Date.now() - cached.cachedAt < SECTOR_CACHE_TTL_MS) {
+    return cached.insights;
+  }
+
+  try {
+    const { getAvgGraduationScoresBySector, getConnectorAvgsBySector } = await import('../db');
+    const [avgScores, connectorAvgs] = await Promise.all([
+      getAvgGraduationScoresBySector(sector),
+      getConnectorAvgsBySector(sector),
+    ]);
+
+    if (!avgScores && connectorAvgs.length === 0) return null;
+
+    const insights: SectorInsights = {
+      sector,
+      sampleCount: avgScores?.sampleCount || 0,
+      avgScores: avgScores ? {
+        recon_analyst: avgScores.recon_analyst,
+        exploit_selector: avgScores.exploit_selector,
+        evasion_optimizer: avgScores.evasion_optimizer,
+        cognitive_core: avgScores.cognitive_core,
+        cloud_assessor: avgScores.cloud_assessor,
+        supply_chain_analyst: avgScores.supply_chain_analyst,
+      } : null,
+      connectorAvgs,
+    };
+
+    sectorInsightsCache.set(sector, { insights, cachedAt: Date.now() });
+    return insights;
+  } catch (err: any) {
+    console.warn(`[AdaptiveStrategy] Failed to load sector insights for ${sector}:`, err.message);
+    return null;
+  }
+}
+
+// ─── Public Recording API ────────────────────────────────────────────
+
+/**
+ * Record graduation scores for a domain (in-memory + DB).
+ */
+export function recordGraduationScores(
+  domain: string,
+  scores: GraduationResult['scores'],
+  opts?: { sector?: string; scanId?: number; engagementId?: number; summary?: string }
+): void {
   const key = domain.toLowerCase();
   if (!graduationStore.has(key)) graduationStore.set(key, []);
   graduationStore.get(key)!.push({ scores, timestamp: Date.now() });
   // Keep last 20 entries per domain
   const entries = graduationStore.get(key)!;
   if (entries.length > 20) graduationStore.set(key, entries.slice(-20));
+
+  // Invalidate sector cache if sector provided
+  if (opts?.sector) sectorInsightsCache.delete(opts.sector);
+
+  // Persist to DB (fire-and-forget)
+  persistGraduationToDB(key, scores, opts).catch(() => {});
 }
 
 /**
- * Record connector performance for a domain.
+ * Record connector performance for a domain (in-memory + DB).
  */
-export function recordConnectorPerformance(perf: ConnectorPerformance): void {
+export function recordConnectorPerformance(perf: ConnectorPerformance, sector?: string): void {
   const key = perf.domain.toLowerCase();
   if (!connectorPerfStore.has(key)) connectorPerfStore.set(key, []);
   connectorPerfStore.get(key)!.push(perf);
@@ -170,13 +351,16 @@ export function recordConnectorPerformance(perf: ConnectorPerformance): void {
 }
 
 /**
- * Bulk record connector performance from a scan's connector results.
+ * Bulk record connector performance from a scan's connector results (in-memory + DB).
  */
 export function recordConnectorResults(
   domain: string,
   scanId: number,
-  connectorResults: Array<{ connector: string; observations: any[]; errors: string[]; durationMs: number; rateLimited: boolean }>
+  connectorResults: Array<{ connector: string; observations: any[]; errors: string[]; durationMs: number; rateLimited: boolean }>,
+  sector?: string
 ): void {
+  const dbEntries: Array<{ connector: string; domain: string; scanId: number; observations: number; durationMs: number; status: ConnectorPerformance['status']; rateLimited?: boolean }> = [];
+
   for (const cr of connectorResults) {
     const status: ConnectorPerformance['status'] =
       cr.errors.some(e => e.includes('Hard timeout')) ? 'timeout' :
@@ -191,12 +375,35 @@ export function recordConnectorResults(
       status,
       scanId,
       timestamp: Date.now(),
+    }, sector);
+
+    dbEntries.push({
+      connector: cr.connector,
+      domain: domain.toLowerCase(),
+      scanId,
+      observations: cr.observations.length,
+      durationMs: cr.durationMs,
+      status,
+      rateLimited: cr.rateLimited,
     });
+  }
+
+  // Persist all to DB in one batch (fire-and-forget)
+  if (dbEntries.length > 0) {
+    persistConnectorPerfToDB(dbEntries, sector).catch(() => {});
   }
 }
 
 /**
- * Get domain scan history from in-memory stores.
+ * Get domain scan history from in-memory stores (hydrates from DB on first call).
+ */
+export async function getDomainHistoryAsync(domain: string): Promise<DomainScanHistory | null> {
+  await hydrateFromDB(domain);
+  return getDomainHistory(domain);
+}
+
+/**
+ * Get domain scan history from in-memory stores (sync, no DB hydration).
  */
 export function getDomainHistory(domain: string): DomainScanHistory | null {
   const key = domain.toLowerCase();
@@ -232,7 +439,7 @@ export function getDomainHistory(domain: string): DomainScanHistory | null {
     ),
     avgGraduationScores: avgScores,
     connectorPerformance: perfEntries || [],
-    wafDetectedCount: 0, // Will be enriched from graduation data
+    wafDetectedCount: 0,
     wafBypassedCount: 0,
     avgScanDurationMs: perfEntries?.length
       ? perfEntries.reduce((s, p) => s + p.durationMs, 0) / perfEntries.length
@@ -244,36 +451,85 @@ export function getDomainHistory(domain: string): DomainScanHistory | null {
 
 /**
  * Compute an adaptive scan strategy for a domain based on graduation
- * scores and historical connector performance.
+ * scores, historical connector performance, and cross-domain sector learning.
+ * 
+ * This is the async version that hydrates from DB and loads sector insights.
+ */
+export async function computeAdaptiveStrategyAsync(
+  domain: string,
+  options?: {
+    forceScanMode?: 'strict_passive' | 'standard' | 'active';
+    forceInclude?: string[];
+    forceExclude?: string[];
+    sector?: string;
+  }
+): Promise<AdaptiveScanStrategy> {
+  // Hydrate domain history from DB
+  await hydrateFromDB(domain);
+
+  // Load sector insights if sector provided
+  let sectorInsights: SectorInsights | null = null;
+  if (options?.sector) {
+    sectorInsights = await loadSectorInsights(options.sector);
+  }
+
+  return computeAdaptiveStrategy(domain, options, sectorInsights);
+}
+
+/**
+ * Compute an adaptive scan strategy (sync version, uses only in-memory data).
  */
 export function computeAdaptiveStrategy(
   domain: string,
   options?: {
-    /** Override: force a specific scan mode */
     forceScanMode?: 'strict_passive' | 'standard' | 'active';
-    /** Override: force specific connectors to include */
     forceInclude?: string[];
-    /** Override: force specific connectors to exclude */
     forceExclude?: string[];
-    /** Sector hint for cross-domain learning */
     sector?: string;
-  }
+  },
+  sectorInsights?: SectorInsights | null
 ): AdaptiveScanStrategy {
   const history = getDomainHistory(domain);
   const rationale: string[] = [];
-  const confidence = history ? Math.min(1, history.scanCount / 5) : 0;
+  let sectorLearningApplied = false;
+
+  // If no domain history but sector insights available, use sector data
+  const effectiveScores = history?.avgGraduationScores
+    || sectorInsights?.avgScores
+    || null;
+
+  if (!history?.avgGraduationScores && sectorInsights?.avgScores) {
+    sectorLearningApplied = true;
+    rationale.push(`Sector learning: using ${sectorInsights.sector} sector averages (${sectorInsights.sampleCount} samples) — no domain-specific history`);
+  }
+
+  const confidence = history
+    ? Math.min(1, history.scanCount / 5)
+    : (sectorInsights ? Math.min(0.5, sectorInsights.sampleCount / 10) : 0);
+
+  // Build an effective history object that merges domain + sector data
+  const effectiveHistory: DomainScanHistory | null = history || (effectiveScores ? {
+    domain: domain.toLowerCase(),
+    scanCount: sectorInsights?.sampleCount || 0,
+    lastScanAt: 0,
+    avgGraduationScores: effectiveScores,
+    connectorPerformance: [],
+    wafDetectedCount: 0,
+    wafBypassedCount: 0,
+    avgScanDurationMs: 0,
+  } : null);
 
   // ── 1. Connector Ranking ───────────────────────────────────────────
-  const connectorRanking = computeConnectorRanking(domain, history, options, rationale);
+  const connectorRanking = computeConnectorRanking(domain, effectiveHistory, options, rationale, sectorInsights);
 
   // ── 2. Scan Depth ──────────────────────────────────────────────────
-  const scanDepth = computeScanDepth(history, options, rationale);
+  const scanDepth = computeScanDepth(effectiveHistory, options, rationale);
 
   // ── 3. Evasion Preset ──────────────────────────────────────────────
-  const evasionPreset = computeEvasionPreset(history, rationale);
+  const evasionPreset = computeEvasionPreset(effectiveHistory, rationale);
 
   // ── 4. Focus Areas ─────────────────────────────────────────────────
-  const focusAreas = computeFocusAreas(history, rationale);
+  const focusAreas = computeFocusAreas(effectiveHistory, rationale);
 
   return {
     connectorRanking,
@@ -286,6 +542,8 @@ export function computeAdaptiveStrategy(
       scanCount: history?.scanCount || 0,
       graduationDataAvailable: !!history?.avgGraduationScores,
       connectorHistoryCount: history?.connectorPerformance.length || 0,
+      sectorLearningApplied,
+      sectorSampleCount: sectorInsights?.sampleCount || 0,
     },
   };
 }
@@ -294,48 +552,74 @@ function computeConnectorRanking(
   domain: string,
   history: DomainScanHistory | null,
   options: { forceInclude?: string[]; forceExclude?: string[] } | undefined,
-  rationale: string[]
+  rationale: string[],
+  sectorInsights?: SectorInsights | null
 ): ConnectorRank[] {
   const key = domain.toLowerCase();
   const perfEntries = connectorPerfStore.get(key) || [];
 
-  // Group performance by connector
+  // Group performance by connector (domain-level)
   const byConnector = new Map<string, ConnectorPerformance[]>();
   for (const p of perfEntries) {
     if (!byConnector.has(p.connector)) byConnector.set(p.connector, []);
     byConnector.get(p.connector)!.push(p);
   }
 
-  // All known connectors (from categories + history)
+  // Build sector-level connector averages map
+  const sectorAvgMap = new Map<string, { avgObs: number; avgDur: number; failRate: number; runs: number }>();
+  if (sectorInsights?.connectorAvgs) {
+    for (const ca of sectorInsights.connectorAvgs) {
+      sectorAvgMap.set(ca.connector, {
+        avgObs: ca.avgObservations,
+        avgDur: ca.avgDurationMs,
+        failRate: ca.failureRate,
+        runs: ca.totalRuns,
+      });
+    }
+  }
+
+  // All known connectors (from categories + history + sector)
   const allConnectors = new Set<string>();
   for (const connectors of Object.values(CONNECTOR_CATEGORIES)) {
     for (const c of connectors) allConnectors.add(c);
   }
   for (const c of byConnector.keys()) allConnectors.add(c);
+  for (const c of sectorAvgMap.keys()) allConnectors.add(c);
 
   const rankings: ConnectorRank[] = [];
 
   for (const connector of allConnectors) {
     const entries = byConnector.get(connector) || [];
-    const avgObs = entries.length > 0
-      ? entries.reduce((s, e) => s + e.observations, 0) / entries.length
-      : -1; // Unknown
-    const avgDur = entries.length > 0
-      ? entries.reduce((s, e) => s + e.durationMs, 0) / entries.length
-      : -1;
-    const failCount = entries.filter(e => e.status === 'failed' || e.status === 'timeout').length;
-    const failureRate = entries.length > 0 ? failCount / entries.length : 0;
+    const sectorData = sectorAvgMap.get(connector);
 
-    // Score computation:
-    // - Base: 50 (unknown connectors get a neutral score)
-    // - +0-30 for observation yield (more observations = higher score)
-    // - -0-30 for failure rate (higher failure = lower score)
-    // - +0-10 for speed (faster = bonus)
-    // - +0-10 for focus area alignment (if graduation scores indicate gaps)
+    // Use domain-level data if available, otherwise fall back to sector data
+    let avgObs: number;
+    let avgDur: number;
+    let failureRate: number;
+    let dataSource = 'none';
+
+    if (entries.length > 0) {
+      avgObs = entries.reduce((s, e) => s + e.observations, 0) / entries.length;
+      avgDur = entries.reduce((s, e) => s + e.durationMs, 0) / entries.length;
+      const failCount = entries.filter(e => e.status === 'failed' || e.status === 'timeout').length;
+      failureRate = failCount / entries.length;
+      dataSource = 'domain';
+    } else if (sectorData) {
+      avgObs = sectorData.avgObs;
+      avgDur = sectorData.avgDur;
+      failureRate = sectorData.failRate;
+      dataSource = 'sector';
+    } else {
+      avgObs = -1;
+      avgDur = -1;
+      failureRate = 0;
+    }
+
+    // Score computation
     let score = 50;
     let reason = 'No history — using default priority';
 
-    if (entries.length > 0) {
+    if (dataSource !== 'none' && avgObs >= 0) {
       // Observation yield bonus (0-30)
       const obsBonus = Math.min(30, avgObs * 3);
       score += obsBonus;
@@ -350,7 +634,8 @@ function computeConnectorRanking(
         score += speedBonus;
       }
 
-      reason = `Avg ${avgObs.toFixed(1)} obs, ${(failureRate * 100).toFixed(0)}% fail rate, ${(avgDur / 1000).toFixed(1)}s avg`;
+      const sourceLabel = dataSource === 'sector' ? ' [sector]' : '';
+      reason = `Avg ${avgObs.toFixed(1)} obs, ${(failureRate * 100).toFixed(0)}% fail rate, ${(avgDur / 1000).toFixed(1)}s avg${sourceLabel}`;
     }
 
     // Focus area alignment bonus from graduation scores
@@ -358,21 +643,24 @@ function computeConnectorRanking(
       const categories = CONNECTOR_TO_CATEGORIES[connector] || [];
       const gs = history.avgGraduationScores;
 
-      // If cloud_assessor is low and this connector serves cloud_assets, boost it
       if (categories.includes('cloud_assets') && gs.cloud_assessor < 40) {
         score += 10;
         reason += ' | Boosted: low cloud_assessor score';
       }
-      // If supply_chain_analyst is low and this serves supply_chain, boost it
       if (categories.includes('supply_chain') && gs.supply_chain_analyst < 40) {
         score += 10;
         reason += ' | Boosted: low supply_chain score';
       }
-      // If recon_analyst is high, boost core recon connectors for deeper coverage
       if (categories.includes('recon_core') && gs.recon_analyst > 70) {
         score += 5;
         reason += ' | Boosted: strong recon baseline';
       }
+    }
+
+    // Sector-based boost for connectors that perform well across the sector
+    if (dataSource === 'sector' && sectorData && sectorData.runs >= 5 && sectorData.avgObs >= 5) {
+      score += 5;
+      reason += ` | Sector boost: ${sectorData.runs} runs, ${sectorData.avgObs.toFixed(1)} avg obs in sector`;
     }
 
     // Clamp score
@@ -383,8 +671,8 @@ function computeConnectorRanking(
     if (options?.forceInclude?.includes(connector)) { include = true; reason += ' | Force-included'; }
     if (options?.forceExclude?.includes(connector)) { include = false; reason += ' | Force-excluded'; }
 
-    // Connectors with >80% failure rate over 3+ runs are excluded
-    if (failureRate > 0.8 && entries.length >= 3 && !options?.forceInclude?.includes(connector)) {
+    // Connectors with >80% failure rate over 3+ runs are excluded (domain-level only)
+    if (dataSource === 'domain' && failureRate > 0.8 && entries.length >= 3 && !options?.forceInclude?.includes(connector)) {
       include = false;
       reason += ' | Auto-excluded: persistent failures';
     }
@@ -405,7 +693,8 @@ function computeConnectorRanking(
 
   const includedCount = rankings.filter(r => r.include).length;
   const excludedCount = rankings.filter(r => !r.include).length;
-  rationale.push(`Connector ranking: ${includedCount} included, ${excludedCount} excluded based on ${perfEntries.length} historical data points`);
+  const sectorLabel = sectorInsights ? ` + ${sectorInsights.sampleCount} sector samples` : '';
+  rationale.push(`Connector ranking: ${includedCount} included, ${excludedCount} excluded based on ${perfEntries.length} domain data points${sectorLabel}`);
 
   return rankings;
 }
@@ -437,36 +726,30 @@ function computeScanDepth(
 
   const gs = history.avgGraduationScores;
 
-  // Recon analyst score drives depth decisions
   if (gs.recon_analyst >= 70) {
-    // Strong recon performance → go deeper
     defaults.maxConcurrent = 8;
     defaults.connectorTimeout = 20000;
     defaults.enableRecursiveDiscovery = true;
     defaults.recursiveDepth = 3;
     rationale.push(`Scan depth: DEEP — recon_analyst score ${gs.recon_analyst} indicates strong baseline, increasing depth for diminishing-return coverage`);
   } else if (gs.recon_analyst >= 40) {
-    // Moderate → standard with slight boost
     defaults.maxConcurrent = 6;
     defaults.connectorTimeout = 15000;
     defaults.enableRecursiveDiscovery = true;
     defaults.recursiveDepth = 2;
     rationale.push(`Scan depth: STANDARD+ — recon_analyst score ${gs.recon_analyst}, enabling recursive discovery`);
   } else {
-    // Low recon score → focus on breadth, not depth
     defaults.maxConcurrent = 10;
     defaults.connectorTimeout = 12000;
     defaults.enableRecursiveDiscovery = false;
     rationale.push(`Scan depth: BROAD — recon_analyst score ${gs.recon_analyst} is low, maximizing connector breadth over depth`);
   }
 
-  // Cognitive core score influences scan mode
   if (gs.cognitive_core >= 80 && history.scanCount >= 3) {
     defaults.scanMode = 'active';
     rationale.push(`Scan mode: ACTIVE — cognitive_core score ${gs.cognitive_core} with ${history.scanCount} prior scans justifies active probing`);
   }
 
-  // If average scan duration is very long, reduce concurrency to avoid overload
   if (history.avgScanDurationMs > 180000) {
     defaults.maxConcurrent = Math.max(3, defaults.maxConcurrent - 2);
     rationale.push(`Concurrency reduced: avg scan duration ${(history.avgScanDurationMs / 1000).toFixed(0)}s exceeds 3min threshold`);
@@ -498,7 +781,6 @@ function computeEvasionPreset(
     : 0;
 
   if (evasionScore >= 80) {
-    // High evasion score → WAF handling is working well, stay aggressive
     rationale.push(`Evasion: NONE — evasion_optimizer score ${evasionScore} indicates clean scanning`);
     return {
       name: 'none',
@@ -510,7 +792,6 @@ function computeEvasionPreset(
   }
 
   if (evasionScore >= 50 || wafRate > 0.3) {
-    // Moderate evasion or frequent WAF → be cautious
     rationale.push(`Evasion: CAUTIOUS — evasion_optimizer score ${evasionScore}, WAF rate ${(wafRate * 100).toFixed(0)}%`);
     return {
       name: 'cautious',
@@ -522,7 +803,6 @@ function computeEvasionPreset(
   }
 
   if (evasionScore < 50) {
-    // Low evasion score → target has strong defenses, go aggressive evasion
     rationale.push(`Evasion: AGGRESSIVE — evasion_optimizer score ${evasionScore} indicates strong target defenses`);
     return {
       name: 'aggressive',
@@ -549,7 +829,6 @@ function computeFocusAreas(
 
   const gs = history.avgGraduationScores;
 
-  // Cloud assessment gap
   if (gs.cloud_assessor < 30) {
     areas.push({
       area: 'Cloud & Container Assets',
@@ -566,7 +845,6 @@ function computeFocusAreas(
     });
   }
 
-  // Supply chain gap
   if (gs.supply_chain_analyst < 30) {
     areas.push({
       area: 'Supply Chain & Code Exposure',
@@ -583,7 +861,6 @@ function computeFocusAreas(
     });
   }
 
-  // Exploit/vuln identification gap
   if (gs.exploit_selector < 40) {
     areas.push({
       area: 'Vulnerability Identification',
@@ -593,7 +870,6 @@ function computeFocusAreas(
     });
   }
 
-  // Credential exposure gap (inferred from recon + exploit scores)
   if (gs.recon_analyst > 60 && gs.exploit_selector < 50) {
     areas.push({
       area: 'Credential & Data Exposure',
@@ -603,7 +879,6 @@ function computeFocusAreas(
     });
   }
 
-  // Evasion gap
   if (gs.evasion_optimizer < 50) {
     areas.push({
       area: 'WAF/Defense Evasion',
@@ -626,7 +901,6 @@ function computeFocusAreas(
 
 /**
  * Apply an adaptive strategy to filter and reorder a connector list.
- * Returns the connectors in recommended execution order.
  */
 export function applyConnectorStrategy(
   allConnectors: Array<{ name: string; [key: string]: any }>,
@@ -634,13 +908,11 @@ export function applyConnectorStrategy(
 ): Array<{ name: string; [key: string]: any }> {
   const rankMap = new Map(strategy.connectorRanking.map(r => [r.connector, r]));
 
-  // Filter out excluded connectors
   const included = allConnectors.filter(c => {
     const rank = rankMap.get(c.name);
-    return !rank || rank.include; // If no ranking data, include by default
+    return !rank || rank.include;
   });
 
-  // Sort by ranking score (highest first)
   included.sort((a, b) => {
     const scoreA = rankMap.get(a.name)?.score ?? 50;
     const scoreB = rankMap.get(b.name)?.score ?? 50;
@@ -655,13 +927,16 @@ export function applyConnectorStrategy(
  */
 export function formatStrategySummary(strategy: AdaptiveScanStrategy): string {
   const lines: string[] = [
-    `[AdaptiveStrategy] Confidence: ${(strategy.confidence * 100).toFixed(0)}% (${strategy.basedOn.scanCount} prior scans)`,
+    `[AdaptiveStrategy] Confidence: ${(strategy.confidence * 100).toFixed(0)}% (${strategy.basedOn.scanCount} prior scans${strategy.basedOn.sectorLearningApplied ? ` + ${strategy.basedOn.sectorSampleCount} sector samples` : ''})`,
     `  Scan depth: mode=${strategy.scanDepth.scanMode}, concurrent=${strategy.scanDepth.maxConcurrent}, timeout=${strategy.scanDepth.connectorTimeout}ms`,
     `  Evasion: ${strategy.evasionPreset.name} — ${strategy.evasionPreset.reason}`,
     `  Connectors: ${strategy.connectorRanking.filter(r => r.include).length} included, ${strategy.connectorRanking.filter(r => !r.include).length} excluded`,
   ];
   if (strategy.focusAreas.length > 0) {
     lines.push(`  Focus areas: ${strategy.focusAreas.map(a => `${a.area} (${a.priority})`).join(', ')}`);
+  }
+  if (strategy.basedOn.sectorLearningApplied) {
+    lines.push(`  Sector learning: applied (${strategy.basedOn.sectorSampleCount} samples)`);
   }
   for (const r of strategy.rationale) {
     lines.push(`  → ${r}`);
@@ -670,9 +945,18 @@ export function formatStrategySummary(strategy: AdaptiveScanStrategy): string {
 }
 
 /**
+ * Get sector insights for a given sector (for external consumers).
+ */
+export async function getSectorInsights(sector: string): Promise<SectorInsights | null> {
+  return loadSectorInsights(sector);
+}
+
+/**
  * Reset in-memory stores (for testing).
  */
 export function _resetStores(): void {
   graduationStore.clear();
   connectorPerfStore.clear();
+  hydratedDomains.clear();
+  sectorInsightsCache.clear();
 }

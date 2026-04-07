@@ -74,8 +74,8 @@ export const domainIntelRouter = router({
             // ═══ ADAPTIVE STRATEGY — Compute scan tuning from graduation history ═══
             let adaptiveStrategy: any = null;
             try {
-              const { computeAdaptiveStrategy, formatStrategySummary } = await import('../lib/adaptive-scan-strategy');
-              adaptiveStrategy = computeAdaptiveStrategy(pipelineInput.primaryDomain, {
+              const { computeAdaptiveStrategyAsync, formatStrategySummary } = await import('../lib/adaptive-scan-strategy');
+              adaptiveStrategy = await computeAdaptiveStrategyAsync(pipelineInput.primaryDomain, {
                 forceScanMode: pipelineInput.scanMode || undefined,
                 sector: pipelineInput.sector,
               });
@@ -532,9 +532,9 @@ export const domainIntelRouter = router({
                 // Record graduation scores + connector performance for adaptive strategy
                 try {
                   const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores);
+                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores, { sector: pipelineInput.sector, scanId });
                   if (result.passiveRecon?.connectorResults) {
-                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults, pipelineInput.sector);
                   }
                 } catch {}
               } catch (gradErr: any) {
@@ -609,13 +609,13 @@ export const domainIntelRouter = router({
                 // Record graduation scores + connector performance for adaptive strategy
                 try {
                   const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores);
+                  recordGraduationScores(pipelineInput.primaryDomain, graduation.scores, { sector: pipelineInput.sector, scanId });
                   if (result.passiveRecon?.connectorResults) {
-                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                    recordConnectorResults(pipelineInput.primaryDomain, scanId, result.passiveRecon.connectorResults, pipelineInput.sector);
                   }
                 } catch {}
               } catch (gradErr: any) {
-                console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
+                console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (full engagement, non-fatal):`, gradErr.message);
               }
 
               // Auto-harvest credentials from passive recon observations into engagement credential list
@@ -1121,9 +1121,9 @@ export const domainIntelRouter = router({
               console.log(`[DomainIntel] \u{1F393} Graduation for retry scan ${scanId}: ${graduation.summary}`);
               try {
                 const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                recordGraduationScores(scan.primaryDomain, graduation.scores);
+                recordGraduationScores(scan.primaryDomain, graduation.scores, { sector: scan.sector, scanId });
                 if (result.passiveRecon?.connectorResults) {
-                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults, scan.sector);
                 }
               } catch {}
             } catch (gradErr: any) {
@@ -1287,9 +1287,9 @@ export const domainIntelRouter = router({
                 console.log(`[DomainIntel] \u{1F393} Graduation for bulk-retry scan ${scanId}: ${graduation.summary}`);
                 try {
                   const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                  recordGraduationScores(scan.primaryDomain, graduation.scores);
+                  recordGraduationScores(scan.primaryDomain, graduation.scores, { sector: scan.sector, scanId });
                   if (result.passiveRecon?.connectorResults) {
-                    recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                    recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults, scan.sector);
                   }
                 } catch {}
               } catch (gradErr: any) {
@@ -1711,9 +1711,9 @@ export const domainIntelRouter = router({
               console.log(`[DomainIntel] \u{1F393} Graduation for refresh scan ${scanId}: ${graduation.summary}`);
               try {
                 const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                recordGraduationScores(scan.primaryDomain, graduation.scores);
+                recordGraduationScores(scan.primaryDomain, graduation.scores, { sector: scan.sector, scanId });
                 if (result.passiveRecon?.connectorResults) {
-                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults);
+                  recordConnectorResults(scan.primaryDomain, scanId, result.passiveRecon.connectorResults, scan.sector);
                 }
               } catch {}
             } catch (gradErr: any) {
@@ -2829,7 +2829,7 @@ export const domainIntelRouter = router({
               console.log(`[DomainIntel] \u{1F393} Graduation for quick scan ${scanId}: ${graduation.summary}`);
               try {
                 const { recordGraduationScores, recordConnectorResults } = await import('../lib/adaptive-scan-strategy');
-                recordGraduationScores(cleanDomain, graduation.scores);
+                recordGraduationScores(cleanDomain, graduation.scores, { scanId });
                 if (result.passiveRecon?.connectorResults) {
                   recordConnectorResults(cleanDomain, scanId, result.passiveRecon.connectorResults);
                 }
