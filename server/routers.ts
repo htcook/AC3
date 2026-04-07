@@ -18,6 +18,7 @@ import { clientPortalRouter } from "./routers/client-portal";
 import { customerPortalRouter } from "./routers/customer-portal";
 import { emulationPlaybooksRouter } from "./routers/emulation-playbooks";
 import { evidenceRouter } from "./routers/evidence";
+import { adjustmentEffectivenessRouter } from "./routers/adjustment-effectiveness";
 import { attackPathsRouter } from "./routers/attack-paths";
 import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
@@ -543,6 +544,8 @@ export const appRouter = router({
   // ─── Automated Test Plan Generator (PTES/NIST DI→Engagement Bridge) ──
   testPlanGenerator: testPlanGeneratorRouter,
   engagementResults: engagementResultsRouter,
+  // ─── Adjustment Effectiveness Feedback Loop ──
+  adjustmentEffectiveness: adjustmentEffectivenessRouter,
 });
 export type AppRouter = typeof appRouter;
 
