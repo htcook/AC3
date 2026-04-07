@@ -424,6 +424,48 @@ export interface PipelineResult {
   threatMatching?: DIThreatMatchResult;
   /** Technology stack grouping — clusters assets by shared tech stack */
   techStackGrouping?: TechStackGroupingResult;
+  /** Incident search enrichment — cross-references domain against threat catalog and web sources */
+  incidentSearch?: {
+    domain: string;
+    searchedAt: number;
+    totalMatches: number;
+    hasActiveThreats: boolean;
+    hasRansomwareEvent: boolean;
+    hasRecentBreach: boolean;
+    riskFloorContribution: number;
+    summary: string;
+    catalogMatches: Array<{
+      source: string;
+      actorId?: string;
+      actorName?: string;
+      actorType?: string;
+      eventType?: string;
+      title: string;
+      description: string;
+      severity: string;
+      date?: string;
+      victimName?: string;
+      victimSector?: string;
+      mitreTechniques?: string[];
+      confidence: string;
+      relevanceScore: number;
+    }>;
+    webSearchMatches: Array<{
+      source: string;
+      actorName?: string;
+      actorType?: string;
+      eventType?: string;
+      title: string;
+      description: string;
+      severity: string;
+      date?: string;
+      mitreTechniques?: string[];
+      confidence: string;
+      relevanceScore: number;
+    }>;
+    newActorsDiscovered: string[];
+    newTTPsDiscovered: string[];
+  };
 }
 
 export interface BreachDataSummary {
@@ -4010,6 +4052,38 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Threat matching failed (non-fatal): ${err.message}`);
   }
 
+  // ─── Stage 4.55: Incident Search Enrichment ─────────────────────────
+  // Cross-references domain against internal threat catalog and LLM web search
+  // to find known incidents, ransomware events, and breach details.
+  let incidentSearchResult: PipelineResult['incidentSearch'] | undefined;
+  try {
+    const { runIncidentSearchEnrichment } = await import('./lib/incident-search-enrichment');
+    console.log(`[DomainIntel] Stage 4.55: Running incident search enrichment for ${org.primaryDomain}`);
+    const isResult = await runIncidentSearchEnrichment(org.primaryDomain);
+    incidentSearchResult = {
+      domain: isResult.domain,
+      searchedAt: isResult.searchedAt,
+      totalMatches: isResult.totalMatches,
+      hasActiveThreats: isResult.hasActiveThreats,
+      hasRansomwareEvent: isResult.hasRansomwareEvent,
+      hasRecentBreach: isResult.hasRecentBreach,
+      riskFloorContribution: isResult.riskFloorContribution,
+      summary: isResult.summary,
+      catalogMatches: isResult.catalogMatches,
+      webSearchMatches: isResult.webSearchMatches,
+      newActorsDiscovered: isResult.newActorsDiscovered,
+      newTTPsDiscovered: isResult.newTTPsDiscovered,
+    };
+    console.log(
+      `[DomainIntel] Incident search: ${isResult.totalMatches} matches ` +
+      `(${isResult.catalogMatches.length} catalog, ${isResult.webSearchMatches.length} web), ` +
+      `ransomware=${isResult.hasRansomwareEvent}, breach=${isResult.hasRecentBreach}, ` +
+      `risk floor contribution=${isResult.riskFloorContribution}`
+    );
+  } catch (err: any) {
+    console.error(`[DomainIntel] Stage 4.55 incident search failed (non-fatal): ${err.message}`);
+  }
+
   // ─── Compute Scan Delta (cross-session comparison) ──────────────────
   let scanDelta: PipelineResult['scanDelta'] | undefined;
   try {
@@ -4042,13 +4116,142 @@ export async function runDomainIntelPipeline(
     console.error(`[DomainIntel] Scan delta computation failed (non-fatal): ${err.message}`);
   }
 
+  // ─── Domain-Level Threat Indicator Floor ───────────────────────────
+  // The blended per-asset score (60% max + 40% avg) can be diluted when many
+  // low-risk subdomains outnumber a few high-risk assets. Domain-level threat
+  // indicators (KEV matches, ransomware exposure, critical CVEs, breach volume,
+  // active threat actor targeting) establish a FLOOR that the overall score
+  // cannot drop below. This ensures the report accurately reflects the true
+  // risk posture when domain-wide threat signals are present.
+  let adjustedRisk = overallRisk;
+  let adjustedBand = overallBand;
+  const floorReasons: string[] = [];
+
+  // Floor 1: CISA KEV matches with ransomware exposure → minimum HIGH (75)
+  if (kevEnrichment && kevEnrichment.ransomwareExposure && kevEnrichment.matches.length > 0) {
+    const floor = 75;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`KEV ransomware exposure (${kevEnrichment.matches.length} KEV matches, ransomware-linked) → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+  // Floor 2: Multiple KEV matches without ransomware → minimum MEDIUM-HIGH (55)
+  else if (kevEnrichment && kevEnrichment.matches.length >= 3) {
+    const floor = 55;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`${kevEnrichment.matches.length} CISA KEV matches → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+  // Floor 3: Any KEV match → minimum MEDIUM (45)
+  else if (kevEnrichment && kevEnrichment.matches.length > 0) {
+    const floor = 45;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`${kevEnrichment.matches.length} CISA KEV match(es) → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+
+  // Floor 4: Critical severity findings (severity >= 9) → minimum MEDIUM-HIGH (60)
+  const criticalFindings = analyses.flatMap(a => a.postureFindings)
+    .filter((f: any) => f.severity >= 9 && (f.corroborationTier === 'confirmed' || f.corroborationTier === 'probable'));
+  if (criticalFindings.length >= 3) {
+    const floor = 65;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`${criticalFindings.length} critical-severity findings (sev≥9) → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  } else if (criticalFindings.length > 0) {
+    const floor = 50;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`${criticalFindings.length} critical-severity finding(s) → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+
+  // Floor 5: High breach exposure → minimum MEDIUM (45-60 based on volume)
+  if (breachData) {
+    if (breachData.credentialPairs >= 100) {
+      const floor = 60;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${breachData.credentialPairs} exposed credentials across ${breachData.uniqueBreachSources} breaches → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    } else if (breachData.totalExposures >= 50) {
+      const floor = 50;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${breachData.totalExposures} breach exposures → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    } else if (breachData.totalExposures >= 10) {
+      const floor = 45;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${breachData.totalExposures} breach exposures → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    }
+  }
+
+  // Floor 6: Active threat actor targeting → minimum MEDIUM-HIGH (55)
+  if (threatMatchingResult && threatMatchingResult.summary.totalMatched >= 2) {
+    const topScore = threatMatchingResult.summary.topGroupScore || 0;
+    if (topScore >= 70) {
+      const floor = 65;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${threatMatchingResult.summary.totalMatched} threat groups matched (top: ${threatMatchingResult.summary.topGroupName}, score: ${topScore}) → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    } else {
+      const floor = 55;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${threatMatchingResult.summary.totalMatched} threat groups matched → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    }
+  }
+
+  // Floor 7: High confirmed finding count → minimum MEDIUM (50)
+  if (confirmedFindingsCount >= 10) {
+    const floor = 55;
+    if (adjustedRisk < floor) {
+      floorReasons.push(`${confirmedFindingsCount} confirmed findings → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+
+  // Floor 8: Incident search enrichment — confirmed incidents, ransomware, breaches
+  if (incidentSearchResult && incidentSearchResult.riskFloorContribution > 0) {
+    const floor = incidentSearchResult.riskFloorContribution;
+    if (adjustedRisk < floor) {
+      const reasons: string[] = [];
+      if (incidentSearchResult.hasRansomwareEvent) reasons.push('ransomware event');
+      if (incidentSearchResult.hasRecentBreach) reasons.push('recent breach');
+      if (incidentSearchResult.hasActiveThreats) reasons.push('active threats');
+      floorReasons.push(`Incident search: ${incidentSearchResult.totalMatches} incidents (${reasons.join(', ')}) → floor ${floor}`);
+      adjustedRisk = floor;
+    }
+  }
+
+  // Apply the floor adjustment
+  if (adjustedRisk !== overallRisk) {
+    adjustedBand = riskBand(adjustedRisk);
+    console.log(`[DomainIntel] Risk floor adjustment: ${overallRisk} (${overallBand}) → ${adjustedRisk} (${adjustedBand}). Reasons: ${floorReasons.join('; ')}`);
+  }
+
   return {
     orgProfile: org,
     assets: analyses,
     campaignRecommendations: campaigns,
     carverRiskCard,
-    overallRiskScore: overallRisk,
-    overallRiskBand: overallBand,
+    overallRiskScore: adjustedRisk,
+    overallRiskBand: adjustedBand,
+    riskFloorApplied: floorReasons.length > 0 ? {
+      originalScore: overallRisk,
+      originalBand: overallBand,
+      adjustedScore: adjustedRisk,
+      adjustedBand,
+      reasons: floorReasons,
+    } : undefined,
     riskScoreExclusions: excludedFromRiskCount > 0 ? {
       excludedCount: excludedFromRiskCount,
       totalAnalyzed: analyses.length,
@@ -4085,6 +4288,7 @@ export async function runDomainIntelPipeline(
     scanDelta,
     pipelineCrawl: pipelineCrawlResult,
     threatMatching: threatMatchingResult,
+    incidentSearch: incidentSearchResult,
     techStackGrouping: (() => {
       try {
         console.log(`[DomainIntel] Stage 4.6: Computing technology stack grouping...`);

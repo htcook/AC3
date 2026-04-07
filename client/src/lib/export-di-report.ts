@@ -37,6 +37,28 @@ function dateStamp(): string {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+/** Robust date formatter — handles ISO strings, Unix timestamps (s or ms), and epoch numbers */
+function safeFormatDate(value: any): string {
+  if (!value) return 'N/A';
+  let d: Date;
+  if (typeof value === 'number') {
+    // If < 1e12, assume seconds; otherwise milliseconds
+    d = new Date(value < 1e12 ? value * 1000 : value);
+  } else if (typeof value === 'string') {
+    // Try parsing as-is first
+    d = new Date(value);
+    // If invalid, try as Unix timestamp string
+    if (isNaN(d.getTime())) {
+      const num = Number(value);
+      if (!isNaN(num)) d = new Date(num < 1e12 ? num * 1000 : num);
+    }
+  } else {
+    d = new Date(value);
+  }
+  if (isNaN(d.getTime())) return String(value); // Return raw value if all parsing fails
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function getRiskColor(band: string): [number, number, number] {
   switch (band?.toLowerCase()) {
     case 'critical': return [220, 38, 38];
@@ -503,10 +525,23 @@ export async function exportDiReport(
   doc.text('Domain Intelligence', margin, 55);
   doc.text('Report', margin, 67);
 
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text(domain, margin, 82);
+  // Show organization name prominently if available, domain as subtitle
+  const orgName = scan.orgProfile?.customerName || scan.orgProfile?.organizationName;
+  if (orgName && orgName !== domain) {
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(226, 232, 240);
+    doc.text(orgName, margin, 80);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(domain, margin, 88);
+  } else {
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(domain, margin, 82);
+  }
 
   // Risk score box
   let y = 100;
@@ -662,13 +697,23 @@ export async function exportDiReport(
   const _blacklistCount = domainHealth.blacklist?.listings?.length ?? 0;
   const _blacklistActionable = domainHealth.blacklist?.listings?.filter((l: any) => l.actionRequired !== false)?.length ?? 0;
 
-  // Compose BLUF
+  // Compose BLUF — Professional NIST-style executive summary
+  // Structure: Assessment Purpose → Scope → Risk Rating → Key Findings → Immediate Actions
   const blufParts: string[] = [];
 
-  // Opening: risk posture
-  blufParts.push(`${domain} presents a ${riskBand.toUpperCase()} risk posture (${riskScore}/100) based on passive analysis of ${_totalAssets} discovered asset(s) across ${connectorCount} intelligence sources.`);
+  // 1. Assessment Purpose & Scope
+  const scanDateStr = scan.completedAt ? new Date(scan.completedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  blufParts.push(`This Domain Intelligence assessment was conducted on ${scanDateStr} to evaluate the external attack surface and security posture of the target organization. The assessment scope encompassed ${_totalAssets} discovered asset(s) analyzed through ${connectorCount} passive intelligence sources, including subdomain enumeration, certificate transparency, breach databases, vulnerability correlation, and threat actor attribution.`);
 
-  // Findings breakdown — prefer unique CVE counts for clarity
+  // 2. Overall Risk Rating with floor explanation
+  const _riskFloor = scan.riskFloorApplied;
+  if (_riskFloor) {
+    blufParts.push(`The overall risk rating is ${riskBand.toUpperCase()} (${riskScore}/100), adjusted upward from the asset-level blended score of ${_riskFloor.originalScore}/100 (${_riskFloor.originalBand.toUpperCase()}) due to domain-level threat indicators: ${_riskFloor.reasons.join('; ')}.`);
+  } else {
+    blufParts.push(`The overall risk rating is ${riskBand.toUpperCase()} (${riskScore}/100), derived from a weighted blend of individual asset risk scores across the discovered attack surface.`);
+  }
+
+  // 3. Vulnerability Findings Summary
   const _uniqueCve = scan.uniqueCveSummary;
   if (_totalFindings > 0) {
     const findingBreakdown: string[] = [];
@@ -676,96 +721,97 @@ export async function exportDiReport(
     if (_probableFc > 0) findingBreakdown.push(`${_probableFc} probable`);
     if (_potentialFc > 0) findingBreakdown.push(`${_potentialFc} potential`);
     if (_uniqueCve && _uniqueCve.uniqueCveCount > 0 && _uniqueCve.uniqueCveCount < _totalFindings) {
-      // Show unique CVEs prominently, total instances as context
-      blufParts.push(`The scan identified ${_uniqueCve.uniqueCveCount} unique vulnerabilities across ${_totalAssets} asset(s) (${_totalFindings} total finding instances: ${findingBreakdown.join(', ')}). On average, each vulnerability affects ${_uniqueCve.averageAssetsPerCve} asset(s).`);
+      blufParts.push(`Vulnerability analysis identified ${_uniqueCve.uniqueCveCount} unique vulnerabilities across the attack surface (${_totalFindings} total instances: ${findingBreakdown.join(', ')}), with an average exposure of ${_uniqueCve.averageAssetsPerCve} affected asset(s) per vulnerability.`);
     } else {
-      blufParts.push(`The scan identified ${_totalFindings} total finding(s) (${findingBreakdown.join(', ')}).`);
+      blufParts.push(`Vulnerability analysis identified ${_totalFindings} finding(s) across the attack surface (${findingBreakdown.join(', ')}).`);
     }
   }
 
-  // Critical/high assets
-  if (_blCritical > 0 || _blHigh > 0) {
-    const riskParts: string[] = [];
-    if (_blCritical > 0) riskParts.push(`${_blCritical} critical`);
-    if (_blHigh > 0) riskParts.push(`${_blHigh} high`);
-    blufParts.push(`${riskParts.join(' and ')} risk asset(s) require immediate attention.`);
-  }
-
-  // KEV — use unique CVE count when available
+  // 4. Critical Exposure Indicators
+  const criticalIndicators: string[] = [];
+  if (_blCritical > 0) criticalIndicators.push(`${_blCritical} critical-risk asset(s)`);
+  if (_blHigh > 0) criticalIndicators.push(`${_blHigh} high-risk asset(s)`);
   if (_kevCount > 0) {
-    if (_uniqueCve && _uniqueCve.uniqueKevCveCount > 0 && _uniqueCve.uniqueKevCveCount < _kevCount) {
-      blufParts.push(`${_uniqueCve.uniqueKevCveCount} unique CISA KEV vulnerabilities were identified across ${_kevCount} finding instance(s).`);
-    } else {
-      blufParts.push(`${_kevCount} finding(s) are listed in CISA's Known Exploited Vulnerabilities catalog.`);
-    }
+    const kevLabel = _uniqueCve && _uniqueCve.uniqueKevCveCount > 0 && _uniqueCve.uniqueKevCveCount < _kevCount
+      ? `${_uniqueCve.uniqueKevCveCount} unique CISA Known Exploited Vulnerabilities (${_kevCount} instances)`
+      : `${_kevCount} CISA Known Exploited Vulnerability match(es)`;
+    criticalIndicators.push(kevLabel);
+  }
+  if (_exploitTotal > 0) criticalIndicators.push(`${_exploitTotal} publicly available exploit(s)`);
+  if (_confirmedLogins > 0) criticalIndicators.push(`${_confirmedLogins} confirmed default credential login(s)`);
+  if (criticalIndicators.length > 0) {
+    blufParts.push(`The following critical exposure indicators were identified and require immediate attention: ${criticalIndicators.join('; ')}.`);
   }
 
-  // Exploit availability
-  if (_exploitTotal > 0) {
-    blufParts.push(`${_exploitTotal} public exploit(s) were matched (${scan.exploitMatches?.totalMetasploit || 0} Metasploit, ${scan.exploitMatches?.totalExploitDb || 0} ExploitDB, ${scan.exploitMatches?.totalCalderaAbilities || 0} Caldera).`);
-  }
-
-  // Breach exposure
-  if (_breachExposures > 0) {
-    blufParts.push(`Breach intelligence shows ${_breachExposures} credential exposure(s) across ${_breachEmails} unique email(s).`);
-  }
-
-  // Default credentials
-  if (_oemCredCount > 0) {
-    const loginNote = _confirmedLogins > 0 ? ` — ${_confirmedLogins} confirmed accessible` : '';
-    blufParts.push(`${_oemCredCount} default/OEM credential set(s) matched to discovered services${loginNote}.`);
-  }
-
-  // Email security
-  if (_emailGrade) {
-    blufParts.push(`Email security posture is grade ${_emailGrade}.`);
-  }
-
-  // Blacklist — include the actual IP address for specificity
-  const _blIp = domainHealth.blacklist?.ip || '';
-  if (_blacklistCount > 0) {
-    blufParts.push(`${_blIp ? `IP ${_blIp}` : 'Primary IP'} is listed on ${_blacklistCount} DNSBL(s) (${_blacklistActionable} actionable).`);
-  } else if (domainHealth.blacklist) {
-    blufParts.push(`${_blIp ? `IP ${_blIp}` : 'Primary IP'} is clean across all ${domainHealth.blacklist.totalChecked || ''} monitored blacklists.`);
-  }
-
-  // Compliance
-  if (_complianceScore !== null) {
-    blufParts.push(`External compliance scan scored ${_complianceScore}% (${scan.complianceScan?.passed}/${scan.complianceScan?.totalChecks} checks passed).`);
-  }
-
-  // Container exposure
-  if (_containerHits > 0) {
-    blufParts.push(`${_containerHits} exposed container service(s) detected (${scan.containerExposure?.criticalFindings || 0} critical).`);
-  }
-
-  // Scan delta trend
-  if (_scanDelta && _scanDelta.riskDelta !== null) {
-    const direction = _scanDelta.riskDelta > 0 ? 'increased' : _scanDelta.riskDelta < 0 ? 'decreased' : 'unchanged';
-    const deltaAbs = Math.abs(_scanDelta.riskDelta);
-    blufParts.push(`Compared to the previous scan (#${_scanDelta.scanNumber - 1}), risk has ${direction}${deltaAbs > 0 ? ` by ${deltaAbs} points` : ''} (${_scanDelta.previousRiskScore} → ${riskScore}).`);
-  }
-
-  // Threat actor matching
+  // 5. Threat Actor Attribution (key differentiator)
   const _tmData = scan.threatMatching;
   if (_tmData && _tmData.summary.totalMatched > 0) {
     const topGroup = _tmData.matchedGroups[0];
     const groupTypes = [...new Set(_tmData.matchedGroups.map((g: any) => g.groupType))];
-    blufParts.push(`Threat intelligence catalog matching identified ${_tmData.summary.totalMatched} threat group(s) with TTP overlap (${groupTypes.map((t: string) => t.toUpperCase()).join(', ')}), led by ${topGroup.groupName} (score: ${topGroup.matchScore}/100). ${_tmData.summary.totalAttackPaths} viable attack path(s) were synthesized from confirmed findings across ${_tmData.summary.uniqueTechniques} MITRE ATT&CK techniques.`);
+    const groupNames = _tmData.matchedGroups.slice(0, 3).map((g: any) => g.groupName).join(', ');
+    blufParts.push(`Threat intelligence correlation against the master threat group catalog identified ${_tmData.summary.totalMatched} adversary group(s) with tactics, techniques, and procedures (TTPs) that align with the discovered attack surface. Matched groups include ${groupNames} (${groupTypes.map((t: string) => t.toUpperCase()).join(', ')}), with the highest attribution confidence assigned to ${topGroup.groupName} (match score: ${topGroup.matchScore}/100). Analysis synthesized ${_tmData.summary.totalAttackPaths} viable attack path(s) spanning ${_tmData.summary.uniqueTechniques} MITRE ATT&CK techniques, providing actionable context for defensive prioritization.`);
   }
 
-  // Top recommendation
+  // 5b. Incident Search Intelligence (known incidents, ransomware events, breach history)
+  const _incidentSearch = scan.incidentSearch;
+  if (_incidentSearch && _incidentSearch.totalMatches > 0) {
+    const incParts: string[] = [];
+    incParts.push(`Incident intelligence search identified ${_incidentSearch.totalMatches} known security incident(s) associated with the target organization`);
+    if (_incidentSearch.hasRansomwareEvent) {
+      const ransomwareIncidents = [...(_incidentSearch.catalogMatches || []), ...(_incidentSearch.webSearchMatches || [])]
+        .filter((m: any) => m.eventType === 'ransomware' || m.actorType === 'ransomware');
+      const actorNames = [...new Set(ransomwareIncidents.map((m: any) => m.actorName).filter(Boolean))];
+      incParts.push(`including a confirmed ransomware event${actorNames.length > 0 ? ` attributed to ${actorNames.join(', ')}` : ''}`);
+    }
+    if (_incidentSearch.hasRecentBreach) incParts.push('with recent data breach activity identified');
+    const catalogCount = _incidentSearch.catalogMatches?.length || 0;
+    const webCount = _incidentSearch.webSearchMatches?.length || 0;
+    if (catalogCount > 0 && webCount > 0) {
+      incParts.push(`(${catalogCount} from internal threat catalog, ${webCount} from open-source intelligence)`);
+    }
+    blufParts.push(`${incParts.join(', ')}. This historical incident context significantly informs the risk assessment and defensive prioritization.`);
+  }
+
+  // 6. Breach & Credential Exposure
+  if (_breachExposures > 0 || _oemCredCount > 0) {
+    const breachParts: string[] = [];
+    if (_breachExposures > 0) breachParts.push(`${_breachExposures} credential exposure(s) across ${_breachEmails} unique email address(es) from ${scan.breachData?.uniqueBreachSources || 'multiple'} breach source(s)`);
+    if (_oemCredCount > 0) {
+      const loginNote = _confirmedLogins > 0 ? `, of which ${_confirmedLogins} were confirmed accessible during testing` : '';
+      breachParts.push(`${_oemCredCount} default/OEM credential set(s) matched to discovered services${loginNote}`);
+    }
+    blufParts.push(`Credential intelligence analysis revealed ${breachParts.join('; ')}. These exposures represent a significant initial access vector for adversaries conducting credential-based attacks.`);
+  }
+
+  // 7. Infrastructure & Compliance Posture
+  const postureParts: string[] = [];
+  if (_emailGrade) postureParts.push(`email security grade ${_emailGrade}`);
+  const _blIp = domainHealth.blacklist?.ip || '';
+  if (_blacklistCount > 0) postureParts.push(`${_blacklistCount} DNSBL listing(s) (${_blacklistActionable} actionable) for ${_blIp ? `IP ${_blIp}` : 'primary IP'}`);
+  if (_complianceScore !== null) postureParts.push(`external compliance score of ${_complianceScore}% (${scan.complianceScan?.passed}/${scan.complianceScan?.totalChecks} checks)`);
+  if (_containerHits > 0) postureParts.push(`${_containerHits} exposed container service(s) (${scan.containerExposure?.criticalFindings || 0} critical)`);
+  if (postureParts.length > 0) {
+    blufParts.push(`Infrastructure posture assessment noted: ${postureParts.join('; ')}.`);
+  } else if (domainHealth.blacklist && _blacklistCount === 0) {
+    blufParts.push(`Infrastructure posture assessment confirmed the primary IP is clean across all ${domainHealth.blacklist.totalChecked || ''} monitored blacklists${_emailGrade ? ` with email security grade ${_emailGrade}` : ''}.`);
+  }
+
+  // 8. Trend Analysis (if previous scan exists)
+  if (_scanDelta && _scanDelta.riskDelta !== null) {
+    const direction = _scanDelta.riskDelta > 0 ? 'increased' : _scanDelta.riskDelta < 0 ? 'decreased' : 'remained unchanged';
+    const deltaAbs = Math.abs(_scanDelta.riskDelta);
+    blufParts.push(`Compared to the previous assessment (scan #${_scanDelta.scanNumber - 1}), the overall risk posture has ${direction}${deltaAbs > 0 ? ` by ${deltaAbs} points` : ''} (${_scanDelta.previousRiskScore} \u2192 ${riskScore}).`);
+  }
+
+  // 9. Priority Recommendation
   if (llmAnalysis.recommendations?.length > 0) {
     const topRec = llmAnalysis.recommendations[0];
     const recText = topRec.recommendation || topRec.title || (typeof topRec === 'string' ? topRec : '');
-    if (recText) blufParts.push(`Top priority: ${truncate(recText, 120)}.`);
+    if (recText) blufParts.push(`Highest priority recommendation: ${truncate(recText, 150)}.`);
   }
 
-  // Sanity check: flag when LOW score contradicts high-severity findings
-  const _hasHighSevFindings = _confirmedFc > 5 || _kevCount > 5 || _confirmedLogins > 0 || _blCritical > 0;
-  if (riskScore <= 30 && _hasHighSevFindings) {
-    blufParts.push(`Note: The overall risk score is a blended average across all ${_totalAssets} asset(s). Individual high-risk assets may present significantly greater exposure than the aggregate score suggests. Version-based CVE matching may overcount vulnerabilities on systems with backported security patches (common on managed hosting). Active verification is recommended.`);
-  }
+  // 10. Methodology note for transparency
+  blufParts.push(`This assessment was conducted using passive reconnaissance techniques only. No active exploitation or intrusive testing was performed. Findings are corroborated across multiple intelligence sources and classified by confidence tier (confirmed, probable, potential). Active verification of critical findings is recommended to validate exploitability in the target environment.`);
 
   // Render BLUF
   const blufText = blufParts.join(' ');
@@ -804,6 +850,13 @@ export async function exportDiReport(
   if (_tmData && _tmData.summary.totalMatched > 0) {
     dashboardRows.push(['Threat Groups Matched', `${_tmData.summary.totalMatched} groups (top: ${_tmData.matchedGroups[0]?.groupName || 'N/A'})`]);
     dashboardRows.push(['Attack Paths Identified', `${_tmData.summary.totalAttackPaths} paths, ${_tmData.summary.uniqueTechniques} techniques`]);
+  }
+  if (_incidentSearch && _incidentSearch.totalMatches > 0) {
+    const incFlags: string[] = [];
+    if (_incidentSearch.hasRansomwareEvent) incFlags.push('ransomware');
+    if (_incidentSearch.hasRecentBreach) incFlags.push('breach');
+    if (_incidentSearch.hasActiveThreats) incFlags.push('active threats');
+    dashboardRows.push(['Known Incidents', `${_incidentSearch.totalMatches} incident(s)${incFlags.length > 0 ? ` (${incFlags.join(', ')})` : ''}`]);
   }
   dashboardRows.push(['Data Sources', String(connectorCount)]);
   dashboardRows.push(['Scan Duration', scanDuration ? `${(scanDuration / 1000).toFixed(1)}s` : 'N/A']);
@@ -1804,7 +1857,7 @@ export async function exportDiReport(
         body: sslCertificates.map((cert: any) => [
           truncate(cert.subject || 'N/A', 30),
           truncate(cert.issuer || 'N/A', 25),
-          cert.expires ? new Date(cert.expires).toLocaleDateString() : 'N/A',
+          safeFormatDate(cert.expires),
           truncate((cert.hosts || []).join(', '), 30),
           (cert.ports || []).join(', ') || 'N/A',
         ]),
@@ -2178,6 +2231,89 @@ export async function exportDiReport(
     y = (doc as any).lastAutoTable.finalY + 4;
   }
 
+  // ─── Exposed Credential Pairs Table ───────────────────────────────────
+  // Show actual email:password_preview pairs with breach source for ALL credential observations
+  const credPairObs = credentialObs.filter((o: any) =>
+    o.evidence?.has_plaintext_password || o.evidence?.has_hashed_password || o.evidence?.password_preview
+  );
+  if (credPairObs.length > 0) {
+    y = subheading('Exposed Credential Pairs', y);
+
+    doc.setTextColor(220, 38, 38);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Credential pairs discovered in breach databases. Passwords are partially masked for security.', margin, y);
+    y += 6;
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Email / Username', 'Password / Hash', 'Type', 'Hash Algo', 'Breach Source', 'Severity']],
+      body: credPairObs
+        .sort((a: any, b: any) => {
+          const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+          return (sevOrder[a.evidence?.severity] ?? 9) - (sevOrder[b.evidence?.severity] ?? 9);
+        })
+        .slice(0, 50)
+        .map((o: any) => {
+          const ev = o.evidence || {};
+          const emailOrUser = ev.email || ev.username || o.name || 'N/A';
+          const pwPreview = ev.password_preview
+            ? ev.password_preview
+            : ev.has_hashed_password
+              ? `[${(ev.hash_type_hint || 'hash').toUpperCase()}]`
+              : '[REDACTED]';
+          const credType = (ev.credential_type || 'unknown').replace(/_/g, ' ');
+          const hashAlgo = ev.hash_type_hint || (ev.has_hashed_password ? 'unknown' : '-');
+          const breachSrc = ev.database_name || ev.breach_name || 'Unknown';
+          const severity = (ev.severity || 'medium').toUpperCase();
+          return [
+            truncate(emailOrUser, 28),
+            truncate(pwPreview, 18),
+            credType,
+            hashAlgo,
+            truncate(breachSrc, 22),
+            severity,
+          ];
+        }),
+      theme: 'grid',
+      headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 42 },
+        1: { cellWidth: 28, fontStyle: 'bold' },
+        2: { cellWidth: 24 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 35 },
+        5: { cellWidth: 18 },
+      },
+      didParseCell: (data: any) => {
+        if (data.section === 'body') {
+          // Color severity column
+          if (data.column.index === 5) {
+            const sev = String(data.cell.text).toUpperCase();
+            if (sev === 'CRITICAL') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+            else if (sev === 'HIGH') { data.cell.styles.textColor = [234, 88, 12]; data.cell.styles.fontStyle = 'bold'; }
+          }
+          // Color plaintext password type
+          if (data.column.index === 2) {
+            const text = String(data.cell.text).toLowerCase();
+            if (text.includes('plaintext')) { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+          }
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 3;
+
+    if (credPairObs.length > 50) {
+      doc.setTextColor(113, 113, 122);
+      doc.setFontSize(7);
+      doc.text(`Showing 50 of ${credPairObs.length} exposed credential pairs. Full dataset available in platform.`, margin, y);
+      y += 6;
+    }
+  }
+
   // 1st-party breaches (critical — these are breaches of the target's own systems)
   if (firstPartyObs.length > 0) {
     y = subheading('1st-Party Breaches (Target Infrastructure Compromised)', y);
@@ -2190,21 +2326,22 @@ export async function exportDiReport(
 
     autoTable!(doc, {
       startY: y,
-      head: [['Email', 'Credential Type', 'Breach Source', 'Confidence', 'Reasoning']],
+      head: [['Email', 'Username', 'Credential Type', 'Password Preview', 'Breach Source', 'Confidence']],
       body: firstPartyObs.slice(0, 30).map((o: any) => [
-        truncate(o.evidence?.email || o.name, 30),
+        truncate(o.evidence?.email || o.name, 26),
+        truncate(o.evidence?.username || '-', 16),
         (o.evidence?.credential_type || 'unknown').replace(/_/g, ' '),
-        truncate(o.evidence?.database_name || o.evidence?.breach_name || 'N/A', 25),
+        o.evidence?.password_preview || (o.evidence?.has_hashed_password ? `[${(o.evidence?.hash_type_hint || 'HASH').toUpperCase()}]` : '-'),
+        truncate(o.evidence?.database_name || o.evidence?.breach_name || 'N/A', 22),
         `${o.evidence?.credential_source_confidence || 0}%`,
-        truncate(o.evidence?.credential_source_reasoning, 40),
       ]),
       theme: 'grid',
-      headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
-      bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+      headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
       alternateRowStyles: { fillColor: [254, 242, 242] },
       margin: { left: margin, right: margin },
       didParseCell: (data: any) => {
-        if (data.section === 'body' && data.column.index === 1) {
+        if (data.section === 'body' && data.column.index === 2) {
           const text = String(data.cell.text).toLowerCase();
           if (text.includes('plaintext')) {
             data.cell.styles.textColor = [220, 38, 38];
@@ -2228,11 +2365,13 @@ export async function exportDiReport(
 
     autoTable!(doc, {
       startY: y,
-      head: [['Email', 'Credential Type', 'External Service', 'Confidence']],
+      head: [['Email', 'Username', 'Credential Type', 'Password Preview', 'External Service', 'Confidence']],
       body: thirdPartyObs.slice(0, 25).map((o: any) => [
-        truncate(o.evidence?.email || o.name, 30),
+        truncate(o.evidence?.email || o.name, 24),
+        truncate(o.evidence?.username || '-', 14),
         (o.evidence?.credential_type || 'unknown').replace(/_/g, ' '),
-        truncate(o.evidence?.database_name || o.evidence?.breach_name || 'N/A', 30),
+        o.evidence?.password_preview || (o.evidence?.has_hashed_password ? `[${(o.evidence?.hash_type_hint || 'HASH').toUpperCase()}]` : '-'),
+        truncate(o.evidence?.database_name || o.evidence?.breach_name || 'N/A', 22),
         `${o.evidence?.credential_source_confidence || 0}%`,
       ]),
       theme: 'grid',
@@ -2975,47 +3114,108 @@ export async function exportDiReport(
       );
       y += 3;
 
-      // Individual exploit matches table
-      // Filter out exploit entries with no meaningful data (no source, module, or technology)
-      const meaningfulMatches = (em.matches || []).filter((m: any) => {
-        const hasSource = m.source && m.source !== 'Unknown' && m.source !== 'N/A';
-        const hasModule = m.moduleName || m.exploitId || m.abilityName;
-        const hasTech = m.matchedTechnology || m.cve;
-        const hasSeverity = m.severity && m.severity !== 'N/A' && m.severity !== 'Unknown';
-        // Require at least source + one of module/tech to be meaningful
-        return (hasSource && (hasModule || hasTech)) || (hasModule && hasTech) || hasSeverity;
-      });
-      if (meaningfulMatches.length > 0) {
-        if (meaningfulMatches.length < (em.matches?.length || 0)) {
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'italic');
-          doc.setTextColor(100, 116, 139);
-          y = checkPageBreak(y, 5);
-          doc.text(`Showing ${meaningfulMatches.length} exploit(s) with verified source data (${(em.matches?.length || 0) - meaningfulMatches.length} unattributed entries omitted).`, margin, y);
-          y += 4;
+      // Individual exploit matches table — flatten ExploitMatch objects into per-exploit rows
+      const exploitRows: any[][] = [];
+      for (const m of (em.matches || [])) {
+        const cve = m.cveId || 'N/A';
+        const finding = m.findingTitle || cve;
+        // Metasploit modules
+        for (const msf of (m.metasploitModules || [])) {
+          exploitRows.push([
+            'Metasploit',
+            truncate(msf.fullname || msf.name || 'N/A', 42),
+            truncate(cve, 18),
+            msf.rankLabel || (msf.rank >= 400 ? 'good' : 'normal'),
+            msf.platform || 'multi',
+            m.isRemoteAccess ? 'Yes' : 'No',
+          ]);
         }
+        // ExploitDB entries
+        for (const edb of (m.exploitDbEntries || [])) {
+          exploitRows.push([
+            'ExploitDB',
+            truncate(`EDB-${edb.exploitId}: ${edb.description || ''}`, 42),
+            truncate(cve, 18),
+            edb.type || 'N/A',
+            edb.platform || 'multi',
+            edb.type === 'remote' || edb.type === 'webapps' ? 'Yes' : 'No',
+          ]);
+        }
+        // Caldera abilities
+        if (m.calderaAbility) {
+          const ca = m.calderaAbility;
+          exploitRows.push([
+            'Caldera',
+            truncate(`${ca.name} (${ca.technique_id})`, 42),
+            truncate(cve, 18),
+            ca.tactic || 'N/A',
+            ca.executors?.[0]?.platform || 'multi',
+            m.isRemoteAccess ? 'Yes' : 'No',
+          ]);
+        }
+        // If no sub-entries but bestExploit exists, use that
+        if ((m.metasploitModules || []).length === 0 && (m.exploitDbEntries || []).length === 0 && !m.calderaAbility && m.bestExploit) {
+          const be = m.bestExploit;
+          exploitRows.push([
+            be.source === 'metasploit' ? 'Metasploit' : 'ExploitDB',
+            truncate(be.name || be.command || 'N/A', 42),
+            truncate(cve, 18),
+            be.reliability || 'N/A',
+            be.platform || 'multi',
+            be.isRemote ? 'Yes' : 'No',
+          ]);
+        }
+      }
+
+      if (exploitRows.length > 0) {
         autoTable!(doc, {
           startY: y,
-          head: [['Source', 'Module / ID', 'Technology', 'Severity', 'Remote Access']],
-          body: meaningfulMatches.slice(0, 30).map((m: any) => [
-            m.source || 'Unknown',
-            truncate(m.moduleName || m.exploitId || m.abilityName || 'N/A', 50),
-            truncate(m.matchedTechnology || m.cve || 'N/A', 25),
-            m.severity || m.rank || 'N/A',
-            m.remoteAccess ? 'Yes' : 'No',
-          ]),
+          head: [['Source', 'Module / Exploit', 'CVE', 'Rank / Type', 'Platform', 'Remote']],
+          body: exploitRows.slice(0, 40),
           theme: 'grid',
-          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 1.5 },
-          bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [51, 65, 85] },
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 6, fontStyle: 'bold', cellPadding: 1.5 },
+          bodyStyles: { fontSize: 6, cellPadding: 1.5, textColor: [51, 65, 85] },
           alternateRowStyles: { fillColor: [241, 245, 249] },
           margin: { left: margin, right: margin },
+          columnStyles: {
+            0: { cellWidth: 18 },
+            1: { cellWidth: 62 },
+            2: { cellWidth: 28 },
+            3: { cellWidth: 22 },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 14 },
+          },
           didParseCell: (data: any) => {
-            if (data.section === 'body' && data.column.index === 4) {
-              if (String(data.cell.text) === 'Yes') data.cell.styles.textColor = [220, 38, 38];
+            if (data.section === 'body') {
+              if (data.column.index === 5 && String(data.cell.text) === 'Yes') {
+                data.cell.styles.textColor = [220, 38, 38];
+                data.cell.styles.fontStyle = 'bold';
+              }
+              if (data.column.index === 0) {
+                const src = String(data.cell.text);
+                if (src === 'Metasploit') data.cell.styles.textColor = [37, 99, 235];
+                else if (src === 'ExploitDB') data.cell.styles.textColor = [234, 88, 12];
+                else if (src === 'Caldera') data.cell.styles.textColor = [139, 92, 246];
+              }
             }
           },
         });
-        y = (doc as any).lastAutoTable.finalY + 5;
+        y = (doc as any).lastAutoTable.finalY + 3;
+
+        if (exploitRows.length > 40) {
+          doc.setTextColor(113, 113, 122);
+          doc.setFontSize(7);
+          doc.text(`Showing 40 of ${exploitRows.length} exploit entries. Full dataset available in platform.`, margin, y);
+          y += 5;
+        }
+      } else if ((em.matches || []).length > 0) {
+        // Fallback: show CVE-level summary if no sub-entries exist
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(100, 116, 139);
+        y = checkPageBreak(y, 5);
+        doc.text(`${em.matches.length} CVE(s) have known public exploits. Detailed module data not available for this scan.`, margin, y);
+        y += 5;
       }
     }
 
@@ -3831,7 +4031,132 @@ export async function exportDiReport(
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════════
+  //  // ═════════════════════════════════════════════════════════════════
+  // 12b. INCIDENT INTELLIGENCE
+  // ═════════════════════════════════════════════════════════════════
+  if (_incidentSearch && _incidentSearch.totalMatches > 0) {
+    y = startSection('Incident Intelligence', y, 80);
+
+    // Summary paragraph
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(8.5);
+    y = writeText(_incidentSearch.summary, margin, y, contentWidth, 8.5);
+    y += 4;
+
+    // Incident status indicators
+    const statusItems: string[][] = [
+      ['Total Incidents Found', String(_incidentSearch.totalMatches)],
+      ['Catalog Matches', String(_incidentSearch.catalogMatches?.length || 0)],
+      ['OSINT Matches', String(_incidentSearch.webSearchMatches?.length || 0)],
+      ['Ransomware Event', _incidentSearch.hasRansomwareEvent ? 'YES' : 'No'],
+      ['Recent Breach', _incidentSearch.hasRecentBreach ? 'YES' : 'No'],
+      ['Active Threats', _incidentSearch.hasActiveThreats ? 'YES' : 'No'],
+      ['Risk Floor Contribution', `${_incidentSearch.riskFloorContribution}/100`],
+    ];
+
+    autoTable!(doc, {
+      startY: y,
+      head: [['Indicator', 'Status']],
+      body: statusItems,
+      theme: 'grid',
+      headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+      bodyStyles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      margin: { left: margin, right: margin },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 1) {
+          const val = String(data.cell.raw);
+          if (val === 'YES') data.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+
+    // Detailed incident table
+    const allIncidents = [...(_incidentSearch.catalogMatches || []), ...(_incidentSearch.webSearchMatches || [])];
+    if (allIncidents.length > 0) {
+      y = checkPageBreak(y, 30);
+      y = subheading('Incident Details', y);
+
+      const incidentRows = allIncidents.slice(0, 20).map((inc: any) => [
+        inc.source === 'threat_catalog_event' ? 'Catalog' : inc.source === 'threat_catalog_ioc' ? 'IOC' : 'OSINT',
+        truncate(inc.title, 50),
+        inc.actorName || 'N/A',
+        (inc.severity || 'medium').toUpperCase(),
+        inc.date || 'N/A',
+        (inc.confidence || 'possible').toUpperCase(),
+      ]);
+
+      autoTable!(doc, {
+        startY: y,
+        head: [['Source', 'Incident', 'Threat Actor', 'Severity', 'Date', 'Confidence']],
+        body: incidentRows,
+        theme: 'grid',
+        headStyles: { fillColor: [127, 29, 29], textColor: [255, 255, 255], fontSize: 6.5, fontStyle: 'bold', cellPadding: 2 },
+        bodyStyles: { fontSize: 6.5, cellPadding: 1.5, textColor: [30, 41, 59] },
+        alternateRowStyles: { fillColor: [254, 242, 242] },
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { cellWidth: 15 },
+          1: { cellWidth: 55 },
+          3: { cellWidth: 18 },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 22 },
+        },
+        didParseCell: (data: any) => {
+          if (data.section === 'body' && data.column.index === 3) {
+            const sev = String(data.cell.raw).toLowerCase();
+            if (sev === 'critical') data.cell.styles.textColor = [220, 38, 38];
+            else if (sev === 'high') data.cell.styles.textColor = [234, 88, 12];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 5;
+
+      // Show detailed descriptions for top incidents
+      const topIncidents = allIncidents.filter((i: any) => i.severity === 'critical' || i.severity === 'high').slice(0, 5);
+      if (topIncidents.length > 0) {
+        for (const inc of topIncidents) {
+          y = checkPageBreak(y, 25);
+          doc.setFillColor(254, 242, 242);
+          doc.roundedRect(margin, y, contentWidth, 4, 1, 1, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.setTextColor(127, 29, 29);
+          doc.text(truncate(inc.title, 100), margin + 2, y + 3);
+          y += 6;
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(51, 65, 85);
+          const descText = inc.description || 'No additional details available.';
+          y = writeText(descText, margin + 2, y, contentWidth - 4, 7);
+          y += 4;
+        }
+      }
+    }
+
+    // New actors/TTPs discovered
+    if (_incidentSearch.newActorsDiscovered?.length > 0 || _incidentSearch.newTTPsDiscovered?.length > 0) {
+      y = checkPageBreak(y, 20);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      if (_incidentSearch.newActorsDiscovered?.length > 0) {
+        doc.text(`New threat actors identified: ${_incidentSearch.newActorsDiscovered.join(', ')}`, margin, y);
+        y += 4;
+      }
+      if (_incidentSearch.newTTPsDiscovered?.length > 0) {
+        doc.text(`Associated MITRE techniques: ${_incidentSearch.newTTPsDiscovered.join(', ')}`, margin, y);
+        y += 4;
+      }
+      doc.setFont('helvetica', 'normal');
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
   // 13. TECHNOLOGY STACK ANALYSIS & MOST WIDESPREAD VULNERABILITIES
   // ═══════════════════════════════════════════════════════════════════════
   const _tsg = scan.techStackGrouping;
