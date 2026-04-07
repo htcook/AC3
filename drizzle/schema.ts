@@ -6823,3 +6823,27 @@ export const engagementFindings = mysqlTable("engagement_findings", {
 	index("ef_severity_idx").on(table.severity),
 	index("ef_corroboration_idx").on(table.corroborationTier),
 ]);
+
+
+export const adjustmentEffectiveness = mysqlTable("adjustment_effectiveness", {
+	id: int().autoincrement().notNull(),
+	aeAdjustmentType: varchar("ae_adjustment_type", { length: 64 }).notNull(),
+	aeFailureCategory: varchar("ae_failure_category", { length: 64 }).notNull(),
+	aeService: varchar("ae_service", { length: 128 }).notNull(),
+	aeEngagementId: int("ae_engagement_id"),
+	aeTarget: varchar("ae_target", { length: 255 }),
+	aePort: int("ae_port"),
+	aeSuccess: tinyint("ae_success").notNull(),
+	aeRetryNumber: int("ae_retry_number"),
+	aeBasePriority: int("ae_base_priority"),
+	aeAdjustedPriority: int("ae_adjusted_priority"),
+	aeExecDurationMs: int("ae_exec_duration_ms"),
+	aeExploitOutput: text("ae_exploit_output"),
+	aeCreatedAt: timestamp("ae_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("ae_adj_type_idx").on(table.aeAdjustmentType),
+	index("ae_fail_cat_idx").on(table.aeFailureCategory),
+	index("ae_service_idx").on(table.aeService),
+	index("ae_composite_idx").on(table.aeAdjustmentType, table.aeFailureCategory, table.aeService),
+]);

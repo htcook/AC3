@@ -34,6 +34,7 @@ import AppShell from "@/components/AppShell";
 import { CodeViewer } from "@/components/CodeViewer";
 import { VulnTrendChart } from "@/components/VulnTrendChart";
 import ManualFindingsPanel from "@/components/ManualFindingsPanel";
+import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -4202,6 +4203,9 @@ export default function EngagementOps() {
                       </CardContent>
                     </Card>
                   )}
+
+                  {/* Adjustment Effectiveness Feedback Loop */}
+                  <AdjustmentEffectivenessWidget />
 
                   {/* Snapshot History */}
                   {Array.isArray(vulnTrendQ.data) && vulnTrendQ.data.length > 0 && (
