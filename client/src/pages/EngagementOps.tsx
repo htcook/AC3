@@ -533,8 +533,10 @@ function renderFeedEntry(entry: OpsLogEntry) {
     entry.type === 'exploit_success' || entry.type === 'credential_test' ||
     entry.type === 'phase_complete' || entry.data.output || entry.data.command ||
     entry.data.findings || entry.data.reasoning || entry.data.tools ||
-    entry.data.failureAnalysis
+    entry.data.failureAnalysis || entry.data.adjustmentsApplied || entry.data.adjustmentsToApply
   );
+  const retryAdj = entry.data?.adjustmentsApplied as Array<{ type: string; description: string; modification?: string }> | undefined;
+  const retryMeta = entry.data as { retryNumber?: number; strategy?: string; codeModified?: boolean; failureCategory?: string; backoffMs?: number; adjustmentsToApply?: Array<{ type: string; description: string; priority: number }> } | undefined;
   const fa = entry.data?.failureAnalysis as { category?: string; description?: string; indicators?: string[]; retryable?: boolean; retryConfidence?: number; suggestedAdjustments?: Array<{ type: string; description: string; priority: number }> } | undefined;
   return (
     <Collapsible key={entry.id}>
@@ -628,6 +630,59 @@ function renderFeedEntry(entry: OpsLogEntry) {
                     {entry.data.findings.length > 5 && (
                       <span className="text-[10px] text-muted-foreground">...and {entry.data.findings.length - 5} more</span>
                     )}
+                  </div>
+                </div>
+              )}
+              {/* Retry Adjustments Applied Panel */}
+              {retryAdj && retryAdj.length > 0 && (
+                <div className="bg-blue-500/5 border border-blue-500/10 rounded px-2 py-1.5 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-3 w-3 text-blue-400" />
+                    <span className="text-[10px] text-blue-400 uppercase font-semibold tracking-wider">Adjustments Applied</span>
+                    {retryMeta?.retryNumber && (
+                      <Badge variant="outline" className="text-[9px] text-blue-300 border-blue-500/30 bg-blue-500/10">Retry #{retryMeta.retryNumber}</Badge>
+                    )}
+                    {retryMeta?.strategy && (
+                      <Badge variant="outline" className="text-[9px] text-cyan-300 border-cyan-500/30 bg-cyan-500/10 font-mono">{retryMeta.strategy}</Badge>
+                    )}
+                    {retryMeta?.codeModified && (
+                      <Badge variant="outline" className="text-[9px] text-green-300 border-green-500/30 bg-green-500/10">code modified</Badge>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    {retryAdj.map((adj, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                        <span className="text-blue-400 font-mono flex-none min-w-[90px]">{adj.type}</span>
+                        <span className="text-foreground/80">{adj.description}</span>
+                        {adj.modification && (
+                          <span className="text-muted-foreground/60 italic ml-1">— {adj.modification}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Pending Adjustments (pre-retry) */}
+              {retryMeta?.adjustmentsToApply && retryMeta.adjustmentsToApply.length > 0 && !retryAdj && (
+                <div className="bg-indigo-500/5 border border-indigo-500/10 rounded px-2 py-1.5 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="h-3 w-3 text-indigo-400" />
+                    <span className="text-[10px] text-indigo-400 uppercase font-semibold tracking-wider">Queued Adjustments</span>
+                    {retryMeta.retryNumber && (
+                      <Badge variant="outline" className="text-[9px] text-indigo-300 border-indigo-500/30 bg-indigo-500/10">Retry #{retryMeta.retryNumber}</Badge>
+                    )}
+                    {retryMeta.backoffMs && (
+                      <span className="text-[10px] text-muted-foreground font-mono ml-auto">{retryMeta.backoffMs}ms backoff</span>
+                    )}
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    {retryMeta.adjustmentsToApply.map((adj, i) => (
+                      <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                        <span className="text-indigo-400 font-mono flex-none">P{adj.priority}</span>
+                        <span className="text-indigo-300 font-mono flex-none min-w-[90px]">{adj.type}</span>
+                        <span className="text-foreground/80">{adj.description}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
