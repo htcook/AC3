@@ -3771,6 +3771,104 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           }
         }
 
+        // ── Step 2a: Active Service Fingerprinting ──────────────────────
+        // Run protocol-specific probes on all discovered ports to upgrade
+        // "inferred" service labels to "fingerprinted" with product/version/banner.
+        try {
+          const { autoFingerprint, summarizeFingerprints } = await import('./service-fingerprinter');
+          const openPortNumbers = asset.ports.map(p => p.port);
+          if (openPortNumbers.length > 0) {
+            addLog(state, {
+              phase: 'enumeration', type: 'info',
+              title: `🔍 Service Fingerprinting: ${fmtTarget(asset, target)}`,
+              detail: `Running protocol-specific probes on ${openPortNumbers.length} ports: ${openPortNumbers.join(', ')}`,
+            });
+
+            const fpStart = Date.now();
+            const fpResults = await autoFingerprint(target, openPortNumbers, {
+              engagementId: state.engagementId,
+              operatorId: state.operatorId,
+              timeoutMs: 10000,
+              tryDefaultCreds: state.config.profile !== 'stealth',
+            });
+            const fpDuration = Date.now() - fpStart;
+
+            // Merge fingerprint results into asset port data
+            let upgraded = 0;
+            for (const fp of fpResults) {
+              if (fp.error) continue;
+              const portEntry = asset.ports.find(p => p.port === fp.port);
+              if (portEntry) {
+                // Upgrade service name if we got a real fingerprint
+                if (fp.protocol) {
+                  portEntry.service = fp.protocol;
+                  (portEntry as any).serviceSource = 'fingerprinted';
+                }
+                // Upgrade version with product + version info
+                if (fp.product || fp.version) {
+                  portEntry.version = [fp.product, fp.version].filter(Boolean).join(' ');
+                }
+                // Store banner and security metadata
+                (portEntry as any).banner = fp.banner;
+                (portEntry as any).product = fp.product;
+                (portEntry as any).os = fp.os;
+                (portEntry as any).securityFlags = fp.securityFlags;
+                (portEntry as any).riskIndicators = fp.riskIndicators;
+                (portEntry as any).potentialCves = fp.potentialCves;
+                upgraded++;
+              }
+            }
+
+            const summary = summarizeFingerprints(fpResults);
+
+            // Store fingerprint results on asset for downstream use
+            (asset as any).fingerprintResults = fpResults;
+            (asset as any).fingerprintSummary = summary;
+
+            addLog(state, {
+              phase: 'enumeration', type: 'scan_result',
+              title: `🔍 Fingerprinting Complete: ${fmtTarget(asset, target)}`,
+              detail: `${summary.successfulProbes}/${summary.totalServices} services fingerprinted in ${Math.round(fpDuration / 1000)}s — ${upgraded} ports upgraded\n` +
+                `Products: ${fpResults.filter(f => f.product).map(f => `${f.port}/${f.product} ${f.version || ''}`).join(', ') || 'none detected'}\n` +
+                `Risks: ${summary.criticalRisks} critical, ${summary.highRisks} high, ${summary.mediumRisks} medium` +
+                (summary.servicesWithAnonymousAccess.length > 0 ? `\n⚠️ Anonymous access: ${summary.servicesWithAnonymousAccess.map(s => `${s.port}/${s.protocol}`).join(', ')}` : '') +
+                (summary.servicesWithDefaultCreds.length > 0 ? `\n🔑 Default credentials: ${summary.servicesWithDefaultCreds.map(s => `${s.port}/${s.protocol}`).join(', ')}` : '') +
+                (summary.allCves.length > 0 ? `\n🛡️ Potential CVEs: ${summary.allCves.slice(0, 10).join(', ')}${summary.allCves.length > 10 ? ` (+${summary.allCves.length - 10} more)` : ''}` : ''),
+              data: {
+                fingerprintResults: fpResults.map(f => ({
+                  port: f.port,
+                  protocol: f.protocol,
+                  product: f.product,
+                  version: f.version,
+                  banner: f.banner,
+                  os: f.os,
+                  securityFlags: f.securityFlags,
+                  riskIndicators: f.riskIndicators,
+                  potentialCves: f.potentialCves,
+                })),
+                summary: {
+                  successfulProbes: summary.successfulProbes,
+                  failedProbes: summary.failedProbes,
+                  criticalRisks: summary.criticalRisks,
+                  highRisks: summary.highRisks,
+                  anonymousAccess: summary.servicesWithAnonymousAccess.length,
+                  defaultCreds: summary.servicesWithDefaultCreds.length,
+                  noTls: summary.servicesWithoutTls.length,
+                },
+              },
+            });
+
+            // Re-run service resolution with enriched data
+            enrichPortServices(asset.ports, (asset.passiveRecon as any)?.services || []);
+          }
+        } catch (fpErr: any) {
+          addLog(state, {
+            phase: 'enumeration', type: 'info',
+            title: `🔍 Fingerprinting Skipped: ${fmtTarget(asset, target)}`,
+            detail: `Service fingerprinting failed (non-blocking): ${fpErr.message}`,
+          });
+        }
+
         // ── Step 2b: RDP/VoIP/Conferencing service-specific scanning ──────
         try {
           const { isRdpVoipConferencingPort, getScanCommandsForService, getServiceForPort, buildExploitContextForLlm } = await import('./knowledge/rdp-voip-conferencing-knowledge');
@@ -5170,6 +5268,33 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if (techLower.some((t: string) => t.includes('gitlab'))) techTags.push('gitlab');
       if (techLower.some((t: string) => t.includes('cloudfront') || t.includes('aws'))) techTags.push('aws');
       if (techLower.some((t: string) => t.includes('react') || t.includes('next.js') || t.includes('node'))) techTags.push('nodejs');
+
+      // ── Service fingerprint-based tag augmentation ──
+      // Add nuclei tags based on active service fingerprinting results
+      try {
+        const { getServiceBasedTags, getTemplateMappingSummary } = await import('./service-template-mapper');
+        const fpResults = (asset as any).fingerprintResults;
+        if (fpResults && fpResults.length > 0) {
+          const { tags: serviceTags, rationale: serviceRationale } = getServiceBasedTags(fpResults);
+          for (const tag of serviceTags) {
+            if (!techTags.includes(tag)) techTags.push(tag);
+          }
+          if (serviceTags.length > 0) {
+            const summary = getTemplateMappingSummary(fpResults);
+            addLog(state, {
+              phase: 'vuln_detection', type: 'info',
+              title: `🎯 Service-Based Template Targeting: ${asset.hostname}`,
+              detail: `Added ${serviceTags.length} service-based tags from ${summary.totalMapped} fingerprinted services (${summary.highPriority} high-priority)\n` +
+                `Tags: ${serviceTags.join(', ')}\n` +
+                `Services: ${serviceRationale.join(', ')}` +
+                (summary.versionMatchedCves.length > 0 ? `\nVersion-matched CVEs: ${summary.versionMatchedCves.join(', ')}` : ''),
+              data: { serviceTags, serviceBreakdown: summary.serviceBreakdown },
+            });
+          }
+        }
+      } catch (stmErr: any) {
+        /* Service template mapping is best-effort */
+      }
 
        // ── Context-aware nuclei tag augmentation from target profiles ──
       const vulnTargetProfile = state.targetProfiles?.[asset.hostname];

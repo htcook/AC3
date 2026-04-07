@@ -2377,21 +2377,63 @@ export default function EngagementOps() {
                                 50000:'jenkins-agent',
                               };
                               const displayService = (p.service && p.service !== 'unknown') ? p.service : (COMMON_PORTS[p.port] || 'unknown');
-                              const isInferred = p.service === 'unknown' || !p.service;
+                              const serviceSource = (p as any).serviceSource;
+                              const isFingerprinted = serviceSource === 'fingerprinted';
+                              const isInferred = !isFingerprinted && (p.service === 'unknown' || !p.service);
                               const isResolved = displayService !== 'unknown';
+                              const banner = (p as any).banner;
+                              const product = (p as any).product;
+                              const secFlags = (p as any).securityFlags;
+                              const riskIndicators = (p as any).riskIndicators;
+                              const potentialCves = (p as any).potentialCves;
                               return (
-                                <div key={i} className="flex items-center gap-2 text-xs px-2 py-1 bg-muted/10 rounded">
-                                  <span className="font-mono text-cyan-400 w-12">{p.port}</span>
-                                  <span className={isInferred && isResolved ? 'text-yellow-300/90 italic' : isInferred ? 'text-muted-foreground italic' : 'text-foreground'}>
-                                    {displayService}
-                                  </span>
-                                  {isInferred && isResolved && (
-                                    <span className="text-[9px] text-yellow-500/60 border border-yellow-500/20 rounded px-1">inferred</span>
+                                <div key={i} className="text-xs px-2 py-1.5 bg-muted/10 rounded space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-cyan-400 w-12">{p.port}</span>
+                                    <span className={isFingerprinted ? 'text-foreground font-medium' : isInferred && isResolved ? 'text-yellow-300/90 italic' : isInferred ? 'text-muted-foreground italic' : 'text-foreground'}>
+                                      {displayService}
+                                    </span>
+                                    {isFingerprinted && (
+                                      <span className="text-[9px] text-blue-400/80 border border-blue-400/30 rounded px-1 bg-blue-500/10">fingerprinted</span>
+                                    )}
+                                    {!isFingerprinted && isInferred && isResolved && (
+                                      <span className="text-[9px] text-yellow-500/60 border border-yellow-500/20 rounded px-1">inferred</span>
+                                    )}
+                                    {!isFingerprinted && !isInferred && (
+                                      <span className="text-[9px] text-emerald-500/60 border border-emerald-500/20 rounded px-1">identified</span>
+                                    )}
+                                    {p.version && <span className="text-muted-foreground">{p.version}</span>}
+                                    {/* Security risk indicators */}
+                                    {secFlags?.anonymousAccess && (
+                                      <span className="text-[9px] text-red-400/80 border border-red-400/30 rounded px-1 bg-red-500/10">⚠ anon</span>
+                                    )}
+                                    {secFlags?.defaultCredentials && (
+                                      <span className="text-[9px] text-orange-400/80 border border-orange-400/30 rounded px-1 bg-orange-500/10">🔑 default-creds</span>
+                                    )}
+                                  </div>
+                                  {/* Expanded fingerprint details */}
+                                  {isFingerprinted && (product || banner) && (
+                                    <div className="ml-14 space-y-0.5">
+                                      {product && <div className="text-[10px] text-muted-foreground">Product: <span className="text-foreground/80">{product}{(p as any).os ? ` (${(p as any).os})` : ''}</span></div>}
+                                      {banner && <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[300px]" title={banner}>Banner: {banner.slice(0, 80)}{banner.length > 80 ? '...' : ''}</div>}
+                                      {potentialCves && potentialCves.length > 0 && (
+                                        <div className="text-[10px] text-red-400/80">
+                                          CVEs: {potentialCves.slice(0, 5).join(', ')}{potentialCves.length > 5 ? ` (+${potentialCves.length - 5})` : ''}
+                                        </div>
+                                      )}
+                                      {riskIndicators && riskIndicators.length > 0 && (
+                                        <div className="flex gap-1 flex-wrap">
+                                          {riskIndicators.slice(0, 3).map((r: any, ri: number) => (
+                                            <span key={ri} className={`text-[8px] rounded px-1 ${
+                                              r.severity === 'critical' ? 'text-red-300 bg-red-500/15 border border-red-500/20' :
+                                              r.severity === 'high' ? 'text-orange-300 bg-orange-500/15 border border-orange-500/20' :
+                                              'text-yellow-300 bg-yellow-500/15 border border-yellow-500/20'
+                                            }`} title={r.description}>{r.indicator}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
-                                  {!isInferred && (
-                                    <span className="text-[9px] text-emerald-500/60 border border-emerald-500/20 rounded px-1">identified</span>
-                                  )}
-                                  {p.version && <span className="text-muted-foreground">{p.version}</span>}
                                 </div>
                               );
                             })}
