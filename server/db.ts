@@ -3439,3 +3439,113 @@ export async function getConnectorAvgsBySector(sector: string): Promise<Array<{
     totalRuns: r.totalRuns,
   }));
 }
+
+
+// ─── Zero-Day Feed DB Helpers ────────────────────────────────────────────────
+
+import * as zdSchema from "../drizzle/schema";
+
+export async function saveZeroDayMatches(matches: Array<{
+  scanId: number;
+  engagementId?: string;
+  domain: string;
+  cve: string;
+  vendor: string;
+  product: string;
+  matchType: "cve_exact" | "vendor_product" | "product_fuzzy";
+  confidence: "high" | "medium" | "low";
+  severity: "critical" | "high" | "medium";
+  matchedAsset: string;
+  zeroDayDescription?: string;
+  zeroDayType?: string;
+  advisoryUrl?: string;
+}>) {
+  if (matches.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  const values = matches.map(m => ({
+    scanId: m.scanId,
+    engagementId: m.engagementId || null,
+    domain: m.domain,
+    cve: m.cve,
+    vendor: m.vendor,
+    product: m.product,
+    matchType: m.matchType,
+    confidence: m.confidence,
+    severity: m.severity,
+    matchedAsset: m.matchedAsset,
+    zeroDayDescription: m.zeroDayDescription || null,
+    zeroDayType: m.zeroDayType || null,
+    advisoryUrl: m.advisoryUrl || null,
+  }));
+  for (let i = 0; i < values.length; i += 50) {
+    const chunk = values.slice(i, i + 50);
+    await db.insert(zdSchema.zeroDayScanMatches).values(chunk);
+  }
+}
+
+export async function getZeroDayMatchesByScan(scanId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(zdSchema.zeroDayScanMatches)
+    .where(eq(zdSchema.zeroDayScanMatches.scanId, scanId))
+    .orderBy(zdSchema.zeroDayScanMatches.severity);
+}
+
+export async function getZeroDayMatchesByDomain(domain: string, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(zdSchema.zeroDayScanMatches)
+    .where(eq(zdSchema.zeroDayScanMatches.domain, domain))
+    .orderBy(desc(zdSchema.zeroDayScanMatches.createdAt))
+    .limit(limit);
+}
+
+export async function getZeroDayMatchesByEngagement(engagementId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(zdSchema.zeroDayScanMatches)
+    .where(eq(zdSchema.zeroDayScanMatches.engagementId, engagementId))
+    .orderBy(zdSchema.zeroDayScanMatches.severity);
+}
+
+export async function getRecentZeroDayMatches(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(zdSchema.zeroDayScanMatches)
+    .where(eq(zdSchema.zeroDayScanMatches.dismissed, 0))
+    .orderBy(desc(zdSchema.zeroDayScanMatches.createdAt))
+    .limit(limit);
+}
+
+export async function dismissZeroDayMatch(matchId: number) {
+  const db = await getDb();
+  if (!db) return;
+  return db
+    .update(zdSchema.zeroDayScanMatches)
+    .set({ dismissed: 1 })
+    .where(eq(zdSchema.zeroDayScanMatches.id, matchId));
+}
+
+export async function getZeroDayMatchStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, critical: 0, high: 0, undismissed: 0 };
+  const [total] = await db.select({ count: sql<number>`count(*)` }).from(zdSchema.zeroDayScanMatches);
+  const [critical] = await db.select({ count: sql<number>`count(*)` }).from(zdSchema.zeroDayScanMatches).where(eq(zdSchema.zeroDayScanMatches.severity, "critical"));
+  const [high] = await db.select({ count: sql<number>`count(*)` }).from(zdSchema.zeroDayScanMatches).where(eq(zdSchema.zeroDayScanMatches.severity, "high"));
+  const [undismissed] = await db.select({ count: sql<number>`count(*)` }).from(zdSchema.zeroDayScanMatches).where(eq(zdSchema.zeroDayScanMatches.dismissed, 0));
+  return {
+    total: total?.count || 0,
+    critical: critical?.count || 0,
+    high: high?.count || 0,
+    undismissed: undismissed?.count || 0,
+  };
+}

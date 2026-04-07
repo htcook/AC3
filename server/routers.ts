@@ -206,6 +206,7 @@ import { testPlanApprovalRouter } from "./routers/test-plan-approval";
 import { aiVulnResearchRouter } from "./routers/ai-vuln-research";
 import { testPlanGeneratorRouter } from "./routers/test-plan-generator";
 import { engagementResultsRouter } from "./routers/engagement-results";
+import { zeroDayRouter } from "./routers/zero-day";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -246,6 +247,7 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 export const appRouter = router({
   system: systemRouter,
+  zeroDay: zeroDayRouter,
   knowledgeBase: knowledgeBaseRouter,
   knowledgeCache: knowledgeCacheRouter,
   threatIntel: threatIntelRouter,

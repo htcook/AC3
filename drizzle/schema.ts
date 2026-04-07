@@ -6922,3 +6922,56 @@ export const connectorPerformanceHistory = mysqlTable("connector_performance_his
 	index("cph_connector_sector_idx").on(table.connector, table.sector),
 	index("cph_created_at_idx").on(table.createdAt),
 ]);
+
+
+export const zeroDayCache = mysqlTable("zero_day_cache", {
+	id: int().autoincrement().notNull(),
+	cve: varchar({ length: 32 }).notNull(),
+	vendor: varchar({ length: 128 }).default('').notNull(),
+	product: varchar({ length: 128 }).default('').notNull(),
+	vulnType: varchar("vuln_type", { length: 128 }).default('').notNull(),
+	description: text().notNull(),
+	dateDiscovered: varchar("date_discovered", { length: 32 }),
+	datePatched: varchar("date_patched", { length: 32 }),
+	advisoryUrl: text("advisory_url"),
+	analysisUrl: text("analysis_url"),
+	rootCauseAnalysis: text("root_cause_analysis"),
+	reportedBy: varchar("reported_by", { length: 512 }),
+	source: mysqlEnum(['project_zero', 'cisa_kev']).default('project_zero').notNull(),
+	year: int(),
+	fetchedAt: timestamp("fetched_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("zdc_cve_idx").on(table.cve),
+	index("zdc_vendor_idx").on(table.vendor),
+	index("zdc_product_idx").on(table.product),
+	index("zdc_year_idx").on(table.year),
+	index("zdc_source_idx").on(table.source),
+]);
+
+export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
+	id: int().autoincrement().notNull(),
+	scanId: int("scan_id").notNull(),
+	engagementId: varchar("engagement_id", { length: 64 }),
+	domain: varchar({ length: 255 }).notNull(),
+	cve: varchar({ length: 32 }).notNull(),
+	vendor: varchar({ length: 128 }).default('').notNull(),
+	product: varchar({ length: 128 }).default('').notNull(),
+	matchType: mysqlEnum("match_type", ['cve_exact', 'vendor_product', 'product_fuzzy']).default('product_fuzzy').notNull(),
+	confidence: mysqlEnum(['high', 'medium', 'low']).default('low').notNull(),
+	severity: mysqlEnum(['critical', 'high', 'medium']).default('medium').notNull(),
+	matchedAsset: varchar("matched_asset", { length: 255 }).notNull(),
+	zeroDayDescription: text("zero_day_description"),
+	zeroDayType: varchar("zero_day_type", { length: 128 }),
+	advisoryUrl: text("advisory_url"),
+	dismissed: tinyint().default(0).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("zdsm_scan_id_idx").on(table.scanId),
+	index("zdsm_engagement_id_idx").on(table.engagementId),
+	index("zdsm_domain_idx").on(table.domain),
+	index("zdsm_cve_idx").on(table.cve),
+	index("zdsm_severity_idx").on(table.severity),
+	index("zdsm_created_at_idx").on(table.createdAt),
+]);
