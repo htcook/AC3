@@ -540,6 +540,16 @@ export const domainIntelRouter = router({
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (non-fatal):`, gradErr.message);
               }
+              // ═══ ZERO-DAY CROSS-REFERENCE — Check findings against Project Zero database ═══
+              setImmediate(async () => {
+                try {
+                  const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                  const observations = result.passiveRecon?.allObservations || [];
+                  await runZeroDayCheck({ scanId, domain: pipelineInput.primaryDomain, observations, engagementId: pipelineInput.engagementId });
+                } catch (zdErr: any) {
+                  console.warn(`[ZeroDayCheck] Failed for scan ${scanId} (non-fatal):`, zdErr.message);
+                }
+              });
               // Auto-crawl discovered web assets (fire-and-forget)
               setImmediate(async () => {
                 try {
@@ -617,6 +627,16 @@ export const domainIntelRouter = router({
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for scan ${scanId} (full engagement, non-fatal):`, gradErr.message);
               }
+              // ═══ ZERO-DAY CROSS-REFERENCE — Check findings against Project Zero database ═══
+              setImmediate(async () => {
+                try {
+                  const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                  const observations = result.passiveRecon?.allObservations || [];
+                  await runZeroDayCheck({ scanId, engagementId: pipelineInput.engagementId, domain: pipelineInput.primaryDomain, observations });
+                } catch (zdErr: any) {
+                  console.warn(`[ZeroDayCheck] Failed for scan ${scanId} (non-fatal):`, zdErr.message);
+                }
+              });
 
               // Auto-harvest credentials from passive recon observations into engagement credential list
               if (pipelineInput.engagementId && result.passiveRecon?.allObservations) {
@@ -1129,6 +1149,16 @@ export const domainIntelRouter = router({
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for retry scan ${scanId} (non-fatal):`, gradErr.message);
             }
+            // ═══ ZERO-DAY CROSS-REFERENCE ═══
+            setImmediate(async () => {
+              try {
+                const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                const observations = result.passiveRecon?.allObservations || [];
+                await runZeroDayCheck({ scanId, domain: scan.primaryDomain, observations, engagementId: scan.engagementId || undefined });
+              } catch (zdErr: any) {
+                console.warn(`[ZeroDayCheck] Failed for retry scan ${scanId} (non-fatal):`, zdErr.message);
+              }
+            });
           } catch (err: any) {
             console.error(`[DomainIntel] Retry pipeline failed for scan ${scanId}:`, err.message, err.stack?.substring(0, 500));
             await db.updateDomainIntelScan(scanId, {
@@ -1295,6 +1325,16 @@ export const domainIntelRouter = router({
               } catch (gradErr: any) {
                 console.warn(`[DomainIntel] Graduation failed for bulk-retry scan ${scanId} (non-fatal):`, gradErr.message);
               }
+              // ═══ ZERO-DAY CROSS-REFERENCE ═══
+              setImmediate(async () => {
+                try {
+                  const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                  const observations = result.passiveRecon?.allObservations || [];
+                  await runZeroDayCheck({ scanId, domain: scan.primaryDomain, observations, engagementId: scan.engagementId || undefined });
+                } catch (zdErr: any) {
+                  console.warn(`[ZeroDayCheck] Failed for bulk-retry scan ${scanId} (non-fatal):`, zdErr.message);
+                }
+              });
             } catch (err: any) {
               console.error(`[DomainIntel] Bulk retry failed for scan ${scanId}: ${err.message}`);
               await db.updateDomainIntelScan(scanId, {
@@ -1719,6 +1759,16 @@ export const domainIntelRouter = router({
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for refresh scan ${scanId} (non-fatal):`, gradErr.message);
             }
+            // ═══ ZERO-DAY CROSS-REFERENCE ═══
+            setImmediate(async () => {
+              try {
+                const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                const observations = result.passiveRecon?.allObservations || [];
+                await runZeroDayCheck({ scanId, domain: scan.primaryDomain, observations, engagementId: scan.engagementId || undefined });
+              } catch (zdErr: any) {
+                console.warn(`[ZeroDayCheck] Failed for refresh scan ${scanId} (non-fatal):`, zdErr.message);
+              }
+            });
 
             // Emit events
             try {
@@ -2837,6 +2887,16 @@ export const domainIntelRouter = router({
             } catch (gradErr: any) {
               console.warn(`[DomainIntel] Graduation failed for quick scan ${scanId} (non-fatal):`, gradErr.message);
             }
+            // ═══ ZERO-DAY CROSS-REFERENCE ═══
+            setImmediate(async () => {
+              try {
+                const { runZeroDayCheck } = await import('../lib/zero-day-pipeline');
+                const observations = result.passiveRecon?.allObservations || [];
+                await runZeroDayCheck({ scanId, domain: cleanDomain, observations });
+              } catch (zdErr: any) {
+                console.warn(`[ZeroDayCheck] Failed for quick scan ${scanId} (non-fatal):`, zdErr.message);
+              }
+            });
             try {
               const { emitReconComplete, emitSystemNotification } = await import('../lib/ws-event-hub');
               emitReconComplete({ scanId, domain: cleanDomain, findings: result.totalFindings || 0 });

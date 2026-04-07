@@ -168,6 +168,7 @@ const SoarConnectors = lazyWithRetry(() => import("./pages/SoarConnectors"));
 const AiAttackPlanner = lazyWithRetry(() => import("./pages/AiAttackPlanner"));
 const CorroborationEngine = lazyWithRetry(() => import("./pages/CorroborationEngine"));
 const NvdCveMatcher = lazyWithRetry(() => import("./pages/NvdCveMatcher"));
+const ZeroDayTracker = lazyWithRetry(() => import("./pages/ZeroDayTracker"));
 const CompensatingControls = lazyWithRetry(() => import("./pages/CompensatingControls"));
 const PreFlightChecks = lazyWithRetry(() => import("./pages/PreFlightChecks"));
 const ActiveVerification = lazyWithRetry(() => import("./pages/ActiveVerification"));
@@ -830,6 +831,9 @@ function Router() {
         </Route>
         <Route path="/nvd-cve-matcher">
           <ProtectedRoute component={NvdCveMatcher} />
+        </Route>
+        <Route path="/zero-day-tracker">
+          <ProtectedRoute component={ZeroDayTracker} />
         </Route>
         <Route path="/compensating-controls">
           <ProtectedRoute component={CompensatingControls} />
