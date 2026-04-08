@@ -2011,4 +2011,190 @@ export const bugBountyRouter = router({
 
       return { success: true, targetDomain: host };
     }),
+
+  // ─── Test Lab Deployer ───────────────────────────────────────────────────
+
+  deployTestLab: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      remoteDir: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { deployTestLab } = await import("../lib/test-lab-deployer");
+      const { DEFAULT_LAB_CONFIG } = await import("../lib/nextcloud-test-lab");
+      const state = await deployTestLab(input.engagementId, DEFAULT_LAB_CONFIG, {
+        remoteDir: input.remoteDir,
+      });
+      return {
+        id: state.id,
+        status: state.status,
+        labUrl: state.labUrl,
+        error: state.error,
+        logs: state.logs.slice(-20),
+      };
+    }),
+
+  getLabDeploymentStatus: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getLatestDeployment, getEngagementDeployments } = await import("../lib/test-lab-deployer");
+      const latest = getLatestDeployment(input.engagementId);
+      const all = getEngagementDeployments(input.engagementId);
+      return {
+        latest: latest ? {
+          id: latest.id,
+          status: latest.status,
+          labUrl: latest.labUrl,
+          scanServerHost: latest.scanServerHost,
+          startedAt: latest.startedAt,
+          completedAt: latest.completedAt,
+          error: latest.error,
+          logCount: latest.logs.length,
+        } : null,
+        totalDeployments: all.length,
+      };
+    }),
+
+  getDeploymentLogs: protectedProcedure
+    .input(z.object({
+      deploymentId: z.string(),
+      since: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getDeploymentLogs } = await import("../lib/test-lab-deployer");
+      return getDeploymentLogs(input.deploymentId, input.since);
+    }),
+
+  destroyTestLab: protectedProcedure
+    .input(z.object({ deploymentId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { destroyTestLab } = await import("../lib/test-lab-deployer");
+      const result = await destroyTestLab(input.deploymentId);
+      return result ? { success: true, status: result.status } : { success: false, status: "not_found" };
+    }),
+
+  // ─── Burp ↔ Test Lab Bridge ──────────────────────────────────────────────
+
+  getLabScanProfiles: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }))
+    .query(async () => {
+      const { listScanProfiles, getPlaybookStats: getBridgeStats } = await import("../lib/burp-testlab-bridge");
+      const profiles = listScanProfiles();
+      return profiles.map(p => ({
+        name: p.name,
+        description: p.description,
+        targetUrls: p.targetUrls,
+        scanMode: p.scanMode,
+        attackTechniques: p.attackTechniques,
+        targetCwes: p.targetCwes,
+        priority: p.priority,
+      }));
+    }),
+
+  preflightLabScan: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { preflightCheck } = await import("../lib/burp-testlab-bridge");
+      return preflightCheck(input.engagementId);
+    }),
+
+  launchLabProfileScan: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      engagementHandle: z.string(),
+      credentialId: z.number(),
+      profileName: z.string(),
+      burpType: z.enum(["pro", "enterprise"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { launchProfileScan } = await import("../lib/burp-testlab-bridge");
+      const db = await getDbSafe();
+      const [cred] = await db.select().from(userPlatformCredentials)
+        .where(eq(userPlatformCredentials.id, input.credentialId));
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp credential not found" });
+      const { decrypt } = await import("../lib/encryption");
+      const apiKey = decrypt(cred.encryptedApiKey);
+      return launchProfileScan(
+        input.engagementId,
+        input.engagementHandle,
+        ctx.user.id,
+        input.credentialId,
+        { baseUrl: cred.baseUrl || "http://localhost:1337", apiKey, type: input.burpType },
+        input.profileName,
+      );
+    }),
+
+  launchFullLabScan: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      engagementHandle: z.string(),
+      credentialId: z.number(),
+      burpType: z.enum(["pro", "enterprise"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { launchFullLabScan } = await import("../lib/burp-testlab-bridge");
+      const db = await getDbSafe();
+      const [cred] = await db.select().from(userPlatformCredentials)
+        .where(eq(userPlatformCredentials.id, input.credentialId));
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp credential not found" });
+      const { decrypt } = await import("../lib/encryption");
+      const apiKey = decrypt(cred.encryptedApiKey);
+      return launchFullLabScan(
+        input.engagementId,
+        input.engagementHandle,
+        ctx.user.id,
+        input.credentialId,
+        { baseUrl: cred.baseUrl || "http://localhost:1337", apiKey, type: input.burpType },
+      );
+    }),
+
+  // ─── Attack Playbook ─────────────────────────────────────────────────────
+
+  getAttackPlaybook: protectedProcedure
+    .input(z.object({
+      engagementId: z.number().optional(),
+      targetHost: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { generateAttackPlaybook, generatePlaybookForEngagement } = await import("../lib/nextcloud-attack-playbook");
+      if (input.engagementId) {
+        const db = await getDbSafe();
+        const [eng] = await db.select().from(engagements).where(eq(engagements.id, input.engagementId));
+        if (eng) {
+          return generatePlaybookForEngagement({
+            targetDomain: eng.targetDomain || undefined,
+            scope: eng.scope || undefined,
+            notes: eng.notes || undefined,
+          });
+        }
+      }
+      return generateAttackPlaybook(input.targetHost || "localhost:8443");
+    }),
+
+  getPlaybookStats: protectedProcedure
+    .query(async () => {
+      const { getPlaybookStats } = await import("../lib/nextcloud-attack-playbook");
+      return getPlaybookStats();
+    }),
+
+  getPlaybookPhase: protectedProcedure
+    .input(z.object({ phaseId: z.string() }))
+    .query(async ({ input }) => {
+      const { getPhase } = await import("../lib/nextcloud-attack-playbook");
+      const phase = getPhase(input.phaseId);
+      if (!phase) throw new TRPCError({ code: "NOT_FOUND", message: "Phase not found" });
+      return phase;
+    }),
+
+  getAutomatedTestCases: protectedProcedure
+    .query(async () => {
+      const { getAutomatedTestCases } = await import("../lib/nextcloud-attack-playbook");
+      return getAutomatedTestCases();
+    }),
+
+  getAllAttackTechniques: protectedProcedure
+    .query(async () => {
+      const { getAllAttackTechniques } = await import("../lib/nextcloud-attack-playbook");
+      return getAllAttackTechniques();
+    }),
 });

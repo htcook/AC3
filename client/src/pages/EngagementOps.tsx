@@ -36,6 +36,8 @@ import { VulnTrendChart } from "@/components/VulnTrendChart";
 import ManualFindingsPanel from "@/components/ManualFindingsPanel";
 import BurpAutoScanPanel from "@/components/BurpAutoScanPanel";
 import { NextcloudTestLabPanel } from "@/components/NextcloudTestLabPanel";
+import { AttackPlaybookPanel } from "@/components/AttackPlaybookPanel";
+import { LabDeployerPanel } from "@/components/LabDeployerPanel";
 import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
@@ -49,7 +51,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Wrench, Timer,
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
-  X, FileCheck, Fingerprint, Edit2,
+  X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -2185,6 +2187,8 @@ export default function EngagementOps() {
                   { value: 'scanimports', label: 'Scan Reports', icon: <FileUp className="h-3 w-3" /> },
                   { value: 'burpautoscan', label: 'Burp Suite', icon: <Scan className="h-3 w-3" /> },
                   { value: 'testlab', label: 'Test Lab', icon: <Server className="h-3 w-3" /> },
+                  { value: 'attackplaybook', label: 'Attack Playbook', icon: <BookOpen className="h-3 w-3" /> },
+                  { value: 'labdeployer', label: 'Deploy Lab', icon: <Rocket className="h-3 w-3" /> },
                   { value: 'coverageheatmap', label: 'Coverage Map', icon: <BarChart3 className="h-3 w-3" />, count: coverage.totalGaps || undefined },
                   { value: 'manualfindings', label: 'Manual Findings', icon: <Edit2 className="h-3 w-3" />, count: manualFindingsQ.data?.findings?.length || 0 },
                 ],
@@ -4548,6 +4552,24 @@ export default function EngagementOps() {
               <ScrollArea className="h-full">
                 <div className="py-4">
                   <NextcloudTestLabPanel engagementId={engagementId} engagementName={ops?.engagement?.name} />
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Attack Playbook Tab ── */}
+            <TabsContent value="attackplaybook" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <AttackPlaybookPanel engagementId={engagementId} />
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Lab Deployer Tab ── */}
+            <TabsContent value="labdeployer" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <LabDeployerPanel engagementId={engagementId} />
                 </div>
               </ScrollArea>
             </TabsContent>
