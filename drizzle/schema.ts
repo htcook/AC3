@@ -6985,3 +6985,84 @@ export const diIncidentTrainingData = mysqlTable("di_incident_training_data", {
 	index("ditd_rating_idx").on(table.analystRating),
 	index("ditd_scan_id_idx").on(table.scanId),
 ]);
+
+// ─── License Management Tables ──────────────────────────────────────────────
+
+export const licensedOrganizations = mysqlTable("licensed_organizations", {
+  id: int().autoincrement().notNull().primaryKey(),
+  orgId: varchar("org_id", { length: 128 }).notNull(),
+  orgName: varchar("org_name", { length: 255 }).notNull(),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  contactName: varchar("contact_name", { length: 255 }),
+  tier: varchar({ length: 32 }).notNull().default("starter"),
+  licenseKey: text("license_key").notNull(),
+  licenseKeyHash: varchar("license_key_hash", { length: 64 }).notNull(),
+  status: varchar({ length: 32 }).notNull().default("active"),
+  issuedAt: bigint("issued_at", { mode: "number" }).notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  revokedAt: bigint("revoked_at", { mode: "number" }),
+  revokedReason: text("revoked_reason"),
+  maxSeats: int("max_seats").notNull().default(5),
+  maxScansPerPeriod: int("max_scans_per_period").notNull().default(50),
+  billingPeriodDays: int("billing_period_days").notNull().default(30),
+  gracePeriodDays: int("grace_period_days").notNull().default(7),
+  featureOverrides: json("feature_overrides"),
+  deploymentDomain: varchar("deployment_domain", { length: 255 }),
+  notes: text(),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("licensed_org_id_idx").on(table.orgId),
+  index("licensed_status_idx").on(table.status),
+  index("licensed_tier_idx").on(table.tier),
+]);
+
+export const licenseUsageLogs = mysqlTable("license_usage_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  orgId: varchar("org_id", { length: 128 }).notNull(),
+  action: varchar({ length: 64 }).notNull(),
+  resourceType: varchar("resource_type", { length: 64 }),
+  resourceId: varchar("resource_id", { length: 255 }),
+  metadata: json(),
+  timestamp: bigint({ mode: "number" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("usage_org_id_idx").on(table.orgId),
+  index("usage_action_idx").on(table.action),
+  index("usage_timestamp_idx").on(table.timestamp),
+]);
+
+export const deploymentVersions = mysqlTable("deployment_versions", {
+  id: int().autoincrement().notNull().primaryKey(),
+  version: varchar({ length: 32 }).notNull(),
+  releaseDate: bigint("release_date", { mode: "number" }).notNull(),
+  channel: varchar({ length: 32 }).notNull().default("stable"),
+  changelog: text().notNull(),
+  migrationScript: text("migration_script"),
+  minPreviousVersion: varchar("min_previous_version", { length: 32 }),
+  downloadUrl: varchar("download_url", { length: 512 }),
+  checksumSha256: varchar("checksum_sha256", { length: 64 }),
+  isBreaking: tinyint("is_breaking").notNull().default(0),
+  isRequired: tinyint("is_required").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("version_idx").on(table.version),
+  index("channel_idx").on(table.channel),
+]);
+
+export const deploymentUpdateHistory = mysqlTable("deployment_update_history", {
+  id: int().autoincrement().notNull().primaryKey(),
+  orgId: varchar("org_id", { length: 128 }).notNull(),
+  fromVersion: varchar("from_version", { length: 32 }).notNull(),
+  toVersion: varchar("to_version", { length: 32 }).notNull(),
+  status: varchar({ length: 32 }).notNull().default("pending"),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  migrationLog: text("migration_log"),
+  error: text(),
+  rolledBack: tinyint("rolled_back").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("update_org_idx").on(table.orgId),
+  index("update_status_idx").on(table.status),
+]);

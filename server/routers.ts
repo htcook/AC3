@@ -116,6 +116,7 @@ import type { FeatureModule } from "./lib/white-label";
 import { getLicenseStatus, validateLicenseKey, generateLicenseKey } from "./lib/licensing";
 import type { LicenseTier } from "./lib/licensing";
 import { bugReportsRouter } from "./routers/bug-reports";
+import { licenseAdminRouter } from "./routers/license-admin";
 import { llmTelemetryRouter } from "./routers/llm-telemetry";
 import { containerRegistryRouter } from "./routers/container-registry";
 import { exploitationBridgeRouter } from "./routers/exploitation-bridge";
@@ -273,6 +274,7 @@ export const appRouter = router({
         };
       }),
   }),
+  licenseAdmin: licenseAdminRouter,
   zeroDay: zeroDayRouter,
   knowledgeBase: knowledgeBaseRouter,
   knowledgeCache: knowledgeCacheRouter,

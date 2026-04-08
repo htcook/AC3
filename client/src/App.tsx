@@ -320,6 +320,9 @@ const RealtimeMonitor = lazyWithRetry(() => import("./pages/RealtimeMonitor"));
 const TrainingDataReview = lazyWithRetry(() => import("./pages/TrainingDataReview"));
 const TestPlanReview = lazyWithRetry(() => import("./pages/TestPlanReview"));
 const ScanForgeDashboard = lazyWithRetry(() => import("./pages/ScanForgeDashboard"));
+const LicenseManagement = lazyWithRetry(() => import("./pages/LicenseManagement"));
+const UpdateManager = lazyWithRetry(() => import("./pages/UpdateManager"));
+const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1170,6 +1173,15 @@ function Router() {
         </Route>
         <Route path="/scanforge-dashboard">
           <ProtectedRoute component={ScanForgeDashboard} pageName="ScanForgeDashboard" />
+        </Route>
+        <Route path="/admin/licenses">
+          <ProtectedRoute component={LicenseManagement} pageName="LicenseManagement" />
+        </Route>
+        <Route path="/admin/updates">
+          <ProtectedRoute component={UpdateManager} pageName="UpdateManager" />
+        </Route>
+        <Route path="/my-portal">
+          <ProtectedRoute component={CustomerPortalSelfService} pageName="CustomerPortalSelfService" />
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
