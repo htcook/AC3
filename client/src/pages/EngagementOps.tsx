@@ -34,6 +34,7 @@ import AppShell from "@/components/AppShell";
 import { CodeViewer } from "@/components/CodeViewer";
 import { VulnTrendChart } from "@/components/VulnTrendChart";
 import ManualFindingsPanel from "@/components/ManualFindingsPanel";
+import BurpAutoScanPanel from "@/components/BurpAutoScanPanel";
 import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
@@ -2181,6 +2182,7 @@ export default function EngagementOps() {
                   { value: 'credentials', label: 'Credentials', icon: <KeyRound className="h-3 w-3" />, count: credTests.length },
                   { value: 'cloud', label: 'Cloud', icon: <Cloud className="h-3 w-3" />, count: cloudMisconfigsQ.data?.stats?.total || 0 },
                   { value: 'scanimports', label: 'Scan Reports', icon: <FileUp className="h-3 w-3" /> },
+                  { value: 'burpautoscan', label: 'Burp Suite', icon: <Scan className="h-3 w-3" /> },
                   { value: 'coverageheatmap', label: 'Coverage Map', icon: <BarChart3 className="h-3 w-3" />, count: coverage.totalGaps || undefined },
                   { value: 'manualfindings', label: 'Manual Findings', icon: <Edit2 className="h-3 w-3" />, count: manualFindingsQ.data?.findings?.length || 0 },
                 ],
@@ -4527,6 +4529,15 @@ export default function EngagementOps() {
             <TabsContent value="scanimports" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-full">
                 <ScanReportImportPanel engagementId={engagementId} />
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Burp Suite Auto-Scan Tab ── */}
+            <TabsContent value="burpautoscan" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-full">
+                <div className="py-4">
+                  <BurpAutoScanPanel engagementId={engagementId} />
+                </div>
               </ScrollArea>
             </TabsContent>
 

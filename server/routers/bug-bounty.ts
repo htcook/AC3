@@ -18,6 +18,7 @@ import {
   discoveredAssets,
   iocFeeds,
   userPlatformCredentials,
+  engagements,
 } from "../../drizzle/schema";
 import { eq, desc, like, and, or, sql, inArray } from "drizzle-orm";
 import crypto from "crypto";
@@ -1740,5 +1741,108 @@ export const bugBountyRouter = router({
       });
 
       return connector.listSitesEnterprise();
+    }),
+
+  // ─── Burp Suite Auto-Scan Endpoints ───
+
+  // Launch a Burp Suite auto-scan for an engagement
+  launchBurpAutoScan: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      credentialId: z.number(),
+      scanConfigName: z.string().optional(),
+      appLogin: z.object({
+        username: z.string(),
+        password: z.string(),
+        loginUrl: z.string().optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDbSafe();
+      const { launchBurpAutoScan, extractScopeUrls } = await import("../lib/burp-auto-scan");
+
+      // Get engagement
+      const [engagement] = await db
+        .select()
+        .from(engagements)
+        .where(eq(engagements.id, input.engagementId))
+        .limit(1);
+      if (!engagement) throw new TRPCError({ code: "NOT_FOUND", message: "Engagement not found" });
+
+      // Get credential
+      const [cred] = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(and(eq(userPlatformCredentials.id, input.credentialId), eq(userPlatformCredentials.userId, ctx.user.id)))
+        .limit(1);
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp Suite credential not found" });
+
+      const apiKey = decrypt(cred.apiKeyEncrypted);
+      const edition = cred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
+
+      // Extract scope URLs from engagement
+      const scopeUrls = extractScopeUrls(engagement);
+      if (scopeUrls.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No web URLs found in engagement scope. Add HTTP/HTTPS targets to the engagement scope first." });
+      }
+
+      const state = await launchBurpAutoScan({
+        engagementId: input.engagementId,
+        engagementHandle: (engagement as any).handle || engagement.name || `eng-${input.engagementId}`,
+        userId: ctx.user.id,
+        targetUrls: scopeUrls,
+        credentialId: input.credentialId,
+        burpConfig: {
+          edition: edition as any,
+          baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+          apiKey,
+        },
+        scanConfigName: input.scanConfigName,
+        appLogin: input.appLogin,
+        scanMode: (engagement as any).scanMode || "standard",
+      });
+
+      return {
+        scanId: state.scanId,
+        status: state.status,
+        targetUrls: state.targetUrls,
+        edition: state.edition,
+      };
+    }),
+
+  // Get Burp auto-scan progress for an engagement
+  getBurpAutoScanProgress: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      credentialId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getEngagementBurpScans, getBurpAutoScanState } = await import("../lib/burp-auto-scan");
+
+      if (input.credentialId) {
+        const state = getBurpAutoScanState(input.engagementId, input.credentialId);
+        return { scans: state ? [state] : [] };
+      }
+
+      return { scans: getEngagementBurpScans(input.engagementId) };
+    }),
+
+  // Cancel a Burp auto-scan
+  cancelBurpAutoScan: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      credentialId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { cancelBurpAutoScan } = await import("../lib/burp-auto-scan");
+      const cancelled = await cancelBurpAutoScan(input.engagementId, input.credentialId);
+      return { cancelled };
+    }),
+
+  // Get Burp auto-scan stats
+  getBurpAutoScanStats: protectedProcedure
+    .query(async () => {
+      const { getBurpAutoScanStats } = await import("../lib/burp-auto-scan");
+      return getBurpAutoScanStats();
     }),
 });
