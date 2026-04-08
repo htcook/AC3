@@ -2428,4 +2428,50 @@ export const bugBountyRouter = router({
       const { getAllAttackTechniques } = await import("../lib/nextcloud-attack-playbook");
       return getAllAttackTechniques();
     }),
+
+  // ─── ZAP → Burp Cross-Tool Pipeline ───
+
+  runZapToBurpPipeline: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      engagementHandle: z.string(),
+      zapScanId: z.number().optional(),
+      burpCredentialId: z.number().optional(),
+      targetUrls: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { runZapToBurpPipeline } = await import("../lib/zap-burp-pipeline");
+      return runZapToBurpPipeline({
+        engagementId: input.engagementId,
+        userId: String(ctx.user.id),
+        engagementHandle: input.engagementHandle,
+        zapScanId: input.zapScanId,
+        burpCredentialId: input.burpCredentialId,
+        targetUrls: input.targetUrls,
+      });
+    }),
+
+  getZapBurpCoverage: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getCrossToolCoverage } = await import("../lib/zap-burp-pipeline");
+      return getCrossToolCoverage(input.engagementId);
+    }),
+
+  getZapDiscoveredUrls: protectedProcedure
+    .input(z.object({ zapScanId: z.number() }))
+    .query(async ({ input }) => {
+      const { extractZapDiscoveredUrls } = await import("../lib/zap-burp-pipeline");
+      return extractZapDiscoveredUrls(input.zapScanId);
+    }),
+
+  correlateZapBurpFindings: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      zapScanId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const { correlateFindings } = await import("../lib/zap-burp-pipeline");
+      return correlateFindings(input.engagementId, input.zapScanId);
+    }),
 });

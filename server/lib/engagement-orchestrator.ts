@@ -5295,6 +5295,33 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     console.warn(`[EngagementOps] Burp auto-scan hook failed: ${burpErr.message}`);
   }
 
+  // ── ZAP → Burp Cross-Tool Pipeline (auto-feeds ZAP discoveries into Burp) ──
+  try {
+    const { runZapToBurpPipeline } = await import("./zap-burp-pipeline");
+    const pipelineResult = await runZapToBurpPipeline({
+      engagementId: state.engagementId,
+      userId: operatorCtx.id,
+      engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
+    });
+    if (pipelineResult.burpScanLaunched) {
+      addLog(state, {
+        phase: "vuln_detection", type: "info",
+        title: `🔗 ZAP → Burp Pipeline: ${pipelineResult.urlsFedToBurp} URLs cross-fed`,
+        detail: `Extracted ${pipelineResult.zapUrlsDiscovered} URLs from ZAP scan #${pipelineResult.zapScanId}, fed ${pipelineResult.urlsFedToBurp} to Burp. ` +
+          `Tech: ${pipelineResult.fingerprint.technologies.slice(0, 3).join(", ") || "none"}. ` +
+          `Correlations: ${pipelineResult.correlatedFindings.filter(f => f.confidenceBoost).length} confirmed by both tools.`,
+      });
+    } else if (pipelineResult.error) {
+      addLog(state, {
+        phase: "vuln_detection", type: "info",
+        title: "ZAP → Burp Pipeline: Skipped",
+        detail: pipelineResult.error,
+      });
+    }
+  } catch (pipelineErr: any) {
+    console.warn(`[EngagementOps] ZAP→Burp pipeline failed: ${pipelineErr.message}`);
+  }
+
   // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
