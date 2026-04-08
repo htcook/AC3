@@ -1856,4 +1856,159 @@ export const bugBountyRouter = router({
       const { getBurpAutoScanStatsWithHistory } = await import("../lib/burp-auto-scan");
       return getBurpAutoScanStatsWithHistory();
     }),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Nextcloud Test Lab Management
+  // ═══════════════════════════════════════════════════════════════════════
+
+  getTestLabConfig: protectedProcedure
+    .input(z.object({
+      nextcloudVersion: z.string().optional(),
+      hostPort: z.number().optional(),
+      enableCollabora: z.boolean().optional(),
+      enableClamAV: z.boolean().optional(),
+      enableLDAP: z.boolean().optional(),
+      enableKeycloak: z.boolean().optional(),
+      enableElasticsearch: z.boolean().optional(),
+      enableMinIO: z.boolean().optional(),
+      enableMailhog: z.boolean().optional(),
+      enableCoturn: z.boolean().optional(),
+      scanServerHost: z.string().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const {
+        generateDockerCompose,
+        generateAppInstallScript,
+        generateUserProvisioningScript,
+        generateLdapSeedScript,
+        generateConfigScript,
+        generateFullDeployScript,
+        generateStatusScript,
+        generateTeardownScript,
+        getTestLabInfo,
+        DEFAULT_LAB_CONFIG,
+        BOUNTY_ELIGIBLE_APPS,
+        NEXTCLOUD_VERSIONS,
+      } = await import("../lib/nextcloud-test-lab");
+
+      const config = {
+        ...DEFAULT_LAB_CONFIG,
+        ...(input?.nextcloudVersion && { nextcloudVersion: input.nextcloudVersion }),
+        ...(input?.hostPort && { hostPort: input.hostPort }),
+        ...(input?.enableCollabora !== undefined && { enableCollabora: input.enableCollabora }),
+        ...(input?.enableClamAV !== undefined && { enableClamAV: input.enableClamAV }),
+        ...(input?.enableLDAP !== undefined && { enableLDAP: input.enableLDAP }),
+        ...(input?.enableKeycloak !== undefined && { enableKeycloak: input.enableKeycloak }),
+        ...(input?.enableElasticsearch !== undefined && { enableElasticsearch: input.enableElasticsearch }),
+        ...(input?.enableMinIO !== undefined && { enableMinIO: input.enableMinIO }),
+        ...(input?.enableMailhog !== undefined && { enableMailhog: input.enableMailhog }),
+        ...(input?.enableCoturn !== undefined && { enableCoturn: input.enableCoturn }),
+        ...(input?.scanServerHost && { scanServerHost: input.scanServerHost }),
+      };
+
+      return {
+        dockerCompose: generateDockerCompose(config),
+        installAppsScript: generateAppInstallScript(config),
+        provisionUsersScript: generateUserProvisioningScript(config),
+        ldapSeedScript: generateLdapSeedScript(config),
+        configureScript: generateConfigScript(config),
+        fullDeployScript: generateFullDeployScript(config),
+        statusScript: generateStatusScript(config),
+        teardownScript: generateTeardownScript(config),
+        labInfo: getTestLabInfo(config),
+        config,
+        supportedVersions: NEXTCLOUD_VERSIONS.supported,
+        bountyEligibleApps: BOUNTY_ELIGIBLE_APPS.map(a => ({
+          name: a.name,
+          repo: a.repo,
+          tier: a.tier,
+          description: a.description,
+        })),
+        appCount: BOUNTY_ELIGIBLE_APPS.filter(a => !('builtIn' in a && a.builtIn)).length,
+      };
+    }),
+
+  downloadTestLabFiles: protectedProcedure
+    .input(z.object({
+      scanServerHost: z.string().optional(),
+      nextcloudVersion: z.string().optional(),
+      hostPort: z.number().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const {
+        generateDockerCompose,
+        generateAppInstallScript,
+        generateUserProvisioningScript,
+        generateLdapSeedScript,
+        generateConfigScript,
+        generateFullDeployScript,
+        generateStatusScript,
+        generateTeardownScript,
+        DEFAULT_LAB_CONFIG,
+      } = await import("../lib/nextcloud-test-lab");
+
+      const config = {
+        ...DEFAULT_LAB_CONFIG,
+        ...(input?.scanServerHost && { scanServerHost: input.scanServerHost }),
+        ...(input?.nextcloudVersion && { nextcloudVersion: input.nextcloudVersion }),
+        ...(input?.hostPort && { hostPort: input.hostPort }),
+      };
+
+      return {
+        files: [
+          { name: 'docker-compose.yml', content: generateDockerCompose(config) },
+          { name: 'deploy.sh', content: generateFullDeployScript(config) },
+          { name: 'install-apps.sh', content: generateAppInstallScript(config) },
+          { name: 'provision-users.sh', content: generateUserProvisioningScript(config) },
+          { name: 'seed-ldap-users.sh', content: generateLdapSeedScript(config) },
+          { name: 'configure.sh', content: generateConfigScript(config) },
+          { name: 'status.sh', content: generateStatusScript(config) },
+          { name: 'teardown.sh', content: generateTeardownScript(config) },
+        ],
+      };
+    }),
+
+  updateEngagementTestTarget: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      testLabUrl: z.string(),
+      scanServerHost: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDbSafe();
+
+      // Extract host from URL
+      let host: string;
+      try {
+        const url = new URL(input.testLabUrl);
+        host = url.hostname;
+      } catch {
+        host = input.testLabUrl.replace(/https?:\/\//, '').split(':')[0];
+      }
+
+      await db.update(engagements)
+        .set({
+          targetDomain: host,
+          notes: `Test Lab URL: ${input.testLabUrl}\nScan Server: ${input.scanServerHost || host}\nUpdated: ${new Date().toISOString()}`,
+        })
+        .where(eq(engagements.id, input.engagementId));
+
+      // Log timeline event
+      const { engagementTimelineEvents } = await import("../../drizzle/schema");
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: input.engagementId,
+        eventType: 'note_added',
+        phase: 'recon',
+        title: 'Test Lab Target Updated',
+        description: `Engagement target updated to local test lab: ${input.testLabUrl}`,
+        metadata: JSON.stringify({
+          testLabUrl: input.testLabUrl,
+          scanServerHost: input.scanServerHost,
+        }),
+        timestamp: BigInt(Date.now()),
+        createdAt: new Date(),
+      });
+
+      return { success: true, targetDomain: host };
+    }),
 });
