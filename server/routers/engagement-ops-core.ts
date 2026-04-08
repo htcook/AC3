@@ -1662,6 +1662,31 @@ export const engagementOpsRouter = router({
             const engagement = await db.getEngagementById(input.engagementId);
             if (!engagement) throw new Error('Engagement not found');
             const domains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+            const ipRanges = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+
+            // ═══ REFRESH RoE SCOPE GUARD from latest engagement data ═══
+            // On re-run, the engagement's targetDomain/targetIpRange may have been updated
+            // (e.g., by autoRegisterLabAsset) since the original RoE was locked during executeRecon.
+            // We must refresh the guard so the new targets are in scope.
+            state!.roeScopeGuard = {
+              authorizedDomains: [...domains],
+              authorizedIps: [...ipRanges],
+              roeStatus: (engagement as any).roeStatus || (engagement as any).roe_status || 'signed',
+            };
+            // Also add IP:port variants for assets that use port-based hostnames
+            for (const ip of ipRanges) {
+              for (const port of ['8443', '8444', '8445', '8447', '8448', '443', '80']) {
+                const ipPort = `${ip}:${port}`;
+                if (!state!.roeScopeGuard.authorizedDomains.includes(ipPort)) {
+                  state!.roeScopeGuard.authorizedDomains.push(ipPort);
+                }
+              }
+            }
+            addLog(state!, {
+              phase: 'recon', type: 'info',
+              title: '🛡️ RoE Scope Guard Refreshed',
+              detail: `Authorized targets: ${domains.join(', ')}${ipRanges.length ? ' | IPs: ' + ipRanges.join(', ') : ''}`,
+            });
 
             // Phase 1: Passive Recon
             if (input.phases.passive && domains.length > 0) {

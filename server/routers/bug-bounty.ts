@@ -360,6 +360,37 @@ async function autoRegisterLabAsset(
       });
     }
 
+    // ═══ UPDATE RoE SCOPE GUARD ═══
+    // Ensure the lab IP/hostname is in the authorized scope so it won't be excluded
+    // during active scan plan generation or vuln_detection phase
+    if (!state.roeScopeGuard) {
+      state.roeScopeGuard = {
+        authorizedDomains: [host],
+        authorizedIps: [scanServerHost],
+        roeStatus: 'signed',
+      };
+    } else {
+      // Add the lab hostname (IP:port format) to authorizedDomains if not already present
+      const labHostPort = `${scanServerHost}:8443`;
+      if (!state.roeScopeGuard.authorizedDomains) state.roeScopeGuard.authorizedDomains = [];
+      if (!state.roeScopeGuard.authorizedIps) state.roeScopeGuard.authorizedIps = [];
+
+      if (!state.roeScopeGuard.authorizedDomains.includes(host)) {
+        state.roeScopeGuard.authorizedDomains.push(host);
+      }
+      if (!state.roeScopeGuard.authorizedDomains.includes(labHostPort)) {
+        state.roeScopeGuard.authorizedDomains.push(labHostPort);
+      }
+      if (!state.roeScopeGuard.authorizedIps.includes(scanServerHost)) {
+        state.roeScopeGuard.authorizedIps.push(scanServerHost);
+      }
+
+      // Remove out-of-scope nextcloud.com domains from authorized list
+      state.roeScopeGuard.authorizedDomains = state.roeScopeGuard.authorizedDomains.filter(
+        (d: string) => !d.toLowerCase().endsWith('.nextcloud.com') && d.toLowerCase() !== 'nextcloud.com'
+      );
+    }
+
     // Save updated state
     state.assets = filteredAssets;
     await db.update(engagementOpsSnapshots)

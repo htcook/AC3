@@ -734,10 +734,24 @@ export function isInRoeScope(state: EngagementOpsState, hostname: string, ip?: s
   if (!guard) return true; // No guard = legacy behavior (all assets in scope)
   const normalizedHost = hostname.toLowerCase().trim();
   const normalizedIp = (ip || "").trim();
-  // Check exact domain match
-  if (guard.authorizedDomains.some(d => d.toLowerCase().trim() === normalizedHost)) return true;
-  // Check exact IP match
+
+  // Strip port from hostname for matching (e.g., "159.223.152.190:8443" → "159.223.152.190")
+  const hostWithoutPort = normalizedHost.includes(":") ? normalizedHost.split(":")[0] : normalizedHost;
+
+  // Check exact domain match (with and without port)
+  if (guard.authorizedDomains.some(d => {
+    const nd = d.toLowerCase().trim();
+    return nd === normalizedHost || nd === hostWithoutPort;
+  })) return true;
+
+  // Check exact IP match (also try stripping port from hostname as IP)
   if (normalizedIp && guard.authorizedIps.some(i => i.trim() === normalizedIp)) return true;
+
+  // If hostname looks like an IP (possibly with port), check against authorizedIps
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(hostWithoutPort)) {
+    if (guard.authorizedIps.some(i => i.trim() === hostWithoutPort)) return true;
+  }
+
   // Check if hostname is a subdomain of an authorized domain (e.g., sub.target.com matches target.com)
   // DISABLED by default — only exact matches are in scope unless RoE explicitly allows subdomain discovery
   return false;

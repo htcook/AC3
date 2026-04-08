@@ -241,13 +241,16 @@ function isInScope(target: string, roe: RulesOfEngagement): { inScope: boolean; 
 
   // Check if in scoped assets (if scoped assets are defined, only those are in scope)
   if (roe.scopedAssets.length > 0) {
+    // Strip port from target for matching (e.g., "159.223.152.190:8443" → "159.223.152.190")
+    const targetWithoutPort = target.includes(":") ? target.split(":")[0] : target;
     const isScoped = roe.scopedAssets.some(s => {
-      // Exact match
-      if (s === target) return true;
+      const scopeWithoutPort = s.includes(":") ? s.split(":")[0] : s;
+      // Exact match (with or without port)
+      if (s === target || scopeWithoutPort === targetWithoutPort) return true;
       // Wildcard subdomain match (e.g., *.example.com)
-      if (s.startsWith("*.") && target.endsWith(s.slice(1))) return true;
+      if (s.startsWith("*.") && (target.endsWith(s.slice(1)) || targetWithoutPort.endsWith(s.slice(1)))) return true;
       // Parent domain match
-      if (target.endsWith(`.${s}`)) return true;
+      if (target.endsWith(`.${s}`) || targetWithoutPort.endsWith(`.${scopeWithoutPort}`)) return true;
       return false;
     });
     if (!isScoped) {
