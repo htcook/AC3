@@ -252,6 +252,202 @@ async function correlateFindings(findingIds?: number[]): Promise<CorrelationResu
   return correlations;
 }
 
+// ─── Lab Asset Auto-Registration ───
+
+/**
+ * Auto-register the deployed test lab as an engagement target asset.
+ * Also removes out-of-scope *.nextcloud.com domain assets from the ops state.
+ * Called automatically after successful test lab deployment.
+ */
+async function autoRegisterLabAsset(
+  engagementId: number,
+  labUrl: string,
+  scanServerHost: string
+): Promise<{ registered: boolean; removedOutOfScope: string[] }> {
+  const db = await getDbSafe();
+  const removedOutOfScope: string[] = [];
+
+  // 1. Update engagement targetDomain and targetIpRange
+  let host: string;
+  try {
+    const url = new URL(labUrl);
+    host = url.hostname;
+  } catch {
+    host = labUrl.replace(/https?:\/\//, '').split(':')[0];
+  }
+
+  await db.update(engagements)
+    .set({
+      targetDomain: host,
+      targetIpRange: scanServerHost,
+      notes: [
+        `Test Lab URL: ${labUrl}`,
+        `Scan Server: ${scanServerHost}`,
+        `Deployed via AC3 Nextcloud Test Lab`,
+        `Auto-registered: ${new Date().toISOString()}`,
+        `Note: *.nextcloud.com domains removed (out-of-scope per HackerOne program rules)`,
+      ].join('\n'),
+    })
+    .where(eq(engagements.id, engagementId));
+
+  // 2. Update ops state snapshot: add lab asset, remove out-of-scope nextcloud.com assets
+  const { engagementOpsSnapshots } = await import("../../drizzle/schema");
+  const [snapshot] = await db.select()
+    .from(engagementOpsSnapshots)
+    .where(eq(engagementOpsSnapshots.engagementId, engagementId))
+    .limit(1);
+
+  if (snapshot) {
+    const state = snapshot.stateJson as any;
+    const assets = Array.isArray(state.assets) ? state.assets : [];
+
+    // Remove out-of-scope nextcloud.com domain assets
+    const filteredAssets = assets.filter((a: any) => {
+      const hostname = (a.hostname || '').toLowerCase();
+      if (
+        hostname === 'nextcloud.com' ||
+        hostname.endsWith('.nextcloud.com')
+      ) {
+        removedOutOfScope.push(hostname);
+        return false;
+      }
+      return true;
+    });
+
+    // Check if lab asset already exists
+    const labAssetExists = filteredAssets.some(
+      (a: any) => (a.hostname || '').includes(scanServerHost)
+    );
+
+    if (!labAssetExists) {
+      // Add the test lab as a new target asset
+      filteredAssets.push({
+        hostname: `${scanServerHost}:8443`,
+        type: 'web_app',
+        status: 'discovered',
+        ports: [
+          { port: 8443, service: 'HTTPS', version: 'Nextcloud Test Lab' },
+          { port: 8444, service: 'HTTPS', version: 'Keycloak SSO' },
+        ],
+        vulns: [],
+        exploitAttempts: [],
+        toolResults: [],
+        pendingVulns: [],
+        confirmedCredentials: [],
+        passiveRecon: {
+          technologies: ['Nextcloud', 'PHP', 'MariaDB', 'Redis', 'Collabora', 'OpenLDAP', 'Keycloak', 'MinIO', 'ClamAV'],
+          cloudProvider: 'DigitalOcean',
+          subdomains: [],
+          ipAddresses: [scanServerHost],
+          certificates: [],
+          historicalUrls: [],
+          riskSignals: [],
+          services: [],
+          sources: ['AC3 Test Lab Deployer'],
+          rawObservationCount: 0,
+        },
+        notes: `AC3 Nextcloud Bug Bounty Test Lab - auto-registered on deploy. Lab URL: ${labUrl}`,
+        inScope: true,
+        labDeployed: true,
+      });
+    }
+
+    // Save updated state
+    state.assets = filteredAssets;
+    await db.update(engagementOpsSnapshots)
+      .set({
+        stateJson: state,
+        assetCount: filteredAssets.length,
+      })
+      .where(eq(engagementOpsSnapshots.engagementId, engagementId));
+  }
+
+  // 3. Log timeline event
+  const { engagementTimelineEvents } = await import("../../drizzle/schema");
+  await db.insert(engagementTimelineEvents).values({
+    engagementId,
+    eventType: 'note_added',
+    phase: 'recon',
+    title: 'Test Lab Auto-Registered as Target',
+    description: [
+      `Lab deployed at ${labUrl} — auto-added as in-scope target asset.`,
+      removedOutOfScope.length > 0
+        ? `Removed ${removedOutOfScope.length} out-of-scope domain(s): ${removedOutOfScope.join(', ')} (HackerOne program requires local testing only).`
+        : '',
+    ].filter(Boolean).join(' '),
+    metadata: JSON.stringify({
+      labUrl,
+      scanServerHost,
+      removedOutOfScope,
+      action: 'auto_register_lab_asset',
+    }),
+    timestamp: BigInt(Date.now()),
+    createdAt: new Date(),
+  });
+
+  console.log(`[LabAssetRegister] Registered ${labUrl} for engagement #${engagementId}. Removed ${removedOutOfScope.length} out-of-scope domains.`);
+  return { registered: true, removedOutOfScope };
+}
+
+/**
+ * Remove out-of-scope *.nextcloud.com assets from an engagement's ops state.
+ * Can be called independently (not just during deploy).
+ */
+async function removeOutOfScopeNextcloudAssets(
+  engagementId: number
+): Promise<{ removed: string[]; remainingCount: number }> {
+  const db = await getDbSafe();
+  const removed: string[] = [];
+
+  const { engagementOpsSnapshots } = await import("../../drizzle/schema");
+  const [snapshot] = await db.select()
+    .from(engagementOpsSnapshots)
+    .where(eq(engagementOpsSnapshots.engagementId, engagementId))
+    .limit(1);
+
+  if (!snapshot) return { removed: [], remainingCount: 0 };
+
+  const state = snapshot.stateJson as any;
+  const assets = Array.isArray(state.assets) ? state.assets : [];
+
+  const filteredAssets = assets.filter((a: any) => {
+    const hostname = (a.hostname || '').toLowerCase();
+    if (
+      hostname === 'nextcloud.com' ||
+      hostname.endsWith('.nextcloud.com')
+    ) {
+      removed.push(hostname);
+      return false;
+    }
+    return true;
+  });
+
+  if (removed.length > 0) {
+    state.assets = filteredAssets;
+    await db.update(engagementOpsSnapshots)
+      .set({
+        stateJson: state,
+        assetCount: filteredAssets.length,
+      })
+      .where(eq(engagementOpsSnapshots.engagementId, engagementId));
+
+    // Log timeline event
+    const { engagementTimelineEvents } = await import("../../drizzle/schema");
+    await db.insert(engagementTimelineEvents).values({
+      engagementId,
+      eventType: 'note_added',
+      phase: 'recon',
+      title: 'Out-of-Scope Assets Removed',
+      description: `Removed ${removed.length} out-of-scope domain(s): ${removed.join(', ')}. HackerOne Nextcloud program requires all testing on self-hosted instances only — *.nextcloud.com domains are NOT bounty-eligible.`,
+      metadata: JSON.stringify({ removed, action: 'remove_out_of_scope' }),
+      timestamp: BigInt(Date.now()),
+      createdAt: new Date(),
+    });
+  }
+
+  return { removed, remainingCount: filteredAssets.length };
+}
+
 // ─── Router ───
 
 export const bugBountyRouter = router({
@@ -2025,6 +2221,16 @@ export const bugBountyRouter = router({
       const state = await deployTestLab(input.engagementId, DEFAULT_LAB_CONFIG, {
         remoteDir: input.remoteDir,
       });
+
+      // ─── Auto-register lab as engagement asset on successful deploy ───
+      if (state.status === "running" && state.labUrl) {
+        try {
+          await autoRegisterLabAsset(input.engagementId, state.labUrl, state.scanServerHost);
+        } catch (err: any) {
+          console.error(`[DeployTestLab] Auto-register failed:`, err.message);
+        }
+      }
+
       return {
         id: state.id,
         status: state.status,
@@ -2071,6 +2277,24 @@ export const bugBountyRouter = router({
       const { destroyTestLab } = await import("../lib/test-lab-deployer");
       const result = await destroyTestLab(input.deploymentId);
       return result ? { success: true, status: result.status } : { success: false, status: "not_found" };
+    }),
+
+  // ─── Lab Asset Management ─────────────────────────────────────────────────
+
+  removeOutOfScopeAssets: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input }) => {
+      return removeOutOfScopeNextcloudAssets(input.engagementId);
+    }),
+
+  registerLabAsset: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      labUrl: z.string(),
+      scanServerHost: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      return autoRegisterLabAsset(input.engagementId, input.labUrl, input.scanServerHost);
     }),
 
   // ─── Burp ↔ Test Lab Bridge ──────────────────────────────────────────────
