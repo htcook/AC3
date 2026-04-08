@@ -758,7 +758,8 @@ export async function suggestToolCommands(asset: {
 
   if (webPorts.length > 0) {
     for (const wp of webPorts) {
-      const scheme = wp.port === 443 || wp.port === 8443 ? "https" : "http";
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.port === 8444 || wp.port === 8445 || wp.port === 8447 || wp.port === 9443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
       const url = `${scheme}://${target}:${wp.port}`;
 
       // NOTE: httpx and nuclei MUST use raw commands with stdin piping
@@ -777,9 +778,11 @@ export async function suggestToolCommands(asset: {
         priority: 1,
       });
 
+      // Nikto: add -ssl flag for HTTPS targets to ensure proper TLS handshake
+      const niktoSslFlag = isHttps ? ' -ssl' : '';
       commands.push({
         tool: "nikto",
-        args: `-h ${url} -Tuning 1234567890abc -maxtime 300`,
+        args: `-h ${url}${niktoSslFlag} -Tuning 1234567890abc -maxtime 300`,
         purpose: `Web vulnerability scan on ${url}`,
         priority: 1,
       });

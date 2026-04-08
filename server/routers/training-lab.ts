@@ -1284,7 +1284,8 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       const { executeRawCommandViaQueue } = await import("../lib/job-queue-bridge");
       
       const niktoTimeout = scanProfile === "deep" ? 180 : 60;
-      const niktoCmd = `timeout ${niktoTimeout} nikto -h ${scanUrl} -Tuning 1234567890abc 2>&1`;
+      const niktoSslFlag = scanUrl.startsWith('https://') ? ' -ssl' : '';
+      const niktoCmd = `timeout ${niktoTimeout} nikto -h ${scanUrl}${niktoSslFlag} -Tuning 1234567890abc 2>&1`;
       const niktoResult = await executeRawCommandViaQueue(niktoCmd, niktoTimeout + 30);
 
       state.stats.toolsRun++;

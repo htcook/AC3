@@ -320,14 +320,22 @@ async function autoRegisterLabAsset(
     );
 
     if (!labAssetExists) {
-      // Add the test lab as a new target asset
+      // Add the test lab as a new target asset with all known scan server ports
       filteredAssets.push({
         hostname: `${scanServerHost}:8443`,
         type: 'web_app',
         status: 'discovered',
         ports: [
-          { port: 8443, service: 'HTTPS', version: 'Nextcloud Test Lab' },
-          { port: 8444, service: 'HTTPS', version: 'Keycloak SSO' },
+          { port: 22, service: 'ssh', version: 'OpenSSH' },
+          { port: 80, service: 'http', version: 'nginx/1.18.0' },
+          { port: 443, service: 'https', version: 'nginx/1.18.0' },
+          { port: 4000, service: 'http', version: 'Node.js/Express' },
+          { port: 8090, service: 'http-alt', version: '' },
+          { port: 8443, service: 'https', version: 'Nextcloud Test Lab' },
+          { port: 8444, service: 'https', version: 'phpLDAPadmin' },
+          { port: 8445, service: 'https', version: 'Keycloak SSO' },
+          { port: 8447, service: 'https', version: 'MinIO Console' },
+          { port: 8448, service: 'http', version: 'Mailhog SMTP UI' },
         ],
         vulns: [],
         exploitAttempts: [],

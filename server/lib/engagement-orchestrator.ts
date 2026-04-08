@@ -4957,6 +4957,23 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (!gobCmd.includes('-t ')) gobCmd += ' -t 20';
         cmd.command = gobCmd.replace(/\s+/g, ' ').trim();
       }
+
+      // Fix LLM-generated nikto commands: ensure -ssl flag for HTTPS targets
+      if (cmd.tool === 'nikto') {
+        const niktoUrlMatch = cmd.command.match(/-h\s+(https?:\/\/\S+)/);
+        if (niktoUrlMatch) {
+          const niktoUrl = niktoUrlMatch[1];
+          const isNiktoHttps = niktoUrl.startsWith('https://') || /:(443|8443|8444|8445|8447|9443)\b/.test(niktoUrl);
+          if (isNiktoHttps && !cmd.command.includes('-ssl')) {
+            cmd.command = cmd.command.replace(/-h\s+\S+/, `$& -ssl`);
+          }
+        }
+        // Ensure maxtime is set to prevent hanging
+        if (!cmd.command.includes('-maxtime')) {
+          cmd.command += ' -maxtime 300';
+        }
+        cmd.command = cmd.command.replace(/\s+/g, ' ').trim();
+      }
     }
 
     // ── Apply evasion profile flags to all tool commands ──
