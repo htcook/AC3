@@ -2,9 +2,9 @@
  * BurpAutoScanPanel — Auto-launch and monitor Burp Suite scans from engagement ops.
  *
  * Shows connected Burp instances, allows launching scans against in-scope assets,
- * and displays real-time progress with issue counts.
+ * displays real-time progress, and shows persisted scan history from the database.
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   Play, Square, Loader2, CheckCircle2, XCircle, AlertTriangle,
   ChevronDown, ChevronUp, Globe, Shield, Bug, RefreshCw, Scan,
+  History, ArrowRight, Zap,
 } from "lucide-react";
 
 interface BurpAutoScanPanelProps {
@@ -26,11 +27,11 @@ interface BurpAutoScanPanelProps {
 
 export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelProps) {
   const [showAuthConfig, setShowAuthConfig] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [appUsername, setAppUsername] = useState("");
   const [appPassword, setAppPassword] = useState("");
   const [appLoginUrl, setAppLoginUrl] = useState("");
   const [scanConfigName, setScanConfigName] = useState("");
-  const [selectedCredId, setSelectedCredId] = useState<number | null>(null);
 
   // Fetch Burp Suite credentials
   const credsQ = trpc.platformCredentials.list.useQuery();
@@ -38,10 +39,16 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
     (c: any) => c.platform === "burpsuite_pro" || c.platform === "burpsuite_enterprise"
   );
 
-  // Fetch active scan progress
+  // Fetch active scan progress (in-memory, real-time)
   const progressQ = trpc.bugBounty.getBurpAutoScanProgress.useQuery(
     { engagementId },
     { refetchInterval: 5000 }
+  );
+
+  // Fetch persisted scan history from DB
+  const historyQ = trpc.bugBounty.getBurpScanHistory.useQuery(
+    { engagementId },
+    { refetchInterval: 30000 }
   );
 
   const launchMutation = trpc.bugBounty.launchBurpAutoScan.useMutation({
@@ -65,6 +72,7 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
   });
 
   const scans = progressQ.data?.scans || [];
+  const history = historyQ.data?.history || [];
   const hasActiveScans = scans.some(
     (s: any) => ["launching", "running", "polling", "importing"].includes(s.status)
   );
@@ -98,7 +106,7 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
 
   return (
     <div className="space-y-4">
-      {/* Connected Instances */}
+      {/* Connected Instances & Active Scans */}
       <Card className="bg-zinc-900/50 border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -191,7 +199,7 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
                   </div>
                 )}
 
-                {/* Completed scan summary */}
+                {/* Completed scan summary with exploit chain indicator */}
                 {activeScan && activeScan.status === "completed" && (
                   <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-md p-2 text-[10px]">
                     <div className="flex items-center gap-1 text-emerald-400 mb-1">
@@ -202,6 +210,12 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
                       {activeScan.issueCount} issues found · {activeScan.importedCount} imported as findings ·
                       Duration: {formatDuration(activeScan.startedAt, activeScan.completedAt)}
                     </div>
+                    {activeScan.importedCount > 0 && (
+                      <div className="flex items-center gap-1 text-amber-400 mt-1.5">
+                        <Zap className="h-3 w-3" />
+                        <span>Findings auto-matched against exploit database</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -263,6 +277,86 @@ export default function BurpAutoScanPanel({ engagementId }: BurpAutoScanPanelPro
           </Collapsible>
         </CardContent>
       </Card>
+
+      {/* Scan History (persisted in DB) */}
+      {history.length > 0 && (
+        <Card className="bg-zinc-900/50 border-zinc-800">
+          <CardHeader className="pb-2">
+            <Collapsible open={showHistory} onOpenChange={setShowHistory}>
+              <CollapsibleTrigger asChild>
+                <CardTitle className="text-sm flex items-center gap-2 cursor-pointer hover:text-zinc-200 transition-colors">
+                  <History className="h-4 w-4 text-zinc-400" />
+                  Scan History
+                  <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">
+                    {history.length}
+                  </Badge>
+                  {showHistory ? <ChevronUp className="h-3 w-3 ml-auto text-zinc-500" /> : <ChevronDown className="h-3 w-3 ml-auto text-zinc-500" />}
+                </CardTitle>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-2 pt-3">
+                  {history.map((record: any) => (
+                    <div
+                      key={record.id}
+                      className="rounded-md border border-zinc-700/30 bg-zinc-800/20 p-2.5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <StatusIcon status={record.status} />
+                          <span className="text-xs text-zinc-300">
+                            Burp {record.edition === "enterprise" ? "Enterprise" : "Pro"}
+                          </span>
+                          <span className="text-[10px] text-zinc-500">
+                            {record.scanId ? `#${record.scanId.slice(0, 8)}` : "—"}
+                          </span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            record.status === "completed"
+                              ? "border-emerald-500/30 text-emerald-400"
+                              : record.status === "failed"
+                              ? "border-red-500/30 text-red-400"
+                              : record.status === "cancelled"
+                              ? "border-yellow-500/30 text-yellow-400"
+                              : "border-zinc-600 text-zinc-400"
+                          }`}
+                        >
+                          {statusLabel(record.status)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                        <span>
+                          {Array.isArray(record.targetUrls) ? record.targetUrls.length : 0} targets
+                          {record.issueCount > 0 && ` · ${record.issueCount} issues`}
+                          {record.importedCount > 0 && ` · ${record.importedCount} imported`}
+                        </span>
+                        <span>
+                          {record.startedAt ? new Date(record.startedAt).toLocaleString() : "—"}
+                        </span>
+                      </div>
+                      {record.progress > 0 && record.progress < 100 && (
+                        <Progress value={record.progress} className="h-1" />
+                      )}
+                      {record.error && (
+                        <div className="text-[10px] text-red-400 bg-red-500/10 rounded px-2 py-0.5">
+                          {record.error}
+                        </div>
+                      )}
+                      {record.status === "completed" && record.importedCount > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-400">
+                          <Zap className="h-2.5 w-2.5" />
+                          Findings fed to exploit matching engine
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 }

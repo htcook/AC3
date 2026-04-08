@@ -7066,3 +7066,30 @@ export const deploymentUpdateHistory = mysqlTable("deployment_update_history", {
   index("update_org_idx").on(table.orgId),
   index("update_status_idx").on(table.status),
 ]);
+
+// ─── Burp Suite Scan History ───
+export const burpScanHistory = mysqlTable("burp_scan_history", {
+  id: int().autoincrement().notNull().primaryKey(),
+  engagementId: int("engagement_id").notNull(),
+  credentialId: int("credential_id").notNull(),
+  userId: varchar("user_id", { length: 128 }).notNull(),
+  scanId: varchar("scan_id", { length: 255 }),
+  edition: varchar({ length: 32 }).notNull(),
+  status: varchar({ length: 32 }).notNull().default("pending"),
+  progress: int().notNull().default(0),
+  targetUrls: json("target_urls"),
+  issueCount: int("issue_count").notNull().default(0),
+  importedCount: int("imported_count").notNull().default(0),
+  scanConfigName: varchar("scan_config_name", { length: 255 }),
+  error: text(),
+  startedAt: bigint("started_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  lastPollAt: bigint("last_poll_at", { mode: "number" }),
+  pollCount: int("poll_count").notNull().default(0),
+  metadata: json(),
+  createdAt: timestamp("created_at", { mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("bsh_engagement_idx").on(table.engagementId),
+  index("bsh_user_idx").on(table.userId),
+  index("bsh_status_idx").on(table.status),
+]);

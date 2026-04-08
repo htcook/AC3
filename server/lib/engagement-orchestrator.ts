@@ -5246,6 +5246,30 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
   }
 
+  // ── Burp Suite Auto-Scan (if credentials connected) ──
+  try {
+    const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan");
+    const scopeUrls = extractScopeUrls(engagement, state);
+    if (scopeUrls.length > 0) {
+      const burpResults = await onEngagementVulnDetectionPhase(
+        state.engagementId,
+        operatorCtx.id,
+        engagement.handle || engagement.name || `eng-${state.engagementId}`,
+        scopeUrls,
+        engagement.scanMode || state.scanMode
+      );
+      if (burpResults.length > 0) {
+        addLog(state, {
+          phase: "vuln_detection", type: "scan_start",
+          title: `\uD83D\uDD25 Burp Suite Auto-Scan Launched (${burpResults.length} instance${burpResults.length > 1 ? 's' : ''})`,
+          detail: `Automatically triggered Burp Suite scans against ${scopeUrls.length} in-scope web targets. Findings will be imported on completion.`,
+        });
+      }
+    }
+  } catch (burpErr: any) {
+    console.warn(`[EngagementOps] Burp auto-scan hook failed: ${burpErr.message}`);
+  }
+
   // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings

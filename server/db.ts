@@ -3676,3 +3676,85 @@ export async function getDITrainingStats() {
     unreviewed: (total?.count || 0) - (reviewed?.count || 0),
   };
 }
+
+// ─── Burp Suite Scan History ───
+import { burpScanHistory } from "../drizzle/schema";
+
+export async function createBurpScanRecord(record: {
+  engagementId: number;
+  credentialId: number;
+  userId: string;
+  scanId?: string;
+  edition: string;
+  status: string;
+  targetUrls: string[];
+  scanConfigName?: string;
+  startedAt: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(burpScanHistory).values({
+    engagementId: record.engagementId,
+    credentialId: record.credentialId,
+    userId: record.userId,
+    scanId: record.scanId || null,
+    edition: record.edition,
+    status: record.status,
+    targetUrls: record.targetUrls,
+    scanConfigName: record.scanConfigName || null,
+    startedAt: record.startedAt,
+  });
+  return result.insertId;
+}
+
+export async function updateBurpScanRecord(id: number, updates: {
+  scanId?: string;
+  status?: string;
+  progress?: number;
+  issueCount?: number;
+  importedCount?: number;
+  error?: string | null;
+  completedAt?: number | null;
+  lastPollAt?: number | null;
+  pollCount?: number;
+  metadata?: any;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(burpScanHistory).set(updates).where(eq(burpScanHistory.id, id));
+}
+
+export async function getBurpScansByEngagement(engagementId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(burpScanHistory)
+    .where(eq(burpScanHistory.engagementId, engagementId))
+    .orderBy(desc(burpScanHistory.startedAt));
+}
+
+export async function getBurpScansByUser(userId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(burpScanHistory)
+    .where(eq(burpScanHistory.userId, userId))
+    .orderBy(desc(burpScanHistory.startedAt));
+}
+
+export async function getDbBurpScanStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, active: 0, completed: 0, failed: 0, totalIssues: 0, totalImported: 0 };
+  const [total] = await db.select({ count: sql<number>`count(*)` }).from(burpScanHistory);
+  const [active] = await db.select({ count: sql<number>`count(*)` }).from(burpScanHistory).where(sql`${burpScanHistory.status} IN ('pending','launching','running','polling','importing')`);
+  const [completed] = await db.select({ count: sql<number>`count(*)` }).from(burpScanHistory).where(eq(burpScanHistory.status, "completed"));
+  const [failed] = await db.select({ count: sql<number>`count(*)` }).from(burpScanHistory).where(eq(burpScanHistory.status, "failed"));
+  const [issues] = await db.select({ sum: sql<number>`COALESCE(SUM(issue_count), 0)` }).from(burpScanHistory);
+  const [imported] = await db.select({ sum: sql<number>`COALESCE(SUM(imported_count), 0)` }).from(burpScanHistory);
+  return {
+    total: total?.count || 0,
+    active: active?.count || 0,
+    completed: completed?.count || 0,
+    failed: failed?.count || 0,
+    totalIssues: issues?.sum || 0,
+    totalImported: imported?.sum || 0,
+  };
+}

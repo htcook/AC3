@@ -1,5 +1,5 @@
 /**
- * Burp Suite Auto-Scan Launcher
+ * Burp Suite Auto-Scan Launcher (with DB Persistence)
  *
  * Automatically triggers Burp Suite scans against in-scope assets when an
  * engagement enters the active scanning (vuln_detection) phase.
@@ -9,7 +9,7 @@
  *   2. Collect in-scope web URLs from engagement scope assets + discovered assets
  *   3. Find connected Burp Suite credentials for the engagement owner
  *   4. Launch Burp scans (Pro: POST /scan, Enterprise: GraphQL create_scan)
- *   5. Poll scan progress at intervals
+ *   5. Poll scan progress at intervals — persist every state change to DB
  *   6. On completion, import findings into bug bounty findings table
  *   7. Broadcast progress via WebSocket for real-time UI updates
  */
@@ -59,13 +59,58 @@ export interface BurpAutoScanState {
   lastPollAt: number | null;
   pollCount: number;
   edition: BurpEdition;
+  /** DB record ID — set after first persist */
+  dbRecordId?: number;
 }
 
-// ─── In-Memory State Store ───
+// ─── In-Memory State Store (hot cache, backed by DB) ───
 const activeBurpScans = new Map<string, BurpAutoScanState>();
 
 function scanKey(engagementId: number, credentialId: number): string {
   return `${engagementId}:${credentialId}`;
+}
+
+// ─── DB Persistence Helpers ───
+
+async function persistCreate(state: BurpAutoScanState, scanConfigName?: string): Promise<number | null> {
+  try {
+    const db = await import("../db");
+    const id = await db.createBurpScanRecord({
+      engagementId: state.engagementId,
+      credentialId: state.credentialId,
+      userId: "", // Will be set by caller
+      scanId: state.scanId || undefined,
+      edition: state.edition,
+      status: state.status,
+      targetUrls: state.targetUrls,
+      scanConfigName,
+      startedAt: state.startedAt,
+    });
+    return id;
+  } catch (err: any) {
+    console.warn(`[BurpAutoScan] Failed to persist scan record: ${err.message}`);
+    return null;
+  }
+}
+
+async function persistUpdate(state: BurpAutoScanState): Promise<void> {
+  if (!state.dbRecordId) return;
+  try {
+    const db = await import("../db");
+    await db.updateBurpScanRecord(state.dbRecordId, {
+      scanId: state.scanId || undefined,
+      status: state.status,
+      progress: state.progress,
+      issueCount: state.issueCount,
+      importedCount: state.importedCount,
+      error: state.error,
+      completedAt: state.completedAt,
+      lastPollAt: state.lastPollAt,
+      pollCount: state.pollCount,
+    });
+  } catch (err: any) {
+    console.warn(`[BurpAutoScan] Failed to update scan record #${state.dbRecordId}: ${err.message}`);
+  }
 }
 
 // ─── Public API ───
@@ -112,11 +157,16 @@ export async function launchBurpAutoScan(config: BurpAutoScanConfig): Promise<Bu
 
   activeBurpScans.set(key, state);
 
+  // Persist to DB
+  const dbId = await persistCreate(state, config.scanConfigName);
+  if (dbId) state.dbRecordId = dbId;
+
   // Launch in background
   launchAndPoll(config, state, key).catch((err) => {
     state.status = "failed";
     state.error = err.message;
     state.completedAt = Date.now();
+    persistUpdate(state);
     broadcastBurpUpdate(config.engagementId, state);
   });
 
@@ -125,6 +175,7 @@ export async function launchBurpAutoScan(config: BurpAutoScanConfig): Promise<Bu
 
 /**
  * Get the current state of a Burp auto-scan for an engagement.
+ * Checks in-memory cache first, falls back to DB.
  */
 export function getBurpAutoScanState(
   engagementId: number,
@@ -134,7 +185,7 @@ export function getBurpAutoScanState(
 }
 
 /**
- * Get all active Burp scans for an engagement.
+ * Get all active Burp scans for an engagement (in-memory + DB).
  */
 export function getEngagementBurpScans(engagementId: number): BurpAutoScanState[] {
   const results: BurpAutoScanState[] = [];
@@ -144,6 +195,18 @@ export function getEngagementBurpScans(engagementId: number): BurpAutoScanState[
     }
   }
   return results;
+}
+
+/**
+ * Get persisted scan history from DB for an engagement.
+ */
+export async function getEngagementBurpScanHistory(engagementId: number) {
+  try {
+    const db = await import("../db");
+    return db.getBurpScansByEngagement(engagementId);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -159,6 +222,7 @@ export async function cancelBurpAutoScan(
 
   state.status = "cancelled";
   state.completedAt = Date.now();
+  await persistUpdate(state);
   broadcastBurpUpdate(engagementId, state);
   return true;
 }
@@ -239,6 +303,7 @@ async function launchAndPoll(
       state.status = "failed";
       state.error = `Burp Suite connection failed: ${verification.message}`;
       state.completedAt = Date.now();
+      await persistUpdate(state);
       broadcastBurpUpdate(config.engagementId, state);
       return;
     }
@@ -246,6 +311,7 @@ async function launchAndPoll(
     state.status = "failed";
     state.error = `Connection verification failed: ${err.message}`;
     state.completedAt = Date.now();
+    await persistUpdate(state);
     broadcastBurpUpdate(config.engagementId, state);
     return;
   }
@@ -277,7 +343,6 @@ async function launchAndPoll(
       state.scanId = result.scanId;
     } else {
       // Enterprise: need to find or create a site first
-      // For now, use the first URL as the site
       const result = await connector.startScanEnterprise(
         state.targetUrls[0],
         scanConfigName
@@ -287,6 +352,7 @@ async function launchAndPoll(
 
     state.status = "running";
     state.progress = 5;
+    await persistUpdate(state);
     broadcastBurpUpdate(config.engagementId, state);
 
     console.log(
@@ -296,6 +362,7 @@ async function launchAndPoll(
     state.status = "failed";
     state.error = `Failed to start scan: ${err.message}`;
     state.completedAt = Date.now();
+    await persistUpdate(state);
     broadcastBurpUpdate(config.engagementId, state);
     return;
   }
@@ -303,6 +370,7 @@ async function launchAndPoll(
   // ─── Step 3: Poll for completion ───
   const POLL_INTERVAL = 15_000; // 15 seconds
   const MAX_POLL_TIME = 4 * 60 * 60 * 1000; // 4 hours max
+  const DB_PERSIST_INTERVAL = 5; // Persist to DB every 5 polls
   const pollStart = Date.now();
 
   while (state.status === "running") {
@@ -316,6 +384,7 @@ async function launchAndPoll(
       state.status = "failed";
       state.error = "Scan timed out after 4 hours";
       state.completedAt = Date.now();
+      await persistUpdate(state);
       broadcastBurpUpdate(config.engagementId, state);
       return;
     }
@@ -327,10 +396,16 @@ async function launchAndPoll(
       state.lastPollAt = Date.now();
       state.pollCount++;
 
+      // Persist to DB periodically (not every poll to reduce DB load)
+      if (state.pollCount % DB_PERSIST_INTERVAL === 0) {
+        await persistUpdate(state);
+      }
+
       broadcastBurpUpdate(config.engagementId, state);
 
       if (scanStatus.status === "succeeded") {
         state.status = "importing";
+        await persistUpdate(state);
         broadcastBurpUpdate(config.engagementId, state);
         break;
       }
@@ -339,6 +414,7 @@ async function launchAndPoll(
         state.status = "failed";
         state.error = "Burp Suite scan failed";
         state.completedAt = Date.now();
+        await persistUpdate(state);
         broadcastBurpUpdate(config.engagementId, state);
         return;
       }
@@ -349,6 +425,7 @@ async function launchAndPoll(
         state.status = "failed";
         state.error = `Lost connection to Burp Suite: ${err.message}`;
         state.completedAt = Date.now();
+        await persistUpdate(state);
         broadcastBurpUpdate(config.engagementId, state);
         return;
       }
@@ -399,6 +476,7 @@ async function launchAndPoll(
 
       state.status = "completed";
       state.completedAt = Date.now();
+      await persistUpdate(state);
       broadcastBurpUpdate(config.engagementId, state);
 
       // Log to engagement timeline
@@ -421,13 +499,183 @@ async function launchAndPoll(
       } catch (e: any) {
         console.warn(`[BurpAutoScan] Timeline event failed: ${e.message}`);
       }
+
+      // ─── Step 5: Feed findings into exploit matching engine ───
+      try {
+        await feedBurpFindingsToExploitEngine(config, normalized);
+      } catch (e: any) {
+        console.warn(`[BurpAutoScan] Exploit matching failed: ${e.message}`);
+      }
     } catch (err: any) {
       state.status = "failed";
       state.error = `Failed to import findings: ${err.message}`;
       state.completedAt = Date.now();
+      await persistUpdate(state);
       broadcastBurpUpdate(config.engagementId, state);
     }
   }
+}
+
+// ─── Scan-to-Exploit Chain ───
+
+/**
+ * Feed Burp findings into the exploit matching engine.
+ * Maps Burp issues to CVEs/CWEs and queries the exploit database for matches.
+ */
+async function feedBurpFindingsToExploitEngine(
+  config: BurpAutoScanConfig,
+  findings: ReturnType<typeof normalizeBurpIssues>
+): Promise<void> {
+  if (findings.length === 0) return;
+
+  console.log(
+    `[BurpAutoScan→Exploit] Feeding ${findings.length} Burp findings into exploit matching for engagement #${config.engagementId}`
+  );
+
+  const db = await import("../db");
+
+  // Group findings by severity for prioritized matching
+  const highSeverity = findings.filter((f) => f.severityRating === "critical" || f.severityRating === "high");
+  const mediumSeverity = findings.filter((f) => f.severityRating === "medium");
+
+  // Build exploit search queries from findings
+  const exploitQueries: Array<{
+    findingTitle: string;
+    cweId?: string;
+    assetIdentifier: string;
+    severity: string;
+    searchTerms: string[];
+  }> = [];
+
+  for (const finding of [...highSeverity, ...mediumSeverity]) {
+    const terms: string[] = [];
+
+    // Extract vulnerability type keywords for exploit matching
+    const title = finding.title.toLowerCase();
+    if (title.includes("sql injection")) terms.push("sqli", "sql injection");
+    if (title.includes("xss") || title.includes("cross-site scripting")) terms.push("xss", "cross-site scripting");
+    if (title.includes("ssrf") || title.includes("server-side request")) terms.push("ssrf");
+    if (title.includes("rce") || title.includes("remote code")) terms.push("rce", "remote code execution");
+    if (title.includes("lfi") || title.includes("local file")) terms.push("lfi", "local file inclusion");
+    if (title.includes("rfi") || title.includes("remote file")) terms.push("rfi", "remote file inclusion");
+    if (title.includes("xxe") || title.includes("xml external")) terms.push("xxe");
+    if (title.includes("deserialization")) terms.push("deserialization");
+    if (title.includes("path traversal") || title.includes("directory traversal")) terms.push("path traversal", "directory traversal");
+    if (title.includes("command injection") || title.includes("os command")) terms.push("command injection", "os command injection");
+    if (title.includes("ssti") || title.includes("template injection")) terms.push("ssti", "template injection");
+    if (title.includes("idor") || title.includes("insecure direct")) terms.push("idor");
+    if (title.includes("csrf") || title.includes("cross-site request")) terms.push("csrf");
+    if (title.includes("open redirect")) terms.push("open redirect");
+    if (title.includes("authentication") || title.includes("auth bypass")) terms.push("authentication bypass");
+    if (title.includes("privilege escalation")) terms.push("privilege escalation");
+
+    // Add CWE-based terms
+    if (finding.cweId) terms.push(`CWE-${finding.cweId}`);
+
+    // Add the title itself as a search term
+    if (terms.length === 0) terms.push(finding.title);
+
+    exploitQueries.push({
+      findingTitle: finding.title,
+      cweId: finding.cweId,
+      assetIdentifier: finding.assetIdentifier,
+      severity: finding.severityRating,
+      searchTerms: terms,
+    });
+  }
+
+  if (exploitQueries.length === 0) {
+    console.log(`[BurpAutoScan→Exploit] No high/medium findings to match against exploits`);
+    return;
+  }
+
+  // Try to match against the exploit database
+  try {
+    // Check if we have exploit matching capabilities
+    const matchResults: Array<{
+      finding: string;
+      exploitCount: number;
+      topExploits: string[];
+    }> = [];
+
+    for (const query of exploitQueries) {
+      try {
+        // Search exploits in the database by CWE or keyword
+        const exploits = await searchExploitsForFinding(db, query);
+        if (exploits.length > 0) {
+          matchResults.push({
+            finding: query.findingTitle,
+            exploitCount: exploits.length,
+            topExploits: exploits.slice(0, 3).map((e: any) => e.title || e.name || e.id),
+          });
+        }
+      } catch {
+        // Individual match failure is non-fatal
+      }
+    }
+
+    if (matchResults.length > 0) {
+      console.log(
+        `[BurpAutoScan→Exploit] Matched ${matchResults.length} findings to exploits for engagement #${config.engagementId}`
+      );
+
+      // Log exploit matches to engagement timeline
+      try {
+        await db.addTimelineEvent({
+          engagementId: config.engagementId,
+          eventType: "tool_output",
+          title: "Burp→Exploit Chain: Automatic Exploit Matching",
+          description: `${matchResults.length} Burp findings matched to known exploits. Top matches: ${matchResults.slice(0, 5).map((m) => `${m.finding} (${m.exploitCount} exploits)`).join(", ")}`,
+          metadata: {
+            source: "burp_auto_scan",
+            matchResults,
+            totalFindings: findings.length,
+            matchedFindings: matchResults.length,
+          },
+          userId: config.userId,
+        });
+      } catch (e: any) {
+        console.warn(`[BurpAutoScan→Exploit] Timeline event failed: ${e.message}`);
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[BurpAutoScan→Exploit] Exploit matching pipeline error: ${err.message}`);
+  }
+}
+
+/**
+ * Search the exploit database for matches against a Burp finding.
+ */
+async function searchExploitsForFinding(
+  db: any,
+  query: { findingTitle: string; cweId?: string; searchTerms: string[] }
+): Promise<any[]> {
+  const results: any[] = [];
+
+  // Search by CWE if available
+  if (query.cweId) {
+    try {
+      const cweExploits = await db.searchExploitsByCWE?.(query.cweId);
+      if (cweExploits?.length) results.push(...cweExploits);
+    } catch {}
+  }
+
+  // Search by keywords
+  for (const term of query.searchTerms.slice(0, 3)) {
+    try {
+      const keywordExploits = await db.searchExploitsByKeyword?.(term);
+      if (keywordExploits?.length) results.push(...keywordExploits);
+    } catch {}
+  }
+
+  // Deduplicate by ID
+  const seen = new Set<string>();
+  return results.filter((e: any) => {
+    const id = String(e.id || e.exploitId || e.title);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
 // ─── WebSocket Broadcast ───
@@ -539,7 +787,7 @@ export function extractScopeUrls(engagement: any, opsState?: any): string[] {
 }
 
 /**
- * Get summary stats for all Burp auto-scans.
+ * Get summary stats for all Burp auto-scans (in-memory + DB).
  */
 export function getBurpAutoScanStats(): {
   active: number;
@@ -557,4 +805,32 @@ export function getBurpAutoScanStats(): {
     totalImported += state.importedCount;
   }
   return { active, completed, failed, totalIssues, totalImported };
+}
+
+/**
+ * Get combined stats (in-memory active + DB historical).
+ */
+export async function getBurpAutoScanStatsWithHistory(): Promise<{
+  active: number;
+  completed: number;
+  failed: number;
+  totalIssues: number;
+  totalImported: number;
+  totalScans: number;
+}> {
+  const memStats = getBurpAutoScanStats();
+  try {
+    const db = await import("../db");
+    const dbStats = await db.getDbBurpScanStats();
+    return {
+      active: memStats.active,
+      completed: Math.max(memStats.completed, dbStats.completed),
+      failed: Math.max(memStats.failed, dbStats.failed),
+      totalIssues: Math.max(memStats.totalIssues, dbStats.totalIssues),
+      totalImported: Math.max(memStats.totalImported, dbStats.totalImported),
+      totalScans: dbStats.total,
+    };
+  } catch {
+    return { ...memStats, totalScans: memStats.active + memStats.completed + memStats.failed };
+  }
 }

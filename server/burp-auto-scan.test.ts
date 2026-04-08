@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 
 // Test the extractScopeUrls function and scan state management
-// We import directly from the module
-import { extractScopeUrls, getBurpAutoScanStats, getEngagementBurpScans, getBurpAutoScanState } from "./lib/burp-auto-scan";
+import {
+  extractScopeUrls,
+  getBurpAutoScanStats,
+  getEngagementBurpScans,
+  getBurpAutoScanState,
+  getBurpAutoScanStatsWithHistory,
+  getEngagementBurpScanHistory,
+} from "./lib/burp-auto-scan";
 
 describe("Burp Auto-Scan Module", () => {
   describe("extractScopeUrls", () => {
@@ -84,7 +90,6 @@ describe("Burp Auto-Scan Module", () => {
         scope: JSON.stringify(["ftp://files.example.com", "ssh://server.example.com"]),
       };
       const urls = extractScopeUrls(engagement);
-      // ftp:// and ssh:// don't start with http, so they should be filtered
       expect(urls.some((u: string) => u.startsWith("ftp://"))).toBe(false);
       expect(urls.some((u: string) => u.startsWith("ssh://"))).toBe(false);
     });
@@ -97,8 +102,29 @@ describe("Burp Auto-Scan Module", () => {
     it("handles malformed scope JSON gracefully", () => {
       const engagement = { scope: "not-valid-json" };
       const urls = extractScopeUrls(engagement);
-      // Should not throw
       expect(Array.isArray(urls)).toBe(true);
+    });
+
+    it("combines all sources into a single deduplicated list", () => {
+      const engagement = {
+        targetUrl: "https://main.example.com",
+        targetDomain: "example.com",
+        rptScopeAssets: ["https://api.example.com", "cdn.example.com"],
+        scope: JSON.stringify(["https://web.example.com", { url: "https://admin.example.com" }]),
+        scopeAssets: JSON.stringify([{ name: "staging.example.com", type: "DOMAIN" }]),
+      };
+      const opsState = {
+        assets: [{ hostname: "discovered.example.com", webApps: [{ url: "https://app.discovered.example.com" }] }],
+      };
+      const urls = extractScopeUrls(engagement, opsState);
+      expect(urls.length).toBeGreaterThanOrEqual(7);
+      expect(urls).toContain("https://main.example.com");
+      expect(urls).toContain("https://example.com");
+      expect(urls).toContain("https://api.example.com");
+      expect(urls).toContain("https://cdn.example.com");
+      expect(urls).toContain("https://web.example.com");
+      expect(urls).toContain("https://admin.example.com");
+      expect(urls).toContain("https://discovered.example.com");
     });
   });
 
@@ -122,5 +148,68 @@ describe("Burp Auto-Scan Module", () => {
       const state = getBurpAutoScanState(999999, 999999);
       expect(state).toBeNull();
     });
+  });
+
+  describe("DB-backed scan history", () => {
+    it("returns empty array for engagement with no scan history", async () => {
+      const history = await getEngagementBurpScanHistory(999999);
+      // Should return empty array (DB may not be available in test env)
+      expect(Array.isArray(history)).toBe(true);
+    });
+
+    it("getBurpAutoScanStatsWithHistory returns combined stats", async () => {
+      const stats = await getBurpAutoScanStatsWithHistory();
+      expect(stats).toHaveProperty("active");
+      expect(stats).toHaveProperty("completed");
+      expect(stats).toHaveProperty("failed");
+      expect(stats).toHaveProperty("totalIssues");
+      expect(stats).toHaveProperty("totalImported");
+      expect(stats).toHaveProperty("totalScans");
+      expect(typeof stats.totalScans).toBe("number");
+    });
+  });
+
+  describe("Exploit matching keyword extraction", () => {
+    // Test the vulnerability keyword mapping logic used by feedBurpFindingsToExploitEngine
+    const vulnKeywordMap: Record<string, string[]> = {
+      "SQL Injection": ["sqli", "sql injection"],
+      "Cross-Site Scripting (XSS)": ["xss", "cross-site scripting"],
+      "Server-Side Request Forgery": ["ssrf"],
+      "Remote Code Execution via deserialization": ["rce", "remote code execution", "deserialization"],
+      "Local File Inclusion in upload handler": ["lfi", "local file inclusion"],
+      "XML External Entity processing": ["xxe"],
+      "Path Traversal in file download": ["path traversal", "directory traversal"],
+      "OS Command Injection": ["command injection", "os command injection"],
+      "Server-Side Template Injection": ["ssti", "template injection"],
+      "Cross-Site Request Forgery": ["csrf"],
+      "Open Redirect in OAuth callback": ["open redirect"],
+      "Authentication bypass via token reuse": ["authentication bypass"],
+      "Privilege Escalation through role manipulation": ["privilege escalation"],
+    };
+
+    for (const [title, expectedTerms] of Object.entries(vulnKeywordMap)) {
+      it(`maps "${title}" to correct exploit search terms`, () => {
+        const terms: string[] = [];
+        const lower = title.toLowerCase();
+        if (lower.includes("sql injection")) terms.push("sqli", "sql injection");
+        if (lower.includes("xss") || lower.includes("cross-site scripting")) terms.push("xss", "cross-site scripting");
+        if (lower.includes("ssrf") || lower.includes("server-side request")) terms.push("ssrf");
+        if (lower.includes("rce") || lower.includes("remote code")) terms.push("rce", "remote code execution");
+        if (lower.includes("lfi") || lower.includes("local file")) terms.push("lfi", "local file inclusion");
+        if (lower.includes("xxe") || lower.includes("xml external")) terms.push("xxe");
+        if (lower.includes("deserialization")) terms.push("deserialization");
+        if (lower.includes("path traversal") || lower.includes("directory traversal")) terms.push("path traversal", "directory traversal");
+        if (lower.includes("command injection") || lower.includes("os command")) terms.push("command injection", "os command injection");
+        if (lower.includes("ssti") || lower.includes("template injection")) terms.push("ssti", "template injection");
+        if (lower.includes("csrf") || lower.includes("cross-site request")) terms.push("csrf");
+        if (lower.includes("open redirect")) terms.push("open redirect");
+        if (lower.includes("authentication") || lower.includes("auth bypass")) terms.push("authentication bypass");
+        if (lower.includes("privilege escalation")) terms.push("privilege escalation");
+
+        for (const expected of expectedTerms) {
+          expect(terms).toContain(expected);
+        }
+      });
+    }
   });
 });

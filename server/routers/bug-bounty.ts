@@ -1810,7 +1810,7 @@ export const bugBountyRouter = router({
       };
     }),
 
-  // Get Burp auto-scan progress for an engagement
+  // Get Burp auto-scan progress for an engagement (in-memory active + DB history)
   getBurpAutoScanProgress: protectedProcedure
     .input(z.object({
       engagementId: z.number(),
@@ -1827,6 +1827,17 @@ export const bugBountyRouter = router({
       return { scans: getEngagementBurpScans(input.engagementId) };
     }),
 
+  // Get Burp scan history from DB (persisted records that survive restarts)
+  getBurpScanHistory: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const { getEngagementBurpScanHistory } = await import("../lib/burp-auto-scan");
+      return { history: await getEngagementBurpScanHistory(input.engagementId) };
+    }),
+
   // Cancel a Burp auto-scan
   cancelBurpAutoScan: protectedProcedure
     .input(z.object({
@@ -1839,10 +1850,10 @@ export const bugBountyRouter = router({
       return { cancelled };
     }),
 
-  // Get Burp auto-scan stats
+  // Get Burp auto-scan stats (combined in-memory + DB)
   getBurpAutoScanStats: protectedProcedure
     .query(async () => {
-      const { getBurpAutoScanStats } = await import("../lib/burp-auto-scan");
-      return getBurpAutoScanStats();
+      const { getBurpAutoScanStatsWithHistory } = await import("../lib/burp-auto-scan");
+      return getBurpAutoScanStatsWithHistory();
     }),
 });
