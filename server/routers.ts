@@ -111,6 +111,10 @@ import { scanforgeDiscoveryRouter } from "./routers/scanforge-discovery";
 import { discoveryChainRouter } from "./routers/discovery-chain";
 import { crawlPhishRouter } from "./routers/crawl-phish";
 import { errorLogRouter, oemCredsRouter, aiChatRouter } from "./routers/error-log";
+import { getPublicWhiteLabelConfig, isFeatureEnabled } from "./lib/white-label";
+import type { FeatureModule } from "./lib/white-label";
+import { getLicenseStatus, validateLicenseKey, generateLicenseKey } from "./lib/licensing";
+import type { LicenseTier } from "./lib/licensing";
 import { bugReportsRouter } from "./routers/bug-reports";
 import { llmTelemetryRouter } from "./routers/llm-telemetry";
 import { containerRegistryRouter } from "./routers/container-registry";
@@ -247,6 +251,28 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 
 export const appRouter = router({
   system: systemRouter,
+  // ─── White-Label & Licensing ─────────────────────────────────────────────
+  whiteLabel: router({
+    getConfig: publicProcedure.query(() => getPublicWhiteLabelConfig()),
+    isFeatureEnabled: publicProcedure
+      .input(z.object({ feature: z.string() }))
+      .query(({ input }) => ({ enabled: isFeatureEnabled(input.feature as FeatureModule) })),
+    getLicenseStatus: protectedProcedure.query(() => getLicenseStatus()),
+    validateKey: protectedProcedure
+      .input(z.object({ key: z.string() }))
+      .mutation(({ input }) => {
+        const result = validateLicenseKey(input.key);
+        return {
+          valid: result.valid,
+          tier: result.claims?.tier,
+          orgName: result.claims?.orgName,
+          isExpired: result.isExpired,
+          isInGracePeriod: result.isInGracePeriod,
+          daysUntilExpiry: result.daysUntilExpiry,
+          error: result.error,
+        };
+      }),
+  }),
   zeroDay: zeroDayRouter,
   knowledgeBase: knowledgeBaseRouter,
   knowledgeCache: knowledgeCacheRouter,

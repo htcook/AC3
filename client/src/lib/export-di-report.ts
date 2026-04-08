@@ -87,7 +87,17 @@ function truncate(str: string | null | undefined, max: number): string {
 export async function exportDiReport(
   domain: string,
   scan: any,
+  wlConfig?: { platformName?: string; orgName?: string; reportCompanyName?: string; reportFooterText?: string; reportDisclaimerText?: string; reportAuthorName?: string; copyrightHolder?: string },
 ): Promise<void> {
+  const _wl = {
+    platformName: wlConfig?.platformName ?? 'AC3',
+    orgName: wlConfig?.orgName ?? 'AceofCloud',
+    reportCompanyName: wlConfig?.reportCompanyName ?? wlConfig?.orgName ?? 'AceofCloud',
+    reportFooterText: wlConfig?.reportFooterText ?? '',
+    reportDisclaimerText: wlConfig?.reportDisclaimerText ?? '',
+    reportAuthorName: wlConfig?.reportAuthorName ?? '',
+    copyrightHolder: wlConfig?.copyrightHolder ?? 'AceofCloud LLC',
+  };
   const { jsPDF, autoTable } = await loadPdfLibs();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -632,11 +642,11 @@ export async function exportDiReport(
   doc.setFontSize(7);
   doc.setTextColor(100, 116, 139);
   doc.text('CONFIDENTIAL — For authorized recipients only', margin, pageHeight - 15);
-  doc.text('AC3 Platform — Domain Intelligence Module', margin, pageHeight - 10);
+  doc.text(`${_wl.platformName} Platform — Domain Intelligence Module`, margin, pageHeight - 10);
 
   // ═══════════════════════════════════════════════════════════════════════
   // TABLE OF CONTENTS (placeholder page — filled in after all sections render)
-  // ═══════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
   doc.addPage();
   const tocPageNum = (doc as any).internal.getNumberOfPages();
 
@@ -3945,7 +3955,7 @@ export async function exportDiReport(
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
     doc.setFontSize(8);
-    const tmIntro = `This section cross-references the discovered attack surface against the Ace C3 master threat group catalog — a curated intelligence repository of ${_tmData.summary.totalGroupsAnalyzed} APT, ransomware, cybercrime, and hacktivist groups with their associated TTPs, tools, exploited CVEs, and target sectors. Unlike generic threat feeds, this analysis is deterministic: each match is grounded in specific overlap between the target’s confirmed vulnerabilities, detected technologies, and exposed services and the threat group’s documented operational patterns. ${_tmData.summary.totalMatched} group(s) were identified with meaningful TTP overlap, and ${_tmData.summary.totalAttackPaths} realistic attack path(s) were synthesized from confirmed scan findings.`;
+    const tmIntro = `This section cross-references the discovered attack surface against the ${_wl.platformName} master threat group catalog — a curated intelligence repository of ${_tmData.summary.totalGroupsAnalyzed} APT, ransomware, cybercrime, and hacktivist groups with their associated TTPs, tools, exploited CVEs, and target sectors. Unlike generic threat feeds, this analysis is deterministic: each match is grounded in specific overlap between the target’s confirmed vulnerabilities, detected technologies, and exposed services and the threat group’s documented operational patterns. ${_tmData.summary.totalMatched} group(s) were identified with meaningful TTP overlap, and ${_tmData.summary.totalAttackPaths} realistic attack path(s) were synthesized from confirmed scan findings.`;
     y = writeText(tmIntro, margin, y, contentWidth, 8);
     y += 4;
 
