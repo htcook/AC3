@@ -2099,7 +2099,8 @@ export const bugBountyRouter = router({
         ...(input?.enableMinIO !== undefined && { enableMinIO: input.enableMinIO }),
         ...(input?.enableMailhog !== undefined && { enableMailhog: input.enableMailhog }),
         ...(input?.enableCoturn !== undefined && { enableCoturn: input.enableCoturn }),
-        ...(input?.scanServerHost && { scanServerHost: input.scanServerHost }),
+        // Use input scanServerHost, or fall back to SCAN_SERVER_HOST env var
+        scanServerHost: input?.scanServerHost || process.env.SCAN_SERVER_HOST || DEFAULT_LAB_CONFIG.scanServerHost || '',
       };
 
       return {

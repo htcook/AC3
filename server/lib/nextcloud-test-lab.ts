@@ -906,25 +906,27 @@ export interface TestLabInfo {
 
 export function getTestLabInfo(config: TestLabConfig = DEFAULT_LAB_CONFIG): TestLabInfo {
   const host = config.scanServerHost || 'localhost';
+  // Use https for remote deployments (scanServerHost set) or when port is 8443
+  const proto = (config.scanServerHost || config.hostPort === 8443) ? 'https' : 'http';
   const services: TestLabInfo['services'] = [
-    { name: 'Nextcloud', url: `http://${host}:${config.hostPort}`, description: 'Main Nextcloud instance' },
+    { name: 'Nextcloud', url: `${proto}://${host}:${config.hostPort}`, description: 'Main Nextcloud instance' },
   ];
 
   if (config.enableLDAP) {
-    services.push({ name: 'phpLDAPadmin', url: `http://${host}:${config.hostPort + 1}`, description: 'LDAP management' });
+    services.push({ name: 'phpLDAPadmin', url: `${proto}://${host}:${config.hostPort + 1}`, description: 'LDAP management' });
   }
   if (config.enableKeycloak) {
-    services.push({ name: 'Keycloak', url: `http://${host}:${config.hostPort + 2}/auth`, description: 'OIDC/SAML IdP' });
+    services.push({ name: 'Keycloak', url: `${proto}://${host}:${config.hostPort + 2}/auth`, description: 'OIDC/SAML IdP' });
   }
   if (config.enableMinIO) {
-    services.push({ name: 'MinIO Console', url: `http://${host}:${config.hostPort + 4}`, description: 'S3-compatible storage' });
+    services.push({ name: 'MinIO Console', url: `${proto}://${host}:${config.hostPort + 4}`, description: 'S3-compatible storage' });
   }
   if (config.enableMailhog) {
-    services.push({ name: 'Mailhog', url: `http://${host}:${config.hostPort + 5}`, description: 'SMTP test server' });
+    services.push({ name: 'Mailhog', url: `${proto}://${host}:${config.hostPort + 5}`, description: 'SMTP test server' });
   }
 
   return {
-    labUrl: `http://${host}:${config.hostPort}`,
+    labUrl: `${proto}://${host}:${config.hostPort}`,
     adminCredentials: { user: config.adminUser, password: config.adminPassword },
     testUsers: [
       { username: 'testuser1', password: 'TestUser1Pass2026!', role: 'Regular user (testers group)' },

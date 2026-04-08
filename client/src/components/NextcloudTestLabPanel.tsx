@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ const TIER_COLORS: Record<number, string> = {
 export function NextcloudTestLabPanel({ engagementId, engagementName }: Props) {
   const { toast } = useToast();
   const [scanServerHost, setScanServerHost] = useState("");
+  const [scanServerInitialized, setScanServerInitialized] = useState(false);
   const [hostPort, setHostPort] = useState("8443");
   const [selectedVersion, setSelectedVersion] = useState("30.0.6");
   const [services, setServices] = useState({
@@ -71,7 +72,30 @@ export function NextcloudTestLabPanel({ engagementId, engagementName }: Props) {
     ...services,
   }), [selectedVersion, hostPort, scanServerHost, services]);
 
+  // Auto-populate scanServerHost from deployment status or engagement targetDomain
+  const { data: deployStatus } = trpc.bugBounty.getLabDeploymentStatus.useQuery({ engagementId });
+
+  useEffect(() => {
+    if (scanServerInitialized) return;
+    // Priority 1: From latest deployment
+    if (deployStatus?.latest?.scanServerHost) {
+      setScanServerHost(deployStatus.latest.scanServerHost);
+      setScanServerInitialized(true);
+      return;
+    }
+    // Priority 2: From SCAN_SERVER_HOST env (exposed via labConfig.config)
+  }, [deployStatus, scanServerInitialized]);
+
   const { data: labConfig, isLoading } = trpc.bugBounty.getTestLabConfig.useQuery(configInput);
+
+  // Priority 2: From the config's scanServerHost (comes from env SCAN_SERVER_HOST)
+  useEffect(() => {
+    if (scanServerInitialized) return;
+    if (labConfig?.config?.scanServerHost) {
+      setScanServerHost(labConfig.config.scanServerHost);
+      setScanServerInitialized(true);
+    }
+  }, [labConfig, scanServerInitialized]);
 
   const downloadFiles = trpc.bugBounty.downloadTestLabFiles.useMutation({
     onSuccess: (data) => {
@@ -275,13 +299,13 @@ export function NextcloudTestLabPanel({ engagementId, engagementName }: Props) {
                 <Input
                   value={testLabUrl}
                   onChange={e => setTestLabUrl(e.target.value)}
-                  placeholder={`http://${scanServerHost || 'localhost'}:${hostPort}`}
+                  placeholder={`https://${scanServerHost || 'localhost'}:${hostPort}`}
                   className="flex-1"
                 />
                 <Button
                   onClick={() => updateTarget.mutate({
                     engagementId,
-                    testLabUrl: testLabUrl || `http://${scanServerHost || 'localhost'}:${hostPort}`,
+                    testLabUrl: testLabUrl || `https://${scanServerHost || 'localhost'}:${hostPort}`,
                     scanServerHost: scanServerHost || undefined,
                   })}
                   disabled={updateTarget.isPending}
