@@ -2112,8 +2112,7 @@ export const bugBountyRouter = router({
       const [cred] = await db.select().from(userPlatformCredentials)
         .where(eq(userPlatformCredentials.id, input.credentialId));
       if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp credential not found" });
-      const { decrypt } = await import("../lib/encryption");
-      const apiKey = decrypt(cred.encryptedApiKey);
+      const apiKey = decrypt(cred.apiKeyEncrypted);
       return launchProfileScan(
         input.engagementId,
         input.engagementHandle,
@@ -2137,8 +2136,7 @@ export const bugBountyRouter = router({
       const [cred] = await db.select().from(userPlatformCredentials)
         .where(eq(userPlatformCredentials.id, input.credentialId));
       if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp credential not found" });
-      const { decrypt } = await import("../lib/encryption");
-      const apiKey = decrypt(cred.encryptedApiKey);
+      const apiKey = decrypt(cred.apiKeyEncrypted);
       return launchFullLabScan(
         input.engagementId,
         input.engagementHandle,

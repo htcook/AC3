@@ -5,7 +5,7 @@
  * via SSH, executes the deploy script, and monitors deployment status.
  */
 
-import { env } from "../_core/env";
+import { ENV } from "../_core/env";
 import {
   generateDockerCompose,
   generateAppInstallScript,
@@ -94,8 +94,8 @@ function addLog(
 
 export function getSshConfig(): SshConnectionConfig {
   return {
-    host: env.SCAN_SERVER_HOST,
-    user: env.SCAN_SERVER_USER || "root",
+    host: ENV.SCAN_SERVER_HOST,
+    user: ENV.SCAN_SERVER_USER || "root",
     port: 22,
     privateKey: process.env.SCAN_SERVER_SSH_KEY,
   };
