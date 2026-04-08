@@ -52,6 +52,8 @@ import {
   buildSourceSecretsContext, buildCompactSourceSecretsContext,
   lazyFetchKevCatalog, lazyMatchCvesAgainstKev, lazyCalculateKevRiskBoost,
   clearKnowledgeCache,
+  buildBurpKnowledgeContext, getBurpScanConfigContext, getBurpAttackProfileContext,
+  getBurpCollaboratorContext, getCrossToolCorrelationContext, getBurpReasoningPrompt,
 } from "./knowledge-lazy";
 // Re-export KEV functions with original names for compatibility
 const fetchKevCatalog = lazyFetchKevCatalog;
@@ -1101,6 +1103,11 @@ export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" 
       reasoning: entry.detail || '',
       actions: entry.data ? [{ type: 'llm_analysis', params: entry.data }] : [],
       contextSummary: entry.detail?.slice(0, 2000),
+      knowledgeModules: [
+        'owasp_testing',
+        ...(entry.phase === 'vuln_detection' || entry.phase === 'exploitation' ? ['burp_pentesting', 'zap_pentesting', 'cross_tool_intelligence'] : []),
+        ...(entry.phase === 'enumeration' ? ['recon_methodology'] : []),
+      ],
     }).catch(() => {}); // fire-and-forget
 
     // Emit WebSocket event for real-time monitor
@@ -1893,6 +1900,7 @@ Return valid JSON per the response_format schema.`;
       { label: 'threatActor', content: threatActorLearningCtx || '' },
       { label: 'offensive', content: offensiveTechCtx || '' },
       { label: 'zap', content: zapKnowledgeCtx || '' },
+      { label: 'burp', content: buildBurpKnowledgeContext({ phase: 'enumeration', technology: uniqueTech[0], includeAttackProfiles: true, includeCrossToolCorrelation: true }) },
       { label: 'secrets', content: sourceSecretsCtx || '' },
       { label: 'tools', content: toolsCtx || '' },
       { label: 'methodology', content: methodologyCtx ? '## Attack Methodology Knowledge\n' + methodologyCtx : '' },
@@ -7499,6 +7507,7 @@ ${(() => {
     { label: 'threat', content: threatVulnCtx },
     { label: 'offensive', content: offTechVulnCtx || '' },
     { label: 'zap', content: zapVulnCtx || '' },
+    { label: 'burp', content: buildBurpKnowledgeContext({ phase: 'vuln_detection', technology: detectedTech[0], includeAttackProfiles: true, includeCollaborator: true, includeCrossToolCorrelation: true }) },
     { label: 'secrets', content: sourceSecretsVulnCtx || '' },
   ]);
 })()}`,
@@ -7522,6 +7531,7 @@ ${(() => {
       actions: correlationDecision.actions,
       contextSummary: `${state.assets.length} assets, ${state.assets.reduce((s, a) => s + a.vulns.length, 0)} vulns`,
       latencyMs: Date.now() - _corrDecStart,
+      knowledgeModules: ['burp_pentesting', 'zap_pentesting', 'owasp_testing', 'cross_tool_intelligence'],
     }).catch(() => {});
   }
 
@@ -8007,6 +8017,14 @@ ${(() => {
     includePayloads: true,
     footholdMinimum: 'high',
   });
+  // Build Burp pentesting knowledge for exploitation (intruder payloads, active scan configs, collaborator)
+  const burpExploitCtx = buildBurpKnowledgeContext({
+    phase: 'exploitation',
+    technology: detectedTech[0],
+    includeAttackProfiles: true,
+    includeCollaborator: true,
+    includeCrossToolCorrelation: true,
+  });
   // Compact source secrets context for exploitation (token-limited)
   const sourceSecretsExploitCtx = buildCompactSourceSecretsContext();
   // Cap total context to prevent multi-MB prompts (memory optimization)
@@ -8020,6 +8038,7 @@ ${(() => {
     { label: 'threat', content: threatExploitCtx },
     { label: 'offensive', content: offTechExploitCtx || '' },
     { label: 'zap', content: zapExploitCtx || '' },
+    { label: 'burp', content: burpExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
     // Context-aware target profiles for exploitation
     { label: 'targetProfiles', content: (() => {
@@ -8054,6 +8073,7 @@ ${(() => {
     actions: decision.actions,
     contextSummary: `${state.assets.flatMap(a => a.vulns).length} vulns across ${state.assets.length} assets`,
     latencyMs: Date.now() - _exploitDecStart,
+    knowledgeModules: ['burp_pentesting', 'zap_pentesting', 'owasp_testing', 'exploit_methodology', 'cross_tool_intelligence'],
   }).catch(() => {});
 
   // ── Pre-Exploitation Approval Gate ──

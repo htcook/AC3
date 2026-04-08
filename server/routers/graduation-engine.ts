@@ -118,7 +118,9 @@ function inferReplacementType(caller: string): string {
   if (c.includes("vuln") || c.includes("verif")) return "Scoring Model + Lookup Table";
   if (c.includes("threat") || c.includes("mapper")) return "Knowledge Base Lookup";
   if (c.includes("domain") || c.includes("intel")) return "WHOIS/DNS Parser + Rules";
-  if (c.includes("zap") || c.includes("config")) return "Template Engine";
+  if (c.includes("zap")) return "ZAP API + Rule Engine";
+  if (c.includes("burp") || c.includes("burpsuite")) return "Burp REST API + Scan Profiles";
+  if (c.includes("config")) return "Template Engine";
   if (c.includes("ops") || c.includes("decider")) return "Decision Tree";
   if (c.includes("exploit")) return "Exploit Metadata DB";
   if (c.includes("training") || c.includes("learning")) return "Fine-tuned Small Model";
@@ -443,6 +445,118 @@ export const graduationEngineRouter = router({
           pass: { minApprovalRate: 80, minReviewed: 50, minAvgScore: 0.75 },
           warn: { minApprovalRate: 60, minReviewed: 20, minAvgScore: 0.5 },
         },
+      };
+    }),
+
+  /**
+   * Get knowledge module attribution — which knowledge modules are driving
+   * the best outcomes across engagements.
+   */
+  getKnowledgeAttribution: protectedProcedure
+    .input(
+      z.object({
+        windowDays: z.number().min(1).max(90).default(30),
+        engagementId: z.number().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const days = input?.windowDays ?? 30;
+      const db = await getDbRequired();
+      const { llmDecisionLog } = await import("../../drizzle/schema");
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+      const conditions: any[] = [
+        gte(llmDecisionLog.createdAt, cutoff.toISOString().slice(0, 19).replace("T", " ")),
+      ];
+      if (input?.engagementId) {
+        conditions.push(eq(llmDecisionLog.engagementId, input.engagementId));
+      }
+
+      const rows = await db.select()
+        .from(llmDecisionLog)
+        .where(and(...conditions))
+        .orderBy(desc(llmDecisionLog.id));
+
+      // Aggregate by knowledge module
+      const moduleStats: Record<string, {
+        totalDecisions: number;
+        successCount: number;
+        failureCount: number;
+        partialCount: number;
+        pendingCount: number;
+        phases: Record<string, number>;
+        callers: Record<string, number>;
+      }> = {};
+
+      for (const row of rows) {
+        const modules = (row.knowledgeModulesUsed as string[]) || [];
+        const outcome = (row as any).dl_outcome || (row as any).dlOutcome || 'pending';
+
+        for (const mod of modules) {
+          if (!moduleStats[mod]) {
+            moduleStats[mod] = {
+              totalDecisions: 0, successCount: 0, failureCount: 0,
+              partialCount: 0, pendingCount: 0, phases: {}, callers: {},
+            };
+          }
+          const s = moduleStats[mod];
+          s.totalDecisions++;
+          if (outcome === 'success') s.successCount++;
+          else if (outcome === 'failure') s.failureCount++;
+          else if (outcome === 'partial') s.partialCount++;
+          else s.pendingCount++;
+
+          const phase = (row as any).dl_phase || (row as any).dlPhase || 'unknown';
+          s.phases[phase] = (s.phases[phase] || 0) + 1;
+          const caller = (row as any).dl_caller || (row as any).dlCaller || 'unknown';
+          s.callers[caller] = (s.callers[caller] || 0) + 1;
+        }
+      }
+
+      // Build attribution report
+      const attribution = Object.entries(moduleStats).map(([module, stats]) => {
+        const resolved = stats.successCount + stats.failureCount + stats.partialCount;
+        const successRate = resolved > 0 ? (stats.successCount / resolved) * 100 : 0;
+        return {
+          module,
+          totalDecisions: stats.totalDecisions,
+          successCount: stats.successCount,
+          failureCount: stats.failureCount,
+          partialCount: stats.partialCount,
+          pendingCount: stats.pendingCount,
+          successRate: Math.round(successRate * 10) / 10,
+          topPhases: Object.entries(stats.phases)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([phase, count]) => ({ phase, count })),
+          topCallers: Object.entries(stats.callers)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([caller, count]) => ({ caller, count })),
+        };
+      }).sort((a, b) => b.totalDecisions - a.totalDecisions);
+
+      // Cross-tool comparison
+      const burpStats = moduleStats['burp_pentesting'] || { totalDecisions: 0, successCount: 0, failureCount: 0, partialCount: 0, pendingCount: 0, phases: {}, callers: {} };
+      const zapStats = moduleStats['zap_pentesting'] || { totalDecisions: 0, successCount: 0, failureCount: 0, partialCount: 0, pendingCount: 0, phases: {}, callers: {} };
+      const burpResolved = burpStats.successCount + burpStats.failureCount + burpStats.partialCount;
+      const zapResolved = zapStats.successCount + zapStats.failureCount + zapStats.partialCount;
+
+      return {
+        attribution,
+        crossToolComparison: {
+          burp: {
+            totalDecisions: burpStats.totalDecisions,
+            successRate: burpResolved > 0 ? Math.round((burpStats.successCount / burpResolved) * 1000) / 10 : 0,
+          },
+          zap: {
+            totalDecisions: zapStats.totalDecisions,
+            successRate: zapResolved > 0 ? Math.round((zapStats.successCount / zapResolved) * 1000) / 10 : 0,
+          },
+        },
+        totalDecisionsWithModules: rows.filter(r => (r.knowledgeModulesUsed as string[] || []).length > 0).length,
+        totalDecisionsWithoutModules: rows.filter(r => !(r.knowledgeModulesUsed as string[] || []).length).length,
+        windowDays: days,
       };
     }),
 

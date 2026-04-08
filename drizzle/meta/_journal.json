@@ -78,6 +78,13 @@
       "when": 1775600597742,
       "tag": "0010_huge_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1775678823652,
+      "tag": "0011_fuzzy_lifeguard",
+      "breakpoints": true
     }
   ]
 }

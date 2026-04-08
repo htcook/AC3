@@ -29,6 +29,8 @@ interface DecisionCapture {
   contextSummary?: string;
   latencyMs?: number;
   tokensUsed?: number;
+  /** Which knowledge modules were active when this decision was made */
+  knowledgeModules?: string[];
 }
 
 interface OutcomeUpdate {
@@ -72,6 +74,7 @@ export async function captureDecision(capture: DecisionCapture): Promise<number 
       dlReasoning: capture.reasoning,
       dlActions: capture.actions,
       contextSummary: capture.contextSummary?.slice(0, 5000),
+      knowledgeModulesUsed: capture.knowledgeModules || null,
       dlLatencyMs: capture.latencyMs,
       tokensUsed: capture.tokensUsed,
     });
@@ -266,7 +269,96 @@ function callerToSpecialist(caller: string): SpecialistModel {
   if (caller.includes('evasion') || caller.includes('stealth')) return 'evasion_optimizer';
   if (caller.includes('lateral') || caller.includes('pivot')) return 'lateral_planner';
   if (caller.includes('persist')) return 'persistence_engineer';
+  if (caller.includes('burp') || caller.includes('burpsuite')) return 'burp_scanner' as SpecialistModel;
+  if (caller.includes('zap') || caller.includes('owasp-zap')) return 'zap_scanner' as SpecialistModel;
   return 'cognitive_core';
+}
+
+// ─── Cross-Tool Correlation ────────────────────────────────────────────────
+
+/**
+ * Track cross-tool finding correlations (e.g., ZAP finding confirmed by Burp).
+ * This helps the training pipeline learn which tool combinations are most effective.
+ */
+export async function captureToolCorrelation(params: {
+  engagementId: number;
+  primaryTool: 'burp' | 'zap' | 'nikto' | 'nuclei' | 'rustscan';
+  secondaryTool: 'burp' | 'zap' | 'nikto' | 'nuclei' | 'rustscan';
+  findingType: string;
+  correlationType: 'confirmed' | 'contradicted' | 'extended' | 'deduplicated';
+  primaryFindingId?: string;
+  secondaryFindingId?: string;
+  detail?: string;
+}): Promise<void> {
+  try {
+    await captureDecision({
+      engagementId: params.engagementId,
+      phase: 'cross_tool_correlation',
+      caller: `${params.primaryTool}-${params.secondaryTool}-correlation`,
+      decision: `${params.correlationType}: ${params.findingType}`,
+      reasoning: params.detail || `${params.primaryTool} finding ${params.correlationType} by ${params.secondaryTool}`,
+      actions: [{
+        type: 'tool_correlation',
+        params: {
+          primaryTool: params.primaryTool,
+          secondaryTool: params.secondaryTool,
+          correlationType: params.correlationType,
+          primaryFindingId: params.primaryFindingId,
+          secondaryFindingId: params.secondaryFindingId,
+        },
+      }],
+      contextSummary: `Cross-tool: ${params.primaryTool} → ${params.secondaryTool} (${params.correlationType})`,
+      knowledgeModules: ['cross_tool_intelligence', params.primaryTool, params.secondaryTool],
+    });
+    console.log(`[TrainingBridge] Cross-tool correlation: ${params.primaryTool} → ${params.secondaryTool} (${params.correlationType}: ${params.findingType})`);
+  } catch (err: any) {
+    console.error(`[TrainingBridge] Failed to capture tool correlation:`, err.message);
+  }
+}
+
+/**
+ * Get cross-tool correlation stats for an engagement.
+ */
+export async function getCrossToolStats(engagementId: number): Promise<{
+  totalCorrelations: number;
+  byType: Record<string, number>;
+  byToolPair: Record<string, number>;
+  confirmationRate: number;
+}> {
+  try {
+    const db = await getDb();
+    const { eq, and, like } = await import("drizzle-orm");
+    const rows = await db.select()
+      .from(llmDecisionLog)
+      .where(and(
+        eq(llmDecisionLog.engagementId, engagementId),
+        eq(llmDecisionLog.dlPhase, 'cross_tool_correlation'),
+      ));
+    const byType: Record<string, number> = {};
+    const byToolPair: Record<string, number> = {};
+    let confirmed = 0;
+    for (const r of rows) {
+      const actions = (r.dlActions as any[]) || [];
+      for (const a of actions) {
+        if (a?.type === 'tool_correlation') {
+          const ct = a.params?.correlationType || 'unknown';
+          byType[ct] = (byType[ct] || 0) + 1;
+          if (ct === 'confirmed') confirmed++;
+          const pair = `${a.params?.primaryTool}→${a.params?.secondaryTool}`;
+          byToolPair[pair] = (byToolPair[pair] || 0) + 1;
+        }
+      }
+    }
+    return {
+      totalCorrelations: rows.length,
+      byType,
+      byToolPair,
+      confirmationRate: rows.length > 0 ? confirmed / rows.length : 0,
+    };
+  } catch (err: any) {
+    console.error(`[TrainingBridge] Failed to get cross-tool stats:`, err.message);
+    return { totalCorrelations: 0, byType: {}, byToolPair: {}, confirmationRate: 0 };
+  }
 }
 
 // ─── Query Helpers ──────────────────────────────────────────────────────────

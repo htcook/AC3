@@ -1852,7 +1852,7 @@ export const bugBountyRouter = router({
       const edition = cred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
       const connector = new BurpSuiteConnector({
         edition,
-        baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+        baseUrl: cred.baseUrl || `http://${process.env.SCAN_SERVER_HOST || '127.0.0.1'}:1337`,
         apiKey,
       });
 
@@ -1912,7 +1912,7 @@ export const bugBountyRouter = router({
       const edition = cred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
       const connector = new BurpSuiteConnector({
         edition,
-        baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+        baseUrl: cred.baseUrl || `http://${process.env.SCAN_SERVER_HOST || '127.0.0.1'}:1337`,
         apiKey,
       });
 
@@ -1998,7 +1998,7 @@ export const bugBountyRouter = router({
         credentialId: input.credentialId,
         burpConfig: {
           edition: edition as any,
-          baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+          baseUrl: cred.baseUrl || `http://${process.env.SCAN_SERVER_HOST || '127.0.0.1'}:1337`,
           apiKey,
         },
         scanConfigName: input.scanConfigName,
@@ -2351,7 +2351,7 @@ export const bugBountyRouter = router({
         input.engagementHandle,
         ctx.user.id,
         input.credentialId,
-        { baseUrl: cred.baseUrl || "http://localhost:1337", apiKey, type: input.burpType },
+        { baseUrl: cred.baseUrl || `http://${process.env.SCAN_SERVER_HOST || '127.0.0.1'}:1337`, apiKey, type: input.burpType },
         input.profileName,
       );
     }),
@@ -2375,7 +2375,7 @@ export const bugBountyRouter = router({
         input.engagementHandle,
         ctx.user.id,
         input.credentialId,
-        { baseUrl: cred.baseUrl || "http://localhost:1337", apiKey, type: input.burpType },
+        { baseUrl: cred.baseUrl || `http://${process.env.SCAN_SERVER_HOST || '127.0.0.1'}:1337`, apiKey, type: input.burpType },
       );
     }),
 

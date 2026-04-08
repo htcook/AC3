@@ -32,6 +32,7 @@ import * as bugbountyMethodologyKnowledge from './knowledge/bugbounty-methodolog
 import * as missedVulnTrainingKnowledge from './knowledge/missed-vuln-training-knowledge';
 import * as threatActorLearningContext from './threat-actor-learning-context';
 import * as zapSourceSecretsKnowledge from './knowledge/zap-source-secrets-knowledge';
+import * as burpPentestingKnowledge from './knowledge/burp-pentesting-knowledge';
 import * as kevService from './kev-service';
 
 // Module registry for cache management
@@ -303,6 +304,32 @@ export function buildSourceSecretsContext(...args: any[]) {
 export function buildCompactSourceSecretsContext(...args: any[]) {
   track('secrets');
   return zapSourceSecretsKnowledge.buildCompactSourceSecretsContext(...args);
+}
+
+// ─── burp-pentesting-knowledge ────────────────────────────────────────────
+export function buildBurpKnowledgeContext(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.buildBurpKnowledgeContext(...args);
+}
+export function getBurpScanConfigContext(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.getBurpScanConfigContext(...args);
+}
+export function getBurpAttackProfileContext(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.getBurpAttackProfileContext(...args);
+}
+export function getBurpCollaboratorContext(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.getBurpCollaboratorContext(...args);
+}
+export function getCrossToolCorrelationContext(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.getCrossToolCorrelationContext(...args);
+}
+export function getBurpReasoningPrompt(...args: any[]) {
+  track('burp');
+  return burpPentestingKnowledge.getBurpReasoningPrompt(...args);
 }
 
 // ─── kev-service ───────────────────────────────────────────────────────────

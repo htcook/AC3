@@ -4076,6 +4076,7 @@ export const llmDecisionLog = mysqlTable("llm_decision_log", {
 	dlLatencyMs: int("dl_latency_ms"),
 	tokensUsed: int("tokens_used"),
 	contextSummary: text("context_summary"),
+	knowledgeModulesUsed: json("knowledge_modules_used"),
 	dlCreatedAt: timestamp("dl_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 },
 (table) => [
