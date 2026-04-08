@@ -5,7 +5,7 @@
  * Wraps the licensedOrganizations + licenseUsageLogs tables.
  */
 
-import { getDb } from "../_core/db";
+import { getDb } from "../db";
 import { licensedOrganizations, licenseUsageLogs } from "../../drizzle/schema";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
 import { generateLicenseKey, type GenerateLicenseOptions } from "./licensing";
