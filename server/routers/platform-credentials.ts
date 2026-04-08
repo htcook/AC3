@@ -121,6 +121,40 @@ async function verifyOpenBugBounty(_apiKey: string): Promise<{ valid: boolean; m
   return { valid: true, message: "Open Bug Bounty credentials saved — this platform uses public disclosure; handle accepted" };
 }
 
+// ─── Burp Suite verification helpers ───
+
+async function verifyBurpSuitePro(baseUrl: string, apiKey: string): Promise<{ valid: boolean; message: string }> {
+  try {
+    const res = await fetch(`${baseUrl}/${apiKey}/v0.1/`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) return { valid: true, message: "Connected to Burp Suite Professional REST API" };
+    if (res.status === 401 || res.status === 403) return { valid: false, message: "Invalid API key — check your Burp Suite REST API settings" };
+    return { valid: false, message: `Burp Suite returned HTTP ${res.status}. Ensure REST API is enabled in Settings > Suite > REST API` };
+  } catch (err: any) {
+    if (err.name === "TimeoutError" || err.message?.includes("timeout")) {
+      return { valid: false, message: "Connection timed out — ensure Burp Suite is running and REST API is enabled" };
+    }
+    return { valid: false, message: `Connection failed: ${err.message}` };
+  }
+}
+
+async function verifyBurpSuiteEnterprise(baseUrl: string, apiKey: string): Promise<{ valid: boolean; message: string }> {
+  try {
+    const res = await fetch(`${baseUrl}/graphql/v1`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
+      body: JSON.stringify({ query: `{ __typename }` }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) return { valid: true, message: "Connected to Burp Suite Enterprise/DAST GraphQL API" };
+    if (res.status === 401 || res.status === 403) return { valid: false, message: "Invalid API key — create an API user in Burp Suite DAST settings" };
+    return { valid: false, message: `Burp Suite DAST returned HTTP ${res.status}` };
+  } catch (err: any) {
+    return { valid: false, message: `Connection failed: ${err.message}` };
+  }
+}
+
 // ─── Router ───
 
 export const platformCredentialsRouter = router({
@@ -153,7 +187,7 @@ export const platformCredentialsRouter = router({
   add: protectedProcedure
     .input(
       z.object({
-        platform: z.enum(["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "open_bug_bounty", "immunefi", "custom"]),
+        platform: z.enum(["hackerone", "bugcrowd", "intigriti", "synack", "yeswehack", "open_bug_bounty", "immunefi", "burpsuite_pro", "burpsuite_enterprise", "custom"]),
         displayName: z.string().min(1).max(255),
         apiUsername: z.string().max(512).optional(),
         apiKey: z.string().min(1),
@@ -278,6 +312,12 @@ export const platformCredentialsRouter = router({
           break;
         case "synack":
           result = { valid: true, message: "Synack credentials saved — Synack Red Team access is invite-only; credentials stored for manual use" };
+          break;
+        case "burpsuite_pro":
+          result = await verifyBurpSuitePro(cred.baseUrl || "http://127.0.0.1:1337", apiKey);
+          break;
+        case "burpsuite_enterprise":
+          result = await verifyBurpSuiteEnterprise(cred.baseUrl || "", apiKey);
           break;
         default:
           result = { valid: true, message: "Custom platform — credentials saved (no auto-verification)" };

@@ -161,7 +161,26 @@ export function ImmunefiIcon({ className = "", size = 20 }: IconProps) {
   );
 }
 
-/** Custom platform — generic gear/wrench */
+/** Burp Suite — stylized flame/scanner mark */
+export function BurpSuiteIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2C8 6 6 10 6 13a6 6 0 0 0 12 0c0-3-2-7-6-11z" />
+      <path d="M12 22c-2 0-3-1-3-3 0-2 1.5-4 3-6 1.5 2 3 4 3 6 0 2-1 3-3 3z" />
+    </svg>
+  );
+}
+
 export function CustomPlatformIcon({ className = "", size = 20 }: IconProps) {
   return (
     <svg
@@ -190,6 +209,8 @@ export const PLATFORM_COLORS: Record<string, string> = {
   yeswehack: "text-red-400",
   open_bug_bounty: "text-yellow-400",
   immunefi: "text-purple-400",
+  burpsuite_pro: "text-orange-500",
+  burpsuite_enterprise: "text-orange-600",
   custom: "text-zinc-400",
   manual: "text-zinc-400",
 };
@@ -203,6 +224,8 @@ export const PLATFORM_BG_COLORS: Record<string, string> = {
   yeswehack: "bg-red-500/10 border-red-500/20",
   open_bug_bounty: "bg-yellow-500/10 border-yellow-500/20",
   immunefi: "bg-purple-500/10 border-purple-500/20",
+  burpsuite_pro: "bg-orange-500/10 border-orange-500/20",
+  burpsuite_enterprise: "bg-orange-600/10 border-orange-600/20",
   custom: "bg-zinc-500/10 border-zinc-500/20",
   manual: "bg-zinc-500/10 border-zinc-500/20",
 };
@@ -235,6 +258,9 @@ export function PlatformIcon({
       return <OpenBugBountyIcon className={combinedClass} size={size} />;
     case "immunefi":
       return <ImmunefiIcon className={combinedClass} size={size} />;
+    case "burpsuite_pro":
+    case "burpsuite_enterprise":
+      return <BurpSuiteIcon className={combinedClass} size={size} />;
     case "custom":
     case "manual":
       return <CustomPlatformIcon className={combinedClass} size={size} />;
@@ -252,6 +278,8 @@ export const PLATFORM_NAMES: Record<string, string> = {
   yeswehack: "YesWeHack",
   open_bug_bounty: "Open Bug Bounty",
   immunefi: "Immunefi",
+  burpsuite_pro: "Burp Suite Pro",
+  burpsuite_enterprise: "Burp Suite Enterprise",
   custom: "Custom",
   manual: "Manual",
 };

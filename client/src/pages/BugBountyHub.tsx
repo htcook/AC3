@@ -15,10 +15,12 @@ import {
   ChevronRight, Clock, DollarSign, Users, BarChart3,
   Key, CheckCircle2, XCircle, Loader2, Trash2, Eye, EyeOff, Unplug,
   Database, Activity, Layers, FileText, Crosshair, Radar,
-  Brain, Download, Sparkles, FlaskConical, ArrowRightLeft, BookOpen
+  Brain, Download, Sparkles, FlaskConical, ArrowRightLeft, BookOpen, Rocket
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { AIVulnResearchTab } from "@/pages/bug-bounty/AIVulnResearchTab";
+import { CreateEngagementDialog } from "@/pages/bug-bounty/CreateEngagementDialog";
+import { BurpSuitePanel } from "@/pages/bug-bounty/BurpSuitePanel";
 import { PlatformIcon, PLATFORM_NAMES, PLATFORM_COLORS, PLATFORM_BG_COLORS } from "@/components/PlatformIcons";
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -44,6 +46,7 @@ export default function BugBountyHub() {
   const [showAddFindingDialog, setShowAddFindingDialog] = useState(false);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [showAddCredentialDialog, setShowAddCredentialDialog] = useState(false);
+  const [showCreateEngagementDialog, setShowCreateEngagementDialog] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [selectedScopeProgram, setSelectedScopeProgram] = useState<string>("");
   const [trainingCategory, setTrainingCategory] = useState<string>("all");
@@ -716,6 +719,10 @@ export default function BugBountyHub() {
               <Plus className="h-4 w-4 mr-1" />
               Add Program
             </Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowCreateEngagementDialog(true)}>
+              <Rocket className="h-4 w-4 mr-1" />
+              Create Engagement
+            </Button>
           </div>
 
           {programsLoading ? (
@@ -755,6 +762,9 @@ export default function BugBountyHub() {
                         </Button>
                         <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => { syncWeaknesses.mutate({ programHandle: p.handle }); }} disabled={syncWeaknesses.isPending}>
                           <AlertTriangle className="h-3 w-3 mr-1" /> CWEs
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-xs h-7 text-emerald-400 hover:text-emerald-300" onClick={() => { setShowCreateEngagementDialog(true); }}>
+                          <Rocket className="h-3 w-3 mr-1" /> Engage
                         </Button>
                       </div>
                       <Button variant="ghost" size="sm" className="text-xs h-7 text-red-400" onClick={() => deleteProgram.mutate({ id: p.id })}>
@@ -1086,6 +1096,9 @@ export default function BugBountyHub() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Burp Suite Integration Section */}
+          <BurpSuitePanel credentials={credentials || []} onRefreshCredentials={refetchCredentials} />
         </TabsContent>
         {/* ─── LLM Training Tab ─── */}
         <TabsContent value="training" className="space-y-4">
@@ -1547,6 +1560,14 @@ export default function BugBountyHub() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Create Engagement Dialog */}
+      <CreateEngagementDialog
+        open={showCreateEngagementDialog}
+        onOpenChange={setShowCreateEngagementDialog}
+        onCreated={(id) => {
+          toast.success(`Engagement #${id} created — navigate to Engagements to view`);
+        }}
+      />
     </div>
     </AppShell>
   );

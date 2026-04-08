@@ -3013,7 +3013,7 @@ export const engagements = mysqlTable("engagements", {
 	name: varchar({ length: 255 }).notNull(),
 	customerName: varchar({ length: 255 }).notNull(),
 	description: text(),
-	engagementType: mysqlEnum(['red_team','phishing','pentest','purple_team','tabletop']).default('red_team').notNull(),
+	engagementType: mysqlEnum(['red_team','phishing','pentest','purple_team','tabletop','bug_bounty']).default('red_team').notNull(),
 	status: mysqlEnum(['planning','active','paused','completed','archived']).default('planning').notNull(),
 	startDate: timestamp({ mode: 'string' }),
 	endDate: timestamp({ mode: 'string' }),
@@ -6371,7 +6371,7 @@ export const unifiedExploitCatalog = mysqlTable("unified_exploit_catalog", {
 export const userPlatformCredentials = mysqlTable("user_platform_credentials", {
 	id: int().autoincrement().notNull(),
 	userId: int("user_id").notNull(),
-	platform: mysqlEnum(['hackerone','bugcrowd','intigriti','synack','yeswehack','open_bug_bounty','immunefi','custom']).notNull(),
+	platform: mysqlEnum(['hackerone','bugcrowd','intigriti','synack','yeswehack','open_bug_bounty','immunefi','burpsuite_pro','burpsuite_enterprise','custom']).notNull(),
 	displayName: varchar("display_name", { length: 255 }).notNull(),
 	apiUsername: varchar("api_username", { length: 512 }),
 	apiKeyEncrypted: text("api_key_encrypted").notNull(),

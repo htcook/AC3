@@ -1569,4 +1569,176 @@ export const bugBountyRouter = router({
       const { runBountyIntelPipeline } = await import("../lib/bounty-intel-scheduler");
       return runBountyIntelPipeline("manual");
     }),
+
+  // ─── Engagement Builder (Create Engagement from Program) ───
+
+  // Preview engagement plan from a synced program (LLM-powered)
+  buildEngagementPreview: protectedProcedure
+    .input(
+      z.object({
+        programId: z.number().optional(),
+        programUrl: z.string().optional(),
+        programName: z.string().optional(),
+        platform: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { buildEngagementPreview } = await import("../lib/engagement-builder");
+      return buildEngagementPreview(input);
+    }),
+
+  // Create engagement from a previewed plan
+  createEngagementFromProgram: protectedProcedure
+    .input(
+      z.object({
+        preview: z.any(), // EngagementPreview object from buildEngagementPreview
+        customName: z.string().optional(),
+        scanMode: z.enum(["strict_passive", "standard", "active"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { createEngagementFromPreview } = await import("../lib/engagement-builder");
+      return createEngagementFromPreview(input.preview, ctx.user.id, {
+        customName: input.customName,
+        scanMode: input.scanMode,
+      });
+    }),
+
+  // ─── Burp Suite Integration ───
+
+  // Verify Burp Suite connection
+  verifyBurpConnection: protectedProcedure
+    .input(
+      z.object({
+        edition: z.enum(["professional", "enterprise"]),
+        baseUrl: z.string().min(1),
+        apiKey: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { BurpSuiteConnector } = await import("../lib/burpsuite-connector");
+      const connector = new BurpSuiteConnector(input);
+      return connector.verify();
+    }),
+
+  // Import issues from a Burp Suite scan into findings
+  importBurpIssues: protectedProcedure
+    .input(
+      z.object({
+        credentialId: z.number(),
+        scanId: z.string(),
+        engagementHandle: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDbSafe();
+      const { BurpSuiteConnector, normalizeBurpIssues } = await import("../lib/burpsuite-connector");
+
+      // Get the credential
+      const [cred] = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(and(eq(userPlatformCredentials.id, input.credentialId), eq(userPlatformCredentials.userId, ctx.user.id)))
+        .limit(1);
+
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Burp Suite credential not found" });
+
+      const apiKey = decrypt(cred.apiKeyEncrypted);
+      const edition = cred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
+      const connector = new BurpSuiteConnector({
+        edition,
+        baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+        apiKey,
+      });
+
+      const issues = await connector.getIssues(input.scanId);
+      const normalized = normalizeBurpIssues(
+        issues,
+        input.engagementHandle || "burpsuite-import",
+        edition
+      );
+
+      let imported = 0;
+      for (const finding of normalized) {
+        try {
+          await db.insert(bugBountyFindings).values({
+            platform: "burpsuite" as any,
+            title: finding.title.substring(0, 1024),
+            severityRating: finding.severityRating,
+            summary: finding.summary,
+            assetIdentifier: finding.assetIdentifier.substring(0, 512),
+            assetType: finding.assetType,
+            cweId: finding.cweId,
+            cveIds: finding.cveIds,
+            programHandle: finding.programHandle,
+            programName: `Burp Suite ${edition === "enterprise" ? "Enterprise" : "Professional"} Import`,
+            externalId: `burp-${input.scanId}-${finding.metadata.serialNumber || imported}`,
+          });
+          imported++;
+        } catch {
+          // Skip duplicates
+        }
+      }
+
+      return { imported, total: issues.length, scanId: input.scanId };
+    }),
+
+  // Get Burp Suite scan status
+  getBurpScanStatus: protectedProcedure
+    .input(
+      z.object({
+        credentialId: z.number(),
+        scanId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await getDbSafe();
+      const { BurpSuiteConnector } = await import("../lib/burpsuite-connector");
+
+      const [cred] = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(and(eq(userPlatformCredentials.id, input.credentialId), eq(userPlatformCredentials.userId, ctx.user.id)))
+        .limit(1);
+
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+
+      const apiKey = decrypt(cred.apiKeyEncrypted);
+      const edition = cred.platform === "burpsuite_enterprise" ? "enterprise" : "professional";
+      const connector = new BurpSuiteConnector({
+        edition,
+        baseUrl: cred.baseUrl || "http://127.0.0.1:1337",
+        apiKey,
+      });
+
+      return connector.getScanStatus(input.scanId);
+    }),
+
+  // List Burp Suite Enterprise sites
+  listBurpSites: protectedProcedure
+    .input(z.object({ credentialId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const db = await getDbSafe();
+      const { BurpSuiteConnector } = await import("../lib/burpsuite-connector");
+
+      const [cred] = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(and(eq(userPlatformCredentials.id, input.credentialId), eq(userPlatformCredentials.userId, ctx.user.id)))
+        .limit(1);
+
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+      if (cred.platform !== "burpsuite_enterprise") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Site listing is only available for Burp Suite Enterprise/DAST" });
+      }
+
+      const apiKey = decrypt(cred.apiKeyEncrypted);
+      const connector = new BurpSuiteConnector({
+        edition: "enterprise",
+        baseUrl: cred.baseUrl || "",
+        apiKey,
+      });
+
+      return connector.listSitesEnterprise();
+    }),
 });
