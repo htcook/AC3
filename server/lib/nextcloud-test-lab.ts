@@ -106,7 +106,112 @@ export const BOUNTY_ELIGIBLE_APPS = [
   { name: '3rdparty', repo: 'nextcloud/3rdparty', tier: 9, description: '3rd party libraries', builtIn: true },
 ] as const;
 
-// ─── Docker Compose Configuration ───────────────────────────────────────────
+// ─── Nextcloud HackerOne Bounty Program Policy ─────────────────────────────
+
+export const NEXTCLOUD_BOUNTY_POLICY = {
+  platform: 'hackerone' as const,
+  handle: 'nextcloud',
+  name: 'Nextcloud',
+  url: 'https://hackerone.com/nextcloud',
+  policyUrl: 'https://hackerone.com/nextcloud',
+  securityPage: 'https://nextcloud.com/security/',
+  versionSchedule: 'https://github.com/nextcloud/server/wiki/Maintenance-and-Release-Schedule',
+  currency: 'USD',
+
+  /** Reward tiers by impact level */
+  rewards: [
+    { impact: 'critical', definition: 'Gaining remote code execution on the server as a non-admin user (RCE)', maxReward: 10000 },
+    { impact: 'high',     definition: 'Gaining access to complete user data of any other user (Auth Bypass)', maxReward: 4000 },
+    { impact: 'medium',   definition: 'Limited disclosure of user data or attacks granting access to a single user session (XSS with CSP bypass)', maxReward: 1500 },
+    { impact: 'low',      definition: 'Very limited disclosure of user data or attacks involving very high unlikely amount of user interaction', maxReward: 500 },
+  ] as const,
+
+  /** What qualifies as a valid bug */
+  validBugCriteria: 'Something that actively allows an attacker to escalate their privileges (e.g. "Attacker can delete arbitrary files of other users")',
+
+  /** Explicitly excluded or non-reward categories */
+  exclusions: [
+    'Missing X-Frame-Options on download servers',
+    'Denial of Service (acknowledged but not rewarded)',
+    'Third-party apps from the AppStore (not in scope)',
+    'Reports without Nextcloud Server version or App version',
+    'Automated tool output without manual validation',
+    'AI-generated reports without manual reproduction',
+  ],
+
+  /** Submission rules */
+  submissionRules: {
+    requireManualReproduction: true,
+    requireScreenshots: true,
+    requireVersionNumbers: true,
+    noAutomatedToolsAgainstInfra: true,
+    noCloudAiServices: true,
+    noPiiInReports: true,
+    noPreDisclosure: true,
+    reportsShortAndConcise: true,
+    llmDisclosureRequired: true,
+    llmLocalOnlyRequired: true,
+  },
+
+  /** Penalties for low-quality submissions */
+  penalties: {
+    aiSlopReport: 'Closed as Spam (-10 reputation), possible bounty reduction or program ban',
+    automatedToolReport: 'Not considered unless manually reviewed and validated',
+    missingVersion: 'Closed as N/A',
+  },
+
+  /** Scope categories */
+  scopeCategories: {
+    server: {
+      description: 'Nextcloud server and apps supported by Nextcloud GmbH',
+      eligibleVersions: 'Current supported versions per maintenance schedule',
+      appsEligible: 'Only latest version compatible with eligible server versions',
+    },
+    mobileClients: {
+      description: 'iOS and Android sync clients',
+      eligibleVersions: 'Only the latest version in respective app stores',
+    },
+    desktopClients: {
+      description: 'Desktop clients for Mac, Windows, and Linux',
+      eligibleVersions: 'Only the latest version of each client',
+    },
+  },
+
+  /** Transparency policy */
+  disclosurePolicy: 'All valid vulnerabilities are publicly disclosed after a grace period',
+} as const;
+
+/**
+ * Map a severity string to the maximum Nextcloud bounty reward.
+ * Useful for estimating bounty value during engagement triage.
+ */
+export function getNextcloudMaxReward(severity: string): number {
+  const s = severity.toLowerCase();
+  const tier = NEXTCLOUD_BOUNTY_POLICY.rewards.find(r => r.impact === s);
+  return tier?.maxReward ?? 0;
+}
+
+/**
+ * Check if a finding meets Nextcloud submission requirements.
+ * Returns { eligible: boolean, issues: string[] }.
+ */
+export function validateNextcloudSubmission(finding: {
+  hasScreenshot?: boolean;
+  hasVersion?: boolean;
+  isManuallyReproduced?: boolean;
+  isAutomatedOnly?: boolean;
+  severity?: string;
+}): { eligible: boolean; issues: string[] } {
+  const issues: string[] = [];
+  if (!finding.hasScreenshot) issues.push('Missing screenshot proof of reproduction');
+  if (!finding.hasVersion) issues.push('Missing Nextcloud Server/App version number');
+  if (!finding.isManuallyReproduced) issues.push('Must be manually reproduced (not automated-only)');
+  if (finding.isAutomatedOnly) issues.push('Automated tool output requires manual validation');
+  if (finding.severity?.toLowerCase() === 'info') issues.push('Informational findings are not eligible for bounty');
+  return { eligible: issues.length === 0, issues };
+}
+
+// ─── Docker Compose Configuration ─────────────────────────────────────────
 
 export interface TestLabConfig {
   nextcloudVersion: string;

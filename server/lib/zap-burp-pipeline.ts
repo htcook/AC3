@@ -652,3 +652,333 @@ export async function getCrossToolCoverage(engagementId: number): Promise<{
     urlDetails: urlDetails.slice(0, 100), // Limit for API response size
   };
 }
+
+// ─── Severity Escalation Engine ───
+
+/** Severity hierarchy from lowest to highest */
+const SEVERITY_RANK: Record<string, number> = {
+  info: 0, informational: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+
+/** Escalation rules: how many levels to promote based on confirmation type */
+const ESCALATION_RULES = {
+  /** Both ZAP and Burp found the exact same vuln type at the same URL */
+  crossToolConfirmed: { promote: 1, flagPriority: true },
+  /** Same CWE confirmed by both tools at different URLs */
+  cweCorroborated: { promote: 1, flagPriority: false },
+  /** Same vuln type but different severity ratings between tools — use higher */
+  severityDisagreement: { promote: 0, flagPriority: true },
+} as const;
+
+export interface EscalationResult {
+  /** Finding identifier */
+  findingId: string;
+  /** Original severity before escalation */
+  originalSeverity: string;
+  /** New severity after escalation */
+  escalatedSeverity: string;
+  /** Whether severity was actually changed */
+  wasEscalated: boolean;
+  /** Whether flagged for priority exploitation */
+  flaggedForExploit: boolean;
+  /** Reason for escalation */
+  reason: string;
+  /** Which tools confirmed this finding */
+  confirmedBy: ("zap" | "burp")[];
+  /** The affected URL */
+  url: string;
+  /** CWE ID if available */
+  cweId?: string;
+  /** Estimated bounty value if applicable */
+  estimatedBounty?: number;
+}
+
+export interface EscalationSummary {
+  /** Total findings evaluated */
+  totalEvaluated: number;
+  /** Findings that were escalated */
+  escalatedCount: number;
+  /** Findings flagged for priority exploitation */
+  priorityFlaggedCount: number;
+  /** Breakdown by severity after escalation */
+  severityBreakdown: Record<string, number>;
+  /** Individual escalation results */
+  results: EscalationResult[];
+  /** Timestamp of escalation run */
+  timestamp: number;
+}
+
+/**
+ * Promote a severity string by N levels.
+ * Returns the new severity string.
+ */
+export function promoteSeverity(current: string, levels: number): string {
+  const rank = SEVERITY_RANK[current.toLowerCase()] ?? 0;
+  const newRank = Math.min(rank + levels, 4); // Cap at critical
+  const reverseMap = ['info', 'low', 'medium', 'high', 'critical'];
+  return reverseMap[newRank] || current;
+}
+
+/**
+ * Compare two severity strings. Returns:
+ *   negative if a < b, 0 if equal, positive if a > b
+ */
+export function compareSeverity(a: string, b: string): number {
+  return (SEVERITY_RANK[a.toLowerCase()] ?? 0) - (SEVERITY_RANK[b.toLowerCase()] ?? 0);
+}
+
+/**
+ * Run severity escalation on correlated findings for an engagement.
+ * 
+ * When both ZAP and Burp confirm the same finding:
+ *   1. Promote severity by one level (e.g. medium → high)
+ *   2. Flag for priority exploitation
+ *   3. Update the corroboration tier to 'confirmed'
+ *   4. Estimate bounty value using Nextcloud reward tiers
+ * 
+ * Returns an EscalationSummary with all decisions.
+ */
+export async function runSeverityEscalation(
+  engagementId: number,
+  zapScanId?: number,
+): Promise<EscalationSummary> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      totalEvaluated: 0, escalatedCount: 0, priorityFlaggedCount: 0,
+      severityBreakdown: {}, results: [], timestamp: Date.now(),
+    };
+  }
+
+  // Get correlated findings
+  let correlated: CorrelatedFinding[] = [];
+  if (zapScanId) {
+    correlated = await correlateFindings(engagementId, zapScanId);
+  } else {
+    // Find the latest ZAP scan for this engagement
+    const recentScans = await db.select()
+      .from(webAppScans)
+      .where(eq(webAppScans.status, "completed"))
+      .orderBy(desc(webAppScans.completedAt))
+      .limit(5);
+
+    const dbModule = await import("../db");
+    const engagement = await dbModule.getEngagementById(engagementId);
+    const targetDomain = engagement?.targetDomain || "";
+
+    const matchingScan = recentScans.find(s =>
+      s.targetUrl?.includes(targetDomain) ||
+      s.scanName?.includes(String(engagementId))
+    );
+
+    if (matchingScan) {
+      correlated = await correlateFindings(engagementId, matchingScan.id);
+    }
+  }
+
+  const results: EscalationResult[] = [];
+  const severityBreakdown: Record<string, number> = {};
+  let escalatedCount = 0;
+  let priorityFlaggedCount = 0;
+
+  // Try to load Nextcloud bounty reward estimator
+  let getMaxReward: ((severity: string) => number) | null = null;
+  try {
+    const ncModule = await import("./nextcloud-test-lab");
+    getMaxReward = ncModule.getNextcloudMaxReward;
+  } catch {}
+
+  for (const cf of correlated) {
+    let escalatedSeverity = cf.severity;
+    let wasEscalated = false;
+    let flaggedForExploit = false;
+    let reason = "";
+
+    if (cf.confidenceBoost && cf.foundBy.length === 2) {
+      // Cross-tool confirmed: both ZAP and Burp found it
+      const rule = ESCALATION_RULES.crossToolConfirmed;
+      const promoted = promoteSeverity(cf.severity, rule.promote);
+      if (compareSeverity(promoted, cf.severity) > 0) {
+        escalatedSeverity = promoted;
+        wasEscalated = true;
+        reason = `Cross-tool confirmed by ZAP + Burp → severity promoted from ${cf.severity} to ${promoted}`;
+      } else {
+        reason = `Cross-tool confirmed by ZAP + Burp (already at ${cf.severity}, no further promotion)`;
+      }
+      flaggedForExploit = rule.flagPriority;
+    } else if (cf.foundBy.length === 1) {
+      // Single-tool finding — no escalation, but check if CWE matches another tool's finding
+      const sameCwe = correlated.filter(
+        other => other !== cf && other.cweId && other.cweId === cf.cweId && other.foundBy[0] !== cf.foundBy[0]
+      );
+      if (sameCwe.length > 0) {
+        const rule = ESCALATION_RULES.cweCorroborated;
+        const promoted = promoteSeverity(cf.severity, rule.promote);
+        if (compareSeverity(promoted, cf.severity) > 0) {
+          escalatedSeverity = promoted;
+          wasEscalated = true;
+          reason = `CWE-${cf.cweId} corroborated across tools → severity promoted from ${cf.severity} to ${promoted}`;
+        } else {
+          reason = `CWE-${cf.cweId} corroborated (already at ${cf.severity})`;
+        }
+        flaggedForExploit = rule.flagPriority;
+      } else {
+        reason = `Single-tool finding (${cf.foundBy[0]} only) — no escalation`;
+      }
+    }
+
+    if (wasEscalated) escalatedCount++;
+    if (flaggedForExploit) priorityFlaggedCount++;
+
+    // Track severity breakdown
+    severityBreakdown[escalatedSeverity] = (severityBreakdown[escalatedSeverity] || 0) + 1;
+
+    const estimatedBounty = getMaxReward ? getMaxReward(escalatedSeverity) : undefined;
+
+    results.push({
+      findingId: cf.zapFindingId ? `zap-${cf.zapFindingId}` : cf.burpFindingRef || `unknown-${results.length}`,
+      originalSeverity: cf.severity,
+      escalatedSeverity,
+      wasEscalated,
+      flaggedForExploit,
+      reason,
+      confirmedBy: cf.foundBy,
+      url: cf.url,
+      cweId: cf.cweId,
+      estimatedBounty,
+    });
+  }
+
+  // Persist escalation results to engagement timeline
+  if (results.length > 0) {
+    try {
+      await db.insert(engagementTimelineEvents).values({
+        engagementId,
+        phase: "vulnerability_analysis",
+        eventType: "severity_escalation",
+        severity: escalatedCount > 0 ? "high" : "info",
+        title: `Severity Escalation: ${escalatedCount} promoted, ${priorityFlaggedCount} flagged for exploit`,
+        description: [
+          `Evaluated ${results.length} correlated findings.`,
+          escalatedCount > 0 ? `${escalatedCount} findings had severity promoted due to cross-tool confirmation.` : "",
+          priorityFlaggedCount > 0 ? `${priorityFlaggedCount} findings flagged for priority exploitation.` : "",
+          `Severity breakdown: ${Object.entries(severityBreakdown).map(([k, v]) => `${k}:${v}`).join(", ")}`,
+        ].filter(Boolean).join(" "),
+        metadata: JSON.stringify({
+          source: "severity_escalation_engine",
+          escalatedCount,
+          priorityFlaggedCount,
+          severityBreakdown,
+          topFindings: results.filter(r => r.wasEscalated || r.flaggedForExploit).slice(0, 10).map(r => ({
+            finding: r.findingId,
+            from: r.originalSeverity,
+            to: r.escalatedSeverity,
+            url: r.url,
+            bounty: r.estimatedBounty,
+          })),
+        }),
+        sourceModule: "zap-burp-pipeline",
+        timestamp: Date.now(),
+      });
+    } catch (e: any) {
+      console.warn(`[SeverityEscalation] Timeline event failed: ${e.message}`);
+    }
+  }
+
+  // Update engagement ops state: mark escalated vulns with corroborationTier = 'confirmed'
+  if (escalatedCount > 0) {
+    try {
+      const dbModule = await import("../db");
+      const opsSnapshot = await dbModule.loadOpsSnapshot(engagementId);
+      if (opsSnapshot?.stateJson) {
+        let state: any;
+        try { state = typeof opsSnapshot.stateJson === "string" ? JSON.parse(opsSnapshot.stateJson) : opsSnapshot.stateJson; } catch { state = null; }
+        if (state?.assets) {
+          let updated = false;
+          for (const asset of state.assets) {
+            if (!asset.vulns) continue;
+            for (const vuln of asset.vulns) {
+              const escalated = results.find(r =>
+                r.wasEscalated &&
+                (r.url.includes(asset.hostname) || r.url.includes(asset.ip)) &&
+                (vuln.title?.toLowerCase().includes(r.findingId.replace(/^zap-/, "")) ||
+                 vuln.cwe === r.cweId)
+              );
+              if (escalated) {
+                vuln.severity = escalated.escalatedSeverity;
+                vuln.corroborationTier = "confirmed";
+                vuln.evidenceDetail = `${vuln.evidenceDetail || ""} [Severity escalated: ${escalated.reason}]`.trim();
+                updated = true;
+              }
+            }
+          }
+          if (updated) {
+            await dbModule.saveOpsSnapshot(engagementId, state);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[SeverityEscalation] Ops state update failed: ${e.message}`);
+    }
+  }
+
+  console.log(`[SeverityEscalation] Engagement #${engagementId}: ${results.length} evaluated, ${escalatedCount} escalated, ${priorityFlaggedCount} flagged`);
+
+  return {
+    totalEvaluated: results.length,
+    escalatedCount,
+    priorityFlaggedCount,
+    severityBreakdown,
+    results,
+    timestamp: Date.now(),
+  };
+}
+
+/**
+ * Get escalation status for an engagement — returns the latest escalation summary
+ * without re-running the engine.
+ */
+export async function getEscalationStatus(engagementId: number): Promise<EscalationSummary | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Find the latest severity_escalation timeline event
+  const [event] = await db.select()
+    .from(engagementTimelineEvents)
+    .where(
+      and(
+        eq(engagementTimelineEvents.engagementId, engagementId),
+        eq(engagementTimelineEvents.eventType, "severity_escalation"),
+      )
+    )
+    .orderBy(desc(engagementTimelineEvents.timestamp))
+    .limit(1);
+
+  if (!event) return null;
+
+  let metadata: any = {};
+  try { metadata = typeof event.metadata === "string" ? JSON.parse(event.metadata) : event.metadata || {}; } catch {}
+
+  return {
+    totalEvaluated: (metadata.topFindings?.length ?? 0) + (metadata.escalatedCount ?? 0),
+    escalatedCount: metadata.escalatedCount ?? 0,
+    priorityFlaggedCount: metadata.priorityFlaggedCount ?? 0,
+    severityBreakdown: metadata.severityBreakdown ?? {},
+    results: (metadata.topFindings || []).map((f: any) => ({
+      findingId: f.finding,
+      originalSeverity: f.from,
+      escalatedSeverity: f.to,
+      wasEscalated: f.from !== f.to,
+      flaggedForExploit: true,
+      reason: `Cross-tool confirmed (${f.from} → ${f.to})`,
+      confirmedBy: ["zap", "burp"] as ("zap" | "burp")[],
+      url: f.url,
+      estimatedBounty: f.bounty,
+    })),
+    timestamp: event.timestamp ? Number(event.timestamp) : Date.now(),
+  };
+}

@@ -5,10 +5,16 @@ import {
   correlateFindings,
   getCrossToolCoverage,
   runZapToBurpPipeline,
+  promoteSeverity,
+  compareSeverity,
+  runSeverityEscalation,
+  getEscalationStatus,
   type ZapDiscoveredUrl,
   type ZapFingerprint,
   type CrossToolPipelineResult,
   type CorrelatedFinding,
+  type EscalationResult,
+  type EscalationSummary,
 } from "./lib/zap-burp-pipeline";
 
 describe("ZAP → Burp Cross-Tool Pipeline", () => {
@@ -221,6 +227,203 @@ describe("ZAP → Burp Cross-Tool Pipeline", () => {
       expect(orchSource).toContain('import("./zap-burp-pipeline")');
       expect(orchSource).toContain("runZapToBurpPipeline");
       expect(orchSource).toContain("ZAP → Burp Pipeline");
+    });
+
+    it("engagement-orchestrator imports runSeverityEscalation", async () => {
+      const fs = await import("fs");
+      const orchSource = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+      expect(orchSource).toContain("runSeverityEscalation");
+      expect(orchSource).toContain("Severity Escalation");
+    });
+  });
+
+  // ─── Severity Escalation Engine ───
+
+  describe("promoteSeverity", () => {
+    it("promotes info to low by 1 level", () => {
+      expect(promoteSeverity("info", 1)).toBe("low");
+    });
+
+    it("promotes low to medium by 1 level", () => {
+      expect(promoteSeverity("low", 1)).toBe("medium");
+    });
+
+    it("promotes medium to high by 1 level", () => {
+      expect(promoteSeverity("medium", 1)).toBe("high");
+    });
+
+    it("promotes high to critical by 1 level", () => {
+      expect(promoteSeverity("high", 1)).toBe("critical");
+    });
+
+    it("caps at critical when promoting beyond", () => {
+      expect(promoteSeverity("critical", 1)).toBe("critical");
+      expect(promoteSeverity("critical", 5)).toBe("critical");
+    });
+
+    it("promotes by multiple levels", () => {
+      expect(promoteSeverity("info", 2)).toBe("medium");
+      expect(promoteSeverity("low", 3)).toBe("critical");
+    });
+
+    it("handles 0 levels (no promotion)", () => {
+      expect(promoteSeverity("medium", 0)).toBe("medium");
+    });
+
+    it("is case-insensitive", () => {
+      expect(promoteSeverity("Medium", 1)).toBe("high");
+      expect(promoteSeverity("HIGH", 1)).toBe("critical");
+    });
+
+    it("handles informational alias", () => {
+      expect(promoteSeverity("informational", 1)).toBe("low");
+    });
+  });
+
+  describe("compareSeverity", () => {
+    it("returns 0 for equal severities", () => {
+      expect(compareSeverity("medium", "medium")).toBe(0);
+    });
+
+    it("returns negative when a < b", () => {
+      expect(compareSeverity("low", "high")).toBeLessThan(0);
+    });
+
+    it("returns positive when a > b", () => {
+      expect(compareSeverity("critical", "low")).toBeGreaterThan(0);
+    });
+
+    it("is case-insensitive", () => {
+      expect(compareSeverity("LOW", "low")).toBe(0);
+    });
+
+    it("treats unknown severity as info", () => {
+      expect(compareSeverity("unknown", "info")).toBe(0);
+    });
+  });
+
+  describe("module exports - escalation", () => {
+    it("exports promoteSeverity function", () => {
+      expect(typeof promoteSeverity).toBe("function");
+    });
+
+    it("exports compareSeverity function", () => {
+      expect(typeof compareSeverity).toBe("function");
+    });
+
+    it("exports runSeverityEscalation function", () => {
+      expect(typeof runSeverityEscalation).toBe("function");
+    });
+
+    it("exports getEscalationStatus function", () => {
+      expect(typeof getEscalationStatus).toBe("function");
+    });
+  });
+
+  describe("runSeverityEscalation", () => {
+    it("returns empty summary when DB unavailable", async () => {
+      const result = await runSeverityEscalation(-1);
+      expect(result).toHaveProperty("totalEvaluated");
+      expect(result).toHaveProperty("escalatedCount");
+      expect(result).toHaveProperty("priorityFlaggedCount");
+      expect(result).toHaveProperty("severityBreakdown");
+      expect(result).toHaveProperty("results");
+      expect(result).toHaveProperty("timestamp");
+      expect(typeof result.timestamp).toBe("number");
+    });
+  });
+
+  describe("getEscalationStatus", () => {
+    it("returns null for non-existent engagement", async () => {
+      const result = await getEscalationStatus(-1);
+      // Either null (no DB) or null (no timeline event)
+      expect(result === null || result?.totalEvaluated === 0).toBe(true);
+    });
+  });
+
+  describe("EscalationResult type structure", () => {
+    it("has the correct shape", () => {
+      const mock: EscalationResult = {
+        findingId: "zap-123",
+        originalSeverity: "medium",
+        escalatedSeverity: "high",
+        wasEscalated: true,
+        flaggedForExploit: true,
+        reason: "Cross-tool confirmed",
+        confirmedBy: ["zap", "burp"],
+        url: "https://example.com/vuln",
+        cweId: "CWE-79",
+        estimatedBounty: 4000,
+      };
+      expect(mock.findingId).toBe("zap-123");
+      expect(mock.wasEscalated).toBe(true);
+      expect(mock.confirmedBy).toContain("zap");
+      expect(mock.confirmedBy).toContain("burp");
+    });
+  });
+
+  describe("EscalationSummary type structure", () => {
+    it("has the correct shape", () => {
+      const mock: EscalationSummary = {
+        totalEvaluated: 5,
+        escalatedCount: 2,
+        priorityFlaggedCount: 3,
+        severityBreakdown: { high: 2, medium: 3 },
+        results: [],
+        timestamp: Date.now(),
+      };
+      expect(mock.totalEvaluated).toBe(5);
+      expect(mock.severityBreakdown.high).toBe(2);
+    });
+  });
+
+  describe("Nextcloud bounty policy integration", () => {
+    it("nextcloud-test-lab exports NEXTCLOUD_BOUNTY_POLICY", async () => {
+      const mod = await import("./lib/nextcloud-test-lab");
+      expect(mod.NEXTCLOUD_BOUNTY_POLICY).toBeDefined();
+      expect(mod.NEXTCLOUD_BOUNTY_POLICY.handle).toBe("nextcloud");
+      expect(mod.NEXTCLOUD_BOUNTY_POLICY.rewards).toHaveLength(4);
+      expect(mod.NEXTCLOUD_BOUNTY_POLICY.rewards[0].impact).toBe("critical");
+      expect(mod.NEXTCLOUD_BOUNTY_POLICY.rewards[0].maxReward).toBe(10000);
+    });
+
+    it("getNextcloudMaxReward returns correct values", async () => {
+      const mod = await import("./lib/nextcloud-test-lab");
+      expect(mod.getNextcloudMaxReward("critical")).toBe(10000);
+      expect(mod.getNextcloudMaxReward("high")).toBe(4000);
+      expect(mod.getNextcloudMaxReward("medium")).toBe(1500);
+      expect(mod.getNextcloudMaxReward("low")).toBe(500);
+      expect(mod.getNextcloudMaxReward("info")).toBe(0);
+    });
+
+    it("validateNextcloudSubmission flags missing requirements", async () => {
+      const mod = await import("./lib/nextcloud-test-lab");
+      const result = mod.validateNextcloudSubmission({});
+      expect(result.eligible).toBe(false);
+      expect(result.issues.length).toBeGreaterThan(0);
+    });
+
+    it("validateNextcloudSubmission passes with all requirements", async () => {
+      const mod = await import("./lib/nextcloud-test-lab");
+      const result = mod.validateNextcloudSubmission({
+        hasScreenshot: true,
+        hasVersion: true,
+        isManuallyReproduced: true,
+        isAutomatedOnly: false,
+        severity: "high",
+      });
+      expect(result.eligible).toBe(true);
+      expect(result.issues).toHaveLength(0);
+    });
+  });
+
+  describe("tRPC endpoint wiring", () => {
+    it("bug-bounty router has severity escalation endpoints", async () => {
+      const fs = await import("fs");
+      const routerSource = fs.readFileSync("server/routers/bug-bounty.ts", "utf-8");
+      expect(routerSource).toContain("runSeverityEscalation");
+      expect(routerSource).toContain("getEscalationStatus");
+      expect(routerSource).toContain("overrideFindingSeverity");
     });
   });
 });

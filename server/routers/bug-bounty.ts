@@ -2474,4 +2474,86 @@ export const bugBountyRouter = router({
       const { correlateFindings } = await import("../lib/zap-burp-pipeline");
       return correlateFindings(input.engagementId, input.zapScanId);
     }),
+
+  // ─── Severity Escalation ───
+
+  /** Run severity escalation on an engagement's cross-tool findings */
+  runSeverityEscalation: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      zapScanId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runSeverityEscalation } = await import("../lib/zap-burp-pipeline");
+      return runSeverityEscalation(input.engagementId, input.zapScanId);
+    }),
+
+  /** Get the latest escalation status for an engagement (read-only, no re-run) */
+  getEscalationStatus: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const { getEscalationStatus } = await import("../lib/zap-burp-pipeline");
+      return getEscalationStatus(input.engagementId);
+    }),
+
+  /** Manual severity override for a specific finding */
+  overrideFindingSeverity: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      findingId: z.string(),
+      newSeverity: z.enum(["info", "low", "medium", "high", "critical"]),
+      reason: z.string().min(1).max(500),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbSafe();
+      const { engagementTimelineEvents } = await import("../../drizzle/schema");
+
+      // Record the manual override in the timeline
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: input.engagementId,
+        phase: "vulnerability_analysis",
+        eventType: "severity_override",
+        severity: input.newSeverity,
+        title: `Manual severity override: ${input.findingId} → ${input.newSeverity}`,
+        description: `User ${ctx.user.name || ctx.user.openId} overrode severity to ${input.newSeverity}. Reason: ${input.reason}`,
+        metadata: JSON.stringify({
+          findingId: input.findingId,
+          newSeverity: input.newSeverity,
+          reason: input.reason,
+          overriddenBy: ctx.user.openId,
+        }),
+        sourceModule: "manual_override",
+        timestamp: Date.now(),
+      });
+
+      // Update the ops state if possible
+      try {
+        const dbModule = await import("../db");
+        const opsSnapshot = await dbModule.loadOpsSnapshot(input.engagementId);
+        if (opsSnapshot?.stateJson) {
+          let state: any;
+          try { state = typeof opsSnapshot.stateJson === "string" ? JSON.parse(opsSnapshot.stateJson) : opsSnapshot.stateJson; } catch { state = null; }
+          if (state?.assets) {
+            let updated = false;
+            for (const asset of state.assets) {
+              if (!asset.vulns) continue;
+              for (const vuln of asset.vulns) {
+                if (vuln.title?.includes(input.findingId) || vuln.id === input.findingId) {
+                  vuln.severity = input.newSeverity;
+                  vuln.evidenceDetail = `${vuln.evidenceDetail || ""} [Manual override by ${ctx.user.name}: ${input.reason}]`.trim();
+                  updated = true;
+                }
+              }
+            }
+            if (updated) {
+              await dbModule.saveOpsSnapshot(input.engagementId, state);
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[SeverityOverride] Ops state update failed: ${e.message}`);
+      }
+
+      return { success: true, findingId: input.findingId, newSeverity: input.newSeverity };
+    }),
 });

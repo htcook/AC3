@@ -265,6 +265,76 @@ async function syncPrograms(): Promise<{ count: number; detail: string }> {
   return { count: totalSynced, detail: `${totalSynced} programs synced` };
 }
 
+/**
+ * Ensure the Nextcloud bounty program record has full policy/reward data.
+ * Upserts the program row with reward tiers, submission rules, and scope metadata
+ * from the NEXTCLOUD_BOUNTY_POLICY constant.
+ */
+async function ensureNextcloudProgramData(): Promise<{ count: number; detail: string }> {
+  const db = await getDb();
+  const { NEXTCLOUD_BOUNTY_POLICY, BOUNTY_ELIGIBLE_APPS, NEXTCLOUD_VERSIONS } = await import("./nextcloud-test-lab");
+
+  const existing = await db.select().from(bugBountyPrograms)
+    .where(and(eq(bugBountyPrograms.platform, "hackerone"), eq(bugBountyPrograms.handle, "nextcloud")))
+    .limit(1);
+
+  const scopeAssets = BOUNTY_ELIGIBLE_APPS.map(app => ({
+    type: 'SOURCE_CODE',
+    identifier: `https://github.com/${app.repo}`,
+    name: app.name,
+    tier: app.tier,
+    description: app.description,
+    eligibleForBounty: true,
+  }));
+
+  // Add client scope assets
+  for (const [key, cat] of Object.entries(NEXTCLOUD_BOUNTY_POLICY.scopeCategories)) {
+    scopeAssets.push({
+      type: key === 'server' ? 'SOURCE_CODE' : 'OTHER',
+      identifier: key,
+      name: cat.description,
+      tier: key === 'server' ? 0 : 10,
+      description: `${cat.description} — ${cat.eligibleVersions}`,
+      eligibleForBounty: true,
+    });
+  }
+
+  const programData = {
+    platform: "hackerone" as const,
+    handle: NEXTCLOUD_BOUNTY_POLICY.handle,
+    name: NEXTCLOUD_BOUNTY_POLICY.name,
+    url: NEXTCLOUD_BOUNTY_POLICY.url,
+    policyUrl: NEXTCLOUD_BOUNTY_POLICY.policyUrl,
+    state: "open" as const,
+    submissionState: "open" as const,
+    currency: NEXTCLOUD_BOUNTY_POLICY.currency,
+    minBounty: Math.min(...NEXTCLOUD_BOUNTY_POLICY.rewards.map(r => r.maxReward)),
+    maxBounty: Math.max(...NEXTCLOUD_BOUNTY_POLICY.rewards.map(r => r.maxReward)),
+    scopeAssets: JSON.stringify({
+      assets: scopeAssets,
+      rewardTiers: NEXTCLOUD_BOUNTY_POLICY.rewards,
+      submissionRules: NEXTCLOUD_BOUNTY_POLICY.submissionRules,
+      exclusions: NEXTCLOUD_BOUNTY_POLICY.exclusions,
+      penalties: NEXTCLOUD_BOUNTY_POLICY.penalties,
+      validBugCriteria: NEXTCLOUD_BOUNTY_POLICY.validBugCriteria,
+      disclosurePolicy: NEXTCLOUD_BOUNTY_POLICY.disclosurePolicy,
+      eligibleVersions: NEXTCLOUD_VERSIONS.supported,
+      versionScheduleUrl: NEXTCLOUD_BOUNTY_POLICY.versionSchedule,
+    }),
+    lastSyncedAt: new Date(),
+  };
+
+  if (existing.length === 0) {
+    await db.insert(bugBountyPrograms).values(programData);
+    return { count: 1, detail: "Nextcloud program created with full bounty policy" };
+  } else {
+    await db.update(bugBountyPrograms).set({
+      ...programData,
+    }).where(eq(bugBountyPrograms.id, existing[0].id));
+    return { count: 1, detail: "Nextcloud program updated with full bounty policy" };
+  }
+}
+
 async function syncScopesAndWeaknesses(): Promise<{ count: number; detail: string }> {
   const db = await getDb();
   let totalScopes = 0, totalWeaknesses = 0;
@@ -488,9 +558,10 @@ export async function runBountyIntelPipeline(
     // ── Stage 1: Sync HackerOne Hacktivity ──
     await runStage(stages, "h1_hacktivity", syncHacktivity);
 
-    // ── Stage 2: Sync HackerOne Programs ──
+     // ── Stage 2: Sync HackerOne Programs ──
     await runStage(stages, "h1_programs", syncPrograms);
-
+    // ── Stage 2b: Ensure Nextcloud program has full bounty policy data ──
+    await runStage(stages, "nc_program_enrich", ensureNextcloudProgramData);
     // ── Stage 3: Sync Scopes & Weaknesses for Top Programs ──
     await runStage(stages, "h1_scopes_weaknesses", syncScopesAndWeaknesses);
 

@@ -5322,6 +5322,23 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     console.warn(`[EngagementOps] ZAP→Burp pipeline failed: ${pipelineErr.message}`);
   }
 
+  // ── Severity Escalation: auto-promote cross-tool confirmed findings ──
+  try {
+    const { runSeverityEscalation } = await import("./zap-burp-pipeline");
+    const escalation = await runSeverityEscalation(state.engagementId);
+    if (escalation.escalatedCount > 0 || escalation.priorityFlaggedCount > 0) {
+      addLog(state, {
+        phase: "vuln_detection", type: "info",
+        title: `⚡ Severity Escalation: ${escalation.escalatedCount} promoted, ${escalation.priorityFlaggedCount} flagged for exploit`,
+        detail: `Cross-tool confirmation boosted ${escalation.escalatedCount} findings. ` +
+          `${escalation.priorityFlaggedCount} flagged for priority exploitation. ` +
+          `Breakdown: ${Object.entries(escalation.severityBreakdown).map(([k, v]) => `${k}:${v}`).join(", ")}`,
+      });
+    }
+  } catch (escErr: any) {
+    console.warn(`[EngagementOps] Severity escalation failed: ${escErr.message}`);
+  }
+
   // ── Nuclei scan on all assets via scan server (RoE scope enforced) ──
   const nucleiAssets = state.assets.filter(a => a.ports.length > 0 && isInRoeScope(state, a.hostname, a.ip));
   let phase3NucleiFindings = 0; // Track only Phase 3 nuclei-specific findings
