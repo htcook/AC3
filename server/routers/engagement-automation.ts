@@ -715,6 +715,21 @@ export const engagementAutomationRouter = router({
           description: 'Self-hosted OWASP Juice Shop instance with 42+ vulnerability challenges including SQL injection, XSS, SSTI, XXE, SSRF, NoSQL injection, and broken authentication.',
           expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'NoSQL Injection', 'SSTI', 'XXE', 'SSRF', 'Broken Authentication', 'CSRF', 'Directory Traversal', 'Sensitive Data Exposure', 'Unvalidated Redirect'],
         },
+        'bwapp.lab.aceofcloud.io': {
+          name: 'bWAPP (AceOfCloud Lab)',
+          description: 'Self-hosted bWAPP instance with 100+ vulnerability exercises including SQL injection, XSS, OS command injection, PHP code injection, XXE, SSRF, and Shellshock.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'OS Command Injection', 'PHP Code Injection', 'SSI Injection', 'XXE', 'SSRF', 'CSRF', 'File Upload', 'File Inclusion', 'Directory Traversal', 'Shellshock', 'LDAP Injection'],
+        },
+        'mutillidae.lab.aceofcloud.io': {
+          name: 'Mutillidae (AceOfCloud Lab)',
+          description: 'Self-hosted Mutillidae II instance with OWASP Top 10 vulnerability exercises including SQL injection, XSS, XXE, file inclusion, command injection, and log injection.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'Command Injection', 'XXE', 'File Inclusion', 'Directory Traversal', 'CSRF', 'Clickjacking', 'Log Injection', 'HTTP Parameter Pollution'],
+        },
+        'crapi.lab.aceofcloud.io': {
+          name: 'crAPI (AceOfCloud Lab)',
+          description: 'Self-hosted crAPI (Completely Ridiculous API) instance for testing API-specific vulnerabilities including BOLA, mass assignment, rate limiting bypass, SSRF, and broken authentication.',
+          expectedVulns: ['BOLA', 'Mass Assignment', 'Excessive Data Exposure', 'Rate Limiting Bypass', 'SSRF', 'Broken Authentication', 'SQL Injection', 'NoSQL Injection', 'JWT Vulnerabilities', 'IDOR'],
+        },
       };
 
       const labProfile = TRAINING_LABS[input.target.toLowerCase()] || {
@@ -904,6 +919,21 @@ export const engagementAutomationRouter = router({
           name: 'OWASP Juice Shop (AceOfCloud Lab)',
           description: 'Self-hosted OWASP Juice Shop instance with 42+ vulnerability challenges including SQL injection, XSS, SSTI, XXE, SSRF, NoSQL injection, and broken authentication.',
           expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'NoSQL Injection', 'SSTI', 'XXE', 'SSRF', 'Broken Authentication', 'CSRF', 'Directory Traversal', 'Sensitive Data Exposure', 'Unvalidated Redirect'],
+        },
+        'bwapp.lab.aceofcloud.io': {
+          name: 'bWAPP (AceOfCloud Lab)',
+          description: 'Self-hosted bWAPP instance with 100+ vulnerability exercises including SQL injection, XSS, OS command injection, PHP code injection, XXE, SSRF, and Shellshock.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'OS Command Injection', 'PHP Code Injection', 'SSI Injection', 'XXE', 'SSRF', 'CSRF', 'File Upload', 'File Inclusion', 'Directory Traversal', 'Shellshock', 'LDAP Injection'],
+        },
+        'mutillidae.lab.aceofcloud.io': {
+          name: 'Mutillidae (AceOfCloud Lab)',
+          description: 'Self-hosted Mutillidae II instance with OWASP Top 10 vulnerability exercises including SQL injection, XSS, XXE, file inclusion, command injection, and log injection.',
+          expectedVulns: ['SQL Injection', 'XSS - Reflected', 'XSS - Stored', 'XSS - DOM', 'Command Injection', 'XXE', 'File Inclusion', 'Directory Traversal', 'CSRF', 'Clickjacking', 'Log Injection', 'HTTP Parameter Pollution'],
+        },
+        'crapi.lab.aceofcloud.io': {
+          name: 'crAPI (AceOfCloud Lab)',
+          description: 'Self-hosted crAPI (Completely Ridiculous API) instance for testing API-specific vulnerabilities including BOLA, mass assignment, rate limiting bypass, SSRF, and broken authentication.',
+          expectedVulns: ['BOLA', 'Mass Assignment', 'Excessive Data Exposure', 'Rate Limiting Bypass', 'SSRF', 'Broken Authentication', 'SQL Injection', 'NoSQL Injection', 'JWT Vulnerabilities', 'IDOR'],
         },
       };
 

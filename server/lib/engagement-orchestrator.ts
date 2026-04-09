@@ -99,6 +99,14 @@ import { SERVER_INSTANCE_ID } from "./server-instance";
 import { capLLMContext as _capLLMContext } from "./memory-manager";
 import { enrichPortServices } from "./service-resolver";
 import { executeScanForgePhase, runPostEngagementAnalysis, type ScanForgeFinding, type ScanForgeResult, type ScanForgeCredential } from "../scanforge/engine/engagement-integration";
+import {
+  accumulateOutcome as accumulateLearningOutcome,
+  classifyVulnClass,
+  prioritizeVulns,
+  shouldRetry as shouldLearningRetry,
+  getLearningStats,
+  type ExploitOutcome as LearningExploitOutcome,
+} from "./exploit-learning-engine";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
 const _serverInstanceId = SERVER_INSTANCE_ID;
@@ -8620,6 +8628,9 @@ ${(() => {
           const { executeEnhancedExploitWithChaining } = await import("./enhanced-exploit-orchestration");
           console.log(`[Exploit] Running ENHANCED pipeline for ${cve || service} on ${target}:${port}`);
 
+          // Update heartbeat before long-running LLM exploit generation to prevent false stall detection
+          if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+
           const enhancedOutcome = await executeEnhancedExploitWithChaining({
             engagementId: state.engagementId,
             target,
@@ -8663,6 +8674,9 @@ ${(() => {
             enableChainReasoner: true,
             maxChainSteps: 4,
           });
+
+          // Update heartbeat after exploit pipeline completes
+          if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
 
           // Extract results from enhanced outcome
           success = enhancedOutcome.success;
@@ -8846,6 +8860,34 @@ ${(() => {
             planConfidence: plan?.confidence,
             planReasoning: plan?.reasoning?.slice(0, 500),
           }).catch(() => {});
+
+          // ── Learning Engine: accumulate exploit outcome for autonomous improvement ──
+          try {
+            const vulnForLearning = asset?.vulns.find(v => v.cve === cve || v.title.includes(service || ''));
+            accumulateLearningOutcome({
+              attemptId: `${state.engagementId}-${target}-${port}-${Date.now()}`,
+              engagementId: state.engagementId,
+              vulnTitle: vulnForLearning?.title || cve || service || 'unknown',
+              vulnCVE: cve || undefined,
+              vulnSeverity: vulnForLearning?.severity || 'unknown',
+              vulnClass: classifyVulnClass(vulnForLearning?.title || cve || '', vulnForLearning?.description),
+              targetHostname: target,
+              targetPort: Number(port) || undefined,
+              targetTechnologies: asset?.technologies || [],
+              language: plan?.language || 'python',
+              code: plan?.code?.slice(0, 2000) || '',
+              success,
+              exitCode: success ? 0 : 1,
+              stdout: exploitOutput.slice(0, 1000),
+              stderr: '',
+              executionTimeMs: Date.now() - exploitStartTime,
+              timestamp: Date.now(),
+              attemptNumber: 1,
+              previousAttemptIds: [],
+            });
+          } catch (learnErr: any) {
+            console.warn(`[LearningEngine] Failed to accumulate outcome: ${learnErr.message}`);
+          }
   
           // Auto-trigger post-exploitation playbook when a shell is obtained
           if (success) {
@@ -8894,6 +8936,26 @@ ${(() => {
     if (state.engagementType === "red_team" && state.stats.exploitsSucceeded > 0 && state.exhaustiveExploit) {
       addLog(state, { phase: "exploitation", type: "info", title: `🔄 Exhaustive Mode: ${state.stats.exploitsSucceeded} shell(s) obtained — continuing to next target`, detail: `${state.stats.exploitsAttempted} attempted, ${state.stats.exploitsSucceeded} succeeded so far. Exhaustive exploitation enabled — attempting all remaining opportunities.` });
     }
+  }
+
+  // ── Learning Engine: log stats summary at end of exploitation phase ──
+  try {
+    const learnStats = getLearningStats();
+    if (learnStats.totalOutcomes > 0) {
+      addLog(state, {
+        phase: 'exploitation',
+        type: 'info',
+        title: '🧠 Learning Engine Summary',
+        detail: `${learnStats.totalOutcomes} outcomes accumulated, ` +
+          `${Math.round(learnStats.successRate * 100)}% success rate, ` +
+          `${learnStats.patternsLearned} patterns learned, ` +
+          `${learnStats.chainsDiscovered} chains discovered, ` +
+          `${learnStats.falsePositivesDetected} false positives detected, ` +
+          `${learnStats.guardrailBlocks} guardrail blocks`,
+      });
+    }
+  } catch (learnStatsErr: any) {
+    console.warn(`[LearningEngine] Stats summary failed: ${learnStatsErr.message}`);
   }
 
   state.progress = 75;
