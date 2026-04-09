@@ -248,8 +248,33 @@ export async function onEngagementVulnDetectionPhase(
   );
 
   if (burpCreds.length === 0) {
-    console.log(`[BurpAutoScan] No Burp Suite credentials found for user ${userId} — skipping auto-scan`);
-    return [];
+    // ═══ ENV-VAR FALLBACK: Use scan server's headless Burp instance ═══
+    // If no DB-stored credentials exist, check if we have env vars for a Burp instance
+    // running on the scan server (headless Burp Pro with REST API enabled)
+    const scanServerHost = process.env.SCAN_SERVER_HOST;
+    const envBurpApiKey = process.env.BURP_API_KEY || process.env.CALDERA_API_KEY;
+    const envBurpBaseUrl = process.env.BURP_BASE_URL || (scanServerHost ? `http://${scanServerHost}:1337` : "");
+
+    if (envBurpBaseUrl && envBurpApiKey) {
+      console.log(`[BurpAutoScan] No DB credentials found — using env fallback: ${envBurpBaseUrl}`);
+      burpCreds.push({
+        id: -1, // Synthetic credential ID for env-var fallback
+        userId: parseInt(userId, 10) || 0,
+        platform: "burpsuite_pro" as const,
+        displayName: "Scan Server Burp (env fallback)",
+        apiUsername: "",
+        apiKey: envBurpApiKey,
+        baseUrl: envBurpBaseUrl,
+        isActive: 1,
+        lastVerifiedAt: null,
+        lastSyncAt: null,
+        syncStatus: "idle" as const,
+        metadata: null,
+      });
+    } else {
+      console.log(`[BurpAutoScan] No Burp Suite credentials found for user ${userId} and no env fallback — skipping auto-scan`);
+      return [];
+    }
   }
 
   const results: BurpAutoScanState[] = [];

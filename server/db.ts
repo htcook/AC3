@@ -2133,6 +2133,65 @@ export async function getCredentialAttackStats(userId: number) {
   return { runs, findings };
 }
 
+// ─── Platform Credentials (for Burp Suite, etc.) ───────────────────────────
+import { userPlatformCredentials } from "../drizzle/schema";
+
+const CRED_ENCRYPTION_KEY = (() => {
+  const secret = process.env.JWT_SECRET || "default-dev-key-do-not-use-in-prod";
+  return crypto.createHash("sha256").update(secret).digest();
+})();
+
+function decryptCredential(encryptedText: string): string {
+  try {
+    const [ivHex, authTagHex, encrypted] = encryptedText.split(":");
+    if (!ivHex || !authTagHex || !encrypted) return "";
+    const iv = Buffer.from(ivHex, "hex");
+    const authTag = Buffer.from(authTagHex, "hex");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", CRED_ENCRYPTION_KEY, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * List all active platform credentials for a user.
+ * Used by Burp auto-scan to find connected Burp Suite Pro/Enterprise credentials.
+ * Returns decrypted apiKey so the caller can connect to the Burp API.
+ */
+export async function listPlatformCredentials(userId: string | number) {
+  const db = await getDb();
+  if (!db) return [];
+  const numericUserId = typeof userId === "string" ? parseInt(userId, 10) : userId;
+  if (isNaN(numericUserId)) return [];
+  const rows = await db
+    .select()
+    .from(userPlatformCredentials)
+    .where(
+      and(
+        eq(userPlatformCredentials.userId, numericUserId),
+        eq(userPlatformCredentials.isActive, 1)
+      )
+    );
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.userId,
+    platform: row.platform,
+    displayName: row.displayName,
+    apiUsername: row.apiUsername || "",
+    apiKey: decryptCredential(row.apiKeyEncrypted),
+    baseUrl: row.baseUrl || "",
+    isActive: row.isActive,
+    lastVerifiedAt: row.lastVerifiedAt,
+    lastSyncAt: row.lastSyncAt,
+    syncStatus: row.syncStatus,
+    metadata: row.metadata,
+  }));
+}
+
 // ─── Scan Results Persistence ───────────────────────────────────────────────
 import { scanResults, InsertScanResult, ScanResult } from "../drizzle/schema";
 

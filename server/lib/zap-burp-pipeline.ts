@@ -460,15 +460,30 @@ export async function runZapToBurpPipeline(params: {
   } catch {}
 
   if (!burpCred) {
-    return {
-      zapScanId: zapScanId || 0,
-      zapUrlsDiscovered: discoveredUrls.length,
-      urlsFedToBurp: uniqueUrls.length,
-      burpScanLaunched: false,
-      fingerprint,
-      correlatedFindings: [],
-      error: "No Burp Suite credentials found",
-    };
+    // ═══ ENV-VAR FALLBACK: Use scan server's headless Burp instance ═══
+    const envScanHost = process.env.SCAN_SERVER_HOST;
+    const envBurpApiKey = process.env.BURP_API_KEY || process.env.CALDERA_API_KEY;
+    const envBurpBaseUrl = process.env.BURP_BASE_URL || (envScanHost ? `http://${envScanHost}:1337` : "");
+
+    if (envBurpBaseUrl && envBurpApiKey) {
+      console.log(`[ZAP→Burp Pipeline] No DB credentials — using env fallback: ${envBurpBaseUrl}`);
+      burpCred = {
+        id: -1,
+        platform: "burpsuite_pro",
+        baseUrl: envBurpBaseUrl,
+        apiKeyEncrypted: envBurpApiKey,
+      };
+    } else {
+      return {
+        zapScanId: zapScanId || 0,
+        zapUrlsDiscovered: discoveredUrls.length,
+        urlsFedToBurp: uniqueUrls.length,
+        burpScanLaunched: false,
+        fingerprint,
+        correlatedFindings: [],
+        error: "No Burp Suite credentials found and no env fallback available",
+      };
+    }
   }
 
   // Step 4: Launch Burp scan with ZAP-discovered URLs
