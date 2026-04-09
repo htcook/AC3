@@ -4927,9 +4927,9 @@ export default function EngagementOps() {
                     className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-xs"
                     onClick={() => genExploitMut.mutate({
                       engagementId,
-                      targetAsset: selectedExploitAsset,
+                      assetHostname: selectedExploitAsset,
                       vulnIndex: selectedVulnIdx,
-                      language: exploitLang,
+                      preferredLanguage: exploitLang,
                       includeEvasion,
                     })}
                     disabled={!selectedExploitAsset || genExploitMut.isPending}
