@@ -43,14 +43,19 @@ describe("Health Endpoint & getHealthStatus", () => {
       expect(health.memory.heapUsedMB).toBeLessThanOrEqual(health.memory.heapTotalMB);
     });
 
-    it("should include memory watchdog status", async () => {
+    it("should include memory watchdog status with dynamic thresholds", async () => {
       const { getHealthStatus } = await import("./lib/engagement-orchestrator");
       const health = getHealthStatus();
 
       expect(typeof health.memoryWatchdog.running).toBe("boolean");
-      expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(250);
-      expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(300);
-      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(550);
+      // Thresholds are now dynamically computed from auto-detected V8 heap limit
+      const heapLimit = health.memoryWatchdog.heapLimitMB;
+      expect(typeof heapLimit).toBe("number");
+      expect(heapLimit).toBeGreaterThan(0);
+      // Warning = 60% of heap limit, Critical = 75%, Emergency = 130%
+      expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(Math.round(heapLimit * 0.6));
+      expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(Math.round(heapLimit * 0.75));
+      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(Math.round(heapLimit * 1.3));
     });
 
     it("should include engagement status", async () => {

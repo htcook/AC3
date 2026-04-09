@@ -409,6 +409,7 @@ Return a JSON object with these fields:
 
   try {
     const response = await invokeLLM({
+      _caller: "pipeline-crawl-stage:analyzeCompanyIntel",
       messages: [
         { role: "system", content: "You are a business intelligence analyst. Return only valid JSON." },
         { role: "user", content: prompt },

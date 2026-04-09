@@ -131,13 +131,16 @@ describe("Scaling & Demo-Proofing Fixes", () => {
     });
   });
 
-  describe("Memory Watchdog — Manus Container Thresholds", () => {
-    it("should use 250MB warning and 300MB critical thresholds for Manus 512MB container", async () => {
+  describe("Memory Watchdog — Dynamic Thresholds", () => {
+    it("should compute thresholds as percentages of auto-detected heap limit", async () => {
       const { getHealthStatus } = await import("./lib/engagement-orchestrator");
       const health = getHealthStatus();
-      expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(250);
-      expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(300);
-      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(550);
+      const heapLimit = health.memoryWatchdog.heapLimitMB;
+      expect(heapLimit).toBeGreaterThan(0);
+      // Warning = 60%, Critical = 75%, Emergency = 130% of heap limit
+      expect(health.memoryWatchdog.heapWarningThresholdMB).toBe(Math.round(heapLimit * 0.6));
+      expect(health.memoryWatchdog.heapCriticalThresholdMB).toBe(Math.round(heapLimit * 0.75));
+      expect(health.memoryWatchdog.rssEmergencyThresholdMB).toBe(Math.round(heapLimit * 1.3));
     });
   });
 

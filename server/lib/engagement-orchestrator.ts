@@ -5331,6 +5331,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
   }
 
   // ── ZAP → Burp Cross-Tool Pipeline (auto-feeds ZAP discoveries into Burp) ──
+  let initialPipelineResult: any;
   try {
     const { runZapToBurpPipeline } = await import("./zap-burp-pipeline");
     const pipelineResult = await runZapToBurpPipeline({
@@ -5338,6 +5339,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       userId: operatorCtx.id,
       engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
     });
+    initialPipelineResult = pipelineResult;
+    // Store on state so deferred re-feed can reference it after ZAP completes
+    (state as any)._initialZapBurpPipelineResult = pipelineResult;
     if (pipelineResult.burpScanLaunched) {
       const sourceLabel = pipelineResult.urlSource === 'zap_scan'
         ? `Extracted ${pipelineResult.zapUrlsDiscovered} URLs from ZAP scan #${pipelineResult.zapScanId}`
@@ -6702,6 +6706,50 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
 
     webApp.status = webApp.vulns.length > 0 ? "vulns_found" : "no_vulns";
+  }
+
+  // ── Deferred ZAP → Burp Re-Feed (now that ZAP scans are complete, re-feed discovered URLs to Burp) ──
+  try {
+    const initialResult = (state as any)._initialZapBurpPipelineResult;
+    if (initialResult && (initialResult.urlSource === 'scope_fallback' || initialResult.zapUrlsDiscovered === 0)) {
+      // Find the latest completed ZAP scan for this engagement
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (db) {
+        const { webAppScans } = await import("../../drizzle/schema");
+        const { eq, and, desc } = await import("drizzle-orm");
+        const completedScans = await db.select().from(webAppScans)
+          .where(and(
+            eq(webAppScans.engagementId, state.engagementId),
+            eq(webAppScans.status, "completed")
+          ))
+          .orderBy(desc(webAppScans.completedAt))
+          .limit(1);
+
+        if (completedScans.length > 0) {
+          const { deferredZapBurpRefeed } = await import("./zap-burp-pipeline");
+          const refeedResult = await deferredZapBurpRefeed({
+            engagementId: state.engagementId,
+            userId: operatorCtx.id,
+            engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
+            completedZapScanId: completedScans[0].id,
+            initialPipelineResult: initialResult,
+          });
+
+          if (refeedResult) {
+            addLog(state, {
+              phase: "vuln_detection", type: "info",
+              title: `\uD83D\uDD04 ZAP \u2192 Burp Deferred Re-Feed: ${refeedResult.urlsFedToBurp} URLs`,
+              detail: `ZAP scan #${completedScans[0].id} completed with ${refeedResult.zapUrlsDiscovered} discovered URLs. ` +
+                `Re-fed ${refeedResult.urlsFedToBurp} to Burp (initial run used ${initialResult.urlsFedToBurp} scope URLs). ` +
+                `Tech: ${refeedResult.fingerprint.technologies.slice(0, 3).join(", ") || "none"}.`,
+            });
+          }
+        }
+      }
+    }
+  } catch (refeedErr: any) {
+    console.warn(`[EngagementOps] Deferred ZAP\u2192Burp re-feed failed: ${refeedErr.message}`);
   }
 
   // ── Supplementary Injection Scanners: SQLMap + XSStrike on discovered web apps ──

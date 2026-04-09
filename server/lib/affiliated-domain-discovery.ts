@@ -283,6 +283,7 @@ async function discoverViaLLMKnowledge(domain: string, orgName: string | null): 
 
   try {
     const response = await invokeLLM({
+      _caller: "affiliated-domain-discovery:discoverAffiliatedDomains",
       messages: [
         {
           role: "system",

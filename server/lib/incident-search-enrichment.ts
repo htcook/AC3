@@ -227,6 +227,7 @@ async function searchWebForIncidents(domain: string): Promise<IncidentMatch[]> {
 
   try {
     const response = await invokeLLM({
+      _caller: "incident-search-enrichment:searchIncidents",
       messages: [
         {
           role: "system",

@@ -57,24 +57,25 @@ describe("State Trimming for Persistence", () => {
 
 // ─── Memory Watchdog Threshold Tests ────────────────────────────────────────
 
-describe("Memory Watchdog Thresholds (Manus Container)", () => {
+describe("Memory Watchdog Thresholds (Dynamic / Auto-Detected)", () => {
   const orchestratorSrc = fs.readFileSync(
     path.join(__dirname, "lib/engagement-orchestrator.ts"),
     "utf-8"
   );
 
-  it("should have HEAP_WARNING_MB at 250 (above boot-time heap of ~230MB)", () => {
-    expect(orchestratorSrc).toContain("HEAP_WARNING_MB = 250");
+  it("should compute HEAP_WARNING_MB as 60% of auto-detected heap limit", () => {
+    expect(orchestratorSrc).toContain("HEAP_WARNING_MB = heapLimitMB * 0.6");
+    // Must not use hardcoded large values
     expect(orchestratorSrc).not.toContain("HEAP_WARNING_MB = 2000");
   });
 
-  it("should have HEAP_CRITICAL_MB at 300 (not 4000)", () => {
-    expect(orchestratorSrc).toContain("HEAP_CRITICAL_MB = 300");
+  it("should compute HEAP_CRITICAL_MB as 75% of auto-detected heap limit", () => {
+    expect(orchestratorSrc).toContain("HEAP_CRITICAL_MB = heapLimitMB * 0.75");
     expect(orchestratorSrc).not.toContain("HEAP_CRITICAL_MB = 4000");
   });
 
-  it("should have RSS_EMERGENCY_MB at 550 (Manus container tuned)", () => {
-    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = 550");
+  it("should compute RSS_EMERGENCY_MB as 130% of auto-detected heap limit", () => {
+    expect(orchestratorSrc).toContain("RSS_EMERGENCY_MB = heapLimitMB * 1.3");
     expect(orchestratorSrc).not.toContain("RSS_EMERGENCY_MB = 24000");
   });
 

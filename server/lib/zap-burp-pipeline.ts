@@ -1015,3 +1015,95 @@ export async function getEscalationStatus(engagementId: number): Promise<Escalat
     timestamp: event.timestamp ? Number(event.timestamp) : Date.now(),
   };
 }
+
+
+// ─── Deferred ZAP → Burp Re-Feed ───
+
+/**
+ * Deferred re-feed: after a ZAP scan completes, re-run the ZAP→Burp pipeline
+ * with the full set of discovered URLs (not just the scope fallback).
+ *
+ * This is triggered from the orchestrator after ZAP scan completion, only when
+ * the initial pipeline run used scope_fallback (meaning ZAP hadn't finished yet).
+ *
+ * Returns null if re-feed is not needed (initial run already used ZAP URLs).
+ */
+export async function deferredZapBurpRefeed(params: {
+  engagementId: number;
+  userId: string;
+  engagementHandle: string;
+  /** The completed ZAP scan ID to extract URLs from */
+  completedZapScanId: number;
+  /** The initial pipeline result — used to decide if re-feed is needed */
+  initialPipelineResult?: CrossToolPipelineResult;
+}): Promise<CrossToolPipelineResult | null> {
+  // Only re-feed if the initial run used scope_fallback or had 0 ZAP URLs
+  if (
+    params.initialPipelineResult &&
+    params.initialPipelineResult.urlSource === 'zap_scan' &&
+    params.initialPipelineResult.zapUrlsDiscovered > 0
+  ) {
+    console.log(`[ZAP→Burp Deferred] Skipping re-feed for engagement #${params.engagementId}: initial pipeline already used ${params.initialPipelineResult.zapUrlsDiscovered} ZAP URLs`);
+    return null;
+  }
+
+  // Extract URLs from the now-completed ZAP scan
+  const discoveredUrls = await extractZapDiscoveredUrls(params.completedZapScanId);
+  if (discoveredUrls.length === 0) {
+    console.log(`[ZAP→Burp Deferred] No URLs discovered by ZAP scan #${params.completedZapScanId} — skipping re-feed`);
+    return null;
+  }
+
+  // Check if the initial Burp scan already covered these URLs
+  const initialUrlCount = params.initialPipelineResult?.urlsFedToBurp ?? 0;
+  if (discoveredUrls.length <= initialUrlCount) {
+    console.log(`[ZAP→Burp Deferred] ZAP discovered ${discoveredUrls.length} URLs, but initial run already fed ${initialUrlCount} — no new URLs to re-feed`);
+    return null;
+  }
+
+  console.log(`[ZAP→Burp Deferred] Re-feeding ${discoveredUrls.length} ZAP-discovered URLs to Burp (initial run fed ${initialUrlCount} scope URLs)`);
+
+  // Re-run the pipeline with the specific completed ZAP scan
+  const result = await runZapToBurpPipeline({
+    engagementId: params.engagementId,
+    userId: params.userId,
+    engagementHandle: params.engagementHandle,
+    zapScanId: params.completedZapScanId,
+  });
+
+  // Log the deferred re-feed to the timeline
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: params.engagementId,
+        phase: "vulnerability_analysis",
+        eventType: "tool_executed",
+        severity: "info",
+        title: "ZAP → Burp Deferred Re-Feed",
+        description: [
+          `ZAP scan #${params.completedZapScanId} completed with ${discoveredUrls.length} discovered URLs`,
+          `Initial pipeline used ${initialUrlCount} scope URLs — now re-feeding ${result.urlsFedToBurp} ZAP-discovered URLs to Burp`,
+          `Technologies: ${result.fingerprint.technologies.slice(0, 5).join(", ") || "none detected"}`,
+          result.correlatedFindings.length > 0
+            ? `Cross-tool correlations: ${result.correlatedFindings.filter(f => f.confidenceBoost).length} confirmed`
+            : "",
+        ].filter(Boolean).join(". "),
+        metadata: JSON.stringify({
+          source: "zap_burp_deferred_refeed",
+          completedZapScanId: params.completedZapScanId,
+          zapUrlsDiscovered: discoveredUrls.length,
+          initialUrlsFed: initialUrlCount,
+          refeedUrlsFed: result.urlsFedToBurp,
+          urlSource: result.urlSource,
+        }),
+        sourceModule: "zap-burp-pipeline",
+        timestamp: Date.now(),
+      });
+    } catch (e: any) {
+      console.warn(`[ZAP→Burp Deferred] Timeline event failed: ${e.message}`);
+    }
+  }
+
+  return result;
+}

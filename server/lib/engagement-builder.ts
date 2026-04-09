@@ -243,6 +243,7 @@ ${pageContent ? `\nPROGRAM PAGE CONTENT (partial):\n${pageContent.substring(0, 8
 Generate the full engagement plan JSON. Be thorough — include all known assets, realistic tooling, and a detailed phase plan.`;
 
   const response = await invokeLLM({
+    _caller: "engagement-builder:buildEngagementPlan",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

@@ -814,7 +814,8 @@ describe("AC3 Scope Exclusion System", () => {
       path.join(__dirname, "../drizzle/schema.ts"),
       "utf-8"
     );
-    expect(schemaSource).toContain("scopeExclusions");
+    // Column is named rptScopeExclusions in Drizzle (maps to rpt_scope_exclusions in DB)
+    expect(schemaSource).toContain("rptScopeExclusions");
     expect(schemaSource).toContain("rpt_scope_exclusions");
   });
 
