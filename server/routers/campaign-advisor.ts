@@ -5,6 +5,7 @@ import {
   getQuickRecommendation,
   getDeterministicAdvice,
   gatherEngagementContext,
+  gatherEngagementContextWithBurp,
 } from "../lib/campaign-advisor";
 
 export const campaignAdvisorRouter = router({
@@ -54,10 +55,10 @@ export const campaignAdvisorRouter = router({
       return getDeterministicAdvice(ctx);
     }),
 
-  /** Get current engagement context for display */
+  /** Get current engagement context for display (includes fresh Burp data if available) */
   getContext: protectedProcedure
     .input(z.object({ engagementId: z.string().optional() }).optional())
     .query(async ({ input }) => {
-      return gatherEngagementContext(input?.engagementId);
+      return gatherEngagementContextWithBurp(input?.engagementId);
     }),
 });

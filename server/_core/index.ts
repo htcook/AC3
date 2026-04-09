@@ -930,6 +930,13 @@ async function startServer() {
         console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
       });
 
+      // Register Campaign Advisor Burp completion listener
+      import("../lib/campaign-advisor").then(({ registerBurpCompletionListener }) => {
+        registerBurpCompletionListener();
+      }).catch((err) => {
+        console.warn("[CampaignAdvisor] Failed to register Burp completion listener:", err);
+      });
+
       // Initialize Darkweb Feed sync scheduler (staggered: 6h/12h/24h)
       // NOTE: DDW + RSS auto-seed on startup REMOVED to prevent OOM.
       // These feeds sync on their scheduled cron intervals instead.

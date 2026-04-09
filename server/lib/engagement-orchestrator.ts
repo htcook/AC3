@@ -9795,10 +9795,15 @@ export async function executeEngagement(
 
   // ═══ PHASE ACTIVITY HEARTBEAT ═══
   // Detect stalls: if no new log entries for 5 minutes, emit a heartbeat warning.
-  // If no activity for 10 minutes, force-advance to next phase.
+  // If no activity for 10 minutes, log a stall warning.
+  // After 2 consecutive stall warnings (20 min total), abort the stuck phase via AbortController
+  // so the pipeline can advance to the next phase instead of hanging indefinitely.
   let lastActivityAt = Date.now();
   const STALL_WARNING_MS = 5 * 60_000;
   const STALL_FORCE_MS = 10 * 60_000;
+  const MAX_STALL_COUNT = 2; // After 2 stall detections (20 min), force-abort
+  let consecutiveStalls = 0;
+  let lastStallPhase = '';
   const heartbeatInterval = setInterval(() => {
     if (!state.isRunning || state.phase === 'completed' || state.phase === 'error') {
       clearInterval(heartbeatInterval);
@@ -9808,11 +9813,39 @@ export async function executeEngagement(
     const currentLastActivity = (state as any)._heartbeatRef?.lastActivityAt || lastActivityAt;
     const idleMs = Date.now() - currentLastActivity;
     if (idleMs > STALL_FORCE_MS) {
-      addLog(state, {
-        phase: state.phase, type: 'warning',
-        title: `⏰ Phase Stall Detected: ${state.phase}`,
-        detail: `No activity for ${Math.round(idleMs / 60_000)} minutes. Phase may be stuck on an LLM call or external tool. The pipeline will attempt to continue.`,
-      });
+      // Track consecutive stalls in the same phase
+      if (lastStallPhase === state.phase) {
+        consecutiveStalls++;
+      } else {
+        consecutiveStalls = 1;
+        lastStallPhase = state.phase;
+      }
+
+      if (consecutiveStalls >= MAX_STALL_COUNT) {
+        // Force-abort: cancel in-flight operations for this engagement
+        addLog(state, {
+          phase: state.phase, type: 'error',
+          title: `\u26A0\uFE0F Phase Force-Abort: ${state.phase}`,
+          detail: `Phase stalled for ${Math.round(idleMs / 60_000)} minutes (${consecutiveStalls} consecutive stalls). ` +
+            `Aborting stuck operations to allow pipeline to advance. This typically means an LLM call or external tool timed out.`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+        // Abort in-flight operations — this will cause pending awaits to reject with AbortError
+        abortEngagement(state.engagementId);
+        // Create a fresh controller so subsequent phases can still run
+        const freshController = new AbortController();
+        engagementAbortControllers.set(state.engagementId, freshController);
+        consecutiveStalls = 0;
+        console.error(`[Heartbeat] FORCE-ABORT engagement #${engagementId} phase ${state.phase} after ${MAX_STALL_COUNT} stalls`);
+      } else {
+        addLog(state, {
+          phase: state.phase, type: 'warning',
+          title: `\u23F0 Phase Stall Detected: ${state.phase} (${consecutiveStalls}/${MAX_STALL_COUNT})`,
+          detail: `No activity for ${Math.round(idleMs / 60_000)} minutes. Phase may be stuck on an LLM call or external tool. ` +
+            `Will force-abort after ${MAX_STALL_COUNT - consecutiveStalls} more stall(s).`,
+        });
+        broadcastOpsUpdate(state.engagementId, { type: 'log_update' });
+      }
       lastActivityAt = Date.now(); // Reset to avoid spamming
       if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
     } else if (idleMs > STALL_WARNING_MS) {

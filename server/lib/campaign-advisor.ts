@@ -14,6 +14,7 @@ import {
   engagementTimelineEvents,
   opsecEvents,
   engagementWorkflowStates,
+  burpScanHistory,
 } from "../../drizzle/schema";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -27,6 +28,24 @@ export interface AdvisorContext {
   availableCredentials?: string[];
   knownVulnerabilities?: Array<{ cve: string; host: string; cvss: number }>;
   objectives?: string[];
+  /** Burp scan completion data — auto-injected when Burp finishes */
+  burpScanResults?: {
+    scanId: string | null;
+    status: string;
+    targetUrls: string[];
+    issueCount: number;
+    importedCount: number;
+    completedAt: number | null;
+    edition: string;
+    /** Severity breakdown from escalation engine */
+    severityBreakdown?: Record<string, number>;
+    /** Number of findings escalated by cross-tool correlation */
+    escalatedCount?: number;
+    /** Number flagged for priority exploitation */
+    priorityFlaggedCount?: number;
+  };
+  /** Whether Burp scan data is fresh (injected by completion callback) */
+  burpDataFresh?: boolean;
 }
 
 export interface AdvisorMessage {
@@ -57,6 +76,7 @@ You have access to five specialized engines that you can reason about:
 3. **Exploitation Bridge** — Maps CVEs to Metasploit modules and manual techniques. Knows 20+ CVE-to-exploit mappings including EternalBlue, Log4Shell, ProxyShell, Zerologon.
 4. **Privilege Escalation Engine** — Analyzes WinPEAS/LinPEAS output. Covers Windows (SeImpersonate, JuicyPotato, PrintSpoofer, DLL hijack), Linux (SUID, sudo, cron, kernel), Kerberos (Kerberoasting, AS-REP, Golden/Silver Ticket, DCSync), and Cloud (AWS IAM, Azure RBAC, GCP).
 5. **OPSEC Risk Engine** — Scores every action against EDR, SIEM, NDR, AV, and UEBA detection technologies. Tracks cumulative noise and burn indicators.
+6. **Burp Suite Integration** — When Burp scan results are available in the engagement context, factor them into your recommendations. Cross-reference Burp findings with ZAP results for corroboration. Prioritize findings that both tools flagged (cross-tool escalation). Use Burp's severity breakdown to guide exploitation ordering.
 
 ## Your Role
 - Recommend the **next best action** based on the current engagement state
@@ -129,6 +149,37 @@ export async function gatherEngagementContext(engagementId?: string): Promise<Ad
         context.currentPhase = workflowStates[0].currentPhase || undefined;
       }
     }
+
+    // Get latest Burp scan results for this engagement
+    if (engagementId) {
+      try {
+        const burpScans = await dbInstance
+          .select()
+          .from(burpScanHistory)
+          .where(eq(burpScanHistory.engagementId, parseInt(engagementId) || 0))
+          .orderBy(desc(burpScanHistory.startedAt))
+          .limit(1);
+
+        if (burpScans.length > 0) {
+          const scan = burpScans[0];
+          const metadata = scan.metadata as any;
+          context.burpScanResults = {
+            scanId: scan.scanId,
+            status: scan.status,
+            targetUrls: Array.isArray(scan.targetUrls) ? scan.targetUrls as string[] : [],
+            issueCount: scan.issueCount,
+            importedCount: scan.importedCount,
+            completedAt: scan.completedAt,
+            edition: scan.edition,
+            severityBreakdown: metadata?.severityBreakdown,
+            escalatedCount: metadata?.escalatedCount,
+            priorityFlaggedCount: metadata?.priorityFlaggedCount,
+          };
+        }
+      } catch (burpErr) {
+        console.warn("[CampaignAdvisor] Burp scan query failed:", burpErr);
+      }
+    }
   } catch (err) {
     console.error("[CampaignAdvisor] Context gathering failed:", err);
   }
@@ -152,7 +203,33 @@ function buildContextSummary(ctx: AdvisorContext): string {
   if (ctx.objectives?.length) parts.push(`Objectives: ${ctx.objectives.join(", ")}`);
   if (ctx.recentActions?.length) {
     const recent = ctx.recentActions.slice(0, 5);
-    parts.push(`Recent Actions:\n${recent.map(a => `  - ${a.action} (${a.success ? "✓" : "✗"})`).join("\n")}`);
+    parts.push(`Recent Actions:\n${recent.map(a => `  - ${a.action} (${a.success ? "\u2713" : "\u2717"})`).join("\n")}`);
+  }
+
+  // Burp scan results context
+  if (ctx.burpScanResults) {
+    const b = ctx.burpScanResults;
+    const burpParts: string[] = [
+      `Status: ${b.status} | Edition: ${b.edition}`,
+      `Targets: ${b.targetUrls.join(", ") || "none"}`,
+      `Issues Found: ${b.issueCount} | Imported: ${b.importedCount}`,
+    ];
+    if (b.severityBreakdown) {
+      burpParts.push(`Severity Breakdown: ${Object.entries(b.severityBreakdown).map(([s, c]) => `${s}: ${c}`).join(", ")}`);
+    }
+    if (b.escalatedCount && b.escalatedCount > 0) {
+      burpParts.push(`Cross-Tool Escalations: ${b.escalatedCount} findings escalated by ZAP+Burp correlation`);
+    }
+    if (b.priorityFlaggedCount && b.priorityFlaggedCount > 0) {
+      burpParts.push(`Priority Exploitation Targets: ${b.priorityFlaggedCount} findings flagged`);
+    }
+    if (b.completedAt) {
+      burpParts.push(`Completed: ${new Date(b.completedAt).toISOString()}`);
+    }
+    parts.push(`Burp Suite Scan Results:\n${burpParts.map(p => `  - ${p}`).join("\n")}`);
+    if (ctx.burpDataFresh) {
+      parts.push(`\n⚡ FRESH BURP DATA: Burp scan just completed — factor these results into your recommendations.`);
+    }
   }
 
   return parts.length > 0
@@ -424,9 +501,72 @@ export function getDeterministicAdvice(ctx: AdvisorContext): AdvisorRecommendati
   return PHASE_ADVICE[phase] || PHASE_ADVICE.recon;
 }
 
-// ─── Exports ─────────────────────────────────────────────────────────────────
+// ─── Burp Completion → Advisor Context Refresh ─────────────────────────────────────────────
+
+/** In-memory cache of fresh Burp data per engagement, set by completion callback */
+const freshBurpData = new Map<string, AdvisorContext["burpScanResults"]>();
+
+/**
+ * Inject fresh Burp scan results into the advisor context for a given engagement.
+ * Called by the Burp completion callback to ensure the next advisor query
+ * includes the latest Burp data without waiting for DB propagation.
+ */
+export function injectBurpCompletionContext(
+  engagementId: string | number,
+  burpData: NonNullable<AdvisorContext["burpScanResults"]>,
+): void {
+  const key = String(engagementId);
+  freshBurpData.set(key, burpData);
+  console.log(`[CampaignAdvisor] Injected fresh Burp data for engagement #${key}: ${burpData.issueCount} issues, ${burpData.importedCount} imported`);
+  // Auto-expire after 30 minutes (stale after that)
+  setTimeout(() => freshBurpData.delete(key), 30 * 60_000);
+}
+
+/**
+ * Enhanced context gathering that merges fresh Burp data from completion callback.
+ * Falls back to DB query if no fresh data is available.
+ */
+export async function gatherEngagementContextWithBurp(engagementId?: string): Promise<AdvisorContext> {
+  const ctx = await gatherEngagementContext(engagementId);
+  if (engagementId && freshBurpData.has(engagementId)) {
+    ctx.burpScanResults = freshBurpData.get(engagementId);
+    ctx.burpDataFresh = true;
+  }
+  return ctx;
+}
+
+/**
+ * Register the campaign advisor as a Burp completion callback listener.
+ * Call this once at server startup to wire the integration.
+ */
+export function registerBurpCompletionListener(): void {
+  // Lazy import to avoid circular dependency
+  import("./burp-auto-scan").then(({ onBurpScanComplete }) => {
+    onBurpScanComplete(async (config, state) => {
+      injectBurpCompletionContext(config.engagementId, {
+        scanId: state.scanId,
+        status: state.status,
+        targetUrls: state.targetUrls,
+        issueCount: state.issueCount,
+        importedCount: state.importedCount,
+        completedAt: state.completedAt,
+        edition: state.edition,
+      });
+      console.log(
+        `[CampaignAdvisor] Burp completion callback: engagement #${config.engagementId}, ` +
+        `${state.issueCount} issues, ${state.importedCount} imported — advisor context refreshed`
+      );
+    });
+    console.log("[CampaignAdvisor] Registered Burp completion listener");
+  }).catch((err) => {
+    console.warn("[CampaignAdvisor] Failed to register Burp completion listener:", err.message);
+  });
+}
+
+// ─── Exports ───────────────────────────────────────────────────────────────────────
 
 export {
   CAMPAIGN_ADVISOR_SYSTEM_PROMPT,
   buildContextSummary,
+  freshBurpData,
 };
