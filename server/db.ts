@@ -10,7 +10,8 @@ import {
   llmTelemetry, InsertLlmTelemetry, LlmTelemetry,
   exploitPlanHistory, InsertExploitPlanHistory, ExploitPlanHistory,
   trainingLabSessions, InsertTrainingLabSession, SelectTrainingLabSession,
-  trainingLabFeedback, InsertTrainingLabFeedback, SelectTrainingLabFeedback
+  trainingLabFeedback, InsertTrainingLabFeedback, SelectTrainingLabFeedback,
+  exploitLearningOutcomes, exploitLearningPatterns, exploitLearningChains
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -3975,4 +3976,377 @@ export async function createBugBountyFinding(params: {
 
   const insertId = (result as any)[0]?.insertId || 0;
   return { id: insertId, deduplicated: false };
+}
+
+
+// ─── Exploit Learning Engine Persistence ────────────────────────────────────
+
+/**
+ * Insert an exploit attempt outcome into the database.
+ */
+export async function insertExploitOutcome(data: {
+  attemptId: string;
+  engagementId: number;
+  vulnTitle: string;
+  vulnCve?: string;
+  vulnSeverity: string;
+  vulnClass: string;
+  targetHostname: string;
+  targetPort?: number;
+  targetTechnologies: string[];
+  language: string;
+  code: string;
+  success: boolean;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  guardrailPassed?: boolean;
+  guardrailRiskScore?: number;
+  guardrailBlockedReasons?: string[];
+  falsePositive?: boolean;
+  falsePositiveReasons?: string[];
+  executionTimeMs: number;
+  attemptNumber: number;
+  previousAttemptIds: string[];
+  correctionApplied?: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const result = await db.insert(exploitLearningOutcomes).values({
+      attemptId: data.attemptId,
+      engagementId: data.engagementId,
+      vulnTitle: data.vulnTitle.slice(0, 512),
+      vulnCve: data.vulnCve || null,
+      vulnSeverity: data.vulnSeverity,
+      vulnClass: data.vulnClass,
+      targetHostname: data.targetHostname,
+      targetPort: data.targetPort || null,
+      targetTechnologies: data.targetTechnologies,
+      language: data.language,
+      code: data.code,
+      success: data.success ? 1 : 0,
+      exitCode: data.exitCode,
+      stdout: (data.stdout || '').slice(0, 50000),
+      stderr: (data.stderr || '').slice(0, 50000),
+      guardrailPassed: data.guardrailPassed != null ? (data.guardrailPassed ? 1 : 0) : null,
+      guardrailRiskScore: data.guardrailRiskScore ?? null,
+      guardrailBlockedReasons: data.guardrailBlockedReasons || null,
+      falsePositive: data.falsePositive ? 1 : 0,
+      falsePositiveReasons: data.falsePositiveReasons || null,
+      executionTimeMs: data.executionTimeMs,
+      attemptNumber: data.attemptNumber,
+      previousAttemptIds: data.previousAttemptIds,
+      correctionApplied: data.correctionApplied || null,
+    });
+    return (result as any)[0]?.insertId || 0;
+  } catch (err: any) {
+    console.error(`[DB] insertExploitOutcome failed: ${err.message}`);
+    return 0;
+  }
+}
+
+/**
+ * Upsert an exploit pattern (insert or update if pattern_key already exists).
+ */
+export async function upsertExploitPattern(data: {
+  patternKey: string;
+  vulnClass: string;
+  techStack: string[];
+  successfulApproaches: any[];
+  failedApproaches: any[];
+  knownChainIds?: number[];
+  totalSuccesses: number;
+  totalFailures: number;
+  successRate: number;
+  updatedAt: number;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const { eq } = await import('drizzle-orm');
+    // Check if pattern exists
+    const existing = await db.select({ id: exploitLearningPatterns.id })
+      .from(exploitLearningPatterns)
+      .where(eq(exploitLearningPatterns.patternKey, data.patternKey))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(exploitLearningPatterns)
+        .set({
+          successfulApproaches: data.successfulApproaches,
+          failedApproaches: data.failedApproaches,
+          knownChainIds: data.knownChainIds || null,
+          totalSuccesses: data.totalSuccesses,
+          totalFailures: data.totalFailures,
+          successRate: data.successRate,
+          updatedAt: data.updatedAt,
+        })
+        .where(eq(exploitLearningPatterns.patternKey, data.patternKey));
+      return existing[0].id;
+    } else {
+      const result = await db.insert(exploitLearningPatterns).values({
+        patternKey: data.patternKey,
+        vulnClass: data.vulnClass,
+        techStack: data.techStack,
+        successfulApproaches: data.successfulApproaches,
+        failedApproaches: data.failedApproaches,
+        knownChainIds: data.knownChainIds || null,
+        totalSuccesses: data.totalSuccesses,
+        totalFailures: data.totalFailures,
+        successRate: data.successRate,
+        updatedAt: data.updatedAt,
+      });
+      return (result as any)[0]?.insertId || 0;
+    }
+  } catch (err: any) {
+    console.error(`[DB] upsertExploitPattern failed: ${err.message}`);
+    return 0;
+  }
+}
+
+/**
+ * Load all exploit patterns from the database.
+ */
+export async function loadAllExploitPatterns(): Promise<Array<{
+  id: number;
+  patternKey: string;
+  vulnClass: string;
+  techStack: string[];
+  successfulApproaches: any[];
+  failedApproaches: any[];
+  knownChainIds: number[] | null;
+  totalSuccesses: number;
+  totalFailures: number;
+  successRate: number;
+  updatedAt: number;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db.select().from(exploitLearningPatterns);
+    return rows.map(r => ({
+      id: r.id,
+      patternKey: r.patternKey,
+      vulnClass: r.vulnClass,
+      techStack: (r.techStack as string[]) || [],
+      successfulApproaches: (r.successfulApproaches as any[]) || [],
+      failedApproaches: (r.failedApproaches as any[]) || [],
+      knownChainIds: (r.knownChainIds as number[] | null),
+      totalSuccesses: r.totalSuccesses,
+      totalFailures: r.totalFailures,
+      successRate: r.successRate,
+      updatedAt: r.updatedAt,
+    }));
+  } catch (err: any) {
+    console.error(`[DB] loadAllExploitPatterns failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Insert an exploit chain into the database.
+ * Returns the chain ID. If a chain with the same name already exists, returns its ID.
+ */
+export async function upsertExploitChain(data: {
+  chainName: string;
+  steps: any[];
+  successRate: number;
+  discoveredFrom: string;
+  mitreTechniques?: string[];
+  engagementId?: number;
+  targetHostname?: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const { eq } = await import('drizzle-orm');
+    const existing = await db.select({ id: exploitLearningChains.id })
+      .from(exploitLearningChains)
+      .where(eq(exploitLearningChains.chainName, data.chainName))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(exploitLearningChains)
+        .set({
+          steps: data.steps,
+          successRate: data.successRate,
+          mitreTechniques: data.mitreTechniques || null,
+          timesUsed: sql`times_used + 1`,
+          lastUsedAt: Date.now(),
+        })
+        .where(eq(exploitLearningChains.chainName, data.chainName));
+      return existing[0].id;
+    } else {
+      const result = await db.insert(exploitLearningChains).values({
+        chainName: data.chainName,
+        steps: data.steps,
+        successRate: data.successRate,
+        discoveredFrom: data.discoveredFrom,
+        mitreTechniques: data.mitreTechniques || null,
+        engagementId: data.engagementId || null,
+        targetHostname: data.targetHostname || null,
+        timesUsed: 1,
+        lastUsedAt: Date.now(),
+      });
+      return (result as any)[0]?.insertId || 0;
+    }
+  } catch (err: any) {
+    console.error(`[DB] upsertExploitChain failed: ${err.message}`);
+    return 0;
+  }
+}
+
+/**
+ * Load all exploit chains from the database.
+ */
+export async function loadAllExploitChains(): Promise<Array<{
+  id: number;
+  chainName: string;
+  steps: any[];
+  successRate: number;
+  discoveredFrom: string;
+  mitreTechniques: string[];
+  engagementId: number | null;
+  targetHostname: string | null;
+  timesUsed: number;
+  lastUsedAt: number | null;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const rows = await db.select().from(exploitLearningChains);
+    return rows.map(r => ({
+      id: r.id,
+      chainName: r.chainName,
+      steps: (r.steps as any[]) || [],
+      successRate: r.successRate,
+      discoveredFrom: r.discoveredFrom,
+      mitreTechniques: (r.mitreTechniques as string[]) || [],
+      engagementId: r.engagementId,
+      targetHostname: r.targetHostname,
+      timesUsed: r.timesUsed,
+      lastUsedAt: r.lastUsedAt,
+    }));
+  } catch (err: any) {
+    console.error(`[DB] loadAllExploitChains failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Load recent exploit outcomes for a specific vuln class or engagement.
+ */
+export async function loadRecentExploitOutcomes(opts: {
+  vulnClass?: string;
+  engagementId?: number;
+  limit?: number;
+}): Promise<Array<{
+  id: number;
+  attemptId: string;
+  engagementId: number;
+  vulnTitle: string;
+  vulnCve: string | null;
+  vulnSeverity: string;
+  vulnClass: string;
+  targetHostname: string;
+  success: boolean;
+  exitCode: number;
+  executionTimeMs: number;
+  attemptNumber: number;
+  guardrailPassed: boolean | null;
+  guardrailRiskScore: number | null;
+  falsePositive: boolean;
+  createdAt: string;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const { eq, desc, and } = await import('drizzle-orm');
+    const conditions = [];
+    if (opts.vulnClass) conditions.push(eq(exploitLearningOutcomes.vulnClass, opts.vulnClass));
+    if (opts.engagementId) conditions.push(eq(exploitLearningOutcomes.engagementId, opts.engagementId));
+
+    const query = db.select({
+      id: exploitLearningOutcomes.id,
+      attemptId: exploitLearningOutcomes.attemptId,
+      engagementId: exploitLearningOutcomes.engagementId,
+      vulnTitle: exploitLearningOutcomes.vulnTitle,
+      vulnCve: exploitLearningOutcomes.vulnCve,
+      vulnSeverity: exploitLearningOutcomes.vulnSeverity,
+      vulnClass: exploitLearningOutcomes.vulnClass,
+      targetHostname: exploitLearningOutcomes.targetHostname,
+      success: exploitLearningOutcomes.success,
+      exitCode: exploitLearningOutcomes.exitCode,
+      executionTimeMs: exploitLearningOutcomes.executionTimeMs,
+      attemptNumber: exploitLearningOutcomes.attemptNumber,
+      guardrailPassed: exploitLearningOutcomes.guardrailPassed,
+      guardrailRiskScore: exploitLearningOutcomes.guardrailRiskScore,
+      falsePositive: exploitLearningOutcomes.falsePositive,
+      createdAt: exploitLearningOutcomes.createdAt,
+    })
+      .from(exploitLearningOutcomes)
+      .orderBy(desc(exploitLearningOutcomes.id))
+      .limit(opts.limit || 100);
+
+    if (conditions.length > 0) {
+      (query as any).where(conditions.length === 1 ? conditions[0] : and(...conditions));
+    }
+
+    const rows = await query;
+    return rows.map(r => ({
+      ...r,
+      success: !!r.success,
+      guardrailPassed: r.guardrailPassed != null ? !!r.guardrailPassed : null,
+      falsePositive: !!r.falsePositive,
+    }));
+  } catch (err: any) {
+    console.error(`[DB] loadRecentExploitOutcomes failed: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Get aggregate learning stats from the database.
+ */
+export async function getExploitLearningDbStats(): Promise<{
+  totalOutcomes: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  patternsStored: number;
+  chainsStored: number;
+  successRate: number;
+}> {
+  const db = await getDb();
+  if (!db) return { totalOutcomes: 0, totalSuccesses: 0, totalFailures: 0, patternsStored: 0, chainsStored: 0, successRate: 0 };
+  try {
+    const { sql: sqlTag } = await import('drizzle-orm');
+    const [outcomeStats] = await db.select({
+      total: sqlTag<number>`COUNT(*)`,
+      successes: sqlTag<number>`SUM(CASE WHEN success = 1 AND (false_positive = 0 OR false_positive IS NULL) THEN 1 ELSE 0 END)`,
+    }).from(exploitLearningOutcomes);
+
+    const [patternCount] = await db.select({
+      count: sqlTag<number>`COUNT(*)`,
+    }).from(exploitLearningPatterns);
+
+    const [chainCount] = await db.select({
+      count: sqlTag<number>`COUNT(*)`,
+    }).from(exploitLearningChains);
+
+    const total = Number(outcomeStats?.total || 0);
+    const successes = Number(outcomeStats?.successes || 0);
+
+    return {
+      totalOutcomes: total,
+      totalSuccesses: successes,
+      totalFailures: total - successes,
+      patternsStored: Number(patternCount?.count || 0),
+      chainsStored: Number(chainCount?.count || 0),
+      successRate: total > 0 ? successes / total : 0,
+    };
+  } catch (err: any) {
+    console.error(`[DB] getExploitLearningDbStats failed: ${err.message}`);
+    return { totalOutcomes: 0, totalSuccesses: 0, totalFailures: 0, patternsStored: 0, chainsStored: 0, successRate: 0 };
+  }
 }

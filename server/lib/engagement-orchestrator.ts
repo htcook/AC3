@@ -105,6 +105,8 @@ import {
   prioritizeVulns,
   shouldRetry as shouldLearningRetry,
   getLearningStats,
+  getPersistedLearningStats,
+  hydrateFromDb as hydrateLearningEngine,
   type ExploitOutcome as LearningExploitOutcome,
 } from "./exploit-learning-engine";
 
@@ -8218,6 +8220,14 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
   addLog(state, { phase: "exploitation", type: "info", title: "⚔️ Phase 7: Penetration Testing / Exploitation", detail: "Attempting exploitation on vulnerable assets" });
   broadcastOpsUpdate(state.engagementId, { type: "phase_change", phase: "exploitation" });
 
+  // ── Hydrate learning engine from DB (cross-engagement memory) ──
+  try {
+    await hydrateLearningEngine();
+    addLog(state, { phase: 'exploitation', type: 'info', title: '🧠 Learning Engine Hydrated', detail: 'Loaded historical exploit patterns and chains from database for cross-engagement memory.' });
+  } catch (hydrateErr: any) {
+    console.warn(`[ExploitLearning] Hydration failed: ${hydrateErr.message}`);
+  }
+
   // ── Pre-exploitation memory relief ──
   if (global.gc) {
     global.gc();
@@ -8940,18 +8950,23 @@ ${(() => {
 
   // ── Learning Engine: log stats summary at end of exploitation phase ──
   try {
-    const learnStats = getLearningStats();
-    if (learnStats.totalOutcomes > 0) {
+    const persistedStats = await getPersistedLearningStats();
+    const { inMemory, database, combined } = persistedStats;
+    if (inMemory.totalOutcomes > 0 || database.totalOutcomes > 0) {
       addLog(state, {
         phase: 'exploitation',
         type: 'info',
         title: '🧠 Learning Engine Summary',
-        detail: `${learnStats.totalOutcomes} outcomes accumulated, ` +
-          `${Math.round(learnStats.successRate * 100)}% success rate, ` +
-          `${learnStats.patternsLearned} patterns learned, ` +
-          `${learnStats.chainsDiscovered} chains discovered, ` +
-          `${learnStats.falsePositivesDetected} false positives detected, ` +
-          `${learnStats.guardrailBlocks} guardrail blocks`,
+        detail: `This session: ${inMemory.totalOutcomes} outcomes, ` +
+          `${Math.round(inMemory.successRate * 100)}% success rate, ` +
+          `${inMemory.patternsLearned} patterns, ` +
+          `${inMemory.chainsDiscovered} chains, ` +
+          `${inMemory.falsePositivesDetected} FP detected, ` +
+          `${inMemory.guardrailBlocks} guardrail blocks\n` +
+          `Cross-engagement DB: ${database.totalOutcomes} total outcomes, ` +
+          `${database.patternsStored} patterns, ` +
+          `${database.chainsStored} chains stored, ` +
+          `${Math.round(database.successRate * 100)}% lifetime success rate`,
       });
     }
   } catch (learnStatsErr: any) {

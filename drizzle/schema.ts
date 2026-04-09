@@ -7094,3 +7094,88 @@ export const burpScanHistory = mysqlTable("burp_scan_history", {
   index("bsh_user_idx").on(table.userId),
   index("bsh_status_idx").on(table.status),
 ]);
+
+
+// ─── Exploit Learning Engine Persistence ────────────────────────────────────
+
+/**
+ * Stores individual exploit attempt outcomes for the learning engine.
+ * Each row represents one exploit attempt with its result, timing, and metadata.
+ */
+export const exploitLearningOutcomes = mysqlTable("exploit_learning_outcomes", {
+	id: int().autoincrement().notNull(),
+	attemptId: varchar("attempt_id", { length: 128 }).notNull(),
+	engagementId: int("engagement_id").notNull(),
+	vulnTitle: varchar("vuln_title", { length: 512 }).notNull(),
+	vulnCve: varchar("vuln_cve", { length: 32 }),
+	vulnSeverity: varchar("vuln_severity", { length: 32 }).notNull(),
+	vulnClass: varchar("vuln_class", { length: 64 }).notNull(),
+	targetHostname: varchar("target_hostname", { length: 255 }).notNull(),
+	targetPort: int("target_port"),
+	targetTechnologies: json("target_technologies"),
+	language: varchar({ length: 32 }).notNull(),
+	code: mediumtext().notNull(),
+	success: tinyint().notNull().default(0),
+	exitCode: int("exit_code").notNull().default(1),
+	stdout: mediumtext(),
+	stderr: mediumtext(),
+	guardrailPassed: tinyint("guardrail_passed"),
+	guardrailRiskScore: int("guardrail_risk_score"),
+	guardrailBlockedReasons: json("guardrail_blocked_reasons"),
+	falsePositive: tinyint("false_positive").default(0),
+	falsePositiveReasons: json("false_positive_reasons"),
+	executionTimeMs: int("execution_time_ms").notNull().default(0),
+	attemptNumber: int("attempt_number").notNull().default(1),
+	previousAttemptIds: json("previous_attempt_ids"),
+	correctionApplied: text("correction_applied"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("elo_engagement_idx").on(table.engagementId),
+	index("elo_vuln_class_idx").on(table.vulnClass),
+	index("elo_attempt_id_idx").on(table.attemptId),
+	index("elo_target_idx").on(table.targetHostname),
+	index("elo_success_idx").on(table.success),
+]);
+
+/**
+ * Stores aggregated exploit patterns (success/failure rates per vuln class + tech stack).
+ * Updated incrementally as new outcomes are accumulated.
+ */
+export const exploitLearningPatterns = mysqlTable("exploit_learning_patterns", {
+	id: int().autoincrement().notNull(),
+	patternKey: varchar("pattern_key", { length: 255 }).notNull(),
+	vulnClass: varchar("vuln_class", { length: 64 }).notNull(),
+	techStack: json("tech_stack").notNull(),
+	successfulApproaches: json("successful_approaches").notNull(),
+	failedApproaches: json("failed_approaches").notNull(),
+	knownChainIds: json("known_chain_ids"),
+	totalSuccesses: int("total_successes").notNull().default(0),
+	totalFailures: int("total_failures").notNull().default(0),
+	successRate: float("success_rate").notNull().default(0),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("elp_pattern_key_idx").on(table.patternKey),
+	index("elp_vuln_class_idx").on(table.vulnClass),
+]);
+
+/**
+ * Stores discovered exploit chains (multi-step attack paths).
+ * Each chain references multiple vulnerability classes and their sequencing.
+ */
+export const exploitLearningChains = mysqlTable("exploit_learning_chains", {
+	id: int().autoincrement().notNull(),
+	chainName: varchar("chain_name", { length: 255 }).notNull(),
+	steps: json().notNull(),
+	successRate: float("success_rate").notNull().default(0),
+	discoveredFrom: varchar("discovered_from", { length: 255 }).notNull(),
+	mitreTechniques: json("mitre_techniques"),
+	engagementId: int("engagement_id"),
+	targetHostname: varchar("target_hostname", { length: 255 }),
+	timesUsed: int("times_used").notNull().default(0),
+	lastUsedAt: bigint("last_used_at", { mode: "number" }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("elc_chain_name_idx").on(table.chainName),
+	index("elc_engagement_idx").on(table.engagementId),
+]);

@@ -325,12 +325,13 @@ describe("Learning Engine Integration in Engagement Orchestrator", () => {
 
   it("logs learning engine stats summary at end of exploitation phase", () => {
     expect(orchestratorSrc).toContain("Learning Engine Summary");
-    expect(orchestratorSrc).toContain("getLearningStats()");
-    expect(orchestratorSrc).toContain("outcomes accumulated");
-    expect(orchestratorSrc).toContain("patterns learned");
-    expect(orchestratorSrc).toContain("chains discovered");
-    expect(orchestratorSrc).toContain("false positives detected");
+    expect(orchestratorSrc).toContain("getPersistedLearningStats()");
+    expect(orchestratorSrc).toContain("patterns");
+    expect(orchestratorSrc).toContain("chains");
+    expect(orchestratorSrc).toContain("FP detected");
     expect(orchestratorSrc).toContain("guardrail blocks");
+    expect(orchestratorSrc).toContain("Cross-engagement DB");
+    expect(orchestratorSrc).toContain("lifetime success rate");
   });
 
   it("wraps learning engine calls in try/catch for resilience", () => {
