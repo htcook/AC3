@@ -19,6 +19,7 @@ import { customerPortalRouter } from "./routers/customer-portal";
 import { emulationPlaybooksRouter } from "./routers/emulation-playbooks";
 import { evidenceRouter } from "./routers/evidence";
 import { adjustmentEffectivenessRouter } from "./routers/adjustment-effectiveness";
+import { exploitKnowledgeRouter } from "./routers/exploit-knowledge";
 import { attackPathsRouter } from "./routers/attack-paths";
 import { purpleTeamRouter } from "./routers/purple-team";
 import { webhooksRouter } from "./routers/webhooks";
@@ -576,6 +577,8 @@ export const appRouter = router({
   engagementResults: engagementResultsRouter,
   // ─── Adjustment Effectiveness Feedback Loop ──
   adjustmentEffectiveness: adjustmentEffectivenessRouter,
+  // ─── Exploit Knowledge Store (RAG Search, CVE Lookup, Stats) ──────────────
+  exploitKnowledge: exploitKnowledgeRouter,
 });
 export type AppRouter = typeof appRouter;
 

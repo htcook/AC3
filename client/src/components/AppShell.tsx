@@ -306,6 +306,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Exploit Tooling",
         items: [
           { href: "/exploit-catalog", icon: Crosshair, label: "EXPLOIT CATALOG" },
+          { href: "/exploit-knowledge", icon: BookOpen, label: "EXPLOIT KNOWLEDGE" },
           { href: "/exploit-arsenal", icon: Swords, label: "EXPLOIT ARSENAL" },
           { href: "/payload-generator", icon: Package, label: "PAYLOAD GENERATOR" },
           { href: "/api-security-testing", icon: Globe2, label: "API SECURITY" },

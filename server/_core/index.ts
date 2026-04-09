@@ -962,6 +962,15 @@ async function startServer() {
         console.warn("[BountyIntel] Failed to initialize bounty intel scheduler:", err);
       });
 
+      // Initialize Exploit Knowledge Store (indexes ExploitDB, MSF modules, GitHub PoCs)
+      // This runs in background and doesn't block — data fetches are parallel with timeouts
+      import("../lib/exploit-knowledge-store").then(({ initializeExploitKnowledgeStore }) => {
+        initializeExploitKnowledgeStore();
+        console.log("[ExploitKnowledgeStore] Background indexing started");
+      }).catch((err) => {
+        console.warn("[ExploitKnowledgeStore] Failed to start background indexing:", err);
+      });
+
       // Force GC after cron scheduler registration
       if (global.gc) {
         global.gc();
