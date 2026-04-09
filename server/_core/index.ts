@@ -863,6 +863,25 @@ async function startServer() {
       // The old recoverInterruptedEngagements() was racing with initAutoResumeHook() — both
       // tried to find isRunning=1 records, and whichever ran first would clear the flag,
       // causing the other to find nothing. Now initAutoResumeHook() is the single source of truth.
+      // One-time migration: enable auto-resume for all existing engagements that still have it disabled
+      import("../db").then(async ({ getDbRequired }) => {
+        try {
+          const db = await getDbRequired();
+          const { engagements } = await import("../../drizzle/schema");
+          const { eq, sql } = await import("drizzle-orm");
+          const result = await db
+            .update(engagements)
+            .set({ autoResumeOnRestart: 1 })
+            .where(eq(engagements.autoResumeOnRestart, 0));
+          const affected = (result as any)?.[0]?.affectedRows ?? (result as any)?.rowsAffected ?? 0;
+          if (affected > 0) {
+            console.log(`[AutoResume] Migration: enabled auto-resume for ${affected} existing engagement(s)`);
+          }
+        } catch (migErr: any) {
+          console.warn("[AutoResume] Migration failed (non-fatal):", migErr.message);
+        }
+      }).catch(() => {});
+
       import("../lib/engagement-auto-resume").then(async ({ initAutoResumeHook }) => {
         await initAutoResumeHook();
         console.log("[AutoResume] Engagement auto-resume hook initialized");

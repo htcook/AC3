@@ -56,6 +56,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { KpiStrip } from "@/components/KpiStrip";
 import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
@@ -4813,6 +4814,12 @@ export default function EngagementOps() {
             </div>
           </div>
 
+          {/* Auto-Resume Toggle */}
+          <div className="mt-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Auto-Resume on Restart</h3>
+            <AutoResumeToggle engagementId={engagementId} />
+          </div>
+
           {/* Re-run From Specific Phase */}
           <div className="mt-2">
             <Button
@@ -7733,5 +7740,67 @@ function FPSuppressionPanel({ engagementId }: { engagementId: number }) {
         )}
       </div>
     </ScrollArea>
+  );
+}
+
+/** Auto-Resume Toggle — allows operator to enable/disable auto-resume on server restart */
+function AutoResumeToggle({ engagementId }: { engagementId: number | null }) {
+  const statusQ = trpc.engagementOps.getAutoResumeStatus.useQuery(
+    { engagementId: engagementId! },
+    { enabled: !!engagementId, refetchInterval: 30000 }
+  );
+  const setAutoResumeMut = trpc.engagementOps.setAutoResume.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Auto-resume ${data.enabled ? 'enabled' : 'disabled'}`);
+      statusQ.refetch();
+    },
+    onError: (err) => toast.error(`Failed: ${err.message}`),
+  });
+
+  if (!engagementId) return null;
+
+  const status = statusQ.data;
+  const isEnabled = status?.enabled ?? false;
+  const isCrashLoopBlocked = status?.crashLoopBlocked ?? false;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={isEnabled}
+            onCheckedChange={(checked) => {
+              setAutoResumeMut.mutate({ engagementId, enabled: checked });
+            }}
+            disabled={setAutoResumeMut.isPending || isCrashLoopBlocked}
+            className={isEnabled ? "data-[state=checked]:bg-emerald-500" : ""}
+          />
+          <span className="text-xs font-medium">
+            {isEnabled ? "Enabled" : "Disabled"}
+          </span>
+        </div>
+        {setAutoResumeMut.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+      </div>
+      {isCrashLoopBlocked && (
+        <div className="flex items-start gap-1.5 text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1.5">
+          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>
+            Crash loop detected ({status?.interruptCount} interrupts in 24h). Auto-resume is blocked until the engagement stabilizes.
+          </span>
+        </div>
+      )}
+      {!isCrashLoopBlocked && (
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          {isEnabled
+            ? "This engagement will automatically resume from its last phase if the server restarts."
+            : "Enable to automatically resume scanning after a server restart instead of requiring manual re-start."}
+        </p>
+      )}
+      {status?.interruptCount != null && status.interruptCount > 0 && !isCrashLoopBlocked && (
+        <p className="text-[10px] text-muted-foreground">
+          Interrupt history: {status.interruptCount} restart{status.interruptCount !== 1 ? 's' : ''} detected
+        </p>
+      )}
+    </div>
   );
 }

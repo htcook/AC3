@@ -865,8 +865,17 @@ export function startMemoryWatchdog() {
     const mem = process.memoryUsage();
     const heapMB = mem.heapUsed / 1024 / 1024;
     const rssMB = mem.rss / 1024 / 1024;
-    // Tuned for 768MB heap limit (dev) / 640MB (prod)
-    const heapLimitMB = (global as any).__heapLimitMB || 768;
+    // Auto-detect heap limit from V8 stats (respects --max-old-space-size)
+    if (!(global as any).__heapLimitMB) {
+      try {
+        const v8 = await import('v8');
+        const stats = v8.getHeapStatistics();
+        (global as any).__heapLimitMB = Math.round(stats.heap_size_limit / 1024 / 1024);
+      } catch {
+        (global as any).__heapLimitMB = 768;
+      }
+    }
+    const heapLimitMB = (global as any).__heapLimitMB;
     const HEAP_WARNING_MB = heapLimitMB * 0.6;   // ~460MB
     const HEAP_CRITICAL_MB = heapLimitMB * 0.75;  // ~576MB
     const RSS_EMERGENCY_MB = heapLimitMB * 1.3;   // ~1000MB
@@ -1082,6 +1091,18 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
 }
 
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
+  // Deduplicate consecutive identical log entries (same title + detail)
+  // This prevents ZAP progress spam and other polling loops from flooding the feed
+  if (state.log.length > 0) {
+    const last = state.log[state.log.length - 1];
+    if (last.title === entry.title && last.detail === (entry as any).detail) {
+      // Update timestamp on existing entry instead of adding a duplicate
+      last.timestamp = Date.now();
+      // Still broadcast so the UI sees the updated timestamp
+      broadcastOpsUpdate(state.engagementId, { type: "log", entry: last });
+      return;
+    }
+  }
   const logEntry: OpsLogEntry = { id: genId(), timestamp: Date.now(), ...entry };
   state.log.push(logEntry);
   // Memory-aware log trimming: calibrated for Manus container (~384MB max-old-space)
@@ -5413,9 +5434,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
     for (const asset of nucleiAssets) {
       const target = asset.ip || asset.hostname;
+      const NUCLEI_INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]);
       const webPorts = asset.ports.filter(p =>
-        ["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
-        [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port)
+        (["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
+        [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port))
+        && !NUCLEI_INFRA_PORTS.has(p.port)
       );
 
       const nucleiTargetUrls = webPorts.length > 0
@@ -6040,8 +6063,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       }
     }
 
+    // Exclude our own infrastructure ports from scan scope
+    const INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]); // Burp, Sliver, Nessus, OpenVAS, DB ports
     const webPorts = webApp.ports.filter(p =>
-      ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)
+      (["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port))
+      && !INFRA_PORTS.has(p.port)
     );
 
     // ── Training Lab Port Filtering: only scan ports that returned 200 during httpx ──
@@ -6556,10 +6582,42 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                   });
                 }
               } else {
-                addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}, Status: ${progress.status}` });
-                // Update heartbeat so stall detector knows we're alive during long ZAP scans
-                if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
-                await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
+                // ── Stall detection: track progress and abort if stuck ──
+                const progressKey = `${progress.spiderProgress}:${progress.activeScanProgress}:${progress.urlsFound}`;
+                if (!(webApp as any)._lastZapProgressKey) (webApp as any)._lastZapProgressKey = '';
+                if (!(webApp as any)._zapStallCount) (webApp as any)._zapStallCount = 0;
+                if (progressKey === (webApp as any)._lastZapProgressKey) {
+                  (webApp as any)._zapStallCount++;
+                } else {
+                  (webApp as any)._zapStallCount = 0;
+                  (webApp as any)._lastZapProgressKey = progressKey;
+                }
+                const MAX_STALL_POLLS = state.trainingLabMode ? 12 : 8; // ~2-3 min of no progress
+                if ((webApp as any)._zapStallCount >= MAX_STALL_POLLS) {
+                  addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Stalled: ${targetUrl}`, detail: `No progress after ${(webApp as any)._zapStallCount} polls (Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}). Aborting scan.` });
+                  zapDone = true;
+                  try {
+                    const { getDb: getDb2 } = await import("../db");
+                    const db2 = await getDb2();
+                    if (db2) {
+                      const { webAppScans: webAppScans2 } = await import("../../drizzle/schema");
+                      const { eq: eq2 } = await import("drizzle-orm");
+                      await db2.update(webAppScans2).set({
+                        status: "error",
+                        errorMessage: `ZAP scan stalled — no progress after ${(webApp as any)._zapStallCount * 15}s`,
+                        completedAt: new Date(),
+                      }).where(eq2(webAppScans2.id, zapScanId));
+                    }
+                  } catch {}
+                } else {
+                  // Only log every 4th poll to reduce log spam (every ~60s instead of ~15s)
+                  if ((webApp as any)._zapStallCount % 4 === 0) {
+                    addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Progress: ${targetUrl}`, detail: `Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}, Status: ${progress.status}` });
+                  }
+                  // Update heartbeat so stall detector knows we're alive during long ZAP scans
+                  if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+                  await new Promise(r => setTimeout(r, 15000)); // Poll every 15s
+                }
               }
             } catch (pollErr: any) {
               consecutivePollFailures++;

@@ -2488,23 +2488,65 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
                     const parsed = JSON.parse(content);
                     const synthVulns = parsed.vulnerabilities || [];
                     const { pushVulnDeduped: pushVulnDedupedSynth } = await import('../lib/engagement-orchestrator');
+                    // ── CVE False Positive Filter ──
+                    // Drop CVEs that reference technologies NOT detected on this target.
+                    // The LLM sometimes hallucinates CVEs for Chrome, Ivanti, Zyxel, VMware, etc.
+                    // that have nothing to do with the actual tech stack.
+                    const techLower = techs.map((t: string) => t.toLowerCase());
+                    const servicesLower = ports.map((p: any) => `${p.service || ''} ${p.version || ''}`.toLowerCase());
+                    const allTechContext = [...techLower, ...servicesLower].join(' ');
+                    // Map of CVE product keywords → required tech indicators
+                    const CVE_TECH_VALIDATORS: Record<string, string[]> = {
+                      'chrome': ['chrome', 'chromium', 'google'],
+                      'ivanti': ['ivanti', 'pulse', 'connect secure'],
+                      'zyxel': ['zyxel'],
+                      'vmware': ['vmware', 'vcenter', 'esxi', 'vsphere'],
+                      'fortinet': ['fortinet', 'fortigate', 'fortios'],
+                      'cisco': ['cisco', 'ios-xe', 'asa'],
+                      'palo alto': ['palo alto', 'pan-os', 'globalprotect'],
+                      'citrix': ['citrix', 'netscaler', 'adc'],
+                      'microsoft exchange': ['exchange', 'owa'],
+                      'adobe': ['adobe', 'acrobat', 'coldfusion'],
+                      'sap': ['sap', 'netweaver'],
+                      'oracle': ['oracle', 'weblogic'],
+                      'f5': ['f5', 'big-ip', 'bigip'],
+                      'sonicwall': ['sonicwall'],
+                      'barracuda': ['barracuda'],
+                      'juniper': ['juniper', 'junos'],
+                    };
+                    let filteredCount = 0;
                     for (const v of synthVulns) {
-                      if (v.confidence >= 40) {
-                        pushVulnDedupedSynth(asset as any, {
-                          id: `synth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
-                          title: `[Potential] ${v.title}`,
-                          severity: v.severity,
-                          cve: v.cve || '',
-                          description: v.description,
-                          tool: 'llm-synthesis',
-                          confidence: v.confidence,
-                          category: v.category,
-                          corroborationTier: 'potential',
-                          evidenceDetail: `LLM-synthesized from passive recon signals (confidence: ${v.confidence}%). Not confirmed by active scanning.`,
-                        } as any);
+                      if (v.confidence < 40) continue;
+                      // Check if the CVE description or title mentions a product not in our tech stack
+                      const vulnText = `${v.title} ${v.description} ${v.cve || ''}`.toLowerCase();
+                      let isFalsePositive = false;
+                      for (const [product, requiredIndicators] of Object.entries(CVE_TECH_VALIDATORS)) {
+                        if (vulnText.includes(product)) {
+                          // This vuln mentions a specific product — check if we detected it
+                          const hasIndicator = requiredIndicators.some(ind => allTechContext.includes(ind));
+                          if (!hasIndicator) {
+                            isFalsePositive = true;
+                            filteredCount++;
+                            break;
+                          }
+                        }
                       }
+                      if (isFalsePositive) continue;
+                      pushVulnDedupedSynth(asset as any, {
+                        id: `synth-${asset.hostname}-${Math.random().toString(36).slice(2,8)}`,
+                        title: `[Potential] ${v.title}`,
+                        severity: v.severity,
+                        cve: v.cve || '',
+                        description: v.description,
+                        tool: 'llm-synthesis',
+                        confidence: v.confidence,
+                        category: v.category,
+                        corroborationTier: 'potential',
+                        evidenceDetail: `LLM-synthesized from passive recon signals (confidence: ${v.confidence}%). Not confirmed by active scanning.`,
+                      } as any);
                     }
-                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Vuln Synthesis: ${asset.hostname}`, detail: `${synthVulns.filter((v: any) => v.confidence >= 40).length} POTENTIAL vulnerabilities identified from ${signals.length} risk signals (not confirmed — require active validation)` });
+                    const acceptedCount = synthVulns.filter((v: any) => v.confidence >= 40).length - filteredCount;
+                    addLog(state!, { phase: 'scanning', type: 'success', title: `\u2705 Vuln Synthesis: ${asset.hostname}`, detail: `${acceptedCount} POTENTIAL vulnerabilities identified from ${signals.length} risk signals${filteredCount > 0 ? ` (${filteredCount} false positives filtered by tech-stack validation)` : ''} (not confirmed — require active validation)` });
                   } catch (synthErr: any) {
                     addLog(state!, { phase: 'scanning', type: 'error', title: `\u274c Vuln Synthesis failed: ${asset.hostname}`, detail: synthErr.message });
                   }
@@ -3166,7 +3208,35 @@ Return ONLY a JSON object with vulnerabilities array.`;
 
           const content = llmResult.choices?.[0]?.message?.content || '{}';
           const parsed = JSON.parse(content);
-          const synthVulns = (parsed.vulnerabilities || []).filter((v: any) => v.confidence >= 40);
+          let synthVulns = (parsed.vulnerabilities || []).filter((v: any) => v.confidence >= 40);
+
+          // ── CVE False Positive Filter (same as primary synthesis) ──
+          const reTechLower = techs.map((t: string) => t.toLowerCase());
+          const reServicesLower = ports.map((p: any) => `${p.service || ''} ${p.version || ''}`.toLowerCase());
+          const reAllTechContext = [...reTechLower, ...reServicesLower].join(' ');
+          const RE_CVE_TECH_VALIDATORS: Record<string, string[]> = {
+            'chrome': ['chrome', 'chromium', 'google'], 'ivanti': ['ivanti', 'pulse', 'connect secure'],
+            'zyxel': ['zyxel'], 'vmware': ['vmware', 'vcenter', 'esxi', 'vsphere'],
+            'fortinet': ['fortinet', 'fortigate', 'fortios'], 'cisco': ['cisco', 'ios-xe', 'asa'],
+            'palo alto': ['palo alto', 'pan-os', 'globalprotect'], 'citrix': ['citrix', 'netscaler', 'adc'],
+            'microsoft exchange': ['exchange', 'owa'], 'adobe': ['adobe', 'acrobat', 'coldfusion'],
+            'sap': ['sap', 'netweaver'], 'oracle': ['oracle', 'weblogic'],
+            'f5': ['f5', 'big-ip', 'bigip'], 'sonicwall': ['sonicwall'],
+            'barracuda': ['barracuda'], 'juniper': ['juniper', 'junos'],
+          };
+          let reFilteredCount = 0;
+          synthVulns = synthVulns.filter((v: any) => {
+            const vulnText = `${v.title} ${v.description} ${v.cve || ''}`.toLowerCase();
+            for (const [product, requiredIndicators] of Object.entries(RE_CVE_TECH_VALIDATORS)) {
+              if (vulnText.includes(product)) {
+                if (!requiredIndicators.some(ind => reAllTechContext.includes(ind))) {
+                  reFilteredCount++;
+                  return false;
+                }
+              }
+            }
+            return true;
+          });
 
           if (input.replaceExisting) {
             // Remove existing LLM-synthesized vulns (keep active scan vulns)
@@ -3198,7 +3268,7 @@ Return ONLY a JSON object with vulnerabilities array.`;
             }
           }
 
-          addLog(state, { phase: 'scanning', type: 'success', title: `\u2705 Re-synthesis: ${asset.hostname}`, detail: `${newVulns.length} new vulnerabilities added` });
+          addLog(state, { phase: 'scanning', type: 'success', title: `\u2705 Re-synthesis: ${asset.hostname}`, detail: `${newVulns.length} new vulnerabilities added${reFilteredCount > 0 ? ` (${reFilteredCount} false positives filtered)` : ''}` });
           await persistOpsStateNow(input.engagementId);
 
           return {
