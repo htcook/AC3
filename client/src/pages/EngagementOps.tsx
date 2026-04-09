@@ -4790,6 +4790,26 @@ export default function EngagementOps() {
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 Reset and re-execute: passive scan → LLM analysis → active scan → LLM re-scan → exploit generation
               </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 mt-2"
+                onClick={() => {
+                  if (!engagementId) return;
+                  rerunMut.mutate({
+                    engagementId,
+                    phases: { passive: false, active: true, llmAnalysis: true, exploitGeneration: false },
+                    resetScope: { recon: false, scanning: true, analysis: false, exploitation: false, logs: false },
+                  });
+                }}
+                disabled={ops?.isRunning || rerunMut.isPending}
+              >
+                {rerunMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Scan className="h-3.5 w-3.5 mr-1.5" />}
+                Quick Re-Scan
+              </Button>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Re-run active scanning + LLM analysis only. Keeps recon data, exploitation history, and logs.
+              </p>
             </div>
           </div>
 
