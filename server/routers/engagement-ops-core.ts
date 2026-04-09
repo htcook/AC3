@@ -2559,178 +2559,266 @@ Return ONLY a JSON object with vulnerabilities array. No markdown, no explanatio
             // ── Persist after Phase 3 (Active Scanning + LLM Vuln Synthesis) ──
             await persistOpsStateNow(input.engagementId).catch(() => {});
 
-            // Phase 4: Exploit Generation
+            // Phase 4: Intelligent Exploit Orchestration (MSF → RAG Custom → Retry-with-Reasoning)
             if (input.phases.exploitGeneration) {
               state!.phase = 'exploitation';
-              state!.currentAction = 'Generating functional exploits...';
+              state!.currentAction = 'Orchestrating intelligent exploit pipeline...';
               broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'exploitation' });
               try {
-                const { generateExploitsForAsset } = await import('../lib/functional-exploit-generator');
+                const { orchestrateExploit } = await import('../lib/exploit-recipe-engine');
+                const { recordFeedback } = await import('../lib/exploit-feedback-loop');
+                const { collectFromExploitRecipe, collectFromFailedExploit, getExploitTrainingStats } = await import('../lib/exploit-training-collector');
+                const { executeExploit } = await import('../lib/exploit-sandbox');
+                const { executeRawCommand } = await import('../lib/scan-server-executor');
                 const { VNC_EXPLOIT_TEMPLATES, selectVncExploit } = await import('../lib/vnc-exploit-module');
                 const { MSSQL_EXPLOIT_TEMPLATES, selectMssqlExploit } = await import('../lib/mssql-exploit-module');
+                const { ENV } = await import('../_core/env');
+                if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
+                let totalOrchestrated = 0;
+                let totalSucceeded = 0;
+                let totalFailed = 0;
+                let recipesGenerated = 0;
+
                 for (const asset of state!.assets) {
                   const exploitable = asset.vulns.filter((v: any) => v.severity === 'critical' || v.severity === 'high');
                   if (exploitable.length === 0) continue;
 
-                  // Check if asset has VNC ports — inject pre-built VNC exploit templates
+                  // ── Pre-built templates for VNC/MSSQL (fast path) ──
                   const vncPorts = (asset.ports || []).filter((p: any) => [5900, 5901, 5902, 5903].includes(p.port) || p.service?.toLowerCase().includes('vnc'));
                   if (vncPorts.length > 0) {
                     const hasSsh = (asset.ports || []).some((p: any) => p.port === 22 || p.service?.toLowerCase().includes('ssh'));
-                    const vncTemplates = selectVncExploit({
-                      hasCredentials: false,
-                      hasLocalAccess: false,
-                      hasSshAccess: hasSsh,
-                      targetPort: vncPorts[0]?.port || 5900,
-                      targetOs: (asset as any).os?.toLowerCase().includes('windows') ? 'windows' : 'linux',
-                    });
-                    if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
+                    const vncTemplates = selectVncExploit({ hasCredentials: false, hasLocalAccess: false, hasSshAccess: hasSsh, targetPort: vncPorts[0]?.port || 5900, targetOs: (asset as any).os?.toLowerCase().includes('windows') ? 'windows' : 'linux' });
                     for (const tmpl of vncTemplates.slice(0, 3)) {
-                      (state as any).generatedExploits.push({
-                        asset: asset.hostname,
-                        exploit: {
-                          code: tmpl.code,
-                          language: tmpl.language,
-                          filename: `${tmpl.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.${tmpl.language === 'python' ? 'py' : 'sh'}`,
-                          description: tmpl.description,
-                          explanation: [tmpl.usage],
-                          prerequisites: tmpl.prerequisites,
-                          usage: tmpl.usage,
-                          expectedOutcome: tmpl.expectedOutcome,
-                          riskAssessment: { opsecRisk: tmpl.opsecRisk, detectionLikelihood: 'medium', iocSignatures: tmpl.detectionIndicators, mitigations: [] },
-                          verificationSteps: tmpl.verificationSteps,
-                          confidence: tmpl.confidence,
-                          reasoning: `Pre-built VNC exploit template: ${tmpl.name}`,
-                          isChained: false,
-                          mitreTechniques: tmpl.mitreTechniqueIds,
-                          popsShell: tmpl.category === 'keystroke' || tmpl.category === 'auth_bypass',
-                          shellType: tmpl.category === 'auth_bypass' ? 'none' as const : undefined,
-                        },
-                        generatedAt: Date.now(),
-                        source: 'vnc-exploit-module',
-                      });
+                      (state as any).generatedExploits.push({ asset: asset.hostname, exploit: { code: tmpl.code, language: tmpl.language, filename: `${tmpl.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.${tmpl.language === 'python' ? 'py' : 'sh'}`, description: tmpl.description, explanation: [tmpl.usage], prerequisites: tmpl.prerequisites, usage: tmpl.usage, expectedOutcome: tmpl.expectedOutcome, riskAssessment: { opsecRisk: tmpl.opsecRisk, detectionLikelihood: 'medium', iocSignatures: tmpl.detectionIndicators, mitigations: [] }, verificationSteps: tmpl.verificationSteps, confidence: tmpl.confidence, reasoning: `Pre-built VNC exploit template: ${tmpl.name}`, isChained: false, mitreTechniques: tmpl.mitreTechniqueIds, popsShell: tmpl.category === 'keystroke' || tmpl.category === 'auth_bypass', shellType: tmpl.category === 'auth_bypass' ? 'none' as const : undefined }, generatedAt: Date.now(), source: 'vnc-exploit-module' });
                     }
-                    addLog(state!, { phase: 'exploitation', type: 'success', title: `\u{1f5a5}\ufe0f VNC Exploits: ${asset.hostname}`, detail: `${Math.min(vncTemplates.length, 3)} pre-built VNC templates injected (ports: ${vncPorts.map((p: any) => p.port).join(', ')})` });
+                    if (vncTemplates.length > 0) addLog(state!, { phase: 'exploitation', type: 'success', title: `\u{1f5a5}\ufe0f VNC Exploits: ${asset.hostname}`, detail: `${Math.min(vncTemplates.length, 3)} pre-built VNC templates injected` });
                   }
-
-                  // Check if asset has MSSQL ports — inject pre-built MSSQL exploit templates
                   const mssqlPorts = (asset.ports || []).filter((p: any) => [1433, 1434].includes(p.port) || p.service?.toLowerCase().includes('mssql') || p.service?.toLowerCase().includes('ms-sql'));
                   if (mssqlPorts.length > 0) {
-                    const mssqlTemplates = selectMssqlExploit({
-                      hasCredentials: false,
-                      isSysadmin: false,
-                      targetOs: (asset as any).os?.toLowerCase().includes('windows') ? 'windows' : 'linux',
-                      xpCmdshellBlocked: false,
-                      agentRunning: undefined,
-                      hasLinkedServers: undefined,
-                    });
-                    if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
+                    const mssqlTemplates = selectMssqlExploit({ hasCredentials: false, isSysadmin: false, targetOs: (asset as any).os?.toLowerCase().includes('windows') ? 'windows' : 'linux', xpCmdshellBlocked: false, agentRunning: undefined, hasLinkedServers: undefined });
                     for (const tmpl of mssqlTemplates.slice(0, 3)) {
-                      (state as any).generatedExploits.push({
-                        asset: asset.hostname,
-                        exploit: {
-                          code: tmpl.code,
-                          language: tmpl.language,
-                          filename: `${tmpl.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.${tmpl.language === 'python' ? 'py' : tmpl.language === 'bash' ? 'sh' : 'sql'}`,
-                          description: tmpl.description,
-                          explanation: [tmpl.usage],
-                          prerequisites: tmpl.prerequisites,
-                          usage: tmpl.usage,
-                          expectedOutcome: tmpl.expectedOutcome,
-                          riskAssessment: { opsecRisk: tmpl.opsecRisk, detectionLikelihood: 'medium', iocSignatures: tmpl.detectionIndicators, mitigations: [] },
-                          verificationSteps: tmpl.verificationSteps,
-                          confidence: tmpl.confidence,
-                          reasoning: `Pre-built MSSQL exploit template: ${tmpl.name}`,
-                          isChained: false,
-                          mitreTechniques: tmpl.mitreTechniqueIds,
-                          popsShell: tmpl.category === 'xp_cmdshell' || tmpl.category === 'ole_automation' || tmpl.category === 'clr_assembly',
-                          shellType: tmpl.category === 'xp_cmdshell' ? 'cmd' as const : undefined,
-                        },
-                        generatedAt: Date.now(),
-                        source: 'mssql-exploit-module',
-                      });
+                      (state as any).generatedExploits.push({ asset: asset.hostname, exploit: { code: tmpl.code, language: tmpl.language, filename: `${tmpl.id.toLowerCase().replace(/[^a-z0-9]/g, '_')}.${tmpl.language === 'python' ? 'py' : tmpl.language === 'bash' ? 'sh' : 'sql'}`, description: tmpl.description, explanation: [tmpl.usage], prerequisites: tmpl.prerequisites, usage: tmpl.usage, expectedOutcome: tmpl.expectedOutcome, riskAssessment: { opsecRisk: tmpl.opsecRisk, detectionLikelihood: 'medium', iocSignatures: tmpl.detectionIndicators, mitigations: [] }, verificationSteps: tmpl.verificationSteps, confidence: tmpl.confidence, reasoning: `Pre-built MSSQL exploit template: ${tmpl.name}`, isChained: false, mitreTechniques: tmpl.mitreTechniqueIds, popsShell: tmpl.category === 'xp_cmdshell' || tmpl.category === 'ole_automation' || tmpl.category === 'clr_assembly', shellType: tmpl.category === 'xp_cmdshell' ? 'cmd' as const : undefined }, generatedAt: Date.now(), source: 'mssql-exploit-module' });
                     }
-                    addLog(state!, { phase: 'exploitation', type: 'success', title: `\u{1f4be} MSSQL Exploits: ${asset.hostname}`, detail: `${Math.min(mssqlTemplates.length, 3)} pre-built MSSQL templates injected (ports: ${mssqlPorts.map((p: any) => p.port).join(', ')})` });
+                    if (mssqlTemplates.length > 0) addLog(state!, { phase: 'exploitation', type: 'success', title: `\u{1f4be} MSSQL Exploits: ${asset.hostname}`, detail: `${Math.min(mssqlTemplates.length, 3)} pre-built MSSQL templates injected` });
                   }
-                  addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f3af} Exploits: ${asset.hostname}`, detail: `${exploitable.length} critical/high vulns` });
-                  const exploits = await generateExploitsForAsset(
-                    asset.hostname, exploitable,
-                    { ip: asset.ip, os: (asset as any).os, technologies: asset.passiveRecon?.technologies, wafDetected: asset.wafDetected, ports: asset.ports as any },
-                    { maxExploits: 3, includeEvasion: !!asset.wafDetected }
-                  );
-                  if (!(state as any).generatedExploits) (state as any).generatedExploits = [];
-                  for (const exploit of exploits) {
-                    (state as any).generatedExploits.push({ asset: asset.hostname, exploit, generatedAt: Date.now() });
-                  }
-                  addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Exploits: ${asset.hostname}`, detail: `${exploits.length} scripts (avg confidence: ${Math.round(exploits.reduce((s, e) => s + e.confidence, 0) / (exploits.length || 1))}%)` });
-                }
-              } catch (err: any) {
-                addLog(state!, { phase: 'exploitation', type: 'error', title: '\u274c Exploit generation failed', detail: err.message });
-              }
 
-              // Phase 4b: Auto-execute generated exploits and capture evidence
-              const generatedExploits = (state as any).generatedExploits || [];
-              if (generatedExploits.length > 0) {
-                state!.currentAction = `Executing ${generatedExploits.length} exploits and capturing evidence...`;
-                addLog(state!, { phase: 'exploitation', type: 'info', title: '\u{1f52c} Exploit Execution', detail: `Executing ${generatedExploits.length} generated exploits with evidence capture` });
-                broadcastOpsUpdate(input.engagementId, { type: 'progress', progress: state!.progress });
+                  // ── Intelligent Orchestration: MSF → RAG Custom → Retry-with-Reasoning ──
+                  addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f3af} Orchestrating: ${asset.hostname}`, detail: `${exploitable.length} critical/high vulns — trying MSF modules first, then RAG-enhanced custom exploits with retry loop` });
+                  const maxExploitsPerAsset = 3;
+                  const toExploit = exploitable.slice(0, maxExploitsPerAsset);
 
-                const { executeExploit } = await import('../lib/exploit-sandbox');
-                let execSucceeded = 0;
-                let execFailed = 0;
+                  for (const vuln of toExploit) {
+                    totalOrchestrated++;
+                    state!.currentAction = `Exploiting ${vuln.title} on ${asset.hostname}...`;
+                    broadcastOpsUpdate(input.engagementId, { type: 'progress', progress: state!.progress });
 
-                for (let i = 0; i < generatedExploits.length; i++) {
-                  const entry = generatedExploits[i];
-                  const exploit = entry.exploit;
-                  try {
-                    // Find the vuln this exploit targets
-                    const targetAsset = state!.assets.find(a => a.hostname === entry.asset);
-                    const targetVuln = targetAsset?.vulns?.find((v: any) =>
-                      (v.cve && exploit.mitreTechniques?.some((t: string) => v.cve === t)) ||
-                      v.title?.toLowerCase().includes(exploit.description?.toLowerCase().slice(0, 30) || '')
-                    );
-
-                    const result = await executeExploit(input.engagementId, {
-                      exploitId: `${input.engagementId}_auto_${i}`,
-                      code: exploit.code,
-                      language: exploit.language || 'python',
-                      targetHost: entry.asset,
-                      targetPort: targetVuln?.port,
-                      timeoutSeconds: 60,
-                      dryRun: false,
-                      vulnerabilityCve: targetVuln?.cve,
-                      vulnerabilityId: targetVuln?.id?.toString(),
-                      vulnerabilityTitle: targetVuln?.title,
-                      exploitModule: exploit.filename || `exploit_${i}`,
-                      attackTechnique: exploit.mitreTechniques?.[0],
-                      confidence: exploit.confidence,
-                      opsecRisk: exploit.riskAssessment?.opsecRisk,
-                    });
-
-                    // Store result back on the entry for UI access
-                    entry.executionResult = {
-                      status: result.status,
-                      exitCode: result.exitCode,
-                      durationMs: result.durationMs,
-                      dbRecordId: result.dbRecordId,
-                      evidence: result.evidence,
+                    // Build contexts for orchestrateExploit
+                    const vulnCtx = {
+                      cveId: vuln.cve,
+                      title: vuln.title,
+                      description: (vuln as any).description,
+                      severity: vuln.severity,
+                      cvssScore: (vuln as any).cvss,
+                    };
+                    const targetCtx = {
+                      hostname: asset.hostname,
+                      ip: asset.ip,
+                      os: (asset as any).os,
+                      port: vuln.port,
+                      service: (vuln as any).service,
+                      serviceVersion: (vuln as any).version,
+                      technologies: asset.passiveRecon?.technologies,
+                      wafDetected: asset.wafDetected,
+                      attackerHost: ENV.SCAN_SERVER_HOST || undefined,
+                      attackerPort: 4444,
+                    };
+                    const exploitCtx = {
+                      vulnerability: {
+                        cve: vuln.cve,
+                        title: vuln.title,
+                        severity: vuln.severity,
+                        description: (vuln as any).description,
+                        service: (vuln as any).service,
+                        port: vuln.port,
+                        rawOutput: (vuln as any).rawOutput,
+                        tool: (vuln as any).tool,
+                      },
+                      target: {
+                        hostname: asset.hostname,
+                        ip: asset.ip,
+                        os: (asset as any).os,
+                        technologies: asset.passiveRecon?.technologies,
+                        wafDetected: asset.wafDetected,
+                        ports: asset.ports as any,
+                      },
+                      otherVulns: exploitable.filter(v => v !== vuln).map(v => ({ title: v.title, severity: v.severity, cve: v.cve, port: v.port })),
+                      preferredLanguage: 'python' as const,
+                      includeEvasion: !!asset.wafDetected,
+                      attackerHost: ENV.SCAN_SERVER_HOST || undefined,
+                      attackerPort: 4444,
                     };
 
-                    if (result.status === 'success') {
-                      execSucceeded++;
-                      addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Executed: ${exploit.filename || 'exploit_' + i}`, detail: `${entry.asset} — ${result.evidence?.achievedAccess || 'success'} (${result.durationMs}ms)` });
-                    } else {
-                      execFailed++;
-                      addLog(state!, { phase: 'exploitation', type: 'warning', title: `\u26a0\ufe0f Exploit returned non-zero: ${exploit.filename || 'exploit_' + i}`, detail: `${entry.asset} — exit ${result.exitCode} (${result.durationMs}ms)` });
+                    try {
+                      const result = await orchestrateExploit(vulnCtx, targetCtx, exploitCtx, {
+                        maxRetries: 3,
+                        tryMsfFirst: true,
+                        engagementId: String(input.engagementId),
+                        executeExploit: async (code: string, language: string) => {
+                          // Execute via scan server
+                          const ext = language === 'python' ? '.py' : language === 'bash' ? '.sh' : language === 'ruby' ? '.rb' : '.ps1';
+                          const interpreter = language === 'python' ? 'python3' : language === 'bash' ? 'bash' : language === 'ruby' ? 'ruby' : 'pwsh';
+                          const tmpDir = `/tmp/exploit_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+                          const cmd = [
+                            `mkdir -p ${tmpDir}`,
+                            `cat > ${tmpDir}/exploit${ext} << 'EXPLOIT_EOF'\n${code}\nEXPLOIT_EOF`,
+                            `chmod +x ${tmpDir}/exploit${ext}`,
+                            `cd ${tmpDir} && timeout 60 ${interpreter} ${tmpDir}/exploit${ext} 2>&1`,
+                            `rm -rf ${tmpDir}`,
+                          ].join(' && ');
+                          const execResult = await executeRawCommand(cmd, 70);
+                          return {
+                            exitCode: execResult.exitCode,
+                            stdout: execResult.stdout,
+                            stderr: execResult.stderr,
+                            duration: execResult.durationMs,
+                          };
+                        },
+                        onProgress: (msg: string) => {
+                          addLog(state!, { phase: 'exploitation', type: 'info', title: `\u{1f916} ${asset.hostname}`, detail: msg });
+                        },
+                      });
+
+                      // Store the final exploit in generatedExploits for UI
+                      if (result.finalExploit) {
+                        (state as any).generatedExploits.push({
+                          asset: asset.hostname,
+                          exploit: result.finalExploit,
+                          generatedAt: Date.now(),
+                          source: result.selectedModule ? 'msf-module-selector' : 'orchestrate-rag',
+                          orchestration: {
+                            attempts: result.attempts.length,
+                            success: result.success,
+                            msfModule: result.selectedModule?.modulePath,
+                            recipeId: result.recipe?.id,
+                          },
+                        });
+                      } else if (result.selectedModule) {
+                        // MSF module selected but no custom exploit generated
+                        (state as any).generatedExploits.push({
+                          asset: asset.hostname,
+                          exploit: {
+                            code: `# MSF Module: ${result.selectedModule.modulePath}\n# Auto-configured by exploit orchestrator`,
+                            language: 'bash',
+                            filename: `msf_${result.selectedModule.modulePath.replace(/\//g, '_')}.rc`,
+                            description: `Metasploit module: ${result.selectedModule.modulePath}`,
+                            explanation: [`Selected MSF module with ${result.selectedModule.confidence}% confidence`],
+                            confidence: result.selectedModule.confidence,
+                            reasoning: `MSF module selected: ${result.selectedModule.modulePath}`,
+                            isChained: false,
+                          },
+                          generatedAt: Date.now(),
+                          source: 'msf-module-selector',
+                        });
+                      }
+
+                      if (result.success) {
+                        totalSucceeded++;
+                        addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Exploit succeeded: ${vuln.title}`, detail: `${asset.hostname} — ${result.attempts.length} attempt(s), strategy: ${result.attempts[result.attempts.length - 1]?.strategy || 'unknown'}${result.selectedModule ? ' (MSF: ' + result.selectedModule.modulePath + ')' : ''}` });
+                      } else {
+                        totalFailed++;
+                        addLog(state!, { phase: 'exploitation', type: 'warning', title: `\u26a0\ufe0f Exploit exhausted: ${vuln.title}`, detail: `${asset.hostname} — ${result.attempts.length} attempt(s) failed` });
+                      }
+
+                      // ── Record feedback for exploit-feedback-loop ──
+                      const lastAttempt = result.attempts[result.attempts.length - 1];
+                      if (lastAttempt) {
+                        try {
+                          await recordFeedback({
+                            moduleName: result.selectedModule?.modulePath || lastAttempt.strategy || 'custom_exploit',
+                            moduleSource: result.selectedModule ? 'metasploit' : 'custom',
+                            targetService: (vuln as any).service || 'unknown',
+                            targetVersion: (vuln as any).version || null,
+                            cveIds: vuln.cve ? [vuln.cve] : [],
+                            success: result.success,
+                            executionMs: lastAttempt.result?.duration || 0,
+                            failureReason: result.success ? null : (lastAttempt.failureAnalysis?.rootCause || 'unknown'),
+                            errorMessage: result.success ? null : (lastAttempt.result?.stderr?.slice(0, 500) || null),
+                            timestamp: Date.now(),
+                          });
+                        } catch (fbErr: any) {
+                          console.warn(`[ExploitOrch] Feedback recording failed: ${fbErr.message}`);
+                        }
+                      }
+
+                      // ── Collect training data ──
+                      if (result.recipe) {
+                        recipesGenerated++;
+                        try {
+                          collectFromExploitRecipe(result.recipe, vulnCtx, targetCtx, result.attempts, String(input.engagementId));
+                        } catch (trainErr: any) {
+                          console.warn(`[ExploitOrch] Training collection failed: ${trainErr.message}`);
+                        }
+                      } else if (!result.success && result.attempts.length > 0) {
+                        try {
+                          collectFromFailedExploit(vulnCtx, targetCtx, result.attempts, String(input.engagementId));
+                        } catch (trainErr: any) {
+                          console.warn(`[ExploitOrch] Failed exploit training collection failed: ${trainErr.message}`);
+                        }
+                      }
+
+                    } catch (orchErr: any) {
+                      totalFailed++;
+                      addLog(state!, { phase: 'exploitation', type: 'error', title: `\u274c Orchestration failed: ${vuln.title}`, detail: `${asset.hostname} — ${orchErr.message?.slice(0, 200)}` });
                     }
-                  } catch (execErr: any) {
-                    execFailed++;
-                    addLog(state!, { phase: 'exploitation', type: 'error', title: `\u274c Execution failed: exploit_${i}`, detail: execErr.message?.slice(0, 200) });
                   }
                 }
 
-                // Update stats
-                (state as any).exploitStats = { total: generatedExploits.length, succeeded: execSucceeded, failed: execFailed };
-                addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4ca} Exploitation Complete', detail: `${execSucceeded}/${generatedExploits.length} succeeded, ${execFailed} failed — evidence persisted to DB` });
+                // ── Phase 4b: Execute pre-built template exploits (VNC/MSSQL) ──
+                const templateExploits = ((state as any).generatedExploits || []).filter((e: any) => e.source === 'vnc-exploit-module' || e.source === 'mssql-exploit-module');
+                if (templateExploits.length > 0) {
+                  addLog(state!, { phase: 'exploitation', type: 'info', title: '\u{1f52c} Template Exploit Execution', detail: `Executing ${templateExploits.length} pre-built template exploits` });
+                  for (let i = 0; i < templateExploits.length; i++) {
+                    const entry = templateExploits[i];
+                    try {
+                      const result = await executeExploit(input.engagementId, {
+                        exploitId: `${input.engagementId}_tmpl_${i}`,
+                        code: entry.exploit.code,
+                        language: entry.exploit.language || 'python',
+                        targetHost: entry.asset,
+                        timeoutSeconds: 60,
+                        dryRun: false,
+                        exploitModule: entry.exploit.filename || `template_${i}`,
+                        confidence: entry.exploit.confidence,
+                      });
+                      entry.executionResult = { status: result.status, exitCode: result.exitCode, durationMs: result.durationMs, dbRecordId: result.dbRecordId, evidence: result.evidence };
+                      if (result.status === 'success') {
+                        totalSucceeded++;
+                        addLog(state!, { phase: 'exploitation', type: 'success', title: `\u2705 Template: ${entry.exploit.filename}`, detail: `${entry.asset} — ${result.evidence?.achievedAccess || 'success'} (${result.durationMs}ms)` });
+                      } else {
+                        totalFailed++;
+                        addLog(state!, { phase: 'exploitation', type: 'warning', title: `\u26a0\ufe0f Template non-zero: ${entry.exploit.filename}`, detail: `${entry.asset} — exit ${result.exitCode}` });
+                      }
+                    } catch (execErr: any) {
+                      totalFailed++;
+                      addLog(state!, { phase: 'exploitation', type: 'error', title: `\u274c Template exec failed: ${entry.exploit.filename}`, detail: execErr.message?.slice(0, 200) });
+                    }
+                  }
+                }
+
+                // ── Update stats and check fine-tuning threshold ──
+                (state as any).exploitStats = { total: totalOrchestrated + templateExploits.length, succeeded: totalSucceeded, failed: totalFailed, recipesGenerated };
+                addLog(state!, { phase: 'exploitation', type: 'success', title: '\u{1f4ca} Exploitation Complete', detail: `${totalSucceeded}/${totalOrchestrated + templateExploits.length} succeeded, ${totalFailed} failed, ${recipesGenerated} recipes generated — evidence persisted to DB` });
+
+                // ── Auto-trigger fine-tuning when enough training data accumulates ──
+                try {
+                  const trainingStats = getExploitTrainingStats();
+                  if (trainingStats.totalExamples >= 50) {
+                    addLog(state!, { phase: 'exploitation', type: 'info', title: '\u{1f9e0} Fine-Tuning Threshold Reached', detail: `${trainingStats.totalExamples} training examples collected (threshold: 50). Fine-tuning job can be triggered from the AI Analysis tab.` });
+                  }
+                } catch { /* training stats not critical */ }
+
+              } catch (err: any) {
+                addLog(state!, { phase: 'exploitation', type: 'error', title: '\u274c Exploit orchestration failed', detail: err.message });
               }
 
               // Persist after exploitation

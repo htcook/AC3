@@ -597,36 +597,150 @@ export async function startFineTuneJob(
   job.status = "preparing";
   job.startedAt = Date.now();
 
-  // In production, this would:
-  // 1. Upload the JSONL file to OpenAI
-  // 2. Create a fine-tuning job via the API
-  // 3. Poll for completion
-  // For now, simulate the process
+  // Resolve API key: explicit param > env > simulation
+  const apiKey = openaiApiKey || process.env.OPENAI_API_KEY || "";
 
-  if (openaiApiKey) {
+  if (apiKey && apiKey.length > 10) {
     try {
-      // Would call OpenAI API here:
-      // const response = await fetch('https://api.openai.com/v1/fine_tuning/jobs', {
-      //   method: 'POST',
-      //   headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     training_file: uploadedFileId,
-      //     model: job.baseModel,
-      //     hyperparameters: { n_epochs: job.hyperparameters.nEpochs },
-      //   }),
-      // });
+      // Step 1: Export training data as JSONL
+      const jsonlContent = exportDatasetAsJSONL(job.datasetId);
+      if (!jsonlContent) throw new Error(`Dataset ${job.datasetId} has no exportable content`);
+
+      console.log(`[FineTune] Uploading training file for job ${job.id} (${jsonlContent.length} bytes)...`);
+
+      // Step 2: Upload JSONL file to OpenAI
+      const formData = new FormData();
+      const blob = new Blob([jsonlContent], { type: 'application/jsonl' });
+      formData.append('file', blob, `${job.model}_training_${Date.now()}.jsonl`);
+      formData.append('purpose', 'fine-tune');
+
+      const uploadRes = await fetch('https://api.openai.com/v1/files', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        const errBody = await uploadRes.text();
+        throw new Error(`File upload failed (${uploadRes.status}): ${errBody}`);
+      }
+      const uploadData = await uploadRes.json() as { id: string };
+      const trainingFileId = uploadData.id;
+      console.log(`[FineTune] Training file uploaded: ${trainingFileId}`);
+
+      // Step 3: Create fine-tuning job via OpenAI API
+      const ftRes = await fetch('https://api.openai.com/v1/fine_tuning/jobs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          training_file: trainingFileId,
+          model: job.baseModel,
+          suffix: `ac3-${job.model}`,
+          hyperparameters: {
+            n_epochs: job.hyperparameters.nEpochs,
+            ...(job.hyperparameters.batchSize !== 'auto' ? { batch_size: job.hyperparameters.batchSize } : {}),
+            ...(job.hyperparameters.learningRateMultiplier !== 'auto' ? { learning_rate_multiplier: job.hyperparameters.learningRateMultiplier } : {}),
+          },
+        }),
+      });
+      if (!ftRes.ok) {
+        const errBody = await ftRes.text();
+        throw new Error(`Fine-tune creation failed (${ftRes.status}): ${errBody}`);
+      }
+      const ftData = await ftRes.json() as { id: string; status: string };
+      job.openaiJobId = ftData.id;
       job.status = "running";
-      job.openaiJobId = `ftjob-${randomUUID().slice(0, 12)}`;
+      console.log(`[FineTune] Job created: ${ftData.id} (status: ${ftData.status})`);
+
+      // Step 4: Poll for completion (max 2 hours, poll every 30s)
+      const maxPollMs = 2 * 60 * 60 * 1000;
+      const pollIntervalMs = 30_000;
+      const pollStart = Date.now();
+      let pollAttempts = 0;
+
+      while (Date.now() - pollStart < maxPollMs) {
+        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+        pollAttempts++;
+
+        try {
+          const statusRes = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${ftData.id}`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+          });
+          if (!statusRes.ok) {
+            console.warn(`[FineTune] Poll ${pollAttempts} failed: ${statusRes.status}`);
+            continue;
+          }
+          const statusData = await statusRes.json() as {
+            status: string;
+            fine_tuned_model?: string;
+            trained_tokens?: number;
+            error?: { message: string };
+          };
+
+          // Fetch training events for metrics
+          try {
+            const eventsRes = await fetch(`https://api.openai.com/v1/fine_tuning/jobs/${ftData.id}/events?limit=100`, {
+              headers: { 'Authorization': `Bearer ${apiKey}` },
+            });
+            if (eventsRes.ok) {
+              const eventsData = await eventsRes.json() as { data: Array<{ message: string; data?: { step?: number; train_loss?: number; valid_loss?: number } }> };
+              for (const evt of eventsData.data || []) {
+                if (evt.data?.step && evt.data?.train_loss) {
+                  const existing = job.metrics.find(m => m.step === evt.data!.step);
+                  if (!existing) {
+                    job.metrics.push({
+                      step: evt.data.step,
+                      trainingLoss: evt.data.train_loss,
+                      validationLoss: evt.data.valid_loss,
+                    });
+                  }
+                }
+              }
+            }
+          } catch { /* metrics polling not critical */ }
+
+          if (statusData.status === 'succeeded') {
+            job.status = "succeeded";
+            job.completedAt = Date.now();
+            job.resultModelId = statusData.fine_tuned_model || undefined;
+            if (job.metrics.length > 0) {
+              job.trainingLoss = job.metrics[job.metrics.length - 1]?.trainingLoss;
+              job.validationLoss = job.metrics[job.metrics.length - 1]?.validationLoss;
+            }
+            console.log(`[FineTune] Job ${ftData.id} succeeded! Model: ${job.resultModelId}`);
+            break;
+          } else if (statusData.status === 'failed' || statusData.status === 'cancelled') {
+            job.status = "failed";
+            job.completedAt = Date.now();
+            job.error = statusData.error?.message || `Job ${statusData.status}`;
+            console.error(`[FineTune] Job ${ftData.id} ${statusData.status}: ${job.error}`);
+            break;
+          }
+          // Still running — continue polling
+          console.log(`[FineTune] Poll ${pollAttempts}: ${statusData.status}`);
+        } catch (pollErr: any) {
+          console.warn(`[FineTune] Poll ${pollAttempts} error: ${pollErr.message}`);
+        }
+      }
+
+      // If we timed out polling, mark as running (will be checked later)
+      if (job.status === "running" && Date.now() - pollStart >= maxPollMs) {
+        console.warn(`[FineTune] Polling timed out after ${maxPollMs / 60000}min — job ${ftData.id} still running`);
+      }
+
     } catch (error) {
       job.status = "failed";
       job.error = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[FineTune] Job ${job.id} failed:`, job.error);
     }
   } else {
-    // Simulation mode — generate realistic metrics
+    // Simulation mode — no API key available, generate realistic metrics
+    console.log(`[FineTune] No OpenAI API key — running in simulation mode for job ${job.id}`);
     job.status = "running";
     job.openaiJobId = `ftjob-sim-${randomUUID().slice(0, 8)}`;
 
-    // Simulate training progress
     const steps = job.hyperparameters.nEpochs * 10;
     for (let i = 0; i < steps; i++) {
       const trainingLoss = 2.0 * Math.exp(-0.3 * i) + 0.1 + Math.random() * 0.05;

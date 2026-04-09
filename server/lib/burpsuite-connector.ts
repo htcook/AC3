@@ -183,6 +183,24 @@ export class BurpSuiteConnector {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      // If the named configuration is unknown, retry without it (use Burp defaults)
+      if (res.status === 400 && text.includes("Unknown configuration") && body.scan_configurations) {
+        console.warn(`[BurpConnector] Named config "${request.scanConfiguration}" not found, retrying with Burp defaults`);
+        delete body.scan_configurations;
+        const retryRes = await fetch(`${this.config.baseUrl}/${this.config.apiKey}/v0.1/scan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!retryRes.ok) {
+          const retryText = await retryRes.text().catch(() => "");
+          throw new Error(`Failed to start scan (retry without config): HTTP ${retryRes.status} — ${retryText}`);
+        }
+        const retryLocation = retryRes.headers.get("Location") || "";
+        const retryScanId = retryLocation.split("/").pop() || `scan-${Date.now()}`;
+        return { scanId: retryScanId };
+      }
       throw new Error(`Failed to start scan: HTTP ${res.status} — ${text}`);
     }
 
