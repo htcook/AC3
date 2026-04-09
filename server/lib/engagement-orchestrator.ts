@@ -5339,10 +5339,15 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
     });
     if (pipelineResult.burpScanLaunched) {
+      const sourceLabel = pipelineResult.urlSource === 'zap_scan'
+        ? `Extracted ${pipelineResult.zapUrlsDiscovered} URLs from ZAP scan #${pipelineResult.zapScanId}`
+        : pipelineResult.urlSource === 'scope_fallback'
+          ? `ZAP scan ${pipelineResult.zapScanId ? `#${pipelineResult.zapScanId} still in progress` : 'not yet started'} — used ${pipelineResult.urlsFedToBurp} engagement scope URL${pipelineResult.urlsFedToBurp !== 1 ? 's' : ''}`
+          : `Override: ${pipelineResult.urlsFedToBurp} target URLs provided`;
       addLog(state, {
         phase: "vuln_detection", type: "info",
-        title: `🔗 ZAP → Burp Pipeline: ${pipelineResult.urlsFedToBurp} URLs cross-fed`,
-        detail: `Extracted ${pipelineResult.zapUrlsDiscovered} URLs from ZAP scan #${pipelineResult.zapScanId}, fed ${pipelineResult.urlsFedToBurp} to Burp. ` +
+        title: `🔗 ZAP → Burp Pipeline: ${pipelineResult.urlsFedToBurp} URL${pipelineResult.urlsFedToBurp !== 1 ? 's' : ''} cross-fed`,
+        detail: `${sourceLabel}, fed ${pipelineResult.urlsFedToBurp} to Burp. ` +
           `Tech: ${pipelineResult.fingerprint.technologies.slice(0, 3).join(", ") || "none"}. ` +
           `Correlations: ${pipelineResult.correlatedFindings.filter(f => f.confidenceBoost).length} confirmed by both tools.`,
       });

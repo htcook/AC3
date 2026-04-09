@@ -140,11 +140,12 @@ describe("ZAP → Burp Cross-Tool Pipeline", () => {
       expect(fp.forms).toBe(3);
     });
 
-    it("CrossToolPipelineResult has all required fields", () => {
+    it("CrossToolPipelineResult has all required fields including urlSource", () => {
       const result: CrossToolPipelineResult = {
         zapScanId: 42,
         zapUrlsDiscovered: 15,
         urlsFedToBurp: 10,
+        urlSource: 'zap_scan',
         burpScanLaunched: true,
         fingerprint: {
           technologies: [],
@@ -158,6 +159,29 @@ describe("ZAP → Burp Cross-Tool Pipeline", () => {
       };
       expect(result.zapScanId).toBe(42);
       expect(result.burpScanLaunched).toBe(true);
+      expect(result.urlSource).toBe('zap_scan');
+    });
+
+    it("CrossToolPipelineResult urlSource can be scope_fallback", () => {
+      const result: CrossToolPipelineResult = {
+        zapScanId: 0,
+        zapUrlsDiscovered: 0,
+        urlsFedToBurp: 1,
+        urlSource: 'scope_fallback',
+        burpScanLaunched: true,
+        fingerprint: {
+          technologies: [],
+          headers: {},
+          cookies: [],
+          forms: 0,
+          apiEndpoints: [],
+          loginPages: [],
+        },
+        correlatedFindings: [],
+      };
+      expect(result.urlSource).toBe('scope_fallback');
+      expect(result.zapUrlsDiscovered).toBe(0);
+      expect(result.urlsFedToBurp).toBe(1);
     });
 
     it("CorrelatedFinding tracks multi-tool confirmation", () => {

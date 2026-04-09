@@ -54,6 +54,8 @@ export interface CrossToolPipelineResult {
   zapScanId: number;
   zapUrlsDiscovered: number;
   urlsFedToBurp: number;
+  /** Where the URLs came from: 'zap_scan' if extracted from ZAP findings, 'scope_fallback' if from engagement scope */
+  urlSource: 'zap_scan' | 'scope_fallback' | 'override';
   burpScanLaunched: boolean;
   burpScanState?: BurpAutoScanState;
   fingerprint: ZapFingerprint;
@@ -354,28 +356,33 @@ export async function runZapToBurpPipeline(params: {
 
   console.log(`[ZAP→Burp Pipeline] Starting for engagement #${params.engagementId}`);
 
-  // Step 1: Find the latest completed ZAP scan
+  // Step 1: Find the latest ZAP scan (completed OR running — running scans may already have findings)
   let zapScanId = params.zapScanId;
+  let zapScanStatus: string | undefined;
   if (!zapScanId) {
-    const recentScans = await db.select()
-      .from(webAppScans)
-      .where(eq(webAppScans.status, "completed"))
-      .orderBy(desc(webAppScans.completedAt))
-      .limit(10);
-
-    // Find one that matches the engagement's target
+    // First try completed scans, then fall back to running scans
     const dbModule = await import("../db");
     const engagement = await dbModule.getEngagementById(params.engagementId);
     if (!engagement) throw new Error(`Engagement #${params.engagementId} not found`);
-
     const targetDomain = engagement.targetDomain || "";
-    const matchingScan = recentScans.find(s =>
-      s.targetUrl?.includes(targetDomain) ||
-      s.scanName?.includes(String(params.engagementId))
-    );
 
-    if (matchingScan) {
-      zapScanId = matchingScan.id;
+    for (const statusToCheck of ["completed", "running", "scanning", "active_scan", "spider", "starting"]) {
+      const recentScans = await db.select()
+        .from(webAppScans)
+        .where(eq(webAppScans.status, statusToCheck))
+        .orderBy(desc(webAppScans.completedAt))
+        .limit(10);
+
+      const matchingScan = recentScans.find(s =>
+        s.targetUrl?.includes(targetDomain) ||
+        s.scanName?.includes(String(params.engagementId))
+      );
+
+      if (matchingScan) {
+        zapScanId = matchingScan.id;
+        zapScanStatus = statusToCheck;
+        break;
+      }
     }
   }
 
@@ -404,9 +411,10 @@ export async function runZapToBurpPipeline(params: {
   }
 
   // Build target URL list for Burp
-  const targetUrls = params.targetUrls || [
-    ...discoveredUrls.map(u => u.url),
-  ];
+  let urlSource: 'zap_scan' | 'scope_fallback' | 'override' = 'zap_scan';
+  const targetUrls = params.targetUrls
+    ? (() => { urlSource = 'override'; return params.targetUrls!; })()
+    : [...discoveredUrls.map(u => u.url)];
 
   // Deduplicate and normalize URLs
   const uniqueUrls = [...new Set(targetUrls)].filter(u =>
@@ -415,11 +423,13 @@ export async function runZapToBurpPipeline(params: {
 
   if (uniqueUrls.length === 0) {
     // Fall back to engagement scope URLs
+    urlSource = 'scope_fallback';
     const dbModule = await import("../db");
     const engagement = await dbModule.getEngagementById(params.engagementId);
     const opsState = await dbModule.loadOpsSnapshot(params.engagementId);
     const scopeUrls = extractScopeUrls(engagement, opsState?.stateJson);
     uniqueUrls.push(...scopeUrls);
+    console.log(`[ZAP→Burp Pipeline] No ZAP-discovered URLs available (scan ${zapScanStatus || 'not found'}), falling back to ${scopeUrls.length} engagement scope URLs`);
   }
 
   if (uniqueUrls.length === 0) {
@@ -427,6 +437,7 @@ export async function runZapToBurpPipeline(params: {
       zapScanId: zapScanId || 0,
       zapUrlsDiscovered: discoveredUrls.length,
       urlsFedToBurp: 0,
+      urlSource: 'scope_fallback',
       burpScanLaunched: false,
       fingerprint,
       correlatedFindings: [],
@@ -474,15 +485,16 @@ export async function runZapToBurpPipeline(params: {
         apiKeyEncrypted: envBurpApiKey,
       };
     } else {
-      return {
-        zapScanId: zapScanId || 0,
-        zapUrlsDiscovered: discoveredUrls.length,
-        urlsFedToBurp: uniqueUrls.length,
-        burpScanLaunched: false,
-        fingerprint,
-        correlatedFindings: [],
-        error: "No Burp Suite credentials found and no env fallback available",
-      };
+    return {
+      zapScanId: zapScanId || 0,
+      zapUrlsDiscovered: discoveredUrls.length,
+      urlsFedToBurp: uniqueUrls.length,
+      urlSource,
+      burpScanLaunched: false,
+      fingerprint,
+      correlatedFindings: [],
+      error: "No Burp Suite credentials found and no env fallback available",
+    };
     }
   }
 
@@ -521,6 +533,7 @@ export async function runZapToBurpPipeline(params: {
       zapScanId: zapScanId || 0,
       zapUrlsDiscovered: discoveredUrls.length,
       urlsFedToBurp: uniqueUrls.length,
+      urlSource,
       burpScanLaunched: false,
       fingerprint,
       correlatedFindings: [],
@@ -559,8 +572,10 @@ export async function runZapToBurpPipeline(params: {
       severity: "info",
       title: "ZAP → Burp Cross-Tool Pipeline",
       description: [
-        `ZAP discovered ${discoveredUrls.length} URLs (scan #${zapScanId || "N/A"})`,
-        `Fed ${uniqueUrls.length} unique URLs to Burp Suite`,
+        urlSource === 'zap_scan'
+          ? `ZAP discovered ${discoveredUrls.length} URLs (scan #${zapScanId || "N/A"})`
+          : `ZAP scan ${zapScanId ? `#${zapScanId} (${zapScanStatus || 'in progress'})` : 'not found'} — used ${uniqueUrls.length} engagement scope URLs as fallback`,
+        `Fed ${uniqueUrls.length} unique URLs to Burp Suite (source: ${urlSource})`,
         `Technologies: ${fingerprint.technologies.slice(0, 5).join(", ") || "none detected"}`,
         `API endpoints: ${fingerprint.apiEndpoints.length}`,
         `Login pages: ${fingerprint.loginPages.length}`,
@@ -571,6 +586,8 @@ export async function runZapToBurpPipeline(params: {
       metadata: JSON.stringify({
         source: "zap_burp_pipeline",
         zapScanId,
+        zapScanStatus,
+        urlSource,
         zapUrlsDiscovered: discoveredUrls.length,
         urlsFedToBurp: uniqueUrls.length,
         technologies: fingerprint.technologies,
@@ -590,6 +607,7 @@ export async function runZapToBurpPipeline(params: {
     zapScanId: zapScanId || 0,
     zapUrlsDiscovered: discoveredUrls.length,
     urlsFedToBurp: uniqueUrls.length,
+    urlSource,
     burpScanLaunched: true,
     burpScanState,
     fingerprint,
