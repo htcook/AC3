@@ -471,10 +471,11 @@ async function launchAndPoll(
       if (normalized.length > 0) {
         const db = await import("../db");
         let imported = 0;
+        let deduplicated = 0;
 
         for (const finding of normalized) {
           try {
-            await db.createBugBountyFinding({
+            const result = await db.createBugBountyFinding({
               title: finding.title,
               severityRating: finding.severityRating === "none" ? "low" : finding.severityRating,
               summary: finding.summary,
@@ -487,15 +488,23 @@ async function launchAndPoll(
               userId: config.userId,
               metadata: finding.metadata,
             });
-            imported++;
+            if (result.deduplicated) {
+              deduplicated++;
+            } else {
+              imported++;
+            }
           } catch (err: any) {
             console.warn(`[BurpAutoScan] Failed to import finding: ${err.message}`);
           }
         }
 
         state.importedCount = imported;
+        (state as any).deduplicatedCount = deduplicated;
+        // Store normalized findings on state so completion callbacks can inject them into asset vulns
+        (state as any).normalizedFindings = normalized;
         console.log(
-          `[BurpAutoScan] Imported ${imported}/${normalized.length} findings from scan ${state.scanId}`
+          `[BurpAutoScan] Imported ${imported}/${normalized.length} findings from scan ${state.scanId}` +
+          (deduplicated > 0 ? ` (${deduplicated} duplicates skipped)` : '')
         );
       }
 

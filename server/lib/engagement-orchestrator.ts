@@ -5311,15 +5311,69 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     const { onBurpScanComplete } = await import("./burp-auto-scan");
     onBurpScanComplete(async (burpConfig, burpState) => {
       if (burpConfig.engagementId !== state.engagementId) return;
-      console.log(`[EngagementOps] Burp scan ${burpState.scanId} completed for engagement #${state.engagementId}: ${burpState.issueCount} issues, ${burpState.importedCount} imported`);
+      const deduped = (burpState as any).deduplicatedCount || 0;
+      console.log(`[EngagementOps] Burp scan ${burpState.scanId} completed for engagement #${state.engagementId}: ${burpState.issueCount} issues, ${burpState.importedCount} imported, ${deduped} deduplicated`);
       addLog(state, {
         phase: "vuln_detection", type: "scan_result",
-        title: `\u2705 Burp Scan Complete: ${burpState.importedCount} findings imported`,
+        title: `\u2705 Burp Scan Complete: ${burpState.importedCount} findings imported${deduped > 0 ? ` (${deduped} duplicates skipped)` : ''}`,
         detail: `Scan ${burpState.scanId} finished in ${Math.round(((burpState.completedAt || Date.now()) - burpState.startedAt) / 1000)}s. ` +
           `${burpState.issueCount} issues found, ${burpState.importedCount} imported as findings. ` +
           `Severity escalation and exploit matching ran automatically.`,
-        data: { scanId: burpState.scanId, issueCount: burpState.issueCount, importedCount: burpState.importedCount },
+        data: { scanId: burpState.scanId, issueCount: burpState.issueCount, importedCount: burpState.importedCount, deduplicatedCount: deduped },
       });
+
+      // ─── Inject Burp findings into asset vulns for exploitation phase ───
+      const normalizedFindings = (burpState as any).normalizedFindings as Array<{
+        title: string; severityRating: string; assetIdentifier: string;
+        cweId: string | null; metadata?: { path?: string; confidence?: string };
+      }> | undefined;
+
+      if (normalizedFindings && normalizedFindings.length > 0) {
+        let injected = 0;
+        for (const finding of normalizedFindings) {
+          if (finding.severityRating === 'none') continue; // Skip informational
+
+          // Find the matching asset by hostname/URL overlap
+          const findingHost = finding.assetIdentifier?.replace(/^https?:\/\//, '').replace(/[:\/].*$/, '') || '';
+          const matchingAsset = state.assets.find(a =>
+            a.hostname === findingHost ||
+            a.ip === findingHost ||
+            (a.hostname && findingHost.includes(a.hostname)) ||
+            (findingHost && a.hostname?.includes(findingHost))
+          );
+
+          if (matchingAsset) {
+            // Check for duplicate in vulns array (same title on same asset)
+            const alreadyExists = matchingAsset.vulns.some(v =>
+              v.title === `[Burp] ${finding.title}` || v.title === finding.title
+            );
+            if (alreadyExists) continue;
+
+            const cweStr = finding.cweId || undefined;
+            matchingAsset.vulns.push({
+              id: `burp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+              severity: finding.severityRating === 'none' ? 'low' : finding.severityRating,
+              title: `[Burp] ${finding.title}`,
+              source: 'burp' as any,
+              cve: cweStr,
+              corroborationTier: 'confirmed' as any,
+              evidenceDetail: `Burp Suite confirmed: ${finding.title}${finding.metadata?.path ? ` at ${finding.metadata.path}` : ''}${finding.metadata?.confidence ? ` (confidence: ${finding.metadata.confidence})` : ''}`,
+            } as any);
+            injected++;
+          }
+        }
+
+        if (injected > 0) {
+          state.stats.vulnsFound = state.assets.reduce((sum, a) => sum + a.vulns.length, 0);
+          addLog(state, {
+            phase: "vuln_detection", type: "info",
+            title: `\ud83d\udd17 Burp \u2192 Exploit Pipeline: ${injected} findings injected`,
+            detail: `${injected} Burp findings added to asset vuln lists as exploit candidates. These will be available to the exploitation phase alongside ZAP and Nuclei findings.`,
+            data: { injectedCount: injected },
+          });
+          broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: state.stats });
+        }
+      }
     });
   } catch (cbErr: any) {
     console.warn(`[EngagementOps] Failed to register Burp completion callback: ${cbErr.message}`);

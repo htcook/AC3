@@ -3897,13 +3897,54 @@ export async function createBugBountyFinding(params: {
   state?: string;
   userId?: string;
   metadata?: Record<string, any>;
-}): Promise<number> {
+}): Promise<{ id: number; deduplicated: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
   const { bugBountyFindings } = await import("../drizzle/schema");
+  const { and, eq } = await import("drizzle-orm");
 
-  // Append metadata to summary if present (table has no metadata column)
+  // ─── Deduplication check: same title + assetIdentifier + platform = duplicate ───
+  const normalizedTitle = params.title.substring(0, 1024).trim();
+  const normalizedAsset = (params.assetIdentifier || "").trim();
+  const normalizedPlatform = (params.platform || "manual").trim();
+
+  try {
+    const existing = await db.select({ id: bugBountyFindings.id, severityRating: bugBountyFindings.severityRating })
+      .from(bugBountyFindings)
+      .where(
+        and(
+          eq(bugBountyFindings.title, normalizedTitle),
+          eq(bugBountyFindings.assetIdentifier, normalizedAsset),
+          eq(bugBountyFindings.platform, normalizedPlatform)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const existingId = existing[0].id;
+      const existingSeverity = existing[0].severityRating || "info";
+      const newSeverity = params.severityRating || "low";
+
+      // Severity promotion: if re-scan found higher severity, upgrade the existing finding
+      const severityRank: Record<string, number> = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
+      if ((severityRank[newSeverity] || 0) > (severityRank[existingSeverity] || 0)) {
+        await db.update(bugBountyFindings)
+          .set({ severityRating: newSeverity })
+          .where(eq(bugBountyFindings.id, existingId));
+        console.log(`[BugBountyDedup] Promoted finding #${existingId} severity: ${existingSeverity} → ${newSeverity} ("${normalizedTitle}" on ${normalizedAsset})`);
+      } else {
+        console.log(`[BugBountyDedup] Skipped duplicate: "${normalizedTitle}" on ${normalizedAsset} (existing #${existingId})`);
+      }
+
+      return { id: existingId, deduplicated: true };
+    }
+  } catch (dedupErr: any) {
+    // If dedup check fails (e.g., table doesn't exist yet), proceed with insert
+    console.warn(`[BugBountyDedup] Dedup check failed, proceeding with insert: ${dedupErr.message}`);
+  }
+
+  // ─── New finding: build summary with metadata appendix ───
   let fullSummary = params.summary || "";
   if (params.metadata) {
     const metaLines: string[] = [];
@@ -3919,11 +3960,11 @@ export async function createBugBountyFinding(params: {
   }
 
   const result = await db.insert(bugBountyFindings).values({
-    title: params.title.substring(0, 1024),
+    title: normalizedTitle,
     severityRating: params.severityRating || "low",
-    platform: params.platform || "manual",
+    platform: normalizedPlatform,
     programHandle: params.programHandle || null,
-    assetIdentifier: params.assetIdentifier || null,
+    assetIdentifier: normalizedAsset || null,
     assetType: params.assetType || null,
     cweId: params.cweId || null,
     summary: fullSummary || null,
@@ -3932,5 +3973,6 @@ export async function createBugBountyFinding(params: {
     externalId: `burp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
   });
 
-  return (result as any)[0]?.insertId || 0;
+  const insertId = (result as any)[0]?.insertId || 0;
+  return { id: insertId, deduplicated: false };
 }
