@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
-import { and, min, not, or, sql } from "drizzle-orm";
+import { and, eq, min, not, or, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 
 export const engagementOpsRouter = router({
@@ -1634,6 +1634,62 @@ export const engagementOpsRouter = router({
         if (state.isRunning) {
           throw new TRPCError({ code: 'CONFLICT', message: 'Pipeline is already running. Reset or wait for completion.' });
         }
+
+        // ═══ RESET ALL STATS on re-run ═══
+        // Reset in-memory ops state counters, assets, logs, and completed scan trackers
+        state.stats = {
+          hostsScanned: 0, portsFound: 0, vulnsFound: 0,
+          exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
+          zapScansRun: 0, wafDetections: 0,
+        };
+        state.assets = [];
+        state.log = [];
+        state.approvalGates = [];
+        state.progress = 0;
+        state.phase = 'idle';
+        state.error = undefined;
+        state.skippedDomains = new Set();
+        state.completedScans = {
+          nucleiCompleted: new Set(),
+          zapCompleted: new Set(),
+          hydraCompleted: new Set(),
+          exploitCompleted: new Set(),
+          lastCheckpointAt: Date.now(),
+        };
+        // Clear any cached scan plan, feedback loop, and escalation state
+        (state as any).activeScanPlan = undefined;
+        (state as any).feedbackLoop = undefined;
+        (state as any).severityEscalation = undefined;
+        (state as any).crossToolPipeline = undefined;
+
+        // Clear engagement-specific DB tables so dashboard counts reset to 0
+        const dbConn = await db.getDb();
+        if (dbConn) {
+          const eid = input.engagementId;
+          const cleared: Record<string, number> = {};
+          const tablesToClear = [
+            { name: 'opsSnapshots', table: schema.engagementOpsSnapshots, col: schema.engagementOpsSnapshots.engagementId },
+            { name: 'scanResults', table: schema.scanResults, col: schema.scanResults.engagementId },
+            { name: 'timelineEvents', table: schema.engagementTimelineEvents, col: schema.engagementTimelineEvents.engagementId },
+            { name: 'testPlans', table: schema.testPlans, col: schema.testPlans.engagementId },
+            { name: 'engagementFindings', table: schema.engagementFindings, col: schema.engagementFindings.engagementId },
+            { name: 'exploitPlanHistory', table: schema.exploitPlanHistory, col: schema.exploitPlanHistory.engagementId },
+            { name: 'exploitationAttempts', table: schema.exploitationAttempts, col: schema.exploitationAttempts.engagementId },
+            { name: 'webAppScans', table: schema.webAppScans, col: schema.webAppScans.engagementId },
+            { name: 'webAppFindings', table: schema.webAppFindings, col: schema.webAppFindings.engagementId },
+            { name: 'llmDecisionLog', table: schema.llmDecisionLog, col: schema.llmDecisionLog.engagementId },
+            { name: 'vulnScanSnapshots', table: schema.vulnScanSnapshots, col: schema.vulnScanSnapshots.engagementId },
+            { name: 'burpScanHistory', table: schema.burpScanHistory, col: schema.burpScanHistory.engagementId },
+          ];
+          for (const { name, table, col } of tablesToClear) {
+            try {
+              const r = await dbConn.delete(table).where(eq(col, eid));
+              cleared[name] = (r as any)[0]?.affectedRows ?? 0;
+            } catch { cleared[name] = 0; }
+          }
+          console.log(`[RerunPipeline] Cleared DB stats for engagement #${eid}:`, JSON.stringify(cleared));
+        }
+
         // Set exhaustive exploitation mode
         state.exhaustiveExploit = input.exhaustiveExploit;
 
