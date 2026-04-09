@@ -87,6 +87,72 @@ function applyStatsReset(state: any) {
   state.crossToolPipeline = undefined;
 }
 
+// Replicate the selective reset logic from the updated rerunFullPipeline handler
+function applySelectiveReset(state: any, rs: { recon: boolean; scanning: boolean; analysis: boolean; exploitation: boolean; logs: boolean }) {
+  const resetAll = rs.recon && rs.scanning && rs.analysis && rs.exploitation && rs.logs;
+
+  // Always reset progress/phase/error for a fresh run
+  state.progress = 0;
+  state.phase = "idle";
+  state.error = undefined;
+
+  if (rs.recon) {
+    state.assets = [];
+    state.skippedDomains = new Set();
+    state.stats.hostsScanned = 0;
+    state.stats.portsFound = 0;
+    state.stats.wafDetections = 0;
+  }
+
+  if (rs.scanning) {
+    state.stats.vulnsFound = 0;
+    state.stats.zapScansRun = 0;
+    state.completedScans = {
+      nucleiCompleted: new Set(),
+      zapCompleted: new Set(),
+      hydraCompleted: new Set(),
+      exploitCompleted: rs.exploitation ? new Set() : state.completedScans?.exploitCompleted || new Set(),
+      lastCheckpointAt: Date.now(),
+    };
+    state.activeScanPlan = undefined;
+    state.crossToolPipeline = undefined;
+  }
+
+  if (rs.analysis) {
+    state.feedbackLoop = undefined;
+    state.severityEscalation = undefined;
+    if (!rs.recon && Array.isArray(state.assets)) {
+      for (const asset of state.assets) {
+        if (Array.isArray(asset.vulns)) {
+          asset.vulns = asset.vulns.filter((v: any) => v.tool !== 'llm-synthesis');
+        }
+      }
+    }
+  }
+
+  if (rs.exploitation) {
+    state.stats.exploitsAttempted = 0;
+    state.stats.exploitsSucceeded = 0;
+    state.stats.sessionsOpened = 0;
+    if (state.completedScans) {
+      state.completedScans.exploitCompleted = new Set();
+    }
+  }
+
+  if (rs.logs) {
+    state.log = [];
+    state.approvalGates = [];
+  }
+
+  if (resetAll) {
+    state.stats = {
+      hostsScanned: 0, portsFound: 0, vulnsFound: 0,
+      exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
+      zapScansRun: 0, wafDetections: 0,
+    };
+  }
+}
+
 describe("rerunFullPipeline stats reset", () => {
   it("should reset all numeric stats to zero", () => {
     const state = makeDirtyOpsState(1);
@@ -216,6 +282,140 @@ describe("rerunFullPipeline stats reset", () => {
     expect(state.stats.vulnsFound).toBe(0);
     expect(state.stats.exploitsAttempted).toBe(0);
     expect(state.stats.exploitsSucceeded).toBe(0);
+  });
+
+  // ═══ PARTIAL RESET TESTS ═══
+
+  it("should only reset recon data when only recon scope is checked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: true, scanning: false, analysis: false, exploitation: false, logs: false });
+
+    // Recon data cleared
+    expect(state.assets).toEqual([]);
+    expect(state.stats.hostsScanned).toBe(0);
+    expect(state.stats.portsFound).toBe(0);
+    expect(state.stats.wafDetections).toBe(0);
+
+    // Scanning data preserved
+    expect(state.stats.vulnsFound).toBe(7);
+    expect(state.stats.zapScansRun).toBe(1);
+
+    // Exploitation data preserved
+    expect(state.stats.exploitsAttempted).toBe(3);
+    expect(state.stats.exploitsSucceeded).toBe(1);
+    expect(state.stats.sessionsOpened).toBe(1);
+
+    // Logs preserved
+    expect(state.log.length).toBe(3);
+    expect(state.approvalGates.length).toBe(1);
+  });
+
+  it("should only reset scanning data when only scanning scope is checked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: false, scanning: true, analysis: false, exploitation: false, logs: false });
+
+    // Recon data preserved
+    expect(state.assets.length).toBe(2);
+    expect(state.stats.hostsScanned).toBe(2);
+
+    // Scanning data cleared
+    expect(state.stats.vulnsFound).toBe(0);
+    expect(state.stats.zapScansRun).toBe(0);
+    expect(state.completedScans.nucleiCompleted.size).toBe(0);
+    expect(state.completedScans.zapCompleted.size).toBe(0);
+    expect(state.activeScanPlan).toBeUndefined();
+    expect(state.crossToolPipeline).toBeUndefined();
+
+    // Exploitation preserved (exploitCompleted stays because exploitation scope is off)
+    expect(state.stats.exploitsAttempted).toBe(3);
+    expect(state.completedScans.exploitCompleted.size).toBe(1);
+  });
+
+  it("should only reset exploitation data when only exploitation scope is checked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: false, scanning: false, analysis: false, exploitation: true, logs: false });
+
+    // Recon + scanning preserved
+    expect(state.assets.length).toBe(2);
+    expect(state.stats.vulnsFound).toBe(7);
+
+    // Exploitation cleared
+    expect(state.stats.exploitsAttempted).toBe(0);
+    expect(state.stats.exploitsSucceeded).toBe(0);
+    expect(state.stats.sessionsOpened).toBe(0);
+    expect(state.completedScans.exploitCompleted.size).toBe(0);
+  });
+
+  it("should only reset logs when only logs scope is checked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: false, scanning: false, analysis: false, exploitation: false, logs: true });
+
+    // All data preserved
+    expect(state.assets.length).toBe(2);
+    expect(state.stats.vulnsFound).toBe(7);
+    expect(state.stats.exploitsAttempted).toBe(3);
+
+    // Logs cleared
+    expect(state.log).toEqual([]);
+    expect(state.approvalGates).toEqual([]);
+  });
+
+  it("should only reset analysis data when only analysis scope is checked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: false, scanning: false, analysis: true, exploitation: false, logs: false });
+
+    // Analysis cleared
+    expect(state.feedbackLoop).toBeUndefined();
+    expect(state.severityEscalation).toBeUndefined();
+
+    // Recon preserved
+    expect(state.assets.length).toBe(2);
+    // Scanning preserved
+    expect(state.stats.vulnsFound).toBe(7);
+  });
+
+  it("should reset nothing when all scopes are unchecked", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: false, scanning: false, analysis: false, exploitation: false, logs: false });
+
+    // Progress/phase/error always reset
+    expect(state.progress).toBe(0);
+    expect(state.phase).toBe("idle");
+
+    // But all data preserved
+    expect(state.assets.length).toBe(2);
+    expect(state.stats.vulnsFound).toBe(7);
+    expect(state.stats.exploitsAttempted).toBe(3);
+    expect(state.log.length).toBe(3);
+    expect(state.feedbackLoop).toBeDefined();
+  });
+
+  it("should reset everything when all scopes are checked (same as full reset)", () => {
+    const state = makeDirtyOpsState(1);
+    applySelectiveReset(state, { recon: true, scanning: true, analysis: true, exploitation: true, logs: true });
+
+    expect(state.stats).toEqual(makeDefaultStats());
+    expect(state.assets).toEqual([]);
+    expect(state.log).toEqual([]);
+    expect(state.approvalGates).toEqual([]);
+    expect(state.activeScanPlan).toBeUndefined();
+    expect(state.feedbackLoop).toBeUndefined();
+    expect(state.severityEscalation).toBeUndefined();
+    expect(state.crossToolPipeline).toBeUndefined();
+  });
+
+  it("should strip LLM-synthesized vulns from assets when analysis is reset but recon is kept", () => {
+    const state = makeDirtyOpsState(1);
+    // Add an LLM-synthesized vuln to an asset
+    state.assets[0].vulns.push({ id: 'v2', tool: 'llm-synthesis' } as any);
+    expect(state.assets[0].vulns.length).toBe(2);
+
+    applySelectiveReset(state, { recon: false, scanning: false, analysis: true, exploitation: false, logs: false });
+
+    // Assets preserved but LLM vulns stripped
+    expect(state.assets.length).toBe(2);
+    expect(state.assets[0].vulns.length).toBe(1);
+    expect(state.assets[0].vulns[0].tool).toBe('nuclei');
   });
 
   it("should handle already-clean state without errors", () => {

@@ -1617,6 +1617,13 @@ export const engagementOpsRouter = router({
         }).default({}),
         resetState: z.boolean().default(false),
         exhaustiveExploit: z.boolean().optional().default(true),
+        resetScope: z.object({
+          recon: z.boolean().default(true),          // Passive recon: assets, domain intel, OSINT
+          scanning: z.boolean().default(true),       // Active scanning: scan results, ZAP, Nuclei, Burp
+          analysis: z.boolean().default(true),       // LLM analysis: findings, vuln snapshots, decision log
+          exploitation: z.boolean().default(true),   // Exploits: attempts, plans, chains
+          logs: z.boolean().default(true),            // Timeline events, ops log, approval gates
+        }).default({}),
       }))
       .mutation(async ({ input, ctx }) => {
         const {
@@ -1635,59 +1642,131 @@ export const engagementOpsRouter = router({
           throw new TRPCError({ code: 'CONFLICT', message: 'Pipeline is already running. Reset or wait for completion.' });
         }
 
-        // ═══ RESET ALL STATS on re-run ═══
-        // Reset in-memory ops state counters, assets, logs, and completed scan trackers
-        state.stats = {
-          hostsScanned: 0, portsFound: 0, vulnsFound: 0,
-          exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
-          zapScansRun: 0, wafDetections: 0,
-        };
-        state.assets = [];
-        state.log = [];
-        state.approvalGates = [];
+        // ═══ SELECTIVE RESET based on resetScope ═══
+        const rs = input.resetScope;
+        const resetAll = rs.recon && rs.scanning && rs.analysis && rs.exploitation && rs.logs;
+
+        // Always reset progress/phase/error for a fresh run
         state.progress = 0;
         state.phase = 'idle';
         state.error = undefined;
-        state.skippedDomains = new Set();
-        state.completedScans = {
-          nucleiCompleted: new Set(),
-          zapCompleted: new Set(),
-          hydraCompleted: new Set(),
-          exploitCompleted: new Set(),
-          lastCheckpointAt: Date.now(),
-        };
-        // Clear any cached scan plan, feedback loop, and escalation state
-        (state as any).activeScanPlan = undefined;
-        (state as any).feedbackLoop = undefined;
-        (state as any).severityEscalation = undefined;
-        (state as any).crossToolPipeline = undefined;
 
-        // Clear engagement-specific DB tables so dashboard counts reset to 0
+        // ── Recon scope: assets, domain intel, host/port stats ──
+        if (rs.recon) {
+          state.assets = [];
+          state.skippedDomains = new Set();
+          state.stats.hostsScanned = 0;
+          state.stats.portsFound = 0;
+          state.stats.wafDetections = 0;
+        }
+
+        // ── Scanning scope: scan results, ZAP/Nuclei/Burp trackers, vuln count ──
+        if (rs.scanning) {
+          state.stats.vulnsFound = 0;
+          state.stats.zapScansRun = 0;
+          state.completedScans = {
+            nucleiCompleted: new Set(),
+            zapCompleted: new Set(),
+            hydraCompleted: new Set(),
+            exploitCompleted: rs.exploitation ? new Set() : state.completedScans?.exploitCompleted || new Set(),
+            lastCheckpointAt: Date.now(),
+          };
+          (state as any).activeScanPlan = undefined;
+          (state as any).crossToolPipeline = undefined;
+        }
+
+        // ── Analysis scope: LLM findings, vuln snapshots, feedback loop ──
+        if (rs.analysis) {
+          (state as any).feedbackLoop = undefined;
+          (state as any).severityEscalation = undefined;
+          // Clear LLM-synthesized vulns from assets (if assets are kept)
+          if (!rs.recon && Array.isArray(state.assets)) {
+            for (const asset of state.assets) {
+              if (Array.isArray(asset.vulns)) {
+                asset.vulns = asset.vulns.filter((v: any) => v.tool !== 'llm-synthesis');
+              }
+            }
+          }
+        }
+
+        // ── Exploitation scope: exploit attempts, plans, sessions ──
+        if (rs.exploitation) {
+          state.stats.exploitsAttempted = 0;
+          state.stats.exploitsSucceeded = 0;
+          state.stats.sessionsOpened = 0;
+          if (state.completedScans) {
+            state.completedScans.exploitCompleted = new Set();
+          }
+        }
+
+        // ── Logs scope: timeline, ops log, approval gates ──
+        if (rs.logs) {
+          state.log = [];
+          state.approvalGates = [];
+        }
+
+        // If ALL scopes are reset, also zero out any remaining stats for safety
+        if (resetAll) {
+          state.stats = {
+            hostsScanned: 0, portsFound: 0, vulnsFound: 0,
+            exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0,
+            zapScansRun: 0, wafDetections: 0,
+          };
+        }
+
+        // ── Clear corresponding DB tables based on resetScope ──
         const dbConn = await db.getDb();
         if (dbConn) {
           const eid = input.engagementId;
           const cleared: Record<string, number> = {};
-          const tablesToClear = [
-            { name: 'opsSnapshots', table: schema.engagementOpsSnapshots, col: schema.engagementOpsSnapshots.engagementId },
-            { name: 'scanResults', table: schema.scanResults, col: schema.scanResults.engagementId },
-            { name: 'timelineEvents', table: schema.engagementTimelineEvents, col: schema.engagementTimelineEvents.engagementId },
-            { name: 'testPlans', table: schema.testPlans, col: schema.testPlans.engagementId },
-            { name: 'engagementFindings', table: schema.engagementFindings, col: schema.engagementFindings.engagementId },
-            { name: 'exploitPlanHistory', table: schema.exploitPlanHistory, col: schema.exploitPlanHistory.engagementId },
-            { name: 'exploitationAttempts', table: schema.exploitationAttempts, col: schema.exploitationAttempts.engagementId },
-            { name: 'webAppScans', table: schema.webAppScans, col: schema.webAppScans.engagementId },
-            { name: 'webAppFindings', table: schema.webAppFindings, col: schema.webAppFindings.engagementId },
-            { name: 'llmDecisionLog', table: schema.llmDecisionLog, col: schema.llmDecisionLog.engagementId },
-            { name: 'vulnScanSnapshots', table: schema.vulnScanSnapshots, col: schema.vulnScanSnapshots.engagementId },
-            { name: 'burpScanHistory', table: schema.burpScanHistory, col: schema.burpScanHistory.engagementId },
-          ];
-          for (const { name, table, col } of tablesToClear) {
+
+          // Build table list based on which scopes are being reset
+          const tablesToClear: Array<{ name: string; table: any; col: any }> = [];
+
+          // Always clear ops snapshot (it will be re-persisted with the new state)
+          tablesToClear.push({ name: 'opsSnapshots', table: schema.engagementOpsSnapshots, col: schema.engagementOpsSnapshots.engagementId });
+
+          if (rs.recon) {
+            // Recon data lives in scanResults (passive scans)
+            tablesToClear.push({ name: 'scanResults', table: schema.scanResults, col: schema.scanResults.engagementId });
+          }
+          if (rs.scanning) {
+            // Active scan results
+            if (!rs.recon) tablesToClear.push({ name: 'scanResults', table: schema.scanResults, col: schema.scanResults.engagementId });
+            tablesToClear.push({ name: 'webAppScans', table: schema.webAppScans, col: schema.webAppScans.engagementId });
+            tablesToClear.push({ name: 'webAppFindings', table: schema.webAppFindings, col: schema.webAppFindings.engagementId });
+            tablesToClear.push({ name: 'burpScanHistory', table: schema.burpScanHistory, col: schema.burpScanHistory.engagementId });
+            tablesToClear.push({ name: 'testPlans', table: schema.testPlans, col: schema.testPlans.engagementId });
+          }
+          if (rs.analysis) {
+            tablesToClear.push({ name: 'engagementFindings', table: schema.engagementFindings, col: schema.engagementFindings.engagementId });
+            tablesToClear.push({ name: 'llmDecisionLog', table: schema.llmDecisionLog, col: schema.llmDecisionLog.engagementId });
+            tablesToClear.push({ name: 'vulnScanSnapshots', table: schema.vulnScanSnapshots, col: schema.vulnScanSnapshots.engagementId });
+          }
+          if (rs.exploitation) {
+            tablesToClear.push({ name: 'exploitPlanHistory', table: schema.exploitPlanHistory, col: schema.exploitPlanHistory.engagementId });
+            tablesToClear.push({ name: 'exploitationAttempts', table: schema.exploitationAttempts, col: schema.exploitationAttempts.engagementId });
+          }
+          if (rs.logs) {
+            tablesToClear.push({ name: 'timelineEvents', table: schema.engagementTimelineEvents, col: schema.engagementTimelineEvents.engagementId });
+          }
+
+          // Deduplicate table names (scanResults might be added twice)
+          const seen = new Set<string>();
+          const dedupedTables = tablesToClear.filter(t => {
+            if (seen.has(t.name)) return false;
+            seen.add(t.name);
+            return true;
+          });
+
+          for (const { name, table, col } of dedupedTables) {
             try {
               const r = await dbConn.delete(table).where(eq(col, eid));
               cleared[name] = (r as any)[0]?.affectedRows ?? 0;
             } catch { cleared[name] = 0; }
           }
-          console.log(`[RerunPipeline] Cleared DB stats for engagement #${eid}:`, JSON.stringify(cleared));
+          const resetScopes = Object.entries(rs).filter(([,v]) => v).map(([k]) => k).join(', ');
+          console.log(`[RerunPipeline] Selective reset (${resetScopes}) for engagement #${eid}:`, JSON.stringify(cleared));
         }
 
         // Set exhaustive exploitation mode

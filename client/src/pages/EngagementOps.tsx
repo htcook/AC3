@@ -1014,6 +1014,9 @@ export default function EngagementOps() {
   // ── Full Pipeline Re-Run ──
   const [showRerunDialog, setShowRerunDialog] = useState(false);
   const [rerunPhases, setRerunPhases] = useState({ passive: true, active: true, llmAnalysis: true, exploitGeneration: true });
+  const [resetScope, setResetScope] = useState({ recon: true, scanning: true, analysis: true, exploitation: true, logs: true });
+  const allResetChecked = Object.values(resetScope).every(Boolean);
+  const noneResetChecked = Object.values(resetScope).every(v => !v);
   const rerunMut = trpc.engagementOps.rerunFullPipeline.useMutation({
     onSuccess: (data) => {
       toast.success(`Full pipeline re-run started for engagement #${data.engagementId}`);
@@ -5072,7 +5075,7 @@ export default function EngagementOps() {
               Re-Run Full Pipeline
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will reset the engagement state and re-execute all selected phases. Existing findings will be preserved in history.
+              Select which phases to run and which data to reset. Uncheck data categories to preserve them across the re-run.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2">
@@ -5103,6 +5106,53 @@ export default function EngagementOps() {
               ))}
             </div>
           </div>
+          {/* ── Data Reset Scope ── */}
+          <div className="space-y-3 py-2 border-t border-border/50">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium flex items-center gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                  Data Reset Scope
+                </h4>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => {
+                    const newVal = !allResetChecked;
+                    setResetScope({ recon: newVal, scanning: newVal, analysis: newVal, exploitation: newVal, logs: newVal });
+                  }}
+                >
+                  {allResetChecked ? 'Uncheck all' : 'Check all'}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Uncheck categories to preserve their data across the re-run.</p>
+              {[
+                { key: 'recon' as const, label: 'Reconnaissance', desc: 'Assets, domain intel, host/port data, OSINT', icon: <Search className="h-3.5 w-3.5" /> },
+                { key: 'scanning' as const, label: 'Scan Results', desc: 'ZAP, Nuclei, Burp, web app scans, test plans', icon: <Scan className="h-3.5 w-3.5" /> },
+                { key: 'analysis' as const, label: 'LLM Analysis', desc: 'Findings, vuln snapshots, decision log, feedback loop', icon: <Brain className="h-3.5 w-3.5" /> },
+                { key: 'exploitation' as const, label: 'Exploitation', desc: 'Exploit attempts, plans, sessions, chains', icon: <Skull className="h-3.5 w-3.5" /> },
+                { key: 'logs' as const, label: 'Timeline & Logs', desc: 'Timeline events, ops log, approval gates', icon: <Activity className="h-3.5 w-3.5" /> },
+              ].map(scope => (
+                <label key={scope.key} className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${
+                  resetScope[scope.key] ? 'bg-amber-500/5 border-amber-500/20' : 'border-transparent hover:bg-muted/30'
+                }`}>
+                  <Checkbox
+                    checked={resetScope[scope.key]}
+                    onCheckedChange={(c) => setResetScope(prev => ({ ...prev, [scope.key]: !!c }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400">{scope.icon}</span>
+                      <span className="text-sm font-medium">{scope.label}</span>
+                      {!resetScope[scope.key] && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-green-500/30 text-green-400">Preserved</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{scope.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -5110,11 +5160,12 @@ export default function EngagementOps() {
               onClick={() => rerunMut.mutate({
                 engagementId,
                 phases: rerunPhases,
+                resetScope,
               })}
               disabled={rerunMut.isPending || !Object.values(rerunPhases).some(Boolean)}
             >
               {rerunMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-              Start Re-Run
+              {allResetChecked ? 'Full Reset & Re-Run' : noneResetChecked ? 'Re-Run (Keep All Data)' : 'Partial Reset & Re-Run'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
