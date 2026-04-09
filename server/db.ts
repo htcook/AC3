@@ -3877,3 +3877,60 @@ export async function getTimelineEvents(engagementId: number, limit = 50) {
     .orderBy(desc(engagementTimelineEvents.timestamp))
     .limit(limit);
 }
+
+
+/**
+ * Create a bug bounty finding from automated scanners (Burp Suite, ZAP, etc.).
+ * Maps scanner output fields to the bugBountyFindings table columns.
+ * Fields not in the schema (userId, state, metadata) are mapped to
+ * the closest available columns (reporterUsername, substate, summary appendix).
+ */
+export async function createBugBountyFinding(params: {
+  title: string;
+  severityRating: string;
+  summary: string;
+  assetIdentifier: string;
+  assetType: string;
+  cweId: string | null;
+  platform: string;
+  programHandle: string;
+  state?: string;
+  userId?: string;
+  metadata?: Record<string, any>;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const { bugBountyFindings } = await import("../drizzle/schema");
+
+  // Append metadata to summary if present (table has no metadata column)
+  let fullSummary = params.summary || "";
+  if (params.metadata) {
+    const metaLines: string[] = [];
+    if (params.metadata.burpIssueType) metaLines.push(`Burp Issue Type: ${params.metadata.burpIssueType}`);
+    if (params.metadata.confidence) metaLines.push(`Confidence: ${params.metadata.confidence}`);
+    if (params.metadata.path) metaLines.push(`Path: ${params.metadata.path}`);
+    if (params.metadata.source) metaLines.push(`Source: ${params.metadata.source}`);
+    if (params.metadata.remediation) metaLines.push(`Remediation: ${params.metadata.remediation}`);
+    if (params.metadata.issueBackground) metaLines.push(`Background: ${params.metadata.issueBackground}`);
+    if (metaLines.length > 0) {
+      fullSummary += `\n\n--- Scanner Metadata ---\n${metaLines.join("\n")}`;
+    }
+  }
+
+  const result = await db.insert(bugBountyFindings).values({
+    title: params.title.substring(0, 1024),
+    severityRating: params.severityRating || "low",
+    platform: params.platform || "manual",
+    programHandle: params.programHandle || null,
+    assetIdentifier: params.assetIdentifier || null,
+    assetType: params.assetType || null,
+    cweId: params.cweId || null,
+    summary: fullSummary || null,
+    substate: params.state || "new",
+    reporterUsername: params.userId ? `auto:${params.userId}` : "auto:scanner",
+    externalId: `burp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+  });
+
+  return (result as any)[0]?.insertId || 0;
+}

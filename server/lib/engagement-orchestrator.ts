@@ -6521,6 +6521,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         }
 
         state.stats.zapScansRun++;
+        broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: { ...state.stats } });
 
         // Poll for scan completion — training labs get 45 minutes (focused fast playbook needs ~15-20 min
         // but we allow extra buffer for proxy latency and large site trees)
