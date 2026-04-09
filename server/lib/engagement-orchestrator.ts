@@ -5306,6 +5306,25 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
   }
 
+  // ── Register Burp completion callback for post-scan workflows ──
+  try {
+    const { onBurpScanComplete } = await import("./burp-auto-scan");
+    onBurpScanComplete(async (burpConfig, burpState) => {
+      if (burpConfig.engagementId !== state.engagementId) return;
+      console.log(`[EngagementOps] Burp scan ${burpState.scanId} completed for engagement #${state.engagementId}: ${burpState.issueCount} issues, ${burpState.importedCount} imported`);
+      addLog(state, {
+        phase: "vuln_detection", type: "scan_result",
+        title: `\u2705 Burp Scan Complete: ${burpState.importedCount} findings imported`,
+        detail: `Scan ${burpState.scanId} finished in ${Math.round(((burpState.completedAt || Date.now()) - burpState.startedAt) / 1000)}s. ` +
+          `${burpState.issueCount} issues found, ${burpState.importedCount} imported as findings. ` +
+          `Severity escalation and exploit matching ran automatically.`,
+        data: { scanId: burpState.scanId, issueCount: burpState.issueCount, importedCount: burpState.importedCount },
+      });
+    });
+  } catch (cbErr: any) {
+    console.warn(`[EngagementOps] Failed to register Burp completion callback: ${cbErr.message}`);
+  }
+
   // ── Burp Suite Auto-Scan (if credentials connected) ──
   try {
     const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan");

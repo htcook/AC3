@@ -531,6 +531,57 @@ async function launchAndPoll(
       } catch (e: any) {
         console.warn(`[BurpAutoScan] Exploit matching failed: ${e.message}`);
       }
+
+      // ─── Step 6: Trigger severity escalation (cross-tool confirmation) ───
+      try {
+        const { runSeverityEscalation } = await import("./zap-burp-pipeline");
+        const escalation = await runSeverityEscalation(config.engagementId);
+        if (escalation.escalatedCount > 0 || escalation.priorityFlaggedCount > 0) {
+          console.log(
+            `[BurpAutoScan] Severity escalation: ${escalation.escalatedCount} escalated, ${escalation.priorityFlaggedCount} flagged for priority exploitation`
+          );
+          const db = await import("../db");
+          await db.addTimelineEvent({
+            engagementId: config.engagementId,
+            eventType: "finding_discovered",
+            title: `Cross-Tool Severity Escalation: ${escalation.escalatedCount} findings promoted`,
+            description: [
+              `${escalation.totalEvaluated} findings evaluated after Burp scan completion.`,
+              `${escalation.escalatedCount} severity escalations (cross-tool confirmed).`,
+              `${escalation.priorityFlaggedCount} flagged for priority exploitation.`,
+              Object.entries(escalation.severityBreakdown)
+                .map(([sev, count]) => `${sev}: ${count}`)
+                .join(", "),
+            ].filter(Boolean).join(" "),
+            severity: escalation.escalatedCount > 0 ? "high" : "info",
+            metadata: {
+              source: "burp_completion_escalation",
+              totalEvaluated: escalation.totalEvaluated,
+              escalatedCount: escalation.escalatedCount,
+              priorityFlaggedCount: escalation.priorityFlaggedCount,
+              severityBreakdown: escalation.severityBreakdown,
+              topResults: escalation.results.slice(0, 10).map(r => ({
+                finding: r.findingId,
+                from: r.originalSeverity,
+                to: r.escalatedSeverity,
+                url: r.url,
+              })),
+            },
+            sourceModule: "burp-auto-scan:severity-escalation",
+          });
+        } else {
+          console.log(`[BurpAutoScan] Severity escalation: no findings to escalate (${escalation.totalEvaluated} evaluated)`);
+        }
+      } catch (e: any) {
+        console.warn(`[BurpAutoScan] Severity escalation failed: ${e.message}`);
+      }
+
+      // ─── Step 7: Notify completion callback listeners ───
+      try {
+        await notifyBurpScanComplete(config, state);
+      } catch (e: any) {
+        console.warn(`[BurpAutoScan] Completion callback failed: ${e.message}`);
+      }
     } catch (err: any) {
       state.status = "failed";
       state.error = `Failed to import findings: ${err.message}`;
@@ -857,5 +908,47 @@ export async function getBurpAutoScanStatsWithHistory(): Promise<{
     };
   } catch {
     return { ...memStats, totalScans: memStats.active + memStats.completed + memStats.failed };
+  }
+}
+
+// ─── Burp Scan Completion Callback System ───
+
+export type BurpScanCompleteCallback = (
+  config: BurpAutoScanConfig,
+  state: BurpAutoScanState
+) => Promise<void>;
+
+/** Registry of completion callbacks */
+const completionCallbacks: BurpScanCompleteCallback[] = [];
+
+/**
+ * Register a callback to be invoked when any Burp scan completes.
+ * Used by the engagement orchestrator to trigger post-scan workflows
+ * (e.g., deferred ZAP→Burp re-feed, severity escalation, report generation).
+ */
+export function onBurpScanComplete(callback: BurpScanCompleteCallback): void {
+  completionCallbacks.push(callback);
+}
+
+/**
+ * Notify all registered callbacks that a Burp scan has completed.
+ * Called internally after findings import + exploit matching + severity escalation.
+ */
+async function notifyBurpScanComplete(
+  config: BurpAutoScanConfig,
+  state: BurpAutoScanState
+): Promise<void> {
+  if (completionCallbacks.length === 0) return;
+
+  console.log(
+    `[BurpAutoScan] Notifying ${completionCallbacks.length} completion callback(s) for scan ${state.scanId}`
+  );
+
+  for (const callback of completionCallbacks) {
+    try {
+      await callback(config, state);
+    } catch (e: any) {
+      console.warn(`[BurpAutoScan] Completion callback error: ${e.message}`);
+    }
   }
 }

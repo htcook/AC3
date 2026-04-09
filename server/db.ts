@@ -3817,3 +3817,63 @@ export async function getDbBurpScanStats() {
     totalImported: imported?.sum || 0,
   };
 }
+
+
+// ─── Engagement Timeline Events ─────────────────────────────────────────────
+
+/**
+ * Add a timeline event to an engagement.
+ * Used by burp-auto-scan, zap-burp-pipeline, and other modules that need
+ * to log structured events to the engagement timeline.
+ */
+export async function addTimelineEvent(params: {
+  engagementId: number;
+  eventType: 'phase_started' | 'phase_completed' | 'finding_discovered' | 'exploit_attempted' |
+    'exploit_succeeded' | 'shell_obtained' | 'credential_found' | 'pivot_established' |
+    'data_collected' | 'data_exfiltrated' | 'opsec_alert' | 'note_added' |
+    'handoff_triggered' | 'objective_completed' | 'tool_executed' | 'scan_completed';
+  title: string;
+  description?: string;
+  metadata?: Record<string, any>;
+  severity?: 'info' | 'low' | 'medium' | 'high' | 'critical';
+  phase?: string;
+  sourceModule?: string;
+  sourceId?: string;
+  targetHost?: string;
+  targetPort?: number;
+  attackTechnique?: string;
+  userId?: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const { engagementTimelineEvents } = await import("../drizzle/schema");
+  const result = await db.insert(engagementTimelineEvents).values({
+    engagementId: params.engagementId,
+    phase: params.phase || "vulnerability_analysis",
+    eventType: params.eventType,
+    severity: params.severity || "info",
+    title: params.title,
+    description: params.description,
+    metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+    sourceModule: params.sourceModule || "burp-auto-scan",
+    timestamp: Date.now(),
+  });
+
+  return (result as any)[0]?.insertId || 0;
+}
+
+/**
+ * Get recent timeline events for an engagement.
+ */
+export async function getTimelineEvents(engagementId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const { engagementTimelineEvents } = await import("../drizzle/schema");
+  const { eq, desc } = await import("drizzle-orm");
+  return db.select().from(engagementTimelineEvents)
+    .where(eq(engagementTimelineEvents.engagementId, engagementId))
+    .orderBy(desc(engagementTimelineEvents.timestamp))
+    .limit(limit);
+}
