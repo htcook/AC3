@@ -107,6 +107,7 @@ const TrainingLab = lazyWithRetry(() => import("./pages/TrainingLab"));
 const CampaignArchetypes = lazyWithRetry(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazyWithRetry(() => import("./pages/ExploitArsenal"));
 const ExploitKnowledge = lazyWithRetry(() => import("./pages/ExploitKnowledge"));
+const ExploitGuardrails = lazyWithRetry(() => import("./pages/ExploitGuardrails"));
 const CustomExploitRepository = lazyWithRetry(() => import("./pages/CustomExploitRepository"));
 const MsfServers = lazyWithRetry(() => import("./pages/MsfServers"));
 const SshKeyManager = lazyWithRetry(() => import("./pages/SshKeyManager"));
@@ -638,6 +639,9 @@ function Router() {
         </Route>
         <Route path="/exploit-catalog">
           <ProtectedRoute component={ExploitArsenal} />
+        </Route>
+        <Route path="/exploit-guardrails">
+          <ProtectedRoute component={ExploitGuardrails} />
         </Route>
         <Route path="/custom-exploits">
           <ProtectedRoute component={CustomExploitRepository} />

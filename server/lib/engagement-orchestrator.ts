@@ -7679,10 +7679,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     // ── KEV enrichment: match discovered CVEs against CISA KEV catalog ──
     let kevContext = '';
     const discoveredCves = allVulns.map(v => v.cve).filter(Boolean) as string[];
+    let kevMatches: any[] = [];
     if (discoveredCves.length > 0) {
       try {
         const kevCatalog = await fetchKevCatalog();
-        const kevMatches = matchCvesAgainstKev(discoveredCves, kevCatalog);
+        kevMatches = matchCvesAgainstKev(discoveredCves, kevCatalog);
         if (kevMatches.length > 0) {
           const kevBoost = calculateKevRiskBoost(kevMatches);
           kevContext = `\n\n⚠️ CISA KNOWN EXPLOITED VULNERABILITIES (KEV) ALERT:\nThe following ${kevMatches.length} CVEs found in this engagement are on the CISA KEV catalog — these are ACTIVELY EXPLOITED in the wild:\n${kevMatches.map(m => `- ${m.cveID}: ${m.vulnerabilityName} (${m.vendorProject} ${m.product})${m.knownRansomware ? ' [KNOWN RANSOMWARE VECTOR]' : ''} — Required action: ${m.requiredAction}`).join('\n')}\n${kevBoost.ransomwareExposure ? '\n🔴 RANSOMWARE EXPOSURE: Some KEV entries are linked to active ransomware campaigns. Prioritize these for immediate exploitation testing.' : ''}\nYou MUST prioritize KEV-listed vulnerabilities in your exploitation strategy. These represent confirmed real-world attack vectors with the highest likelihood of success.`;
@@ -7690,6 +7691,105 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         }
       } catch (e: any) {
         console.error('[KEV] Failed to enrich correlation:', e.message);
+      }
+
+      // ── Shodan-KEV Cross-Validation: confirm KEV matches against Shodan observations ──
+      try {
+        const { verifyCvesWithShodanData, createShodanPostureFindings, enrichAssetsWithShodanData, extractShodanVersionEvidence } = await import('./shodan-verifier');
+        // Reconstruct Shodan observations from asset passiveRecon data
+        const shodanObservations: any[] = [];
+        for (const asset of state.assets) {
+          if (!asset.passiveRecon) continue;
+          for (const svc of asset.passiveRecon.services) {
+            if (svc.source !== 'shodan') continue;
+            shodanObservations.push({
+              source: 'shodan',
+              assetType: 'ip',
+              ip: asset.ip || '',
+              name: asset.hostname,
+              evidence: {
+                port: svc.port,
+                product: svc.product || '',
+                version: svc.version || '',
+                transport: svc.protocol || 'tcp',
+                service: svc.service || '',
+              },
+            });
+          }
+        }
+
+        if (shodanObservations.length > 0) {
+          // Extract version evidence for logging
+          const versionEvidence = extractShodanVersionEvidence(shodanObservations);
+          const shodanCveSet = new Set<string>();
+          for (const ev of versionEvidence) {
+            for (const cve of ev.vulns) shodanCveSet.add(cve);
+          }
+
+          // Cross-validate discovered CVEs against Shodan data
+          const kevCveSet = new Set(kevMatches?.map((m: any) => m.cveID) || []);
+          let shodanConfirmedKev = 0;
+          let shodanUnconfirmedKev = 0;
+
+          for (const cve of discoveredCves) {
+            if (kevCveSet.has(cve)) {
+              if (shodanCveSet.has(cve)) {
+                shodanConfirmedKev++;
+              } else {
+                shodanUnconfirmedKev++;
+              }
+            }
+          }
+
+          if (shodanConfirmedKev > 0 || shodanUnconfirmedKev > 0) {
+            const confirmRate = shodanConfirmedKev + shodanUnconfirmedKev > 0
+              ? Math.round((shodanConfirmedKev / (shodanConfirmedKev + shodanUnconfirmedKev)) * 100)
+              : 0;
+            kevContext += `\n\n🔍 SHODAN KEV CROSS-VALIDATION:\n` +
+              `${shodanConfirmedKev} KEV CVEs CONFIRMED by Shodan banner data (version/product match).\n` +
+              `${shodanUnconfirmedKev} KEV CVEs UNCONFIRMED (no Shodan version evidence — may still be valid).\n` +
+              `Confirmation rate: ${confirmRate}%. Prioritize CONFIRMED matches for exploitation.`;
+            addLog(state, {
+              phase: 'vuln_detection', type: 'finding',
+              title: `🔍 Shodan KEV Cross-Validation: ${shodanConfirmedKev} confirmed, ${shodanUnconfirmedKev} unconfirmed`,
+              detail: `Shodan banner data confirms ${shodanConfirmedKev}/${shodanConfirmedKev + shodanUnconfirmedKev} KEV matches. ${versionEvidence.length} service banners analyzed.`,
+            });
+          }
+
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: `🛰️ Shodan Enrichment: ${versionEvidence.length} service banners analyzed`,
+            detail: `Extracted version evidence from ${shodanObservations.length} Shodan observations across ${state.assets.filter(a => a.passiveRecon?.sources?.includes('shodan')).length} assets.`,
+          });
+        }
+      } catch (shodanKevErr: any) {
+        console.error('[ShodanKEV] Cross-validation failed:', shodanKevErr.message);
+      }
+
+      // ── EPSS Enrichment: fetch exploit prediction scores for discovered CVEs ──
+      let epssContext = '';
+      try {
+        const { fetchEpssScores, batchPrioritizeCves, buildEpssContextForLlm } = await import('./epss-service');
+        const kevCveSet = new Set(kevMatches?.map((m: any) => m.cveID) || []);
+        const prioritized = await batchPrioritizeCves(discoveredCves, kevCveSet);
+
+        if (prioritized.length > 0) {
+          epssContext = buildEpssContextForLlm(prioritized);
+          const criticalCount = prioritized.filter(p => p.priorityTier === 'critical').length;
+          const highCount = prioritized.filter(p => p.priorityTier === 'high').length;
+          const avgEpss = prioritized.reduce((sum, p) => sum + p.epss, 0) / prioritized.length;
+
+          addLog(state, {
+            phase: 'vuln_detection', type: 'finding',
+            title: `📊 EPSS Scoring: ${criticalCount} critical, ${highCount} high priority CVEs`,
+            detail: `EPSS analysis of ${prioritized.length} CVEs: avg probability ${(avgEpss * 100).toFixed(1)}%. ${criticalCount} critical (KEV+EPSS), ${highCount} high priority. Top: ${prioritized.slice(0, 3).map(p => `${p.cve} (${(p.epss * 100).toFixed(1)}%)`).join(', ')}`,
+          });
+
+          // Append EPSS context to KEV context for LLM consumption
+          kevContext += epssContext;
+        }
+      } catch (epssErr: any) {
+        console.error('[EPSS] Enrichment failed:', epssErr.message);
       }
     }
 

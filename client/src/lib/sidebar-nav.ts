@@ -211,6 +211,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "File Transfers", path: "/file-transfers", icon: HardDrive },
       { label: "Session Recordings", path: "/session-recordings", icon: Camera },
       { label: "Data Exfil Simulation", path: "/data-exfil-simulation", icon: Flame },
+      { label: "Exploit Guardrails", path: "/exploit-guardrails", icon: ShieldCheck },
     ],
   },
 
