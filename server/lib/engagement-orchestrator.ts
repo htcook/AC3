@@ -68,6 +68,7 @@ import {
 } from "./ws-event-hub";
 import { onShellObtained } from "./post-exploit-auto-trigger";
 import { captureDecision, captureExploitOutcome, updateDecisionOutcome } from "./engagement-training-bridge";
+import { lookupCVEProduct, ensureKEVLoaded } from "./cisa-kev-product-map";
 import { emitLLMDecision, emitLLMDelegation, emitLLMEngagementProgress } from "./ws-event-hub";
 import {
   acquireScanSlot,
@@ -8422,7 +8423,16 @@ ${(() => {
     const matchedAsset = state.assets.find(ast => ast.hostname === p.target || ast.ip === p.target);
     const resolvedPort = p.port || matchedAsset?.ports?.[0]?.port || 443;
     const isKev = matchedAsset?.vulns.some(v => v.cve === p.cve && (v as any).kevListed);
-    const kevBadge = isKev ? ' ⚠️ [CISA KEV]' : '';
+    let kevBadge = isKev ? ' ⚠️ [CISA KEV]' : '';
+    // Check for ransomware linkage via CISA KEV product map
+    if (p.cve) {
+      const cveInfo = lookupCVEProduct(p.cve);
+      if (cveInfo.ransomwareLinked) {
+        kevBadge = ' 🔴 [RANSOMWARE VECTOR]';
+      } else if (cveInfo.source !== 'not_found' && !isKev) {
+        kevBadge = ' ⚠️ [CISA KEV]';
+      }
+    }
     return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}`;
   }).join("\n");
 
@@ -8505,6 +8515,27 @@ ${(() => {
     });
   }
 
+  // ── Ransomware exposure summary for the approved exploit plan ──
+  try {
+    await ensureKEVLoaded();
+    const ransomwareCves = exploitActions
+      .map((a: any) => a.params?.cve)
+      .filter(Boolean)
+      .filter((cve: string) => lookupCVEProduct(cve).ransomwareLinked);
+    if (ransomwareCves.length > 0) {
+      addLog(state, {
+        phase: "exploitation",
+        type: "finding",
+        title: `🔴 ${ransomwareCves.length} Ransomware-Linked CVE${ransomwareCves.length !== 1 ? 's' : ''} in Exploit Plan`,
+        detail: `The following CVEs in this exploit plan are linked to known ransomware campaigns: ${ransomwareCves.join(', ')}. These findings represent critical risk and should be prioritized in the final report for executive stakeholders.`,
+        riskTier: "red",
+        data: { ransomwareCves, count: ransomwareCves.length },
+      });
+    }
+  } catch (e: any) {
+    console.error('[KEV-Ransomware] Failed to generate ransomware summary:', e.message);
+  }
+
   // Log how many exploit targets were already completed on resume
   const exploitAlreadyDone = state.completedScans.exploitCompleted.size;
   if (exploitAlreadyDone > 0) {
@@ -8542,6 +8573,47 @@ ${(() => {
 
       if (asset) asset.status = "exploiting";
       state.stats.exploitsAttempted++;
+
+      // ── Ransomware-linked CVE warning ──
+      if (cve) {
+        try {
+          await ensureKEVLoaded();
+          const cveInfo = lookupCVEProduct(cve);
+          if (cveInfo.ransomwareLinked) {
+            addLog(state, {
+              phase: "exploitation",
+              type: "finding",
+              title: `🔴 RANSOMWARE VECTOR: ${cve}`,
+              detail: `${cve} is linked to known ransomware campaigns (${cveInfo.vendor || 'unknown'} ${cveInfo.product || 'unknown'} — ${cveInfo.family}). Successful exploitation of this CVE has been observed in active ransomware operations. This finding should be escalated to executive stakeholders immediately.`,
+              riskTier: "red",
+              data: {
+                cve,
+                family: cveInfo.family,
+                vendor: cveInfo.vendor,
+                product: cveInfo.product,
+                ransomwareLinked: true,
+                source: cveInfo.source,
+              },
+            });
+          } else if (cveInfo.source !== 'not_found') {
+            addLog(state, {
+              phase: "exploitation",
+              type: "info",
+              title: `📋 CISA KEV: ${cve}`,
+              detail: `${cve} is on the CISA Known Exploited Vulnerabilities catalog (${cveInfo.vendor || 'unknown'} ${cveInfo.product || 'unknown'} — ${cveInfo.family}). This CVE is actively exploited in the wild.`,
+              data: {
+                cve,
+                family: cveInfo.family,
+                vendor: cveInfo.vendor,
+                product: cveInfo.product,
+                source: cveInfo.source,
+              },
+            });
+          }
+        } catch (e: any) {
+          console.error(`[KEV-Ransomware] Failed to check ${cve}:`, e.message);
+        }
+      }
 
       addLog(state, {
         phase: "exploitation",

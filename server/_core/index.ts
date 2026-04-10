@@ -969,6 +969,14 @@ async function startServer() {
         console.warn("[BountyIntel] Failed to initialize bounty intel scheduler:", err);
       });
 
+      // Initialize CISA KEV Catalog Refresh (daily at 03:00 UTC)
+      import("../lib/kev-refresh-scheduler").then(({ initKEVRefreshScheduler }) => {
+        initKEVRefreshScheduler();
+        console.log("[KEV] CISA KEV catalog refresh scheduler initialized");
+      }).catch((err) => {
+        console.warn("[KEV] Failed to initialize KEV refresh scheduler:", err);
+      });
+
       // Initialize Exploit Knowledge Store (indexes ExploitDB, MSF modules, GitHub PoCs)
       // This runs in background and doesn't block — data fetches are parallel with timeouts
       import("../lib/exploit-knowledge-store").then(({ initializeExploitKnowledgeStore }) => {
