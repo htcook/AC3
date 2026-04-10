@@ -208,8 +208,8 @@ describe('CVE Product-to-Technology Guardrail', () => {
     expect(productCheck).toBeDefined();
     expect(productCheck!.passed).toBe(false);
     expect(productCheck!.severity).toBe('critical');
-    expect(productCheck!.message).toContain('Rejetto HTTP File Server');
-    expect(productCheck!.message).toContain('does not appear to run this product');
+    expect(productCheck!.message).toContain('rejetto_hfs');
+    expect(productCheck!.message).toContain('no matching technology');
   });
 
   it('should allow CVE-2024-23692 against a target running Rejetto HFS', async () => {
@@ -291,7 +291,7 @@ describe('CVE Product-to-Technology Guardrail', () => {
     const productCheck = result.checks.find(c => c.name === 'cve_product_mismatch');
     expect(productCheck).toBeDefined();
     expect(productCheck!.passed).toBe(false);
-    expect(productCheck!.message).toContain('Apache Log4j');
+    expect(productCheck!.message).toContain('apache_log4j');
   });
 
   it('should allow CVE-2021-44228 against a Java target', async () => {
@@ -398,7 +398,7 @@ describe('CVE Product-to-Technology Guardrail', () => {
     const productCheck = result.checks.find(c => c.name === 'cve_product_mismatch');
     expect(productCheck).toBeDefined();
     expect(productCheck!.passed).toBe(false);
-    expect(productCheck!.message).toContain('Microsoft SMB');
+    expect(productCheck!.message).toContain('microsoft_windows');
   });
 
   it('should allow CVE-2017-0144 against a Windows SMB target', async () => {
@@ -454,6 +454,6 @@ describe('CVE Product-to-Technology Guardrail', () => {
     expect(result.passed).toBe(false);
     expect(result.riskScore).toBeGreaterThanOrEqual(40); // Critical = 40 points
     expect(result.blockedReasons.length).toBeGreaterThan(0);
-    expect(result.blockedReasons.some(r => r.includes('Rejetto'))).toBe(true);
+    expect(result.blockedReasons.some(r => r.includes('rejetto_hfs') || r.includes('Rejetto'))).toBe(true);
   });
 });
