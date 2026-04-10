@@ -284,6 +284,7 @@ const DataExfilSimulation = lazyWithRetry(() => import("./pages/DataExfilSimulat
 const KnowledgeBase = lazyWithRetry(() => import("./pages/KnowledgeBase"));
 const LlmLearning = lazyWithRetry(() => import("./pages/LlmLearning"));
 const LearningDashboard = lazyWithRetry(() => import("./pages/LearningDashboard"));
+const ExploitLearning = lazyWithRetry(() => import("./pages/ExploitLearning"));
 const DastScanners = lazyWithRetry(() => import("./pages/DastScanners"));
 const UnifiedFindings = lazyWithRetry(() => import("./pages/UnifiedFindings"));
 const PacketAnalysis = lazyWithRetry(() => import("./pages/PacketAnalysis"));
@@ -580,6 +581,9 @@ function Router() {
         </Route>
         <Route path="/learning-dashboard">
           <ProtectedRoute component={LearningDashboard} />
+        </Route>
+        <Route path="/exploit-learning">
+          <ProtectedRoute component={ExploitLearning} />
         </Route>
         <Route path="/campaign-execution">
           <ProtectedRoute component={CampaignExecution} />

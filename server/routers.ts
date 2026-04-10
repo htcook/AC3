@@ -162,6 +162,7 @@ import { agentInternalScanningRouter } from "./routers/agent-internal-scanning";
 import { phishingImpactRouter } from "./routers/phishing-impact";
 import { soc2ComplianceRouter } from "./routers/soc2-compliance";
 import { evidenceGalleryRouter } from "./routers/evidence-gallery";
+import { exploitLearningDashboardRouter } from "./routers/exploit-learning-dashboard";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -579,6 +580,8 @@ export const appRouter = router({
   adjustmentEffectiveness: adjustmentEffectivenessRouter,
   // ─── Exploit Knowledge Store (RAG Search, CVE Lookup, Stats) ──────────────
   exploitKnowledge: exploitKnowledgeRouter,
+  // ─── Exploit Learning Dashboard (Patterns, Chains, Weighted Selection, Purge) ──
+  exploitLearningDashboard: exploitLearningDashboardRouter,
 });
 export type AppRouter = typeof appRouter;
 
