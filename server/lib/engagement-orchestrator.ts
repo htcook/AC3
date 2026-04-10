@@ -5390,6 +5390,52 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     console.warn(`[EngagementOps] Failed to register Burp completion callback: ${cbErr.message}`);
   }
 
+  // ── Extract app login for Burp authenticated scanning ──
+  // If training lab mode, extract default creds for the first web asset so Burp can crawl behind login walls
+  let burpAppLogin: { username: string; password: string; loginUrl?: string } | undefined;
+  if (state.trainingLabMode) {
+    const BURP_TRAINING_LAB_CREDS: Record<string, { username: string; password: string; loginPath: string }> = {
+      'dvwa': { username: 'admin', password: 'password', loginPath: '/login.php' },
+      'altoro': { username: 'admin', password: 'admin', loginPath: '/altoromutual/login.jsp' },
+      'juiceshop': { username: 'admin@juice-sh.op', password: 'admin123', loginPath: '/#/login' },
+      'hackazon': { username: 'test_user', password: 'test_user', loginPath: '/user/login' },
+      'testphp': { username: 'test', password: 'test', loginPath: '/login.php' },
+    };
+    for (const asset of state.assets) {
+      const hostname = (asset.hostname || '').toLowerCase();
+      for (const [labKey, creds] of Object.entries(BURP_TRAINING_LAB_CREDS)) {
+        if (hostname.includes(labKey)) {
+          const proto = asset.ports?.some((p: any) => p.port === 443) ? 'https' : 'http';
+          burpAppLogin = {
+            username: creds.username,
+            password: creds.password,
+            loginUrl: `${proto}://${asset.hostname}${creds.loginPath}`,
+          };
+          console.log(`[EngagementOps] Burp appLogin extracted for training lab: ${labKey} → ${burpAppLogin.loginUrl}`);
+          break;
+        }
+      }
+      if (burpAppLogin) break;
+    }
+  }
+  // Also check for confirmed creds on assets (from Hydra)
+  if (!burpAppLogin) {
+    for (const asset of state.assets) {
+      const assetCreds = (asset as any).confirmedCredentials || [];
+      const webCred = assetCreds.find((c: any) => c.protocol === 'http' || c.protocol === 'https');
+      if (webCred) {
+        const proto = asset.ports?.some((p: any) => p.port === 443) ? 'https' : 'http';
+        burpAppLogin = {
+          username: webCred.username,
+          password: webCred.password,
+          loginUrl: webCred.loginPath ? `${proto}://${asset.hostname}${webCred.loginPath}` : undefined,
+        };
+        console.log(`[EngagementOps] Burp appLogin extracted from confirmed creds: ${webCred.username}@${asset.hostname}`);
+        break;
+      }
+    }
+  }
+
   // ── Burp Suite Auto-Scan (if credentials connected) ──
   try {
     const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan");
@@ -5400,7 +5446,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         operatorCtx.id,
         engagement.handle || engagement.name || `eng-${state.engagementId}`,
         scopeUrls,
-        engagement.scanMode || state.scanMode
+        engagement.scanMode || state.scanMode,
+        burpAppLogin,
       );
       if (burpResults.length > 0) {
         addLog(state, {
@@ -5422,6 +5469,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       engagementId: state.engagementId,
       userId: operatorCtx.id,
       engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
+      appLogin: burpAppLogin,
     });
     initialPipelineResult = pipelineResult;
     // Store on state so deferred re-feed can reference it after ZAP completes
@@ -6903,6 +6951,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             engagementHandle: engagement.handle || engagement.name || `eng-${state.engagementId}`,
             completedZapScanId: completedScans[0].id,
             initialPipelineResult: initialResult,
+            appLogin: burpAppLogin,
           });
 
           if (refeedResult) {

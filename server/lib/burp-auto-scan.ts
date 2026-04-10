@@ -236,7 +236,8 @@ export async function onEngagementVulnDetectionPhase(
   userId: string,
   engagementHandle: string,
   scopeUrls: string[],
-  scanMode?: string
+  scanMode?: string,
+  appLogin?: { username: string; password: string; loginUrl?: string },
 ): Promise<BurpAutoScanState[]> {
   const db = await import("../db");
 
@@ -296,6 +297,7 @@ export async function onEngagementVulnDetectionPhase(
           apiKey: cred.apiKey,
         },
         scanMode: (scanMode as any) || "standard",
+        appLogin,
       });
 
       results.push(state);

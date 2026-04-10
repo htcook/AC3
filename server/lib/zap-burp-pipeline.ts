@@ -350,6 +350,8 @@ export async function runZapToBurpPipeline(params: {
   burpCredentialId?: number;
   /** Optional: override target URLs instead of extracting from ZAP */
   targetUrls?: string[];
+  /** Optional: app login for authenticated Burp scanning (from training lab creds or confirmed creds) */
+  appLogin?: { username: string; password: string; loginUrl?: string };
 }): Promise<CrossToolPipelineResult> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -524,6 +526,7 @@ export async function runZapToBurpPipeline(params: {
       },
       scanConfigName,
       scanMode: "active",
+      appLogin: params.appLogin,
     });
 
     console.log(`[ZAP→Burp Pipeline] Burp scan launched: status=${burpScanState.status}, ${uniqueUrls.length} URLs`);
@@ -1036,6 +1039,8 @@ export async function deferredZapBurpRefeed(params: {
   completedZapScanId: number;
   /** The initial pipeline result — used to decide if re-feed is needed */
   initialPipelineResult?: CrossToolPipelineResult;
+  /** Optional: app login for authenticated Burp scanning */
+  appLogin?: { username: string; password: string; loginUrl?: string };
 }): Promise<CrossToolPipelineResult | null> {
   // Only re-feed if the initial run used scope_fallback or had 0 ZAP URLs
   if (
@@ -1069,6 +1074,7 @@ export async function deferredZapBurpRefeed(params: {
     userId: params.userId,
     engagementHandle: params.engagementHandle,
     zapScanId: params.completedZapScanId,
+    appLogin: params.appLogin,
   });
 
   // Log the deferred re-feed to the timeline
