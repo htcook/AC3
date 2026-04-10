@@ -5095,8 +5095,8 @@ export default function EngagementOps() {
 
       {/* ── Re-Run Pipeline Dialog ── */}
       <AlertDialog open={showRerunDialog} onOpenChange={setShowRerunDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-md max-h-[85vh] flex flex-col p-0">
+          <AlertDialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <AlertDialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-cyan-400" />
               Re-Run Full Pipeline
@@ -5105,82 +5105,84 @@ export default function EngagementOps() {
               Select which phases to run and which data to reset. Uncheck data categories to preserve them across the re-run.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Select Phases</h4>
-              {[
-                { key: 'passive' as const, label: 'Passive Reconnaissance', desc: 'OSINT, domain intel, certificate transparency', icon: <Search className="h-4 w-4" /> },
-                { key: 'active' as const, label: 'Active Scanning', desc: 'naabu/Nerva, Nuclei, ZAP, Nikto via scan server', icon: <Target className="h-4 w-4" /> },
-                { key: 'llmAnalysis' as const, label: 'LLM Analysis & Re-Scan', desc: 'AI-driven gap analysis, targeted re-scans', icon: <Brain className="h-4 w-4" /> },
-                { key: 'exploitGeneration' as const, label: 'Exploit Generation', desc: 'LLM-generated exploit plans and functional code', icon: <Skull className="h-4 w-4" /> },
-              ].map(phase => (
-                <label key={phase.key} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
-                  rerunPhases[phase.key] ? 'bg-cyan-500/5 border-cyan-500/20' : 'border-transparent hover:bg-muted/30'
-                }`}>
-                  <Checkbox
-                    checked={rerunPhases[phase.key]}
-                    onCheckedChange={(c) => setRerunPhases(prev => ({ ...prev, [phase.key]: !!c }))}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-cyan-400">{phase.icon}</span>
-                      <span className="text-sm font-medium">{phase.label}</span>
+          <div className="flex-1 overflow-y-auto px-6 min-h-0">
+            <div className="space-y-3 py-2">
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Select Phases</h4>
+                {[
+                  { key: 'passive' as const, label: 'Passive Reconnaissance', desc: 'OSINT, domain intel, certificate transparency', icon: <Search className="h-4 w-4" /> },
+                  { key: 'active' as const, label: 'Active Scanning', desc: 'naabu/Nerva, Nuclei, ZAP, Nikto via scan server', icon: <Target className="h-4 w-4" /> },
+                  { key: 'llmAnalysis' as const, label: 'LLM Analysis & Re-Scan', desc: 'AI-driven gap analysis, targeted re-scans', icon: <Brain className="h-4 w-4" /> },
+                  { key: 'exploitGeneration' as const, label: 'Exploit Generation', desc: 'LLM-generated exploit plans and functional code', icon: <Skull className="h-4 w-4" /> },
+                ].map(phase => (
+                  <label key={phase.key} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+                    rerunPhases[phase.key] ? 'bg-cyan-500/5 border-cyan-500/20' : 'border-transparent hover:bg-muted/30'
+                  }`}>
+                    <Checkbox
+                      checked={rerunPhases[phase.key]}
+                      onCheckedChange={(c) => setRerunPhases(prev => ({ ...prev, [phase.key]: !!c }))}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-cyan-400">{phase.icon}</span>
+                        <span className="text-sm font-medium">{phase.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-          {/* ── Data Reset Scope ── */}
-          <div className="space-y-3 py-2 border-t border-border/50">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium flex items-center gap-1.5">
-                  <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
-                  Data Reset Scope
-                </h4>
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => {
-                    const newVal = !allResetChecked;
-                    setResetScope({ recon: newVal, scanning: newVal, analysis: newVal, exploitation: newVal, logs: newVal });
-                  }}
-                >
-                  {allResetChecked ? 'Uncheck all' : 'Check all'}
-                </button>
+                  </label>
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground">Uncheck categories to preserve their data across the re-run.</p>
-              {[
-                { key: 'recon' as const, label: 'Reconnaissance', desc: 'Assets, domain intel, host/port data, OSINT', icon: <Search className="h-3.5 w-3.5" /> },
-                { key: 'scanning' as const, label: 'Scan Results', desc: 'ZAP, Nuclei, Burp, web app scans, test plans', icon: <Scan className="h-3.5 w-3.5" /> },
-                { key: 'analysis' as const, label: 'LLM Analysis', desc: 'Findings, vuln snapshots, decision log, feedback loop', icon: <Brain className="h-3.5 w-3.5" /> },
-                { key: 'exploitation' as const, label: 'Exploitation', desc: 'Exploit attempts, plans, sessions, chains', icon: <Skull className="h-3.5 w-3.5" /> },
-                { key: 'logs' as const, label: 'Timeline & Logs', desc: 'Timeline events, ops log, approval gates', icon: <Activity className="h-3.5 w-3.5" /> },
-              ].map(scope => (
-                <label key={scope.key} className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${
-                  resetScope[scope.key] ? 'bg-amber-500/5 border-amber-500/20' : 'border-transparent hover:bg-muted/30'
-                }`}>
-                  <Checkbox
-                    checked={resetScope[scope.key]}
-                    onCheckedChange={(c) => setResetScope(prev => ({ ...prev, [scope.key]: !!c }))}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-400">{scope.icon}</span>
-                      <span className="text-sm font-medium">{scope.label}</span>
-                      {!resetScope[scope.key] && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-green-500/30 text-green-400">Preserved</Badge>}
+            </div>
+            {/* ── Data Reset Scope ── */}
+            <div className="space-y-3 py-2 border-t border-border/50">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium flex items-center gap-1.5">
+                    <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                    Data Reset Scope
+                  </h4>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => {
+                      const newVal = !allResetChecked;
+                      setResetScope({ recon: newVal, scanning: newVal, analysis: newVal, exploitation: newVal, logs: newVal });
+                    }}
+                  >
+                    {allResetChecked ? 'Uncheck all' : 'Check all'}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">Uncheck categories to preserve their data across the re-run.</p>
+                {[
+                  { key: 'recon' as const, label: 'Reconnaissance', desc: 'Assets, domain intel, host/port data, OSINT', icon: <Search className="h-3.5 w-3.5" /> },
+                  { key: 'scanning' as const, label: 'Scan Results', desc: 'ZAP, Nuclei, Burp, web app scans, test plans', icon: <Scan className="h-3.5 w-3.5" /> },
+                  { key: 'analysis' as const, label: 'LLM Analysis', desc: 'Findings, vuln snapshots, decision log, feedback loop', icon: <Brain className="h-3.5 w-3.5" /> },
+                  { key: 'exploitation' as const, label: 'Exploitation', desc: 'Exploit attempts, plans, sessions, chains', icon: <Skull className="h-3.5 w-3.5" /> },
+                  { key: 'logs' as const, label: 'Timeline & Logs', desc: 'Timeline events, ops log, approval gates', icon: <Activity className="h-3.5 w-3.5" /> },
+                ].map(scope => (
+                  <label key={scope.key} className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer border transition-all ${
+                    resetScope[scope.key] ? 'bg-amber-500/5 border-amber-500/20' : 'border-transparent hover:bg-muted/30'
+                  }`}>
+                    <Checkbox
+                      checked={resetScope[scope.key]}
+                      onCheckedChange={(c) => setResetScope(prev => ({ ...prev, [scope.key]: !!c }))}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-400">{scope.icon}</span>
+                        <span className="text-sm font-medium">{scope.label}</span>
+                        {!resetScope[scope.key] && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-green-500/30 text-green-400">Preserved</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{scope.desc}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{scope.desc}</p>
-                  </div>
-                </label>
-              ))}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="px-6 pb-6 pt-4 shrink-0 border-t border-border/50">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-cyan-600 to-blue-600"
@@ -5200,8 +5202,8 @@ export default function EngagementOps() {
 
       {/* ── Re-run From Phase Dialog ── */}
       <AlertDialog open={showRerunFromPhaseDialog} onOpenChange={setShowRerunFromPhaseDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-md max-h-[85vh] flex flex-col p-0">
+          <AlertDialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <AlertDialogTitle className="flex items-center gap-2">
               <RotateCcw className="h-5 w-5 text-amber-400" />
               Re-run From Phase
@@ -5210,50 +5212,52 @@ export default function EngagementOps() {
               Restart the pipeline from a specific phase. All data from earlier phases will be preserved; data from the selected phase onward will be cleared and re-generated.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              {[
-                { id: 'recon' as const, label: 'Domain Recon', desc: 'Clears all data and starts fresh from passive OSINT', icon: <Radar className="h-4 w-4" />, preserves: 'Nothing' },
-                { id: 'passive_discovery' as const, label: 'Passive Discovery', desc: 'Re-runs passive enumeration (DNS, certs, tech fingerprinting)', icon: <Search className="h-4 w-4" />, preserves: 'Domain recon data' },
-                { id: 'scoping' as const, label: 'Scoping & RoE Review', desc: 'Re-validates scope and RoE checklist', icon: <FileCheck className="h-4 w-4" />, preserves: 'Recon + passive discovery' },
-                { id: 'test_plan' as const, label: 'Test Plan Generation', desc: 'Re-generates the NIST 800-115 aligned test plan', icon: <FileText className="h-4 w-4" />, preserves: 'Recon + passive + scope' },
-                { id: 'enumeration' as const, label: 'Active Discovery', desc: 'Re-runs port discovery (naabu/Nerva) and service fingerprinting', icon: <Network className="h-4 w-4" />, preserves: 'Recon + passive + scope + plan' },
-                { id: 'vuln_detection' as const, label: 'Vulnerability Scanning', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'All through active discovery' },
-                { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'All through vuln scan' },
-                { id: 'post_exploit' as const, label: 'Post-Exploitation', desc: 'Re-runs post-exploit analysis and reporting prep', icon: <Key className="h-4 w-4" />, preserves: 'All prior phases' },
-              ].map(phase => (
-                <label
-                  key={phase.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
-                    rerunTargetPhase === phase.id
-                      ? 'bg-amber-500/10 border-amber-500/30 ring-1 ring-amber-500/20'
-                      : 'border-transparent hover:bg-muted/30'
-                  }`}
-                  onClick={() => setRerunTargetPhase(phase.id)}
-                >
-                  <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                    rerunTargetPhase === phase.id ? 'border-amber-400' : 'border-muted-foreground/30'
-                  }`}>
-                    {rerunTargetPhase === phase.id && <div className="h-2 w-2 rounded-full bg-amber-400" />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-amber-400">{phase.icon}</span>
-                      <span className="text-sm font-medium">{phase.label}</span>
+          <div className="flex-1 overflow-y-auto px-6 min-h-0">
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                {[
+                  { id: 'recon' as const, label: 'Domain Recon', desc: 'Clears all data and starts fresh from passive OSINT', icon: <Radar className="h-4 w-4" />, preserves: 'Nothing' },
+                  { id: 'passive_discovery' as const, label: 'Passive Discovery', desc: 'Re-runs passive enumeration (DNS, certs, tech fingerprinting)', icon: <Search className="h-4 w-4" />, preserves: 'Domain recon data' },
+                  { id: 'scoping' as const, label: 'Scoping & RoE Review', desc: 'Re-validates scope and RoE checklist', icon: <FileCheck className="h-4 w-4" />, preserves: 'Recon + passive discovery' },
+                  { id: 'test_plan' as const, label: 'Test Plan Generation', desc: 'Re-generates the NIST 800-115 aligned test plan', icon: <FileText className="h-4 w-4" />, preserves: 'Recon + passive + scope' },
+                  { id: 'enumeration' as const, label: 'Active Discovery', desc: 'Re-runs port discovery (naabu/Nerva) and service fingerprinting', icon: <Network className="h-4 w-4" />, preserves: 'Recon + passive + scope + plan' },
+                  { id: 'vuln_detection' as const, label: 'Vulnerability Scanning', desc: 'Re-runs vuln scanning (Nuclei, ZAP, LLM analysis)', icon: <ShieldOff className="h-4 w-4" />, preserves: 'All through active discovery' },
+                  { id: 'exploitation' as const, label: 'Exploitation', desc: 'Re-runs exploit generation and execution', icon: <Swords className="h-4 w-4" />, preserves: 'All through vuln scan' },
+                  { id: 'post_exploit' as const, label: 'Post-Exploitation', desc: 'Re-runs post-exploit analysis and reporting prep', icon: <Key className="h-4 w-4" />, preserves: 'All prior phases' },
+                ].map(phase => (
+                  <label
+                    key={phase.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
+                      rerunTargetPhase === phase.id
+                        ? 'bg-amber-500/10 border-amber-500/30 ring-1 ring-amber-500/20'
+                        : 'border-transparent hover:bg-muted/30'
+                    }`}
+                    onClick={() => setRerunTargetPhase(phase.id)}
+                  >
+                    <div className={`mt-0.5 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                      rerunTargetPhase === phase.id ? 'border-amber-400' : 'border-muted-foreground/30'
+                    }`}>
+                      {rerunTargetPhase === phase.id && <div className="h-2 w-2 rounded-full bg-amber-400" />}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Preserves: {phase.preserves}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            {ops && (
-              <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
-                <div className="text-[10px] text-muted-foreground">Current state: {ops.assets?.length || 0} assets, {ops.stats?.vulnsFound || 0} vulns, {ops.stats?.exploitsSucceeded || 0} exploits</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-400">{phase.icon}</span>
+                        <span className="text-sm font-medium">{phase.label}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{phase.desc}</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">Preserves: {phase.preserves}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
-            )}
+              {ops && (
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/30">
+                  <div className="text-[10px] text-muted-foreground">Current state: {ops.assets?.length || 0} assets, {ops.stats?.vulnsFound || 0} vulns, {ops.stats?.exploitsSucceeded || 0} exploits</div>
+                </div>
+              )}
+            </div>
           </div>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="px-6 pb-6 pt-4 shrink-0 border-t border-border/50">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
