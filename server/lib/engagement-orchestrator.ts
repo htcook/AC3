@@ -12140,8 +12140,86 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
 
       const { generateTestPlanAdherence } = await import('./engagement-report-handoff');
 
-      // Check if a test plan was generated for this engagement's DI scan
-      const testPlan = (state.metadata as any)?.testPlan || null;
+      // Convert state.testPlan (stored by pipeline-phases.ts) to TestPlanForHandoff format
+      // Bug fix: was reading from state.metadata.testPlan which is never set — the test plan
+      // is stored on state.testPlan by executeTestPlanGeneration()
+      let testPlanForHandoff: any = null;
+      const rawTestPlan = state.testPlan;
+      if (rawTestPlan) {
+        // Reconstruct the full attack vector objects from the stored test plan
+        // state.testPlan.attackVectors is string[] (just names), but we also have
+        // toolsPlanned[] and the engagement targets to build a proper handoff object
+        const targets = state.assets.map((a: any) => a.hostname || a.ip).filter(Boolean);
+        const toolsPlanned = rawTestPlan.toolsPlanned || [];
+        // Map each section to a PTES phase based on title keywords
+        const ptesPhaseMap: Record<string, string> = {
+          'executive': 'Pre-engagement Interactions',
+          'scope': 'Pre-engagement Interactions',
+          'methodology': 'Intelligence Gathering',
+          'intelligence': 'Intelligence Gathering',
+          'recon': 'Intelligence Gathering',
+          'threat': 'Threat Modeling',
+          'attack': 'Exploitation',
+          'vulnerability': 'Vulnerability Analysis',
+          'exploit': 'Exploitation',
+          'post': 'Post-Exploitation',
+          'report': 'Reporting',
+          'deliverable': 'Reporting',
+          'dns': 'Intelligence Gathering',
+          'tool': 'Vulnerability Analysis',
+          'risk': 'Pre-engagement Interactions',
+          'communication': 'Pre-engagement Interactions',
+          'timeline': 'Pre-engagement Interactions',
+        };
+        const inferPtesPhase = (title: string): string => {
+          const lower = title.toLowerCase();
+          for (const [keyword, phase] of Object.entries(ptesPhaseMap)) {
+            if (lower.includes(keyword)) return phase;
+          }
+          return 'Vulnerability Analysis';
+        };
+        // Build attack vectors from the stored names + toolsPlanned
+        const attackVectorNames: string[] = rawTestPlan.attackVectors || [];
+        const attackVectors = attackVectorNames.map((name: string, i: number) => ({
+          id: `av-${i}`,
+          name,
+          tools: toolsPlanned.slice(0, 5), // Best-effort: associate top tools with each vector
+          targets,
+          ptesPhase: inferPtesPhase(name),
+          estimatedHours: 2,
+          priority: 'high',
+        }));
+        // Build tool matrix from toolsPlanned
+        const toolMatrix = toolsPlanned.map((tool: string) => {
+          const toolLower = tool.toLowerCase();
+          let phase = 'Vulnerability Analysis';
+          let purpose = 'Security scanning';
+          if (/nmap|discovery|recon|subfinder|httpx|dig|dnsrecon/.test(toolLower)) { phase = 'Intelligence Gathering'; purpose = 'Reconnaissance and discovery'; }
+          else if (/nuclei|zap|burp|nikto|testssl/.test(toolLower)) { phase = 'Vulnerability Analysis'; purpose = 'Vulnerability scanning'; }
+          else if (/metasploit|sqlmap|commix|hydra|exploit/.test(toolLower)) { phase = 'Exploitation'; purpose = 'Exploitation and validation'; }
+          return { tool, purpose, targets, phase };
+        });
+        testPlanForHandoff = {
+          metadata: {
+            planId: rawTestPlan.id || 'unknown',
+            generatedAt: new Date(rawTestPlan.generatedAt || Date.now()).toISOString(),
+            orgName: engagement.name || 'Unknown',
+            targetDomain: engagement.targetDomain || '',
+            planType: 'pentest',
+          },
+          sections: (rawTestPlan.sections || []).map((s: any) => ({
+            id: s.id || s.title?.replace(/\s+/g, '-').toLowerCase() || 'section',
+            title: s.title || 'Untitled',
+            ptesPhase: inferPtesPhase(s.title || ''),
+            nistSection: '§3',
+            content: s.content || '',
+          })),
+          structuredData: {
+            attackVectors,
+            toolMatrix,
+          },
+        };
+      }
 
       const adherence = await generateTestPlanAdherence(
         {
@@ -12156,7 +12234,7 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
           completedAt: state.completedAt,
           metadata: state.metadata as Record<string, any>,
         },
-        testPlan,
+        testPlanForHandoff,
       );
 
       // Store adherence in state metadata for UI access

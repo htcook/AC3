@@ -272,9 +272,16 @@ export async function generateTestPlanAdherence(
   const skipped = plannedVsActual.filter(p => p.status === "not_executed").length;
   const blocked = plannedVsActual.filter(p => p.status === "blocked").length;
 
-  const adherencePercentage = totalPlanned > 0
+  // Calculate from planned-vs-actual if available, but also calculate phase-based adherence
+  // as a floor. This prevents 0% adherence when PTES phases are completed but the test plan's
+  // attack vector tool names don't exactly match the tools used in execution.
+  const plannedAdherence = totalPlanned > 0 && plannedVsActual.length > 0
     ? Math.round(((executed + partial * 0.5) / totalPlanned) * 100)
-    : calculatePhaseAdherence(ptesPhaseCompletion);
+    : 0;
+  const phaseAdherence = calculatePhaseAdherence(ptesPhaseCompletion);
+  // Use the higher of the two — if phases show 60% completion but tool matching shows 0%,
+  // the phase-based score is more accurate than a false 0%
+  const adherencePercentage = Math.max(plannedAdherence, phaseAdherence);
 
   return {
     totalPlannedTests: totalPlanned,

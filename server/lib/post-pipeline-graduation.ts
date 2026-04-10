@@ -187,11 +187,20 @@ function classifyAssetCategory(hostname: string, technologies: string[]): string
 // ─── Scoring Functions ──────────────────────────────────────────────────────
 
 function scoreReconAnalyst(m: PipelineMetrics): number {
-  const assetScore = Math.min(40, m.assetsDiscovered * 5 + m.subdomainsFound * 2);
-  const portScore = Math.min(30, m.portsFound * 3);
-  const serviceScore = Math.min(20, m.servicesIdentified * 4);
+  // Asset discovery: 5 pts per asset, 2 pts per subdomain (max 30)
+  const assetScore = Math.min(30, m.assetsDiscovered * 5 + m.subdomainsFound * 2);
+  // Port coverage: 3 pts per port (max 25)
+  const portScore = Math.min(25, m.portsFound * 3);
+  // Service identification: 4 pts per identified service (max 15)
+  const serviceScore = Math.min(15, m.servicesIdentified * 4);
+  // Technology detection: 2 pts per tech (max 10)
   const techScore = Math.min(10, m.technologiesDetected * 2);
-  return Math.min(100, assetScore + portScore + serviceScore + techScore);
+  // Intelligence enrichment bonus: credit KEV matches, CVE correlation, and vuln discovery
+  // This rewards the recon phase for producing actionable intelligence, not just asset counts
+  const kevBonus = Math.min(10, m.kevMatches * 5);
+  const cveBonus = Math.min(5, m.uniqueCVEs > 0 ? 5 : 0);
+  const vulnDiscoveryBonus = Math.min(5, m.totalVulns > 0 ? Math.min(5, Math.ceil(m.totalVulns / 4)) : 0);
+  return Math.min(100, assetScore + portScore + serviceScore + techScore + kevBonus + cveBonus + vulnDiscoveryBonus);
 }
 
 function scoreExploitSelector(m: PipelineMetrics): number {
@@ -205,15 +214,22 @@ function scoreExploitSelector(m: PipelineMetrics): number {
     return Math.min(100, Math.round(vulnAccuracy + severityDepth + kevScore));
   }
 
-  // Engagement scoring — exploit success rate + evidence quality
+  // Engagement scoring — balanced across exploit success, vuln discovery, and attempt effort
+  // Success rate: up to 35 pts (reduced from 50 to avoid penalizing training lab attempts)
   const successRate = m.exploitsAttempted > 0
-    ? (m.exploitsSucceeded / m.exploitsAttempted) * 50
+    ? (m.exploitsSucceeded / m.exploitsAttempted) * 35
     : 0;
+  // Attempt credit: up to 15 pts for making exploit attempts (shows exploit selection capability)
+  const attemptCredit = Math.min(15, m.exploitsAttempted * 5);
+  // Evidence quality: up to 20 pts for verified vulns
   const evidenceRate = m.totalVulns > 0
-    ? (m.verifiedVulns / m.totalVulns) * 30
+    ? (m.verifiedVulns / m.totalVulns) * 20
     : 0;
-  const volumeBonus = Math.min(20, m.totalVulns > 10 ? 20 : m.totalVulns * 2);
-  return Math.min(100, Math.round(successRate + evidenceRate + volumeBonus));
+  // Vuln volume: up to 15 pts for finding vulns (shows target selection)
+  const volumeBonus = Math.min(15, m.totalVulns > 10 ? 15 : Math.ceil(m.totalVulns * 1.5));
+  // Severity depth: up to 15 pts for finding critical/high vulns
+  const severityBonus = Math.min(15, (m.criticalVulns * 5) + (m.highVulns * 3) + (m.mediumVulns * 1));
+  return Math.min(100, Math.round(successRate + attemptCredit + evidenceRate + volumeBonus + severityBonus));
 }
 
 function scoreEvasionOptimizer(m: PipelineMetrics): number {
@@ -226,13 +242,21 @@ function scoreEvasionOptimizer(m: PipelineMetrics): number {
 
 function scoreCognitiveCore(m: PipelineMetrics): number {
   const coverageScore = m.owaspCategoriesTotal > 0
-    ? Math.round((m.owaspCategoriesTested / m.owaspCategoriesTotal) * 40)
+    ? Math.round((m.owaspCategoriesTested / m.owaspCategoriesTotal) * 35)
     : 20;
   const evidenceRate = m.totalVulns > 0
-    ? Math.round((m.confirmedVulns / m.totalVulns) * 30)
+    ? Math.round((m.confirmedVulns / m.totalVulns) * 25)
     : 0;
   const fpPenalty = Math.round(m.falsePositiveRate * 20);
-  const baseScore = coverageScore + evidenceRate + (m.totalVulns > 0 ? 20 : 0);
+  // Vuln discovery baseline: finding vulns shows cognitive capability
+  const vulnBaseline = m.totalVulns > 0 ? 15 : 0;
+  // PTES phase coverage bonus: credit for covering more phases
+  const ptesBonus = m.ptesPhasesTotal > 0
+    ? Math.min(15, Math.round((m.ptesPhasesCovered / m.ptesPhasesTotal) * 15))
+    : 0;
+  // Multi-tool corroboration bonus: having both confirmed and total vulns shows quality
+  const corroborationBonus = m.confirmedVulns > 0 && m.totalVulns > m.confirmedVulns ? 5 : 0;
+  const baseScore = coverageScore + evidenceRate + vulnBaseline + ptesBonus + corroborationBonus;
   return Math.min(100, Math.max(0, baseScore - fpPenalty));
 }
 
@@ -354,8 +378,19 @@ export async function runPostPipelineGraduation(
     trainingExamplesCollected += reconExamples.length;
   }
 
+  // Calculate average score, excluding N/A categories (cloud/supply_chain with 0 assets)
+  // This prevents training lab targets (which have no cloud/supply chain assets) from being
+  // penalized by irrelevant 0-score categories
+  const applicableScores = Object.entries(scores).filter(([key, _value]) => {
+    // Cloud and supply chain are N/A if no relevant assets were found
+    if (key === 'cloud_assessor' && metrics.cloudAssetsFound === 0 && metrics.storageAssetsFound === 0 && metrics.containerAssetsFound === 0 && metrics.identityAssetsFound === 0) return false;
+    if (key === 'supply_chain_analyst' && metrics.repoExposuresFound === 0 && metrics.platformAssetsFound === 0 && metrics.technologiesDetected === 0) return false;
+    return true;
+  });
   const scoreEntries = Object.entries(scores);
-  const avgScore = Math.round(scoreEntries.reduce((s, [, v]) => s + v, 0) / scoreEntries.length);
+  const avgScore = applicableScores.length > 0
+    ? Math.round(applicableScores.reduce((s, [, v]) => s + v, 0) / applicableScores.length)
+    : Math.round(scoreEntries.reduce((s, [, v]) => s + v, 0) / scoreEntries.length);
   const passedCount = Object.values(passed).filter(Boolean).length;
 
   const summary = `${scoreEntries.length} specialist models scored (avg ${avgScore}/100, ${passedCount} passed). Training examples: ${trainingExamplesCollected}`;
