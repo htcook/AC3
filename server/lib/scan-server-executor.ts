@@ -745,6 +745,9 @@ export async function suggestToolCommands(asset: {
   technologies?: Array<{ name?: string; vendor?: string; version?: string; cpe?: string; port?: number; protocol?: string }>;
 }): Promise<Array<{ tool: string; args: string; purpose: string; priority: number }>> {
   const target = asset.ip || asset.hostname || "";
+  // For HTTPS targets behind ALBs/CDNs, Hydra must use the hostname (not raw IP)
+  // so TLS SNI sends the correct Host header. Without this, ALBs return 421.
+  const hydraTarget = asset.hostname || asset.ip || "";
   const commands: Array<{ tool: string; args: string; purpose: string; priority: number }> = [];
 
   // Always start with ScanForge discovery service detection
@@ -846,14 +849,14 @@ export async function suggestToolCommands(asset: {
             // Use first login path + first form variant as primary, others as fallback
             commands.push({
               tool: 'hydra',
-              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule} '${loginPaths[0]}:${formVariants[0].fields}:F=${formVariants[0].failStr}'`,
+              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f -V ${hydraTarget} ${hydraModule} '${loginPaths[0]}:${formVariants[0].fields}:F=${formVariants[0].failStr}'`,
               purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} via HTTP form on port ${port}`,
               priority: 3,
             });
           } else {
             commands.push({
               tool: "hydra",
-              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f ${target} ${hydraModule}`,
+              args: `-l '${cred.username}' ${passArg} -s ${port} -t 4 -f -V ${hydraTarget} ${hydraModule}`,
               purpose: `[OEM Default] ${cred.vendor} ${cred.product} — ${cred.username}:${cred.password || "(empty)"} on port ${port}`,
               priority: 3,
             });
@@ -928,7 +931,7 @@ export async function suggestToolCommands(asset: {
           const hydraModule = scheme === 'https' ? 'https-form-post' : 'http-form-post';
           commands.push({
             tool: 'hydra',
-            args: `-l '${app.username}' -p '${app.password}' -s ${wp.port} -t 4 -f ${target} ${hydraModule} '${app.formData}'`,
+            args: `-l '${app.username}' -p '${app.password}' -s ${wp.port} -t 4 -f -V ${hydraTarget} ${hydraModule} '${app.formData}'`,
             purpose: `[Known App] ${app.appName} HTTP form login — ${app.username}:${app.password} on port ${wp.port}`,
             priority: 3,
           });
@@ -938,7 +941,7 @@ export async function suggestToolCommands(asset: {
       // Generic HTTP form credential testing with common defaults
       commands.push({
         tool: 'hydra',
-        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt -s ${wp.port} -t 4 -f ${target} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
+        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/top-20-common-SSH-passwords.txt -s ${wp.port} -t 4 -f -V ${hydraTarget} ${scheme === 'https' ? 'https-form-post' : 'http-form-post'} '/login:username=^USER^&password=^PASS^:incorrect'`,
         purpose: `HTTP form credential testing (common passwords) on port ${wp.port}`,
         priority: 3,
       });
@@ -951,7 +954,7 @@ export async function suggestToolCommands(asset: {
     for (const sp of sshPorts) {
       commands.push({
         tool: "hydra",
-        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s ${sp.port} -t 4 -f ${target} ssh`,
+        args: `-l admin -P /opt/SecLists/Passwords/Common-Credentials/10k-most-common.txt -s ${sp.port} -t 4 -f -V ${hydraTarget} ssh`,
         purpose: `SSH credential testing (generic wordlist) on port ${sp.port}`,
         priority: 3,
       });
