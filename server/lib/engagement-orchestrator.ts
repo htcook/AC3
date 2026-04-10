@@ -3854,7 +3854,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
                 engagementId: state.engagementId,
                 operatorId: state.operatorId,
                 timeoutMs: 10000,
-                tryDefaultCreds: state.config.profile !== 'stealth',
+                tryDefaultCreds: (state.scanProfile || 'standard') !== 'stealth',
               });
               // Merge cached + fresh results
               fpResults = [...cacheLookup.cached, ...freshResults];
@@ -3996,7 +3996,24 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // ── Step 2b: RDP/VoIP/Conferencing service-specific scanning ──────────
         try {
           const { isRdpVoipConferencingPort, getScanCommandsForService, getServiceForPort, buildExploitContextForLlm } = await import('./knowledge/rdp-voip-conferencing-knowledge');
-          const rdpVoipPorts = discoveredPorts.filter(p => isRdpVoipConferencingPort(p.port) || ['rdp', 'sip', 'sips', 'h323', 'sccp', 'mgcp', 'ms-wbt-server'].includes(p.service));
+          // Filter for RDP/VoIP/conferencing ports, but exclude generic HTTPS ports (443, 8443)
+          // unless the service fingerprint or banner actually indicates conferencing equipment
+          const CONFERENCING_WEB_PORTS = new Set([443, 8443]);
+          const CONFERENCING_FINGERPRINTS = ['polycom', 'telepresence', 'zoom room', 'crestron', 'webex', 'lifesize', 'tandberg', 'cisco meeting', 'realpresence'];
+          const rdpVoipPorts = discoveredPorts.filter(p => {
+            // Always include known RDP/VoIP service names
+            if (['rdp', 'sip', 'sips', 'h323', 'sccp', 'mgcp', 'ms-wbt-server'].includes(p.service)) return true;
+            // For 443/8443 — only include if banner/product indicates conferencing equipment
+            if (CONFERENCING_WEB_PORTS.has(p.port)) {
+              const banner = ((p as any).banner || '').toLowerCase();
+              const product = ((p as any).product || '').toLowerCase();
+              const version = (p.version || '').toLowerCase();
+              const combined = `${banner} ${product} ${version}`;
+              return CONFERENCING_FINGERPRINTS.some(fp => combined.includes(fp));
+            }
+            // For all other ports, use the standard port-based check
+            return isRdpVoipConferencingPort(p.port);
+          });
           if (rdpVoipPorts.length > 0) {
             addLog(state, { phase: 'enumeration', type: 'info', title: `🔌 RDP/VoIP/Conferencing Services Detected: ${fmtTarget(asset, target)}`, detail: `Found ${rdpVoipPorts.length} RDP/VoIP/conferencing services: ${rdpVoipPorts.map(p => `${p.port}/${p.service}`).join(', ')}` });
             for (const svcPort of rdpVoipPorts.slice(0, 5)) {
