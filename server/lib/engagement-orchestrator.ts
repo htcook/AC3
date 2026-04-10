@@ -8443,34 +8443,69 @@ ${(() => {
   // This lets the operator review all selected targets, CVEs, and modules at once.
   let exploitActions = decision.actions.filter((a: any) => a.type === "exploit_attempt");
 
-  // Safety net: if LLM returned 0 exploit actions but we have critical/high vulns,
-  // auto-generate exploit actions from the vulnerability list
+  // Safety net: if LLM returned 0 exploit actions, auto-generate from vulnerability list.
+  // Expanded to include medium vulns with Shodan-CONFIRMED or high-EPSS scores.
   if (exploitActions.length === 0) {
-    const critHighVulns = state.assets.flatMap(a =>
+    // Tier 1: critical/high severity vulns (always eligible)
+    const tier1Vulns = state.assets.flatMap(a =>
       a.vulns
         .filter(v => v.severity === 'critical' || v.severity === 'high')
-        .map(v => ({ asset: a, vuln: v }))
+        .map(v => ({ asset: a, vuln: v, tier: 1 }))
     );
-    if (critHighVulns.length > 0) {
-      console.log(`[OpsLLM] Safety net: LLM returned 0 exploit actions but found ${critHighVulns.length} critical/high vulns. Auto-generating exploit plan.`);
+
+    // Tier 2: medium vulns promoted by Shodan-CONFIRMED confidence or high EPSS score
+    const tier2Vulns = state.assets.flatMap(a =>
+      a.vulns
+        .filter(v => {
+          if (v.severity !== 'medium') return false;
+          const vAny = v as any;
+          // Promote if Shodan confirmed the CVE is present on the target
+          if (vAny.shodanConfidence === 'CONFIRMED') return true;
+          // Promote if EPSS score indicates high exploitation probability (>= 0.3)
+          if (vAny.epssScore && vAny.epssScore >= 0.3) return true;
+          // Promote if KEV-listed (shouldn't be medium, but just in case)
+          if (vAny.kevListed) return true;
+          return false;
+        })
+        .map(v => ({ asset: a, vuln: v, tier: 2 }))
+    );
+
+    const allEligibleVulns = [...tier1Vulns, ...tier2Vulns];
+
+    if (allEligibleVulns.length > 0) {
+      const tier1Count = tier1Vulns.length;
+      const tier2Count = tier2Vulns.length;
+      console.log(`[OpsLLM] Safety net: LLM returned 0 exploit actions. Found ${tier1Count} critical/high + ${tier2Count} Shodan/EPSS-promoted medium vulns. Auto-generating exploit plan.`);
       addLog(state, {
         phase: "exploitation",
         type: "info",
-        title: "⚠️ LLM Exploit Fallback",
-        detail: `LLM returned 0 exploit actions despite ${critHighVulns.length} critical/high vulnerabilities. Auto-generating exploit plan from vulnerability list.`,
+        title: "⚠️ LLM Exploit Fallback — Enhanced Target Selection",
+        detail: `LLM returned 0 exploit actions despite ${allEligibleVulns.length} eligible vulnerabilities (${tier1Count} critical/high + ${tier2Count} medium promoted by Shodan-CONFIRMED/high-EPSS). Auto-generating exploit plan.`,
       });
-      // Deduplicate by CVE+target, prioritize: KEV-listed first, then critical, then high, limit to top 15
+
+      // Deduplicate by CVE+target, prioritize: KEV > Shodan-CONFIRMED > EPSS > severity
       const seen = new Set<string>();
-      const autoExploits = critHighVulns
+      const autoExploits = allEligibleVulns
         .sort((a, b) => {
+          const aAny = a.vuln as any;
+          const bAny = b.vuln as any;
           // KEV-listed vulns always come first
-          const aKev = (a.vuln as any).kevListed ? 1 : 0;
-          const bKev = (b.vuln as any).kevListed ? 1 : 0;
-          if (bKev !== aKev) return bKev - aKev; // KEV first
-          // Then by severity: critical before high
-          const aSev = a.vuln.severity === 'critical' ? 0 : 1;
-          const bSev = b.vuln.severity === 'critical' ? 0 : 1;
-          return aSev - bSev;
+          const aKev = aAny.kevListed ? 1 : 0;
+          const bKev = bAny.kevListed ? 1 : 0;
+          if (bKev !== aKev) return bKev - aKev;
+          // Shodan-CONFIRMED next
+          const aShodan = aAny.shodanConfidence === 'CONFIRMED' ? 1 : 0;
+          const bShodan = bAny.shodanConfidence === 'CONFIRMED' ? 1 : 0;
+          if (bShodan !== aShodan) return bShodan - aShodan;
+          // Then by EPSS score (higher = more likely to be exploited)
+          const aEpss = aAny.epssScore || 0;
+          const bEpss = bAny.epssScore || 0;
+          if (bEpss !== aEpss) return bEpss - aEpss;
+          // Then by severity tier
+          if (a.tier !== b.tier) return a.tier - b.tier;
+          // Then by severity: critical before high before medium
+          const sevOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+          return (sevOrder[a.vuln.severity] || 3) - (sevOrder[b.vuln.severity] || 3);
         })
         .filter(({ asset, vuln }) => {
           const key = `${asset.hostname}:${vuln.cve || vuln.title}`;
@@ -8479,18 +8514,35 @@ ${(() => {
           return true;
         })
         .slice(0, 15)
-        .map(({ asset, vuln }) => ({
-          type: 'exploit_attempt' as const,
-          params: {
-            target: asset.hostname,
-            port: asset.ports?.[0]?.port || 443,
-            cve: vuln.cve || undefined,
-            service: asset.ports?.[0]?.service || 'http',
-            module: vuln.cve ? `auto-${vuln.cve}` : `auto-${vuln.title?.slice(0, 50)}`,
-          },
-        }));
+        .map(({ asset, vuln }) => {
+          // Use the vuln's actual port/service when available, not just the first port
+          const vAny = vuln as any;
+          const vulnPort = vAny.port || vAny.targetPort;
+          const vulnService = vAny.service || vAny.targetService;
+          // Try to find the matching port from the asset's port list
+          const matchedPort = vulnPort
+            ? asset.ports?.find((p: any) => p.port === vulnPort)
+            : undefined;
+          // Fallback: use the first HTTP/HTTPS port, then first port, then 443
+          const httpPort = asset.ports?.find((p: any) => p.service === 'https' || p.service === 'ssl/http' || p.port === 443);
+          const anyHttpPort = asset.ports?.find((p: any) => p.service === 'http' || p.port === 80);
+          const bestPort = matchedPort || httpPort || anyHttpPort || asset.ports?.[0];
+
+          return {
+            type: 'exploit_attempt' as const,
+            params: {
+              target: asset.hostname,
+              port: bestPort?.port || 443,
+              cve: vuln.cve || undefined,
+              service: vulnService || bestPort?.service || 'http',
+              module: vuln.cve ? `auto-${vuln.cve}` : `auto-${vuln.title?.slice(0, 50)}`,
+            },
+          };
+        });
       exploitActions = autoExploits;
       decision.actions = [...decision.actions, ...autoExploits];
+
+      // Log KEV count
       const kevCount = autoExploits.filter((a: any) => {
         const matchedAsset = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
         return matchedAsset?.vulns.some(v => v.cve === a.params?.cve && (v as any).kevListed);
@@ -8504,17 +8556,55 @@ ${(() => {
           riskTier: 'red',
         });
       }
+
+      // Log Shodan-confirmed count
+      const shodanConfirmedCount = autoExploits.filter((a: any) => {
+        const matchedAsset = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
+        return matchedAsset?.vulns.some(v => v.cve === a.params?.cve && (v as any).shodanConfidence === 'CONFIRMED');
+      }).length;
+      if (shodanConfirmedCount > 0) {
+        addLog(state, {
+          phase: 'exploitation',
+          type: 'info',
+          title: `🔍 ${shodanConfirmedCount} Shodan-Confirmed Vulnerabilities`,
+          detail: `${shodanConfirmedCount} exploit target(s) have Shodan-confirmed version matches, increasing confidence in successful exploitation.`,
+        });
+      }
+
+      // Log EPSS-promoted count
+      const epssPromotedCount = tier2Vulns.filter(({ vuln }) => (vuln as any).epssScore >= 0.3).length;
+      if (epssPromotedCount > 0) {
+        addLog(state, {
+          phase: 'exploitation',
+          type: 'info',
+          title: `📊 ${epssPromotedCount} EPSS-Promoted Medium Vulnerabilities`,
+          detail: `${epssPromotedCount} medium-severity vuln(s) promoted to exploit queue due to high EPSS exploitation probability (≥30%).`,
+        });
+      }
     }
   }
 
-  // ── KEV-first sorting for ALL exploit actions (including LLM-generated) ──
+  // ── Multi-axis sorting for ALL exploit actions: KEV > Shodan-CONFIRMED > EPSS > severity ──
   if (exploitActions.length > 1) {
     exploitActions.sort((a: any, b: any) => {
       const aTarget = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
       const bTarget = state.assets.find(ast => ast.hostname === b.params?.target || ast.ip === b.params?.target);
-      const aKev = aTarget?.vulns.some(v => v.cve === a.params?.cve && (v as any).kevListed) ? 1 : 0;
-      const bKev = bTarget?.vulns.some(v => v.cve === b.params?.cve && (v as any).kevListed) ? 1 : 0;
-      return bKev - aKev; // KEV first, stable sort preserves LLM ordering for non-KEV
+      const aVuln = aTarget?.vulns.find(v => v.cve === a.params?.cve) as any;
+      const bVuln = bTarget?.vulns.find(v => v.cve === b.params?.cve) as any;
+      // KEV-listed vulns first
+      const aKev = aVuln?.kevListed ? 1 : 0;
+      const bKev = bVuln?.kevListed ? 1 : 0;
+      if (bKev !== aKev) return bKev - aKev;
+      // Shodan-CONFIRMED next
+      const aShodan = aVuln?.shodanConfidence === 'CONFIRMED' ? 1 : 0;
+      const bShodan = bVuln?.shodanConfidence === 'CONFIRMED' ? 1 : 0;
+      if (bShodan !== aShodan) return bShodan - aShodan;
+      // Then by EPSS score (higher = more likely to be exploited)
+      const aEpss = aVuln?.epssScore || 0;
+      const bEpss = bVuln?.epssScore || 0;
+      if (bEpss !== aEpss) return bEpss - aEpss;
+      // Stable sort preserves LLM ordering for equal-priority items
+      return 0;
     });
   }
 
@@ -8533,7 +8623,15 @@ ${(() => {
         kevBadge = ' ⚠️ [CISA KEV]';
       }
     }
-    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}`;
+    // Add Shodan confidence badge
+    const matchedVuln = matchedAsset?.vulns.find(v => v.cve === p.cve) as any;
+    let shodanBadge = '';
+    if (matchedVuln?.shodanConfidence === 'CONFIRMED') shodanBadge = ' 🔍 [SHODAN-CONFIRMED]';
+    else if (matchedVuln?.shodanConfidence === 'LIKELY') shodanBadge = ' 🔍 [SHODAN-LIKELY]';
+    // Add EPSS badge for high-probability vulns
+    let epssBadge = '';
+    if (matchedVuln?.epssScore >= 0.3) epssBadge = ` 📊 [EPSS:${(matchedVuln.epssScore * 100).toFixed(0)}%]`;
+    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}${shodanBadge}${epssBadge}`;
   }).join("\n");
 
   const exploitPlanApproved = await requestApproval(state, {
@@ -10984,17 +11082,48 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     // ── Screenshot Evidence Capture ──
     try {
       const { selectFindingsForScreenshot, captureScreenshotBatch } = await import('./scanners/screenshot-capture');
-      const allVulnsForScreenshot = state.assets.flatMap(a =>
-        (a.vulns || []).map((v: any) => ({
+      const allVulnsForScreenshot = state.assets.flatMap(a => {
+        // Determine the base URL for this asset (for vulns without explicit endpoints)
+        const assetBaseUrl = (() => {
+          const host = a.hostname || a.ip;
+          if (!host) return undefined;
+          const httpPort = a.ports?.find((p: any) => p.service === 'http' || p.port === 80);
+          const httpsPort = a.ports?.find((p: any) => p.service === 'https' || p.service === 'ssl/http' || p.port === 443);
+          if (httpsPort) return `https://${host}${httpsPort.port !== 443 ? ':' + httpsPort.port : ''}`;
+          if (httpPort) return `http://${host}${httpPort.port !== 80 ? ':' + httpPort.port : ''}`;
+          // Default to https for web targets
+          if (a.type === 'web_application' || a.type === 'subdomain') return `https://${host}`;
+          return undefined;
+        })();
+
+        // Map vulns — use explicit endpoint/url, fall back to asset base URL
+        const vulnEntries = (a.vulns || []).map((v: any) => ({
           id: v.id,
           title: v.title || v.name || 'Unknown',
           severity: v.severity || 'info',
-          endpoint: v.endpoint || v.url,
-          url: v.endpoint || v.url,
+          endpoint: v.endpoint || v.url || assetBaseUrl,
+          url: v.endpoint || v.url || assetBaseUrl,
           source: v.source || v.tool,
           corroborationTier: v.corroborationTier,
-        }))
-      );
+        }));
+
+        // Also include ZAP findings which always have URLs
+        const zapEntries = (a.zapFindings || []).map((z: any) => ({
+          id: `zap-${z.alert}-${z.url}`,
+          title: z.alert || 'ZAP Finding',
+          severity: z.risk || 'medium',
+          endpoint: z.url,
+          url: z.url,
+          source: 'zap',
+          corroborationTier: 'confirmed' as const,
+        }));
+
+        // Deduplicate: prefer vuln entries (which may already include ZAP vulns)
+        const seenUrls = new Set(vulnEntries.filter(v => v.url).map(v => `${v.title}|${v.url}`));
+        const uniqueZapEntries = zapEntries.filter(z => !seenUrls.has(`[ZAP] ${z.title}|${z.url}`));
+
+        return [...vulnEntries, ...uniqueZapEntries];
+      });
       const screenshotTargets = selectFindingsForScreenshot(allVulnsForScreenshot, 15);
       if (screenshotTargets.length > 0) {
         addLog(state, {
