@@ -6583,6 +6583,90 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
               detail: `Could not configure authenticated scanning: ${authErr.message}. Continuing unauthenticated.`,
             });
           }
+        } else if (trainingLabCreds && zapScanResult?.scanId) {
+          // ── Training Lab Default Credentials → ZAP Authentication ──
+          // When Hydra fails to confirm creds but we have known defaults for training labs,
+          // convert them to ConfirmedCredential format and configure ZAP authentication.
+          // This is the critical path for DVWA, Juice Shop, etc. where the login wall
+          // blocks ZAP from reaching vulnerable endpoints.
+          try {
+            const syntheticCreds = [{
+              username: trainingLabCreds.username,
+              password: trainingLabCreds.password,
+              service: 'http-form',
+              port: parseInt(new URL(targetUrl).port) || (targetUrl.startsWith('https') ? 443 : 80),
+              protocol: targetUrl.startsWith('https') ? 'https' : 'http',
+              accessLevel: 'admin',
+              source: 'training_lab_defaults',
+              confirmedAt: Date.now(),
+            }];
+            const authResult = await configureZapAuthentication(
+              `scan-${zapScanResult.scanId}`,
+              targetUrl,
+              syntheticCreds,
+              { techHints, loginPath: trainingLabCreds.loginPath } as any,
+            );
+            if (authResult.configured) {
+              addLog(state, {
+                phase: "vuln_detection",
+                type: "info",
+                title: `✅ ZAP Training Lab Auth: ${authResult.method} configured`,
+                detail: `ZAP will scan as ${authResult.username} using ${authResult.method} authentication with training lab defaults. Login path: ${trainingLabCreds.loginPath}`,
+                data: { method: authResult.method, username: authResult.username, contextId: authResult.contextId, source: 'training_lab_defaults' },
+              });
+              // Store the session cookie on the asset for downstream use (Burp, SQLMap, etc.)
+              (webApp as any).trainingLabCreds = {
+                ...trainingLabCreds,
+                sessionCookie: (authResult as any).sessionCookie,
+              };
+            } else {
+              addLog(state, {
+                phase: "vuln_detection",
+                type: "warning",
+                title: `⚠️ ZAP Training Lab Auth Partial`,
+                detail: `Training lab auth had issues: ${authResult.errors.join('; ')}. Falling back to pre-auth + cookie injection.`,
+                data: { errors: authResult.errors },
+              });
+              // Fallback: try pre-auth + cookie injection directly
+              try {
+                const { preAuthenticateTarget } = await import("./zap-scanner");
+                if (typeof preAuthenticateTarget === 'function') {
+                  const preAuthResult = await preAuthenticateTarget(
+                    targetUrl,
+                    `${targetUrl}${trainingLabCreds.loginPath}`,
+                    { username: trainingLabCreds.username, password: trainingLabCreds.password },
+                    `scan-${zapScanResult.scanId}`,
+                  );
+                  if (preAuthResult?.success) {
+                    addLog(state, {
+                      phase: "vuln_detection",
+                      type: "info",
+                      title: `✅ ZAP Pre-Auth Fallback: session cookie injected`,
+                      detail: `Pre-authenticated to ${targetUrl}${trainingLabCreds.loginPath} and injected session cookie via Replacer addon.`,
+                    });
+                    (webApp as any).trainingLabCreds = {
+                      ...trainingLabCreds,
+                      sessionCookie: preAuthResult.sessionCookie,
+                    };
+                  }
+                }
+              } catch (preAuthErr: any) {
+                addLog(state, {
+                  phase: "vuln_detection",
+                  type: "warning",
+                  title: `ZAP Pre-Auth Fallback Failed`,
+                  detail: `Could not pre-authenticate: ${preAuthErr.message}. ZAP will scan unauthenticated.`,
+                });
+              }
+            }
+          } catch (authErr: any) {
+            addLog(state, {
+              phase: "vuln_detection",
+              type: "warning",
+              title: `ZAP Training Lab Auth Error`,
+              detail: `Could not configure training lab authenticated scanning: ${authErr.message}. Continuing unauthenticated.`,
+            });
+          }
         }
 
         state.stats.zapScansRun++;
