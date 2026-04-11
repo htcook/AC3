@@ -435,14 +435,48 @@ export const containerDiscoveryConnector: PassiveConnector = {
   freeUrl: "https://kubernetes.io/docs/reference/",
 
   async collect(domain: string, config?: ConnectorConfig): Promise<ConnectorResult> {
-    const timeout = config?.timeout ?? 3000;
-    const globalTimeout = 60000; // 60 second max for entire container scan
+    const timeout = Math.min(config?.timeout ?? 3000, 2000); // Cap per-probe at 2s
+    const globalTimeout = Math.min(config?.timeout ? config.timeout * 8 : 25000, 25000); // 25s max
     const startTime = Date.now();
     const observations: AssetObservation[] = [];
     const errors: string[] = [];
 
-    // Generate candidate hostnames
-    const candidates = [domain, ...generateContainerSubdomains(domain)];
+    // Generate candidate hostnames and DNS-filter to skip non-resolving ones
+    const rawCandidates = [domain, ...generateContainerSubdomains(domain)];
+    const candidates: string[] = [];
+    
+    // Phase 1: Quick DNS resolution check — only probe hosts that actually resolve
+    // This eliminates ~90% of probes on external targets with no container subdomains
+    const DNS_CHECK_CONCURRENCY = 15;
+    for (let i = 0; i < rawCandidates.length; i += DNS_CHECK_CONCURRENCY) {
+      if (Date.now() - startTime > globalTimeout * 0.3) break; // Don't spend >30% of budget on DNS
+      const batch = rawCandidates.slice(i, i + DNS_CHECK_CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async (host) => {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1500);
+            // Quick HEAD to check if host resolves at all
+            await fetch(`https://${host}`, { method: 'HEAD', signal: controller.signal, redirect: 'manual' }).catch(() => 
+              fetch(`http://${host}`, { method: 'HEAD', signal: controller.signal, redirect: 'manual' })
+            );
+            clearTimeout(timer);
+            return host;
+          } catch {
+            return null;
+          }
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) candidates.push(r.value);
+      }
+    }
+    
+    // Always include the primary domain even if DNS check failed
+    if (!candidates.includes(domain)) candidates.unshift(domain);
+    
+    console.log(`[ContainerDiscovery] DNS pre-check: ${candidates.length}/${rawCandidates.length} candidates resolve`);
+    
     const allHits: ProbeHit[] = [];
 
     // Probe each candidate with all container probes
@@ -458,8 +492,10 @@ export const containerDiscoveryConnector: PassiveConnector = {
     // Process in batches with global timeout
     let probesCompleted = 0;
     for (let i = 0; i < probeQueue.length; i += CONCURRENCY) {
-      if (Date.now() - startTime > globalTimeout) {
-        console.log(`[ContainerDiscovery] Global timeout reached after ${probesCompleted}/${probeQueue.length} probes`);
+      const elapsed = Date.now() - startTime;
+      if (elapsed > globalTimeout) {
+        console.log(`[ContainerDiscovery] Global timeout reached after ${probesCompleted}/${probeQueue.length} probes (${elapsed}ms)`);
+        errors.push(`Scan truncated: completed ${probesCompleted}/${probeQueue.length} probes before ${globalTimeout}ms timeout`);
         break;
       }
       const batch = probeQueue.slice(i, i + CONCURRENCY);
@@ -575,7 +611,7 @@ export async function analyzeContainerExposure(
     ...generateContainerSubdomains(domain),
     ...(additionalHosts || []),
   ];
-  const uniqueCandidates = [...new Set(candidates)].slice(0, 5); // Cap at 5 hosts to limit probe count
+  const uniqueCandidates = Array.from(new Set(candidates)).slice(0, 5); // Cap at 5 hosts to limit probe count
 
   const allHits: ProbeHit[] = [];
   const CONCURRENCY = 5;

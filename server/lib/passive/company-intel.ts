@@ -21,18 +21,23 @@ export const companyIntelConnector: PassiveConnector = {
 
   async collect(domain: string, config?: ConnectorConfig): Promise<ConnectorResult> {
     const start = Date.now();
+    const GLOBAL_TIMEOUT = 20000; // 20s hard cap for entire connector
     const observations: AssetObservation[] = [];
     const errors: string[] = [];
     let rateLimited = false;
     const now = new Date();
     const source = "company_intel";
+    
+    const isTimedOut = () => Date.now() - start > GLOBAL_TIMEOUT;
 
     try {
       // Step 1: Scrape the target website for company info
       const websiteData = await scrapeCompanyWebsite(domain);
       
-      // Step 2: Check for common company info pages
-      const aboutData = await scrapeAboutPage(domain);
+      // Step 2: Check for common company info pages (skip if running low on time)
+      const aboutData = isTimedOut()
+        ? { html: '', text: '', found: false }
+        : await scrapeAboutPage(domain);
       
       // Step 3: Extract social media links
       const socialLinks = extractSocialLinks(websiteData.html || '', aboutData.html || '');
@@ -147,7 +152,7 @@ async function scrapeCompanyWebsite(domain: string): Promise<{ html: string; tex
   try {
     const resp = await fetch(`https://${domain}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SecurityAudit/1.0)' },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!resp.ok) return { html: '', text: '' };
     const html = await resp.text();
@@ -169,7 +174,7 @@ async function scrapeAboutPage(domain: string): Promise<{ html: string; text: st
     try {
       const resp = await fetch(`https://${domain}${path}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SecurityAudit/1.0)' },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(4000),
       });
       if (resp.ok) {
         const html = await resp.text();
@@ -271,11 +276,11 @@ async function detectRegulatoryHints(domain: string, html: string): Promise<stri
 
   // Check for compliance badges/certifications
   if (lowerHtml.match(/certified|certification|compliant|compliance/)) {
-    // Try to fetch privacy policy for more regulatory hints
+    // Try to fetch privacy policy for more regulatory hints (skip if already slow)
     try {
       const privacyResp = await fetch(`https://${domain}/privacy`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SecurityAudit/1.0)' },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(4000),
       });
       if (privacyResp.ok) {
         const privacyHtml = (await privacyResp.text()).toLowerCase();

@@ -4049,6 +4049,52 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               console.warn('[FP-CVE-Enrich] Non-blocking enrichment failed:', enrichErr.message);
             }
 
+            // ── Fingerprint Diff: compare against previous scan ──
+            try {
+              const { diffFingerprints, fingerprintsToCacheEntries, buildDiffSummaryText } = await import('./fingerprint-diff');
+              const { getCachedFingerprints: getPrevCached } = await import('./fingerprint-cache');
+              
+              // Get ALL previously cached fingerprints for this target (not just current ports)
+              const allPrevPorts = Array.from({ length: 65535 }, (_, i) => i + 1); // We'll filter by engagement
+              // Actually, use the cache entries we already have from the initial lookup
+              const prevCached = cacheLookup.cached.map(c => ({
+                host: c.host || target,
+                port: c.port,
+                protocol: c.protocol || null,
+                product: c.product || null,
+                version: c.version || null,
+                banner: c.banner || null,
+                os: c.os || null,
+                securityFlags: c.securityFlags || null,
+                riskIndicators: c.riskIndicators || [],
+                potentialCves: c.potentialCves || [],
+                confidence: c.confidence || 0,
+                fingerprintedAt: c.fingerprintedAt || (Date.now() - 86400000),
+                engagementId: String(state.engagementId),
+              }));
+
+              if (prevCached.length > 0) {
+                const diffReport = diffFingerprints(fpResults, prevCached, state.engagementId);
+                (asset as any).fingerprintDiff = diffReport;
+
+                if (diffReport.totalChanges > 0) {
+                  const diffSummary = buildDiffSummaryText(diffReport);
+                  addLog(state, {
+                    phase: 'enumeration', type: diffReport.postureChange === 'degraded' ? 'finding' : 'info',
+                    title: `📊 Fingerprint Diff: ${diffReport.totalChanges} changes for ${fmtTarget(asset, target)}`,
+                    detail: `Posture: ${diffReport.postureChange.toUpperCase()} | Risk Delta: ${diffReport.riskScoreDelta > 0 ? '+' : ''}${diffReport.riskScoreDelta}\n` +
+                      `New services: +${diffReport.newServices.length} | Removed: -${diffReport.removedServices.length} | Version changes: ${diffReport.versionChanges.length}\n` +
+                      `CVE delta: +${diffReport.cveDelta.newCves.length} new, -${diffReport.cveDelta.resolvedCves.length} resolved, ${diffReport.cveDelta.persistentCves.length} persistent\n` +
+                      (diffReport.changeBySeverity.critical > 0 ? `⚠️ ${diffReport.changeBySeverity.critical} CRITICAL changes detected!\n` : '') +
+                      (diffReport.changeBySeverity.high > 0 ? `⚠️ ${diffReport.changeBySeverity.high} HIGH changes detected\n` : ''),
+                    data: { diffReport },
+                  });
+                }
+              }
+            } catch (diffErr: any) {
+              console.warn('[FP-Diff] Non-blocking diff failed:', diffErr.message);
+            }
+
             // Re-run service resolution with enriched data
             enrichPortServices(asset.ports, (asset.passiveRecon as any)?.services || []);
           }

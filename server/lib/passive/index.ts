@@ -250,6 +250,7 @@ export async function runPassiveRecon(
       case "urlscan": cfg.apiKey = apiKeys.urlscan; break;
       case "securitytrails": cfg.apiKey = apiKeys.securitytrails; break;
       case "dehashed": cfg.apiKey = apiKeys.dehashed; break;
+      case "dehashed_whois": cfg.apiKey = apiKeys.dehashed; break;
       case "binaryedge": cfg.apiKey = apiKeys.binaryedge; break;
       case "greynoise": cfg.apiKey = apiKeys.greynoise; break;
       case "virustotal": cfg.apiKey = apiKeys.virustotal; break;
@@ -283,7 +284,7 @@ export async function runPassiveRecon(
   // This avoids wasting batch slots on connectors that will immediately fail with "No API key"
   const CONNECTORS_REQUIRING_API_KEY: Record<string, string> = {
     shodan: 'apiKey', censys: 'apiId', urlscan: 'apiKey', securitytrails: 'apiKey',
-    dehashed: 'apiKey', binaryedge: 'apiKey', greynoise: 'apiKey', virustotal: 'apiKey',
+    dehashed: 'apiKey', dehashed_whois: 'apiKey', binaryedge: 'apiKey', greynoise: 'apiKey', virustotal: 'apiKey',
     hibp: 'apiKey', whoisxml: 'apiKey', leakix: 'apiKey', fullhunt: 'apiKey',
     netlas: 'apiKey', hunter: 'apiKey', abuseipdb: 'apiKey', passivetotal: 'apiKey',
     github_recon: 'apiKey', github_leaks: 'apiKey',
