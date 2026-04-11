@@ -822,4 +822,43 @@ export const threatEnrichmentEngineRouter = router({
       enrichedAt: Date.now(),
     };
   }),
+
+  // ─── Hacking Articles Batch Ingest ──────────────────────────────────────
+  batchIngestArticles: protectedProcedure
+    .input(z.object({
+      categories: z.array(z.string()).optional(),
+      maxArticles: z.number().min(1).max(200).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { batchIngestArticles } = await import("../lib/hacking-articles-ingestion");
+      return batchIngestArticles({
+        categories: input.categories,
+        maxArticles: input.maxArticles || 50,
+        delayMs: 2000,
+      });
+    }),
+
+  getArticleIngestionStats: protectedProcedure.query(async () => {
+    const { getIngestionStats } = await import("../lib/hacking-articles-ingestion");
+    return getIngestionStats();
+  }),
+
+  // ─── Context Engine Contribution Tracker ────────────────────────────────
+  getContextEngineContributions: protectedProcedure
+    .input(z.object({
+      engagementId: z.number().optional(),
+      limit: z.number().min(1).max(100).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getContextContributions } = await import("../lib/context-engine-tracker");
+      return getContextContributions({
+        engagementId: input.engagementId,
+        limit: input.limit || 20,
+      });
+    }),
+
+  getContextEngineStats: protectedProcedure.query(async () => {
+    const { getContextEngineStats } = await import("../lib/context-engine-tracker");
+    return getContextEngineStats();
+  }),
 });

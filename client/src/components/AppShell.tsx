@@ -360,6 +360,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/ioc-feed", icon: Radio, label: "IOC FEED" },
           { href: "/threat-actor-crawler", icon: Satellite, label: "ACTOR INTEL" },
           { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
+          { href: "/context-engine", icon: Cpu, label: "CONTEXT ENGINE" },
           { href: "/threat-group-browser", icon: Swords, label: "THREAT GROUPS" },
           { href: "/ransomware-groups", icon: AlertTriangle, label: "RANSOMWARE GROUPS" },
           { href: "/nvd-cve-matcher", icon: Bug, label: "NVD CVE MATCHER" },

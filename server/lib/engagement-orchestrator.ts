@@ -9731,11 +9731,183 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
             }
           }
         } else {
+          // ── Caldera Builder Fallback: LLM-generate an adversary operation from exploit findings ──
           addLog(state, {
             phase: 'post_exploit', type: 'info',
-            title: '📋 No Adversary Profiles Available',
-            detail: 'No threat actor profiles found for auto-launch. Create and push a profile from the Threat Actors page to enable auto-launch.',
+            title: '🧠 No Pre-Built Profiles — Invoking Caldera Builder',
+            detail: 'No threat actor profiles found. Using LLM specialist to generate a Caldera operation from exploit findings...',
+            riskTier: 'red',
           });
+
+          try {
+            const { buildCalderaOp } = await import('./llm-specialists/caldera-builder');
+            const { pushProfileToCaldera } = await import('./caldera-profile-push');
+            const { launchOperation } = await import('./caldera-operation-launcher');
+
+            // Build attack path from successful exploits
+            const successfulExploits = state.assets.flatMap(a =>
+              a.exploitAttempts.filter(e => e.success).map(e => ({
+                target: a.hostname,
+                ip: a.ip,
+                cve: e.cve,
+                module: e.module,
+                output: e.output?.slice(0, 500) || '',
+              }))
+            );
+
+            const attackPath = successfulExploits.map(e =>
+              `${e.target} (${e.ip || 'unknown'}) — ${e.cve} via ${e.module}`
+            ).join('\n');
+
+            const findings = successfulExploits.map(e =>
+              `CVE: ${e.cve}\nModule: ${e.module}\nTarget: ${e.target}\nOutput: ${e.output}`
+            ).join('\n---\n');
+
+            const targetPlatform = state.assets.some(a => /windows/i.test(JSON.stringify(a.ports)))
+              ? 'windows' : 'linux';
+
+            addLog(state, {
+              phase: 'post_exploit', type: 'info',
+              title: `🔧 Building Operation from ${successfulExploits.length} Exploit(s)`,
+              detail: `Attack path: ${attackPath.slice(0, 300)}`,
+              riskTier: 'red',
+            });
+
+            const calderaOp = await buildCalderaOp({
+              attackPath,
+              findings,
+              targetPlatform,
+              engagement: {
+                engagementType: state.engagementType,
+                targetCount: state.assets.length,
+              },
+              engagementId: state.engagementId,
+            });
+
+            addLog(state, {
+              phase: 'post_exploit', type: 'info',
+              title: `✅ Caldera Op Generated: ${calderaOp.operation_name}`,
+              detail: [
+                `Adversary: ${calderaOp.adversary_profile.name}`,
+                `Abilities: ${calderaOp.abilities.length}`,
+                `Sequence: ${calderaOp.execution_sequence.join(' → ')}`,
+                `Confidence: ${calderaOp.confidence}`,
+                `Risk: ${calderaOp.risk_assessment}`,
+              ].join(' | '),
+              riskTier: 'red',
+              data: { calderaOp },
+            });
+
+            // Store the generated op on state for evidence capture
+            (state as any).__calderaBuilderOp = calderaOp;
+
+            // Attempt to push the generated adversary profile and launch
+            try {
+              // Create a temporary threat actor entry for the generated profile
+              const { getDb: getDbImport } = await import('../db');
+              const { threatActors: taTable } = await import('../../drizzle/schema');
+              const dbPush = await getDbImport();
+              if (dbPush) {
+                const generatedActorId = `auto-gen-eng${state.engagementId}-${Date.now()}`;
+                await dbPush.insert(taTable).values({
+                  actorId: generatedActorId,
+                  name: calderaOp.adversary_profile.name,
+                  actorType: 'simulated',
+                  description: calderaOp.adversary_profile.objective,
+                  threatLevel: 'high',
+                  calderaProfile: JSON.stringify({
+                    atomicOrdering: calderaOp.abilities.map(a => ({
+                      abilityId: a.technique_id,
+                      name: a.name,
+                      tactic: a.tactic,
+                      techniqueId: a.technique_id,
+                      techniqueName: a.technique_name,
+                      executor: a.executor,
+                      command: a.command,
+                      cleanup: a.cleanup,
+                    })),
+                    deploymentStatus: 'pending',
+                    generatedBy: 'caldera-builder-specialist',
+                    generatedAt: Date.now(),
+                  }),
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                });
+
+                addLog(state, {
+                  phase: 'post_exploit', type: 'info',
+                  title: `💾 Auto-Generated Actor Saved: ${calderaOp.adversary_profile.name}`,
+                  detail: `Actor ID: ${generatedActorId}. Attempting to push to Caldera server...`,
+                  riskTier: 'red',
+                });
+
+                // Push to Caldera
+                const pushResult = await pushProfileToCaldera(generatedActorId);
+                if (pushResult.success && pushResult.adversaryId) {
+                  selectedAdversaryId = pushResult.adversaryId;
+                  addLog(state, {
+                    phase: 'post_exploit', type: 'info',
+                    title: `✅ Auto-Generated Profile Pushed`,
+                    detail: `Adversary ID: ${selectedAdversaryId}`,
+                    riskTier: 'red',
+                  });
+
+                  // Launch the operation
+                  const opName = `AC3-AutoBuild-Eng${state.engagementId}-${Date.now()}`;
+                  const launchResult = await launchOperation(
+                    {
+                      name: opName,
+                      adversaryId: selectedAdversaryId,
+                      group: '',
+                      planner: 'batch',
+                      autonomous: true,
+                      autoClose: true,
+                      jitter: '2/8',
+                    },
+                    `caldera-builder-eng${state.engagementId}`,
+                    calderaOp.adversary_profile.name,
+                  );
+
+                  if (launchResult.success && launchResult.operationId) {
+                    autoLaunchedOpId = String(launchResult.operationId);
+                    (state as any).__autoLaunchedOpId = autoLaunchedOpId;
+                    (state as any).__autoLaunchedAdversaryId = selectedAdversaryId;
+                    addLog(state, {
+                      phase: 'post_exploit', type: 'info',
+                      title: `✅ Auto-Built Operation Launched: ${opName}`,
+                      detail: `Operation ID: ${autoLaunchedOpId}. Generated from ${successfulExploits.length} exploit findings.`,
+                      riskTier: 'red',
+                      data: { operationId: autoLaunchedOpId, adversaryId: selectedAdversaryId, source: 'caldera-builder' },
+                    });
+                  } else {
+                    addLog(state, {
+                      phase: 'post_exploit', type: 'warning',
+                      title: '⚠️ Auto-Built Operation Launch Failed',
+                      detail: launchResult.error || 'Unknown error',
+                    });
+                  }
+                } else {
+                  addLog(state, {
+                    phase: 'post_exploit', type: 'warning',
+                    title: '⚠️ Auto-Generated Profile Push Failed',
+                    detail: pushResult.error || 'Unknown error — operation plan saved but not deployed',
+                  });
+                }
+              }
+            } catch (pushErr: any) {
+              addLog(state, {
+                phase: 'post_exploit', type: 'warning',
+                title: '⚠️ Auto-Build Deploy Failed',
+                detail: `Generated operation plan saved but could not deploy: ${pushErr.message}`,
+              });
+            }
+          } catch (builderErr: any) {
+            addLog(state, {
+              phase: 'post_exploit', type: 'warning',
+              title: '⚠️ Caldera Builder Failed',
+              detail: `Could not auto-generate Caldera operation: ${builderErr.message}`,
+            });
+          }
         }
       } catch (autoLaunchErr: any) {
         addLog(state, {

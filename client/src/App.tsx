@@ -199,6 +199,7 @@ const AttackVectorEngine = lazyWithRetry(() => import("./pages/AttackVectorEngin
 const ScheduledCollection = lazyWithRetry(() => import("./pages/ScheduledCollection"));
 const EngagementAutomation = lazyWithRetry(() => import("./pages/EngagementAutomation"));
 const ThreatEnrichment = lazyWithRetry(() => import("./pages/ThreatEnrichment"));
+const ContextEngineDashboard = lazyWithRetry(() => import("./pages/ContextEngineDashboard"));
 const InfraWiki = lazyWithRetry(() => import("./pages/InfraWiki"));
 const LiveInfra = lazyWithRetry(() => import("./pages/LiveInfra"));
 const Workflows = lazyWithRetry(() => import("./pages/Workflows"));
@@ -945,6 +946,9 @@ function Router() {
         </Route>
         <Route path="/threat-enrichment">
           <ProtectedRoute component={ThreatEnrichment} />
+        </Route>
+        <Route path="/context-engine">
+          <ProtectedRoute component={ContextEngineDashboard} />
         </Route>
         <Route path="/infra-wiki">
           <ProtectedRoute component={InfraWiki} />

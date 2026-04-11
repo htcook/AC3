@@ -20,7 +20,7 @@ import {
   getEngagementFindings,
   type CrossToolMatch,
 } from "./accuracy-tracker";
-import { db } from "../../db";
+import { getDb } from "../../db";
 import { eq, sql } from "drizzle-orm";
 import {
   scanforgeEngagementReport,
@@ -273,6 +273,8 @@ async function storeReassessmentResults(
   analysis: { summary: string; templateImprovements: TemplateImprovement[]; coverageGaps: CoverageGap[] }
 ): Promise<void> {
   // Update the engagement report with LLM analysis
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
   await db.update(scanforgeEngagementReport)
     .set({
       reassessmentSummary: analysis.summary,
@@ -284,7 +286,9 @@ async function storeReassessmentResults(
   // Auto-generate draft templates for critical/high coverage gaps
   for (const gap of analysis.coverageGaps.filter(g => g.priority === "critical" || g.priority === "high")) {
     const templateId = `auto-${gap.vulnCategory.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-    await db.insert(scanforgeGeneratedTemplates).values({
+    const dbIns = await getDb();
+    if (!dbIns) throw new Error('Database not available');
+    await dbIns.insert(scanforgeGeneratedTemplates).values({
       templateId,
       name: gap.suggestedTemplateSpec?.name || `Auto: ${gap.vulnCategory}`,
       generationSource: "missed_finding",
@@ -317,7 +321,9 @@ function determineRecommendation(
  * Call this from a scheduled job or after engagement completion.
  */
 export async function runPendingReassessments(): Promise<number> {
-  const pendingEngagements = await db.select({ engagementId: scanforgeFindingLog.engagementId })
+  const db2 = await getDb();
+  if (!db2) return 0;
+  const pendingEngagements = await db2.select({ engagementId: scanforgeFindingLog.engagementId })
     .from(scanforgeFindingLog)
     .where(eq(scanforgeFindingLog.verdict, "PENDING"))
     .groupBy(scanforgeFindingLog.engagementId);

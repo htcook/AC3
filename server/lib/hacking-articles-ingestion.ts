@@ -14,7 +14,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
-import { db } from "../db";
+import { getDb } from "../db";
 import { exploitPlaybooks, dfirObservations, attackChainsCatalog } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
@@ -330,6 +330,8 @@ async function storePlaybook(
   try {
     const playbookId = `ha-${playbook.mitre_id}-${Date.now()}`;
     
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     await db.insert(exploitPlaybooks).values({
       id: playbookId,
       threatActorId: null, // Not actor-specific — generic technique knowledge
@@ -383,7 +385,9 @@ async function storeObservations(
     ];
 
     for (const cmd of allCommands) {
-      await db.insert(dfirObservations).values({
+      const dbObs = await getDb();
+      if (!dbObs) throw new Error('Database not available');
+      await dbObs.insert(dfirObservations).values({
         id: `ha-obs-${playbook.mitre_id}-${cmd.phase}-${cmd.order}-${Date.now()}`,
         threatActorId: null,
         mitreId: playbook.mitre_id,
@@ -445,7 +449,9 @@ async function storeAttackChain(
 
     if (allSteps.length < 2) return; // Not a chain if only 1 step
 
-    await db.insert(attackChainsCatalog).values({
+    const dbChain = await getDb();
+    if (!dbChain) throw new Error('Database not available');
+    await dbChain.insert(attackChainsCatalog).values({
       id: `ha-chain-${playbook.mitre_id}-${Date.now()}`,
       threatActorId: null,
       chainName: `${playbook.technique_name} — Full Exploitation Chain`,
@@ -624,6 +630,8 @@ export async function getIngestionStats(): Promise<{
   byDifficulty: Record<string, number>;
 }> {
   try {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const playbooks = await db.select().from(exploitPlaybooks);
     const observations = await db.select().from(dfirObservations);
     const chains = await db.select().from(attackChainsCatalog);
@@ -675,6 +683,8 @@ export async function getPlaybooksByMitreId(mitreId: string): Promise<Array<{
   privilegeGained: string;
 }>> {
   try {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const results = await db
       .select()
       .from(exploitPlaybooks)
