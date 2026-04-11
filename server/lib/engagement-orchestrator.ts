@@ -1934,7 +1934,8 @@ Return valid JSON per the response_format schema.`;
     }
     // Use capLLMContext to prevent multi-MB prompt accumulation (memory optimization)
     const { capLLMContext } = await import('./memory-manager');
-    enrichmentCtx = capLLMContext([
+    // Assemble all context blocks for the scan planning decision
+    const _scanPlanContextBlocks: Array<{ label: string; content: string }> = [
       { label: 'banking', content: bankingCtx || '' },
       { label: 'ontology', content: ontologyCtx ? '## Asset Architecture Context\n' + ontologyCtx : '' },
       { label: 'bugbounty', content: bbCtx ? '## Bug Bounty Methodology\n' + bbCtx : '' },
@@ -1967,7 +1968,20 @@ Return valid JSON per the response_format schema.`;
           return '## Context-Aware Target Profiles\n' + profileCtxParts.join('\n---\n');
         } catch { return ''; }
       })() },
-    ]);
+    ];
+    enrichmentCtx = capLLMContext(_scanPlanContextBlocks);
+    // ── Context Engine Tracker: record which knowledge sources contributed to this scan planning decision ──
+    try {
+      const { buildContributionFromBlocks } = require('./context-engine-tracker');
+      buildContributionFromBlocks(
+        state.engagementId,
+        state.assets.map((a: any) => a.hostname).join(', '),
+        'scan_planning',
+        _scanPlanContextBlocks,
+        enrichmentCtx,
+        'scan_planned',
+      );
+    } catch (e) { console.warn('[ContextTracker] Failed to record scan planning contribution:', e); }
   } catch (e) {
     console.warn('[ScanPlan] Failed to build enrichment context:', e);
   }

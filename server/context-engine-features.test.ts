@@ -592,3 +592,193 @@ describe("Batch Ingest Results", () => {
     expect(stats.totalChains).toBeGreaterThanOrEqual(10);
   });
 });
+
+// ─── Feature 5: JSON Repair/Retry for Article Extraction ────────────────────
+
+describe("JSON Repair for Article Extraction", () => {
+  let repairAndParseJSON: typeof import("./lib/hacking-articles-ingestion").repairAndParseJSON;
+
+  beforeEach(async () => {
+    const mod = await import("./lib/hacking-articles-ingestion");
+    repairAndParseJSON = mod.repairAndParseJSON;
+  });
+
+  it("should parse valid JSON directly", () => {
+    const result = repairAndParseJSON('{"name": "test", "value": 42}');
+    expect(result).toEqual({ name: "test", value: 42 });
+  });
+
+  it("should return null for null/undefined/empty input", () => {
+    expect(repairAndParseJSON(null as any)).toBeNull();
+    expect(repairAndParseJSON(undefined as any)).toBeNull();
+    expect(repairAndParseJSON("")).toBeNull();
+  });
+
+  it("should strip markdown code fences", () => {
+    const result = repairAndParseJSON('```json\n{"name": "test"}\n```');
+    expect(result).toEqual({ name: "test" });
+  });
+
+  it("should remove trailing commas before } or ]", () => {
+    const result = repairAndParseJSON('{"items": [1, 2, 3,], "name": "test",}');
+    expect(result).toEqual({ items: [1, 2, 3], name: "test" });
+  });
+
+  it("should fix truncated JSON by closing open braces", () => {
+    const truncated = '{"technique_name": "SQL Injection", "mitre_id": "T1190", "commands": [{"order": 1, "cmd": "sqlmap"';
+    const result = repairAndParseJSON(truncated);
+    expect(result).not.toBeNull();
+    expect(result!.technique_name).toBe("SQL Injection");
+    expect(result!.mitre_id).toBe("T1190");
+  });
+
+  it("should fix truncated JSON with unclosed string", () => {
+    const truncated = '{"name": "test", "description": "This is a long description that got trunca';
+    const result = repairAndParseJSON(truncated);
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe("test");
+  });
+
+  it("should fix truncated array inside object", () => {
+    const truncated = '{"tools": ["nmap", "sqlmap", "burp';
+    const result = repairAndParseJSON(truncated);
+    expect(result).not.toBeNull();
+    expect(result!.tools).toBeDefined();
+  });
+
+  it("should handle deeply nested truncated JSON", () => {
+    const truncated = '{"a": {"b": {"c": [1, 2, {"d": "val"';
+    const result = repairAndParseJSON(truncated);
+    expect(result).not.toBeNull();
+    expect(result!.a).toBeDefined();
+  });
+
+  it("should remove control characters", () => {
+    const withControl = '{"name": "test\x00\x01value"}';
+    const result = repairAndParseJSON(withControl);
+    expect(result).not.toBeNull();
+    expect(result!.name).toContain("test");
+  });
+
+  it("should fix single-quoted strings when no double quotes present", () => {
+    const singleQuoted = "{'name': 'test', 'value': 42}";
+    const result = repairAndParseJSON(singleQuoted);
+    expect(result).toEqual({ name: "test", value: 42 });
+  });
+
+  it("should handle a realistic truncated playbook extraction", () => {
+    const truncated = `{
+  "technique_name": "DLL Hijacking via PATH Order",
+  "mitre_id": "T1574.001",
+  "platform": "windows",
+  "description": "Exploiting DLL search order to load malicious DLL",
+  "prerequisites": ["Write access to PATH directory", "Target application loads DLL without full path"],
+  "enumeration_commands": [
+    {"order": 1, "command": "procmon.exe /AcceptEula", "tool": "Process Monitor", "description": "Monitor DLL loading"},
+    {"order": 2, "command": "echo %PATH%", "tool": "cmd", "description": "List PATH directories"`;
+    const result = repairAndParseJSON(truncated);
+    expect(result).not.toBeNull();
+    expect(result!.technique_name).toBe("DLL Hijacking via PATH Order");
+    expect(result!.mitre_id).toBe("T1574.001");
+    expect(result!.platform).toBe("windows");
+    expect(result!.enumeration_commands).toBeDefined();
+  });
+});
+
+// ─── Feature 5b: extractPlaybookFromArticle retry wiring ─────────────────────
+
+describe("Article Extraction Retry Wiring", () => {
+  it("should have repairAndParseJSON called before retry", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/hacking-articles-ingestion.ts", "utf-8");
+
+    expect(source).toContain("repairAndParseJSON(content)");
+    expect(source).toContain("extractPlaybookCompact");
+    expect(source).toContain("retrying with compact prompt");
+  });
+
+  it("should export repairAndParseJSON for testing", async () => {
+    const mod = await import("./lib/hacking-articles-ingestion");
+    expect(typeof mod.repairAndParseJSON).toBe("function");
+  });
+
+  it("should have a compact retry function with shorter prompt", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/hacking-articles-ingestion.ts", "utf-8");
+
+    expect(source).toContain("async function extractPlaybookCompact");
+    expect(source).toContain("compact_playbook");
+    expect(source).toContain("Keep command arrays short");
+    // Compact retry should also use repairAndParseJSON
+    expect(source).toContain("Compact retry succeeded");
+  });
+
+  it("should truncate article text to 6000 chars for compact retry", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/hacking-articles-ingestion.ts", "utf-8");
+
+    expect(source).toContain("articleText.slice(0, 6000)");
+  });
+});
+
+// ─── Feature 6: Scan Planning Context Engine Tracker Wiring ──────────────────
+
+describe("Scan Planning Context Engine Tracker Wiring", () => {
+  it("should wire buildContributionFromBlocks into the scan planning decision", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    expect(source).toContain("_scanPlanContextBlocks");
+    expect(source).toContain("Array<{ label: string; content: string }>");
+    expect(source).toContain("enrichmentCtx = capLLMContext(_scanPlanContextBlocks)");
+  });
+
+  it("should record scan planning contribution with correct parameters", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    expect(source).toContain("'scan_planning',");
+    expect(source).toContain("_scanPlanContextBlocks,");
+    expect(source).toContain("enrichmentCtx,");
+    expect(source).toContain("'scan_planned',");
+  });
+
+  it("should wrap scan planning tracker call in try/catch", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    expect(source).toContain("[ContextTracker] Failed to record scan planning contribution:");
+  });
+
+  it("should include all 21 scan planning context labels", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // Find the scan planning blocks section
+    const scanBlocksStart = source.indexOf("_scanPlanContextBlocks");
+    const scanBlocksEnd = source.indexOf("enrichmentCtx = capLLMContext(_scanPlanContextBlocks)");
+    const scanBlocksSection = source.slice(scanBlocksStart, scanBlocksEnd);
+
+    const expectedLabels = [
+      "banking", "ontology", "bugbounty", "triage", "cloud",
+      "scanforge-discovery", "owasp", "threatGroup", "threatActor",
+      "offensive", "zap", "burp", "secrets", "tools",
+      "methodology", "phaseTool", "injectionTools", "wafAdaptive",
+      "toolAvailability", "missedVuln", "targetProfiles",
+    ];
+
+    for (const label of expectedLabels) {
+      expect(scanBlocksSection).toContain(`label: '${label}'`);
+    }
+  });
+
+  it("should now track all 3 major LLM decision points", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // All 3 tracker wiring points should exist
+    expect(source).toContain("_scanPlanContextBlocks"); // scan planning
+    expect(source).toContain("_vulnContextBlocks"); // vuln detection
+    expect(source).toContain("_exploitContextBlocks"); // exploit decision
+  });
+});

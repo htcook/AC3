@@ -310,9 +310,200 @@ Return a JSON object with this exact structure:
     const content = response.choices?.[0]?.message?.content;
     if (!content) return null;
 
-    return JSON.parse(content) as ExtractedPlaybook;
+    // ── JSON Repair: attempt to fix truncated/malformed LLM output ──
+    const parsed = repairAndParseJSON(content);
+    if (parsed) return parsed as ExtractedPlaybook;
+
+    // ── Retry with shorter prompt: ask for essential fields only ──
+    console.warn(`[ArticleIngestion] JSON repair failed for "${title}", retrying with compact prompt...`);
+    return await extractPlaybookCompact(articleText.slice(0, 6000), title, category);
   } catch (e) {
     console.error(`[ArticleIngestion] LLM extraction failed for "${title}":`, e);
+    return null;
+  }
+}
+
+/**
+ * Attempt to repair truncated or malformed JSON from LLM output.
+ * Handles: trailing truncation, missing closing braces/brackets, trailing commas,
+ * unquoted keys, single-quoted strings, and control characters.
+ */
+export function repairAndParseJSON(raw: string): Record<string, any> | null {
+  if (!raw || typeof raw !== 'string') return null;
+
+  // Step 1: Try direct parse first
+  try {
+    return JSON.parse(raw);
+  } catch { /* continue to repair */ }
+
+  let text = raw.trim();
+
+  // Step 2: Strip markdown code fences if present
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+
+  // Step 3: Remove control characters (except newline/tab)
+  text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+
+  // Step 4: Fix single-quoted strings → double-quoted
+  // Only do this if there are no double quotes (avoids breaking valid JSON)
+  if (!text.includes('"') && text.includes("'")) {
+    text = text.replace(/'/g, '"');
+  }
+
+  // Step 5: Remove trailing commas before } or ]
+  text = text.replace(/,\s*([}\]])/g, '$1');
+
+  // Step 6: Try parse after basic cleanup
+  try {
+    return JSON.parse(text);
+  } catch { /* continue to bracket repair */ }
+
+  // Step 7: Fix truncated JSON by closing open brackets/braces
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') openBraces++;
+    else if (ch === '}') openBraces--;
+    else if (ch === '[') openBrackets++;
+    else if (ch === ']') openBrackets--;
+  }
+
+  // Step 7b: Iterative truncation repair — trim back to last valid structure point
+  // Try up to 10 rounds of trimming from the end to find a parseable prefix
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // Re-count brackets/braces after any trimming
+    let ob = 0, obrk = 0, inStr = false, esc = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') ob++;
+      else if (ch === '}') ob--;
+      else if (ch === '[') obrk++;
+      else if (ch === ']') obrk--;
+    }
+
+    // Close any open string
+    let candidate = text;
+    if (inStr) candidate += '"';
+
+    // Remove trailing commas
+    candidate = candidate.replace(/,\s*$/g, '');
+
+    // Close remaining open brackets/braces (in correct order: ] before })
+    for (let i = 0; i < obrk; i++) candidate += ']';
+    for (let i = 0; i < ob; i++) candidate += '}';
+
+    // Also clean trailing commas before closing brackets
+    candidate = candidate.replace(/,\s*([}\]])/g, '$1');
+
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Trim back: find the last comma, colon, or opening bracket and cut there
+      // This removes the last partial key-value pair
+      const trimPoints = [
+        text.lastIndexOf(','),
+        text.lastIndexOf(': "'),
+        text.lastIndexOf(': {'),
+        text.lastIndexOf(': ['),
+      ].filter(p => p > 0);
+
+      if (trimPoints.length === 0) break;
+
+      const bestTrim = Math.max(...trimPoints);
+      if (bestTrim <= 1) break;
+
+      // If the best trim point is a comma, cut at the comma
+      // If it's a colon, cut before the key (find the preceding quote)
+      if (text[bestTrim] === ',') {
+        text = text.slice(0, bestTrim);
+      } else {
+        // Find the key start (previous quote pair)
+        const keyEnd = text.lastIndexOf('"', bestTrim - 1);
+        const keyStart = keyEnd > 0 ? text.lastIndexOf('"', keyEnd - 1) : -1;
+        const commaBeforeKey = keyStart > 0 ? text.lastIndexOf(',', keyStart) : -1;
+        if (commaBeforeKey > 0) {
+          text = text.slice(0, commaBeforeKey);
+        } else {
+          text = text.slice(0, bestTrim);
+        }
+      }
+    }
+  }
+
+  console.warn('[ArticleIngestion] JSON repair exhausted all attempts');
+  return null;
+}
+
+/**
+ * Compact retry: shorter prompt asking for only essential fields.
+ * Used when the full extraction fails due to output token limits.
+ */
+async function extractPlaybookCompact(
+  articleText: string,
+  title: string,
+  category: string
+): Promise<ExtractedPlaybook | null> {
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: 'system',
+          content: 'Extract a compact exploit playbook from the article. Return ONLY valid JSON. Keep command arrays short (max 5 items each). Omit empty arrays.',
+        },
+        {
+          role: 'user',
+          content: `Article: "${title}" [${category}]\n\n${articleText}\n\nReturn JSON:\n{"technique_name":"","mitre_id":"","platform":"","description":"","prerequisites":[],"enumeration_commands":[{"order":1,"command":"","tool":"","description":""}],"exploitation_commands":[{"order":1,"command":"","tool":"","description":""}],"tools_used":[{"name":"","category":""}],"detection_indicators":[],"difficulty":"","privilege_gained":""}`,
+        },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'compact_playbook',
+          strict: false,
+          schema: {
+            type: 'object',
+            properties: {
+              technique_name: { type: 'string' },
+              mitre_id: { type: 'string' },
+              platform: { type: 'string' },
+              description: { type: 'string' },
+              prerequisites: { type: 'array', items: { type: 'string' } },
+              enumeration_commands: { type: 'array', items: { type: 'object', properties: { order: { type: 'integer' }, command: { type: 'string' }, tool: { type: 'string' }, description: { type: 'string' } } } },
+              exploitation_commands: { type: 'array', items: { type: 'object', properties: { order: { type: 'integer' }, command: { type: 'string' }, tool: { type: 'string' }, description: { type: 'string' } } } },
+              tools_used: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, category: { type: 'string' } } } },
+              detection_indicators: { type: 'array', items: { type: 'string' } },
+              difficulty: { type: 'string' },
+              privilege_gained: { type: 'string' },
+            },
+          },
+        },
+      },
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) return null;
+
+    // Try repair on the compact response too
+    const parsed = repairAndParseJSON(content);
+    if (parsed) {
+      console.log(`[ArticleIngestion] Compact retry succeeded for "${title}"`);
+      return parsed as ExtractedPlaybook;
+    }
+    return null;
+  } catch (e) {
+    console.error(`[ArticleIngestion] Compact retry failed for "${title}":`, e);
     return null;
   }
 }
