@@ -4382,7 +4382,22 @@ export const nucleiFindings = mysqlTable("nuclei_findings", {
 	remediation: text(),
 	engagementId: int("engagement_id"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+	// Enhanced persistence columns (added for Nuclei direct execution & verification)
+	accessLevel: varchar("access_level", { length: 64 }),
+	confidence: int(),
+	executionContext: varchar("execution_context", { length: 32 }),
+	nucleiCommand: text("nuclei_command"),
+	findingHash: varchar("finding_hash", { length: 64 }),
+	port: int(),
+	nucleiVerified: tinyint("nuclei_verified").default(0),
+}, (table) => [
+	index("nf_engagement_idx").on(table.engagementId),
+	index("nf_cve_idx").on(table.cveId),
+	index("nf_template_idx").on(table.templateId),
+	index("nf_severity_idx").on(table.severity),
+	index("nf_host_idx").on(table.host),
+	index("nf_hash_idx").on(table.findingHash),
+]);
 
 export const nucleiScans = mysqlTable("nuclei_scans", {
 	id: int().autoincrement().notNull(),
@@ -7319,4 +7334,22 @@ export const iocTtpMappings = mysqlTable("ioc_ttp_mappings", {
 	index("itm_actor_idx").on(table.actorId),
 	index("itm_technique_idx").on(table.techniqueId),
 	index("itm_ioc_type_idx").on(table.iocType),
+]);
+
+
+// ─── Nuclei CVE-to-Template Dynamic Mappings ────────────────────────────────
+export const nucleiTemplateMappings = mysqlTable("nuclei_template_mappings", {
+	id: int().autoincrement().notNull(),
+	cveId: varchar("cve_id", { length: 32 }).notNull(),
+	templatePath: varchar("template_path", { length: 512 }).notNull(),
+	vulnClass: varchar("vuln_class", { length: 64 }),
+	service: varchar({ length: 128 }),
+	successCount: int("success_count").default(1),
+	lastUsedAt: bigint("last_used_at", { mode: "number" }).notNull(),
+	discoveredFrom: mysqlEnum("discovered_from", ['exploit_success','manual','knowledge_store']).default('exploit_success'),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("ntm_cve_idx").on(table.cveId),
+	index("ntm_template_idx").on(table.templatePath),
+	index("ntm_vuln_class_idx").on(table.vulnClass),
 ]);

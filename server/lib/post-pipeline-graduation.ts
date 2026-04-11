@@ -62,6 +62,8 @@ export interface PipelineMetrics {
   exploitsAttempted: number;
   exploitsSucceeded: number;
   verifiedVulns: number;
+  /** Count of exploits independently confirmed by Nuclei (direct execution or re-verification) */
+  nucleiVerifiedExploits: number;
 
   // Evasion metrics
   wafDetected: boolean;
@@ -229,7 +231,10 @@ function scoreExploitSelector(m: PipelineMetrics): number {
   const volumeBonus = Math.min(15, m.totalVulns > 10 ? 15 : Math.ceil(m.totalVulns * 1.5));
   // Severity depth: up to 15 pts for finding critical/high vulns
   const severityBonus = Math.min(15, (m.criticalVulns * 5) + (m.highVulns * 3) + (m.mediumVulns * 1));
-  return Math.min(100, Math.round(successRate + attemptCredit + evidenceRate + volumeBonus + severityBonus));
+  // Nuclei verification bonus: up to 10 pts for Nuclei-confirmed exploits
+  // Nuclei-confirmed exploits are independently verified by a second tool, so they deserve a scoring bonus
+  const nucleiBonus = Math.min(10, (m.nucleiVerifiedExploits || 0) * 5);
+  return Math.min(100, Math.round(successRate + attemptCredit + evidenceRate + volumeBonus + severityBonus + nucleiBonus));
 }
 
 function scoreEvasionOptimizer(m: PipelineMetrics): number {
@@ -461,6 +466,7 @@ export function extractEngagementMetrics(
     exploitsAttempted: stats.exploitsAttempted || 0,
     exploitsSucceeded: stats.exploitsSucceeded || 0,
     verifiedVulns: (stats as any).verifiedVulns || 0,
+    nucleiVerifiedExploits: (stats as any).nucleiVerifiedExploits || 0,
     wafDetected: !!(stats as any).wafDetected,
     wafBypassed: !!(stats as any).wafBypassed,
     evasionEscalations: evasionState?.escalationHistory?.length || 0,
@@ -611,6 +617,7 @@ export function extractDIScanMetrics(
     exploitsAttempted: 0,
     exploitsSucceeded: 0,
     verifiedVulns: confirmedVulns,
+    nucleiVerifiedExploits: 0, // DI scans don't run exploits
     wafDetected: !!(result.wafNgfwAssessment?.wafDetected),
     wafBypassed: false,
     evasionEscalations: 0,
