@@ -1788,7 +1788,7 @@ export default function EngagementOps() {
         const kpiItems: KpiItem[] = [
           { label: 'Assets Discovered', value: assetCount, icon: <Globe className="h-4 w-4 text-emerald-400" />, color: 'text-emerald-400', delta: assetDelta, deltaPercent: assetDeltaPct, subtitle: snapshotLabel, onClick: () => setActiveTab('assets') },
           { label: 'Hosts Scanned', value: ops.stats?.hostsScanned || 0, icon: <Server className="h-4 w-4 text-cyan-400" />, color: 'text-cyan-400', onClick: () => setActiveTab('discovery') },
-          { label: 'Open Ports', value: (ops.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops.stats?.portsFound || 0, icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta, onClick: () => setActiveTab('assets') },
+          { label: 'Open Ports', value: (() => { const seen = new Set<string>(); (ops.assets || []).forEach((a: any) => (a.ports || []).forEach((p: any) => seen.add(`${a.hostname || a.ip}:${p.port}`))); return seen.size || ops.stats?.portsFound || 0; })(), icon: <Network className="h-4 w-4 text-blue-400" />, color: 'text-blue-400', delta: portDelta, onClick: () => setActiveTab('assets') },
           { label: 'Total Vulns', value: totalVulns, icon: <Bug className="h-4 w-4 text-yellow-400" />, color: totalVulns > 0 ? 'text-yellow-400' : 'text-foreground', delta: vulnDelta, deltaPercent: vulnDeltaPct, deltaInverted: true, subtitle: criticalVulns > 0 ? `${criticalVulns} critical, ${highVulns} high` : snapshotLabel, onClick: () => setActiveTab('assets') },
           { label: 'Exploits Succeeded', value: ops.stats?.exploitsSucceeded || 0, icon: <Skull className="h-4 w-4 text-red-500" />, color: (ops.stats?.exploitsSucceeded || 0) > 0 ? 'text-red-400' : 'text-foreground', delta: exploitDelta, deltaInverted: true, subtitle: `${ops.stats?.exploitsAttempted || 0} attempted`, onClick: () => setActiveTab('evidence') },
           { label: 'Sessions', value: ops.stats?.sessionsOpened || 0, icon: <Terminal className="h-4 w-4 text-green-400" />, color: (ops.stats?.sessionsOpened || 0) > 0 ? 'text-green-400' : 'text-foreground', onClick: () => setActiveTab('evidence') },
@@ -2411,9 +2411,20 @@ export default function EngagementOps() {
                       {/* Ports */}
                       {(selectedAssetData.ports || []).length > 0 && (
                         <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Open Ports ({(selectedAssetData.ports || []).length})</h4>
+                          <h4 className="text-xs font-medium text-muted-foreground mb-1">Open Ports ({(() => { const seen = new Set<number>(); (selectedAssetData.ports || []).forEach((p: any) => seen.add(p.port)); return seen.size; })()})</h4>
                           <div className="space-y-0.5">
-                            {(selectedAssetData.ports || []).map((p, i) => {
+                            {(() => {
+                              // Deduplicate ports: prefer fingerprinted > identified > inferred, keep richest metadata
+                              const portMap = new Map<number, any>();
+                              for (const p of (selectedAssetData.ports || [])) {
+                                const existing = portMap.get(p.port);
+                                if (!existing) { portMap.set(p.port, p); continue; }
+                                const srcPriority = (s: any) => (s as any)?.serviceSource === 'fingerprinted' ? 3 : (s?.service && s.service !== 'unknown') ? 2 : 1;
+                                if (srcPriority(p) > srcPriority(existing)) portMap.set(p.port, { ...existing, ...p });
+                                else if ((p as any).banner && !(existing as any).banner) portMap.set(p.port, { ...existing, banner: (p as any).banner, product: (p as any).product || existing.product });
+                              }
+                              return Array.from(portMap.values()).sort((a, b) => a.port - b.port);
+                            })().map((p, i) => {
                               // Client-side fallback: resolve "unknown" services using well-known port map
                               const COMMON_PORTS: Record<number, string> = {
                                 21:'ftp',22:'ssh',23:'telnet',25:'smtp',53:'dns',80:'http',110:'pop3',
@@ -4656,7 +4667,7 @@ export default function EngagementOps() {
           <div className="space-y-3">
             <StatCard icon={<Globe className="h-4 w-4 text-emerald-400" />} label="Assets Discovered" value={ops?.assets?.length || 0} onClick={() => setActiveTab('assets')} />
             <StatCard icon={<Server className="h-4 w-4 text-cyan-400" />} label="Hosts Scanned" value={ops?.stats?.hostsScanned || 0} onClick={() => setActiveTab('discovery')} />
-            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.ports || []).length, 0) || ops?.stats?.portsFound || 0} onClick={() => setActiveTab('assets')} />
+            <StatCard icon={<Activity className="h-4 w-4 text-blue-400" />} label="Open Ports" value={(() => { const seen = new Set<string>(); (ops?.assets || []).forEach((a: any) => (a.ports || []).forEach((p: any) => seen.add(`${a.hostname || a.ip}:${p.port}`))); return seen.size || ops?.stats?.portsFound || 0; })()} onClick={() => setActiveTab('assets')} />
             <StatCard icon={<Bug className="h-4 w-4 text-yellow-400" />} label="Vulns Found" value={(ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).length + (a.zapFindings || []).length, 0) || ops?.stats?.vulnsFound || 0} onClick={() => setActiveTab('assets')} />
             <StatCard icon={<Globe className="h-4 w-4 text-blue-400" />} label="ZAP Scans" value={ops?.stats?.zapScansRun || 0} onClick={() => setActiveTab('discovery')} />
             <StatCard icon={<ShieldAlert className="h-4 w-4 text-orange-400" />} label="WAFs Detected" value={ops?.stats?.wafDetections || 0} onClick={() => setActiveTab('discovery')} />
