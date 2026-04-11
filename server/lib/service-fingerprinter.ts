@@ -14,6 +14,7 @@
  * connection is made.
  *
  * Supported protocols:
+ *   - HTTP/HTTPS (Server header, tech stack, TLS cert, security headers, product detection)
  *   - SSH (banner, key exchange, algorithms, HASSH)
  *   - SMTP (banner, EHLO, STARTTLS, auth methods, open relay)
  *   - FTP (banner, anonymous login, TLS, directory listing)
@@ -40,7 +41,8 @@ import * as crypto from "crypto";
 export type ServiceProtocol =
   | "ssh" | "smtp" | "ftp" | "snmp" | "rdp" | "smb" | "ldap" | "telnet"
   | "mysql" | "mssql" | "postgresql" | "redis" | "mongodb" | "vnc"
-  | "sftp" | "pop3" | "imap" | "dns" | "ntp" | "sip";
+  | "sftp" | "pop3" | "imap" | "dns" | "ntp" | "sip"
+  | "http" | "https";
 
 export interface FingerprintResult {
   protocol: ServiceProtocol;
@@ -118,7 +120,8 @@ export const PORT_PROTOCOL_MAP: Record<number, ServiceProtocol> = {
   143: "imap",
   161: "snmp",
   389: "ldap",
-  443: "smtp", // could be HTTPS, but handled elsewhere
+  80: "http",
+  443: "https",
   445: "smb",
   465: "smtp",
   587: "smtp",
@@ -127,9 +130,18 @@ export const PORT_PROTOCOL_MAP: Record<number, ServiceProtocol> = {
   995: "pop3",
   1433: "mssql",
   1521: "postgresql", // Oracle, but similar probe
+  4000: "http",  // Common alt HTTP
+  4443: "https", // Common alt HTTPS
   2049: "ntp",
   3306: "mysql",
   3389: "rdp",
+  8000: "http",  // Common alt HTTP
+  8080: "http",  // Common alt HTTP
+  8090: "http",  // Common alt HTTP
+  8443: "https", // Common alt HTTPS
+  8888: "http",  // Common alt HTTP
+  9090: "http",  // Common alt HTTP
+  9443: "https", // Common alt HTTPS
   5432: "postgresql",
   5900: "vnc",
   5901: "vnc",
@@ -1958,6 +1970,331 @@ export async function fingerprintVNC(config: FingerprintConfig): Promise<Fingerp
   return result;
 }
 
+// ─── HTTP/HTTPS Fingerprinting ─────────────────────────────────────────────
+
+/**
+ * HTTP/HTTPS fingerprinting — connects to the target, sends an HTTP request,
+ * and extracts Server header, technology stack, TLS info, security headers,
+ * and product identification from the response.
+ */
+export async function fingerprintHTTP(config: FingerprintConfig): Promise<FingerprintResult> {
+  const isHttps = config.protocol === 'https' || [443, 4443, 8443, 9443].includes(config.port);
+  const result = defaultResult(isHttps ? 'https' : 'http', config.host, config.port);
+  const start = Date.now();
+
+  try {
+    const connectFn = isHttps ? tlsConnect : tcpConnect;
+    const socket = await connectFn(config.host, config.port, config.timeoutMs || 10000);
+
+    try {
+      // Extract TLS info for HTTPS
+      if (isHttps && 'getPeerCertificate' in socket) {
+        const tlsSock = socket as tls.TLSSocket;
+        result.securityFlags.tlsSupported = true;
+        result.securityFlags.encryptionEnabled = true;
+        const proto = tlsSock.getProtocol?.();
+        if (proto) result.securityFlags.tlsVersion = proto;
+
+        try {
+          const cert = tlsSock.getPeerCertificate();
+          if (cert && cert.subject) {
+            result.metadata.tlsCertSubject = cert.subject?.CN || '';
+            result.metadata.tlsCertIssuer = cert.issuer?.O || cert.issuer?.CN || '';
+            result.metadata.tlsCertExpiry = cert.valid_to || '';
+            result.metadata.tlsCertSerial = cert.serialNumber || '';
+            // Check for expired cert
+            if (cert.valid_to) {
+              const expiry = new Date(cert.valid_to);
+              if (expiry < new Date()) {
+                result.riskIndicators.push({
+                  severity: 'medium',
+                  title: 'Expired TLS Certificate',
+                  description: `TLS certificate expired on ${cert.valid_to}`,
+                  cweId: 'CWE-295',
+                });
+              }
+            }
+            // Check for self-signed
+            if (cert.subject?.CN === cert.issuer?.CN && cert.subject?.O === cert.issuer?.O) {
+              result.metadata.selfSigned = true;
+              result.riskIndicators.push({
+                severity: 'low',
+                title: 'Self-Signed TLS Certificate',
+                description: 'Server uses a self-signed certificate',
+                cweId: 'CWE-295',
+              });
+            }
+          }
+        } catch { /* cert extraction optional */ }
+      }
+
+      // Send HTTP HEAD request
+      const httpReq = `HEAD / HTTP/1.1\r\nHost: ${config.host}\r\nUser-Agent: Mozilla/5.0 (compatible; ServiceProbe/1.0)\r\nAccept: */*\r\nConnection: close\r\n\r\n`;
+      const respBuf = await sendAndReceive(socket, Buffer.from(httpReq), config.timeoutMs || 10000);
+      const resp = respBuf.toString('utf-8');
+      result.rawResponse = resp.substring(0, 4096);
+
+      // Parse HTTP status line
+      const statusMatch = resp.match(/^HTTP\/(\d\.\d)\s+(\d{3})\s+(.*)$/m);
+      if (statusMatch) {
+        result.metadata.httpVersion = statusMatch[1];
+        result.metadata.statusCode = parseInt(statusMatch[2], 10);
+        result.metadata.statusText = statusMatch[3]?.trim();
+      }
+
+      // Parse headers
+      const headerBlock = resp.split('\r\n\r\n')[0] || resp.split('\n\n')[0] || '';
+      const headers: Record<string, string> = {};
+      for (const line of headerBlock.split(/\r?\n/).slice(1)) {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          const key = line.substring(0, colonIdx).trim().toLowerCase();
+          const val = line.substring(colonIdx + 1).trim();
+          headers[key] = val;
+        }
+      }
+      result.metadata.headers = headers;
+
+      // ── Extract Server product ──
+      const server = headers['server'] || '';
+      if (server) {
+        result.banner = server;
+        // Parse product/version from Server header
+        // Common patterns: "Apache/2.4.52 (Ubuntu)", "nginx/1.22.0", "Microsoft-IIS/10.0"
+        const serverParts = server.match(/^([\w.-]+)(?:\/([\d.]+))?/);
+        if (serverParts) {
+          result.product = serverParts[1]; // e.g., "Apache", "nginx", "Microsoft-IIS"
+          result.version = serverParts[2] || null;
+        }
+        // OS detection from Server header
+        if (/ubuntu/i.test(server)) result.os = 'Ubuntu Linux';
+        else if (/debian/i.test(server)) result.os = 'Debian Linux';
+        else if (/centos|rhel|red\s*hat/i.test(server)) result.os = 'RHEL/CentOS';
+        else if (/win|microsoft|iis/i.test(server)) result.os = 'Windows';
+        else if (/freebsd/i.test(server)) result.os = 'FreeBSD';
+      }
+
+      // ── Extract X-Powered-By for technology stack ──
+      const poweredBy = headers['x-powered-by'] || '';
+      if (poweredBy) {
+        result.metadata.poweredBy = poweredBy;
+        // If no product from Server header, use X-Powered-By
+        if (!result.product) {
+          const pbParts = poweredBy.match(/^([\w.-]+)(?:\/([\d.]+))?/);
+          if (pbParts) {
+            result.product = pbParts[1];
+            result.version = pbParts[2] || null;
+          }
+        }
+        // Technology detection
+        if (/php/i.test(poweredBy)) result.metadata.techPhp = true;
+        if (/asp\.?net/i.test(poweredBy)) result.metadata.techAspNet = true;
+        if (/express/i.test(poweredBy)) result.metadata.techExpress = true;
+        if (/next\.?js/i.test(poweredBy)) result.metadata.techNextJs = true;
+      }
+
+      // ── Security header analysis ──
+      const securityHeaders: Record<string, boolean> = {
+        'strict-transport-security': !!headers['strict-transport-security'],
+        'x-frame-options': !!headers['x-frame-options'],
+        'x-content-type-options': !!headers['x-content-type-options'],
+        'x-xss-protection': !!headers['x-xss-protection'],
+        'content-security-policy': !!headers['content-security-policy'],
+        'referrer-policy': !!headers['referrer-policy'],
+        'permissions-policy': !!headers['permissions-policy'],
+      };
+      result.metadata.securityHeaders = securityHeaders;
+
+      // Missing critical security headers
+      const missingCritical: string[] = [];
+      if (!securityHeaders['strict-transport-security'] && isHttps) missingCritical.push('Strict-Transport-Security');
+      if (!securityHeaders['x-frame-options'] && !securityHeaders['content-security-policy']) missingCritical.push('X-Frame-Options / CSP frame-ancestors');
+      if (!securityHeaders['x-content-type-options']) missingCritical.push('X-Content-Type-Options');
+
+      if (missingCritical.length > 0) {
+        result.riskIndicators.push({
+          severity: 'low',
+          title: 'Missing Security Headers',
+          description: `Missing: ${missingCritical.join(', ')}`,
+          cweId: 'CWE-693',
+        });
+      }
+
+      // ── Cookie security analysis ──
+      const setCookie = headers['set-cookie'] || '';
+      if (setCookie) {
+        result.metadata.hasCookies = true;
+        if (!/secure/i.test(setCookie) && isHttps) {
+          result.riskIndicators.push({
+            severity: 'medium',
+            title: 'Cookie Missing Secure Flag',
+            description: 'Set-Cookie header lacks Secure flag on HTTPS service',
+            cweId: 'CWE-614',
+          });
+        }
+        if (!/httponly/i.test(setCookie)) {
+          result.riskIndicators.push({
+            severity: 'low',
+            title: 'Cookie Missing HttpOnly Flag',
+            description: 'Set-Cookie header lacks HttpOnly flag',
+            cweId: 'CWE-1004',
+          });
+        }
+      }
+
+      // ── Technology detection from other headers ──
+      if (headers['x-aspnet-version']) result.metadata.techAspNet = true;
+      if (headers['x-drupal-cache'] || headers['x-generator']?.includes('Drupal')) result.metadata.techDrupal = true;
+      if (headers['x-wordpress'] || headers['link']?.includes('wp-json')) result.metadata.techWordPress = true;
+      if (headers['x-varnish']) result.metadata.techVarnish = true;
+      if (headers['x-cache']) result.metadata.cdnDetected = headers['x-cache'];
+      if (headers['cf-ray']) { result.metadata.cdnCloudflare = true; result.metadata.cdnDetected = 'Cloudflare'; }
+      if (headers['x-amz-cf-id']) { result.metadata.cdnCloudfront = true; result.metadata.cdnDetected = 'CloudFront'; }
+
+      // ── Detect HTTP when HTTPS expected (or vice versa) ──
+      if (!isHttps) {
+        result.securityFlags.tlsSupported = false;
+        result.securityFlags.encryptionEnabled = false;
+        if (result.metadata.statusCode && result.metadata.statusCode < 400) {
+          result.riskIndicators.push({
+            severity: 'info' as any,
+            title: 'Unencrypted HTTP Service',
+            description: `HTTP service on port ${config.port} — data transmitted in cleartext`,
+            cweId: 'CWE-319',
+            mitreId: 'T1557',
+          });
+        }
+      }
+
+      // ── Known CVE checks for common products ──
+      if (result.product && result.version) {
+        const prod = result.product.toLowerCase();
+        const ver = result.version;
+        if (prod === 'apache' || prod.includes('apache')) {
+          if (ver < '2.4.50') {
+            result.potentialCves.push('CVE-2021-41773', 'CVE-2021-42013');
+            result.riskIndicators.push({
+              severity: 'critical',
+              title: 'Apache Path Traversal (CVE-2021-41773)',
+              description: `Apache ${ver} may be vulnerable to path traversal and RCE`,
+              cweId: 'CWE-22',
+            });
+          }
+        }
+        if (prod === 'nginx') {
+          if (ver < '1.20.0') {
+            result.potentialCves.push('CVE-2021-23017');
+            result.riskIndicators.push({
+              severity: 'high',
+              title: 'Nginx DNS Resolver Vulnerability',
+              description: `Nginx ${ver} may be vulnerable to DNS resolver off-by-one (CVE-2021-23017)`,
+              cweId: 'CWE-193',
+            });
+          }
+        }
+        if (prod.includes('iis') || prod.includes('Microsoft-IIS')) {
+          if (parseFloat(ver) <= 7.5) {
+            result.potentialCves.push('CVE-2017-7269');
+            result.riskIndicators.push({
+              severity: 'critical',
+              title: 'IIS WebDAV Buffer Overflow',
+              description: `IIS ${ver} may be vulnerable to WebDAV buffer overflow (CVE-2017-7269)`,
+              cweId: 'CWE-120',
+            });
+          }
+        }
+      }
+
+      // Mark capabilities
+      result.capabilities.http = true;
+      if (isHttps) result.capabilities.https = true;
+      result.mitreRelevance.push('T1190'); // Exploit Public-Facing Application
+
+      // If we got a valid HTTP response but no Server header, try to identify from body
+      if (!result.product && result.metadata.statusCode) {
+        // Send a GET request to get the body for title/generator extraction
+        try {
+          const getSocket = await connectFn(config.host, config.port, config.timeoutMs || 10000);
+          const getReq = `GET / HTTP/1.1\r\nHost: ${config.host}\r\nUser-Agent: Mozilla/5.0 (compatible; ServiceProbe/1.0)\r\nAccept: text/html\r\nConnection: close\r\n\r\n`;
+          const getResp = await sendAndReceive(getSocket, Buffer.from(getReq), config.timeoutMs || 10000);
+          const body = getResp.toString('utf-8');
+          getSocket.destroy();
+
+          // Extract <title>
+          const titleMatch = body.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+          if (titleMatch) result.metadata.pageTitle = titleMatch[1].trim();
+
+          // Extract meta generator
+          const genMatch = body.match(/<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)["']/i);
+          if (genMatch) {
+            result.metadata.generator = genMatch[1];
+            const genParts = genMatch[1].match(/^([\w.-]+)\s*([\d.]+)?/);
+            if (genParts) {
+              result.product = genParts[1];
+              result.version = genParts[2] || null;
+            }
+          }
+
+          // WordPress detection
+          if (/wp-content|wp-includes|wordpress/i.test(body)) {
+            result.metadata.techWordPress = true;
+            if (!result.product) result.product = 'WordPress';
+          }
+          // Drupal detection
+          if (/drupal|sites\/default/i.test(body)) {
+            result.metadata.techDrupal = true;
+            if (!result.product) result.product = 'Drupal';
+          }
+          // Joomla detection
+          if (/joomla|com_content/i.test(body)) {
+            result.metadata.techJoomla = true;
+            if (!result.product) result.product = 'Joomla';
+          }
+          // PHP detection
+          if (/\.php|PHPSESSID/i.test(body) || /\.php/i.test(setCookie)) {
+            result.metadata.techPhp = true;
+          }
+        } catch { /* GET fallback is optional */ }
+      }
+
+    } finally {
+      socket.destroy();
+    }
+  } catch (err: any) {
+    result.error = err.message;
+    // If HTTPS failed, try plain HTTP as fallback (port might be HTTP not HTTPS)
+    if (isHttps && !result.product) {
+      try {
+        const plainSocket = await tcpConnect(config.host, config.port, config.timeoutMs || 10000);
+        const httpReq = `HEAD / HTTP/1.1\r\nHost: ${config.host}\r\nConnection: close\r\n\r\n`;
+        const resp = await sendAndReceive(plainSocket, Buffer.from(httpReq), 5000);
+        const respStr = resp.toString('utf-8');
+        plainSocket.destroy();
+        if (/^HTTP\//m.test(respStr)) {
+          result.error = null;
+          result.protocol = 'http';
+          result.metadata.httpsDowngraded = true;
+          const serverMatch = respStr.match(/^Server:\s*(.+)$/mi);
+          if (serverMatch) {
+            result.banner = serverMatch[1].trim();
+            const sp = result.banner.match(/^([\w.-]+)(?:\/([\d.]+))?/);
+            if (sp) { result.product = sp[1]; result.version = sp[2] || null; }
+          }
+          result.riskIndicators.push({
+            severity: 'medium',
+            title: 'HTTPS Not Available',
+            description: `Port ${config.port} expected HTTPS but only serves HTTP`,
+            cweId: 'CWE-319',
+          });
+        }
+      } catch { /* fallback failed too */ }
+    }
+  }
+
+  result.durationMs = Date.now() - start;
+  return result;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Orchestration
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1984,6 +2321,8 @@ const PROBE_MAP: Record<ServiceProtocol, (config: FingerprintConfig) => Promise<
   dns: fingerprintTelnet,  // Basic probe
   ntp: fingerprintTelnet,  // Basic probe
   sip: fingerprintTelnet,  // Basic probe
+  http: fingerprintHTTP,
+  https: fingerprintHTTP,
 };
 
 /**
@@ -2100,9 +2439,11 @@ export async function autoFingerprint(
     .map(port => ({
       host,
       port,
-      protocol: detectProtocol(port),
-    }))
-    .filter((t): t is { host: string; port: number; protocol: ServiceProtocol } => t.protocol !== null);
+      // For unmapped ports, default to HTTP probe as a fallback — most unknown
+      // services on high ports are web services. The HTTP probe will gracefully
+      // handle non-HTTP services by returning an error result.
+      protocol: detectProtocol(port) || ('http' as ServiceProtocol),
+    }));
 
   if (targets.length === 0) return [];
 
