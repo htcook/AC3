@@ -7999,8 +7999,8 @@ ${(() => {
     includeBrowserStorage: true,
     technology: detectedTech[0],
   });
-  // Cap total context to prevent multi-MB prompts (memory optimization)
-  return _capLLMContext([
+  // Assemble all context blocks for the vuln detection decision
+  const _vulnContextBlocks: Array<{ label: string; content: string }> = [
     { label: 'chains', content: chainCtx },
     { label: 'ontology', content: ontologyCtx },
     { label: 'bugBounty', content: bugBountyCtx },
@@ -8013,7 +8013,22 @@ ${(() => {
     { label: 'zap', content: zapVulnCtx || '' },
     { label: 'burp', content: buildBurpKnowledgeContext({ phase: 'vuln_detection', technology: detectedTech[0], includeAttackProfiles: true, includeCollaborator: true, includeCrossToolCorrelation: true }) },
     { label: 'secrets', content: sourceSecretsVulnCtx || '' },
-  ]);
+  ];
+  // Cap total context to prevent multi-MB prompts (memory optimization)
+  const _cappedVulnContext = _capLLMContext(_vulnContextBlocks);
+  // ── Context Engine Tracker: record which knowledge sources contributed to this vuln detection decision ──
+  try {
+    const { buildContributionFromBlocks } = require('./context-engine-tracker');
+    buildContributionFromBlocks(
+      state.engagementId,
+      state.assets.map((a: any) => a.hostname).join(', '),
+      state.assets.flatMap((a: any) => a.vulns.filter((v: any) => v.cve).map((v: any) => v.cve!)).join(', '),
+      _vulnContextBlocks,
+      _cappedVulnContext,
+      'exploit_deferred',
+    );
+  } catch (e) { console.warn('[ContextTracker] Failed to record vuln contribution:', e); }
+  return _cappedVulnContext;
 })()}`,
     });
 
@@ -8498,7 +8513,7 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
 - Pentest: try each asset for unauthorized access to data or privileged functions
 - Red Team: find the easiest path to a shell for C2 deployment
 Available vulns: ${state.assets.flatMap(a => a.vulns.map(v => `${a.hostname}:${v.title}${v.cve ? ` [${v.cve}]` : ""}`)).join(", ")}
-${(() => {
+${await (async () => {
   // Inject attack chain few-shot examples based on detected vuln types
   const vulnDescs = state.assets.flatMap(a => a.vulns.map(v => v.title + (v.cve ? ` ${v.cve}` : '')));
   const chains = getChainsByVulnDescriptions(vulnDescs, 3);
@@ -8539,8 +8554,22 @@ ${(() => {
   });
   // Compact source secrets context for exploitation (token-limited)
   const sourceSecretsExploitCtx = buildCompactSourceSecretsContext();
-  // Cap total context to prevent multi-MB prompts (memory optimization)
-  return _capLLMContext([
+  // Build enriched threat actor catalog context
+  let threatActorCatalogCtx = '';
+  try {
+    const { buildEmberThreatContext } = await import('./ember-catalog-intelligence');
+    const targetSector = state.metadata?.sector || state.metadata?.clientType || '';
+    const targetTech = detectedTech.join(', ');
+    const vulnCves = state.assets.flatMap(a => a.vulns.filter(v => v.cve).map(v => v.cve!));
+    const ctx = await buildEmberThreatContext({
+      targetSector,
+      targetTechnology: targetTech,
+      vulnerabilityCves: vulnCves,
+    });
+    threatActorCatalogCtx = ctx || '';
+  } catch { /* non-fatal */ }
+  // Assemble all context blocks for the exploit decision
+  const _exploitContextBlocks: Array<{ label: string; content: string }> = [
     { label: 'chains', content: chainContext },
     { label: 'ontology', content: ontologyContext },
     { label: 'bugBounty', content: bbContext },
@@ -8552,21 +8581,10 @@ ${(() => {
     { label: 'zap', content: zapExploitCtx || '' },
     { label: 'burp', content: burpExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
-    // Enriched threat actor catalog intelligence — playbooks, attack chains, DFIR observations
-    { label: 'threatActorCatalog', content: await (async () => {
-      try {
-        const { buildEmberThreatContext } = await import('./ember-catalog-intelligence');
-        const targetSector = state.metadata?.sector || state.metadata?.clientType || '';
-        const targetTech = detectedTech.join(', ');
-        const vulnCves = state.assets.flatMap(a => a.vulns.filter(v => v.cve).map(v => v.cve!));
-        const ctx = await buildEmberThreatContext({
-          targetSector,
-          targetTechnology: targetTech,
-          vulnerabilityCves: vulnCves,
-        });
-        return ctx || '';
-      } catch { return ''; }
-    })() },
+    { label: 'threatActorCatalog', content: threatActorCatalogCtx },
+  ];
+  // Cap total context to prevent multi-MB prompts (memory optimization)
+  const _cappedExploitContext = _capLLMContext(_exploitContextBlocks.concat([
     // Context-aware target profiles for exploitation
     { label: 'targetProfiles', content: (() => {
       if (!state.targetProfiles || Object.keys(state.targetProfiles).length === 0) return '';
@@ -8579,7 +8597,20 @@ ${(() => {
         return '## Target Profiles (WAF/CDN/Topology)\n' + parts.join('\n---\n');
       } catch { return ''; }
     })() },
-  ]);
+  ]));
+  // ── Context Engine Tracker: record which knowledge sources contributed to this exploit decision ──
+  try {
+    const { buildContributionFromBlocks } = require('./context-engine-tracker');
+    buildContributionFromBlocks(
+      state.engagementId,
+      state.assets.map((a: any) => a.hostname).join(', '),
+      state.assets.flatMap((a: any) => a.vulns.filter((v: any) => v.cve).map((v: any) => v.cve!)).join(', '),
+      _exploitContextBlocks,
+      _cappedExploitContext,
+      'exploit_attempted',
+    );
+  } catch (e) { console.warn('[ContextTracker] Failed to record contribution:', e); }
+  return _cappedExploitContext;
 })()}`,
   });
 

@@ -328,39 +328,52 @@ async function storePlaybook(
   sourceTitle: string
 ): Promise<string | null> {
   try {
-    const playbookId = `ha-${playbook.mitre_id}-${Date.now()}`;
-    
     const db = await getDb();
     if (!db) throw new Error('Database not available');
+
+    // Schema: id (autoincrement int), actorId (required), actorName (required),
+    // playbookTitle (required), techniqueId (required), techniqueName, tactic (required),
+    // code (required), language (required), toolName, targetConditions, exploitedCves,
+    // targetServices, targetPlatforms, evasionTechniques, successIndicators,
+    // sourceType (enum), sourceReference, confidence (int), observedDate, createdAt, updatedAt
+    const toolNames = (playbook.tools_used || []).map(t => t.name);
+    const codeBlock = [
+      ...(playbook.enumeration_commands || []).map(c => `# Enum: ${c.description}\n${c.command}`),
+      ...(playbook.exploitation_commands || []).map(c => `# Exploit: ${c.description}\n${c.command}`),
+      ...(playbook.post_exploitation_commands || []).map(c => `# Post: ${c.description}\n${c.command}`),
+    ].join('\n\n');
+
     await db.insert(exploitPlaybooks).values({
-      id: playbookId,
-      threatActorId: null, // Not actor-specific — generic technique knowledge
-      mitreId: playbook.mitre_id,
+      // id: auto-increment, omit
+      actorId: 'hacking-articles',
+      actorName: 'Hacking Articles Knowledge Base',
+      playbookTitle: sourceTitle,
+      techniqueId: playbook.mitre_id || 'T0000',
       techniqueName: playbook.technique_name,
-      platform: playbook.platform,
-      description: playbook.description,
-      prerequisites: JSON.stringify(playbook.prerequisites),
-      enumerationCommands: JSON.stringify(playbook.enumeration_commands),
-      exploitationCommands: JSON.stringify(playbook.exploitation_commands),
-      postExploitationCommands: JSON.stringify(playbook.post_exploitation_commands),
-      toolsUsed: JSON.stringify(playbook.tools_used),
-      successIndicators: JSON.stringify(playbook.success_indicators),
-      detectionIndicators: JSON.stringify(playbook.detection_indicators),
-      mitigations: JSON.stringify(playbook.mitigations),
-      relatedTechniques: JSON.stringify(playbook.related_techniques),
-      difficulty: playbook.difficulty,
-      requiresCredentials: playbook.requires_credentials,
-      requiresLocalAccess: playbook.requires_local_access,
-      privilegeGained: playbook.privilege_gained,
-      sourceUrl,
-      sourceTitle,
-      sourceType: "hacking_articles",
-      confidence: 0.85, // High-quality structured walkthroughs
-      lastValidated: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      tactic: playbook.related_techniques?.[0]?.split('.')?.[0] || playbook.mitre_id?.split('.')?.[0] || 'unknown',
+      code: codeBlock || 'N/A',
+      language: 'bash',
+      toolName: toolNames[0] || null,
+      targetConditions: JSON.stringify({
+        prerequisites: playbook.prerequisites || [],
+        platform: playbook.platform,
+        difficulty: playbook.difficulty,
+        requiresCredentials: playbook.requires_credentials,
+        requiresLocalAccess: playbook.requires_local_access,
+        privilegeGained: playbook.privilege_gained,
+      }),
+      exploitedCves: JSON.stringify([]),
+      targetServices: JSON.stringify([]),
+      targetPlatforms: JSON.stringify([playbook.platform]),
+      evasionTechniques: JSON.stringify(playbook.detection_indicators || []),
+      successIndicators: JSON.stringify(playbook.success_indicators || []),
+      sourceType: 'osint',
+      sourceReference: sourceUrl,
+      confidence: 85,
+      observedDate: new Date().toISOString().slice(0, 10),
     });
 
+    const playbookId = `ha-${playbook.mitre_id}-${Date.now()}`;
     return playbookId;
   } catch (e) {
     console.error(`[ArticleIngestion] Failed to store playbook:`, e);
@@ -377,33 +390,53 @@ async function storeObservations(
   sourceTitle: string
 ): Promise<void> {
   try {
-    // Store each enumeration + exploitation command as an observation
+    // Schema: id (autoincrement int), reportId (required), reportTitle (required),
+    // reportSource, reportUrl, reportDate, actorId, actorName,
+    // observationType (enum: initial_access|execution|persistence|privilege_escalation|...),
+    // techniqueId, techniqueName, description (required), artifacts, toolsObserved,
+    // associatedIocs, impactDescription, victimSector, victimRegion,
+    // detectionMethods, mitigations, confidence (int), createdAt
+
+    // Map our phases to the schema's observation type enum
+    const phaseToObsType: Record<string, string> = {
+      enumeration: 'discovery',
+      exploitation: 'execution',
+      post_exploitation: 'privilege_escalation',
+    };
+
     const allCommands = [
-      ...playbook.enumeration_commands.map(c => ({ ...c, phase: "enumeration" })),
-      ...playbook.exploitation_commands.map(c => ({ ...c, phase: "exploitation" })),
-      ...playbook.post_exploitation_commands.map(c => ({ ...c, phase: "post_exploitation" })),
+      ...(playbook.enumeration_commands || []).map(c => ({ ...c, phase: "enumeration" })),
+      ...(playbook.exploitation_commands || []).map(c => ({ ...c, phase: "exploitation" })),
+      ...(playbook.post_exploitation_commands || []).map(c => ({ ...c, phase: "post_exploitation" })),
     ];
+
+    const reportId = `ha-report-${playbook.mitre_id || 'unknown'}-${Date.now()}`;
 
     for (const cmd of allCommands) {
       const dbObs = await getDb();
       if (!dbObs) throw new Error('Database not available');
       await dbObs.insert(dfirObservations).values({
-        id: `ha-obs-${playbook.mitre_id}-${cmd.phase}-${cmd.order}-${Date.now()}`,
-        threatActorId: null,
-        mitreId: playbook.mitre_id,
-        observationType: cmd.phase as "enumeration" | "exploitation" | "post_exploitation",
-        platform: cmd.platform || playbook.platform,
-        description: cmd.description,
-        commandObserved: cmd.command,
-        toolUsed: cmd.tool,
-        expectedOutput: cmd.expected_output,
-        detectionMethod: playbook.detection_indicators.join("; "),
-        sourceUrl,
-        sourceTitle,
-        sourceType: "security_article",
-        confidence: 0.85,
-        observedAt: new Date(),
-        createdAt: new Date(),
+        // id: auto-increment, omit
+        reportId,
+        reportTitle: sourceTitle,
+        reportSource: 'Hacking Articles',
+        reportUrl: sourceUrl,
+        reportDate: new Date().toISOString().slice(0, 10),
+        actorId: 'hacking-articles',
+        actorName: 'Hacking Articles Knowledge Base',
+        observationType: (phaseToObsType[cmd.phase] || 'execution') as any,
+        techniqueId: playbook.mitre_id,
+        techniqueName: playbook.technique_name,
+        description: `${cmd.description}\n\nCommand: ${cmd.command}\nTool: ${cmd.tool}\nExpected Output: ${cmd.expected_output}`,
+        artifacts: JSON.stringify([{ type: 'command', value: cmd.command, tool: cmd.tool }]),
+        toolsObserved: JSON.stringify([cmd.tool]),
+        associatedIocs: null,
+        impactDescription: null,
+        victimSector: null,
+        victimRegion: null,
+        detectionMethods: JSON.stringify(playbook.detection_indicators || []),
+        mitigations: JSON.stringify(playbook.mitigations || []),
+        confidence: 85,
       });
     }
   } catch (e) {
@@ -420,8 +453,14 @@ async function storeAttackChain(
   sourceTitle: string
 ): Promise<void> {
   try {
+    // Schema: id (autoincrement int), actorId (required), actorName (required),
+    // chainName (required), description, steps (required json), tacticsTraversed,
+    // riskScore (int), targetSectors, targetTechnologies, exploitedCves, toolsUsed,
+    // typicalDuration, sourceType (enum), sourceReference, confidence (int),
+    // observedDate, createdAt, updatedAt
+
     const allSteps = [
-      ...playbook.enumeration_commands.map(c => ({
+      ...(playbook.enumeration_commands || []).map(c => ({
         order: c.order,
         phase: "enumeration",
         technique: playbook.mitre_id,
@@ -429,7 +468,7 @@ async function storeAttackChain(
         tool: c.tool,
         description: c.description,
       })),
-      ...playbook.exploitation_commands.map(c => ({
+      ...(playbook.exploitation_commands || []).map(c => ({
         order: c.order + 100,
         phase: "exploitation",
         technique: playbook.mitre_id,
@@ -437,7 +476,7 @@ async function storeAttackChain(
         tool: c.tool,
         description: c.description,
       })),
-      ...playbook.post_exploitation_commands.map(c => ({
+      ...(playbook.post_exploitation_commands || []).map(c => ({
         order: c.order + 200,
         phase: "post_exploitation",
         technique: playbook.mitre_id,
@@ -452,28 +491,26 @@ async function storeAttackChain(
     const dbChain = await getDb();
     if (!dbChain) throw new Error('Database not available');
     await dbChain.insert(attackChainsCatalog).values({
-      id: `ha-chain-${playbook.mitre_id}-${Date.now()}`,
-      threatActorId: null,
+      // id: auto-increment, omit
+      actorId: 'hacking-articles',
+      actorName: 'Hacking Articles Knowledge Base',
       chainName: `${playbook.technique_name} — Full Exploitation Chain`,
       description: playbook.description,
-      platform: playbook.platform,
-      initialAccess: playbook.requires_local_access ? "local_shell" : "remote",
-      finalObjective: playbook.privilege_gained || "privilege_escalation",
       steps: JSON.stringify(allSteps),
-      prerequisites: JSON.stringify(playbook.prerequisites),
-      toolsRequired: JSON.stringify(playbook.tools_used.map(t => t.name)),
-      mitreMapping: JSON.stringify([
+      tacticsTraversed: JSON.stringify([
         playbook.mitre_id,
         ...playbook.related_techniques,
       ]),
-      difficulty: playbook.difficulty,
-      successRate: null, // Unknown until tested
-      sourceUrl,
-      sourceTitle,
-      sourceType: "security_article",
-      confidence: 0.85,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      riskScore: playbook.difficulty === 'expert' ? 90 : playbook.difficulty === 'advanced' ? 75 : playbook.difficulty === 'intermediate' ? 60 : 40,
+      targetSectors: null,
+      targetTechnologies: JSON.stringify([playbook.platform]),
+      exploitedCves: JSON.stringify([]),
+      toolsUsed: JSON.stringify((playbook.tools_used || []).map(t => t.name)),
+      typicalDuration: null,
+      sourceType: 'osint',
+      sourceReference: sourceUrl,
+      confidence: 85,
+      observedDate: new Date().toISOString().slice(0, 10),
     });
   } catch (e) {
     console.error(`[ArticleIngestion] Failed to store attack chain:`, e);
@@ -524,12 +561,12 @@ export async function ingestArticle(
   await storeAttackChain(playbook, url, title);
 
   const totalCommands =
-    playbook.enumeration_commands.length +
-    playbook.exploitation_commands.length +
-    playbook.post_exploitation_commands.length;
+    (playbook.enumeration_commands || []).length +
+    (playbook.exploitation_commands || []).length +
+    (playbook.post_exploitation_commands || []).length;
 
   console.log(
-    `[ArticleIngestion] ✓ ${title} → ${playbook.mitre_id} | ${totalCommands} commands | ${playbook.tools_used.length} tools`
+    `[ArticleIngestion] ✓ ${title} → ${playbook.mitre_id} | ${totalCommands} commands | ${(playbook.tools_used || []).length} tools`
   );
 
   return {

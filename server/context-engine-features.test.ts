@@ -509,3 +509,86 @@ describe("ScanForge Reassessment Agent DB Import Fix", () => {
     expect(source).toContain('import { getDb } from "../../db"');
   });
 });
+
+// ─── Feature 4: Context Engine Tracker Wiring into Engagement Orchestrator ──
+
+describe("Context Engine Tracker — Orchestrator Wiring", () => {
+  it("should wire buildContributionFromBlocks into the exploit decision IIFE", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // Verify the tracker is imported/required in the exploit decision path
+    expect(source).toContain("require('./context-engine-tracker')");
+    expect(source).toContain("buildContributionFromBlocks");
+  });
+
+  it("should assemble _exploitContextBlocks array before capping", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // Verify the blocks array is assembled
+    expect(source).toContain("_exploitContextBlocks");
+    expect(source).toContain("Array<{ label: string; content: string }>");
+    // Verify it includes the key labels
+    expect(source).toContain("{ label: 'threatActorCatalog', content: threatActorCatalogCtx }");
+  });
+
+  it("should cap context using _capLLMContext with the assembled blocks", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    expect(source).toContain("_cappedExploitContext = _capLLMContext(_exploitContextBlocks.concat(");
+    expect(source).toContain("return _cappedExploitContext;");
+  });
+
+  it("should record contribution with correct parameters", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // Verify the tracker call passes the right arguments
+    expect(source).toContain("state.engagementId,");
+    expect(source).toContain("_exploitContextBlocks,");
+    expect(source).toContain("_cappedExploitContext,");
+    expect(source).toContain("'exploit_attempted',");
+  });
+
+  it("should wrap tracker call in try/catch for non-fatal failure", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    expect(source).toContain("[ContextTracker] Failed to record contribution:");
+  });
+
+  it("should also wire tracker into the vuln detection decision", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // Verify the vuln detection path also has the tracker
+    expect(source).toContain("_vulnContextBlocks");
+    expect(source).toContain("_cappedVulnContext = _capLLMContext(_vulnContextBlocks)");
+    expect(source).toContain("[ContextTracker] Failed to record vuln contribution:");
+    expect(source).toContain("'exploit_deferred',");
+  });
+
+  it("should use async IIFE for the exploit decision context assembly", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
+
+    // The exploit decision IIFE must be async to support the await import of ember-catalog-intelligence
+    expect(source).toContain("${await (async () => {");
+  });
+});
+
+// ─── Batch Ingest Results Verification ──────────────────────────────────────
+
+describe("Batch Ingest Results", () => {
+  it("should have ingested playbooks into the database", async () => {
+    const { getIngestionStats } = await import("./lib/hacking-articles-ingestion");
+    const stats = await getIngestionStats();
+
+    // We ran the batch ingest for 6 priority categories
+    expect(stats.totalPlaybooks).toBeGreaterThanOrEqual(40);
+    expect(stats.totalObservations).toBeGreaterThanOrEqual(100);
+    expect(stats.totalChains).toBeGreaterThanOrEqual(10);
+  });
+});
