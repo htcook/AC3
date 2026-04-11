@@ -1,0 +1,4100 @@
+{
+  "source": "hackingarticles.in",
+  "crawled_at": "2026-04-10T20:39:28Z",
+  "total_articles": 682,
+  "categories_crawled": 22,
+  "articles": [
+    {
+      "title": "Disk Group Privilege Escalation",
+      "url": "https://www.hackingarticles.in/disk-group-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Server Operator Group",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-server-operator-group/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Domain Escalation: Unconstrained Delegation",
+      "url": "https://www.hackingarticles.in/domain-escalation-unconstrained-delegation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Domain Escalation: Resource Based Constrained Delegation",
+      "url": "https://www.hackingarticles.in/domain-escalation-resource-based-constrained-delegation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation: DirtyPipe (CVE 2022-0847)",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-dirtypipe-cve-2022-0847/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Domain Escalation: PetitPotam NTLM Relay to ADCS Endpoints",
+      "url": "https://www.hackingarticles.in/domain-escalation-petitpotam-ntlm-relay-to-adcs-endpoints/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: PrintNightmare",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-printnightmare/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: SpoolFool",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-spoolfool/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation: PwnKit (CVE 2021-4034)",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-pwnkit-cve-2021-4034/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation: Polkit (CVE 2021-3560)",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-polkit-cve-2021-3560/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Kernel Exploit",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-kernel-exploit/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Scheduled Task/Job (T1573.005)",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-scheduled-task-job-t1573-005/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: HiveNightmare",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-hivenightmare/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Logon Autostart Execution (Registry Run Keys)",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-logon-autostart-execution-registry-run-keys/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Boot Logon Autostart Execution (Startup Folder)",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-boot-logon-autostart-execution-startup-folder/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Stored Credentials (Runas)",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-stored-credentials-runas/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Weak Registry Permission",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-weak-registry-permission/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Unquoted Service Path",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-unquoted-service-path/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Insecure GUI Application",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-insecure-gui-application/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: Weak Services Permission",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-weak-services-permission/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: SeImpersonatePrivilege",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-seimpersonateprivilege/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation: Python Library Hijacking",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-python-library-hijacking/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: DnsAdmins to DomainAdmin",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-dnsadmins-to-domainadmin/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation: SeBackupPrivilege",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-sebackupprivilege/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation: Automated Script",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-automated-script/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Window Privilege Escalation: Automated Script",
+      "url": "https://www.hackingarticles.in/window-privilege-escalation-automated-script/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation using Capabilities",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-capabilities/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: Perl Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-perl-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "SUDO Security Policy Bypass Vulnerability \u2013 CVE-2019-14287",
+      "url": "https://www.hackingarticles.in/sudo-security-policy-bypass-vulnerability-cve-2019-14287/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Docker Privilege Escalation",
+      "url": "https://www.hackingarticles.in/docker-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Lxd Privilege Escalation",
+      "url": "https://www.hackingarticles.in/lxd-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Privilege Escalation Cheatsheet (Vulnhub)",
+      "url": "https://www.hackingarticles.in/privilege-escalation-cheatsheet-vulnhub/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux For Pentester: socat Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-socat-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: scp Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-scp-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux For Pentester: tmux Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-tmux-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: ed Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-ed-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: sed Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-sed-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: pip Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-pip-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: git Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-git-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: cp Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-cp-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: Taskset Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-taskset-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: Time Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-time-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: xxd Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-xxd-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: CAT Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-cat-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: Find Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-find-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: Wget Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-wget-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester : ZIP Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-zip-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux for Pentester: APT Privilege Escalation",
+      "url": "https://www.hackingarticles.in/linux-for-pentester-apt-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Multiple Ways to Bypass UAC using Metasploit",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-bypass-uac-using-metasploit/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Kernel Exploit Privilege Escalation",
+      "url": "https://www.hackingarticles.in/windows-kernel-exploit-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Windows Privilege Escalation (AlwaysInstallElevated)",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-alwaysinstallelevated/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Exploiting Wildcard for Privilege Escalation",
+      "url": "https://www.hackingarticles.in/exploiting-wildcard-for-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation by Exploiting Cronjobs",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-by-exploiting-cron-jobs/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation using LD_Preload",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-ld_preload/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation Using PATH Variable",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-path-variable/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation using Misconfigured NFS",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-misconfigured-nfs/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation using Sudo Rights",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-exploiting-sudo-rights/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Linux Privilege Escalation using SUID Binaries",
+      "url": "https://www.hackingarticles.in/linux-privilege-escalation-using-suid-binaries/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Editing  /etc/passwd File for Privilege Escalation",
+      "url": "https://www.hackingarticles.in/editing-etc-passwd-file-for-privilege-escalation/",
+      "category": "Privilege Escalation",
+      "category_slug": "privilege-escalation"
+    },
+    {
+      "title": "Lateral Movement: Pass the Certificate",
+      "url": "https://www.hackingarticles.in/lateral-movement-pass-the-certificate/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Impacket for Pentester: DACLEdit",
+      "url": "https://www.hackingarticles.in/impacket-for-pentester-dacledit/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Active Directory Penetration Testing with BloodyAD",
+      "url": "https://www.hackingarticles.in/active-directory-penetration-testing-with-bloodyad/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Impacket for Pentester: Change Password",
+      "url": "https://www.hackingarticles.in/impacket-for-pentester-change-password/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: Pass the Hash Attack",
+      "url": "https://www.hackingarticles.in/lateral-movement-pass-the-hash-attack/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: Remote Services (Mitre:T1021)",
+      "url": "https://www.hackingarticles.in/lateral-movement-remote-services-mitret1021/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: WebClient Workstation Takeover",
+      "url": "https://www.hackingarticles.in/lateral-movement-webclient-workstation-takeover/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: Pass the Ticket Attack",
+      "url": "https://www.hackingarticles.in/lateral-movement-pass-the-ticket-attack/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: Pass the Ccache",
+      "url": "https://www.hackingarticles.in/lateral-movement-pass-the-ccache/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: Over Pass the Hash",
+      "url": "https://www.hackingarticles.in/lateral-movement-over-pass-the-hash/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement on Active Directory: CrackMapExec",
+      "url": "https://www.hackingarticles.in/lateral-moment-on-active-directory-crackmapexec/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Lateral Movement: WMI",
+      "url": "https://www.hackingarticles.in/lateral-movement-wmi/",
+      "category": "Lateral Movement",
+      "category_slug": "lateral-movement"
+    },
+    {
+      "title": "Sapphire Ticket Attack: Abusing Kerberos Trust",
+      "url": "https://www.hackingarticles.in/sapphire-ticket-attack-abusing-kerberos-trust/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Diamond Ticket Attack: Abusing kerberos Trust",
+      "url": "https://www.hackingarticles.in/diamond-ticket-attack-abusing-kerberos-trust/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: Silver Ticket Attack",
+      "url": "https://www.hackingarticles.in/domain-persistence-silver-ticket-attack/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence: COM Hijacking (MITRE: T1546.015)",
+      "url": "https://www.hackingarticles.in/windows-persistence-com-hijacking-mitre-t1546-015/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence: Shortcut Modification (T1547)",
+      "url": "https://www.hackingarticles.in/windows-persistence-shortcut-modification-t1547/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: Computer Accounts",
+      "url": "https://www.hackingarticles.in/domain-persistence-computer-accounts/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: Golden Certificate Attack",
+      "url": "https://www.hackingarticles.in/domain-persistence-golden-certificate-attack/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: DSRM",
+      "url": "https://www.hackingarticles.in/domain-persistence-dsrm/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence: Port Monitors",
+      "url": "https://www.hackingarticles.in/windows-persistence-port-monitors/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: DC Shadow Attack",
+      "url": "https://www.hackingarticles.in/domain-persistence-dc-shadow-attack/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence AdminSDHolder",
+      "url": "https://www.hackingarticles.in/domain-persistence-adminsdholder/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence: Accessibility Features",
+      "url": "https://www.hackingarticles.in/windows-persistence-accessibility-features/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Controller Backdoor: Skeleton Key",
+      "url": "https://www.hackingarticles.in/domain-controller-backdoor-skeleton-key/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Domain Persistence: Golden Ticket Attack",
+      "url": "https://www.hackingarticles.in/domain-persistence-golden-ticket-attack/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence using Netsh",
+      "url": "https://www.hackingarticles.in/windows-persistence-using-netsh/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence using Bits Job",
+      "url": "https://www.hackingarticles.in/windows-persistence-using-bits-job/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence using WinLogon",
+      "url": "https://www.hackingarticles.in/windows-persistence-using-winlogon/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence: RID Hijacking",
+      "url": "https://www.hackingarticles.in/windows-persistence-rid-hijacking/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Multiple Ways to Persistence on Windows 10 with Metasploit",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-persistence-on-windows-10-with-metasploit/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence using Application Shimming",
+      "url": "https://www.hackingarticles.in/windows-persistence-using-application-shimming/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Windows Persistence with PowerShell Empire",
+      "url": "https://www.hackingarticles.in/windows-persistence-with-powershell-empire/",
+      "category": "Persistence",
+      "category_slug": "persistence"
+    },
+    {
+      "title": "Credential Dumping: Local Security Authority (LSA|LSASS.EXE)",
+      "url": "https://www.hackingarticles.in/credential-dumping-local-security-authority-lsalsass-exe/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping with NetExec (nxc)",
+      "url": "https://www.hackingarticles.in/credential-dumping-with-netexec-nxc/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: GMSA",
+      "url": "https://www.hackingarticles.in/readgmsapassword-attack/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: AD User Comment",
+      "url": "https://www.hackingarticles.in/credential-dumping-ad-user-comment/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping \u2013 Active Directory Reversible Encryption",
+      "url": "https://www.hackingarticles.in/credential-dumping-active-directory-reversible-encryption/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "NTLM Downgrade Attack: Internal Monologue",
+      "url": "https://www.hackingarticles.in/ntlm-downgrade-attack-internal-monologue/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Windows Autologon Password",
+      "url": "https://www.hackingarticles.in/credential-dumping-windows-autologon-password/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Fake Services",
+      "url": "https://www.hackingarticles.in/credential-dumping-fake-services/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Domain Cache Credential",
+      "url": "https://www.hackingarticles.in/credential-dumping-domain-cache-credential/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: LAPS",
+      "url": "https://www.hackingarticles.in/credential-dumping-laps/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: DCSync Attack",
+      "url": "https://www.hackingarticles.in/credential-dumping-dcsync-attack/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Clipboard",
+      "url": "https://www.hackingarticles.in/credential-dumping-clipboard/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Phishing Windows Credentials",
+      "url": "https://www.hackingarticles.in/credential-dumping-phishing-windows-credentials/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: NTDS.dit",
+      "url": "https://www.hackingarticles.in/credential-dumping-ntds-dit/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Applications",
+      "url": "https://www.hackingarticles.in/credential-dumping-applications/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: SAM",
+      "url": "https://www.hackingarticles.in/credential-dumping-sam/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Security Support Provider (SSP)",
+      "url": "https://www.hackingarticles.in/credential-dumping-security-support-provider-ssp/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: WDigest",
+      "url": "https://www.hackingarticles.in/credential-dumping-wdigest/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Windows Credential Manager",
+      "url": "https://www.hackingarticles.in/credential-dumping-windows-credential-manager/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Group Policy Preferences (GPP)",
+      "url": "https://www.hackingarticles.in/credential-dumping-group-policy-preferences-gpp/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Credential Dumping: Wireless",
+      "url": "https://www.hackingarticles.in/credential-dumping-wireless/",
+      "category": "Credential Dumping",
+      "category_slug": "credential-dumping"
+    },
+    {
+      "title": "Process Herpaderping (Mitre:T1055)",
+      "url": "https://www.hackingarticles.in/process-herpaderping-mitret1055/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Process Doppelganging (Mitre:T1055.013)",
+      "url": "https://www.hackingarticles.in/process-doppelganging-mitret1055-013/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Process Hollowing (Mitre:T1055.012)",
+      "url": "https://www.hackingarticles.in/process-hollowing-mitret1055-012/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Indirect Command Execution: Defense Evasion (T1202)",
+      "url": "https://www.hackingarticles.in/indirect-command-execution-defense-evasion-t1202/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Process Ghosting Attack",
+      "url": "https://www.hackingarticles.in/process-ghosting-attack/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Defense Evasion: Windows Event Logging (T1562.002)",
+      "url": "https://www.hackingarticles.in/defense-evasion-windows-event-logging-t1562-002/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Defense Evasion with obfuscated Empire",
+      "url": "https://www.hackingarticles.in/defense-evasion-with-obfuscated-empire/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Defense Evasion: Alternate Data Streams",
+      "url": "https://www.hackingarticles.in/defense-evasion-alternate-data-streams/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Defense Evasion: Hide Artifacts",
+      "url": "https://www.hackingarticles.in/defense-evasion-hide-artifacts/",
+      "category": "Defense Evasion",
+      "category_slug": "defense-evasion"
+    },
+    {
+      "title": "Active Directory Enumeration: Net RPC",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-net-rpc/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Enumeration: pywerview",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-pywerview/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Kerberos Constrained Delegation Exploitation",
+      "url": "https://www.hackingarticles.in/kerberos-constrained-delegation-exploitation/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Impacket for Pentester: PSExec",
+      "url": "https://www.hackingarticles.in/impacket-for-pentester-psexec/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Impacket for Pentester: SecretDump",
+      "url": "https://www.hackingarticles.in/imapacket-for-pentester-secretdump/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Impacket for Pentester: MSSQL Exploitation",
+      "url": "https://www.hackingarticles.in/impacket-for-pentester-mssql-exploitation/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Enumeration: BloodHound",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-bloodhound/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "NetExec for Pentester: Command Execution",
+      "url": "https://www.hackingarticles.in/netexec-for-pentester-command-execution/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "DotNetToJScript: Execute C# from Jscript",
+      "url": "https://www.hackingarticles.in/dotnettojscript-execute-c-from-jscript/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Netexec for Pentester: File Transfer",
+      "url": "https://www.hackingarticles.in/netexec-for-pentester-file-transfer/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Netexec for Pentester: SSH Exploitation",
+      "url": "https://www.hackingarticles.in/nxc-for-pentester-ssh-exploitation/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Enumeration: ldeep",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-ldeep/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Evil-noVNC: A Realistic Phishing Simulation",
+      "url": "https://www.hackingarticles.in/evil-novnc-a-realistic-phishing-simulation/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Abusing BadSuccessor (dMSA): Stealthy Privilege Escalation",
+      "url": "https://www.hackingarticles.in/abusing-badsuccessor-dmsa-stealthy-privilege-escalation/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Kerberoasting Attack in Active Directory",
+      "url": "https://www.hackingarticles.in/kerberoasting-attack-in-active-directory/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Penetration Testing Using Impacket",
+      "url": "https://www.hackingarticles.in/active-directory-penetration-testing-using-impacket/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on Certipy",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-certipy/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Shadow Credentials Attack",
+      "url": "https://www.hackingarticles.in/shadow-credentials-attack/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Abusing AD Weak Permission Pre2K Compatibility",
+      "url": "https://www.hackingarticles.in/pre2k-active-directory-misconfigurations/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "AD Recon: Kerberos Username Bruteforce",
+      "url": "https://www.hackingarticles.in/ad-recon-kerberos-username-bruteforce/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Pentesting Using Netexec Tool",
+      "url": "https://www.hackingarticles.in/active-directory-pentesting-using-netexec-tool-a-complete-guide/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "WinRM Penetration Testing",
+      "url": "https://www.hackingarticles.in/winrm-penetration-testing/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on Pwncat",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-pwncat/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on Evil-Winrm",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-evil-winrm/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on Kerbrute",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-kerbrute/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "MimiKatz for Pentester: Kerberos",
+      "url": "https://www.hackingarticles.in/mimikatz-for-pentester-kerberos/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Caldera: Red Team Emulation (Part 1)",
+      "url": "https://www.hackingarticles.in/caldera-red-team-emulation-part-1/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on Rubeus",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-rubeus/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on HTML Smuggling",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-html-smuggling/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "A Detailed Guide on AMSI Bypass",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-amsi-bypass/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Parent PID Spoofing (Mitre:T1134)",
+      "url": "https://www.hackingarticles.in/parent-pid-spoofing/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Privilege Escalation: sAMAccountName Spoofing",
+      "url": "https://www.hackingarticles.in/windows-privilege-escalation-samaccountname-spoofing/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Socat for Pentester",
+      "url": "https://www.hackingarticles.in/socat-for-pentester/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Covenant for Pentester: Basics",
+      "url": "https://www.hackingarticles.in/covenant-for-pentester-basics/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Enumeration: RPCClient",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-rpcclient/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Empire for Pentester: Active Directory Enumeration",
+      "url": "https://www.hackingarticles.in/empire-for-pentester-active-directory-enumeration/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Enumeration: PowerView",
+      "url": "https://www.hackingarticles.in/active-directory-enumeration-powerview/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "PowerShell Empire for Pentester: Mimikatz",
+      "url": "https://www.hackingarticles.in/powershell-empire-for-pentester-mimikatz-module/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Active Directory Pentesting: Lab Setup",
+      "url": "https://www.hackingarticles.in/active-directory-pentesting-lab-setup/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "DNScat2: Application Layer C&C",
+      "url": "https://www.hackingarticles.in/dnscat2-application-layer-cc/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "AlienVault: End user Devices Integration-Lab Setup (Part 2)",
+      "url": "https://www.hackingarticles.in/alienvault-end-user-devices-integration-lab-setup-part-2/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "SIEM Lab Setup: AlienVault",
+      "url": "https://www.hackingarticles.in/siem-lab-setup-alienvault/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Docker for Pentester: Abusing Docker API",
+      "url": "https://www.hackingarticles.in/docker-for-pentester-abusing-docker-api/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "SIEM: Windows Client Monitoring with Splunk",
+      "url": "https://www.hackingarticles.in/siem-windows-client-monitoring-with-splunk/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Data Exfiltration using Linux Binaries",
+      "url": "https://www.hackingarticles.in/data-exfiltration-using-linux-binaries/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "SIEM: Log Monitoring Lab Setup with Splunk",
+      "url": "https://www.hackingarticles.in/siem-log-monitoring-lab-setup-with-splunk/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Threat Intelligence: MISP Lab Setup",
+      "url": "https://www.hackingarticles.in/threat-intelligence-misp-lab-setup/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Abusing Kerberos Using Impacket",
+      "url": "https://www.hackingarticles.in/abusing-kerberos-using-impacket/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Remote Code Execution Using Impacket",
+      "url": "https://www.hackingarticles.in/remote-code-execution-using-impacket/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Kerberoasting and Pass the Ticket Attack Using Linux",
+      "url": "https://www.hackingarticles.in/kerberoasting-and-pass-the-ticket-attack-using-linux/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Abusing Microsoft Outlook 365 to Capture NTLM",
+      "url": "https://www.hackingarticles.in/abusing-microsoft-outlook-365-to-capture-ntlm/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Comprehensive Guide on Password Spraying Attack",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-password-spraying-attack/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "AS-REP Roasting",
+      "url": "https://www.hackingarticles.in/as-rep-roasting/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Impacket Guide: SMB/MSRPC",
+      "url": "https://www.hackingarticles.in/impacket-guide-smb-msrpc/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Deep Dive into Kerberoasting Attack",
+      "url": "https://www.hackingarticles.in/deep-dive-into-kerberoasting-attack/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Bypass Detection for Meterpreter Shell (Impersonate_SSL)",
+      "url": "https://www.hackingarticles.in/bypass-detection-for-meterpreter-shell-impersonate_ssl/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Data Exfiltration using DNSSteal",
+      "url": "https://www.hackingarticles.in/data-exfiltration-using-dnssteal/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Kerberos Brute Force Attack",
+      "url": "https://www.hackingarticles.in/kerberos-brute-force-attack/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "RDP Session Hijacking with tscon",
+      "url": "https://www.hackingarticles.in/rdp-session-hijacking-with-tscon/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control: PoshC2",
+      "url": "https://www.hackingarticles.in/command-control-poshc2/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Multiple Ways to Exploit Windows Systems using Macros",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-exploit-windows-systems-using-macros/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Evil SSDP: Spoofing the SSDP and UPnP Devices",
+      "url": "https://www.hackingarticles.in/evil-ssdp-spoofing-the-ssdp-and-upnp-devices/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows for Pentester: BITSAdmin",
+      "url": "https://www.hackingarticles.in/windows-for-pentester-bitsadmin/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows for Pentester: Certutil",
+      "url": "https://www.hackingarticles.in/windows-for-pentester-certutil/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Hands-on Red Team Tactics \u2013 A Red Team Edition book",
+      "url": "https://www.hackingarticles.in/hands-on-red-team-tactics-a-red-team-edition-book/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Guide to Red Team Operations",
+      "url": "https://www.hackingarticles.in/guide-to-red-team-operations/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command and Control & Tunnelling via ICMP",
+      "url": "https://www.hackingarticles.in/command-and-control-tunnelling-via-icmp/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Cloakify-Factory: A Data Exfiltration Tool Uses Text-Based Steganography",
+      "url": "https://www.hackingarticles.in/cloakify-factory-a-data-exfiltration-tool-uses-text-based-steganography/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Data Exfiltration using PowerShell Empire",
+      "url": "https://www.hackingarticles.in/data-exfiltration-using-powershell-empire/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Get Meterpreter Session Alert over slack",
+      "url": "https://www.hackingarticles.in/get-meterpreter-session-alert-over-slack/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Covert Channel: The Hidden Network",
+      "url": "https://www.hackingarticles.in/covert-channel-the-hidden-network/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control: Ares",
+      "url": "https://www.hackingarticles.in/command-control-ares/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control: WebDav C2",
+      "url": "https://www.hackingarticles.in/command-control-webdav-c2/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control: WebSocket C2",
+      "url": "https://www.hackingarticles.in/websocket-c2-command-control/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command and Control with Dropbox C2",
+      "url": "https://www.hackingarticles.in/dropbox-c2-command-and-control/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Empire GUI: Graphical Interface to the Empire Post-Exploitation Framework",
+      "url": "https://www.hackingarticles.in/empire-gui-graphical-interface-to-the-empire-post-exploitation-framework/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control: Silenttrinity Post-Exploitation Agent",
+      "url": "https://www.hackingarticles.in/command-control-silenttrinity-post-exploitation-agent/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "OSX Exploitation with Powershell Empire",
+      "url": "https://www.hackingarticles.in/osx-exploitation-with-powershell-empire/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command & Control Tool: Pupy",
+      "url": "https://www.hackingarticles.in/command-control-tool-pupy/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Multiple Ways to Exploiting OSX using PowerShell Empire",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-exploiting-osx-using-powershell-empire/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command and Control Guide to Merlin",
+      "url": "https://www.hackingarticles.in/command-and-control-guide-to-merlin/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Bypass User Access Control using Empire",
+      "url": "https://www.hackingarticles.in/bypass-user-access-control-using-empire/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "nps_payload: An Application Whitelisting Bypass Tool",
+      "url": "https://www.hackingarticles.in/nps_payload-an-application-whitelisting-bypass-tool/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Hiding IP During Pentest using PowerShell Empire (http_hop)",
+      "url": "https://www.hackingarticles.in/hiding-ip-during-pentest-using-powershell-empire-http_hop/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "TrevorC2 Command and Control",
+      "url": "https://www.hackingarticles.in/trevorc2-command-and-control/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: cmstp",
+      "url": "https://www.hackingarticles.in/windows-exploitation-cmstp/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Red Team/Blue Team Practice on Wdigest",
+      "url": "https://www.hackingarticles.in/red-team-blue-team-practice-on-wdigest/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Bypass Application Whitelisting using Weak Path Rule",
+      "url": "https://www.hackingarticles.in/bypass-application-whitelisting-using-weak-path-rule/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Multiple Ways to Exploiting Windows PC using PowerShell Empire",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-exploiting-windows-pc-using-powershell-empire/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "GreatSct \u2013 An Application Whitelist Bypass Tool",
+      "url": "https://www.hackingarticles.in/greatsct-an-application-whitelist-bypass-tool/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: rundll32.exe",
+      "url": "https://www.hackingarticles.in/windows-exploitation-rundll32-exe/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: regsvr32",
+      "url": "https://www.hackingarticles.in/windows-exploitation-regsvr32/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: wmic",
+      "url": "https://www.hackingarticles.in/windows-exploitation-wmic/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: msbuild",
+      "url": "https://www.hackingarticles.in/windows-exploitation-msbuild/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: mshta",
+      "url": "https://www.hackingarticles.in/windows-exploitation-mshta/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Exploitation: msiexec.exe",
+      "url": "https://www.hackingarticles.in/windows-exploitation-msiexec-exe/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Command and Control with HTTP Shell using JSRat",
+      "url": "https://www.hackingarticles.in/command-and-control-with-http-shell-using-jsrat/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Koadic \u2013 COM Command & Control Framework",
+      "url": "https://www.hackingarticles.in/koadic-com-command-control-framework/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Windows Applocker Policy \u2013 A Beginner\u2019s Guide",
+      "url": "https://www.hackingarticles.in/windows-applocker-policy-a-beginners-guide/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Comprehensive Guide on MSFPC",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-msfpc/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Hacking with Empire \u2013 PowerShell Post-Exploitation Agent",
+      "url": "https://www.hackingarticles.in/hacking-with-empire-powershell-post-exploitation-agent/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Generate Metasploit Payload with Ps1encode",
+      "url": "https://www.hackingarticles.in/generate-metasploit-payload-with-ps1encode/",
+      "category": "Red Teaming",
+      "category_slug": "red-teaming"
+    },
+    {
+      "title": "Network Pivoting using Ligolo-MP \u2013 Complete Guide",
+      "url": "https://www.hackingarticles.in/network-pivoting-using-ligolo-mp-complete-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "NTLM Reflection Attack",
+      "url": "https://www.hackingarticles.in/ntlm-reflection-attack/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Windows Dll Execution Techniques",
+      "url": "https://www.hackingarticles.in/windows-dll-execution-techniques/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "PostgreSQL Penetration Testing",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-postgresql-5432/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on Feroxbuster",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-feroxbuster/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "File Transfer Cheatsheet: Windows and Linux",
+      "url": "https://www.hackingarticles.in/file-transfer-cheatsheet-windows-and-linux/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Jenkins Penetration Testing",
+      "url": "https://www.hackingarticles.in/jenkins-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Tomcat Penetration Testing",
+      "url": "https://www.hackingarticles.in/tomcat-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on RustScan",
+      "url": "https://www.hackingarticles.in/rustscan-network-scanner-detailed-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Best Alternative of Netcat Listener",
+      "url": "https://www.hackingarticles.in/best-alternative-of-netcat-listener/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "64-bit Linux Assembly and Shellcoding",
+      "url": "https://www.hackingarticles.in/64-bit-linux-assembly-and-shellcoding/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Easy way to Generate Reverse Shell",
+      "url": "https://www.hackingarticles.in/easy-way-to-generate-reverse-shell/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firefox Addons for Pentesting",
+      "url": "https://www.hackingarticles.in/firefox-addons-for-pentesting/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Python Serialization Vulnerabilities \u2013 Pickle",
+      "url": "https://www.hackingarticles.in/python-serialization-vulnerabilities-pickle/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Containers Vulnerability Scanner: Trivy",
+      "url": "https://www.hackingarticles.in/containers-vulnerability-scanner-trivy/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on Responder (LLMNR Poisoning)",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-responder-llmnr-poisoning/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on Crunch",
+      "url": "https://www.hackingarticles.in/crunch-wordlist-generation-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on Wfuzz",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-wfuzz/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "File Transfer Filter Bypass: Exe2Hex",
+      "url": "https://www.hackingarticles.in/file-transfer-filter-bypass-exe2hex/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Files to Capture NTLM Hashes: NTLM Theft",
+      "url": "https://www.hackingarticles.in/multiple-files-to-capture-ntlm-hashes-ntlm-theft/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Detailed Guide on Log4J Penetration Testing",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-log4j-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "PowerShell for Pentester: Windows Reverse Shell",
+      "url": "https://www.hackingarticles.in/powershell-for-pentester-windows-reverse-shell/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Msfvenom Cheatsheet: Windows Exploitation",
+      "url": "https://www.hackingarticles.in/msfvenom-cheatsheet-windows-exploitation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Powercat for Pentester",
+      "url": "https://www.hackingarticles.in/powercat-for-pentester/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Creds",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-creds/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Windows Hidden Bind Shell",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-windows-hidden-bind-shell/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Migrate",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-migrate/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Inject Payload into Executable",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-inject-payload-into-executable/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Clipboard",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-clipboard/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Database & Workspace",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-database-workspace/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Sessions",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-sessions/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "VNC Penetration Testing",
+      "url": "https://www.hackingarticles.in/vnc-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Remote Desktop Penetration Testing (Port 3389)",
+      "url": "https://www.hackingarticles.in/remote-desktop-penetration-testing-port-3389/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Anonymous Logins for Pentesters",
+      "url": "https://www.hackingarticles.in/anonymous-logins-for-pentesters/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Beginner\u2019s Guide to Buffer Overflow",
+      "url": "https://www.hackingarticles.in/a-beginners-guide-to-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Wireshark for Pentester: Decrypting RDP Traffic",
+      "url": "https://www.hackingarticles.in/wireshark-for-pentester-decrypting-rdp-traffic/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Wireshark for Pentester: Password Sniffing",
+      "url": "https://www.hackingarticles.in/wireshark-for-pentester-password-sniffing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Wireshark For Pentester: A Beginner\u2019s Guide",
+      "url": "https://www.hackingarticles.in/wireshark-for-pentesters-a-beginners-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit for Pentester: Mimikatz",
+      "url": "https://www.hackingarticles.in/metasploit-for-pentester-mimikatz/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Encrypted Reverse Shell for Pentester",
+      "url": "https://www.hackingarticles.in/encrypted-reverse-shell-for-pentester/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Wordlists for Pentester",
+      "url": "https://www.hackingarticles.in/wordlists-for-pentester/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on ffuf",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-ffuf/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to AutoRecon",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-autorecon/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Thick Client Penetration Testing on DVTA",
+      "url": "https://www.hackingarticles.in/thick-client-penetration-testing-on-dvta/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Thick Client Penetration Testing: Traffic Analysis",
+      "url": "https://www.hackingarticles.in/thick-client-penetration-testing-traffic-analysis/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "A Little Guide to SMB Enumeration",
+      "url": "https://www.hackingarticles.in/a-little-guide-to-smb-enumeration/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firefox for Pentester: Hacktool",
+      "url": "https://www.hackingarticles.in/firefox-for-pentester-hacktool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Nmap for Pentester: Vulnerability Scan",
+      "url": "https://www.hackingarticles.in/nmap-for-pentester-vulnerability-scan/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Dirsearch (Part 2)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-dirsearch-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "WebDAV Penetration Testing",
+      "url": "https://www.hackingarticles.in/webdav-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Thick Client Penetration Testing: Information Gathering",
+      "url": "https://www.hackingarticles.in/thick-client-penetration-testing-information-gathering/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Dirsearch",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-dirsearch/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Android Pentest: Deep Link Exploitation",
+      "url": "https://www.hackingarticles.in/android-pentest-deep-link-exploitation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Stored Cross-Site Scripting at Tenda AC5 AC1200",
+      "url": "https://www.hackingarticles.in/exploiting-stored-cross-site-scripting-at-tenda-ac5-ac1200/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Thick Client Pentest Lab Setup: DVTA (Part 2)",
+      "url": "https://www.hackingarticles.in/thick-client-pentest-lab-setup-dvta-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Thick Client Pentest Lab Setup: DVTA",
+      "url": "https://www.hackingarticles.in/thick-client-pentest-lab-setup-dvta-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Android Hooking and SSLPinning using Objection Framework",
+      "url": "https://www.hackingarticles.in/android-hooking-and-sslpinning-using-objection-framework/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Linux for Beginners: A Small Guide (Part 3)",
+      "url": "https://www.hackingarticles.in/linux-for-beginners-a-small-guide-part-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Linux for Beginners: A Small Guide (Part 2)",
+      "url": "https://www.hackingarticles.in/linux-for-beginners-a-small-guide-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Implementation of Firewall Policies :FortiGate (Part 2)",
+      "url": "https://www.hackingarticles.in/implementation-of-firewall-policies-fortigate-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Implementation of Firewall Policies :FortiGate (Part 1)",
+      "url": "https://www.hackingarticles.in/implementation-of-firewall-policies-fortigate-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Password Dumping Cheatsheet: Windows",
+      "url": "https://www.hackingarticles.in/password-dumping-cheatsheet-windows/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Linux For Beginners: A Small Guide",
+      "url": "https://www.hackingarticles.in/linux-for-beginners-a-small-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Router Penetration Testing",
+      "url": "https://www.hackingarticles.in/router-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firewall Lab Setup : FortiGate",
+      "url": "https://www.hackingarticles.in/firewall-lab-setup-fortigate/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Honeypots",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-honeypots/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firefox for Pentester: Privacy and Protection Configurations",
+      "url": "https://www.hackingarticles.in/firefox-for-pentester-privacy-and-protection-configurations/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firefox for Pentester:  Privacy and Protection Add-ons",
+      "url": "https://www.hackingarticles.in/firefox-for-pentester-privacy-and-protection-add-ons/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "VULS-  An Agentless Vulnerability Scanner",
+      "url": "https://www.hackingarticles.in/vuls-an-agentless-vulnerability-scanner/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Docker for Pentester: Image Vulnerability Assessment",
+      "url": "https://www.hackingarticles.in/docker-image-vulnerability-assessment/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on CouchDB (5984)",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-couchdb-5984/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firewall Lab Setup: Untangle",
+      "url": "https://www.hackingarticles.in/firewall-lab-setup-untangle/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Docker for Pentester: Pentesting Framework",
+      "url": "https://www.hackingarticles.in/docker-for-pentester-pentesting-framework/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on VoIP Asterisk Server (Part 2)",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-voip-asterisk-server-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on VoIP Asterisk Server",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-voip-asterisk-server/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on CryptCat",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-cryptcat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How VPN Technology Protects Your Privacy from Hackers",
+      "url": "https://www.hackingarticles.in/how-vpn-technology-protects-your-privacy-from-hackers/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to tcpdump (Part 3)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-tcpdump-part-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to tcpdump (Part 2)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-tcpdump-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to tcpdump (Part 1)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-tcpdump-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginners Guide to TShark (Part 3)",
+      "url": "https://www.hackingarticles.in/beginners-guide-to-tshark-part-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginners Guide to TShark (Part 2)",
+      "url": "https://www.hackingarticles.in/beginners-guide-to-tshark-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Steal Windows Password using FakeLogonScreen",
+      "url": "https://www.hackingarticles.in/steal-windows-password-using-fakelogonscreen/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginners Guide to TShark (Part 1)",
+      "url": "https://www.hackingarticles.in/beginners-guide-to-tshark-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Forensic Investigation of Ping Command",
+      "url": "https://www.hackingarticles.in/forensics-investigation-of-ping-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SSH Penetration Testing (Port 22)",
+      "url": "https://www.hackingarticles.in/ssh-penetration-testing-port-22/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hiding Shell using PrependMigrate -Metasploit",
+      "url": "https://www.hackingarticles.in/hiding-shell-using-prependmigrate-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways to Install Kali",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-install-kali/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Web Application Pentest Lab Setup on AWS",
+      "url": "https://www.hackingarticles.in/web-application-pentest-lab-setup-on-aws/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Methods to Bypass Restricted Shell",
+      "url": "https://www.hackingarticles.in/multiple-methods-to-bypass-restricted-shell/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multi Ways  to Crack Windows 10 Password",
+      "url": "https://www.hackingarticles.in/multi-ways-to-crack-windows-10-password/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Docker Installation & Configuration",
+      "url": "https://www.hackingarticles.in/docker-installation-configuration/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "WordPress: Reverse Shell",
+      "url": "https://www.hackingarticles.in/wordpress-reverse-shell/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Dradis: Reporting and Collaboration Tool",
+      "url": "https://www.hackingarticles.in/dradis-reporting-and-collaboration-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to Steghide Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-steghide-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "ExifTool : A Meta-Data Extractor",
+      "url": "https://www.hackingarticles.in/exiftool-a-meta-data-extractor/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "EvilOSX-RAT for MacOS/OSX",
+      "url": "https://www.hackingarticles.in/evilosx-rat-for-macos-osx/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Retina: A Network Scanning Tool",
+      "url": "https://www.hackingarticles.in/retina-a-network-scanning-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Shellphish: A Phishing Tool",
+      "url": "https://www.hackingarticles.in/shellphish-a-phishing-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner\u2019s Guide to Nexpose",
+      "url": "https://www.hackingarticles.in/beginners-guide-to-nexpose/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on Splunk",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-splunk/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Evilginx2- Advanced Phishing Attack Framework",
+      "url": "https://www.hackingarticles.in/evilginx2-advanced-phishing-attack-framework/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "PowerCat- A PowerShell Netcat",
+      "url": "https://www.hackingarticles.in/powercat-a-powershell-netcat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner\u2019s Guide to Nessus",
+      "url": "https://www.hackingarticles.in/beginners-guide-to-nessus/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Kage: Graphical User Interface for Metasploit",
+      "url": "https://www.hackingarticles.in/kage-graphical-user-interface-for-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Netcat for Pentester",
+      "url": "https://www.hackingarticles.in/netcat-for-pentester/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Post Exploitation on Saved Password with LaZagne",
+      "url": "https://www.hackingarticles.in/post-exploitation-on-saved-password-with-lazagne/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Snort (Part 1)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-snort-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on Memcached Server",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-memcached-server/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Windows PC using Malicious Contact VCF file",
+      "url": "https://www.hackingarticles.in/exploiting-windows-pc-using-malicious-contact-vcf-file/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Windows Firewall Post Exploitation with Netsh",
+      "url": "https://www.hackingarticles.in/windows-firewall-post-exploitation-with-netsh/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Windows using Contact File HTML Injection/RCE",
+      "url": "https://www.hackingarticles.in/exploiting-windows-using-contact-file-html-injection-rce/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Get Reverse-shell via Windows one-liner",
+      "url": "https://www.hackingarticles.in/get-reverse-shell-via-windows-one-liner/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Configure Sqlmap for WEB-GUI in Kali Linux",
+      "url": "https://www.hackingarticles.in/configure-sqlmap-for-web-gui-in-kali-linux/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SMB Penetration Testing (Port 445)",
+      "url": "https://www.hackingarticles.in/smb-penetration-testing-port-445/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SMTP Log Poisoning through LFI to Remote Code Execution",
+      "url": "https://www.hackingarticles.in/smtp-log-poisioning-through-lfi-to-remote-code-exceution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Defend against Brute Force Attack with Fail2ban",
+      "url": "https://www.hackingarticles.in/defend-against-brute-force-attack-with-fail2ban/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways To Exploiting HTTP Authentication",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-exploiting-http-authentication/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Dymerge",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-the-dymerge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Pydictor \u2013 A wordlist Generating Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-pydictor-a-wordlist-generating-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Cupp\u2013 A wordlist Generating Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-cupp-a-wordlist-generating-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Dirbuster Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-dirbuster-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Xerosploit- A Man-In-The-Middle Attack Framework",
+      "url": "https://www.hackingarticles.in/xerosploit-a-man-in-the-middle-attack-framework/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on SearchSploit",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-searchsploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Meterpreter File System Commands Cheatsheet",
+      "url": "https://www.hackingarticles.in/meterpreter-file-system-commands-cheatsheet/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Gobuster Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-gobuster-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Magic Unicorn \u2013 PowerShell Downgrade Attack and Exploitation tool",
+      "url": "https://www.hackingarticles.in/magic-unicorn-powershell-downgrade-attack-and-exploitation-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Dirb Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-dirb-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways to Exploiting PUT Method",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-exploiting-put-method/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways to Detect HTTP Options",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-detect-http-options/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways to Secure SSH Port",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-secure-ssh-port/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple ways to Connect Remote PC using SMB Port",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-connect-remote-pc-using-smb-port/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Nmap Packet Trace",
+      "url": "https://www.hackingarticles.in/understanding-nmap-packet-trace/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Multiple Ways to Get root through Writable File",
+      "url": "https://www.hackingarticles.in/multiple-ways-to-get-root-through-writable-file/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on X11 Server",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-x11-server/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginners Guide for John the Ripper (Part 2)",
+      "url": "https://www.hackingarticles.in/beginners-guide-for-john-the-ripper-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Working of Traceroute using Wireshark",
+      "url": "https://www.hackingarticles.in/working-of-traceroute-using-wireshark/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginners Guide for John the Ripper (Part 1)",
+      "url": "https://www.hackingarticles.in/beginner-guide-john-the-ripper-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Capture NTLM Hashes using PDF (Bad-Pdf)",
+      "url": "https://www.hackingarticles.in/capture-ntlm-hashes-using-pdf-bad-pdf/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide to Port Redirection using Rinetd",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-port-redirection-using-rinetd/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SNMP Lab Setup and Penetration Testing",
+      "url": "https://www.hackingarticles.in/snmp-lab-setup-and-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Nmap Scan with Timing Parameters",
+      "url": "https://www.hackingarticles.in/nmap-scan-with-timing-parameters/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Generating Reverse Shell using Msfvenom (One Liner Payload)",
+      "url": "https://www.hackingarticles.in/generating-reverse-shell-using-msfvenom-one-liner-payload/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass SSH Restriction by Port Relay",
+      "url": "https://www.hackingarticles.in/bypass-ssh-restriction-by-port-relay/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Port Scanning using Metasploit with IPTables",
+      "url": "https://www.hackingarticles.in/port-scanning-using-metasploit-iptables/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Guide to Mimikatz",
+      "url": "https://www.hackingarticles.in/understanding-guide-mimikatz/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Advance Web Application Testing using Burpsuite",
+      "url": "https://www.hackingarticles.in/advance-web-application-testing-using-burpsuite/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Manual Post Exploitation on Windows PC (Network Command)",
+      "url": "https://www.hackingarticles.in/manual-post-exploitation-windows-pc-network-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bind Payload using SFX archive with Trojanizer",
+      "url": "https://www.hackingarticles.in/bind-payload-using-sfx-archive-trojanizer/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to IPtables",
+      "url": "https://www.hackingarticles.in/beginner-guide-iptables/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Post Exploitation Using WMIC (System Command)",
+      "url": "https://www.hackingarticles.in/post-exploitation-using-wmic-system-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Nmap Scans using Hex Value of Flags",
+      "url": "https://www.hackingarticles.in/nmap-scans-using-hex-value-flags/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "WordPress Exploitation using Burpsuite (Burp_wp Plugin)",
+      "url": "https://www.hackingarticles.in/wordpress-exploitation-using-burpsuite-burp_wp-plugin/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass Firewall Restrictions with Metasploit (reverse_tcp_allports)",
+      "url": "https://www.hackingarticles.in/bypass-firewall-restrictions-metasploit-reverse_tcp_allports/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Manual Post Exploitation on Windows PC (System Command)",
+      "url": "https://www.hackingarticles.in/manual-post-exploitation-windows-pc-system-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Burp Suite Encoder & Decoder Tutorial",
+      "url": "https://www.hackingarticles.in/burpsuite-encoder-decoder-tutorial/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Post Exploitation in Windows using dir Command",
+      "url": "https://www.hackingarticles.in/post-exploitation-windows-using-dir-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Configure Suricata IDS in Ubuntu",
+      "url": "https://www.hackingarticles.in/configure-suricata-ids-ubuntu/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Detect SQL Injection Attack using Snort IDS",
+      "url": "https://www.hackingarticles.in/detect-sql-injection-attack-using-snort-ids/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Check Meltdown Vulnerability in CPU",
+      "url": "https://www.hackingarticles.in/check-meltdown-vulnerability-cpu/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "ICMP Penetration Testing",
+      "url": "https://www.hackingarticles.in/icmp-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "TCP & UDP Packet Crafting with CatKARAT",
+      "url": "https://www.hackingarticles.in/tcp-udp-packet-crafting-catkarat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "DOS Attack with Packet Crafting using Colasoft",
+      "url": "https://www.hackingarticles.in/dos-attack-packet-crafting-using-colasoft/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Packet Crafting with Colasoft Packet Builder",
+      "url": "https://www.hackingarticles.in/packet-crafting-colasoft-packet-builder/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "DHCP Penetration Testing",
+      "url": "https://www.hackingarticles.in/dhcp-penetration-testing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "DOS Attack Penetration Testing (Part 2)",
+      "url": "https://www.hackingarticles.in/dos-attack-penetration-testing-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "DOS Attack Penetration Testing (Part 1)",
+      "url": "https://www.hackingarticles.in/dos-penetration-testing-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Detect NMAP Scan Using Snort",
+      "url": "https://www.hackingarticles.in/detect-nmap-scan-using-snort/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understating Guide of Windows Security Policies and Event Viewer",
+      "url": "https://www.hackingarticles.in/understating-guide-windows-security-policies-event-viewer/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Post Exploitation for Remote Windows Password",
+      "url": "https://www.hackingarticles.in/post-exploitation-remote-windows-password/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Security Onion Configuration in VMware",
+      "url": "https://www.hackingarticles.in/security-onion-configuration-in-vmware/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Guide to Nmap Firewall Scan (Part 2)",
+      "url": "https://www.hackingarticles.in/understanding-guide-nmap-firewall-scan-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Command Injection Exploitation using Web Delivery (Linux, Windows)",
+      "url": "https://www.hackingarticles.in/command-injection-exploitation-using-web-delivery-linux-windows/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "IDS, IPS Penetration Testing Lab Setup with Snort (Manually)",
+      "url": "https://www.hackingarticles.in/ids-ips-penetration-testing-lab-setup-snort/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Android Mobile Exploitation with Evil-Droid",
+      "url": "https://www.hackingarticles.in/android-mobile-exploitation-evil-droid/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Guide to Nmap Firewall Scan (Part 1)",
+      "url": "https://www.hackingarticles.in/understanding-guide-nmap-firewall-scan-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Msfvenom Tutorials for Beginners",
+      "url": "https://www.hackingarticles.in/msfvenom-tutorials-beginners/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Remote machine with Pastejacking",
+      "url": "https://www.hackingarticles.in/exploiting-remote-machine-pastejacking/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Windows Machine with DDE Exploit",
+      "url": "https://www.hackingarticles.in/exploiting-windows-machine-dde-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Sniffing",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-sniffing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Shellter-A Shellcode Injecting Tool",
+      "url": "https://www.hackingarticles.in/shellter-a-shellcode-injecting-tool/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the H.A.S.T.E. VM Challenge",
+      "url": "https://www.hackingarticles.in/hack-h-s-t-e-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Bulldog VM (Boot2Root Challenge)",
+      "url": "https://www.hackingarticles.in/hack-bulldog-vm-boot2root-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "4 Ways to Capture NTLM Hashes in Network",
+      "url": "https://www.hackingarticles.in/4-ways-capture-ntlm-hashes-network/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Post Exploitation in VMware Files with Meterpreter",
+      "url": "https://www.hackingarticles.in/post-exploitation-in-vmware-files-with-meterprter/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Guide to ICMP Protocol with Wireshark",
+      "url": "https://www.hackingarticles.in/understanding-guide-icmp-protocol-wireshark/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Telnet Pivoting through Meterpreter",
+      "url": "https://www.hackingarticles.in/telnet-pivoting-meterpreter/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "FTP Pivoting through RDP",
+      "url": "https://www.hackingarticles.in/ftp-pivoting-rdp/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "4 ways to SMTP Enumeration",
+      "url": "https://www.hackingarticles.in/4-ways-smtp-enumeration/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing on Telnet (Port 23)",
+      "url": "https://www.hackingarticles.in/penetration-testing-telnet-port-23/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the IMF VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-imf-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SMTP Pentest Lab Setup in Ubuntu (Port 25)",
+      "url": "https://www.hackingarticles.in/smtp-pentest-lab-setup-ubuntu/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "RDP Pivoting with Metasploit",
+      "url": "https://www.hackingarticles.in/rdp-pivoting-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "FTP Penetration Testing on Ubuntu (Port 21)",
+      "url": "https://www.hackingarticles.in/ftp-penetration-testing-on-ubuntu-port-21/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "FTP Penetration Testing on Windows (Port 21)",
+      "url": "https://www.hackingarticles.in/ftp-penetration-testing-windows/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to secure Ubuntu Server using Google Authenticator",
+      "url": "https://www.hackingarticles.in/secure-ubuntu-server-using-google-authenticator/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "NetBIOS and SMB Penetration Testing on Windows",
+      "url": "https://www.hackingarticles.in/netbios-and-smb-penetration-testing-on-windows/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the 6days VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-6days-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "4 Ways to DNS Enumeration",
+      "url": "https://www.hackingarticles.in/4-ways-dns-enumeration/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Log Analysis of Web Server",
+      "url": "https://www.hackingarticles.in/understanding-log-analysis-web-server/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the 64base VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-64base-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Nmap Scan with Wireshark",
+      "url": "https://www.hackingarticles.in/understanding-nmap-scan-wireshark/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the d0not5top VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-d0not5top-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "3 ways to scan Eternal Blue Vulnerability in Remote PC",
+      "url": "https://www.hackingarticles.in/3-ways-scan-eternal-blue-vulnerability-remote-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "5 Ways to Crawl a Website",
+      "url": "https://www.hackingarticles.in/5-ways-crawl-website/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to Meterpreter (Part 1)",
+      "url": "https://www.hackingarticles.in/beginner-guide-meterpreter-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to SQL Injection Boolean Based (Part 2)",
+      "url": "https://www.hackingarticles.in/beginner-guide-sql-injection-boolean-based-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to Google Dorks (Part 1)",
+      "url": "https://www.hackingarticles.in/beginner-guide-google-dorks-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to Understand Cookies and Session Management",
+      "url": "https://www.hackingarticles.in/beginner-guide-understand-cookies-session-management/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner Guide to Insecure Direct Object References (IDOR)",
+      "url": "https://www.hackingarticles.in/beginner-guide-insecure-direct-object-references/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding the HTTP Protocol",
+      "url": "https://www.hackingarticles.in/understanding-http-protocol/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Database Penetration Testing using Sqlmap (Part 1)",
+      "url": "https://www.hackingarticles.in/database-penetration-testing-using-sqlmap-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Spider Web Applications using Burpsuite",
+      "url": "https://www.hackingarticles.in/spider-web-applications-using-burpsuite/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Dumping Database using Outfile",
+      "url": "https://www.hackingarticles.in/dumping-database-using-outfile/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Understanding Encoding (Beginner\u2019s guide)",
+      "url": "https://www.hackingarticles.in/understanding-encoding-beginners-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass UAC Protection of Remote Windows 10 PC (Via FodHelper Registry Key)",
+      "url": "https://www.hackingarticles.in/bypass-uac-protection-remote-windows-10-pc-via-fodhelper-registry-key/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Form Based SQL Injection Manually",
+      "url": "https://www.hackingarticles.in/form-based-sql-injection-manually/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass Admin access through guest Account in windows 10",
+      "url": "https://www.hackingarticles.in/bypass-admin-access-guest-account-windows-10/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Bypass SQL Injection Filter  Manually",
+      "url": "https://www.hackingarticles.in/bypass-filter-sql-injection-manually/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Manual SQL Injection Exploitation Step by Step",
+      "url": "https://www.hackingarticles.in/manual-sql-injection-exploitation-step-step/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Beginner\u2019s Guide to SQL Injection (Part 1)",
+      "url": "https://www.hackingarticles.in/beginner-guide-sql-injection-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Dumping Clear-Text Passwords from Browsers using NetRipper",
+      "url": "https://www.hackingarticles.in/dumping-clear-text-passwords-from-browsers-using-netripper/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Legal Notice Caption of Remote PC",
+      "url": "https://www.hackingarticles.in/hack-legal-notice-caption-remote-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to set up SQLI Lab",
+      "url": "https://www.hackingarticles.in/sql-injection-lab/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using EternalBlue SMB Remote Windows Kernel Pool Corruption",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-eternalblue-smb-remote-windows-kernel-pool-corruption/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Create SSL Certified Meterpreter Payload using MPM",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-ssl-certified-meterpreter-payload-using-mpm/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Scan Website Vulnerability using Uniscan (Beginner Guide)",
+      "url": "https://www.hackingarticles.in/scan-website-vulnerability-using-uniscan-beginner-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Embedded Backdoor with Image using FakeImageExploiter",
+      "url": "https://www.hackingarticles.in/embedded-backdoor-image-using-fakeimageexploiter/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Server Side Injection Exploitation in bWapp",
+      "url": "https://www.hackingarticles.in/server-side-injection-explotation-bwapp/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows 10 PC with Microsoft RTF File (CVE-2017-0199)",
+      "url": "https://www.hackingarticles.in/exploit-windows-10-pc-microsoft-rtf-file-cve-2017-0199/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows 7 PC using Torrent File",
+      "url": "https://www.hackingarticles.in/exploit-windows-7-pc-using-torrent-file/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Dump Cleartext Password in Linux PC using MimiPenguin",
+      "url": "https://www.hackingarticles.in/dump-cleartext-password-linux-pc-using-mimipenguin/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Bot challenge: Dexter (Boot2Root Challenge)",
+      "url": "https://www.hackingarticles.in/hack-bot-challenge-dexter-boot2root-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Stealing Windows Credentials of Remote PC with MS Office Document",
+      "url": "https://www.hackingarticles.in/stealing-windows-credentials-remote-pc-ms-office-document/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Pluck VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-pluck-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass Windows Login Password using Android Phone with DriveDroid",
+      "url": "https://www.hackingarticles.in/bypass-windows-login-password-using-android-phone-drivedroid/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Delete Firewall Log in Remote PC using Metasploit",
+      "url": "https://www.hackingarticles.in/delete-firewall-log-remote-pc-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Enable and Monitor Firewall Log in Windows PC",
+      "url": "https://www.hackingarticles.in/enable-monitor-firewall-log-windows-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Run OS Command against Multiple Session in Metasploit",
+      "url": "https://www.hackingarticles.in/run-os-command-against-multiple-session-in-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hiding Shell with Prepend Migrate using Msfvenom",
+      "url": "https://www.hackingarticles.in/hiding-shell-prepend-migrate-using-msfvenom/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Capture VNC Session of Remote PC using Msfvenom",
+      "url": "https://www.hackingarticles.in/capture-vnc-session-remote-pc-using-msfvenom/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Upgrade Command Shell to Meterpreter",
+      "url": "https://www.hackingarticles.in/command-shell-to-meterpreter/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "RCE with LFI and SSH Log Poisoning",
+      "url": "https://www.hackingarticles.in/rce-with-lfi-and-ssh-log-poisoning/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "File Upload Exploitation in bWAPP (Bypass All Security)",
+      "url": "https://www.hackingarticles.in/file-upload-exploitation-bwapp-bypass-security/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Apache Log Poisoning through LFI",
+      "url": "https://www.hackingarticles.in/apache-log-poisoning-through-lfi/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Web Server Exploitation with LFI and File Upload",
+      "url": "https://www.hackingarticles.in/web-server-exploitation-lfi-file-upload/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Webshell to Meterpreter",
+      "url": "https://www.hackingarticles.in/webshell-to-meterpreter/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Command Injection to Meterpreter using Commix",
+      "url": "https://www.hackingarticles.in/command-injection-meterpreter-using-commix/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Command Injection Vulnearbility with Commix and Netcat",
+      "url": "https://www.hackingarticles.in/exploit-command-injection-vulnearbility-commix-netcat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Shell Uploading in Web Server through PhpMyAdmin",
+      "url": "https://www.hackingarticles.in/shell-uploading-web-server-phpmyadmin/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Web Penetration Testing with Tamper Data (Firefox Add-on)",
+      "url": "https://www.hackingarticles.in/web-penetration-testing-tamper-data-firefox-add/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Form Based Sql Injection using Sqlmap",
+      "url": "https://www.hackingarticles.in/exploiting-form-based-sql-injection-using-sqlmap/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting Sql Injection with Nmap and Sqlmap",
+      "url": "https://www.hackingarticles.in/exploiting-sql-injection-nmap-sqlmap/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Easy way to Hack Database using Wizard switch in Sqlmap",
+      "url": "https://www.hackingarticles.in/easy-way-hack-database-using-wizard-switch-sqlmap/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "SQL Injection Exploitation in Multiple Targets using Sqlmap",
+      "url": "https://www.hackingarticles.in/sql-injection-exploitation-multiple-targets-using-sqlmap/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Sql Injection Exploitation with Sqlmap and Burp Suite (Burp CO2 Plugin)",
+      "url": "https://www.hackingarticles.in/sql-injection-exploitation-sqlmap-burp-suite-burp-co2-plugin/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Comprehensive Guide on Metasploitable 2",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-metasploitable-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploiting the Webserver using Sqlmap and Metasploit (OS-Pwn)",
+      "url": "https://www.hackingarticles.in/exploiting-webserver-using-sqlmap-metasploit-os-pwn/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Command Injection Exploitation through Sqlmap in DVWA (OS-cmd)",
+      "url": "https://www.hackingarticles.in/command-injection-exploitation-through-sqlmap-in-dvwa/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Shell uploading in Web Server using Sqlmap",
+      "url": "https://www.hackingarticles.in/shell-uploading-in-web-server-using-sqlmap/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Padding Oracle Lab",
+      "url": "https://www.hackingarticles.in/hack-padding-oracle-lab/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "WordPress Penetration Testing using Symposium Plugin SQL Injection",
+      "url": "https://www.hackingarticles.in/wordpress-penetration-testing-using-symposium-plugin-sql-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing in Metasploitable 3 with SMB and Tomcat",
+      "url": "https://www.hackingarticles.in/penetration-testing-metasploitable-3-smb-tomcat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploitation of Metasploitable 3 using Glassfish Service",
+      "url": "https://www.hackingarticles.in/exploitation-metasploitable-3-using-glassfish-service/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Manual Penetration Testing in Metasploitable 3",
+      "url": "https://www.hackingarticles.in/manual-penetration-testing-metasploitable-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Perform DOS Attack on Metasploitable 3",
+      "url": "https://www.hackingarticles.in/perform-dos-attack-metasploitable-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Metasploitable 3 using SMB Service Exploitation",
+      "url": "https://www.hackingarticles.in/hack-metasploitable-3-using-smb-service-exploitation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploitable 3 Exploitation using Brute forcing SSH",
+      "url": "https://www.hackingarticles.in/metasploitable-3-exploitation-using-brute-forcing-ssh/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Metasploitable 3 using Elasticsearch Exploit",
+      "url": "https://www.hackingarticles.in/hack-metasploitable-3-using-elasticsearch-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "FTP Service Exploitation in Metasploitable 3",
+      "url": "https://www.hackingarticles.in/ftp-service-exploitation-metasploitable-3/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack File upload Vulnerability in DVWA (Bypass All Security)",
+      "url": "https://www.hackingarticles.in/hack-file-upload-vulnerability-dvwa-bypass-security/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Powershell Injection Attacks using Commix and Magic Unicorn",
+      "url": "https://www.hackingarticles.in/powershell-injection-attacks-using-commix-magic-unicorn/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Necromancer VM (CTF Challenge)",
+      "url": "https://www.hackingarticles.in/hack-necromancer-vm-ctf-challenge/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Get Meterpreter Session of Locked PC Remotely (Remote Desktop Enabled)",
+      "url": "https://www.hackingarticles.in/get-meterpreter-session-locked-pc-remotely-remote-desktop-enabled/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Locked PC in Network using Metasploit",
+      "url": "https://www.hackingarticles.in/hack-locked-pc-in-network-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Android Phone using HTA Attack with QR Code",
+      "url": "https://www.hackingarticles.in/hack-android-phone-using-hta-attack-qr-code/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "5 ways to Brute Force Attack on WordPress Website",
+      "url": "https://www.hackingarticles.in/5-ways-brute-force-attack-wordpress-website/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Linux Kernel using Dirtycow Exploit (Privilege Escalation)",
+      "url": "https://www.hackingarticles.in/hack-linux-kernel-using-dirtycow-exploit-privilege-escalation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Command Injection Exploitation in DVWA using Metasploit (Bypass All Security)",
+      "url": "https://www.hackingarticles.in/command-injection-exploitation-dvwa-using-metasploit-bypass-security/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack any Android Phone using Spade APK Backdoor",
+      "url": "https://www.hackingarticles.in/hack-android-phone-using-spade-apk-backdoor/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Shodan a Search Engine for Hackers (Beginner Tutorial)",
+      "url": "https://www.hackingarticles.in/shodan-search-engine-hackers-beginner-tutorial/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Fun with Metasploit Payloads",
+      "url": "https://www.hackingarticles.in/fun-metasploit-payloads/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Office OLE Multiple DLL Hijack Vulnerabilities",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-office-ole-multiple-dll-hijack-vulnerabilities/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Detect Meterpreter in Your PC",
+      "url": "https://www.hackingarticles.in/detect-meterpreter-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Remote Windows PC Enumeration using PSTools",
+      "url": "https://www.hackingarticles.in/remote-windows-pc-enumeration-using-pstools/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing in SMB Protocol using Metasploit (Port 445)",
+      "url": "https://www.hackingarticles.in/penetration-testing-in-smb-protocol-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing in Active Directory using Metasploit (Part 2)",
+      "url": "https://www.hackingarticles.in/penetration-testing-active-directory-using-metasploit-part-2/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using DLL Files (SMB Delivery Exploit)",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-dll-files-smb-delivery-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows 10 PC using TheFatRat",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-10-pc-using-thefatrat/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Firewall Pentest Lab Setup with pfsense in VMware",
+      "url": "https://www.hackingarticles.in/firewall-pentest-lab-setup-pfsense-vmware/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Penetration Testing in Windows Server Active Directory using  Metasploit (Part 1)",
+      "url": "https://www.hackingarticles.in/penetration-testing-windows-server-active-directory-using-metasploit-part-1/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Capture VNC Session of Remote Windows PC by Payloads Injection",
+      "url": "https://www.hackingarticles.in/capture-vnc-session-remote-windows-pc-payloads-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Malicious MS Office Documents",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-malicious-ms-office-documents/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Regsvr32.exe (.sct) Application Whitelisting Bypass Server",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-regsvr32-exe-sct-application-whitelisting-bypass-server/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC  using Microsoft Office Files (Macro Payloads)",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-microsoft-office-files-macro-payloads/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Locked Workstation Password in Clear Text",
+      "url": "https://www.hackingarticles.in/hack-locked-workstation-password-clear-text/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Detect Sniffer on Your Network",
+      "url": "https://www.hackingarticles.in/detect-sniffer-network/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Create Botnet for D-Dos Attack with UFONet",
+      "url": "https://www.hackingarticles.in/create-botnet-d-dos-attack-ufonet/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack your Network through Android Phone using cSploit",
+      "url": "https://www.hackingarticles.in/hack-network-android-phone-using-csploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Find Your Website History using Waybackpack",
+      "url": "https://www.hackingarticles.in/find-website-history-using-waybackpack/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Vulnerability Scanning in Network using Retina",
+      "url": "https://www.hackingarticles.in/vulnerability-scanning-network-using-retina/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Setup Firewall Pentest Lab using Clear OS",
+      "url": "https://www.hackingarticles.in/setup-firewall-pentest-lab-using-clear-os/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using PCMAN FTP Server Buffer Overflow \u2013 PUT Command",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-pcman-ftp-server-buffer-overflow-put-command/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Easy File Sharing HTTP Server 7.2 SEH Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-easy-file-sharing-http-server-7-2-seh-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Gather Browser and OS Information of Remote PC using Http Client Exploit",
+      "url": "https://www.hackingarticles.in/gather-browser-os-information-remote-pc-using-http-client-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Finding Vulnerability in EasyCafe Server using Metasploit",
+      "url": "https://www.hackingarticles.in/finding-vulnerability-easycafe-server-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Call Logs, SMS, Camera of Remote Android Phone using Metasploit",
+      "url": "https://www.hackingarticles.in/hack-call-logs-sms-camera-remote-android-phone-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Setup VyOS (Virtual Router Pentest Lab)",
+      "url": "https://www.hackingarticles.in/setup-vyos-virtual-router-pentest-lab/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Network Scanning using NMAP (Beginner Guide)",
+      "url": "https://www.hackingarticles.in/network-scanning-using-nmap-beginner-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "2 Ways to Hack Windows 10 Password Easy Way",
+      "url": "https://www.hackingarticles.in/hack-windows-10-password-easy-way/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Winpayloads: Undetectable Windows Payload Generation",
+      "url": "https://www.hackingarticles.in/winpayloads-undetectable-windows-payload-generation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Create unlimited Folder in Remote Victim PC using Metasploit",
+      "url": "https://www.hackingarticles.in/how-to-create-unlimited-folder-in-remote-victim-pc-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Access Unauthorized on Remote PC using Metasploit",
+      "url": "https://www.hackingarticles.in/how-to-access-unauthorized-on-remote-pc-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Gather Information of Antivirus in Remote Victim PC using Metasploit",
+      "url": "https://www.hackingarticles.in/how-to-gather-information-of-antivirus-in-remote-victim-pc-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using ManageEngine OpManager Remote Code Execution",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-manageengine-opmanager-remote-code-execution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC Manage Engine Desktop Central 9 File Upload Servlet Connection Id Vulnerability",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-manage-engine-desktop-central-9-file-upload-servlet-connection-id-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Session Hijacking using Ettercap, Hamster and Ferret (A Beginner Guide)",
+      "url": "https://www.hackingarticles.in/session-hijacking-using-ettercap-hamster-and-ferret-a-beginner-guide/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using WinRAR SFX Remote Code Execution Vulnerability",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-winrar-sfx-remote-code-execution-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using The Backdoor factory with Metasploit",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-the-backdoor-factory-with-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Fake Updates Scam with Ettercap and Metasploit",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-fake-updates-scam-with-ettercap-and-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Hack Windows Wallpaper of Remote PC",
+      "url": "https://www.hackingarticles.in/how-to-hack-windows-wallpaper-of-remote-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Android Phone WhatsApp and all Directories using Mercury Browser Vulnerability",
+      "url": "https://www.hackingarticles.in/hack-android-phone-whatsapp-and-all-directories-using-mercury-browser-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Watermark Master Buffer Overflow (SEH)",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-watermark-master-buffer-overflow-seh/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using PDF Shaper Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-pdf-shaper-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using Konica Minolta FTP Utility 1.00 Post Auth CWD Command SEH Overflow",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-konica-minolta-ftp-utility-1-00-post-auth-cwd-command-seh-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using MS15-100 Microsoft Windows Media Center MCL Vulnerability",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-ms15-100-microsoft-windows-media-center-mcl-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Hack Saved sessions in Putty using Metasploit",
+      "url": "https://www.hackingarticles.in/how-to-hack-saved-sessions-in-putty-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Firefox PDF.js Privileged Javascript Injection",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-firefox-pdf-js-privileged-javascript-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Windows 7 Sticky Key Hack Attack using Metasploit",
+      "url": "https://www.hackingarticles.in/windows-7-sticky-key-hack-attack-using-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Video Charge Studio Buffer Overflow (SEH)",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-video-charge-studio-buffer-overflow-seh/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player ByteArray Use After Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-bytearray-use-after-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash opaque Background Use After Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-opaque-background-use-after-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player Nellymoser Audio Decoding Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-nellymoser-audio-decoding-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows PC using Adobe Flash Player Drawing Fill Shader Memory Corruption",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-pc-using-adobe-flash-player-drawing-fill-shader-memory-corruption/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack the Password in Plain text of Remote Windows PC",
+      "url": "https://www.hackingarticles.in/hack-the-password-in-plain-text-of-remote-windows-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player ShaderJob Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-shaderjob-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player domainMemory ByteArray Use After Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-domainmemory-bytearray-use-after-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player NetConnection Type Confusion",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-netconnection-type-confusion/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player Uncompress Via Zlib Variant Uninitialized Memory",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-uncompress-via-zlib-variant-uninitialized-memory/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Publish-It PUI Buffer Overflow (SEH)",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-publish-it-pui-buffer-overflow-seh/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player copy Pixels to ByteArray Integer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-copy-pixels-to-bytearray-integer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player PCRE Regex Vulnerability",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-pcre-regex-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player Byte Array with Workers Use after Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-byte-array-with-workers-use-after-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote PC using Adobe Flash Player Byte Array Uncompress via ZlibVariant Use after Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-adobe-flash-player-byte-array-uncompress-via-zlibvariant-use-after-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows, Linux, OSX PC using Firefox Proxy Prototype Privileged JavaScript Injection",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-linux-osx-pc-using-firefox-proxy-prototype-privileged-javascript-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows Password using Phishing Login Prompt Exploit",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-password-using-phishing-login-prompt-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Achat Unicode SEH Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-achat-unicode-seh-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Metasploit Tutorial for Beginners (Part 1)",
+      "url": "https://www.hackingarticles.in/metasploit-tutorial-beginners/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using BulletProof FTP Client BPS Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-bulletproof-ftp-client-bps-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows PC using i-FTP Schedule Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-pc-using-i-ftp-schedule-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Saved LastPass Master Password in Remote Windows, Linux, MAC PC",
+      "url": "https://www.hackingarticles.in/hack-saved-lastpass-master-password-in-remote-windows-linux-mac-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Windows Track Popup Menu Win32k NULL Pointer Dereference",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-windows-track-popup-menu-win32k-null-pointer-dereference/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using BadBlue Exploit",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-badblue-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Gather Applied Patches in Remote Windows PC",
+      "url": "https://www.hackingarticles.in/how-to-gather-applied-patches-in-remote-windows-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using Wing FTP Server Authenticated Command Execution",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-wing-ftp-server-authenticated-command-execution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote  PC using Firefox WebIDL Privileged Javascript Injection",
+      "url": "https://www.hackingarticles.in/exploit-remote-pc-using-firefox-webidl-privileged-javascript-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows, Linux, MAC PC using Firefox to String console.time Privileged JavaScript Injection",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-linux-mac-pc-using-firefox-to-string-console-time-privileged-javascript-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack ALL Security Features in Remote Windows 7 PC",
+      "url": "https://www.hackingarticles.in/hack-all-security-features-in-remote-windows-7-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Ericom AccessNow Server Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-ericom-accessnow-server-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Easy File Management Web Server Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-easy-file-management-web-server-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Gather Cookies and History of Mozilla Firefox in Remote Windows, Linux or MAC PC",
+      "url": "https://www.hackingarticles.in/gather-cookies-and-history-of-mozilla-firefox-in-remote-windows-linux-or-mac-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Save Password in Mozilla Firefox in Remote Windows, Linux or MAC PC",
+      "url": "https://www.hackingarticles.in/exploit-save-password-in-mozilla-firefox-in-remote-windows-linux-or-mac-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Gather MUICache Entries in Remote Windows PC",
+      "url": "https://www.hackingarticles.in/how-to-gather-muicache-entries-in-remote-windows-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Crash Running Wireshark of Remote PC using CAPWAP Dissector DoS",
+      "url": "https://www.hackingarticles.in/how-to-crash-running-wireshark-of-remote-pc-using-capwap-dissector-dos/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Wireshark wiretap/mpeg.c Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-wireshark-wiretapmpeg-c-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Victim PC with MS Office Document",
+      "url": "https://www.hackingarticles.in/hack-remote-victim-pc-with-ms-office-document/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Set New Password of Victim PC Remotely",
+      "url": "https://www.hackingarticles.in/set-new-password-of-victim-pc-remotely/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using WinRAR Filename Spoofing",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-winrar-filename-spoofing/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Gather Skype Logs, Firefox History and Chrome history of Remote Victim PC",
+      "url": "https://www.hackingarticles.in/how-to-gather-skype-logs-firefox-history-and-chrome-history-of-remote-victim-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using ALLPlayer M3U Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-allplayer-m3u-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Total Video Player 1.3.1 Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-total-video-player-1-3-1-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Lock Drive of Remote Windows Victim PC",
+      "url": "https://www.hackingarticles.in/how-to-lock-drive-of-remote-windows-victim-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Audiotran PLS File Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-audiotran-pls-file-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Easy CD-DA Recorder PLS Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-easy-cd-da-recorder-pls-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Perform Blue Screen Death Attack on Remote Windows 7 PC",
+      "url": "https://www.hackingarticles.in/how-to-perform-blue-screen-death-attack-on-remote-windows-7-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Remotely Scan Malware/Virus in Victim PC with Metasploit",
+      "url": "https://www.hackingarticles.in/remotely-scan-malwarevirus-victim-pc-metasploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC Using Real Networks RealPlayer Version Attribute Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-real-networks-realplayer-version-attribute-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC Using Adobe Reader ToolButton Use After Free",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-adobe-reader-toolbutton-use-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Broadcast YouTube Video in Remote Windows,Linux or MAC System",
+      "url": "https://www.hackingarticles.in/broadcast-youtube-video-in-remote-windowslinux-or-mac-system/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hacked Remote PC Using Cool PDF Image Stream Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hacked-remote-pc-using-cool-pdf-image-stream-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Open Office Exploit",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-open-office-exploit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hacked Remote PC Using Digital Music Pad Version 8.2.3.3.4 Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hacked-remote-pc-using-digital-music-pad-version-8-2-3-3-4-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack PC in Network using MJM Core Player 2011 .s3m Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-pc-network-using-mjm-core-player-2011-s3m-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit PC in LAN using Shadow Stream Recorder 3.0.1.7 Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-pc-lan-using-shadow-stream-recorder-3-0-1-7-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC Using MJM QuickPlayer 1.00 Beta 60a / QuickPlayer 2010 .s3m Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-mjm-quickplayer-1-00-beta-60a-quickplayer-2010-s3m-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC Using Beetel Connection Manager Net Config.ini Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-beetel-connection-manager-netconfig-ini-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack PC in Network Using Microsoft Windows Theme File Handling Arbitrary Code Execution",
+      "url": "https://www.hackingarticles.in/hack-pc-network-using-microsoft-windows-theme-file-handling-arbitrary-code-execution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC Using A-PDF WAV to MP3 v1.0.0 Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-a-pdf-wav-to-mp3-v1-0-0-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows PC using Firefox XMLSerializer Use After Free",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-pc-using-firefox-xmlserializer-use-free/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows or Linux PC with Java store Image Array() Invalid Array Indexing Vulnerability",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-or-linux-pc-with-java-storeimagearray-invalid-array-indexing-vulnerability/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Intrasrv 1.0 Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-intrasrv-1-0-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using MiniWeb (Build 300) Arbitrary File Upload",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-miniweb-build-300-arbitrary-file-upload/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using Ultra Mini HTTPD Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-ultra-mini-httpd-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows PC using Open-FTPD 1.2 Arbitrary File Upload",
+      "url": "https://www.hackingarticles.in/exploit-windows-pc-using-open-ftpd-1-2-arbitrary-file-upload/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows 7 PC using Chasys Draw IES Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-7-pc-using-chasys-draw-ies-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypass Antivirus and Hack Remote Windows PC with Syringe",
+      "url": "https://www.hackingarticles.in/bypass-antivirus-and-hack-remote-windows-pc-with-syringe/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using Apple Quicktime 7 Invalid Atom Length Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-apple-quicktime-7-invalid-atom-length-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Remote Windows PC using Corel PDF Fusion Stack Buffer Overflow",
+      "url": "https://www.hackingarticles.in/exploit-remote-windows-pc-using-corel-pdf-fusion-stack-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Windows 7 PC Remotely using MediaCoder .M3U Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-windows-7-pc-remotely-using-mediacoder-m3u-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Windows 7 PC Remotely using ERS Viewer 2013 ERS File Handling Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-windows-7-pc-remotely-using-ers-viewer-2013-ers-file-handling-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote Windows PC using ABBS Audio Media Player .LST Buffer Overflow",
+      "url": "https://www.hackingarticles.in/hack-remote-windows-pc-using-abbs-audio-media-player-lst-buffer-overflow/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Windows, Linux or MAC PC using Java Applet Provider Skeleton Insecure Invoke Method",
+      "url": "https://www.hackingarticles.in/hack-windows-linux-or-mac-pc-using-java-applet-provider-skeleton-insecure-invoke-method/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Windows PC using Novell Client 4.91 SP4 nwfs.sys Local Privilege Escalation",
+      "url": "https://www.hackingarticles.in/hack-windows-pc-using-novell-client-4-91-sp4-nwfs-sys-local-privilege-escalation/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Exploit Windows, Linux or MAC PC using Java Applet Driver Manager Privileged toString() Remote Code Execution",
+      "url": "https://www.hackingarticles.in/exploit-windows-linux-or-mac-pc-using-java-applet-driver-manager-privileged-tostring-remote-code-execution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using Sun Java Web Start Double Quote Injection",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-sun-java-web-start-double-quote-injection/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Windows PC using Java CMM Remote Code Execution",
+      "url": "https://www.hackingarticles.in/hack-windows-pc-using-java-cmm-remote-code-execution/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Bypassing Antivirus using Multi Pyinjector Shell Code Injection in SET Toolkit",
+      "url": "https://www.hackingarticles.in/bypassing-antivirus-using-multi-pyinjector-shellcode-injection-in-set-toolkit/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "How to Install BeEF in Windows PC",
+      "url": "https://www.hackingarticles.in/how-to-install-beef-in-windows-pc/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Subterfuge (Man-in-the-Middle Attack Framework)",
+      "url": "https://www.hackingarticles.in/subterfuge-automated-man-in-the-middle-attack-framework/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Katana: Portable Multi-Boot Security Suite",
+      "url": "https://www.hackingarticles.in/katana-portable-multi-security/",
+      "category": "Penetration Testing",
+      "category_slug": "penetration-testing"
+    },
+    {
+      "title": "Hack Remote PC using HTA Attack in SET Toolkit",
+      "url": "https://www.hackingarticles.in/hack-remote-pc-using-hta-attack-in-set-toolkit/",
+      "category": "Social Engineering",
+      "category_slug": "social-engineering-toolkit"
+    },
+    {
+      "title": "Abusing AD-DACL: AddSelf",
+      "url": "https://www.hackingarticles.in/addself-active-directory-abuse/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL: WriteOwner",
+      "url": "https://www.hackingarticles.in/abusing-ad-dacl-writeowner/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL: WriteDacl",
+      "url": "https://www.hackingarticles.in/abusing-ad-dacl-writedacl/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL: GenericWrite",
+      "url": "https://www.hackingarticles.in/genericwrite-active-directory-abuse/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL: AllExtendedRights",
+      "url": "https://www.hackingarticles.in/allextendedrights-active-directory-abuse/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL: ForceChangePassword",
+      "url": "https://www.hackingarticles.in/forcechangepassword-active-directory-abuse/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Abusing AD-DACL : Generic ALL Permissions",
+      "url": "https://www.hackingarticles.in/genericall-active-directory-abuse/",
+      "category": "DACL Attacks",
+      "category_slug": "dacl-attacks"
+    },
+    {
+      "title": "Penetration Testing on MYSQL (Port 3306)",
+      "url": "https://www.hackingarticles.in/penetration-testing-on-mysql-port-3306/",
+      "category": "Database Hacking",
+      "category_slug": "database-hacking"
+    },
+    {
+      "title": "Comprehensive Guide to Sqlmap (Target Options)",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-to-sqlmap-target-options/",
+      "category": "Database Hacking",
+      "category_slug": "database-hacking"
+    },
+    {
+      "title": "File System Access on Webserver using Sqlmap",
+      "url": "https://www.hackingarticles.in/file-system-access-on-webserver-using-sqlmap/",
+      "category": "Database Hacking",
+      "category_slug": "database-hacking"
+    },
+    {
+      "title": "Beginner Guide to Website Footprinting",
+      "url": "https://www.hackingarticles.in/beginner-guide-website-footprinting/",
+      "category": "Footprinting",
+      "category_slug": "footprinting"
+    },
+    {
+      "title": "Beginner Guide to Footprinting",
+      "url": "https://www.hackingarticles.in/beginner-guide-footprinting/",
+      "category": "Footprinting",
+      "category_slug": "footprinting"
+    },
+    {
+      "title": "6 ways to Find Connected PC in your Network (Beginner Guide)",
+      "url": "https://www.hackingarticles.in/6-ways-to-find-connected-pc-in-your-network-beginner-guide/",
+      "category": "Footprinting",
+      "category_slug": "footprinting"
+    },
+    {
+      "title": "Fast Incident Response and Data Collection",
+      "url": "https://www.hackingarticles.in/fast-incident-response-and-data-collection/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "Incident Response: Windows Account Logon and Logon Events",
+      "url": "https://www.hackingarticles.in/incident-response-windows-account-logon-and-logon-events/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "Incident Response: Windows Account Management Event (Part 2)",
+      "url": "https://www.hackingarticles.in/incident-response-windows-account-management-event-part-2/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "Incident Response: Windows Account Management Event (Part 1)",
+      "url": "https://www.hackingarticles.in/incident-response-windows-account-management-event-part-1/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "Incident Response- Linux Cheatsheet",
+      "url": "https://www.hackingarticles.in/incident-response-linux-cheatsheet/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "Incident Response: Windows Cheatsheet",
+      "url": "https://www.hackingarticles.in/incident-response-windows-cheatsheet/",
+      "category": "Incident Response",
+      "category_slug": "incident-response"
+    },
+    {
+      "title": "AlienVault: Threat Hunting/Network Analysis",
+      "url": "https://www.hackingarticles.in/alienvault-threat-hunting-network-analysis/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "AlienVault: OSSEC (IDS) Deployment",
+      "url": "https://www.hackingarticles.in/alienvault-ossec-ids-deployment/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "Threat Hunting: Velociraptor for Endpoint Monitoring (Part 2)",
+      "url": "https://www.hackingarticles.in/threat-hunting-velociraptor-for-endpoint-monitoring-part-2/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "Threat Hunting: Velociraptor for Endpoint Monitoring",
+      "url": "https://www.hackingarticles.in/threat-hunting-velociraptor-for-endpoint-monitoring/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "Threat Hunting: Log Monitoring Lab Setup with ELK",
+      "url": "https://www.hackingarticles.in/threat-hunting-log-monitoring-lab-setup-with-elk/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "A Deep Drive on Proactive Threat Hunting",
+      "url": "https://www.hackingarticles.in/a-deep-drive-on-proactive-threat-hunting/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "Threat Hunting \u2013 A proactive Method to Identify Hidden Threat",
+      "url": "https://www.hackingarticles.in/threat-hunting-a-proactive-method-to-identify-hidden-threat/",
+      "category": "Threat Hunting",
+      "category_slug": "threat-hunting"
+    },
+    {
+      "title": "A Detailed Guide on Ligolo-Ng",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-ligolo-ng/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "A Detailed Guide on Chisel",
+      "url": "https://www.hackingarticles.in/chisel-port-forwarding-a-detailed-guide/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "Port Forwarding & Tunnelling Cheatsheet",
+      "url": "https://www.hackingarticles.in/port-forwarding-tunnelling-cheatsheet/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "Comprehensive Guide on SSH Tunneling",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-ssh-tunneling/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "VNC Pivoting through Meterpreter",
+      "url": "https://www.hackingarticles.in/vnc-pivoting-meterpreter/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "VNC tunneling over SSH",
+      "url": "https://www.hackingarticles.in/vnc-tunneling-ssh/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "SSH Pivoting using Meterpreter",
+      "url": "https://www.hackingarticles.in/ssh-pivoting-using-meterpreter/",
+      "category": "Tunneling & Pivoting",
+      "category_slug": "tunneling-pivoting"
+    },
+    {
+      "title": "A Detailed Guide on Hydra",
+      "url": "https://www.hackingarticles.in/hydra-brute-force-tool-guide/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "A Detailed Guide on Medusa",
+      "url": "https://www.hackingarticles.in/medusa-brute-force-tool-guide/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "A Detailed Guide on Cewl",
+      "url": "https://www.hackingarticles.in/a-detailed-guide-on-cewl/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Comprehensive Guide on Ncrack \u2013 A Brute Forcing Tool",
+      "url": "https://www.hackingarticles.in/comprehensive-guide-on-ncrack-a-brute-forcing-tool/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: SNMP",
+      "url": "https://www.hackingarticles.in/snmp-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking:MS-SQL",
+      "url": "https://www.hackingarticles.in/password-crackingms-sql/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: VNC",
+      "url": "https://www.hackingarticles.in/vnc-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: PostgreSQL",
+      "url": "https://www.hackingarticles.in/postgresql-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking:MySQL",
+      "url": "https://www.hackingarticles.in/password-crackingmysql/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "5 Ways to Create Dictionary for Bruteforcing",
+      "url": "https://www.hackingarticles.in/5-ways-create-dictionary-bruteforcing/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: SMB",
+      "url": "https://www.hackingarticles.in/smb-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: Telnet",
+      "url": "https://www.hackingarticles.in/telnet-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: FTP",
+      "url": "https://www.hackingarticles.in/ftp-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    },
+    {
+      "title": "Password Cracking: SSH",
+      "url": "https://www.hackingarticles.in/ssh-password-cracking/",
+      "category": "Password Cracking",
+      "category_slug": "password-cracking"
+    }
+  ]
+}

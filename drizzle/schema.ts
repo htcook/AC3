@@ -7179,3 +7179,144 @@ export const exploitLearningChains = mysqlTable("exploit_learning_chains", {
 	index("elc_chain_name_idx").on(table.chainName),
 	index("elc_engagement_idx").on(table.engagementId),
 ]);
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THREAT ACTOR CATALOG ENRICHMENT TABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Exploit Playbooks — actual exploit code/commands/scripts attributed to threat actors.
+ * Stores the "how" — not just that APT28 uses T1190, but the exact sqlmap command,
+ * the custom Python loader, the PowerShell one-liner they deploy in the wild.
+ */
+export const exploitPlaybooks = mysqlTable("exploit_playbooks", {
+	id: int().autoincrement().notNull(),
+	actorId: varchar("ep_actor_id", { length: 128 }).notNull(),
+	actorName: varchar("ep_actor_name", { length: 255 }).notNull(),
+	playbookTitle: varchar("playbook_title", { length: 512 }).notNull(),
+	techniqueId: varchar("ep_technique_id", { length: 32 }).notNull(),
+	techniqueName: varchar("ep_technique_name", { length: 255 }),
+	tactic: varchar("ep_tactic", { length: 128 }).notNull(),
+	code: text("ep_code").notNull(),
+	language: varchar("ep_language", { length: 64 }).notNull(),
+	toolName: varchar("ep_tool_name", { length: 255 }),
+	targetConditions: json("ep_target_conditions"),
+	exploitedCves: json("ep_exploited_cves"),
+	targetServices: json("ep_target_services"),
+	targetPlatforms: json("ep_target_platforms"),
+	evasionTechniques: json("ep_evasion_techniques"),
+	successIndicators: json("ep_success_indicators"),
+	sourceType: mysqlEnum("ep_source_type", ['dfir_report', 'threat_intel', 'malware_analysis', 'incident_response', 'academic_research', 'honeypot', 'sandbox_detonation', 'osint']).notNull(),
+	sourceReference: varchar("ep_source_reference", { length: 1024 }),
+	confidence: int("ep_confidence").default(75),
+	observedDate: varchar("ep_observed_date", { length: 32 }),
+	createdAt: timestamp("ep_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("ep_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	index("ep_actor_idx").on(table.actorId),
+	index("ep_technique_idx").on(table.techniqueId),
+	index("ep_tool_idx").on(table.toolName),
+]);
+
+/**
+ * Attack Chains — ordered multi-step attack sequences attributed to threat actors.
+ * Captures the full kill chain: "APT29 first does spearphishing (T1566), then
+ * drops a custom loader (T1059.001), escalates via DLL sideloading (T1574.002),
+ * dumps credentials (T1003.001), and exfils via DNS tunneling (T1048.003)."
+ */
+export const attackChainsCatalog = mysqlTable("attack_chains_catalog", {
+	id: int().autoincrement().notNull(),
+	actorId: varchar("acc_actor_id", { length: 128 }).notNull(),
+	actorName: varchar("acc_actor_name", { length: 255 }).notNull(),
+	chainName: varchar("acc_chain_name", { length: 512 }).notNull(),
+	description: text("acc_description"),
+	steps: json("acc_steps").notNull(),
+	tacticsTraversed: json("acc_tactics_traversed"),
+	riskScore: int("acc_risk_score").default(50),
+	targetSectors: json("acc_target_sectors"),
+	targetTechnologies: json("acc_target_technologies"),
+	exploitedCves: json("acc_exploited_cves"),
+	toolsUsed: json("acc_tools_used"),
+	typicalDuration: varchar("acc_typical_duration", { length: 64 }),
+	sourceType: mysqlEnum("acc_source_type", ['dfir_report', 'threat_intel', 'incident_response', 'academic_research', 'simulation', 'osint']).notNull(),
+	sourceReference: varchar("acc_source_reference", { length: 1024 }),
+	confidence: int("acc_confidence").default(75),
+	observedDate: varchar("acc_observed_date", { length: 32 }),
+	createdAt: timestamp("acc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("acc_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	index("acc_actor_idx").on(table.actorId),
+	index("acc_chain_name_idx").on(table.chainName),
+]);
+
+/**
+ * DFIR Observations — structured intelligence extracted from incident response
+ * reports, forensic analyses, and post-breach investigations.
+ * Each observation captures a specific technique/tool/behavior seen in the wild.
+ */
+export const dfirObservations = mysqlTable("dfir_observations", {
+	id: int().autoincrement().notNull(),
+	reportId: varchar("dfir_report_id", { length: 128 }).notNull(),
+	reportTitle: varchar("dfir_report_title", { length: 512 }).notNull(),
+	reportSource: varchar("dfir_report_source", { length: 255 }),
+	reportUrl: varchar("dfir_report_url", { length: 1024 }),
+	reportDate: varchar("dfir_report_date", { length: 32 }),
+	actorId: varchar("dfir_actor_id", { length: 128 }),
+	actorName: varchar("dfir_actor_name", { length: 255 }),
+	observationType: mysqlEnum("dfir_observation_type", [
+		'initial_access', 'execution', 'persistence', 'privilege_escalation',
+		'defense_evasion', 'credential_access', 'discovery', 'lateral_movement',
+		'collection', 'exfiltration', 'command_and_control', 'impact',
+		'tool_usage', 'malware_behavior', 'infrastructure', 'victim_profile'
+	]).notNull(),
+	techniqueId: varchar("dfir_technique_id", { length: 32 }),
+	techniqueName: varchar("dfir_technique_name", { length: 255 }),
+	description: text("dfir_description").notNull(),
+	artifacts: json("dfir_artifacts"),
+	toolsObserved: json("dfir_tools_observed"),
+	associatedIocs: json("dfir_associated_iocs"),
+	impactDescription: text("dfir_impact_description"),
+	victimSector: varchar("dfir_victim_sector", { length: 128 }),
+	victimRegion: varchar("dfir_victim_region", { length: 128 }),
+	detectionMethods: json("dfir_detection_methods"),
+	mitigations: json("dfir_mitigations"),
+	confidence: int("dfir_confidence").default(75),
+	createdAt: timestamp("dfir_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("dfir_report_idx").on(table.reportId),
+	index("dfir_actor_idx").on(table.actorId),
+	index("dfir_technique_idx").on(table.techniqueId),
+	index("dfir_type_idx").on(table.observationType),
+]);
+
+/**
+ * IOC-to-TTP Mappings — reverse-engineered TTP implications from IOCs.
+ * A C2 domain using DNS tunneling implies T1048.003. A registry run key
+ * implies T1547.001. A specific malware hash implies the full TTP chain
+ * of that malware family. This table captures those inferences.
+ */
+export const iocTtpMappings = mysqlTable("ioc_ttp_mappings", {
+	id: int().autoincrement().notNull(),
+	iocType: varchar("itm_ioc_type", { length: 64 }).notNull(),
+	iocValue: text("itm_ioc_value").notNull(),
+	iocDescription: text("itm_ioc_description"),
+	sourceIocId: int("itm_source_ioc_id"),
+	actorId: varchar("itm_actor_id", { length: 128 }),
+	actorName: varchar("itm_actor_name", { length: 255 }),
+	techniqueId: varchar("itm_technique_id", { length: 32 }).notNull(),
+	techniqueName: varchar("itm_technique_name", { length: 255 }),
+	tactic: varchar("itm_tactic", { length: 128 }).notNull(),
+	reasoning: text("itm_reasoning").notNull(),
+	inferenceConfidence: int("itm_inference_confidence").default(60),
+	derivationMethod: mysqlEnum("itm_derivation_method", [
+		'pattern_match', 'llm_analysis', 'malware_analysis',
+		'behavioral_analysis', 'infrastructure_analysis', 'manual'
+	]).notNull(),
+	context: json("itm_context"),
+	createdAt: timestamp("itm_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("itm_actor_idx").on(table.actorId),
+	index("itm_technique_idx").on(table.techniqueId),
+	index("itm_ioc_type_idx").on(table.iocType),
+]);

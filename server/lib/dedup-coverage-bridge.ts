@@ -585,7 +585,7 @@ export function runEngagementCoverageAnalysis(assets: OrchestratorAsset[]): Enga
       naabu: [],  // port scanner — protocols inferred from discovered services
       masscan: [],
       rustscan: [],
-      nmap: ["http", "https", "ssh", "dns", "smtp", "ftp"],
+      nerva: ["http", "https", "ssh", "dns", "smtp", "ftp"],
       zap: ["http", "https"],
       nikto: ["http", "https"],
       sqlmap: ["http", "https"],
@@ -616,7 +616,8 @@ export function runEngagementCoverageAnalysis(assets: OrchestratorAsset[]): Enga
       wpscan: ["cve", "exposure", "credentials"],
       dig: ["dns", "zone-transfer"],
       dnsrecon: ["dns", "dnssec", "zone-transfer"],
-      nmap: ["exposure"],
+      naabu: ["exposure"],
+      nerva: ["exposure"],
       testssl: ["misconfig"],
       sslscan: ["misconfig"],
       gobuster: ["exposure"],

@@ -5003,7 +5003,7 @@ export default function DomainIntelResults() {
                                        </div>
                                        <div className="flex items-center gap-1.5 bg-yellow-500/10 rounded px-2 py-1 border border-yellow-500/20">
                                          <Search className="h-3 w-3 text-yellow-400 shrink-0" />
-                                         <span className="text-[10px] text-yellow-300">Version enumeration recommended — run Nmap service scan (<code className="text-yellow-200">nmap -sV</code>), banner grab, or authenticated version check to confirm and upgrade this finding</span>
+                                         <span className="text-[10px] text-yellow-300">Version enumeration recommended — run Nerva service scan, httpx banner grab, or authenticated version check to confirm and upgrade this finding</span>
                                        </div>
                                      </div>
                                    )}
@@ -5198,7 +5198,7 @@ export default function DomainIntelResults() {
                         <Search className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
                         <div>
                           <p className="text-[11px] text-yellow-300 font-medium">Version Enumeration Recommended</p>
-                          <p className="text-[10px] text-yellow-300/80 mt-0.5">These findings matched a known product but the specific version could not be confirmed passively. Run active version enumeration (<code className="text-yellow-200 bg-yellow-500/20 px-1 rounded">nmap -sV</code>, banner grab, or authenticated scan) to confirm versions and upgrade findings to confirmed tier.</p>
+                          <p className="text-[10px] text-yellow-300/80 mt-0.5">These findings matched a known product but the specific version could not be confirmed passively. Run active version enumeration (Nerva service scan, httpx banner grab, or authenticated scan) to confirm versions and upgrade findings to confirmed tier.</p>
                         </div>
                       </div>
                       {probable.map((f: any, i: number) => {

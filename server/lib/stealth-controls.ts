@@ -160,7 +160,7 @@ const USER_AGENTS = {
   tools: [
     'sqlmap/1.7.12#stable (https://sqlmap.org)',
     'Nuclei - Open-source project (github.com/projectdiscovery/nuclei)',
-    'Mozilla/5.0 (compatible; Nmap Scripting Engine; https://nmap.org/book/nse.html)',
+    'Mozilla/5.0 (compatible; Naabu Scanner; https://github.com/projectdiscovery/naabu)',
     'Wfuzz/3.1.0',
   ],
 };

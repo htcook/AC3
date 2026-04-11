@@ -2867,7 +2867,7 @@ export default function EngagementOps() {
                   {(() => {
                     const assets = ops?.assets || [];
                     const allToolResults = assets.flatMap((a: any) => (a.toolResults || []).map((tr: any) => ({ ...tr, assetHostname: a.hostname })));
-                    const nmapResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' || tr.tool === 'naabu');
+                    const portScanResults = allToolResults.filter((tr: any) => tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' || tr.tool === 'naabu');
                     const nucleiResults = allToolResults.filter((tr: any) => tr.tool === 'nuclei');
                     const httpxResults = allToolResults.filter((tr: any) => tr.tool === 'httpx');
 
@@ -3052,7 +3052,7 @@ export default function EngagementOps() {
                               <div className="flex items-center gap-2 mb-2">
                                 <Search className="h-4 w-4 text-blue-400" />
                                 <span className="text-xs font-medium">Port Discovery</span>
-                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{nmapResults.length} runs</Badge>
+                                <Badge variant="secondary" className="ml-auto text-[9px] h-4">{portScanResults.length} runs</Badge>
                               </div>
                               <p className="text-[10px] text-muted-foreground">Service fingerprinting & OS detection</p>
                             </CardContent>
@@ -3293,7 +3293,7 @@ export default function EngagementOps() {
                                   <div key={i} className="border border-border/20 rounded p-2 space-y-1">
                                     <div className="flex items-center gap-2">
                                       <Badge variant="secondary" className={`text-[8px] h-3.5 ${
-                                        tr.tool === 'nmap' || tr.tool === 'nmap-discovery' ? 'bg-blue-500/20 text-blue-400' :
+                                        tr.tool === 'nmap' || tr.tool === 'nmap-discovery' || tr.tool === 'nerva' ? 'bg-blue-500/20 text-blue-400' :
                                         tr.tool === 'naabu' ? 'bg-cyan-500/20 text-cyan-400' :
                                         tr.tool === 'httpx' ? 'bg-purple-500/20 text-purple-400' :
                                         tr.tool === 'nuclei' ? 'bg-red-500/20 text-red-400' :
@@ -5915,7 +5915,9 @@ function CloudFindingCard({ finding }: { finding: any }) {
 // ─── Feedback Scan Card ───────────────────────────────────────────────────────
 
 const TOOL_COLORS: Record<string, string> = {
-  nmap: "text-cyan-400 border-cyan-500/30",
+  nmap: "text-cyan-400 border-cyan-500/30",  // legacy — kept for backward compat
+  nerva: "text-cyan-400 border-cyan-500/30",
+  naabu: "text-cyan-400 border-cyan-500/30",
   nikto: "text-yellow-400 border-yellow-500/30",
   nuclei: "text-purple-400 border-purple-500/30",
   gobuster: "text-orange-400 border-orange-500/30",

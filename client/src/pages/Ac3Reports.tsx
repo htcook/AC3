@@ -2402,7 +2402,7 @@ function ArtifactsTab({ reportId, findings }: { reportId: string; findings: any[
               <Input
                 value={addForm.filename}
                 onChange={(e) => setAddForm(f => ({ ...f, filename: e.target.value }))}
-                placeholder="nmap-scan-192.168.1.0.txt"
+                placeholder="port-scan-192.168.1.0.txt"
               />
             </div>
           </div>

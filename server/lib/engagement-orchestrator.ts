@@ -4021,7 +4021,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               const scanCmds = getScanCommandsForService(svcName, target, svcPort.port);
               for (const cmd of scanCmds.slice(0, 2)) {
                 try {
-                  const svcResult = await executeTool({ tool: cmd.tool, args: cmd.command.replace(cmd.tool + ' ', ''), timeoutSeconds: cmd.timeout, sudo: cmd.tool === 'nmap' });
+                  const svcResult = await executeTool({ tool: cmd.tool, args: cmd.command.replace(cmd.tool + ' ', ''), timeoutSeconds: cmd.timeout, sudo: cmd.tool === 'masscan' || cmd.tool === 'naabu' });
                   if (svcResult.stdout) {
                     addLog(state, { phase: 'enumeration', type: 'scan_result', title: `${cmd.tool} ${svcName} scan: ${target}:${svcPort.port}`, detail: `${cmd.purpose}\n${(svcResult.stdout || '').slice(0, 1000)}` });
                   }
@@ -8552,6 +8552,21 @@ ${(() => {
     { label: 'zap', content: zapExploitCtx || '' },
     { label: 'burp', content: burpExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
+    // Enriched threat actor catalog intelligence — playbooks, attack chains, DFIR observations
+    { label: 'threatActorCatalog', content: await (async () => {
+      try {
+        const { buildEmberThreatContext } = await import('./ember-catalog-intelligence');
+        const targetSector = state.metadata?.sector || state.metadata?.clientType || '';
+        const targetTech = detectedTech.join(', ');
+        const vulnCves = state.assets.flatMap(a => a.vulns.filter(v => v.cve).map(v => v.cve!));
+        const ctx = await buildEmberThreatContext({
+          targetSector,
+          targetTechnology: targetTech,
+          vulnerabilityCves: vulnCves,
+        });
+        return ctx || '';
+      } catch { return ''; }
+    })() },
     // Context-aware target profiles for exploitation
     { label: 'targetProfiles', content: (() => {
       if (!state.targetProfiles || Object.keys(state.targetProfiles).length === 0) return '';
@@ -11183,7 +11198,7 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     //   - rawEvidence or evidence field is non-empty (raw tool output attached), OR
     //   - source from an active scan tool (nuclei, zap, sqlmap, etc.)
     // Vulns without evidence are tagged 'unverified' and excluded from risk counts.
-    const ACTIVE_SCAN_SOURCES = ['nuclei', 'zap', 'sqlmap', 'nmap', 'hydra', 'nikto', 'xss-scanner', 'metasploit', 'httpx', 'ffuf'];
+    const ACTIVE_SCAN_SOURCES = ['nuclei', 'zap', 'sqlmap', 'naabu', 'masscan', 'nerva', 'hydra', 'nikto', 'xss-scanner', 'metasploit', 'httpx', 'ffuf'];
     let totalVulns = 0;
     let verifiedVulns = 0;
     let unverifiedVulns = 0;
@@ -12194,7 +12209,7 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
           const toolLower = tool.toLowerCase();
           let phase = 'Vulnerability Analysis';
           let purpose = 'Security scanning';
-          if (/nmap|discovery|recon|subfinder|httpx|dig|dnsrecon/.test(toolLower)) { phase = 'Intelligence Gathering'; purpose = 'Reconnaissance and discovery'; }
+          if (/naabu|masscan|nerva|discovery|recon|subfinder|httpx|dig|dnsrecon/.test(toolLower)) { phase = 'Intelligence Gathering'; purpose = 'Reconnaissance and discovery'; }
           else if (/nuclei|zap|burp|nikto|testssl/.test(toolLower)) { phase = 'Vulnerability Analysis'; purpose = 'Vulnerability scanning'; }
           else if (/metasploit|sqlmap|commix|hydra|exploit/.test(toolLower)) { phase = 'Exploitation'; purpose = 'Exploitation and validation'; }
           return { tool, purpose, targets, phase };

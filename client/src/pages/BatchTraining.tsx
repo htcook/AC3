@@ -29,7 +29,7 @@ const AVAILABLE_TARGETS = [
   { domain: "159.223.152.190/lab/vampi/", name: "VAmPI (DO Lab)", category: "API" },
   { domain: "159.223.152.190/lab/dvga/", name: "DVGA — GraphQL (DO Lab)", category: "API" },
   // Additional public targets
-  { domain: "scanme.nmap.org", name: "ScanMe (Nmap)", category: "Network" },
+  { domain: "scanme.nmap.org", name: "ScanMe (Network Test)", category: "Network" },
   { domain: "hack-yourself-first.com", name: "Hack Yourself First", category: "Web App" },
   { domain: "pentest-ground.com", name: "Pentest Ground", category: "Web App" },
 ];

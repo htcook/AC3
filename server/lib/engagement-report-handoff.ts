@@ -197,7 +197,7 @@ const PTES_PHASES = [
     ptesSection: "§2",
     nistSection: "§3.2",
     logPhases: ["recon", "enumeration"],
-    indicators: ["dns", "whois", "subdomain", "osint", "fingerprint", "nmap", "discovery"],
+    indicators: ["dns", "whois", "subdomain", "osint", "fingerprint", "naabu", "masscan", "nerva", "discovery"],
   },
   {
     phase: "Threat Modeling",
@@ -397,7 +397,7 @@ function compareTestPlanToExecution(
   for (const entry of state.log) {
     const text = `${entry.title} ${entry.detail || ""}`.toLowerCase();
     const toolPatterns = [
-      "nmap", "nuclei", "zap", "sqlmap", "hydra", "nikto", "commix",
+      "naabu", "masscan", "nerva", "nuclei", "zap", "sqlmap", "hydra", "nikto", "commix",
       "tplmap", "ffuf", "httpx", "metasploit", "xsstrike", "testssl",
       "ssh-audit", "gobuster", "dirsearch", "wfuzz", "burp",
     ];

@@ -34,8 +34,8 @@ const RISK_COLORS: Record<string, string> = {
 export default function SafetyDashboard() {
   
   const [selectedEngagement, setSelectedEngagement] = useState<number | null>(null);
-  const [testTool, setTestTool] = useState("nmap");
-  const [testArgs, setTestArgs] = useState("-sV -sC -T4 -p 1-1000");
+  const [testTool, setTestTool] = useState("naabu");
+  const [testArgs, setTestArgs] = useState("-p 1-1000 -rate 1000");
   const [testTarget, setTestTarget] = useState("192.168.1.0/24");
   const [testLevel, setTestLevel] = useState<string>("standard");
 
@@ -248,7 +248,7 @@ export default function SafetyDashboard() {
                   <Select value={testTool} onValueChange={setTestTool}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {["nmap", "nuclei", "hydra", "sqlmap", "nikto", "gobuster", "zap", "crackmapexec", "curl", "whois", "dig"].map(t => (
+                      {["naabu", "masscan", "nerva", "nuclei", "hydra", "sqlmap", "nikto", "gobuster", "zap", "crackmapexec", "curl", "whois", "dig"].map(t => (
                         <SelectItem key={t} value={t}>{t}</SelectItem>
                       ))}
                     </SelectContent>

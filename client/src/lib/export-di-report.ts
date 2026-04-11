@@ -3170,7 +3170,7 @@ export async function exportDiReport(
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(120, 53, 15); // amber-900
-      const recText = `${probableVulns.length} additional finding${probableVulns.length !== 1 ? 's' : ''} matched known products (e.g., ${probableVulns.slice(0, 3).map((v: any) => v.evidence?.findingName?.split(':')[0] || v.evidence?.cveIds?.[0] || 'CVE').join(', ')}${probableVulns.length > 3 ? '...' : ''}) but the installed version could not be confirmed passively. Run active version enumeration (nmap -sV, banner grab, or authenticated scan) to confirm versions and upgrade these to confirmed findings.`;
+      const recText = `${probableVulns.length} additional finding${probableVulns.length !== 1 ? 's' : ''} matched known products (e.g., ${probableVulns.slice(0, 3).map((v: any) => v.evidence?.findingName?.split(':')[0] || v.evidence?.cveIds?.[0] || 'CVE').join(', ')}${probableVulns.length > 3 ? '...' : ''}) but the installed version could not be confirmed passively. Run active version enumeration (nerva service scan, httpx banner grab, or authenticated scan) to confirm versions and upgrade these to confirmed findings.`;
       const recLines = doc.splitTextToSize(recText, contentWidth - 8);
       doc.text(recLines, margin + 4, boxY + 11);
       y = boxY + 26;

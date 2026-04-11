@@ -1,17 +1,13 @@
 /**
- * nmap-knowledge.ts — Comprehensive Nmap Knowledge Module
+ * @deprecated — Nmap has been removed from the platform. Port discovery now uses
+ * scanforge-discovery (naabu + masscan + Nerva). Service fingerprinting uses Nerva.
+ * This module is retained for backward compatibility and knowledge reference only.
+ * All new code should use scanforge-knowledge.ts.
  * 
- * Provides the LLM with expert-level nmap knowledge including:
- * - Evasion technique profiles for IDS/IPS/firewall bypass
- * - NSE script catalog organized by service and technology
- * - Technology-specific scan plan templates
- * - Scan profile recommendations based on target context
+ * nmap-knowledge.ts — DEPRECATED Nmap Knowledge Module (Legacy)
  * 
- * This module is injected into LLM prompts during:
- * - Scan plan generation (engagement-orchestrator)
- * - Vulnerability correlation
- * - Hunt hypothesis generation
- * - Asset classification
+ * Previously provided the LLM with nmap knowledge. The evasion profiles and
+ * NSE script knowledge have been migrated to scanforge equivalents.
  */
 
 // ─── Evasion Technique Profiles ────────────────────────────────────────────

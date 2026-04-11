@@ -2,7 +2,7 @@
  * service-resolver.ts — Resolves "unknown" service labels on open ports
  *
  * Three-tier resolution:
- *   1. Active fingerprint (nmap/httpx banner grab) — highest confidence
+ *   1. Active fingerprint (nerva/httpx banner grab) — highest confidence
  *   2. Passive recon merge (Shodan/Censys service data) — medium confidence
  *   3. Well-known port→service mapping (IANA + common) — fallback
  *

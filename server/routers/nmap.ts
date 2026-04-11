@@ -1,7 +1,10 @@
 /**
- * Nmap Router
+ * @deprecated — Nmap has been removed. Use scanforge-discovery endpoints instead.
+ * This router is not imported anywhere and is retained for reference only.
  *
- * tRPC endpoints for Nmap network scanning via SSH-based remote execution:
+ * Nmap Router (DEPRECATED)
+ *
+ * Previously provided tRPC endpoints for Nmap network scanning:
  * - Full scan with configurable profiles (quick/standard/deep/stealth/service/udp/vuln/custom)
  * - Quick scan (top 100 ports, fast turnaround)
  * - Service version detection (-sV with configurable intensity)

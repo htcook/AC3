@@ -1079,7 +1079,7 @@ function mapProvenanceToEvidenceType(provenance?: EvidenceProvenance): string {
   if (!provenance) return 'tool_output';
   const tool = provenance.sourceTool?.toLowerCase() || '';
   if (tool.includes('zap') || tool.includes('burp')) return 'http_capture';
-  if (tool.includes('nmap') || tool.includes('masscan')) return 'scan_output';
+  if (tool.includes('naabu') || tool.includes('masscan') || tool.includes('nerva')) return 'scan_output';
   if (tool.includes('nuclei') || tool.includes('nikto')) return 'scan_output';
   if (tool.includes('sqlmap') || tool.includes('hydra')) return 'exploit_output';
   if (tool.includes('metasploit')) return 'exploit_output';

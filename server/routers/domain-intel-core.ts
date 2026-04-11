@@ -1729,6 +1729,23 @@ export const domainIntelRouter = router({
 
               trimmedOutput.threatActorMatches = threatActorMatches;
 
+              // ═══ ENRICHED THREAT INTELLIGENCE — Wire catalog data into DI results ═══
+              try {
+                const { enrichDIScanWithThreatIntel } = await import('../lib/di-threat-enrichment');
+                const enrichedThreatIntel = await enrichDIScanWithThreatIntel({
+                  threatMatching: result.threatMatching,
+                  findings: result.findings || [],
+                  assets: result.assets || [],
+                  domain: input.primaryDomain,
+                  sector: input.sector,
+                });
+                if (enrichedThreatIntel) {
+                  trimmedOutput.enrichedThreatIntel = enrichedThreatIntel;
+                }
+              } catch (e) {
+                console.warn('[DomainIntel] Threat intel enrichment failed (non-fatal):', (e as Error).message);
+              }
+
               await db.updateDomainIntelScan(scanId, {
                 status: 'completed',
                 totalAssets: result.totalAssets,

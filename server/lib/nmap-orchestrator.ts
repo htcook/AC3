@@ -1,8 +1,11 @@
 /**
- * Nmap Orchestrator
+ * @deprecated — Nmap has been removed from the platform. Use scanforge-discovery
+ * (naabu + masscan + Nerva) for port discovery and service fingerprinting.
+ * This module is retained for backward compatibility only.
  *
- * Executes Nmap scans on the operator's remote servers via SSH, parses
- * XML output, and feeds results into the SSIL observation pipeline.
+ * Nmap Orchestrator (DEPRECATED)
+ *
+ * Previously executed Nmap scans on the operator's remote servers via SSH.
  *
  * Architecture:
  *   Dashboard → SSH → operator's scan server (nmap installed) → XML output → parse → SSIL

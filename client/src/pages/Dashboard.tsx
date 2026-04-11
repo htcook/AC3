@@ -64,7 +64,7 @@ function DashboardInner() {
   const [gophishStatus, setGophishStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
   // Sticky-online counters: require 3 consecutive failures before flipping to offline
-  // This prevents transient timeouts (common during heavy nmap scans) from causing icon flashing
+  // This prevents transient timeouts (common during heavy port scans) from causing icon flashing
   const serverFailCountRef = useRef(0);
   const gophishFailCountRef = useRef(0);
   const OFFLINE_THRESHOLD = 3;
