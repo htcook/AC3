@@ -9262,6 +9262,21 @@ ${await (async () => {
             enableChainExecution: true,
             enableChainReasoner: true,
             maxChainSteps: 4,
+            // Wire __nucleiHint from finding metadata for fast-path Nuclei execution
+            nucleiHint: (() => {
+              const vuln = asset?.vulns?.find(v => v.cve === cve || v.title?.includes(service || ''));
+              const hint = (vuln as any)?.__nucleiHint;
+              if (hint && (hint.templatePath || (hint.tags && hint.tags.length > 0))) {
+                return {
+                  templatePath: hint.templatePath || null,
+                  tags: hint.tags || [],
+                  source: hint.source || 'engagement-orchestrator',
+                  confidence: hint.confidence || 70,
+                  cveId: cve || hint.cveId || undefined,
+                };
+              }
+              return undefined;
+            })(),
           });
 
           // Update heartbeat after exploit pipeline completes
