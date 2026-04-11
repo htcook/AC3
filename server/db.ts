@@ -3203,9 +3203,37 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
   const now = Date.now();
   let inserted = 0;
 
+  // P1-FIX: Deduplicate findings before insert.
+  // Key = engagementId + normalized title + severity + hostname + port.
+  // When duplicates exist, keep the one with the richest metadata (longest description,
+  // has CVE, has exploit evidence, higher corroboration tier).
+  const dedupMap = new Map<string, EngagementFindingInput>();
+  const TIER_RANK: Record<string, number> = { 'confirmed': 4, 'corroborated': 3, 'single-source': 2, 'unverified': 1 };
+  for (const f of findings) {
+    // Normalize title: strip leading [tool] prefixes and collapse whitespace
+    const normTitle = (f.title || '').replace(/^\[\w+\]\s*/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = `${f.engagementId}|${normTitle}|${(f.severity || '').toLowerCase()}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
+    const existing = dedupMap.get(key);
+    if (!existing) {
+      dedupMap.set(key, f);
+    } else {
+      // Keep the richer finding
+      const existingScore = (existing.description?.length || 0) + (existing.cve ? 100 : 0) + (existing.exploitSucceeded ? 200 : 0) + (TIER_RANK[existing.corroborationTier || 'unverified'] || 0) * 50;
+      const newScore = (f.description?.length || 0) + (f.cve ? 100 : 0) + (f.exploitSucceeded ? 200 : 0) + (TIER_RANK[f.corroborationTier || 'unverified'] || 0) * 50;
+      if (newScore > existingScore) {
+        dedupMap.set(key, f);
+      }
+    }
+  }
+  const dedupedFindings = Array.from(dedupMap.values());
+  const dedupedCount = findings.length - dedupedFindings.length;
+  if (dedupedCount > 0) {
+    console.log(`[saveEngagementFindings] Deduplicated ${dedupedCount} findings (${findings.length} → ${dedupedFindings.length})`);
+  }
+
   // Insert in batches of 50 to avoid query size limits
-  for (let i = 0; i < findings.length; i += 50) {
-    const batch = findings.slice(i, i + 50);
+  for (let i = 0; i < dedupedFindings.length; i += 50) {
+    const batch = dedupedFindings.slice(i, i + 50);
     await db.insert(engagementFindings).values(
       batch.map(f => ({
         engagementId: f.engagementId,
