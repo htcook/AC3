@@ -40,6 +40,7 @@ import { AttackPlaybookPanel } from "@/components/AttackPlaybookPanel";
 import { LabDeployerPanel } from "@/components/LabDeployerPanel";
 import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
 import CommsProtocolPanel from "@/components/CommsProtocolPanel";
+import FingerprintDiffPanel from "@/components/FingerprintDiffPanel";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -3753,6 +3754,7 @@ export default function EngagementOps() {
                   </Card>
 
                   {/* Comms Protocol & Scope Constraints from Uploaded Doc */}
+                  {engagement?.id && <FingerprintDiffPanel engagementId={engagement.id} />}
                   {engagement?.id && <CommsProtocolPanel engagementId={engagement.id} />}
 
                   {/* Scope Enforcement Log */}

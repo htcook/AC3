@@ -986,6 +986,14 @@ async function startServer() {
         console.warn("[ExploitKnowledgeStore] Failed to start background indexing:", err);
       });
 
+      // Initialize CPE Dictionary Auto-Updater (every 12 hours)
+      import("../lib/cpe-dictionary-updater").then(({ startAutoUpdate }) => {
+        startAutoUpdate(12 * 60 * 60 * 1000); // 12-hour interval
+        console.log("[CPEUpdater] CPE dictionary auto-update scheduler initialized (12h interval)");
+      }).catch((err) => {
+        console.warn("[CPEUpdater] Failed to initialize CPE dictionary auto-updater:", err);
+      });
+
       // Force GC after cron scheduler registration
       if (global.gc) {
         global.gc();

@@ -21,7 +21,16 @@ import {
   type FingerprintResult,
   type ServiceProtocol,
 } from "../lib/service-fingerprinter";
+import {
+  diffFingerprints,
+  buildDiffSummaryText,
+  type CachedFingerprint,
+} from "../lib/fingerprint-diff";
+import { getCpeMatchStats } from "../lib/dynamic-cpe-matcher";
 import { enforceTargetScope, enforceMultiTargetScope } from "../lib/scope-enforcement-middleware";
+import { getDb } from "../db";
+import { fingerprintCache } from "../../drizzle/schema";
+import { eq, desc } from "drizzle-orm";
 
 const protocolEnum = z.enum([
   "ssh", "smtp", "ftp", "snmp", "rdp", "smb", "ldap", "telnet",
@@ -229,5 +238,140 @@ export const serviceFingerprintRouter = router({
       const scan = scanHistory.find(s => s.id === input.scanId);
       if (!scan) return null;
       return scan;
+    }),
+
+  /**
+   * Get fingerprint diff report for an engagement.
+   * Compares the latest scan against the previous cached scan.
+   */
+  getFingerprintDiff: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const cached = await db
+        .select()
+        .from(fingerprintCache)
+        .where(eq(fingerprintCache.fcEngagementId, String(input.engagementId)))
+        .orderBy(desc(fingerprintCache.fcFingerprintedAt));
+
+      if (cached.length === 0) {
+        return { hasDiff: false as const, report: null, summary: null, currentScan: null, previousScan: null };
+      }
+
+      // Group by scan time (fingerprints within 60s are same scan)
+      const scanGroups: Array<{ time: number; entries: typeof cached }> = [];
+      let currentGroup: { time: number; entries: typeof cached } | null = null;
+      for (const entry of cached) {
+        const t = entry.fcFingerprintedAt;
+        if (!currentGroup || Math.abs(t - currentGroup.time) > 60000) {
+          currentGroup = { time: t, entries: [] };
+          scanGroups.push(currentGroup);
+        }
+        currentGroup.entries.push(entry);
+      }
+
+      if (scanGroups.length < 2) {
+        const entries = scanGroups[0]?.entries || [];
+        return {
+          hasDiff: false as const,
+          currentScan: {
+            time: scanGroups[0]?.time || 0,
+            serviceCount: entries.length,
+            services: entries.map(e => ({
+              host: e.fcHost, port: e.fcPort, protocol: e.fcProtocol,
+              product: e.fcProduct, version: e.fcVersion,
+              confidence: e.fcConfidence,
+              cves: (e.fcPotentialCves as string[] | null) || [],
+            })),
+          },
+          previousScan: null,
+          report: null,
+          summary: "Only one scan recorded — no previous data to compare against.",
+        };
+      }
+
+      const latestEntries = scanGroups[0].entries;
+      const previousEntries = scanGroups[1].entries;
+
+      const currentResults: FingerprintResult[] = latestEntries.map(e => ({
+        host: e.fcHost, port: e.fcPort,
+        protocol: (e.fcProtocol || "unknown") as any,
+        product: e.fcProduct || null, version: e.fcVersion || null,
+        banner: e.fcBanner || null, os: e.fcOs || null,
+        securityFlags: (e.fcSecurityFlags as Record<string, boolean>) || {},
+        riskIndicators: (e.fcRiskIndicators as any[]) || [],
+        potentialCves: (e.fcPotentialCves as string[]) || [],
+        confidence: e.fcConfidence || 0, error: false, rawOutput: "",
+      }));
+
+      const previousCached: CachedFingerprint[] = previousEntries.map(e => ({
+        host: e.fcHost, port: e.fcPort,
+        protocol: e.fcProtocol || null, product: e.fcProduct || null,
+        version: e.fcVersion || null, banner: e.fcBanner || null,
+        os: e.fcOs || null,
+        securityFlags: (e.fcSecurityFlags as Record<string, boolean>) || null,
+        riskIndicators: (e.fcRiskIndicators as any[]) || [],
+        potentialCves: (e.fcPotentialCves as string[]) || [],
+        confidence: e.fcConfidence || 0,
+        fingerprintedAt: e.fcFingerprintedAt,
+        engagementId: e.fcEngagementId || "",
+      }));
+
+      const report = diffFingerprints(currentResults, previousCached, input.engagementId);
+      const summary = buildDiffSummaryText(report);
+
+      return {
+        hasDiff: true as const, report, summary,
+        currentScan: { time: scanGroups[0].time, serviceCount: latestEntries.length },
+        previousScan: { time: scanGroups[1].time, serviceCount: previousEntries.length },
+      };
+    }),
+
+  /**
+   * Get CPE dictionary stats.
+   */
+  getCpeStats: protectedProcedure
+    .query(() => getCpeMatchStats()),
+
+  /**
+   * Get CPE dictionary statistics including update history and unmapped technologies.
+   */
+  getCpeDictionaryStats: protectedProcedure
+    .query(async () => {
+      const { getDictionaryStats } = await import("../lib/cpe-dictionary-updater");
+      return getDictionaryStats();
+    }),
+
+  /**
+   * Get all CPE dictionary entries.
+   */
+  getCpeDictionaryEntries: protectedProcedure
+    .query(async () => {
+      const { getDictionaryEntries } = await import("../lib/cpe-dictionary-updater");
+      return getDictionaryEntries();
+    }),
+
+  /**
+   * Trigger a manual CPE dictionary update.
+   */
+  triggerCpeDictionaryUpdate: protectedProcedure
+    .mutation(async () => {
+      const { runDictionaryUpdate } = await import("../lib/cpe-dictionary-updater");
+      return runDictionaryUpdate();
+    }),
+
+  /**
+   * Manually add a CPE mapping.
+   */
+  addCpeMapping: protectedProcedure
+    .input(z.object({
+      technology: z.string().min(1),
+      vendor: z.string().min(1),
+      product: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const { addManualMapping, lookupCpe } = await import("../lib/cpe-dictionary-updater");
+      addManualMapping(input.technology, input.vendor, input.product);
+      return lookupCpe(input.technology);
     }),
 });

@@ -319,6 +319,7 @@ export async function parseDocumentWithLLM(text: string): Promise<ParsedRoeDocum
   }
 
   const response = await invokeLLM({
+    _caller: "roe-document-parser:extractStructuredData",
     messages: [
       { role: "system", content: ROE_EXTRACTION_SYSTEM_PROMPT },
       { role: "user", content: ROE_EXTRACTION_USER_PROMPT + docText },
