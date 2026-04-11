@@ -676,6 +676,7 @@ export interface ScanCommand {
  */
 export function generateRdpScanCommands(target: string, port: number = 3389): ScanCommand[] {
   return [
+    { tool: 'nmap', command: `nmap -sV -sC -p ${port} --script=rdp-enum-encryption,rdp-ntlm-info,rdp-vuln-ms12-020 ${target}`, purpose: 'RDP service enumeration and vulnerability scanning via nmap', timeout: 90 },
     { tool: 'nerva', command: `nerva -t ${target} -p ${port} --service-detect`, purpose: 'RDP service fingerprint and vulnerability detection', timeout: 60 },
     { tool: 'rdp-sec-check', command: `rdp-sec-check ${target}:${port}`, purpose: 'RDP security configuration audit', timeout: 30 },
     { tool: 'nuclei', command: `nuclei -u rdp://${target}:${port} -tags rdp,cve,network -severity critical,high`, purpose: 'RDP CVE scanning via Nuclei', timeout: 120 },

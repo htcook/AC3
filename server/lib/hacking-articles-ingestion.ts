@@ -137,6 +137,7 @@ async function extractPlaybookFromArticle(
 ): Promise<ExtractedPlaybook | null> {
   try {
     const response = await invokeLLM({
+      _caller: 'hacking-articles:extractPlaybook',
       messages: [
         {
           role: "system",
@@ -457,6 +458,7 @@ async function extractPlaybookCompact(
 ): Promise<ExtractedPlaybook | null> {
   try {
     const response = await invokeLLM({
+      _caller: 'hacking-articles:extractPlaybookCompact',
       messages: [
         {
           role: 'system',
