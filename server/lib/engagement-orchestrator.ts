@@ -4027,6 +4027,28 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               },
             });
 
+            // ── Enrich fingerprints with vuln feed CVE data ──
+            // Query NVD/CIRCL/KEV/ExploitDB for product+version matches
+            try {
+              const { enrichFingerprintsWithVulnFeeds } = await import('./fingerprint-cve-enrichment');
+              const { results: enrichedFps, summary: enrichSummary } = await enrichFingerprintsWithVulnFeeds(fpResults);
+              (asset as any).fingerprintResults = enrichedFps;
+              (asset as any).fingerprintCveEnrichment = enrichSummary;
+              if (enrichSummary.enrichedCount > 0) {
+                addLog(state, {
+                  phase: 'enumeration', type: 'finding',
+                  title: `🛡️ CVE Enrichment: ${enrichSummary.totalCvesMatched} CVEs matched for ${fmtTarget(asset, target)}`,
+                  detail: `Vuln feeds matched ${enrichSummary.totalCvesMatched} CVEs across ${enrichSummary.enrichedCount} services\n` +
+                    `Exploitable: ${enrichSummary.exploitableCveCount} | CISA KEV: ${enrichSummary.kevCveCount} | Active 0-day: ${enrichSummary.zeroDayCveCount}\n` +
+                    `Risk Score: ${enrichSummary.overallRiskScore}/100 | Max Severity: ${enrichSummary.maxSeverity.toUpperCase()}\n` +
+                    `Priority targets: ${enrichSummary.perService.filter(s => s.matchedCves.length > 0).slice(0, 3).map(s => `${s.port}/${s.product || s.protocol} (${s.matchedCves.length} CVEs)`).join(', ')}`,
+                  data: { enrichSummary },
+                });
+              }
+            } catch (enrichErr: any) {
+              console.warn('[FP-CVE-Enrich] Non-blocking enrichment failed:', enrichErr.message);
+            }
+
             // Re-run service resolution with enriched data
             enrichPortServices(asset.ports, (asset.passiveRecon as any)?.services || []);
           }
@@ -8778,6 +8800,33 @@ ${await (async () => {
     { label: 'burp', content: burpExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
     { label: 'threatActorCatalog', content: threatActorCatalogCtx },
+    // Fingerprint-based CVE intelligence — prioritized exploit targets from service fingerprinting
+    { label: 'fingerprintCveIntel', content: (() => {
+      try {
+        const { buildFingerprintExploitContext } = require('./fingerprint-cve-enrichment');
+        const enrichmentSummaries = state.assets
+          .map((a: any) => a.fingerprintCveEnrichment)
+          .filter(Boolean);
+        if (enrichmentSummaries.length === 0) return '';
+        // Merge all per-asset enrichment summaries into one combined context
+        const combined = {
+          totalFingerprints: enrichmentSummaries.reduce((s: number, e: any) => s + e.totalFingerprints, 0),
+          identifiedProducts: enrichmentSummaries.reduce((s: number, e: any) => s + e.identifiedProducts, 0),
+          enrichedCount: enrichmentSummaries.reduce((s: number, e: any) => s + e.enrichedCount, 0),
+          totalCvesMatched: enrichmentSummaries.reduce((s: number, e: any) => s + e.totalCvesMatched, 0),
+          exploitableCveCount: enrichmentSummaries.reduce((s: number, e: any) => s + e.exploitableCveCount, 0),
+          kevCveCount: enrichmentSummaries.reduce((s: number, e: any) => s + e.kevCveCount, 0),
+          zeroDayCveCount: enrichmentSummaries.reduce((s: number, e: any) => s + e.zeroDayCveCount, 0),
+          perService: enrichmentSummaries.flatMap((e: any) => e.perService),
+          overallRiskScore: Math.max(...enrichmentSummaries.map((e: any) => e.overallRiskScore)),
+          maxSeverity: enrichmentSummaries.reduce((max: string, e: any) => {
+            const order: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, unknown: 0 };
+            return (order[e.maxSeverity] || 0) > (order[max] || 0) ? e.maxSeverity : max;
+          }, 'unknown'),
+        };
+        return buildFingerprintExploitContext(combined);
+      } catch { return ''; }
+    })() },
   ];
   // Cap total context to prevent multi-MB prompts (memory optimization)
   const _cappedExploitContext = _capLLMContext(_exploitContextBlocks.concat([
@@ -8976,8 +9025,31 @@ ${await (async () => {
     }
   }
 
-  // ── Multi-axis sorting for ALL exploit actions: KEV > Shodan-CONFIRMED > EPSS > severity ──
+  // ── Multi-axis sorting for ALL exploit actions: KEV > Fingerprint-CVE > Shodan-CONFIRMED > EPSS > severity ──
   if (exploitActions.length > 1) {
+    // Build fingerprint CVE lookup for priority boosting
+    const fpCvePriorityMap = new Map<string, { riskScore: number; exploitPriority: number; kevCount: number; exploitCount: number }>();
+    try {
+      for (const asset of state.assets) {
+        const enrichment = (asset as any).fingerprintCveEnrichment;
+        if (!enrichment?.perService) continue;
+        for (const svc of enrichment.perService) {
+          if (svc.matchedCves.length === 0) continue;
+          for (const cve of svc.matchedCves) {
+            const key = `${asset.hostname}:${cve.cveId}`;
+            if (!fpCvePriorityMap.has(key)) {
+              fpCvePriorityMap.set(key, {
+                riskScore: svc.riskScore,
+                exploitPriority: svc.exploitPriority,
+                kevCount: svc.matchedCves.filter(c => c.kevListed).length,
+                exploitCount: svc.matchedCves.filter(c => c.exploitAvailable).length,
+              });
+            }
+          }
+        }
+      }
+    } catch { /* non-fatal */ }
+
     exploitActions.sort((a: any, b: any) => {
       const aTarget = state.assets.find(ast => ast.hostname === a.params?.target || ast.ip === a.params?.target);
       const bTarget = state.assets.find(ast => ast.hostname === b.params?.target || ast.ip === b.params?.target);
@@ -8987,6 +9059,14 @@ ${await (async () => {
       const aKev = aVuln?.kevListed ? 1 : 0;
       const bKev = bVuln?.kevListed ? 1 : 0;
       if (bKev !== aKev) return bKev - aKev;
+      // Fingerprint-confirmed CVEs with exploits next (version-matched = high confidence)
+      const aFpKey = `${a.params?.target}:${a.params?.cve}`;
+      const bFpKey = `${b.params?.target}:${b.params?.cve}`;
+      const aFp = fpCvePriorityMap.get(aFpKey);
+      const bFp = fpCvePriorityMap.get(bFpKey);
+      const aFpScore = aFp ? (aFp.kevCount > 0 ? 100 : aFp.exploitCount > 0 ? 80 : aFp.riskScore) : 0;
+      const bFpScore = bFp ? (bFp.kevCount > 0 ? 100 : bFp.exploitCount > 0 ? 80 : bFp.riskScore) : 0;
+      if (aFpScore !== bFpScore) return bFpScore - aFpScore;
       // Shodan-CONFIRMED next
       const aShodan = aVuln?.shodanConfidence === 'CONFIRMED' ? 1 : 0;
       const bShodan = bVuln?.shodanConfidence === 'CONFIRMED' ? 1 : 0;
@@ -8998,6 +9078,17 @@ ${await (async () => {
       // Stable sort preserves LLM ordering for equal-priority items
       return 0;
     });
+
+    // Log fingerprint-boosted exploits
+    const fpBoostedCount = exploitActions.filter((a: any) => fpCvePriorityMap.has(`${a.params?.target}:${a.params?.cve}`)).length;
+    if (fpBoostedCount > 0) {
+      addLog(state, {
+        phase: 'exploitation',
+        type: 'info',
+        title: `🎯 ${fpBoostedCount} Fingerprint-Confirmed Exploit Targets`,
+        detail: `${fpBoostedCount} exploit target(s) have version-confirmed CVEs from service fingerprinting. These have been prioritized in the exploit queue based on vuln feed risk scores.`,
+      });
+    }
   }
 
   const planSummary = exploitActions.map((a: any, i: number) => {
@@ -9023,7 +9114,23 @@ ${await (async () => {
     // Add EPSS badge for high-probability vulns
     let epssBadge = '';
     if (matchedVuln?.epssScore >= 0.3) epssBadge = ` 📊 [EPSS:${(matchedVuln.epssScore * 100).toFixed(0)}%]`;
-    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}${shodanBadge}${epssBadge}`;
+    // Add fingerprint-confirmed badge for version-matched CVEs
+    let fpBadge = '';
+    try {
+      const fpEnrichment = (matchedAsset as any)?.fingerprintCveEnrichment;
+      if (fpEnrichment?.perService && p.cve) {
+        const fpMatch = fpEnrichment.perService.find((s: any) =>
+          s.matchedCves.some((c: any) => c.cveId === p.cve)
+        );
+        if (fpMatch) {
+          const fpCve = fpMatch.matchedCves.find((c: any) => c.cveId === p.cve);
+          fpBadge = fpCve?.exploitAvailable
+            ? ` 🎯 [FP-CONFIRMED+EXPLOIT]`
+            : ` 🎯 [FP-CONFIRMED]`;
+        }
+      }
+    } catch { /* non-fatal */ }
+    return `${i + 1}. ${p.target || "unknown"}:${resolvedPort} — ${p.cve || p.module || "auto"} (${p.service || "unknown service"})${kevBadge}${shodanBadge}${epssBadge}${fpBadge}`;
   }).join("\n");
 
   const exploitPlanApproved = await requestApproval(state, {
