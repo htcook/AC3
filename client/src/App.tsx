@@ -327,6 +327,7 @@ const ScanForgeDashboard = lazyWithRetry(() => import("./pages/ScanForgeDashboar
 const LicenseManagement = lazyWithRetry(() => import("./pages/LicenseManagement"));
 const UpdateManager = lazyWithRetry(() => import("./pages/UpdateManager"));
 const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
+const RoeDocUpload = lazyWithRetry(() => import("./pages/RoeDocUpload"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -418,6 +419,9 @@ function Router() {
         </Route>
         <Route path="/engagements/new">
           <ProtectedRoute component={Engagements} />
+        </Route>
+        <Route path="/engagements/upload">
+          <ProtectedRoute component={RoeDocUpload} />
         </Route>
         <Route path="/credentials">
           <Redirect to="/infra-reference" />

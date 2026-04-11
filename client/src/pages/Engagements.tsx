@@ -420,6 +420,15 @@ export default function Engagements() {
           <Button
             variant="outline"
             size="sm"
+            className="font-display tracking-wider text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10"
+            onClick={() => window.location.href = '/engagements/upload'}
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            UPLOAD ROE
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             className="font-display tracking-wider text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
             onClick={() => setShowTrainingLabDialog(true)}
           >

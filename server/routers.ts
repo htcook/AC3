@@ -164,6 +164,7 @@ import { soc2ComplianceRouter } from "./routers/soc2-compliance";
 import { evidenceGalleryRouter } from "./routers/evidence-gallery";
 import { exploitLearningDashboardRouter } from "./routers/exploit-learning-dashboard";
 import { exploitGuardrailsDashboardRouter } from "./routers/exploit-guardrails-dashboard";
+import { roeUploadRouter } from "./routers/roe-upload";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -585,6 +586,8 @@ export const appRouter = router({
   exploitLearningDashboard: exploitLearningDashboardRouter,
   // ─── Exploit Guardrails Dashboard (Violations, Drift Signals, Evidence Audit) ──
   exploitGuardrails: exploitGuardrailsDashboardRouter,
+  // ─── RoE/Test Plan Document Upload & Auto-Engagement Designer ──────────────
+  roeUpload: roeUploadRouter,
 });
 export type AppRouter = typeof appRouter;
 

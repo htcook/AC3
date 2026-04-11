@@ -39,6 +39,7 @@ import { NextcloudTestLabPanel } from "@/components/NextcloudTestLabPanel";
 import { AttackPlaybookPanel } from "@/components/AttackPlaybookPanel";
 import { LabDeployerPanel } from "@/components/LabDeployerPanel";
 import AdjustmentEffectivenessWidget from "@/components/AdjustmentEffectivenessWidget";
+import CommsProtocolPanel from "@/components/CommsProtocolPanel";
 import {
   Play, Square, Shield, ShieldAlert, ShieldCheck, ShieldX,
   Target, Crosshair, Radar, Bug, Skull, Radio, Globe,
@@ -3750,6 +3751,9 @@ export default function EngagementOps() {
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* Comms Protocol & Scope Constraints from Uploaded Doc */}
+                  {engagement?.id && <CommsProtocolPanel engagementId={engagement.id} />}
 
                   {/* Scope Enforcement Log */}
                   <Card className="bg-card/50 border-border/30">

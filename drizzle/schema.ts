@@ -12,7 +12,7 @@ export const abilityGraphEdges = mysqlTable("ability_graph_edges", {
 	outputMatchPattern: varchar("output_match_pattern", { length: 512 }),
 	weight: int().default(1),
 	label: varchar({ length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ability_graph_edges_edge_id_unique").on(table.edgeId),
@@ -42,7 +42,7 @@ export const abilityGraphNodes = mysqlTable("ability_graph_nodes", {
 	executionOrder: int("execution_order").default(0),
 	layer: int().default(0),
 	executionResult: json("execution_result"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -71,7 +71,7 @@ export const abilityGraphs = mysqlTable("ability_graphs", {
 	nodesFailed: int("nodes_failed").default(0),
 	nodesSkipped: int("nodes_skipped").default(0),
 	createdBy: varchar("created_by", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -213,7 +213,7 @@ export const accessBrokerListings = mysqlTable("access_broker_listings", {
 	iabConfidence: int().default(75),
 	iabDescription: text(),
 	iabRawData: json(),
-	iabCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	iabCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	iabUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -240,8 +240,8 @@ export const accuracyComparisons = mysqlTable("accuracy_comparisons", {
 	recallDelta: double("recall_delta"),
 	knowledgeModulesUsed: json("knowledge_modules_used"),
 	scanDurationMs: int("scan_duration_ms"),
-	scoredAt: timestamp("scored_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	scoredAt: timestamp("scored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("acc_comp_session_idx").on(table.sessionId),
@@ -257,9 +257,9 @@ export const activeSessions = mysqlTable("active_sessions", {
 	ipAddress: varchar("ip_address", { length: 45 }),
 	userAgent: text("user_agent"),
 	deviceInfo: varchar("device_info", { length: 255 }),
-	lastActivityAt: timestamp("last_activity_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	lastActivityAt: timestamp("last_activity_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("active_sessions_session_token_unique").on(table.sessionToken),
@@ -272,7 +272,7 @@ export const activityLogs = mysqlTable("activity_logs", {
 	action: varchar({ length: 255 }).notNull(),
 	details: text(),
 	ipAddress: varchar({ length: 45 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	alogTenantId: int("alog_tenant_id"),
 });
 
@@ -405,7 +405,7 @@ export const adjustmentEffectiveness = mysqlTable("adjustment_effectiveness", {
 	aeAdjustedPriority: int("ae_adjusted_priority"),
 	aeExecDurationMs: int("ae_exec_duration_ms"),
 	aeExploitOutput: text("ae_exploit_output"),
-	aeCreatedAt: timestamp("ae_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	aeCreatedAt: timestamp("ae_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ae_adj_type_idx").on(table.aeAdjustmentType),
@@ -445,8 +445,8 @@ export const agentDefinitions = mysqlTable("agent_definitions", {
 	adPriority: mysqlEnum("ad_priority", ['essential','standard','bulk']).default('standard'),
 	adStatus: mysqlEnum("ad_status", ['active','draft','deprecated','testing']).default('draft'),
 	adVersion: int("ad_version").default(1).notNull(),
-	adCreatedAt: timestamp("ad_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	adUpdatedAt: timestamp("ad_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	adCreatedAt: timestamp("ad_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	adUpdatedAt: timestamp("ad_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ad_agent_id_idx").on(table.adAgentId),
@@ -528,7 +528,7 @@ export const agentlessBasTests = mysqlTable("agentless_bas_tests", {
 	abtExecutedAt: timestamp("abt_executed_at", { mode: 'string' }),
 	abtDurationMs: int("abt_duration_ms"),
 	abtCreatedBy: varchar("abt_created_by", { length: 255 }),
-	abtCreatedAt: timestamp("abt_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	abtCreatedAt: timestamp("abt_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const aiAttackPlans = mysqlTable("ai_attack_plans", {
@@ -544,7 +544,7 @@ export const aiAttackPlans = mysqlTable("ai_attack_plans", {
 	aapStatus: mysqlEnum("aap_status", ['generating','ready','executing','completed']).default('generating').notNull(),
 	aapAcceptedAt: timestamp("aap_accepted_at", { mode: 'string' }),
 	aapCreatedBy: varchar("aap_created_by", { length: 255 }),
-	aapCreatedAt: timestamp("aap_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	aapCreatedAt: timestamp("aap_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const aiVulnResearchCodeSnippets = mysqlTable("ai_vuln_research_code_snippets", {
@@ -555,7 +555,7 @@ export const aiVulnResearchCodeSnippets = mysqlTable("ai_vuln_research_code_snip
 	content: mediumtext().notNull(),
 	lineCount: int("line_count"),
 	checksum: varchar({ length: 64 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("avrcs_session_idx").on(table.sessionId),
@@ -591,7 +591,7 @@ export const aiVulnResearchFindings = mysqlTable("ai_vuln_research_findings", {
 	exportedToBugBounty: tinyint("exported_to_bug_bounty").default(0),
 	bugBountyFindingId: int("bug_bounty_finding_id"),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -625,7 +625,7 @@ export const aiVulnResearchSessions = mysqlTable("ai_vuln_research_sessions", {
 	bugBountyProgramId: int("bug_bounty_program_id"),
 	engagementId: int("engagement_id"),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -732,8 +732,8 @@ export const aptIcsMappings = mysqlTable("apt_ics_mappings", {
 	aimLastKnownActivity: varchar("aim_last_known_activity", { length: 255 }),
 	aimDescription: text("aim_description"),
 	aimReferences: json("aim_references"),
-	aimCreatedAt: timestamp("aim_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	aimUpdatedAt: timestamp("aim_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	aimCreatedAt: timestamp("aim_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	aimUpdatedAt: timestamp("aim_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const archetypeActorMappings = mysqlTable("archetype_actor_mappings", {
@@ -744,7 +744,7 @@ export const archetypeActorMappings = mysqlTable("archetype_actor_mappings", {
 	actorAbilities: json(),
 	confidence: int().default(50),
 	evidence: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const atomicTestExecutions = mysqlTable("atomic_test_executions", {
@@ -772,7 +772,7 @@ export const atomicTestExecutions = mysqlTable("atomic_test_executions", {
 	durationMs: int("duration_ms"),
 	startedAt: timestamp("started_at", { mode: 'string' }),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_technique_id").on(table.techniqueId),
@@ -796,8 +796,8 @@ export const atomicTests = mysqlTable("atomic_tests", {
 	inputArguments: text("input_arguments"),
 	dependencies: text(),
 	mitreTactic: varchar("mitre_tactic", { length: 255 }),
-	lastSyncedAt: timestamp("last_synced_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	lastSyncedAt: timestamp("last_synced_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_technique_id").on(table.techniqueId),
@@ -821,7 +821,7 @@ export const attackChainRecords = mysqlTable("attack_chain_records", {
 	acrMitreTechniques: json("acr_mitre_techniques"),
 	acrValidated: tinyint("acr_validated").default(0),
 	acrValidationResult: json("acr_validation_result"),
-	acrCreatedAt: timestamp("acr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	acrCreatedAt: timestamp("acr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const attackPathGraphEdges = mysqlTable("attack_path_graph_edges", {
@@ -833,7 +833,7 @@ export const attackPathGraphEdges = mysqlTable("attack_path_graph_edges", {
 	apgeTechnique: varchar("apge_technique", { length: 32 }),
 	apgeProbability: double("apge_probability"),
 	apgeProperties: json("apge_properties"),
-	apgeCreatedAt: timestamp("apge_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	apgeCreatedAt: timestamp("apge_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const attackPathGraphNodes = mysqlTable("attack_path_graph_nodes", {
@@ -845,7 +845,7 @@ export const attackPathGraphNodes = mysqlTable("attack_path_graph_nodes", {
 	apgnRiskScore: double("apgn_risk_score"),
 	apgnIsCrownJewel: tinyint("apgn_is_crown_jewel").default(0),
 	apgnSource: varchar("apgn_source", { length: 64 }),
-	apgnCreatedAt: timestamp("apgn_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	apgnCreatedAt: timestamp("apgn_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const attackPaths = mysqlTable("attack_paths", {
@@ -859,7 +859,7 @@ export const attackPaths = mysqlTable("attack_paths", {
 	riskScore: int(),
 	status: varchar({ length: 50 }).default('draft'),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	atpTenantId: int("atp_tenant_id"),
 },
@@ -927,7 +927,7 @@ export const attackSequenceTemplates = mysqlTable("attack_sequence_templates", {
 	useCount: int().default(0),
 	astConfidence: int("ast_confidence"),
 	astStatus: mysqlEnum("ast_status", ['draft','validated','production']).default('draft'),
-	astCreatedAt: timestamp("ast_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	astCreatedAt: timestamp("ast_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	astUpdatedAt: timestamp("ast_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -988,7 +988,7 @@ export const benchmarkScanPlanRules = mysqlTable("benchmark_scan_plan_rules", {
 	isActive: tinyint("is_active").default(1),
 	appliedCount: int("applied_count").default(0),
 	lastAppliedAt: bigint("last_applied_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("bspr_rule_id_idx").on(table.ruleId),
@@ -1011,7 +1011,7 @@ export const benchmarkToolResults = mysqlTable("benchmark_tool_results", {
 	scanDurationMs: int("scan_duration_ms"),
 	exitCode: int("exit_code"),
 	timedOut: tinyint("timed_out").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("btr_run_id_idx").on(table.runId),
@@ -1027,7 +1027,7 @@ export const bugBountyCorrelations = mysqlTable("bug_bounty_correlations", {
 	matchedEntityName: varchar("matched_entity_name", { length: 512 }),
 	confidenceScore: double("confidence_score"),
 	details: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const bugBountyFindings = mysqlTable("bug_bounty_findings", {
@@ -1053,7 +1053,7 @@ export const bugBountyFindings = mysqlTable("bug_bounty_findings", {
 	assetType: varchar("asset_type", { length: 64 }),
 	votes: int(),
 	summary: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	submittedAt: timestamp("submitted_at", { mode: 'string' }),
 });
@@ -1083,7 +1083,7 @@ export const bugBountyLlmTrainingSamples = mysqlTable("bug_bounty_llm_training_s
 	mitreTechniques: json("mitre_techniques"),
 	tags: json(),
 	exportedAt: timestamp("exported_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1112,7 +1112,7 @@ export const bugBountyProgramScopes = mysqlTable("bug_bounty_program_scopes", {
 	integrityRequirement: varchar("integrity_requirement", { length: 32 }),
 	availabilityRequirement: varchar("availability_requirement", { length: 32 }),
 	instruction: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1129,7 +1129,7 @@ export const bugBountyProgramWeaknesses = mysqlTable("bug_bounty_program_weaknes
 	cweId: varchar("cwe_id", { length: 32 }),
 	name: varchar({ length: 512 }).notNull(),
 	description: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("bbpw_program_idx").on(table.programHandle),
@@ -1155,7 +1155,7 @@ export const bugBountyPrograms = mysqlTable("bug_bounty_programs", {
 	scopeAssets: json("scope_assets"),
 	policyUrl: varchar("policy_url", { length: 1024 }),
 	lastSyncedAt: timestamp("last_synced_at", { mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -1166,7 +1166,7 @@ export const bugBountySyncLogs = mysqlTable("bug_bounty_sync_logs", {
 	status: varchar({ length: 32 }).notNull(),
 	itemsSynced: int("items_synced").default(0),
 	errorMessage: text("error_message"),
-	startedAt: timestamp("started_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	startedAt: timestamp("started_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 });
 
@@ -1186,7 +1186,7 @@ export const bugReports = mysqlTable("bug_reports", {
 	status: varchar({ length: 32 }).default('open').notNull(),
 	adminNotes: text("admin_notes"),
 	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1210,7 +1210,7 @@ export const c2ExecutionLog = mysqlTable("c2_execution_log", {
 	observedTelemetry: json("observed_telemetry"),
 	celConstraints: json("cel_constraints"),
 	celEngagementId: int("cel_engagement_id"),
-	celCreatedAt: timestamp("cel_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	celCreatedAt: timestamp("cel_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("cel_technique_idx").on(table.techniqueId),
@@ -1246,8 +1246,8 @@ export const calderaAccounts = mysqlTable("caldera_accounts", {
 	inviteExpiresAt: timestamp("invite_expires_at", { mode: 'string' }),
 	passwordResetToken: varchar("password_reset_token", { length: 128 }),
 	passwordResetExpiresAt: timestamp("password_reset_expires_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	totpSecret: varchar("totp_secret", { length: 255 }),
 	totpEnabled: tinyint("totp_enabled").default(0).notNull(),
 	backupCodes: text("backup_codes"),
@@ -1265,7 +1265,7 @@ export const calderaStats = mysqlTable("caldera_stats", {
 	totalAbilities: int().default(0),
 	activeOperations: int().default(0),
 	totalAgents: int().default(0),
-	lastUpdated: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	lastUpdated: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const campaignAbilities = mysqlTable("campaign_abilities", {
@@ -1279,7 +1279,7 @@ export const campaignAbilities = mysqlTable("campaign_abilities", {
 	executionOrder: int().default(0),
 	status: mysqlEnum(['pending','running','completed','failed','skipped']).default('pending').notNull(),
 	executedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const campaignAgents = mysqlTable("campaign_agents", {
@@ -1290,7 +1290,7 @@ export const campaignAgents = mysqlTable("campaign_agents", {
 	platform: varchar({ length: 64 }),
 	hostname: varchar({ length: 255 }),
 	status: mysqlEnum(['pending','deployed','active','inactive']).default('pending').notNull(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const campaignArchetypes = mysqlTable("campaign_archetypes", {
@@ -1309,7 +1309,7 @@ export const campaignArchetypes = mysqlTable("campaign_archetypes", {
 	archetypeComplexity: mysqlEnum(['low','medium','high','expert']).default('medium'),
 	isBuiltIn: tinyint().default(1),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1323,7 +1323,7 @@ export const campaignEngagements = mysqlTable("campaign_engagements", {
 	gophishCampaignName: varchar({ length: 255 }),
 	calderaOperationId: varchar({ length: 255 }),
 	notes: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const campaigns = mysqlTable("campaigns", {
@@ -1338,7 +1338,7 @@ export const campaigns = mysqlTable("campaigns", {
 	createdBy: int(),
 	startDate: timestamp({ mode: 'string' }),
 	endDate: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	cmpTenantId: int("cmp_tenant_id"),
 });
@@ -1370,7 +1370,7 @@ export const carverRiskCards = mysqlTable("carver_risk_cards", {
 	source: varchar({ length: 64 }).default('manual'),
 	batchId: varchar("batch_id", { length: 128 }),
 	createdBy: int("created_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -1407,7 +1407,7 @@ export const chainRuns = mysqlTable("chain_runs", {
 	startedAt: bigint("started_at", { mode: "number" }).notNull(),
 	completedAt: bigint("completed_at", { mode: "number" }),
 	durationMs: bigint("duration_ms", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1428,7 +1428,7 @@ export const chainStageResults = mysqlTable("chain_stage_results", {
 	startedAt: bigint("started_at", { mode: "number" }),
 	completedAt: bigint("completed_at", { mode: "number" }),
 	durationMs: bigint("duration_ms", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1442,7 +1442,7 @@ export const chatMessages = mysqlTable("chat_messages", {
 	chatMsgContent: text("chat_msg_content").notNull(),
 	chatMsgToolName: varchar("chat_msg_tool_name", { length: 128 }),
 	chatMsgToolResult: json("chat_msg_tool_result"),
-	chatMsgCreatedAt: timestamp("chat_msg_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	chatMsgCreatedAt: timestamp("chat_msg_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const chatSessions = mysqlTable("chat_sessions", {
@@ -1453,7 +1453,7 @@ export const chatSessions = mysqlTable("chat_sessions", {
 	chatSessionMessageCount: int("chat_session_message_count").default(0),
 	chatSessionLastMessageAt: timestamp("chat_session_last_message_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 	chatSessionArchived: tinyint("chat_session_archived").default(0),
-	chatSessionCreatedAt: timestamp("chat_session_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	chatSessionCreatedAt: timestamp("chat_session_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	chatSessionUpdatedAt: timestamp("chat_session_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	csTenantId: int("cs_tenant_id"),
 });
@@ -1471,7 +1471,7 @@ export const cicdPipelines = mysqlTable("cicd_pipelines", {
 	cicdIsActive: tinyint("cicd_is_active").default(1).notNull(),
 	cicdLastTriggered: timestamp("cicd_last_triggered", { mode: 'string' }),
 	cicdCreatedBy: varchar("cicd_created_by", { length: 255 }),
-	cicdCreatedAt: timestamp("cicd_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cicdCreatedAt: timestamp("cicd_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const cicdRuns = mysqlTable("cicd_runs", {
@@ -1488,7 +1488,7 @@ export const cicdRuns = mysqlTable("cicd_runs", {
 	cicdReportUrl: varchar("cicd_report_url", { length: 512 }),
 	cicdStartedAt: timestamp("cicd_started_at", { mode: 'string' }),
 	cicdCompletedAt: timestamp("cicd_completed_at", { mode: 'string' }),
-	cicdRunCreatedAt: timestamp("cicd_run_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cicdRunCreatedAt: timestamp("cicd_run_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const cloudAttackPaths = mysqlTable("cloud_attack_paths", {
@@ -1670,7 +1670,7 @@ export const companyIntelProfiles = mysqlTable("company_intel_profiles", {
 	cipSources: json("cip_sources"),
 	cipConfidence: int("cip_confidence").default(0),
 	cipLastEnrichedAt: timestamp("cip_last_enriched_at", { mode: 'string' }),
-	cipCreatedAt: timestamp("cip_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cipCreatedAt: timestamp("cip_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	cipUpdatedAt: timestamp("cip_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -1752,7 +1752,7 @@ export const configBaselineRules = mysqlTable("config_baseline_rules", {
 	ksiIds: json("ksi_ids"),
 	mitreIds: json("mitre_ids"),
 	enabled: tinyint().default(1).notNull(),
-	cbrCreatedAt: timestamp("cbr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cbrCreatedAt: timestamp("cbr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const configBaselines = mysqlTable("config_baselines", {
@@ -1768,7 +1768,7 @@ export const configBaselines = mysqlTable("config_baselines", {
 	lastScanScore: int("last_scan_score"),
 	createdBy: int("created_by"),
 	createdByName: varchar("created_by_name", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("baseline_id").on(table.baselineId),
@@ -1790,7 +1790,7 @@ export const configDriftAlerts = mysqlTable("config_drift_alerts", {
 	cdaKsiIds: json("cda_ksi_ids"),
 	cdaMitreIds: json("cda_mitre_ids"),
 	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
-	cdaCreatedAt: timestamp("cda_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cdaCreatedAt: timestamp("cda_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("alert_id").on(table.alertId),
@@ -1811,7 +1811,7 @@ export const configScanResults = mysqlTable("config_scan_results", {
 	targetType: varchar("target_type", { length: 64 }),
 	scannedBy: int("scanned_by"),
 	scannedByName: varchar("scanned_by_name", { length: 255 }),
-	scannedAt: timestamp("scanned_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	scannedAt: timestamp("scanned_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const connectorPerformanceHistory = mysqlTable("connector_performance_history", {
@@ -1824,7 +1824,7 @@ export const connectorPerformanceHistory = mysqlTable("connector_performance_his
 	durationMs: int("duration_ms").default(0).notNull(),
 	status: mysqlEnum(['completed','failed','skipped','timeout']).default('completed').notNull(),
 	rateLimited: tinyint("rate_limited").default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("cph_connector_domain_idx").on(table.connector, table.domain),
@@ -1863,7 +1863,7 @@ export const containerImageScans = mysqlTable("container_image_scans", {
 	scanDurationMs: int("scan_duration_ms"),
 	scanEngine: varchar("scan_engine", { length: 64 }).default('built-in'),
 	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -1881,7 +1881,7 @@ export const containerRegistries = mysqlTable("container_registries", {
 	repoCount: int("repo_count").default(0),
 	imageCount: int("image_count").default(0),
 	lastSyncAt: timestamp("last_sync_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -1951,9 +1951,9 @@ export const credentialAttackRuns = mysqlTable("credential_attack_runs", {
 	config: json(),
 	errorMessage: text("error_message"),
 	domainIntelScanId: int("domain_intel_scan_id"),
-	startedAt: timestamp("started_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	startedAt: timestamp("started_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	tool: varchar({ length: 32 }).default('builtin'),
 	toolVersion: varchar("tool_version", { length: 64 }),
 	rawOutput: mediumtext("raw_output"),
@@ -1982,7 +1982,7 @@ export const credentialExposures = mysqlTable("credential_exposures", {
 	ceDescription: text("ce_description"),
 	ceTags: json("ce_tags"),
 	ceRawData: json("ce_raw_data"),
-	ceCreatedAt: timestamp("ce_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	ceCreatedAt: timestamp("ce_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	ceUpdatedAt: timestamp("ce_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	ceTenantId: int("ce_tenant_id"),
 });
@@ -2006,8 +2006,8 @@ export const credentialFindings = mysqlTable("credential_findings", {
 	verified: tinyint().default(0),
 	domainIntelScanId: int("domain_intel_scan_id"),
 	notes: text(),
-	discoveredAt: timestamp("discovered_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	discoveredAt: timestamp("discovered_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	tool: varchar({ length: 32 }).default('builtin'),
 	responseSnippet: text("response_snippet"),
 	additionalInfo: text("additional_info"),
@@ -2064,7 +2064,7 @@ export const customerAccounts = mysqlTable("customer_accounts", {
 	lockedUntil: timestamp("locked_until", { mode: 'string' }),
 	mfaEnabled: tinyint("mfa_enabled").default(0).notNull(),
 	mfaSecret: varchar("mfa_secret", { length: 128 }),
-	caCreatedAt: timestamp("ca_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	caCreatedAt: timestamp("ca_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	caUpdatedAt: timestamp("ca_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -2083,7 +2083,7 @@ export const customerAuditLog = mysqlTable("customer_audit_log", {
 	calIpAddress: varchar("cal_ip_address", { length: 45 }),
 	calUserAgent: varchar("cal_user_agent", { length: 512 }),
 	calResult: mysqlEnum("cal_result", ['success','failure','denied']).default('success').notNull(),
-	calCreatedAt: timestamp("cal_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	calCreatedAt: timestamp("cal_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("cal_customer_idx").on(table.customerAccountId),
@@ -2099,7 +2099,7 @@ export const customerSharedReports = mysqlTable("customer_shared_reports", {
 	csrTitle: varchar("csr_title", { length: 512 }).notNull(),
 	csrDescription: text("csr_description"),
 	csrSharedBy: int("csr_shared_by").notNull(),
-	csrSharedAt: timestamp("csr_shared_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	csrSharedAt: timestamp("csr_shared_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	csrExpiresAt: timestamp("csr_expires_at", { mode: 'string' }),
 	csrAccessCount: int("csr_access_count").default(0).notNull(),
 	csrLastAccessedAt: timestamp("csr_last_accessed_at", { mode: 'string' }),
@@ -2147,7 +2147,7 @@ export const darkwebEnrichedRecords = mysqlTable("darkweb_enriched_records", {
 	derEnrichmentModel: varchar("der_enrichment_model", { length: 128 }),
 	derEnrichmentVersion: varchar("der_enrichment_version", { length: 32 }),
 	derProcessingTimeMs: int("der_processing_time_ms"),
-	derCreatedAt: timestamp("der_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	derCreatedAt: timestamp("der_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	derUpdatedAt: timestamp("der_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -2173,7 +2173,7 @@ export const darkwebFeedRegistry = mysqlTable("darkweb_feed_registry", {
 	dfrIsBuiltIn: tinyint("dfr_is_built_in").default(1),
 	dfrEnabled: tinyint("dfr_enabled").default(1),
 	dfrConfig: json("dfr_config"),
-	dfrCreatedAt: timestamp("dfr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dfrCreatedAt: timestamp("dfr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	dfrUpdatedAt: timestamp("dfr_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -2195,7 +2195,7 @@ export const defenseScores = mysqlTable("defense_scores", {
 	recommendations: json(),
 	engagementId: varchar("engagement_id", { length: 128 }),
 	createdBy: varchar("created_by", { length: 128 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	dfsTenantId: int("dfs_tenant_id"),
 },
@@ -2217,7 +2217,7 @@ export const detectionFeedbackResults = mysqlTable("detection_feedback_results",
 	dfrAlertDetails: json("dfr_alert_details"),
 	dfrQueryUsed: text("dfr_query_used"),
 	dfrLatencyMs: int("dfr_latency_ms"),
-	dfrCreatedAt: timestamp("dfr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dfrCreatedAt: timestamp("dfr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const detectionTests = mysqlTable("detection_tests", {
@@ -2242,7 +2242,7 @@ export const detectionTests = mysqlTable("detection_tests", {
 	mitigationStatus: varchar({ length: 50 }).default('open'),
 	notes: text(),
 	evidence: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	blueTeamOutcome: varchar({ length: 32 }).default('not_tested'),
 	blueTeamNotes: text(),
@@ -2263,7 +2263,7 @@ export const dfirReportIocs = mysqlTable("dfir_report_iocs", {
 	iocType: mysqlEnum("ioc_type", ['ip','domain','hash_md5','hash_sha1','hash_sha256','url','email','cve','filename','registry_key','mutex']).notNull(),
 	iocValue: varchar("ioc_value", { length: 1024 }).notNull(),
 	iocContext: text("ioc_context"),
-	iocCreatedAt: timestamp("ioc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	iocCreatedAt: timestamp("ioc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ioc_report_idx").on(table.reportId),
@@ -2289,8 +2289,8 @@ export const dfirReports = mysqlTable("dfir_reports", {
 	dfirTags: json("dfir_tags"),
 	rawContent: longtext("raw_content"),
 	dfirStatus: mysqlEnum("dfir_status", ['pending','parsed','enriched','training_ready']).default('pending').notNull(),
-	dfirCreatedAt: timestamp("dfir_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	dfirUpdatedAt: timestamp("dfir_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dfirCreatedAt: timestamp("dfir_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	dfirUpdatedAt: timestamp("dfir_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("dfir_source_idx").on(table.dfirSource),
@@ -2326,7 +2326,7 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
 	recommendedAttackChain: json(),
 	confidence: int(),
 	confidenceExplanation: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	excluded: tinyint().default(0).notNull(),
 	exclusionReason: varchar({ length: 512 }),
 	excludedAt: timestamp({ mode: 'string' }),
@@ -2364,7 +2364,7 @@ export const discoveredAttackPaths = mysqlTable("discovered_attack_paths", {
 	dapCrownJewel: varchar("dap_crown_jewel", { length: 255 }),
 	dapChokePoints: json("dap_choke_points"),
 	dapStatus: mysqlEnum("dap_status", ['active','mitigated','accepted']).default('active').notNull(),
-	dapDiscoveredAt: timestamp("dap_discovered_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dapDiscoveredAt: timestamp("dap_discovered_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const domainIntelScans = mysqlTable("domain_intel_scans", {
@@ -2388,7 +2388,7 @@ export const domainIntelScans = mysqlTable("domain_intel_scans", {
 	campaignRecommendations: json(),
 	pipelineOutput: json(),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	confirmedFindings: int().default(0),
 	probableFindings: int().default(0),
@@ -2418,7 +2418,7 @@ export const domainRecon = mysqlTable("domain_recon", {
 	scanStatus: mysqlEnum(['pending','running','completed','failed']).default('pending').notNull(),
 	scanStartedAt: timestamp({ mode: 'string' }),
 	scanCompletedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -2499,7 +2499,7 @@ export const emailSecurityTests = mysqlTable("email_security_tests", {
 	estSentAt: timestamp("est_sent_at", { mode: 'string' }),
 	estResultReceivedAt: timestamp("est_result_received_at", { mode: 'string' }),
 	estCreatedBy: varchar("est_created_by", { length: 255 }),
-	estCreatedAt: timestamp("est_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	estCreatedAt: timestamp("est_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const emberAgents = mysqlTable("ember_agents", {
@@ -2782,7 +2782,7 @@ export const emulationPlaybooks = mysqlTable("emulation_playbooks", {
 	calderaDeployedAt: timestamp({ mode: 'string' }),
 	tags: json(),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -2803,7 +2803,7 @@ export const engagementCredentialLists = mysqlTable("engagement_credential_lists
 	eclUsedAt: timestamp("ecl_used_at", { mode: 'string' }),
 	eclUsedResult: mysqlEnum("ecl_used_result", ['success','failure','locked','mfa_blocked','not_tested']).default('not_tested'),
 	eclConfidence: mysqlEnum("ecl_confidence", ['high','medium','low']).default('medium').notNull(),
-	eclCreatedAt: timestamp("ecl_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	eclCreatedAt: timestamp("ecl_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ecl_engagement_idx").on(table.eclEngagementId),
@@ -2849,7 +2849,7 @@ export const engagementOpsSnapshots = mysqlTable("engagement_ops_snapshots", {
 	phase: varchar({ length: 64 }),
 	isRunning: tinyint("is_running").default(0),
 	assetCount: int("asset_count").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	interruptCount: int("interrupt_count").default(0),
 	lastInterruptedAt: timestamp("last_interrupted_at", { mode: 'string' }),
@@ -2879,7 +2879,7 @@ export const engagementPipelines = mysqlTable("engagement_pipelines", {
 	stepLog: json(),
 	errorMessage: text(),
 	completedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -2899,7 +2899,7 @@ export const engagementReports = mysqlTable("engagement_reports", {
 	brandingLogo: text(),
 	brandingColor: varchar({ length: 32 }),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -2965,7 +2965,7 @@ export const engagementShares = mysqlTable("engagement_shares", {
 	customMessage: text(),
 	createdBy: int(),
 	lastAccessedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -2988,7 +2988,7 @@ export const engagementTimelineEvents = mysqlTable("engagement_timeline_events",
 	attackTechnique: varchar("attack_technique", { length: 64 }),
 	operatorId: int("operator_id"),
 	timestamp: bigint({ mode: "number" }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const engagementWorkflowStates = mysqlTable("engagement_workflow_states", {
@@ -3004,7 +3004,7 @@ export const engagementWorkflowStates = mysqlTable("engagement_workflow_states",
 	objectivesTotal: json("objectives_total"),
 	overallProgress: int("overall_progress").default(0),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3025,7 +3025,7 @@ export const engagements = mysqlTable("engagements", {
 	gophishCampaignId: int(),
 	notes: text(),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	roeStatus: mysqlEnum("roe_status", ['none','pending','signed','expired']).default('none').notNull(),
 	roeSignedDate: timestamp("roe_signed_date", { mode: 'string' }),
@@ -3088,7 +3088,7 @@ export const evasionSessions = mysqlTable("evasion_sessions", {
 	status: mysqlEnum(['running','completed','failed']).default('running').notNull(),
 	errorMessage: text("error_message"),
 	createdBy: int("created_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 	evsTenantId: int("evs_tenant_id"),
 });
@@ -3098,7 +3098,7 @@ export const evidenceChainOfCustody = mysqlTable("evidence_chain_of_custody", {
 	evidenceId: varchar({ length: 64 }).notNull().references(() => evidenceItems.evidenceId, { onDelete: "cascade" } ),
 	action: varchar({ length: 50 }).notNull(),
 	performedBy: varchar({ length: 255 }).notNull(),
-	performedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	performedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	details: text(),
 	ipAddress: varchar({ length: 45 }),
 	userAgent: varchar({ length: 500 }),
@@ -3121,7 +3121,7 @@ export const evidenceGuardrailAudit = mysqlTable("evidence_guardrail_audit", {
 	egaWasSanitized: tinyint("ega_was_sanitized").default(0),
 	egaDetails: json("ega_details"),
 	egaContentHash: varchar("ega_content_hash", { length: 64 }),
-	egaCreatedAt: timestamp("ega_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	egaCreatedAt: timestamp("ega_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ega_engagement_idx").on(table.egaEngagementId),
@@ -3137,7 +3137,7 @@ export const evidenceIntegrityAnchors = mysqlTable("evidence_integrity_anchors",
 	eiaMerkleRoot: varchar("eia_merkle_root", { length: 64 }).notNull(),
 	eiaHmacSignature: varchar("eia_hmac_signature", { length: 64 }).notNull(),
 	eiaChainLength: int("eia_chain_length").notNull(),
-	eiaAnchoredAt: timestamp("eia_anchored_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	eiaAnchoredAt: timestamp("eia_anchored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	eiaAnchoredBy: varchar("eia_anchored_by", { length: 255 }).notNull(),
 	eiaStatus: mysqlEnum("eia_status", ['active','superseded','invalidated']).default('active').notNull(),
 	eiaNotes: text("eia_notes"),
@@ -3169,7 +3169,7 @@ export const evidenceItems = mysqlTable("evidence_items", {
 	collectedBy: varchar({ length: 255 }),
 	collectedAt: timestamp({ mode: 'string' }),
 	notes: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	eviTenantId: int("evi_tenant_id"),
 },
@@ -3191,7 +3191,7 @@ export const exploitFeedbackRecords = mysqlTable("exploit_feedback_records", {
 	efrOutput: text("efr_output"),
 	efrOsType: varchar("efr_os_type", { length: 64 }),
 	efrOsVersion: varchar("efr_os_version", { length: 128 }),
-	efrCreatedAt: timestamp("efr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	efrCreatedAt: timestamp("efr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const exploitIngestionJobs = mysqlTable("exploit_ingestion_jobs", {
@@ -3210,7 +3210,7 @@ export const exploitIngestionJobs = mysqlTable("exploit_ingestion_jobs", {
 	eijTriggeredBy: varchar("eij_triggered_by", { length: 255 }),
 	eijStartedAt: timestamp("eij_started_at", { mode: 'string' }),
 	eijCompletedAt: timestamp("eij_completed_at", { mode: 'string' }),
-	eijCreatedAt: timestamp("eij_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	eijCreatedAt: timestamp("eij_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const exploitIntelligence = mysqlTable("exploit_intelligence", {
@@ -3234,7 +3234,7 @@ export const exploitIntelligence = mysqlTable("exploit_intelligence", {
 	cisaKev: tinyint().default(0),
 	eiSource: varchar("ei_source", { length: 64 }),
 	eiConfidence: int("ei_confidence"),
-	eiCreatedAt: timestamp("ei_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	eiCreatedAt: timestamp("ei_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	eiUpdatedAt: timestamp("ei_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3266,7 +3266,7 @@ export const exploitJobs = mysqlTable("exploit_jobs", {
 	approvedBy: varchar({ length: 255 }),
 	approvedAt: timestamp({ mode: 'string' }),
 	scopeVerified: tinyint().default(0),
-	exploitJobCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	exploitJobCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	exploitJobUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3285,7 +3285,7 @@ export const exploitPlanHistory = mysqlTable("exploit_plan_history", {
 	finalTargetCount: int("final_target_count").default(0).notNull(),
 	removedTargets: json("removed_targets"),
 	reviewDurationMs: int("review_duration_ms"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
 },
 (table) => [
@@ -3304,7 +3304,7 @@ export const exploitPreflightHistory = mysqlTable("exploit_preflight_history", {
 	ephErrorType: varchar("eph_error_type", { length: 128 }),
 	ephPreflightScore: double("eph_preflight_score"),
 	ephPreflightFactors: json("eph_preflight_factors"),
-	ephCreatedAt: timestamp("eph_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	ephCreatedAt: timestamp("eph_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const exploitScripts = mysqlTable("exploit_scripts", {
@@ -3348,7 +3348,7 @@ export const exploitScripts = mysqlTable("exploit_scripts", {
 	esDependencies: json("es_dependencies"),
 	esTargetProducts: json("es_target_products"),
 	esIngestedBy: varchar("es_ingested_by", { length: 255 }),
-	esIngestedAt: timestamp("es_ingested_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	esIngestedAt: timestamp("es_ingested_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	esLastUpdated: timestamp("es_last_updated", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3378,7 +3378,7 @@ export const exploitationAttempts = mysqlTable("exploitation_attempts", {
 	eaAttemptedAt: bigint("ea_attempted_at", { mode: "number" }).notNull(),
 	eaCompletedAt: bigint("ea_completed_at", { mode: "number" }),
 	screenshotUrls: json("screenshot_urls"),
-	eaCreatedAt: timestamp("ea_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	eaCreatedAt: timestamp("ea_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	expaTenantId: int("expa_tenant_id"),
 });
 
@@ -3394,11 +3394,11 @@ export const falsePositiveFindings = mysqlTable("false_positive_findings", {
 	reason: text().notNull(),
 	fpStatus: mysqlEnum(['false_positive','under_review','reinstated']).default('false_positive').notNull(),
 	markedBy: varchar({ length: 255 }),
-	markedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	markedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	reinstatedBy: varchar({ length: 255 }),
 	reinstatedAt: timestamp({ mode: 'string' }),
 	reinstatedReason: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3416,7 +3416,7 @@ export const fileTransfers = mysqlTable("file_transfers", {
 	transferStatus: mysqlEnum(['pending','in_progress','completed','failed']).default('pending').notNull(),
 	transferErrorMessage: text(),
 	transferCreatedBy: varchar({ length: 64 }),
-	transferCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	transferCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	transferCompletedAt: timestamp({ mode: 'string' }),
 });
 
@@ -3437,7 +3437,7 @@ export const fingerprintCache = mysqlTable("fingerprint_cache", {
 	fcFingerprintedAt: bigint("fc_fingerprinted_at", { mode: "number" }).notNull(),
 	fcExpiresAt: bigint("fc_expires_at", { mode: "number" }).notNull(),
 	fcEngagementId: varchar("fc_engagement_id", { length: 64 }),
-	fcCreatedAt: timestamp("fc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	fcCreatedAt: timestamp("fc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("fc_host_port_idx").on(table.fcHost, table.fcPort),
@@ -3504,7 +3504,7 @@ export const generatedDetectionRules = mysqlTable("generated_detection_rules", {
 	gdrDataSources: json("gdr_data_sources"),
 	gdrValidated: tinyint("gdr_validated").default(0),
 	gdrValidationErrors: json("gdr_validation_errors"),
-	gdrCreatedAt: timestamp("gdr_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	gdrCreatedAt: timestamp("gdr_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const generatedPayloads = mysqlTable("generated_payloads", {
@@ -3528,7 +3528,7 @@ export const generatedPayloads = mysqlTable("generated_payloads", {
 	fileSize: int("file_size"),
 	fileSha256: varchar("file_sha256", { length: 64 }),
 	createdBy: int("created_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 });
 
@@ -3568,7 +3568,7 @@ export const huntHypotheses = mysqlTable("hunt_hypotheses", {
 	hypothesisPriority: int("hypothesis_priority").default(0).notNull(),
 	investigatedAt: timestamp("investigated_at", { mode: 'string' }),
 	evaluatedAt: timestamp("evaluated_at", { mode: 'string' }),
-	hypCreatedAt: timestamp("hyp_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	hypCreatedAt: timestamp("hyp_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	hypUpdatedAt: timestamp("hyp_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3595,7 +3595,7 @@ export const huntSessions = mysqlTable("hunt_sessions", {
 	createdByName: varchar("created_by_name", { length: 255 }),
 	startedAt: timestamp("started_at", { mode: 'string' }),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	huntCreatedAt: timestamp("hunt_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	huntCreatedAt: timestamp("hunt_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	huntUpdatedAt: timestamp("hunt_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3621,7 +3621,7 @@ export const iabActivity = mysqlTable("iab_activity", {
 	iabLastActive: timestamp("iab_last_active", { mode: 'string' }),
 	iabTags: json("iab_tags"),
 	iabRawData: json("iab_raw_data"),
-	iabCreatedAt: timestamp("iab_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	iabCreatedAt: timestamp("iab_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	iabUpdatedAt: timestamp("iab_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3642,7 +3642,7 @@ export const icsAssessments = mysqlTable("ics_assessments", {
 	icaStatus: mysqlEnum("ica_status", ['pending','running','completed','failed']).default('pending'),
 	icaStartedAt: timestamp("ica_started_at", { mode: 'string' }),
 	icaCompletedAt: timestamp("ica_completed_at", { mode: 'string' }),
-	icaCreatedAt: timestamp("ica_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	icaCreatedAt: timestamp("ica_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const icsDevices = mysqlTable("ics_devices", {
@@ -3673,8 +3673,8 @@ export const icsDevices = mysqlTable("ics_devices", {
 	icdShodanData: json("icd_shodan_data"),
 	icdCensysData: json("icd_censys_data"),
 	icdLastSeen: timestamp("icd_last_seen", { mode: 'string' }),
-	icdCreatedAt: timestamp("icd_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	icdUpdatedAt: timestamp("icd_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	icdCreatedAt: timestamp("icd_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	icdUpdatedAt: timestamp("icd_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const icsExploits = mysqlTable("ics_exploits", {
@@ -3701,7 +3701,7 @@ export const icsExploits = mysqlTable("ics_exploits", {
 	iceSector: json("ice_sector"),
 	iceReferences: json("ice_references"),
 	iceMitigations: text("ice_mitigations"),
-	iceCreatedAt: timestamp("ice_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	iceCreatedAt: timestamp("ice_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const incidentReports = mysqlTable("incident_reports", {
@@ -3729,7 +3729,7 @@ export const incidentReports = mysqlTable("incident_reports", {
 	irSeverity: mysqlEnum("ir_severity", ['critical','high','medium','low']).default('medium'),
 	irStatus: mysqlEnum("ir_status", ['raw','extracted','enriched','training_ready']).default('raw'),
 	irEnrichedAt: timestamp("ir_enriched_at", { mode: 'string' }),
-	irCreatedAt: timestamp("ir_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	irCreatedAt: timestamp("ir_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	irUpdatedAt: timestamp("ir_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3757,7 +3757,7 @@ export const influenceOperations = mysqlTable("influence_operations", {
 	ioConfidence: int("io_confidence").default(75),
 	ioTags: json("io_tags"),
 	ioRawData: json("io_raw_data"),
-	ioCreatedAt: timestamp("io_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	ioCreatedAt: timestamp("io_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	ioUpdatedAt: timestamp("io_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3795,7 +3795,7 @@ export const infoOpsCampaigns = mysqlTable("info_ops_campaigns", {
 	ioDescription: text(),
 	ioDataSource: varchar({ length: 128 }),
 	ioLastEnriched: timestamp({ mode: 'string' }),
-	ioCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	ioCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	ioUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3819,8 +3819,8 @@ export const iocFeeds = mysqlTable("ioc_feeds", {
 	linkedActors: json(),
 	feedTags: json(),
 	rawData: json(),
-	fetchedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	fetchedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const iocSyncLogs = mysqlTable("ioc_sync_logs", {
@@ -3830,9 +3830,9 @@ export const iocSyncLogs = mysqlTable("ioc_sync_logs", {
 	results: json(),
 	totalFetched: int().default(0),
 	errorMessage: text(),
-	startedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	startedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const jobQueueEntries = mysqlTable("job_queue_entries", {
@@ -3852,7 +3852,7 @@ export const jobQueueEntries = mysqlTable("job_queue_entries", {
 	completedAt: bigint("completed_at", { mode: "number" }),
 	durationMs: int("duration_ms"),
 	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -3881,8 +3881,8 @@ export const knowledgeEntries = mysqlTable("knowledge_entries", {
 	tags: json(),
 	isActive: tinyint("is_active").default(1).notNull(),
 	createdBy: varchar("created_by", { length: 255 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ke_entry_id_unique").on(table.entryId),
@@ -3900,7 +3900,7 @@ export const ksiControlMappings = mysqlTable("ksi_control_mappings", {
 	aceC3Module: varchar("ace_c3_module", { length: 256 }),
 	automationLevel: mysqlEnum("automation_level", ['full','partial','manual']).default('manual').notNull(),
 	notes: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const ksiDefinitions = mysqlTable("ksi_definitions", {
@@ -3917,7 +3917,7 @@ export const ksiDefinitions = mysqlTable("ksi_definitions", {
 	aceC3Module: varchar("ace_c3_module", { length: 256 }),
 	coverageStatus: mysqlEnum("coverage_status", ['direct','supporting','planned','not_applicable']).default('planned').notNull(),
 	coverageNotes: text("coverage_notes"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3946,7 +3946,7 @@ export const ksiEvidence = mysqlTable("ksi_evidence", {
 	expiresAt: timestamp("expires_at", { mode: 'string' }),
 	collectedBy: int("collected_by"),
 	collectedByName: varchar("collected_by_name", { length: 256 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3967,7 +3967,7 @@ export const ksiEvidenceChains = mysqlTable("ksi_evidence_chains", {
 	status: mysqlEnum(['active','complete','broken','archived']).default('active').notNull(),
 	createdBy: int("created_by"),
 	createdByName: varchar("created_by_name", { length: 256 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -3992,7 +3992,7 @@ export const ksiValidationRuns = mysqlTable("ksi_validation_runs", {
 	nextScheduledAt: timestamp("next_scheduled_at", { mode: 'string' }),
 	runBy: int("run_by"),
 	runByName: varchar("run_by_name", { length: 256 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ksi_validation_runs_run_id_unique").on(table.runId),
@@ -4014,7 +4014,7 @@ export const ksiValidationSchedules = mysqlTable("ksi_validation_schedules", {
 	alertThreshold: int("alert_threshold").default(3).notNull(),
 	config: json(),
 	createdBy: int("created_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -4038,7 +4038,7 @@ export const lateralMovementPaths = mysqlTable("lateral_movement_paths", {
 	opsecRisk: int("opsec_risk"),
 	attemptedAt: bigint("attempted_at", { mode: "number" }),
 	lmCompletedAt: bigint("lm_completed_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const llmAccuracyScores = mysqlTable("llm_accuracy_scores", {
@@ -4055,7 +4055,7 @@ export const llmAccuracyScores = mysqlTable("llm_accuracy_scores", {
 	severityAccuracy: decimal("severity_accuracy", { precision: 5, scale: 4 }).default('0'),
 	overallScore: decimal("overall_score", { precision: 5, scale: 4 }).default('0'),
 	scoredAt: bigint("scored_at", { mode: "number" }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_accuracy_target").on(table.targetPreset),
@@ -4077,7 +4077,7 @@ export const llmDecisionLog = mysqlTable("llm_decision_log", {
 	tokensUsed: int("tokens_used"),
 	contextSummary: text("context_summary"),
 	knowledgeModulesUsed: json("knowledge_modules_used"),
-	dlCreatedAt: timestamp("dl_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dlCreatedAt: timestamp("dl_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ldl_engagement_idx").on(table.engagementId),
@@ -4102,7 +4102,7 @@ export const llmLearningEntries = mysqlTable("llm_learning_entries", {
 	operatorId: int("operator_id"),
 	appliedCount: int("applied_count").default(0),
 	lastAppliedAt: bigint("last_applied_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_learning_target").on(table.targetPreset),
@@ -4111,7 +4111,7 @@ export const llmLearningEntries = mysqlTable("llm_learning_entries", {
 
 export const llmTelemetry = mysqlTable("llm_telemetry", {
 	id: int().autoincrement().notNull(),
-	calledAt: timestamp("called_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	calledAt: timestamp("called_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	caller: varchar({ length: 255 }).default('unknown').notNull(),
 	model: varchar({ length: 128 }).default('gemini-2.5-flash').notNull(),
 	llmStatus: mysqlEnum("llm_status", ['success','error','timeout','retried_success']).default('success').notNull(),
@@ -4123,7 +4123,7 @@ export const llmTelemetry = mysqlTable("llm_telemetry", {
 	hasResponseFormat: tinyint("has_response_format").default(0),
 	errorMessage: text("error_message"),
 	engagementId: int("engagement_id"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const llmTrainingExamples = mysqlTable("llm_training_examples", {
@@ -4136,7 +4136,7 @@ export const llmTrainingExamples = mysqlTable("llm_training_examples", {
 	qualityScore: double("quality_score").notNull(),
 	teMessages: json("te_messages").notNull(),
 	teMetadata: json("te_metadata"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	teReviewStatus: mysqlEnum("te_review_status", ['pending_review','approved','rejected','flagged']).default('pending_review').notNull(),
 	teReviewedBy: varchar("te_reviewed_by", { length: 128 }),
 	teReviewedAt: timestamp("te_reviewed_at", { mode: 'string' }),
@@ -4161,7 +4161,7 @@ export const lolbinCatalog = mysqlTable("lolbin_catalog", {
 	detectionGuidance: text("detection_guidance"),
 	lolbinReferences: json("lolbin_references"),
 	isBuiltIn: tinyint("is_built_in").default(1),
-	lolbinCreatedAt: timestamp("lolbin_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	lolbinCreatedAt: timestamp("lolbin_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const metasploitServers = mysqlTable("metasploit_servers", {
@@ -4184,7 +4184,7 @@ export const metasploitServers = mysqlTable("metasploit_servers", {
 	activeSessionCount: int().default(0),
 	autoDestroy: tinyint().default(0),
 	engagementId: int(),
-	msfCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	msfCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	msfUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	sshTunnelEnabled: tinyint().default(1),
 	sshUser: varchar({ length: 64 }).default('root'),
@@ -4236,7 +4236,7 @@ export const networkEvents = mysqlTable("network_events", {
 	neLastSeen: timestamp("ne_last_seen", { mode: 'string' }),
 	neTags: json("ne_tags"),
 	neRawData: json("ne_raw_data"),
-	neCreatedAt: timestamp("ne_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	neCreatedAt: timestamp("ne_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	neUpdatedAt: timestamp("ne_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4260,7 +4260,7 @@ export const nexusPipelineExecutions = mysqlTable("nexus_pipeline_executions", {
 	npeLlmCallsCount: int("npe_llm_calls_count").default(0),
 	npeStatus: mysqlEnum("npe_status", ['running','completed','failed','rolled_back','paused']).default('running'),
 	npeErrorMessage: text("npe_error_message"),
-	npeStartedAt: timestamp("npe_started_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	npeStartedAt: timestamp("npe_started_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	npeCompletedAt: timestamp("npe_completed_at", { mode: 'string' }),
 },
 (table) => [
@@ -4280,7 +4280,7 @@ export const nexusQualityGates = mysqlTable("nexus_quality_gates", {
 	nqgMaxScore: int("nqg_max_score").default(100),
 	nqgEvidence: json("nqg_evidence"),
 	nqgRetryAttempt: int("nqg_retry_attempt").default(0),
-	nqgEvaluatedAt: timestamp("nqg_evaluated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	nqgEvaluatedAt: timestamp("nqg_evaluated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("nqg_execution_id_idx").on(table.nqgExecutionId),
@@ -4299,8 +4299,8 @@ export const nexusShadowConfigs = mysqlTable("nexus_shadow_configs", {
 	nscMaxConcurrent: int("nsc_max_concurrent").default(10).notNull(),
 	nscActiveShadowTests: int("nsc_active_shadow_tests").default(0).notNull(),
 	nscTotalRuns: int("nsc_total_runs").default(0).notNull(),
-	nscCreatedAt: timestamp("nsc_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	nscUpdatedAt: timestamp("nsc_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	nscCreatedAt: timestamp("nsc_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	nscUpdatedAt: timestamp("nsc_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("nsc_config_name_idx").on(table.nscConfigName),
@@ -4327,7 +4327,7 @@ export const nexusShadowTests = mysqlTable("nexus_shadow_tests", {
 	nstJudgeScore: int("nst_judge_score"),
 	nstStatus: mysqlEnum("nst_status", ['running','completed','error']).default('running'),
 	nstErrorMessage: text("nst_error_message"),
-	nstCreatedAt: timestamp("nst_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	nstCreatedAt: timestamp("nst_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	nstCompletedAt: timestamp("nst_completed_at", { mode: 'string' }),
 },
 (table) => [
@@ -4355,7 +4355,7 @@ export const ngfwValidationTests = mysqlTable("ngfw_validation_tests", {
 	nvtExecutedAt: timestamp("nvt_executed_at", { mode: 'string' }),
 	nvtDurationMs: int("nvt_duration_ms"),
 	nvtCreatedBy: varchar("nvt_created_by", { length: 255 }),
-	nvtCreatedAt: timestamp("nvt_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	nvtCreatedAt: timestamp("nvt_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const nucleiFindings = mysqlTable("nuclei_findings", {
@@ -4381,7 +4381,7 @@ export const nucleiFindings = mysqlTable("nuclei_findings", {
 	falsePositive: tinyint("false_positive").default(0),
 	remediation: text(),
 	engagementId: int("engagement_id"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	// Enhanced persistence columns (added for Nuclei direct execution & verification)
 	accessLevel: varchar("access_level", { length: 64 }),
 	confidence: int(),
@@ -4427,7 +4427,7 @@ export const nucleiScans = mysqlTable("nuclei_scans", {
 	startedBy: varchar("started_by", { length: 100 }),
 	startedAt: timestamp("started_at", { mode: 'string' }),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const observationAlertHistory = mysqlTable("observation_alert_history", {
@@ -4494,7 +4494,7 @@ export const obtainedShells = mysqlTable("obtained_shells", {
 	osNotes: text("os_notes"),
 	osObtainedAt: bigint("os_obtained_at", { mode: "number" }).notNull(),
 	osLastCheckedAt: bigint("os_last_checked_at", { mode: "number" }),
-	osCreatedAt: timestamp("os_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	osCreatedAt: timestamp("os_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	osUpdatedAt: timestamp("os_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4512,7 +4512,7 @@ export const oemDefaultCredentials = mysqlTable("oem_default_credentials", {
 	cveReference: varchar("cve_reference", { length: 64 }),
 	source: varchar({ length: 256 }),
 	tags: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const offensiveAuditLog = mysqlTable("offensive_audit_log", {
@@ -4531,7 +4531,7 @@ export const offensiveAuditLog = mysqlTable("offensive_audit_log", {
 	resultStatus: mysqlEnum("result_status", ['success','failure','blocked','pending_approval']).default('pending_approval').notNull(),
 	resultDetail: text("result_detail"),
 	ipAddress: varchar("ip_address", { length: 45 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_engagement").on(table.engagementId),
@@ -4560,7 +4560,7 @@ export const opsecEvents = mysqlTable("opsec_events", {
 	detectionDetails: text("detection_details"),
 	opsecOperatorId: int("opsec_operator_id"),
 	opsecTimestamp: bigint("opsec_timestamp", { mode: "number" }).notNull(),
-	opsecCreatedAt: timestamp("opsec_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	opsecCreatedAt: timestamp("opsec_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	opseTenantId: int("opse_tenant_id"),
 });
 
@@ -4576,7 +4576,7 @@ export const opsecScores = mysqlTable("opsec_scores", {
 	burnedAssets: json("burned_assets"),
 	opsecRecommendations: json("opsec_recommendations"),
 	opsecLastUpdatedAt: bigint("opsec_last_updated_at", { mode: "number" }).notNull(),
-	opsecScoreCreatedAt: timestamp("opsec_score_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	opsecScoreCreatedAt: timestamp("opsec_score_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	opsecScoreUpdatedAt: timestamp("opsec_score_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4597,7 +4597,7 @@ export const oscalExports = mysqlTable("oscal_exports", {
 	errorMessage: text("error_message"),
 	generatedBy: int("generated_by"),
 	generatedByName: varchar("generated_by_name", { length: 256 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
 },
 (table) => [
@@ -4616,7 +4616,7 @@ export const osintFindings = mysqlTable("osint_findings", {
 	source: varchar({ length: 255 }),
 	campaignRelevance: text(),
 	usedInCampaign: tinyint().default(0),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const osintMonitorChanges = mysqlTable("osint_monitor_changes", {
@@ -4631,7 +4631,7 @@ export const osintMonitorChanges = mysqlTable("osint_monitor_changes", {
 	acknowledged: tinyint().default(0),
 	acknowledgedBy: int(),
 	acknowledgedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const osintMonitors = mysqlTable("osint_monitors", {
@@ -4649,7 +4649,7 @@ export const osintMonitors = mysqlTable("osint_monitors", {
 	notifyEmail: varchar({ length: 320 }),
 	baselineSnapshot: json(),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4670,7 +4670,7 @@ export const otNetworks = mysqlTable("ot_networks", {
 	otnHasDataDiode: tinyint("otn_has_data_diode").default(0),
 	otnHasIds: tinyint("otn_has_ids").default(0),
 	otnSegmentationScore: double("otn_segmentation_score"),
-	otnCreatedAt: timestamp("otn_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	otnCreatedAt: timestamp("otn_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const pentestReports = mysqlTable("pentest_reports", {
@@ -4701,7 +4701,7 @@ export const pentestReports = mysqlTable("pentest_reports", {
 	executiveSummary: mediumtext("executive_summary"),
 	reportHtml: mediumtext("report_html"),
 	generatedAt: timestamp("generated_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	ptrTenantId: int("ptr_tenant_id"),
 });
@@ -4746,7 +4746,7 @@ export const phishingDrafts = mysqlTable("phishing_drafts", {
 	sendByDate: timestamp({ mode: 'string' }),
 	campaignStats: json(),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	phishingExploits: json(),
 	exploitEnhancedLandingPage: text(),
@@ -4770,7 +4770,7 @@ export const pivotHosts = mysqlTable("pivot_hosts", {
 	notes: text(),
 	obtainedAt: bigint("obtained_at", { mode: "number" }).notNull(),
 	lastSeenAt: bigint("last_seen_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4791,7 +4791,7 @@ export const platformErrors = mysqlTable("platform_errors", {
 	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
 	retryCount: int("retry_count").default(0),
 	autoRecovered: tinyint("auto_recovered").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	perrTenantId: int("perr_tenant_id"),
 });
 
@@ -4812,7 +4812,7 @@ export const playbookExecutions = mysqlTable("playbook_executions", {
 	completedAt: timestamp({ mode: 'string' }),
 	launchedBy: int(),
 	notes: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4826,7 +4826,7 @@ export const postExploitExecutions = mysqlTable("post_exploit_executions", {
 	peTotalSteps: int().notNull(),
 	peOutput: json(),
 	peErrorMessage: text(),
-	peStartedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	peStartedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	peCompletedAt: timestamp({ mode: 'string' }),
 	peTriggeredBy: mysqlEnum(['manual','auto']).default('manual').notNull(),
 	peCreatedBy: varchar({ length: 64 }),
@@ -4844,7 +4844,7 @@ export const postExploitPlaybooks = mysqlTable("post_exploit_playbooks", {
 	isBuiltIn: tinyint().default(0).notNull(),
 	playbookEnabled: tinyint().default(1).notNull(),
 	playbookCreatedBy: varchar({ length: 64 }),
-	playbookCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	playbookCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	playbookUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4867,7 +4867,7 @@ export const privescFindings = mysqlTable("privesc_findings", {
 	resultingAccess: varchar("resulting_access", { length: 64 }),
 	peEvidence: json("pe_evidence"),
 	peDiscoveredAt: bigint("pe_discovered_at", { mode: "number" }).notNull(),
-	peCreatedAt: timestamp("pe_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	peCreatedAt: timestamp("pe_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const protocolFindings = mysqlTable("protocol_findings", {
@@ -4886,7 +4886,7 @@ export const protocolFindings = mysqlTable("protocol_findings", {
 	pfCompensatingControls: text("pf_compensating_controls"),
 	pfRelevantAptGroups: json("pf_relevant_apt_groups"),
 	pfRelevantMitreTechniques: json("pf_relevant_mitre_techniques"),
-	pfCreatedAt: timestamp("pf_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	pfCreatedAt: timestamp("pf_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const ransomwareAffiliates = mysqlTable("ransomware_affiliates", {
@@ -4910,7 +4910,7 @@ export const ransomwareAffiliates = mysqlTable("ransomware_affiliates", {
 	raLastActive: varchar("ra_last_active", { length: 32 }),
 	raTags: json("ra_tags"),
 	raRawData: json("ra_raw_data"),
-	raCreatedAt: timestamp("ra_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	raCreatedAt: timestamp("ra_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	raUpdatedAt: timestamp("ra_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -4925,7 +4925,7 @@ export const ransomwareEvents = mysqlTable("ransomware_events", {
 	publishedAt: timestamp({ mode: 'string' }),
 	reSource: varchar({ length: 128 }),
 	verified: tinyint().default(0),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const ransomwareGroups = mysqlTable("ransomware_groups", {
@@ -4954,7 +4954,7 @@ export const ransomwareGroups = mysqlTable("ransomware_groups", {
 	rwDataSource: varchar({ length: 128 }),
 	rwConfidence: int().default(75),
 	lastEnriched: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -4968,7 +4968,7 @@ export const recordingChunks = mysqlTable("recording_chunks", {
 	chunkType: mysqlEnum(['input','output','system']).default('output').notNull(),
 	chunkContent: text().notNull(),
 	timestampMs: int().notNull(),
-	chunkCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	chunkCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const redteamCampaignLogs = mysqlTable("redteam_campaign_logs", {
@@ -5061,7 +5061,7 @@ export const regulatoryFrameworks = mysqlTable("regulatory_frameworks", {
 	rfNotes: text("rf_notes"),
 	rfConfirmedBy: int("rf_confirmed_by"),
 	rfConfirmedAt: timestamp("rf_confirmed_at", { mode: 'string' }),
-	rfCreatedAt: timestamp("rf_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	rfCreatedAt: timestamp("rf_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	rfUpdatedAt: timestamp("rf_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -5091,7 +5091,7 @@ export const remediationTasks = mysqlTable("remediation_tasks", {
 	cveId: varchar("cve_id", { length: 32 }),
 	affectedAsset: varchar("affected_asset", { length: 255 }),
 	remediationGuidance: text("remediation_guidance"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -5114,7 +5114,7 @@ export const remediationVerifications = mysqlTable("remediation_verifications", 
 	rvCurrentResult: text("rv_current_result"),
 	rvVerifiedAt: timestamp("rv_verified_at", { mode: 'string' }),
 	rvVerifiedBy: varchar("rv_verified_by", { length: 255 }),
-	rvCreatedAt: timestamp("rv_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	rvCreatedAt: timestamp("rv_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	rvSeverity: mysqlEnum("rv_severity", ['critical','high','medium','low','info']).default('medium'),
 	rvSlaDeadline: timestamp("rv_sla_deadline", { mode: 'string' }),
 	rvSlaHours: int("rv_sla_hours"),
@@ -5138,7 +5138,7 @@ export const reportTemplates = mysqlTable("report_templates", {
 	rtPrimaryColor: varchar("rt_primary_color", { length: 16 }),
 	rtIsDefault: tinyint("rt_is_default").default(0),
 	rtCreatedBy: varchar("rt_created_by", { length: 255 }),
-	rtCreatedAt: timestamp("rt_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	rtCreatedAt: timestamp("rt_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	rtUpdatedAt: timestamp("rt_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5158,7 +5158,7 @@ export const reviewQueueItems = mysqlTable("review_queue_items", {
 	reviewNotes: text("review_notes"),
 	autoApproveEligible: tinyint("auto_approve_eligible").default(0),
 	expiresAt: bigint("expires_at", { mode: "number" }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5175,7 +5175,7 @@ export const riskTrendSnapshots = mysqlTable("risk_trend_snapshots", {
 	rtsMttrMs: int("rts_mttr_ms"),
 	rtsTacticScores: json("rts_tactic_scores"),
 	rtsSource: varchar("rts_source", { length: 64 }),
-	rtsCreatedAt: timestamp("rts_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	rtsCreatedAt: timestamp("rts_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const roeAcknowledgments = mysqlTable("roe_acknowledgments", {
@@ -5190,7 +5190,7 @@ export const roeAcknowledgments = mysqlTable("roe_acknowledgments", {
 	scanProfile: varchar("scan_profile", { length: 32 }).notNull(),
 	sessionId: varchar("session_id", { length: 128 }),
 	ipAddress: varchar("ip_address", { length: 64 }),
-	acknowledgedAt: timestamp("acknowledged_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	acknowledgedAt: timestamp("acknowledged_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("roe_ack_operator_idx").on(table.operatorId),
@@ -5279,7 +5279,7 @@ export const roeDocuments = mysqlTable("roe_documents", {
 	approvedAt: timestamp("approved_at", { mode: 'string' }),
 	lastModifiedBy: int("last_modified_by"),
 	pdfUrl: varchar("pdf_url", { length: 1024 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	roeTenantId: int("roe_tenant_id"),
 });
@@ -5296,7 +5296,7 @@ export const roePersonnel = mysqlTable("roe_personnel", {
 	alternatePhone: varchar("alternate_phone", { length: 32 }),
 	clearanceLevel: varchar("clearance_level", { length: 64 }),
 	isPrimary: tinyint("is_primary").default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const roeSignatures = mysqlTable("roe_signatures", {
@@ -5309,7 +5309,7 @@ export const roeSignatures = mysqlTable("roe_signatures", {
 	signedAt: timestamp("signed_at", { mode: 'string' }),
 	signatureData: text("signature_data"),
 	ipAddress: varchar("ip_address", { length: 45 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const roeVersions = mysqlTable("roe_versions", {
@@ -5323,7 +5323,7 @@ export const roeVersions = mysqlTable("roe_versions", {
 	currentSnapshot: json("current_snapshot"),
 	changedBy: int("changed_by"),
 	changedByName: varchar("changed_by_name", { length: 256 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const ruleRobustnessResults = mysqlTable("rule_robustness_results", {
@@ -5341,7 +5341,7 @@ export const ruleRobustnessResults = mysqlTable("rule_robustness_results", {
 	weakestCategories: json("weakest_categories"),
 	hardeningTips: json("hardening_tips"),
 	variantDetails: json("variant_details"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const samlAuthEvents = mysqlTable("saml_auth_events", {
@@ -5353,7 +5353,7 @@ export const samlAuthEvents = mysqlTable("saml_auth_events", {
 	samlEventIpAddress: varchar("saml_event_ip_address", { length: 45 }),
 	samlEventErrorDetails: text("saml_event_error_details"),
 	samlEventAssertionId: varchar("saml_event_assertion_id", { length: 256 }),
-	samlEventCreatedAt: timestamp("saml_event_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	samlEventCreatedAt: timestamp("saml_event_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const samlIdpConfigs = mysqlTable("saml_idp_configs", {
@@ -5374,7 +5374,7 @@ export const samlIdpConfigs = mysqlTable("saml_idp_configs", {
 	samlIdpWantAssertionsSigned: tinyint("saml_idp_want_assertions_signed").default(1).notNull(),
 	samlIdpWantResponseSigned: tinyint("saml_idp_want_response_signed").default(1).notNull(),
 	samlIdpCreatedBy: int("saml_idp_created_by"),
-	samlIdpCreatedAt: timestamp("saml_idp_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	samlIdpCreatedAt: timestamp("saml_idp_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	samlIdpUpdatedAt: timestamp("saml_idp_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5393,7 +5393,7 @@ export const scanGraduationScores = mysqlTable("scan_graduation_scores", {
 	supplyChainAnalyst: int("supply_chain_analyst").notNull(),
 	overallScore: int("overall_score").notNull(),
 	summary: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("sgs_domain_idx").on(table.domain),
@@ -5469,7 +5469,7 @@ export const scanResults = mysqlTable("scan_results", {
 	severitySummary: json("severity_summary"),
 	phase: varchar({ length: 64 }),
 	operatorId: int("operator_id"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const scanRiskCards = mysqlTable("scan_risk_cards", {
@@ -5506,8 +5506,8 @@ export const scanSchedules = mysqlTable("scan_schedules", {
 	lastRunStats: json("last_run_stats"),
 	totalRuns: int("total_runs").default(0).notNull(),
 	totalFindings: int("total_findings").default(0).notNull(),
-	ssCreatedAt: timestamp("ss_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	ssUpdatedAt: timestamp("ss_updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	ssCreatedAt: timestamp("ss_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	ssUpdatedAt: timestamp("ss_updated_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("ss_engagement_idx").on(table.engagementId),
@@ -5551,7 +5551,7 @@ export const scanforgeEngagementReport = mysqlTable("scanforge_engagement_report
 	reassessmentSummary: text("reassessment_summary"),
 	templateImprovements: json("template_improvements"),
 	coverageGaps: json("coverage_gaps"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	authContext: json("auth_context"),
 },
 (table) => [
@@ -5573,7 +5573,7 @@ export const scanforgeFindingLog = mysqlTable("scanforge_finding_log", {
 	verdictReason: text("verdict_reason"),
 	findingData: json("finding_data"),
 	crossToolMatches: json("cross_tool_matches"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	assessedAt: timestamp("assessed_at", { mode: 'string' }),
 },
 (table) => [
@@ -5593,7 +5593,7 @@ export const scanforgeGeneratedTemplates = mysqlTable("scanforge_generated_templ
 	generationConfidence: float("generation_confidence").default(0.5),
 	reviewNotes: text("review_notes"),
 	promotedToTemplateId: varchar("promoted_to_template_id", { length: 128 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -5614,7 +5614,7 @@ export const scanforgePromotionHistory = mysqlTable("scanforge_promotion_history
 	previousStatus: varchar("previous_status", { length: 32 }).notNull(),
 	newStatus: varchar("new_status", { length: 32 }).notNull(),
 	evaluatedBy: varchar("evaluated_by", { length: 64 }).default('auto').notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("sph_template_idx").on(table.templateId),
@@ -5630,7 +5630,7 @@ export const scanforgeResearchLog = mysqlTable("scanforge_research_log", {
 	analysisResult: json("analysis_result"),
 	generatedTemplateIds: json("generated_template_ids"),
 	actionable: tinyint().default(0),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("srl_feed_idx").on(table.feedSource),
@@ -5672,7 +5672,7 @@ export const scoringAuditLog = mysqlTable("scoring_audit_log", {
 	riskBand: varchar({ length: 32 }),
 	weightsSnapshot: json(),
 	computedBy: varchar({ length: 255 }),
-	computedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	computedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	triggerType: varchar({ length: 64 }),
 	previousScore: double(),
 	delta: double(),
@@ -5705,8 +5705,8 @@ export const scoringProfiles = mysqlTable("scoring_profiles", {
 	highThreshold: int().default(65).notNull(),
 	mediumThreshold: int().default(40).notNull(),
 	createdBy: int().notNull(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const serverConfigs = mysqlTable("server_configs", {
@@ -5720,7 +5720,7 @@ export const serverConfigs = mysqlTable("server_configs", {
 	dropletId: varchar({ length: 64 }),
 	status: mysqlEnum(['online','offline','unknown']).default('unknown').notNull(),
 	lastHealthCheck: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5732,7 +5732,7 @@ export const serverCredentials = mysqlTable("server_credentials", {
 	password: text(),
 	apiKey: text(),
 	sshKeyPath: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5749,7 +5749,7 @@ export const sessionRecordings = mysqlTable("session_recordings", {
 	totalChunks: int().default(0).notNull(),
 	totalBytes: int().default(0).notNull(),
 	durationMs: int().default(0),
-	recordingStartedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	recordingStartedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	recordingCompletedAt: timestamp({ mode: 'string' }),
 	recordingCreatedBy: varchar({ length: 64 }),
 });
@@ -5774,7 +5774,7 @@ export const siemConnections = mysqlTable("siem_connections", {
 	alertCount: int("alert_count"),
 	errorMessage: text("error_message"),
 	createdBy: int("created_by"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5788,7 +5788,7 @@ export const siemIntegrations = mysqlTable("siem_integrations", {
 	siemQueryTemplate: text("siem_query_template"),
 	siemIsActive: tinyint("siem_is_active").default(1).notNull(),
 	siemLastTested: timestamp("siem_last_tested", { mode: 'string' }),
-	siemCreatedAt: timestamp("siem_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	siemCreatedAt: timestamp("siem_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const sliverImplants = mysqlTable("sliver_implants", {
@@ -5808,7 +5808,7 @@ export const sliverImplants = mysqlTable("sliver_implants", {
 	downloadUrl: text("download_url"),
 	engagementId: int("engagement_id"),
 	createdBy: varchar("created_by", { length: 100 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const sliverSessions = mysqlTable("sliver_sessions", {
@@ -5829,7 +5829,7 @@ export const sliverSessions = mysqlTable("sliver_sessions", {
 	proxyUrl: varchar("proxy_url", { length: 512 }),
 	isDead: tinyint("is_dead").default(0),
 	lastCheckin: timestamp("last_checkin", { mode: 'string' }),
-	firstSeen: timestamp("first_seen", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	firstSeen: timestamp("first_seen", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	engagementId: int("engagement_id"),
 	notes: text(),
 });
@@ -5848,7 +5848,7 @@ export const sliverTasks = mysqlTable("sliver_tasks", {
 	executedBy: varchar("executed_by", { length: 100 }),
 	startedAt: timestamp("started_at", { mode: 'string' }),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const soarConnectors = mysqlTable("soar_connectors", {
@@ -5864,7 +5864,7 @@ export const soarConnectors = mysqlTable("soar_connectors", {
 	soarIsActive: tinyint("soar_is_active").default(1).notNull(),
 	soarLastSync: timestamp("soar_last_sync", { mode: 'string' }),
 	soarCreatedBy: varchar("soar_created_by", { length: 255 }),
-	soarCreatedAt: timestamp("soar_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	soarCreatedAt: timestamp("soar_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const soarEvents = mysqlTable("soar_events", {
@@ -5877,7 +5877,7 @@ export const soarEvents = mysqlTable("soar_events", {
 	soarEvtStatus: mysqlEnum("soar_evt_status", ['pending','delivered','failed']).default('pending').notNull(),
 	soarEvtResponseCode: int("soar_evt_response_code"),
 	soarEvtError: text("soar_evt_error"),
-	soarEvtCreatedAt: timestamp("soar_evt_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	soarEvtCreatedAt: timestamp("soar_evt_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const sshKeys = mysqlTable("ssh_keys", {
@@ -5893,7 +5893,7 @@ export const sshKeys = mysqlTable("ssh_keys", {
 	associatedServerId: int(),
 	createdBy: varchar({ length: 64 }),
 	lastUsedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -5909,7 +5909,7 @@ export const teamInvitations = mysqlTable("team_invitations", {
 	acceptedAt: timestamp("accepted_at", { mode: 'string' }),
 	acceptedByUserId: int("accepted_by_user_id"),
 	inviteMessage: text("invite_message"),
-	inviteCreatedAt: timestamp("invite_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	inviteCreatedAt: timestamp("invite_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	inviteUpdatedAt: timestamp("invite_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -5921,7 +5921,7 @@ export const tenantMemberships = mysqlTable("tenant_memberships", {
 	tmTenantId: int("tm_tenant_id").notNull(),
 	tmUserId: int("tm_user_id").notNull(),
 	tmRole: mysqlEnum("tm_role", ['owner','admin','operator','viewer']).default('viewer').notNull(),
-	tmJoinedAt: timestamp("tm_joined_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	tmJoinedAt: timestamp("tm_joined_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const tenants = mysqlTable("tenants", {
@@ -5933,7 +5933,7 @@ export const tenants = mysqlTable("tenants", {
 	tenantIsActive: tinyint("tenant_is_active").default(1).notNull(),
 	tenantMaxUsers: int("tenant_max_users").default(50).notNull(),
 	tenantPlan: mysqlEnum("tenant_plan", ['free','pro','enterprise']).default('free').notNull(),
-	tenantCreatedAt: timestamp("tenant_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	tenantCreatedAt: timestamp("tenant_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	tenantUpdatedAt: timestamp("tenant_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -6052,7 +6052,7 @@ export const testPlans = mysqlTable("test_plans", {
 	reviewedAt: timestamp("reviewed_at", { mode: 'string' }),
 	approvedAt: timestamp("approved_at", { mode: 'string' }),
 	signatureHash: varchar("signature_hash", { length: 128 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6074,7 +6074,7 @@ export const threatActorAbilities = mysqlTable("threat_actor_abilities", {
 	singleton: tinyint().default(0),
 	repeatable: tinyint().default(1),
 	requirements: json(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const threatActorIocs = mysqlTable("threat_actor_iocs", {
@@ -6087,7 +6087,7 @@ export const threatActorIocs = mysqlTable("threat_actor_iocs", {
 	iocFirstSeen: varchar({ length: 32 }),
 	iocLastSeen: varchar({ length: 32 }),
 	source: varchar({ length: 128 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const threatActors = mysqlTable("threat_actors", {
@@ -6113,7 +6113,7 @@ export const threatActors = mysqlTable("threat_actors", {
 	stixId: varchar({ length: 128 }),
 	dataSource: varchar({ length: 128 }),
 	confidence: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	taTenantId: int("ta_tenant_id"),
 	logoUrl: varchar({ length: 512 }),
@@ -6138,8 +6138,8 @@ export const threatGroupEvents = mysqlTable("threat_group_events", {
 	tgeSourceUrl: varchar({ length: 1024 }),
 	tgeConfidence: int().default(75),
 	eventDate: timestamp({ mode: 'string' }),
-	discoveredAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	tgeCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	discoveredAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	tgeCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const threatIntelUpdates = mysqlTable("threat_intel_updates", {
@@ -6154,7 +6154,7 @@ export const threatIntelUpdates = mysqlTable("threat_intel_updates", {
 	tiuSummary: text(),
 	tiuDetails: json(),
 	tiuErrors: json(),
-	tiuStartedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	tiuStartedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	tiuCompletedAt: timestamp({ mode: 'string' }),
 	durationMs: int(),
 });
@@ -6185,7 +6185,7 @@ export const trainingBenchmarkRuns = mysqlTable("training_benchmark_runs", {
 	completedAt: bigint("completed_at", { mode: "number" }),
 	durationMs: int("duration_ms"),
 	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("tbr_run_id_idx").on(table.runId),
@@ -6205,7 +6205,7 @@ export const trainingGroundTruth = mysqlTable("training_ground_truth", {
 	description: text(),
 	detectionHint: text("detection_hint"),
 	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6222,7 +6222,7 @@ export const trainingLabFeedback = mysqlTable("training_lab_feedback", {
 	expectedSeverity: varchar("expected_severity", { length: 32 }),
 	expectedCategory: varchar("expected_category", { length: 128 }),
 	operatorId: int("operator_id"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const trainingLabSessions = mysqlTable("training_lab_sessions", {
@@ -6247,7 +6247,7 @@ export const trainingLabSessions = mysqlTable("training_lab_sessions", {
 	completedAt: bigint("completed_at", { mode: "number" }),
 	durationMs: int("duration_ms"),
 	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6277,7 +6277,7 @@ export const ttpKnowledge = mysqlTable("ttp_knowledge", {
 	dataSource: varchar({ length: 128 }),
 	confidence: int(),
 	lastEnriched: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	environmentalConstraints: json(),
 	expectedTelemetry: json(),
@@ -6304,7 +6304,7 @@ export const typosquatDomains = mysqlTable("typosquat_domains", {
 	expiryDate: timestamp({ mode: 'string' }),
 	annualCost: varchar({ length: 32 }),
 	notes: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -6330,8 +6330,8 @@ export const undergroundIntelEvents = mysqlTable("underground_intel_events", {
 	uieTags: json("uie_tags"),
 	uieRawData: json("uie_raw_data"),
 	uieEventDate: timestamp("uie_event_date", { mode: 'string' }),
-	uieIngestedAt: timestamp("uie_ingested_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	uieCreatedAt: timestamp("uie_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	uieIngestedAt: timestamp("uie_ingested_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	uieCreatedAt: timestamp("uie_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	uieUpdatedAt: timestamp("uie_updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -6377,7 +6377,7 @@ export const unifiedExploitCatalog = mysqlTable("unified_exploit_catalog", {
 	exploitEnabled: tinyint().default(1),
 	exploitAuthor: varchar({ length: 255 }),
 	exploitDatePublished: varchar({ length: 32 }),
-	catalogCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	catalogCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	catalogUpdatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6398,7 +6398,7 @@ export const userPlatformCredentials = mysqlTable("user_platform_credentials", {
 	syncStatus: mysqlEnum("sync_status", ['idle','syncing','success','failed']).default('idle'),
 	errorMessage: text("error_message"),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6427,9 +6427,9 @@ export const userSessions = mysqlTable("user_sessions", {
 	sessionDeviceType: varchar("session_device_type", { length: 32 }),
 	sessionIsCurrent: tinyint("session_is_current").default(0),
 	sessionStatus: mysqlEnum("session_status", ['active','expired','revoked']).default('active').notNull(),
-	sessionLastActivityAt: timestamp("session_last_activity_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	sessionLastActivityAt: timestamp("session_last_activity_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	sessionExpiresAt: timestamp("session_expires_at", { mode: 'string' }).notNull(),
-	sessionCreatedAt: timestamp("session_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	sessionCreatedAt: timestamp("session_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("user_sessions_session_hash_unique").on(table.sessionHash),
@@ -6442,9 +6442,9 @@ export const users = mysqlTable("users", {
 	email: varchar({ length: 320 }),
 	loginMethod: varchar({ length: 64 }),
 	role: mysqlEnum(['user','admin','viewer','operator','team_lead','analyst','executive','client','soc']).default('operator').notNull(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-	lastSignedIn: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	lastSignedIn: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	avatarUrl: text("avatar_url"),
 	title: varchar({ length: 128 }),
 	department: varchar({ length: 128 }),
@@ -6476,7 +6476,7 @@ export const validationResults = mysqlTable("validation_results", {
 	newRiskScore: double(),
 	validationDurationMs: int(),
 	validationResultError: text(),
-	validationResultCreatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	validationResultCreatedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	evidenceUrl: text(),
 	evidenceArtifacts: json(),
 });
@@ -6500,7 +6500,7 @@ export const validationRuns = mysqlTable("validation_runs", {
 	skippedCount: int().default(0).notNull(),
 	avgScoreAdjustment: double(),
 	validationOperatorId: varchar({ length: 255 }).notNull(),
-	validationStartedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	validationStartedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	validationCompletedAt: timestamp({ mode: 'string' }),
 	totalDurationMs: int(),
 	validationRunError: text(),
@@ -6542,7 +6542,7 @@ export const vendorCachedData = mysqlTable("vendor_cached_data", {
 	mitreAttackId: varchar({ length: 32 }),
 	detectedAt: bigint({ mode: "number" }),
 	lastUpdatedAt: bigint({ mode: "number" }),
-	cachedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	cachedAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("idx_vendor_cached_integration").on(table.integrationId),
@@ -6566,7 +6566,7 @@ export const vendorIntegrations = mysqlTable("vendor_integrations", {
 	syncIntervalMinutes: int().default(60),
 	lastSyncAt: bigint({ mode: "number" }),
 	createdBy: varchar({ length: 64 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -6581,7 +6581,7 @@ export const vendorSyncEvents = mysqlTable("vendor_sync_events", {
 	errorMessage: text(),
 	durationMs: int(),
 	triggeredBy: varchar({ length: 64 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const vulnScanFindings = mysqlTable("vuln_scan_findings", {
@@ -6601,7 +6601,7 @@ export const vulnScanFindings = mysqlTable("vuln_scan_findings", {
 	vsfPluginId: varchar("vsf_plugin_id", { length: 64 }),
 	vsfExploitAvailable: tinyint("vsf_exploit_available").default(0),
 	vsfAttackPathLinked: tinyint("vsf_attack_path_linked").default(0),
-	vsfCreatedAt: timestamp("vsf_created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	vsfCreatedAt: timestamp("vsf_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	vsfCorroborationScore: int("vsf_corroboration_score"),
 	vsfCorroborationVerdict: varchar("vsf_corroboration_verdict", { length: 32 }),
 	vsfCorroborationSources: int("vsf_corroboration_sources").default(0),
@@ -6613,7 +6613,7 @@ export const vulnScanImports = mysqlTable("vuln_scan_imports", {
 	vsiTenantId: int("vsi_tenant_id"),
 	vsiScannerType: mysqlEnum("vsi_scanner_type", ['nessus','qualys','rapid7','openvas','burp','zap','custom']).notNull(),
 	vsiFileName: varchar("vsi_file_name", { length: 512 }).notNull(),
-	vsiImportedAt: timestamp("vsi_imported_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	vsiImportedAt: timestamp("vsi_imported_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	vsiTotalHosts: int("vsi_total_hosts").default(0).notNull(),
 	vsiTotalVulns: int("vsi_total_vulns").default(0).notNull(),
 	vsiCritical: int("vsi_critical").default(0).notNull(),
@@ -6641,7 +6641,7 @@ export const vulnScanSnapshots = mysqlTable("vuln_scan_snapshots", {
 	categories: json(),
 	assetBreakdown: json("asset_breakdown"),
 	metadata: json(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("vuln_snap_engagement_idx").on(table.engagementId),
@@ -6661,7 +6661,7 @@ export const vulnTrendEntries = mysqlTable("vuln_trend_entries", {
 	tool: varchar({ length: 64 }),
 	status: mysqlEnum(['new','existing','resolved','regressed']).default('new').notNull(),
 	firstSeenSnapshotId: int("first_seen_snapshot_id"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("vuln_trend_engagement_idx").on(table.engagementId),
@@ -6679,7 +6679,7 @@ export const vulnTypeAccuracy = mysqlTable("vuln_type_accuracy", {
 	timesMissed: int("times_missed").default(0),
 	timesFalsePositive: int("times_false_positive").default(0),
 	targetPreset: varchar("target_preset", { length: 128 }).notNull(),
-	scoredAt: timestamp("scored_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	scoredAt: timestamp("scored_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("vta_comparison_idx").on(table.comparisonId),
@@ -6705,7 +6705,7 @@ export const webAppFindings = mysqlTable("web_app_findings", {
 	evidence: text(),
 	zapPluginId: varchar("zap_plugin_id", { length: 50 }),
 	zapAlertRef: varchar("zap_alert_ref", { length: 50 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	mitreAttackId: varchar("mitre_attack_id", { length: 20 }),
 	mitreAttackName: varchar("mitre_attack_name", { length: 255 }),
 	mitreTactic: varchar("mitre_tactic", { length: 100 }),
@@ -6734,7 +6734,7 @@ export const webAppScans = mysqlTable("web_app_scans", {
 	totalAlerts: int("total_alerts").default(0),
 	alertCounts: text("alert_counts"),
 	errorMessage: text("error_message"),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	scanMode: varchar("scan_mode", { length: 30 }).default('passive').notNull(),
 	zapAjaxSpiderScanId: varchar("zap_ajax_spider_scan_id", { length: 100 }),
 	detectedTechStack: text("detected_tech_stack"),
@@ -6774,7 +6774,7 @@ export const webCrawlJobs = mysqlTable("web_crawl_jobs", {
 	startedBy: varchar({ length: 64 }),
 	startedAt: bigint({ mode: "number" }),
 	completedAt: bigint({ mode: "number" }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("web_crawl_jobs_jobId_unique").on(table.jobId),
@@ -6820,7 +6820,7 @@ export const webCrawlResults = mysqlTable("web_crawl_results", {
 	crawledBy: varchar({ length: 64 }),
 	startedAt: bigint({ mode: "number" }),
 	completedAt: bigint({ mode: "number" }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const webhookDeliveries = mysqlTable("webhook_deliveries", {
@@ -6831,7 +6831,7 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
 	responseStatus: int(),
 	responseBody: text(),
 	success: tinyint().default(0),
-	deliveredAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	deliveredAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const webhookEndpoints = mysqlTable("webhook_endpoints", {
@@ -6847,7 +6847,7 @@ export const webhookEndpoints = mysqlTable("webhook_endpoints", {
 	lastTriggered: timestamp({ mode: 'string' }),
 	failCount: int().default(0),
 	createdBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 },
 (table) => [
@@ -6905,9 +6905,9 @@ export const zapProxySessions = mysqlTable("zap_proxy_sessions", {
 	scanProgress: int("scan_progress").default(0),
 	domainIntelScanId: int("domain_intel_scan_id"),
 	reportHtml: mediumtext("report_html"),
-	startedAt: timestamp("started_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	startedAt: timestamp("started_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	completedAt: timestamp("completed_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
@@ -6926,7 +6926,7 @@ export const zeroDayCache = mysqlTable("zero_day_cache", {
 	reportedBy: varchar("reported_by", { length: 512 }),
 	source: mysqlEnum(['project_zero','cisa_kev']).default('project_zero').notNull(),
 	year: int(),
-	fetchedAt: timestamp("fetched_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	fetchedAt: timestamp("fetched_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("zdc_cve_idx").on(table.cve),
@@ -6952,7 +6952,7 @@ export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
 	zeroDayType: varchar("zero_day_type", { length: 128 }),
 	advisoryUrl: text("advisory_url"),
 	dismissed: tinyint().default(0).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 },
 (table) => [
 	index("zdsm_scan_id_idx").on(table.scanId),
@@ -7352,4 +7352,106 @@ export const nucleiTemplateMappings = mysqlTable("nuclei_template_mappings", {
 	index("ntm_cve_idx").on(table.cveId),
 	index("ntm_template_idx").on(table.templatePath),
 	index("ntm_vuln_class_idx").on(table.vulnClass),
+]);
+
+// ─── Uploaded RoE/Test Plan Documents ───────────────────────────────────────
+// Stores the original uploaded document (Word/PDF) and its parsed extraction results.
+// The parsed data is used to auto-create engagements and populate roeDocuments/roePersonnel.
+export const uploadedRoeDocuments = mysqlTable("uploaded_roe_documents", {
+id: int().autoincrement().notNull(),
+filename: varchar({ length: 512 }).notNull(),
+mimeType: varchar("mime_type", { length: 128 }).notNull(),
+fileSize: int("file_size").notNull(),
+storageUrl: varchar("storage_url", { length: 1024 }).notNull(),
+storageKey: varchar("storage_key", { length: 512 }).notNull(),
+documentType: mysqlEnum("document_type", ['roe', 'pentest_plan', 'red_team_plan', 'bug_bounty_scope', 'purple_team_plan', 'unknown']).default('unknown').notNull(),
+extractedText: mediumtext("extracted_text"),
+extractedTextLength: int("extracted_text_length"),
+parsedData: json("parsed_data"),
+parseStatus: mysqlEnum("parse_status", ['pending', 'extracting_text', 'parsing', 'parsed', 'failed']).default('pending').notNull(),
+parseError: text("parse_error"),
+parsedAt: timestamp("parsed_at", { mode: 'string' }),
+createdEngagementId: int("created_engagement_id"),
+createdRoeDocumentId: int("created_roe_document_id"),
+uploadedBy: int("uploaded_by"),
+createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+urdTenantId: int("urd_tenant_id"),
+}, (table) => [
+index("urd_engagement_idx").on(table.createdEngagementId),
+index("urd_roe_doc_idx").on(table.createdRoeDocumentId),
+index("urd_status_idx").on(table.parseStatus),
+]);
+
+// ─── Engagement Communications Protocols ────────────────────────────────────
+export const engagementCommsProtocols = mysqlTable("engagement_comms_protocols", {
+id: int().autoincrement().notNull(),
+engagementId: int("engagement_id").notNull(),
+roeDocumentId: int("roe_document_id"),
+uploadedDocId: int("uploaded_doc_id"),
+reportingCadence: varchar("reporting_cadence", { length: 128 }),
+reportingMethod: varchar("reporting_method", { length: 256 }),
+reportingRecipients: json("reporting_recipients"),
+emergencyHaltProcedure: text("emergency_halt_procedure"),
+deconflictionProcedure: text("deconfliction_procedure"),
+deconflictionContacts: json("deconfliction_contacts"),
+deconflictionPhone: varchar("deconfliction_phone", { length: 64 }),
+deconflictionEmail: varchar("deconfliction_email", { length: 320 }),
+escalationChain: json("escalation_chain"),
+escalationTimeframe: varchar("escalation_timeframe", { length: 128 }),
+criticalFindingNotifyWithin: varchar("critical_finding_notify_within", { length: 64 }),
+criticalFindingNotifyMethod: varchar("critical_finding_notify_method", { length: 256 }),
+criticalFindingNotifyRecipients: json("critical_finding_notify_recipients"),
+testingWindowStart: varchar("testing_window_start", { length: 16 }),
+testingWindowEnd: varchar("testing_window_end", { length: 16 }),
+testingDays: json("testing_days"),
+testTimezone: varchar("test_timezone", { length: 64 }),
+blackoutPeriods: json("blackout_periods"),
+statusCheckInFrequency: varchar("status_check_in_frequency", { length: 128 }),
+statusCheckInMethod: varchar("status_check_in_method", { length: 256 }),
+rawCommsSection: text("raw_comms_section"),
+createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+ecpTenantId: int("ecp_tenant_id"),
+}, (table) => [
+index("ecp_engagement_idx").on(table.engagementId),
+index("ecp_roe_doc_idx").on(table.roeDocumentId),
+]);
+
+// ─── Engagement Scope Constraints ───────────────────────────────────────────
+export const engagementScopeConstraints = mysqlTable("engagement_scope_constraints", {
+id: int().autoincrement().notNull(),
+engagementId: int("engagement_id").notNull(),
+roeDocumentId: int("roe_document_id"),
+uploadedDocId: int("uploaded_doc_id"),
+inScopeDomains: json("in_scope_domains"),
+outOfScopeDomains: json("out_of_scope_domains"),
+inScopeIpRanges: json("in_scope_ip_ranges"),
+outOfScopeIpRanges: json("out_of_scope_ip_ranges"),
+inScopeApplications: json("in_scope_applications"),
+outOfScopeApplications: json("out_of_scope_applications"),
+inScopePorts: json("in_scope_ports"),
+outOfScopePorts: json("out_of_scope_ports"),
+allowedTestingTypes: json("allowed_testing_types"),
+disallowedTestingTypes: json("disallowed_testing_types"),
+allowedAttackVectors: json("allowed_attack_vectors"),
+disallowedAttackVectors: json("disallowed_attack_vectors"),
+dosAllowed: tinyint("dos_allowed").default(0),
+socialEngineeringAllowed: tinyint("social_engineering_allowed").default(0),
+physicalAllowed: tinyint("physical_allowed").default(0),
+wirelessAllowed: tinyint("wireless_allowed").default(0),
+pivotingAllowed: tinyint("pivoting_allowed").default(1),
+exfiltrationAllowed: tinyint("exfiltration_allowed").default(0),
+persistenceAllowed: tinyint("persistence_allowed").default(0),
+fileModificationAllowed: tinyint("file_modification_allowed").default(0),
+credentialedTesting: tinyint("credentialed_testing").default(0),
+testingStartDate: timestamp("testing_start_date", { mode: 'string' }),
+testingEndDate: timestamp("testing_end_date", { mode: 'string' }),
+rawScopeSection: text("raw_scope_section"),
+createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+escTenantId: int("esc_tenant_id"),
+}, (table) => [
+index("esc_engagement_idx").on(table.engagementId),
+index("esc_roe_doc_idx").on(table.roeDocumentId),
 ]);

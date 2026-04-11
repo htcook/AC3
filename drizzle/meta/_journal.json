@@ -120,6 +120,20 @@
       "when": 1775924424370,
       "tag": "0016_dazzling_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1775933251972,
+      "tag": "0017_glossy_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1775933275923,
+      "tag": "0018_dashing_puma",
+      "breakpoints": true
     }
   ]
 }
