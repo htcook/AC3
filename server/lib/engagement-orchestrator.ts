@@ -2519,7 +2519,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
       }
 
       // Helper: convert PostureFindings to vulns (matching AssetStatus.vulns type)
-      function postureToVulns(findings: any[]): Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string }> {
+      function postureToVulns(findings: any[]): Array<{ id: string; severity: string; title: string; cve?: string; corroborationTier?: string; evidenceDetail?: string; detectedVersion?: string; affectedVersions?: string; __nucleiHint?: any }> {
         return (findings || []).map((f: any, idx: number) => {
           // Determine corroboration tier based on evidence quality
           const hasVersion = !!f.detectedVersion && f.detectedVersion !== 'unknown';
@@ -2527,7 +2527,73 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
           const tier = hasConfirmedVersion ? 'confirmed' : hasVersion ? 'probable' : 'potential';
           const evidenceSource = f.source || 'passive recon';
 
-          return {
+          // ── Nuclei Fast-Path Hint: resolve template for DI-discovered CVEs ──
+          // When a DI finding has CVE IDs, attempt to resolve a Nuclei template
+          // so the exploitation phase can skip LLM generation and run Nuclei directly.
+          let nucleiHint: any = undefined;
+          const primaryCve = f.cveIds?.[0];
+          if (primaryCve || f.category) {
+            try {
+              // Dynamic import to avoid circular deps — resolveNucleiTemplate is sync-capable
+              // after initial cache load, so we build the hint inline
+              const { KNOWN_NUCLEI_CVES, NUCLEI_VULN_CLASS_TAGS } = require('../lib/exploit-selection-intelligence');
+              const VULN_CLASS_ALIASES: Record<string, string> = {
+                'command_injection': 'cmdi', 'os_command_injection': 'cmdi',
+                'path_traversal': 'lfi', 'directory_traversal': 'lfi',
+                'local_file_inclusion': 'lfi', 'remote_file_inclusion': 'rfi',
+                'server_side_request_forgery': 'ssrf', 'cross_site_scripting': 'xss',
+                'sql_injection': 'sqli', 'server_side_template_injection': 'ssti',
+                'xml_external_entity': 'xxe', 'insecure_deserialization': 'deserialization',
+                'unrestricted_file_upload': 'file_upload', 'fileupload': 'file_upload',
+                'authentication_bypass': 'auth_bypass', 'auth-bypass': 'auth_bypass',
+              };
+
+              // Try CVE-based template first
+              if (primaryCve && KNOWN_NUCLEI_CVES) {
+                const templatePath = KNOWN_NUCLEI_CVES[primaryCve];
+                if (templatePath) {
+                  nucleiHint = {
+                    templatePath,
+                    tags: [],
+                    source: 'di_pipeline_static_map',
+                    confidence: 95,
+                    cveId: primaryCve,
+                  };
+                }
+              }
+
+              // Fall back to vuln class tags if no CVE template found
+              if (!nucleiHint && f.category && NUCLEI_VULN_CLASS_TAGS) {
+                const rawClass = f.category.toLowerCase().replace(/[\s-]+/g, '_');
+                const normalizedClass = VULN_CLASS_ALIASES[rawClass] || rawClass;
+                const tags = NUCLEI_VULN_CLASS_TAGS[normalizedClass];
+                if (tags && tags.length > 0) {
+                  nucleiHint = {
+                    templatePath: null,
+                    tags: [...tags],
+                    source: 'di_pipeline_vuln_class',
+                    confidence: 70,
+                    cveId: primaryCve || undefined,
+                  };
+                }
+              }
+
+              // Fall back to generic CVE tag if we have a CVE but no specific template
+              if (!nucleiHint && primaryCve) {
+                nucleiHint = {
+                  templatePath: null,
+                  tags: ['cve'],
+                  source: 'di_pipeline_generic_cve',
+                  confidence: 50,
+                  cveId: primaryCve,
+                };
+              }
+            } catch (e) {
+              // Non-critical — if template resolution fails, exploit phase still works via normal pipeline
+            }
+          }
+
+          const vuln: any = {
             id: f.cveIds?.[0] || `passive-${domain}-${idx}`,
             severity: f.severity >= 8 ? 'critical' : f.severity >= 6 ? 'high' : f.severity >= 4 ? 'medium' : 'low',
             title: f.title || f.category || 'Unknown finding',
@@ -2537,6 +2603,13 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
             detectedVersion: f.detectedVersion || null,
             affectedVersions: f.affectedVersions || null,
           };
+
+          // Attach Nuclei fast-path hint if resolved
+          if (nucleiHint) {
+            vuln.__nucleiHint = nucleiHint;
+          }
+
+          return vuln;
         });
       }
 
@@ -5286,6 +5359,16 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       phase: "vuln_detection", type: "info",
       title: `📋 Promoted ${promotedCount} passive recon findings to confirmed vulns`,
       detail: `${promotedCount} risk signals from passive recon (Shodan, Censys, posture analysis) are now included in the vulnerability count for correlation with active scan results.`,
+    });
+  }
+
+  // ── Log Nuclei fast-path hint coverage ──
+  const nucleiHintedVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter((v: any) => v.__nucleiHint).length, 0);
+  if (nucleiHintedVulns > 0) {
+    addLog(state, {
+      phase: "vuln_detection", type: "info",
+      title: `⚡ ${nucleiHintedVulns} vulns have Nuclei fast-path hints`,
+      detail: `${nucleiHintedVulns} vulnerabilities from DI pipeline have pre-resolved Nuclei templates. These will skip LLM exploit generation and run targeted Nuclei scans directly during the exploitation phase.`,
     });
   }
 
