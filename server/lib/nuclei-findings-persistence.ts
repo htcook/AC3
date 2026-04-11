@@ -10,7 +10,7 @@
  *   3. Query helpers for cross-engagement correlation
  */
 
-import { db } from '../db';
+import { getDb } from '../db';
 import { nucleiFindings, nucleiTemplateMappings } from '../../drizzle/schema';
 import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import type { NucleiParseResult, NucleiJsonFinding } from './nuclei-output-parser';
@@ -86,6 +86,12 @@ export async function persistNucleiFindings(
   const { engagementId, target, port, parseResult, accessLevel, confidence, executionContext, nucleiCommand } = params;
 
   if (!parseResult.findings || parseResult.findings.length === 0) {
+    return { inserted: 0, duplicates: 0 };
+  }
+
+  const db = await getDb();
+  if (!db) {
+    console.warn('[NucleiPersistence] DB not available — skipping persistence');
     return { inserted: 0, duplicates: 0 };
   }
 
@@ -172,6 +178,12 @@ export async function recordTemplateMapping(params: {
   const { cveId, templatePath, vulnClass, service, discoveredFrom } = params;
   const now = Date.now();
 
+  const db = await getDb();
+  if (!db) {
+    console.warn('[NucleiPersistence] DB not available — skipping template mapping');
+    return;
+  }
+
   try {
     // Check if mapping already exists
     const existing = await db.select()
@@ -216,6 +228,9 @@ export async function recordTemplateMapping(params: {
  * Get Nuclei findings for an engagement, ordered by severity.
  */
 export async function getNucleiFindings(engagementId: number): Promise<NucleiFindingRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+
   const rows = await db.select()
     .from(nucleiFindings)
     .where(eq(nucleiFindings.engagementId, engagementId))
@@ -251,6 +266,9 @@ export async function getNucleiStats(engagementId: number): Promise<{
   uniqueCves: number;
   uniqueTemplates: number;
 }> {
+  const db = await getDb();
+  if (!db) return { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0, verified: 0, uniqueCves: 0, uniqueTemplates: 0 };
+
   const rows = await db.select()
     .from(nucleiFindings)
     .where(eq(nucleiFindings.engagementId, engagementId));
@@ -285,6 +303,9 @@ export async function getNucleiStats(engagementId: number): Promise<{
  * Cross-engagement correlation: find all findings for a given CVE across all engagements.
  */
 export async function correlateByCV(cveId: string): Promise<NucleiCorrelationResult | null> {
+  const db = await getDb();
+  if (!db) return null;
+
   const rows = await db.select()
     .from(nucleiFindings)
     .where(eq(nucleiFindings.cveId, cveId));
@@ -321,6 +342,9 @@ export async function correlateByCV(cveId: string): Promise<NucleiCorrelationRes
  * Cross-engagement correlation: find all findings for a given template across all engagements.
  */
 export async function correlateByTemplate(templateId: string): Promise<NucleiCorrelationResult | null> {
+  const db = await getDb();
+  if (!db) return null;
+
   const rows = await db.select()
     .from(nucleiFindings)
     .where(eq(nucleiFindings.templateId, templateId));
@@ -358,6 +382,9 @@ export async function correlateByTemplate(templateId: string): Promise<NucleiCor
  * Returns the most successful template path for a given CVE.
  */
 export async function lookupDynamicTemplateMapping(cveId: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+
   const rows = await db.select()
     .from(nucleiTemplateMappings)
     .where(eq(nucleiTemplateMappings.cveId, cveId))
@@ -378,7 +405,124 @@ export async function getAllTemplateMappings(): Promise<Array<{
   successCount: number | null;
   lastUsedAt: number;
 }>> {
+  const db = await getDb();
+  if (!db) return [];
+
   return db.select()
     .from(nucleiTemplateMappings)
     .orderBy(desc(nucleiTemplateMappings.successCount));
+}
+
+// ─── Template Effectiveness Tracking ────────────────────────────────────────
+
+export interface TemplateEffectiveness {
+  templatePath: string;
+  cveId: string;
+  vulnClass: string | null;
+  service: string | null;
+  successCount: number;
+  lastUsedAt: number;
+  discoveredFrom: string | null;
+  hitRate: number; // successCount normalized against max
+}
+
+export interface TemplateEffectivenessStats {
+  totalMappings: number;
+  totalSuccesses: number;
+  topTemplates: TemplateEffectiveness[];
+  byCveId: Record<string, TemplateEffectiveness>;
+  byVulnClass: Record<string, TemplateEffectiveness[]>;
+}
+
+/**
+ * Get template effectiveness rankings — surfaces which templates have the
+ * highest hit rate across engagements.
+ */
+export async function getTemplateEffectiveness(limit = 20): Promise<TemplateEffectiveness[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select()
+    .from(nucleiTemplateMappings)
+    .orderBy(desc(nucleiTemplateMappings.successCount))
+    .limit(limit);
+
+  if (rows.length === 0) return [];
+
+  const maxSuccess = Math.max(...rows.map(r => r.successCount ?? 1));
+
+  return rows.map(r => ({
+    templatePath: r.templatePath,
+    cveId: r.cveId,
+    vulnClass: r.vulnClass,
+    service: r.service,
+    successCount: r.successCount ?? 1,
+    lastUsedAt: r.lastUsedAt ?? 0,
+    discoveredFrom: r.discoveredFrom,
+    hitRate: maxSuccess > 0 ? ((r.successCount ?? 1) / maxSuccess) : 1,
+  }));
+}
+
+/**
+ * Get top N templates by success count.
+ */
+export async function getTopTemplates(n = 10): Promise<TemplateEffectiveness[]> {
+  return getTemplateEffectiveness(n);
+}
+
+/**
+ * Get full template effectiveness stats including groupings.
+ */
+export async function getTemplateEffectivenessStats(): Promise<TemplateEffectivenessStats> {
+  const all = await getTemplateEffectiveness(100);
+
+  const byCveId: Record<string, TemplateEffectiveness> = {};
+  const byVulnClass: Record<string, TemplateEffectiveness[]> = {};
+  let totalSuccesses = 0;
+
+  for (const t of all) {
+    byCveId[t.cveId] = t;
+    totalSuccesses += t.successCount;
+    if (t.vulnClass) {
+      if (!byVulnClass[t.vulnClass]) byVulnClass[t.vulnClass] = [];
+      byVulnClass[t.vulnClass].push(t);
+    }
+  }
+
+  return {
+    totalMappings: all.length,
+    totalSuccesses,
+    topTemplates: all.slice(0, 10),
+    byCveId,
+    byVulnClass,
+  };
+}
+
+/**
+ * Get template usage history for a specific template path.
+ * Returns all findings that used this template, ordered by time.
+ */
+export async function getTemplateHistory(templatePath: string): Promise<NucleiFindingRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select()
+    .from(nucleiFindings)
+    .where(eq(nucleiFindings.templateId, templatePath))
+    .orderBy(desc(nucleiFindings.id));
+
+  return rows.map(r => ({
+    id: r.id,
+    templateId: r.templateId,
+    templateName: r.templateName,
+    severity: r.severity,
+    cveId: r.cveId,
+    host: r.host,
+    matchedAt: r.matchedAt,
+    accessLevel: r.accessLevel,
+    confidence: r.confidence,
+    executionContext: r.executionContext,
+    nucleiVerified: r.nucleiVerified,
+    createdAt: r.createdAt,
+  }));
 }

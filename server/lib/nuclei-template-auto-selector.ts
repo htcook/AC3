@@ -134,7 +134,26 @@ export async function resolveNucleiTemplate(params: {
 
   // Priority 4: Vuln-class tags fallback
   if (vulnClass) {
-    const tags = NUCLEI_VULN_CLASS_TAGS[vulnClass];
+    // Normalize common aliases to the keys used in NUCLEI_VULN_CLASS_TAGS
+    const VULN_CLASS_ALIASES: Record<string, string> = {
+      command_injection: 'cmdi',
+      cmd_injection: 'cmdi',
+      rce: 'cmdi',
+      remote_code_execution: 'cmdi',
+      path_traversal: 'lfi',
+      directory_traversal: 'lfi',
+      file_inclusion: 'lfi',
+      sql_injection: 'sqli',
+      cross_site_scripting: 'xss',
+      server_side_request_forgery: 'ssrf',
+      template_injection: 'ssti',
+      server_side_template_injection: 'ssti',
+      insecure_deserialization: 'deserialization',
+      unrestricted_file_upload: 'file_upload',
+      authentication_bypass: 'auth_bypass',
+    };
+    const normalizedVulnClass = VULN_CLASS_ALIASES[vulnClass] || vulnClass;
+    const tags = NUCLEI_VULN_CLASS_TAGS[normalizedVulnClass];
     if (tags && tags.length > 0) {
       return {
         templatePath: null,

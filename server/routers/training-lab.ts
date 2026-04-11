@@ -1261,19 +1261,122 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
       addLabLog(state, { phase: "vuln_detection", type: "warning", title: "nuclei Pass 3 Failed", detail: e.message?.slice(0, 150) });
     }
 
-    state.stats.toolsRun++; // Count nuclei as 1 tool (3 passes)
+    // ── Pass 4: CVE-Targeted Nuclei Scan (Auto-Selector) ──
+    // Use resolveNucleiTemplate() to run targeted templates for CVEs found in passes 1-3
+    // and for known vuln classes from the training target preset.
+    let autoSelectorFindings = 0;
+    try {
+      const { resolveNucleiTemplate } = await import("../lib/nuclei-template-auto-selector");
+      const targetPreset = TRAINING_TARGETS.find(t => t.url === targetUrl || t.liveInstanceUrl === targetUrl);
+      
+      // Collect CVEs from existing findings
+      const discoveredCves = nucleiFindings
+        .map((f: any) => f.cve)
+        .filter((c: string | undefined): c is string => !!c && c.startsWith('CVE-'));
+      
+      // Collect vuln classes from target preset's knownVulns
+      const vulnClasses = targetPreset?.knownVulns || [];
+      
+      // Build targeted template args from auto-selector
+      const targetedTemplateArgs: string[] = [];
+      const resolvedSources: string[] = [];
+      
+      // Resolve templates for discovered CVEs
+      for (const cve of [...new Set(discoveredCves)]) {
+        const resolution = await resolveNucleiTemplate({ cve });
+        if (resolution.templatePath) {
+          targetedTemplateArgs.push(`-t ${resolution.templatePath}`);
+          resolvedSources.push(`${cve}→${resolution.source}`);
+        } else if (resolution.tags.length > 0) {
+          targetedTemplateArgs.push(`-tags ${resolution.tags.join(',')}`);
+          resolvedSources.push(`${cve}→tags:${resolution.tags.join(',')}`);
+        }
+      }
+      
+      // Resolve templates for known vuln classes (map common names to vuln class keys)
+      const vulnClassMap: Record<string, string> = {
+        'SQL Injection': 'sqli', 'XSS': 'xss', 'SSRF': 'ssrf', 'SSTI': 'ssti',
+        'File Inclusion': 'lfi', 'Command Injection': 'command_injection',
+        'Auth Bypass': 'auth_bypass', 'Insecure Deserialization': 'deserialization',
+        'File Upload': 'file_upload', 'Path Traversal': 'lfi', 'XXE': 'xxe',
+        'CSRF': 'csrf', 'IDOR': 'idor', 'Open Redirect': 'redirect',
+      };
+      for (const vuln of vulnClasses) {
+        const vc = vulnClassMap[vuln];
+        if (vc) {
+          const resolution = await resolveNucleiTemplate({ vulnClass: vc });
+          if (resolution.tags.length > 0 && !targetedTemplateArgs.some(a => a.includes(resolution.tags[0]))) {
+            targetedTemplateArgs.push(`-tags ${resolution.tags.join(',')}`);
+            resolvedSources.push(`${vuln}→${resolution.source}`);
+          }
+        }
+      }
+      
+      if (targetedTemplateArgs.length > 0) {
+        const cveTimeout = scanProfile === 'deep' ? 45 : 30;
+        // Deduplicate and limit to avoid overly long commands
+        const uniqueArgs = [...new Set(targetedTemplateArgs)].slice(0, 15).join(' ');
+        const cveCmd = `timeout ${cveTimeout} bash -c "echo '${scanUrl}' | nuclei ${nucleiBase} ${uniqueArgs} -severity low,medium,high,critical" 2>&1`;
+        addLabLog(state, { phase: "vuln_detection", type: "info", title: "nuclei Pass 4/4", detail: `CVE-targeted scan (${resolvedSources.length} resolutions: ${resolvedSources.slice(0,3).join(', ')}${resolvedSources.length > 3 ? '...' : ''})` });
+        const r4 = await execNucleiCmd(cveCmd, cveTimeout + 15);
+        totalNucleiDurationMs += r4.durationMs;
+        const beforeCount = nucleiFindings.length;
+        parseNucleiOutput((r4.stdout || '') + '\n' + (r4.stderr || ''));
+        autoSelectorFindings = nucleiFindings.length - beforeCount;
+        addLabLog(state, { phase: "vuln_detection", type: "scan_result", title: "nuclei Pass 4 Done", detail: `+${autoSelectorFindings} findings from auto-selector (${Math.round(r4.durationMs/1000)}s)` });
+      } else {
+        addLabLog(state, { phase: "vuln_detection", type: "info", title: "nuclei Pass 4 Skipped", detail: "No CVEs or vuln classes resolved to targeted templates" });
+      }
+    } catch (e: any) {
+      addLabLog(state, { phase: "vuln_detection", type: "warning", title: "nuclei Pass 4 Failed", detail: e.message?.slice(0, 150) });
+    }
+    await yieldEventLoop();
+
+    state.stats.toolsRun++; // Count nuclei as 1 tool (4 passes)
     state.assets[0].toolResults.push({
       tool: "nuclei",
-      command: `nuclei [3 passes: DAST + tech(${httpxTech.slice(0,3).join(',')}) + exposures]`,
+      command: `nuclei [4 passes: DAST + tech(${httpxTech.slice(0,3).join(',')}) + exposures + CVE-targeted]`,
       exitCode: 0,
       durationMs: totalNucleiDurationMs,
       findingCount: nucleiFindings.length,
       findings: nucleiFindings,
       outputPreview: nucleiFindings.length > 0 
         ? nucleiFindings.map(f => `[${f.severity}] ${f.title}${f.matchedAt ? ' @ ' + f.matchedAt : ''}`).join('\n')
-        : '(no findings from 3 passes)',
+        : '(no findings from 4 passes)',
     });
-    addLabLog(state, { phase: "vuln_detection", type: "scan_result", title: "nuclei Complete", detail: `Total: ${nucleiFindings.length} findings across 3 passes (${Math.round(totalNucleiDurationMs/1000)}s)` });
+    addLabLog(state, { phase: "vuln_detection", type: "scan_result", title: "nuclei Complete", detail: `Total: ${nucleiFindings.length} findings across 4 passes (${autoSelectorFindings} from auto-selector) (${Math.round(totalNucleiDurationMs/1000)}s)` });
+
+    // ── Persist Nuclei Findings to DB ──
+    try {
+      const { persistNucleiFindings: persistFindings } = await import("../lib/nuclei-findings-persistence");
+      const { parseNucleiJsonOutput } = await import("../lib/nuclei-output-parser");
+      // Build a minimal NucleiParseResult from the collected findings for persistence
+      const syntheticFindings = nucleiFindings.map((f: any) => ({
+        'template-id': f.title?.replace('[nuclei] ', '') || 'unknown',
+        host: scanUrl,
+        'matched-at': f.matchedAt || scanUrl,
+        type: 'http',
+        info: {
+          id: f.title?.replace('[nuclei] ', '') || 'unknown',
+          name: f.title?.replace('[nuclei] ', '') || 'Unknown',
+          severity: f.severity || 'info',
+          description: f.description || '',
+          classification: f.cve ? { 'cve-id': [f.cve] } : undefined,
+        },
+      }));
+      if (syntheticFindings.length > 0) {
+        await persistFindings({
+          target: scanUrl,
+          parseResult: { findings: syntheticFindings, stats: { total: syntheticFindings.length, critical: 0, high: 0, medium: 0, low: 0, info: 0 }, rawOutput: '' },
+          executionContext: 'direct',
+          nucleiCommand: 'training-lab-pipeline',
+        });
+        addLabLog(state, { phase: "vuln_detection", type: "info", title: "Nuclei Findings Persisted", detail: `${syntheticFindings.length} findings saved to DB for effectiveness tracking` });
+      }
+    } catch (e: any) {
+      // Non-fatal — persistence is best-effort
+      addLabLog(state, { phase: "vuln_detection", type: "warning", title: "Nuclei Persistence Skipped", detail: e.message?.slice(0, 100) });
+    }
 
     state.progress = 45;
     await yieldEventLoop();
@@ -1794,6 +1897,41 @@ ${learningContext}`;
           }
         } catch (e: any) {
           addLabLog(state, { phase: "analyzing", type: "warning", title: "Exploit Selection Scoring Failed", detail: e.message?.slice(0, 200) || "" });
+        }
+
+        // ── Nuclei Fast-Path Hints ──
+        // Annotate LLM findings that have CVEs with pre-resolved Nuclei templates
+        // so the exploit pipeline can use Nuclei as a fast-path verification tool.
+        try {
+          const { resolveNucleiTemplate } = await import("../lib/nuclei-template-auto-selector");
+          let nucleiHintCount = 0;
+          for (const finding of (llmAnalysis.findings || [])) {
+            if (finding.cve && finding.cve.startsWith('CVE-')) {
+              const resolution = await resolveNucleiTemplate({
+                cve: finding.cve,
+                vulnClass: finding.category?.toLowerCase(),
+              });
+              if (resolution.source !== 'none') {
+                (finding as any).__nucleiHint = {
+                  templatePath: resolution.templatePath,
+                  tags: resolution.tags,
+                  source: resolution.source,
+                  confidence: resolution.confidence,
+                };
+                nucleiHintCount++;
+              }
+            }
+          }
+          if (nucleiHintCount > 0) {
+            addLabLog(state, {
+              phase: "analyzing", type: "info",
+              title: "Nuclei Fast-Path Hints Added",
+              detail: `${nucleiHintCount}/${llmAnalysis.findings?.length || 0} findings annotated with Nuclei template hints`,
+            });
+          }
+        } catch (e: any) {
+          // Non-fatal
+          addLabLog(state, { phase: "analyzing", type: "warning", title: "Nuclei Hints Failed", detail: e.message?.slice(0, 100) || "" });
         }
       }
     } catch (e: any) {
