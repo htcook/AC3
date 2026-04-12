@@ -9,6 +9,7 @@ import * as db from "../db";
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { logPlatformError, getRecentErrors, resolveError, getErrorStats, purgeOldErrors, getEngagementList } from "../lib/error-logger";
+import { hasFullAccess, getUserEngagementIds } from "../lib/engagement-access-guard";
 import { matchCredentialsForTechnology, searchCredentials, seedBuiltinCredentials, BUILTIN_DEFAULT_CREDS, getBuiltinCreds } from "../lib/oem-default-creds";
 import { invokeLLM } from "../_core/llm";
 import { getRoleChatConfig } from "../lib/role-chat-prompts";
@@ -44,7 +45,8 @@ export const errorLogRouter = router({
       return { logged: !!id, errorId: id };
     }),
 
-  /** Get recent errors for the dashboard — supports engagement-scoped filtering */
+  /** Get recent errors for the dashboard — supports engagement-scoped filtering.
+   *  Non-admin users only see errors from their own engagements. */
   list: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(200).default(50),
@@ -56,23 +58,61 @@ export const errorLogRouter = router({
       engagementId: z.number().optional(),
       engagementName: z.string().optional(),
     }).optional())
-    .query(async ({ input }) => {
-      return getRecentErrors(input || {});
+    .query(async ({ input, ctx }) => {
+      const opts = input || {};
+      // Scope to user's engagements for non-admin roles
+      if (!hasFullAccess(ctx.user)) {
+        const db = await getDb();
+        if (db) {
+          const engIds = await getUserEngagementIds(db, ctx.user);
+          if (engIds !== null) {
+            // If user specified an engagementId, verify they own it
+            if (opts.engagementId && !engIds.includes(opts.engagementId)) {
+              return { errors: [], total: 0 };
+            }
+            // Pass allowed engagement IDs to the error logger
+            return getRecentErrors({ ...opts, allowedEngagementIds: engIds });
+          }
+        }
+      }
+      return getRecentErrors(opts);
     }),
 
-  /** Get error statistics — optionally scoped to an engagement */
+  /** Get error statistics — optionally scoped to an engagement.
+   *  Non-admin users only see stats from their own engagements. */
   stats: protectedProcedure
     .input(z.object({
       engagementId: z.number().optional(),
       engagementName: z.string().optional(),
     }).optional())
-    .query(async ({ input }) => {
-      return getErrorStats(input || {});
+    .query(async ({ input, ctx }) => {
+      const opts = input || {};
+      if (!hasFullAccess(ctx.user)) {
+        const db = await getDb();
+        if (db) {
+          const engIds = await getUserEngagementIds(db, ctx.user);
+          if (engIds !== null) {
+            return getErrorStats({ ...opts, allowedEngagementIds: engIds });
+          }
+        }
+      }
+      return getErrorStats(opts);
     }),
 
-  /** List distinct engagements that have logged errors */
-  engagements: protectedProcedure.query(async () => {
-    return getEngagementList();
+  /** List distinct engagements that have logged errors.
+   *  Non-admin users only see their own engagements. */
+  engagements: protectedProcedure.query(async ({ ctx }) => {
+    const allEngagements = await getEngagementList();
+    if (!hasFullAccess(ctx.user)) {
+      const db = await getDb();
+      if (db) {
+        const engIds = await getUserEngagementIds(db, ctx.user);
+        if (engIds !== null) {
+          return allEngagements.filter(e => engIds.includes(e.engagementId));
+        }
+      }
+    }
+    return allEngagements;
   }),
 
   /** Resolve or unresolve an error */

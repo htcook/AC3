@@ -6,6 +6,7 @@ import * as db from "../db";
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { TRPCError } from "@trpc/server";
 import { getDb as _getDb } from "../db";
 import {

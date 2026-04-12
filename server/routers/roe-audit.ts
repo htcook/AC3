@@ -10,13 +10,15 @@ import * as db from "../db";
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { TRPCError } from "@trpc/server";
 
 export const roeAuditRouter = router({
   /** Get ROE status for an engagement */
   getROEStatus: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const { getDb } = await import("../db");
       const { engagements } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
@@ -135,7 +137,8 @@ export const roeAuditRouter = router({
   /** Validate ROE for an engagement (used by frontend before starting operations) */
   validateROE: protectedProcedure
     .input(z.object({ engagementId: z.number(), riskTier: z.enum(["yellow", "orange", "red"]) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const { getEngagementROE, validateROE } = await import("../lib/roe-guard");
       const roe = await getEngagementROE(input.engagementId);
       if (!roe) return { valid: false, reason: "Engagement not found" };
@@ -157,7 +160,8 @@ export const roeAuditRouter = router({
       limit: z.number().min(1).max(500).default(100),
       offset: z.number().min(0).default(0),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const { getDb } = await import("../db");
       const { offensiveAuditLog } = await import("../../drizzle/schema");
       const { eq, desc, and, sql } = await import("drizzle-orm");

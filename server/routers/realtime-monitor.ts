@@ -22,14 +22,16 @@ import {
   llmDecisionLog,
 } from "../../drizzle/schema";
 import { eq, desc, sql, and, gte, inArray } from "drizzle-orm";
+import { scopeEngagementWhere, scopedAnd, assertEngagementAccess } from "../lib/engagement-access-guard";
 
 export const realtimeMonitorRouter = router({
   /**
    * Get active engagements with their latest progress
    */
-  getActiveEngagements: protectedProcedure.query(async () => {
+  getActiveEngagements: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDbRequired();
-
+    const scope = scopeEngagementWhere(ctx.user);
+    const statusFilter = inArray(engagements.status, ["active", "planning"]);
     const active = await db
       .select({
         id: engagements.id,
@@ -43,7 +45,7 @@ export const realtimeMonitorRouter = router({
         scanMode: engagements.scanMode,
       })
       .from(engagements)
-      .where(inArray(engagements.status, ["active", "planning"]))
+      .where(scope ? and(statusFilter, scope) : statusFilter)
       .orderBy(desc(engagements.createdAt))
       .limit(20);
 
@@ -118,7 +120,7 @@ export const realtimeMonitorRouter = router({
         })
         .optional()
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDbRequired();
       const limit = input?.limit ?? 50;
 
@@ -316,7 +318,8 @@ export const realtimeMonitorRouter = router({
         limit: z.number().min(1).max(200).default(50),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbRequired();
 
       const events = await db

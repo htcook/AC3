@@ -7014,7 +7014,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         if (zapScanId) {
           const { pollScanProgress } = await import("./zap-scanner");
           let zapDone = false;
-          const zapTimeoutMinutes = state.trainingLabMode ? 45 : 5;
+          // Training labs with WAF evasion need much longer — 3140 URLs × 20 payloads × 200ms delay = ~3.5 hours theoretical max
+          // 90 min allows ~60% coverage which is a good balance between thoroughness and time
+          const zapTimeoutMinutes = state.trainingLabMode ? 90 : 5;
           const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
           let consecutivePollFailures = 0;
           const maxConsecutivePollFailures = state.trainingLabMode ? 8 : 3; // More tolerance for training labs
@@ -7097,6 +7099,9 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                 }
               } else {
                 // ── Stall detection: track progress and abort if stuck ──
+                // WAF-evaded scans are much slower (200ms delay, 2 threads) so need higher tolerance.
+                // With 3000+ URLs at 2 threads/200ms, each 1% takes ~4-5 min — stall detector
+                // must allow enough time for at least 1% progress between checks.
                 const progressKey = `${progress.spiderProgress}:${progress.activeScanProgress}:${progress.urlsFound}`;
                 if (!(webApp as any)._lastZapProgressKey) (webApp as any)._lastZapProgressKey = '';
                 if (!(webApp as any)._zapStallCount) (webApp as any)._zapStallCount = 0;
@@ -7106,7 +7111,11 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
                   (webApp as any)._zapStallCount = 0;
                   (webApp as any)._lastZapProgressKey = progressKey;
                 }
-                const MAX_STALL_POLLS = state.trainingLabMode ? 12 : 8; // ~2-3 min of no progress
+                // Determine if WAF evasion is active — if so, allow much more time
+                const hasWafEvasion = state.assets?.some((a: any) => a.wafDetected && a.wafVendor);
+                const MAX_STALL_POLLS = hasWafEvasion
+                  ? (state.trainingLabMode ? 40 : 24) // WAF: ~10 min (training) or ~6 min (normal)
+                  : (state.trainingLabMode ? 12 : 8); // No WAF: ~3 min or ~2 min
                 if ((webApp as any)._zapStallCount >= MAX_STALL_POLLS) {
                   addLog(state, { phase: "vuln_detection", type: "warning", title: `ZAP Stalled: ${targetUrl}`, detail: `No progress after ${(webApp as any)._zapStallCount} polls (Spider: ${progress.spiderProgress}%, Active: ${progress.activeScanProgress}%, URLs: ${progress.urlsFound}). Aborting scan.` });
                   zapDone = true;

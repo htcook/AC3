@@ -9,6 +9,7 @@ import { doStoragePut } from "../do-storage";
 import { evidenceIntegrityAnchors, evidenceGuardrailAudit } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import * as docx from "docx";
+import { scopeEngagementWhere, hasFullAccess } from "../lib/engagement-access-guard";
 
 // ─── JSON Parsing Helper ─────────────────────────────────────────────────────
 
@@ -348,8 +349,11 @@ const controlSchema = z.object({
 
 export const ac3ReportsRouter = {
   // List all reports
-  listReports: protectedProcedure.query(async () => {
+  listReports: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDbRequired();
+    // TODO: ac3Reports doesn't have a direct createdBy/engagementId link yet.
+    // For now, all authenticated users can list reports. Full scoping requires
+    // linking reports to engagements and filtering by engagement ownership.
     const rows = await db.select().from(ac3Reports).orderBy(desc(ac3Reports.rptUpdatedAt));
     return rows;
   }),

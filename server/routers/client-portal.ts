@@ -11,6 +11,7 @@ import crypto from "crypto";
 import { getDb as _getDb } from "../db";
 import { roeDocuments, roePersonnel, roeSignatures, engagements } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
 export const clientPortalRouter = router({
   // ─── Admin: Create a share link ───────────────────────────────────
@@ -32,8 +33,8 @@ export const clientPortalRouter = router({
       includeCompliance: z.boolean().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Verify engagement exists
-      const engagement = await db.getEngagementById(input.engagementId);
+      // Verify engagement exists and user has access
+      const engagement = await db.getEngagementById(input.engagementId, ctx.user);
       if (!engagement) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Engagement not found" });
       }

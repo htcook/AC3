@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
+import { scopeEngagementWhere } from "../lib/engagement-access-guard";
 import { getDb } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { desc, sql, and, gte, isNotNull, eq, count } from "drizzle-orm";

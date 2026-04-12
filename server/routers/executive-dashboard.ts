@@ -9,6 +9,7 @@ import {
   scanObservations,
   unifiedExploitCatalog,
 } from "../../drizzle/schema";
+import { scopeEngagementWhere, scopedAnd } from "../lib/engagement-access-guard";
 
 // ─── Executive Dashboard Router ──────────────────────────────────────────────
 // Provides aggregated, business-focused metrics for CISOs and executives.
@@ -16,15 +17,16 @@ import {
 
 export const executiveDashboardRouter = router({
   // ── Risk Posture Overview ────────────────────────────────────────────────
-  riskPosture: protectedProcedure.query(async () => {
-    // Aggregate engagement data for risk scoring
+  riskPosture: protectedProcedure.query(async ({ ctx }) => {
+    // Aggregate engagement data for risk scoring (scoped by user)
     const drizzleDb = await getDb();
     if (!drizzleDb) return { riskScore: 0, riskLevel: 'minimal' as const, engagements: { total: 0, active: 0, completed: 0 }, vulnerabilities: { total: 0, critical: 0, high: 0, medium: 0, low: 0, info: 0 }, lastUpdated: Date.now() };
+    const scope = scopeEngagementWhere(ctx.user);
     const [engagementRows] = await drizzleDb.select({
       total: count(),
       active: count(sql`CASE WHEN ${engagements.engagementStatus} = 'active' THEN 1 END`),
       completed: count(sql`CASE WHEN ${engagements.engagementStatus} = 'completed' THEN 1 END`),
-    }).from(engagements);
+    }).from(engagements).where(scope ?? undefined);
 
     // Get vulnerability severity breakdown from scan results
     const severityRows = await drizzleDb.select({

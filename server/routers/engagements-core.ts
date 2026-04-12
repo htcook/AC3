@@ -5,17 +5,18 @@ import * as db from "../db";
 import { ENV } from "../_core/env";
 import { and, eq, inArray, max, min, not, or } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
 
 export const engagementsRouter = router({
-    list: protectedProcedure.query(async () => {
-      return db.getEngagements();
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return db.getEngagements(ctx.user);
     }),
 
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return db.getEngagementById(input.id);
+      .query(async ({ input, ctx }) => {
+        return db.getEngagementById(input.id, ctx.user);
       }),
 
     create: protectedProcedure
@@ -264,6 +265,9 @@ export const engagementsRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
+        // Verify the user has access to this engagement before updating
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, id, ctx.user);
         await db.updateEngagement(id, updates);
         await db.logActivity({
           userId: ctx.user.id,
@@ -492,9 +496,9 @@ export const engagementsRouter = router({
     resetEngagement: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.id);
+        const engagement = await db.getEngagementById(input.id, ctx.user);
         if (!engagement) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: `Engagement #${input.id} not found` });
+          throw new TRPCError({ code: 'NOT_FOUND', message: `Engagement #${input.id} not found or access denied` });
         }
 
         const dbConn = await db.getDb();

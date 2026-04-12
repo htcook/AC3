@@ -6,6 +6,7 @@ import * as db from "../db";
  * plus TAXII 2.1 compatible collection endpoints for automated intel sharing.
  */
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
@@ -71,7 +72,8 @@ export const stixExportRouter = router({
       threatLevel: z.string().default("all"),
       search: z.string().default(""),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await requireDb();
       const conditions: any[] = [];
 

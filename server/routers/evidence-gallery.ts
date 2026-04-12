@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { TRPCError } from "@trpc/server";
 import { getDb as _getDb } from "../db";
 import { evidenceItems, evidenceChainOfCustody, engagements } from "../../drizzle/schema";
@@ -47,7 +48,8 @@ export const evidenceGalleryRouter = router({
       operationId: z.string().optional(),
       adversaryId: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbSafe();
 
       // Get engagement details
@@ -140,7 +142,8 @@ export const evidenceGalleryRouter = router({
     .input(z.object({
       evidenceId: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbSafe();
       const [item] = await db.select().from(evidenceItems)
         .where(eq(evidenceItems.evidenceId, input.evidenceId));
@@ -207,7 +210,8 @@ export const evidenceGalleryRouter = router({
       operationId: z.string().optional(),
       adversaryId: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbSafe();
       const [eng] = await db.select().from(engagements)
         .where(eq(engagements.id, input.engagementId));

@@ -84,6 +84,8 @@ export async function getRecentErrors(opts: {
   engagementId?: number;
   /** Filter errors by engagement name */
   engagementName?: string;
+  /** Tenant isolation: restrict to errors from these engagement IDs only (non-admin users) */
+  allowedEngagementIds?: number[];
 } = {}): Promise<{ errors: any[]; total: number }> {
   const db = await getDb();
   if (!db) return { errors: [], total: 0 };
@@ -94,6 +96,14 @@ export async function getRecentErrors(opts: {
   if (opts.search) conditions.push(like(platformErrors.message, `%${opts.search}%`));
   // Engagement-scoped filtering
   conditions.push(...buildEngagementConditions(opts.engagementId, opts.engagementName));
+  // Tenant isolation: only show errors from user's own engagements
+  if (opts.allowedEngagementIds !== undefined) {
+    if (opts.allowedEngagementIds.length === 0) {
+      return { errors: [], total: 0 }; // User has no engagements
+    }
+    const idList = opts.allowedEngagementIds.map(id => String(id)).join(',');
+    conditions.push(sql`JSON_EXTRACT(${platformErrors.engagementContext}, '$.engagementId') IN (${sql.raw(idList)})`);
+  }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(platformErrors).where(where);
   const errors = await db.select().from(platformErrors).where(where).orderBy(desc(platformErrors.createdAt)).limit(opts.limit || 50).offset(opts.offset || 0);
@@ -113,6 +123,8 @@ export async function resolveError(id: number, resolved: boolean, note?: string)
 export async function getErrorStats(opts: {
   engagementId?: number;
   engagementName?: string;
+  /** Tenant isolation: restrict to errors from these engagement IDs only */
+  allowedEngagementIds?: number[];
 } = {}): Promise<{
   total: number; unresolved: number; critical: number; last24h: number; bySource: Record<string, number>;
 }> {
@@ -120,6 +132,14 @@ export async function getErrorStats(opts: {
   if (!db) return { total: 0, unresolved: 0, critical: 0, last24h: 0, bySource: {} };
 
   const engConds = buildEngagementConditions(opts.engagementId, opts.engagementName);
+  // Tenant isolation: restrict stats to user's own engagements
+  if (opts.allowedEngagementIds !== undefined) {
+    if (opts.allowedEngagementIds.length === 0) {
+      return { total: 0, unresolved: 0, critical: 0, last24h: 0, bySource: {} };
+    }
+    const idList = opts.allowedEngagementIds.map(id => String(id)).join(',');
+    engConds.push(sql`JSON_EXTRACT(${platformErrors.engagementContext}, '$.engagementId') IN (${sql.raw(idList)})`);
+  }
   const baseWhere = engConds.length > 0 ? and(...engConds) : undefined;
 
   const [total] = await db.select({ count: sql<number>`COUNT(*)` }).from(platformErrors).where(baseWhere);

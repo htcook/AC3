@@ -27,6 +27,7 @@
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { assertEngagementAccess, scopeEngagementWhere } from "../lib/engagement-access-guard";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import {

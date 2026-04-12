@@ -16,6 +16,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import type { ScannerType, ParsedVulnFinding, ParsedScanResult } from "../lib/vuln-scanner-parser";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
 const scannerTypeEnum = z.enum(["nessus", "qualys", "rapid7", "burp", "zap", "openvas", "custom"]);
 
@@ -166,8 +167,11 @@ export const engagementScanImportsRouter = router({
         state = await getOpsStateWithRecovery(input.engagementId);
       }
       if (!state) {
-        const { getEngagementById } = await import("../db");
-        const engagement = await getEngagementById(input.engagementId);
+        const { getEngagementById, getDb } = await import("../db");
+        // Verify user has access to this engagement
+        const dbConn = await getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const engagement = await getEngagementById(input.engagementId, ctx.user);
         if (!engagement) throw new TRPCError({ code: "NOT_FOUND", message: "Engagement not found" });
         state = initOpsState(input.engagementId, engagement.engagementType);
       }

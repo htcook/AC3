@@ -18,6 +18,7 @@ import {
 import { getDb } from '../db';
 import { engagements } from '../../drizzle/schema';
 import { desc, eq } from 'drizzle-orm';
+import { assertEngagementAccess, scopeEngagementWhere } from '../lib/engagement-access-guard';
 
 const killChainPhaseEnum = z.enum([
   'reconnaissance',
@@ -58,7 +59,12 @@ export const engagementTimelineRouter = router({
       limit: z.number().min(1).max(1000).optional(),
       offset: z.number().min(0).optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // If a specific engagement is requested, verify access
+      if (input?.engagementId) {
+        const dbConn = await getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+      }
       const filter = input || {};
       return getEngagementTimeline({
         engagementId: filter.engagementId,
@@ -76,7 +82,9 @@ export const engagementTimelineRouter = router({
   // Get engagement-level summary with kill chain progress
   getEngagementSummary: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const dbConn = await getDb();
+      if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
       return getEngagementSummary(input.engagementId);
     }),
 
@@ -85,14 +93,15 @@ export const engagementTimelineRouter = router({
     .input(z.object({
       limit: z.number().min(1).max(50).optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) return [];
 
       const limit = input?.limit || 20;
-      const engs = await db.select().from(engagements)
-        .orderBy(desc(engagements.updatedAt))
-        .limit(limit);
+      const scope = scopeEngagementWhere(ctx.user);
+      const engs = scope
+        ? await db.select().from(engagements).where(scope).orderBy(desc(engagements.updatedAt)).limit(limit)
+        : await db.select().from(engagements).orderBy(desc(engagements.updatedAt)).limit(limit);
 
       // Get timeline stats for each engagement in parallel
       const results = await Promise.all(

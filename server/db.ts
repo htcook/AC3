@@ -411,16 +411,25 @@ export async function createEngagement(engagement: InsertEngagement) {
   }
 }
 
-export async function getEngagements() {
+export async function getEngagements(scopeUser?: { id: number; role: string } | null) {
   const db = await getDb();
   if (!db) return [];
+  const { scopeEngagementWhere } = await import('./lib/engagement-access-guard');
+  const scope = scopeUser ? scopeEngagementWhere(scopeUser) : null;
+  if (scope) {
+    return db.select().from(engagements).where(scope).orderBy(desc(engagements.updatedAt));
+  }
   return db.select().from(engagements).orderBy(desc(engagements.updatedAt));
 }
 
-export async function getEngagementById(id: number) {
+export async function getEngagementById(id: number, scopeUser?: { id: number; role: string } | null) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(engagements).where(eq(engagements.id, id)).limit(1);
+  const { scopedAnd } = await import('./lib/engagement-access-guard');
+  const where = scopeUser
+    ? scopedAnd(scopeUser, eq(engagements.id, id))
+    : eq(engagements.id, id);
+  const result = await db.select().from(engagements).where(where).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 

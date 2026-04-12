@@ -81,6 +81,8 @@ const ALLOWED_TOOLS = new Set([
   "xsstrike", "dalfox",
   // Command injection & template injection tools
   "commix", "tplmap",
+  // Service fingerprinting, SSH audit, and web crawling
+  "nerva", "ssh-audit", "katana",
   // Screenshot capture
   "chromium", "chromium-browser", "google-chrome", "puppeteer",
   // Allow reading tool manifest and health check

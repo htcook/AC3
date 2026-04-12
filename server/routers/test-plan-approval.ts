@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 import { getDb, getDbRequired, getDomainIntelScansByEngagement, getDiscoveredAssetsByScan } from "../db";
 import { testPlans, engagements } from "../../drizzle/schema";
 import { eq, desc, and } from "drizzle-orm";
@@ -271,7 +272,8 @@ export const testPlanApprovalRouter = router({
    */
   get: protectedProcedure
     .input(z.object({ planId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbRequired();
 
       const [plan] = await db
@@ -295,7 +297,8 @@ export const testPlanApprovalRouter = router({
    */
   listByEngagement: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbRequired();
 
       const plans = await db
@@ -627,7 +630,8 @@ export const testPlanApprovalRouter = router({
    */
   getApprovalStatus: protectedProcedure
     .input(z.object({ engagementId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbRequired();
 
       const plans = await db
@@ -661,7 +665,8 @@ export const testPlanApprovalRouter = router({
    */
   deleteDraft: protectedProcedure
     .input(z.object({ planId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertEngagementAccess(ctx.user, input.engagementId);
       const db = await getDbRequired();
 
       const [plan] = await db

@@ -14,6 +14,7 @@
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { scopeEngagementWhere } from "../lib/engagement-access-guard";
 import { TRPCError } from "@trpc/server";
 import { FEDRAMP_CONTROLS, generateFedRAMPPOAM, generateATOPackageStatus, getFedRAMPFamilySummary } from "../lib/fedramp-controls";
 import { CMMC_PRACTICES, calculateSPRSScore, getCMMCDomainSummary, generateCMMCAssessment } from "../lib/cmmc-controls";

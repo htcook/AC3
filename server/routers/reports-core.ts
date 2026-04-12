@@ -12,6 +12,7 @@ import * as db from "../db";
 import { ENV } from "../_core/env";
 import { invokeLLM } from "../_core/llm";
 import { captureCalderaEvidence } from "../lib/caldera-evidence-collector";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
 /**
  * Collect Caldera evidence snapshot for report generation.
@@ -90,7 +91,7 @@ export const reportsRouter = router({
         });
 
         // Gather all engagement data
-        const engagement = await db.getEngagementById(input.engagementId);
+        const engagement = await db.getEngagementById(input.engagementId, ctx.user);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
         const reconData = await db.getDomainReconByEngagement(input.engagementId);

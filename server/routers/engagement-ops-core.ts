@@ -4,12 +4,16 @@ import { z } from "zod";
 import * as db from "../db";
 import { and, eq, min, not, or, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
+import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
 export const engagementOpsRouter = router({
     /** Get current ops state for an engagement */
     getState: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        // Verify user has access to this engagement
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { getOpsState, getOpsStateWithRecovery, initOpsState, normalizeOpsState } = await import('../lib/engagement-orchestrator');
         // First try in-memory, then try DB recovery, then initialize fresh
         let state = getOpsState(input.engagementId);
@@ -57,8 +61,8 @@ export const engagementOpsRouter = router({
     /** Initialize ops state for an engagement */
     init: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
-      .mutation(async ({ input }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
+      .mutation(async ({ input, ctx }) => {
+        const engagement = await db.getEngagementById(input.engagementId, ctx.user);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
         const { initOpsState } = await import('../lib/engagement-orchestrator');
         return initOpsState(input.engagementId, engagement.engagementType);
@@ -68,7 +72,7 @@ export const engagementOpsRouter = router({
     execute: protectedProcedure
       .input(z.object({ engagementId: z.number(), exhaustiveExploit: z.boolean().optional().default(true), trainingLabMode: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
-        const engagement = await db.getEngagementById(input.engagementId);
+        const engagement = await db.getEngagementById(input.engagementId, ctx.user);
         if (!engagement) throw new TRPCError({ code: 'NOT_FOUND', message: 'Engagement not found' });
 
         // Validate RoE scope exists
@@ -182,6 +186,8 @@ export const engagementOpsRouter = router({
     stop: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { stopEngagement } = await import('../lib/engagement-orchestrator');
         const stopped = stopEngagement(input.engagementId);
         if (stopped) {
@@ -198,6 +204,8 @@ export const engagementOpsRouter = router({
     resume: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { resumeEngagement } = await import('../lib/engagement-orchestrator');
         const result = await resumeEngagement(input.engagementId, {
           id: String(ctx.user.id),
@@ -221,6 +229,8 @@ export const engagementOpsRouter = router({
         exhaustiveExploit: z.boolean().optional().default(true),
       }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { rerunFromPhase, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
         // Set exhaustive exploitation mode on the existing state
         // Try in-memory first, then DB recovery (state may be lost after server restart)
@@ -250,6 +260,8 @@ export const engagementOpsRouter = router({
     skipCurrentDomain: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
         let state = getOpsState(input.engagementId);
         if (!state) state = await getOpsStateWithRecovery(input.engagementId);
@@ -271,6 +283,8 @@ export const engagementOpsRouter = router({
     clearOps: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { clearOpsState } = await import('../lib/engagement-orchestrator');
         await clearOpsState(input.engagementId);
         await db.logActivity({ userId: ctx.user.id, action: 'engagement_ops_cleared', details: `Fully cleared ops state for engagement #${input.engagementId}` });
@@ -404,6 +418,8 @@ export const engagementOpsRouter = router({
     resetOps: protectedProcedure
       .input(z.object({ engagementId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
         const { getOpsState, getOpsStateWithRecovery, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
         // Try in-memory first, then fall back to DB snapshot recovery
         // (in-memory state is lost after server restart on DO)
