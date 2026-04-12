@@ -1725,6 +1725,39 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           console.warn(`[ZAP AttackSurface] Scan #${scanId}: Failed to enumerate attack surface: ${asErr.message}`);
         }
 
+        // ─── OAST (Out-of-Band Application Security Testing) Setup ───
+        // Enable Interactsh for blind vulnerability detection (blind SSRF, blind XSS, blind SQLi, OOB XXE)
+        // Must be configured BEFORE active scan starts so ZAP injects OAST payloads
+        let oastEnabled = false;
+        try {
+          // Configure Interactsh as the OAST service
+          await zapRequest("/JSON/oast/action/setActiveScanService/", {
+            name: "Interactsh",
+          }, cfg);
+          // Set Interactsh options — use public interact.sh server, poll every 10 seconds
+          await zapRequest("/JSON/oast/action/setInteractshOptions/", {
+            server: "https://oast.fun",
+            pollInSecs: "10",
+            authToken: "",
+          }, cfg).catch(() => {
+            // Fallback: try interact.sh if oast.fun fails
+            return zapRequest("/JSON/oast/action/setInteractshOptions/", {
+              server: "https://interact.sh",
+              pollInSecs: "10",
+              authToken: "",
+            }, cfg);
+          });
+          // Keep OAST records for 7 days
+          await zapRequest("/JSON/oast/action/setDaysToKeepRecords/", {
+            days: "7",
+          }, cfg).catch(() => {});
+          oastEnabled = true;
+          console.log(`[ZAP OAST] Scan #${scanId}: Interactsh OAST service enabled for blind vulnerability detection`);
+        } catch (oastErr: any) {
+          // Non-fatal — continue without OAST, active scan still works for in-band vulns
+          console.warn(`[ZAP OAST] Scan #${scanId}: Failed to enable OAST (non-fatal): ${oastErr.message}`);
+        }
+
         // Wrap active scan start in try-catch to fail fast instead of stalling
         // NOTE: Do NOT pass scanPolicyName — applyPlaybookToZap already configured
         // rules on the default policy. Passing a non-existent policy name (e.g. "Heavy")
@@ -1878,6 +1911,21 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
           console.warn(`[ZAP AttackSurface] Scan #${scanId}: Failed to enumerate post-AJAX attack surface: ${asErr2.message}`);
         }
 
+        // ─── OAST Setup (post-AJAX spider path) ───
+        try {
+          await zapRequest("/JSON/oast/action/setActiveScanService/", { name: "Interactsh" }, cfg);
+          await zapRequest("/JSON/oast/action/setInteractshOptions/", {
+            server: "https://oast.fun", pollInSecs: "10", authToken: "",
+          }, cfg).catch(() =>
+            zapRequest("/JSON/oast/action/setInteractshOptions/", {
+              server: "https://interact.sh", pollInSecs: "10", authToken: "",
+            }, cfg)
+          );
+          console.log(`[ZAP OAST] Scan #${scanId}: Interactsh enabled (post-AJAX spider path)`);
+        } catch (oastErr: any) {
+          console.warn(`[ZAP OAST] Scan #${scanId}: OAST setup failed (non-fatal, post-AJAX): ${oastErr.message}`);
+        }
+
         // Start active scan after AJAX spider — wrapped in try-catch to fail fast
         // NOTE: Do NOT pass scanPolicyName — rules already configured on default policy
         try {
@@ -1974,6 +2022,21 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
       }).where(eq(webAppScans.id, scanId));
 
       if (activeScanProgress >= 100) {
+        // ─── OAST Callback Collection: wait for blind findings to arrive ───
+        // After active scan completes, OAST callbacks may still be arriving.
+        // Wait a brief period then check for any OAST-triggered alerts.
+        try {
+          const oastServices = await zapRequest("/JSON/oast/view/getActiveScanService/", {}, cfg).catch(() => null);
+          if (oastServices) {
+            console.log(`[ZAP OAST] Scan #${scanId}: Active scan complete. Waiting 15s for OAST callbacks...`);
+            await new Promise(r => setTimeout(r, 15000));
+            // OAST findings appear as regular ZAP alerts after the service polls for callbacks
+            console.log(`[ZAP OAST] Scan #${scanId}: OAST callback wait complete. Collecting all alerts including OAST findings.`);
+          }
+        } catch (oastPollErr: any) {
+          console.warn(`[ZAP OAST] Scan #${scanId}: OAST callback collection warning (non-fatal): ${oastPollErr.message}`);
+        }
+
         await collectAlerts(scanId, cfg);
         await db.update(webAppScans).set({
           status: "completed",

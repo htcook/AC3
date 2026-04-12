@@ -165,6 +165,7 @@ import { evidenceGalleryRouter } from "./routers/evidence-gallery";
 import { exploitLearningDashboardRouter } from "./routers/exploit-learning-dashboard";
 import { exploitGuardrailsDashboardRouter } from "./routers/exploit-guardrails-dashboard";
 import { roeUploadRouter } from "./routers/roe-upload";
+import { integrationRegistryRouter } from "./routers/integration-registry";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -588,6 +589,8 @@ export const appRouter = router({
   exploitGuardrails: exploitGuardrailsDashboardRouter,
   // ─── RoE/Test Plan Document Upload & Auto-Engagement Designer ──────────────
   roeUpload: roeUploadRouter,
+  // ─── Integration Registry (Auto-Discovery, Classification, Pipeline Wiring) ──
+  integrationRegistry: integrationRegistryRouter,
 });
 export type AppRouter = typeof appRouter;
 
