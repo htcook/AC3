@@ -1277,8 +1277,8 @@ async function persistScanResult(opts: {
       tool: opts.tool,
       target: opts.target,
       command: opts.command,
-      rawOutput: opts.stdout.slice(0, 1_000_000), // cap at 1MB
-      rawStderr: (opts.stderr || "").slice(0, 500_000),
+      rawOutput: opts.stdout.slice(0, 100_000), // cap at 100KB (reduced from 1MB to prevent OOM)
+      rawStderr: (opts.stderr || "").slice(0, 50_000),
       exitCode: opts.exitCode,
       durationMs: opts.durationMs,
       timedOut: opts.timedOut,
@@ -3854,7 +3854,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
               severity: 'info',
               title: `${p.port}/${p.protocol} ${p.service}${p.product ? ` (${p.product})` : ''}`,
             })),
-            outputPreview: (discoveryResult.stdout || '').slice(0, 1024),
+            outputPreview: (discoveryResult.stdout || '').slice(0, 512),
             executedAt: Date.now(),
             phase: 'discovery',
           });
@@ -5233,7 +5233,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     // PARALLEL TOOL EXECUTION — Run tools concurrently with concurrency limit
     // Shannon-inspired: run up to 3 tools in parallel per asset (SSH connection limit)
     // ═══════════════════════════════════════════════════════════════════════════
-    const CONCURRENCY_LIMIT = 3;
+    const CONCURRENCY_LIMIT = 2;
     addLog(state, {
       phase: 'enumeration', type: 'info',
       title: `⚡ Parallel Execution: ${fmtTarget(asset)}`,
@@ -5278,6 +5278,14 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         if (!result.durationMs) result.durationMs = Date.now() - startTime;
       }
 
+      // Truncate stdout early to prevent holding multi-MB strings in memory
+      // parseToolOutput only needs the structured lines, not raw bulk output
+      if (result.stdout.length > 100_000) {
+        result.stdout = result.stdout.slice(0, 100_000);
+      }
+      if (result.stderr && result.stderr.length > 50_000) {
+        result.stderr = result.stderr.slice(0, 50_000);
+      }
       // Parse tool output for findings
       const findings = parseToolOutput(cmd.tool, result.stdout, asset);
 
@@ -5290,7 +5298,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         timedOut: result.timedOut,
         findingCount: findings.length,
         findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
-        outputPreview: result.stdout.slice(0, 1024),
+        outputPreview: result.stdout.slice(0, 512),
         executedAt: Date.now(),
         phase: 'targeted_enum',
       });
@@ -5351,6 +5359,16 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           title: `Batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1} complete`,
           detail: `${succeeded}/${batch.length} tools finished (${failed} errors). Tools: ${batch.map(c => c.tool).join(', ')}`,
         });
+      }
+      // ── Memory relief between enumeration batches ──
+      if (global.gc) global.gc();
+      const enumBatchMem = process.memoryUsage();
+      const enumBatchHeapMB = enumBatchMem.heapUsed / 1024 / 1024;
+      const enumHeapLimit = (global as any).__heapLimitMB || 768;
+      if (enumBatchHeapMB > enumHeapLimit * 0.6) {
+        console.warn(`[MemoryBackpressure] Enum batch: heap at ${enumBatchHeapMB.toFixed(0)}MB/${enumHeapLimit}MB — pausing 2s`);
+        await new Promise(r => setTimeout(r, 2000));
+        if (global.gc) global.gc();
       }
       // ── Auto-escalate evasion if tools are being blocked ──
       if (failed > 0 && state.targetProfiles) {
@@ -5932,7 +5950,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
 
     // Execute nuclei tasks with concurrency semaphore
-    const NUCLEI_BATCH_SIZE = 4; // Process in batches matching maxConcurrentNuclei
+    const NUCLEI_BATCH_SIZE = 2; // Reduced from 4 to prevent OOM in constrained environments
     const concurrencyMetrics = getScanConcurrencyMetrics();
     const alreadyCompletedCount = state.completedScans?.nucleiCompleted.size || 0;
     const resumeNote = alreadyCompletedCount > 0 ? ` (${alreadyCompletedCount} already completed, skipped)` : '';
@@ -5958,6 +5976,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         const result = await executeNucleiWithRetry(nucleiArgs, target);
         // Update heartbeat after Nuclei execution completes
         if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
+        // Truncate stdout early to prevent holding multi-MB strings
+        if (result.stdout && result.stdout.length > 100_000) {
+          result.stdout = result.stdout.slice(0, 100_000);
+        }
+        if (result.stderr && result.stderr.length > 50_000) {
+          result.stderr = result.stderr.slice(0, 50_000);
+        }
 
         if (result.exitCode === -1 && !result.stdout) {
           phase3NucleiErrors++;
@@ -5990,8 +6015,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           timedOut: result.timedOut,
           findingCount: findings.length,
           findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
-          outputPreview: result.stdout.slice(0, 1024),
-          executedAt: Date.now(),
+          outputPreview: result.stdout.slice(0, 512),          executedAt: Date.now(),
           phase: 'vuln_detection',
         });
 
@@ -6045,6 +6069,19 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
       // Persist state after each batch completes (saves completedScans checkpoint)
       persistOpsStateDebounced(state.engagementId, 200);
+      // ── Memory relief between batches ──
+      if (global.gc) {
+        global.gc();
+      }
+      // Backpressure: if heap > 60% of limit, pause 2s to let GC reclaim
+      const batchMem = process.memoryUsage();
+      const batchHeapMB = batchMem.heapUsed / 1024 / 1024;
+      const heapLimit = (global as any).__heapLimitMB || 768;
+      if (batchHeapMB > heapLimit * 0.6) {
+        console.warn(`[MemoryBackpressure] Heap at ${batchHeapMB.toFixed(0)}MB/${heapLimit}MB (${(batchHeapMB/heapLimit*100).toFixed(0)}%) — pausing 2s before next batch`);
+        await new Promise(r => setTimeout(r, 2000));
+        if (global.gc) global.gc();
+      }
     }
 
     // Accurate summary: report Phase 3 nuclei findings separately from total
@@ -6119,6 +6156,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
           if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
           persistOpsStateDebounced(state.engagementId, 200);
+          // Memory relief between network scan batches
+          if (global.gc) global.gc();
         }
 
         addLog(state, {
@@ -6171,6 +6210,8 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           const batch = broadScanTasks.slice(i, i + NUCLEI_BATCH_SIZE);
           await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
           persistOpsStateDebounced(state.engagementId, 500);
+          // Memory relief between broad scan batches
+          if (global.gc) global.gc();
         }
         addLog(state, {
           phase: "vuln_detection", type: "scan_result",
@@ -7893,6 +7934,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             timeoutSeconds: 120,
             engagementId: state.engagementId,
           });
+          // Truncate stdout early to prevent holding multi-MB strings
+          if (result.stdout && result.stdout.length > 100_000) {
+            result.stdout = result.stdout.slice(0, 100_000);
+          }
+          if (result.stderr && result.stderr.length > 50_000) {
+            result.stderr = result.stderr.slice(0, 50_000);
+          }
 
           const findings = parseToolOutput(cmd.tool, result.stdout, asset);
           for (const f of findings) {
@@ -7910,7 +7958,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             timedOut: result.timedOut,
             findingCount: findings.length,
             findings: findings.map(f => ({ severity: f.severity, title: f.title, cve: f.cve, evidence: f.evidence?.proofText || undefined, attack: f.evidence?.attackPayload || undefined, method: f.evidence?.request?.method || undefined, url: f.evidence?.request?.url || undefined, param: f.evidence?.vulnerableParam || undefined, matchedPattern: f.evidence?.matchedPattern || undefined })),
-            outputPreview: result.stdout.slice(0, 1024),
+            outputPreview: result.stdout.slice(0, 512),
             executedAt: Date.now(),
             phase: 'credential_testing',
           });
@@ -11697,7 +11745,7 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
                 exitCode: result.exitCode, durationMs: result.durationMs || 0,
                 timedOut: result.timedOut || false, findingCount: findings.length,
                 findings: findings.map(f => ({ severity: f.severity, title: f.title })),
-                outputPreview: result.stdout.slice(0, 1024),
+                outputPreview: result.stdout.slice(0, 512),
                 executedAt: Date.now(), phase: 'deferred_retry',
               });
             }
