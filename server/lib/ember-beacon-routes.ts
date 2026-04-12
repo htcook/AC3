@@ -59,6 +59,11 @@ import {
   emitEmberOpsecScored,
   emitOpsecActionScored,
   emitOpsecBurnDetected,
+  emitEmberLateralMovement,
+  emitEmberNetworkDiscovered,
+  emitEmberCredentialHarvested,
+  emitEmberDataExfiltrated,
+  emitEmberPersistenceEstablished,
 } from "./ws-event-hub";
 
 // ── OPSEC Task-to-Action Mapping ───────────────────────────────────────────
@@ -342,6 +347,72 @@ export function registerEmberBeaconRoutes(app: Express): void {
                 engagementId: task.engagementId || undefined,
                 opsecRiskScore: opsecScore.riskScore,
               });
+
+              // ── Emit specialized battlespace events based on task type ──
+              if (result.status === "success") {
+                const params = typeof task.params === 'string' ? JSON.parse(task.params || '{}') : (task.params || {});
+                switch (task.type) {
+                  case "lateral_move":
+                    emitEmberLateralMovement({
+                      agentId,
+                      sourceHost: beaconData.hostname || "unknown",
+                      targetHost: params.targetHost || params.target || "unknown",
+                      targetIp: params.targetIp || params.ip || "unknown",
+                      method: params.method || "unknown",
+                      success: true,
+                      newAgentId: params.newAgentId,
+                      engagementId: task.engagementId || undefined,
+                    });
+                    break;
+                  case "cred_dump":
+                    emitEmberCredentialHarvested({
+                      agentId,
+                      credentialType: params.credType || "ntlm_hash",
+                      targetService: params.service || "lsass",
+                      username: params.username || "unknown",
+                      domain: params.domain,
+                      privilegeLevel: params.privilegeLevel || "user",
+                      engagementId: task.engagementId || undefined,
+                    });
+                    break;
+                  case "exfil":
+                    emitEmberDataExfiltrated({
+                      agentId,
+                      dataType: params.dataType || "file",
+                      sizeBytes: params.sizeBytes || 0,
+                      destination: params.destination || "c2",
+                      channel: params.channel || "https",
+                      engagementId: task.engagementId || undefined,
+                    });
+                    break;
+                  case "persist":
+                    emitEmberPersistenceEstablished({
+                      agentId,
+                      method: params.method || "unknown",
+                      targetHost: beaconData.hostname || "unknown",
+                      path: params.path,
+                      survivesReboot: params.survivesReboot ?? true,
+                      engagementId: task.engagementId || undefined,
+                    });
+                    break;
+                  case "recon":
+                    if (result.output) {
+                      try {
+                        const reconData = JSON.parse(result.output);
+                        if (reconData.discoveredHosts?.length > 0) {
+                          emitEmberNetworkDiscovered({
+                            agentId,
+                            discoveredHosts: reconData.discoveredHosts,
+                            networkRange: params.range || params.target || "unknown",
+                            scanType: params.scanType || "port_scan",
+                            engagementId: task.engagementId || undefined,
+                          });
+                        }
+                      } catch { /* non-JSON output, skip */ }
+                    }
+                    break;
+                }
+              }
 
               // Check for burn risk
               if (opsecScore.burnRisk) {

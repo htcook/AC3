@@ -1653,3 +1653,120 @@ export function emitEvidenceTamperDetected(data: {
   eventHub.broadcastEngagement(data.engagementId, event);
   eventHub.broadcastGlobal(event);
 }
+
+
+// ─── Ember Battlespace Events ──────────────────────────────────────────────
+// Specialized events for the real-time battlespace visualization
+
+/** Emit when an Ember agent performs lateral movement to a new host */
+export function emitEmberLateralMovement(data: {
+  agentId: string;
+  sourceHost: string;
+  targetHost: string;
+  targetIp: string;
+  method: string; // e.g. "psexec", "wmi", "ssh", "rdp", "smb"
+  success: boolean;
+  newAgentId?: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:lateral_movement",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an Ember agent discovers new hosts on the internal network */
+export function emitEmberNetworkDiscovered(data: {
+  agentId: string;
+  discoveredHosts: Array<{
+    ip: string;
+    hostname?: string;
+    os?: string;
+    ports: Array<{ port: number; protocol: string; service: string; version?: string }>;
+    mac?: string;
+  }>;
+  networkRange: string;
+  scanType: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:network_discovered",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an Ember agent harvests credentials */
+export function emitEmberCredentialHarvested(data: {
+  agentId: string;
+  credentialType: string; // "ntlm_hash", "kerberos_ticket", "plaintext", "ssh_key", "token"
+  targetService: string;
+  username: string;
+  domain?: string;
+  privilegeLevel: string;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:credential_harvested",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an Ember agent exfiltrates data */
+export function emitEmberDataExfiltrated(data: {
+  agentId: string;
+  dataType: string; // "file", "database", "email", "registry", "memory"
+  sizeBytes: number;
+  destination: string;
+  channel: string; // "https", "dns", "icmp"
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:data_exfiltrated",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}
+
+/** Emit when an Ember agent establishes persistence */
+export function emitEmberPersistenceEstablished(data: {
+  agentId: string;
+  method: string; // "registry_run", "scheduled_task", "service", "cron", "startup_folder", "dll_hijack"
+  targetHost: string;
+  path?: string;
+  survivesReboot: boolean;
+  engagementId?: number;
+}): void {
+  const event: WsEvent = {
+    type: "ember:persistence_established",
+    timestamp: Date.now(),
+    engagementId: data.engagementId,
+    data,
+  };
+  if (data.engagementId) {
+    eventHub.broadcastEngagement(data.engagementId, event);
+  }
+  eventHub.broadcastGlobal(event);
+}

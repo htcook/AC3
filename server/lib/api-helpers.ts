@@ -18,7 +18,7 @@ export function getCalderaCookieOptions(req: any, rememberMe = false) {
   
   const opts = {
     path: '/',
-    httpOnly: true,
+    httpOnly: false,
     secure: !isLocalhost,
     sameSite,
     maxAge: rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
