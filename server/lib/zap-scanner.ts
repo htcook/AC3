@@ -2028,10 +2028,36 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
         try {
           const oastServices = await zapRequest("/JSON/oast/view/getActiveScanService/", {}, cfg).catch(() => null);
           if (oastServices) {
-            console.log(`[ZAP OAST] Scan #${scanId}: Active scan complete. Waiting 15s for OAST callbacks...`);
-            await new Promise(r => setTimeout(r, 15000));
-            // OAST findings appear as regular ZAP alerts after the service polls for callbacks
-            console.log(`[ZAP OAST] Scan #${scanId}: OAST callback wait complete. Collecting all alerts including OAST findings.`);
+            // OAST callbacks can take 30-90s to arrive (DNS propagation + Interactsh polling).
+            // Wait in 15s intervals, polling for new alerts each cycle, up to 60s total.
+            const OAST_WAIT_INTERVAL = 15_000;
+            const OAST_MAX_WAIT = 60_000;
+            const oastWaitStart = Date.now();
+            let oastAlertsBefore = 0;
+            try {
+              const preAlerts = await zapRequest("/JSON/core/view/numberOfAlerts/", { baseurl: scan.targetUrl }, cfg);
+              oastAlertsBefore = parseInt(preAlerts?.numberOfAlerts || '0');
+            } catch {}
+
+            console.log(`[ZAP OAST] Scan #${scanId}: Active scan complete. Waiting up to 60s for OAST blind callbacks (${oastAlertsBefore} alerts before wait)...`);
+
+            while (Date.now() - oastWaitStart < OAST_MAX_WAIT) {
+              await new Promise(r => setTimeout(r, OAST_WAIT_INTERVAL));
+              // Check if new alerts arrived (OAST findings appear as regular ZAP alerts)
+              try {
+                const postAlerts = await zapRequest("/JSON/core/view/numberOfAlerts/", { baseurl: scan.targetUrl }, cfg);
+                const currentAlerts = parseInt(postAlerts?.numberOfAlerts || '0');
+                if (currentAlerts > oastAlertsBefore) {
+                  console.log(`[ZAP OAST] Scan #${scanId}: ${currentAlerts - oastAlertsBefore} new OAST-triggered alerts detected during wait`);
+                  oastAlertsBefore = currentAlerts;
+                  // New alerts arrived — wait one more cycle in case more are coming
+                  await new Promise(r => setTimeout(r, OAST_WAIT_INTERVAL));
+                  break;
+                }
+              } catch {}
+            }
+
+            console.log(`[ZAP OAST] Scan #${scanId}: OAST callback wait complete (${Math.round((Date.now() - oastWaitStart) / 1000)}s). Collecting all alerts including OAST findings.`);
           }
         } catch (oastPollErr: any) {
           console.warn(`[ZAP OAST] Scan #${scanId}: OAST callback collection warning (non-fatal): ${oastPollErr.message}`);

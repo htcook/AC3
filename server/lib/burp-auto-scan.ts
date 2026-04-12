@@ -42,6 +42,8 @@ export interface BurpAutoScanConfig {
   appLogin?: { username: string; password: string; loginUrl?: string };
   /** Scan mode from engagement */
   scanMode?: "strict_passive" | "standard" | "active";
+  /** Discovered technologies from fingerprinting — used to select optimal Burp scan config */
+  techHints?: string[];
 }
 
 export interface BurpAutoScanState {
@@ -238,6 +240,7 @@ export async function onEngagementVulnDetectionPhase(
   scopeUrls: string[],
   scanMode?: string,
   appLogin?: { username: string; password: string; loginUrl?: string },
+  techHints?: string[],
 ): Promise<BurpAutoScanState[]> {
   const db = await import("../db");
 
@@ -298,6 +301,7 @@ export async function onEngagementVulnDetectionPhase(
         },
         scanMode: (scanMode as any) || "standard",
         appLogin,
+        techHints,
       });
 
       results.push(state);
@@ -323,20 +327,70 @@ async function launchAndPoll(
 ): Promise<void> {
   const connector = new BurpSuiteConnector(config.burpConfig);
 
-  // ─── Step 1: Verify connection ───
+  // ─── Step 0: Pre-flight connectivity diagnostics ───
+  const diagnostics: string[] = [];
   try {
-    const verification = await connector.verify();
-    if (!verification.valid) {
+    // Check if Burp REST API is reachable
+    const burpUrl = new URL(config.burpConfig.baseUrl);
+    const netMod = await import('net');
+    const burpReachable = await new Promise<boolean>((resolve) => {
+      const sock = new netMod.default.Socket();
+      sock.setTimeout(5000);
+      sock.once('connect', () => { sock.destroy(); resolve(true); });
+      sock.once('timeout', () => { sock.destroy(); resolve(false); });
+      sock.once('error', () => { sock.destroy(); resolve(false); });
+      sock.connect(parseInt(burpUrl.port) || 1337, burpUrl.hostname);
+    });
+    diagnostics.push(`Burp API (${burpUrl.hostname}:${burpUrl.port || 1337}): ${burpReachable ? 'reachable' : 'UNREACHABLE'}`);
+
+    if (!burpReachable) {
       state.status = "failed";
-      state.error = `Burp Suite connection failed: ${verification.message}`;
+      state.error = `Burp Suite REST API unreachable at ${config.burpConfig.baseUrl}. Check that Burp is running with REST API enabled on the scan server.`;
       state.completedAt = Date.now();
       await persistUpdate(state);
       broadcastBurpUpdate(config.engagementId, state);
       return;
     }
+
+    // Check if target URLs are reachable from the scan server
+    const targetUrl = state.targetUrls[0];
+    if (targetUrl) {
+      try {
+        const targetHost = new URL(targetUrl);
+        const targetReachable = await new Promise<boolean>((resolve) => {
+          const sock = new netMod.default.Socket();
+          sock.setTimeout(5000);
+          sock.once('connect', () => { sock.destroy(); resolve(true); });
+          sock.once('timeout', () => { sock.destroy(); resolve(false); });
+          sock.once('error', () => { sock.destroy(); resolve(false); });
+          sock.connect(parseInt(targetHost.port) || (targetHost.protocol === 'https:' ? 443 : 80), targetHost.hostname);
+        });
+        diagnostics.push(`Target (${targetHost.hostname}): ${targetReachable ? 'reachable' : 'UNREACHABLE from scan server'}`);
+        if (!targetReachable) {
+          diagnostics.push('WARNING: Target may not be reachable from the Burp scan server. Scan may complete with 0 findings.');
+        }
+      } catch {}
+    }
+  } catch (diagErr: any) {
+    diagnostics.push(`Diagnostics error: ${diagErr.message}`);
+  }
+  console.log(`[BurpAutoScan] Pre-flight diagnostics: ${diagnostics.join(' | ')}`);
+
+  // ─── Step 1: Verify connection ───
+  try {
+    const verification = await connector.verify();
+    if (!verification.valid) {
+      state.status = "failed";
+      state.error = `Burp Suite connection failed: ${verification.message}. Diagnostics: ${diagnostics.join('; ')}`;
+      state.completedAt = Date.now();
+      await persistUpdate(state);
+      broadcastBurpUpdate(config.engagementId, state);
+      return;
+    }
+    diagnostics.push(`Burp API verified: ${verification.message}`);
   } catch (err: any) {
     state.status = "failed";
-    state.error = `Connection verification failed: ${err.message}`;
+    state.error = `Connection verification failed: ${err.message}. Diagnostics: ${diagnostics.join('; ')}`;
     state.completedAt = Date.now();
     await persistUpdate(state);
     broadcastBurpUpdate(config.engagementId, state);
@@ -345,18 +399,47 @@ async function launchAndPoll(
 
   // ─── Step 2: Launch scan ───
   try {
-    // Determine scan config based on scan mode
+    // Determine scan config based on scan mode AND tech stack
     let scanConfigName: string | undefined = config.scanConfigName;
     if (!scanConfigName) {
+      // Tech-stack aware config selection
+      const techStr = (config.techHints || []).join(' ').toLowerCase();
+      const hasJava = techStr.includes('java') || techStr.includes('tomcat') || techStr.includes('spring');
+      const hasPHP = techStr.includes('php') || techStr.includes('wordpress') || techStr.includes('laravel');
+      const hasDotNet = techStr.includes('asp.net') || techStr.includes('.net') || techStr.includes('iis');
+      const hasNode = techStr.includes('node') || techStr.includes('express') || techStr.includes('next.js');
+      const hasAPI = techStr.includes('api') || techStr.includes('graphql') || techStr.includes('rest');
+
       switch (config.scanMode) {
         case "strict_passive":
           scanConfigName = "Crawl and Audit - Lightweight";
           break;
         case "active":
-          scanConfigName = "Audit checks - all";
+          // For active mode, use the most thorough config
+          // Burp Pro named configs: "Audit checks - all", "Crawl and Audit - Balanced", "Crawl and Audit - Deep"
+          if (hasJava || hasDotNet) {
+            // Java/ASP.NET apps benefit from deep crawling (complex URL structures, viewstate, etc.)
+            scanConfigName = "Crawl and Audit - Deep";
+            console.log(`[BurpAutoScan] Tech-aware config: using Deep crawl for ${hasJava ? 'Java' : '.NET'} target`);
+          } else if (hasAPI) {
+            // API targets don't need crawling — just audit the endpoints
+            scanConfigName = "Audit checks - all";
+            console.log(`[BurpAutoScan] Tech-aware config: using Audit-only for API target`);
+          } else {
+            scanConfigName = "Audit checks - all";
+          }
           break;
         default:
-          scanConfigName = undefined; // Use Burp default
+          // Standard mode — balanced crawl + audit
+          if (hasAPI) {
+            scanConfigName = "Audit checks - all";
+          } else {
+            scanConfigName = "Crawl and Audit - Balanced";
+          }
+      }
+
+      if (config.techHints?.length) {
+        console.log(`[BurpAutoScan] Tech hints: [${config.techHints.slice(0, 5).join(', ')}], selected config: ${scanConfigName || 'default'}`);
       }
     }
 
@@ -534,6 +617,63 @@ async function launchAndPoll(
         });
       } catch (e: any) {
         console.warn(`[BurpAutoScan] Timeline event failed: ${e.message}`);
+      }
+
+      // ─── Step 4b: Detect 0-findings fast-complete and retry with audit-only ───
+      // If Burp completed in < 60s with 0 findings, it likely couldn't crawl the target.
+      // Retry with "Audit checks - all" (skip crawling, just audit the URLs directly).
+      const scanDurationMs = (state.completedAt || Date.now()) - state.startedAt;
+      const isSuspiciousFastComplete = scanDurationMs < 60_000 && normalized.length === 0;
+      if (isSuspiciousFastComplete && !(config as any)._isAuditOnlyRetry) {
+        console.log(
+          `[BurpAutoScan] Suspicious fast completion: ${Math.round(scanDurationMs / 1000)}s with 0 findings. ` +
+          `Retrying with audit-only mode (no crawl) to force Burp to audit the provided URLs directly.`
+        );
+
+        // Log diagnostic info
+        try {
+          const db = await import("../db");
+          await db.addTimelineEvent({
+            engagementId: config.engagementId,
+            eventType: "scan_warning",
+            title: `⚠️ Burp Suite Fast-Complete Detected (${Math.round(scanDurationMs / 1000)}s, 0 findings)`,
+            description: `Burp scan completed suspiciously fast with no findings. This usually means Burp couldn't reach the target or the crawl failed. ` +
+              `Retrying with audit-only mode on ${state.targetUrls.length} URLs. ` +
+              `Diagnostics: edition=${config.burpConfig.edition}, baseUrl=${config.burpConfig.baseUrl}, ` +
+              `targetUrls=${state.targetUrls.slice(0, 3).join(', ')}`,
+            severity: "warning",
+            sourceModule: "burp-auto-scan:fast-complete-retry",
+          });
+        } catch {}
+
+        // Retry with audit-only config
+        const retryConfig: BurpAutoScanConfig = {
+          ...config,
+          scanConfigName: "Audit checks - all",  // Skip crawling, audit URLs directly
+        };
+        (retryConfig as any)._isAuditOnlyRetry = true;
+
+        const retryState: BurpAutoScanState = {
+          ...state,
+          scanId: null,
+          status: "launching",
+          progress: 0,
+          issueCount: 0,
+          importedCount: 0,
+          startedAt: Date.now(),
+          completedAt: null,
+          error: null,
+          lastPollAt: null,
+          pollCount: 0,
+        };
+
+        activeBurpScans.set(key, retryState);
+        const retryDbId = await persistCreate(retryState, "Audit checks - all (retry)");
+        if (retryDbId) retryState.dbRecordId = retryDbId;
+
+        // Run the retry synchronously (we're already in the background)
+        await launchAndPoll(retryConfig, retryState, key);
+        return; // The retry will handle its own completion flow
       }
 
       // ─── Step 5: Feed findings into exploit matching engine ───

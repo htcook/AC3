@@ -5615,6 +5615,75 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     console.warn(`[EngagementOps] Failed to register Burp completion callback: ${cbErr.message}`);
   }
 
+  // ── Aggregate Harvested Credentials into Asset Confirmed Credentials ──
+  // Pull credentials from DeHashed, IntelX, Hudson Rock, LeakCheck (stored in engagementCredentialLists)
+  // and inject them into asset.confirmedCredentials so ZAP and Burp can use them for authenticated scanning.
+  try {
+    const { getEngagementCredentials } = await import("./credential-harvester");
+    const { credentials: harvestedCreds, stats: credStats } = await getEngagementCredentials(state.engagementId);
+
+    if (harvestedCreds.length > 0) {
+      // Filter to only creds with actual passwords (not hashes or redacted)
+      const usableCreds = harvestedCreds.filter(c =>
+        c.password && !c.password.startsWith('[') && c.password.length > 0
+      );
+
+      if (usableCreds.length > 0) {
+        let injectedCount = 0;
+        for (const asset of state.assets) {
+          if (!Array.isArray(asset.confirmedCredentials)) asset.confirmedCredentials = [];
+
+          // Match credentials to assets by domain
+          const assetDomain = asset.hostname?.toLowerCase() || '';
+          for (const cred of usableCreds) {
+            // Check if this credential's email domain matches the asset domain
+            const credDomain = cred.email?.split('@')[1]?.toLowerCase() || '';
+            const isRelevant = credDomain && assetDomain.includes(credDomain.split('.')[0]);
+
+            // Also inject all high-confidence creds into web-facing assets
+            const isWebAsset = asset.ports?.some((p: any) => [80, 443, 8080, 8443, 3000, 8000].includes(p.port));
+            const isHighConf = cred.confidence === 'high';
+
+            if (isRelevant || (isWebAsset && isHighConf)) {
+              const exists = asset.confirmedCredentials.some(
+                (c: any) => c.username === cred.username && c.password === cred.password
+              );
+              if (!exists) {
+                asset.confirmedCredentials.push({
+                  username: cred.username,
+                  password: cred.password,
+                  service: 'http-form',
+                  port: 80,
+                  protocol: 'http',
+                  accessLevel: 'unconfirmed',
+                  source: `harvested_${cred.source}`,
+                  confirmedAt: Date.now(),
+                } as any);
+                injectedCount++;
+              }
+            }
+          }
+        }
+
+        if (injectedCount > 0) {
+          addLog(state, {
+            phase: "vuln_detection", type: "info",
+            title: `\uD83D\uDD11 Credential Aggregation: ${injectedCount} breach creds injected`,
+            detail: `Pulled ${usableCreds.length} usable credentials from breach databases (${Object.entries(credStats.bySource).map(([s, n]) => `${s}: ${n}`).join(', ')}) and injected ${injectedCount} into asset confirmed credentials for authenticated ZAP/Burp scanning.`,
+          });
+        }
+      } else {
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `\uD83D\uDD11 Credential Harvest: ${harvestedCreds.length} found, 0 usable`,
+          detail: `Found ${harvestedCreds.length} harvested credentials but none had cleartext passwords. Sources: ${Object.entries(credStats.bySource).map(([s, n]) => `${s}: ${n}`).join(', ')}`,
+        });
+      }
+    }
+  } catch (credAggErr: any) {
+    console.warn(`[EngagementOps] Credential aggregation failed (non-fatal): ${credAggErr.message}`);
+  }
+
   // ── Extract app login for Burp authenticated scanning ──
   // If training lab mode, extract default creds for the first web asset so Burp can crawl behind login walls
   let burpAppLogin: { username: string; password: string; loginUrl?: string } | undefined;
@@ -5666,6 +5735,22 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     const { onEngagementVulnDetectionPhase, extractScopeUrls } = await import("./burp-auto-scan");
     const scopeUrls = extractScopeUrls(engagement, state);
     if (scopeUrls.length > 0) {
+      // Aggregate tech hints from all assets for Burp scan config selection
+      const allTechHints: string[] = [];
+      for (const asset of state.assets) {
+        if (asset.passiveRecon?.technologies) allTechHints.push(...asset.passiveRecon.technologies);
+        if (asset.ports) {
+          for (const p of asset.ports) {
+            if (p.version) allTechHints.push(p.version);
+          }
+        }
+        const profile = state.targetProfiles?.[asset.hostname];
+        if (profile?.fingerprint) {
+          if (profile.fingerprint.cms?.name) allTechHints.push(profile.fingerprint.cms.name);
+          if (profile.fingerprint.appFramework?.name) allTechHints.push(profile.fingerprint.appFramework.name);
+          if (profile.fingerprint.databases?.length) allTechHints.push(...profile.fingerprint.databases);
+        }
+      }
       const burpResults = await onEngagementVulnDetectionPhase(
         state.engagementId,
         operatorCtx.id,
@@ -5673,6 +5758,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         scopeUrls,
         engagement.scanMode || state.scanMode,
         burpAppLogin,
+        [...new Set(allTechHints)],
       );
       if (burpResults.length > 0) {
         addLog(state, {
