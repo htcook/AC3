@@ -1821,6 +1821,7 @@ Return valid JSON per the response_format schema.`;
       : state.assets?.[0]?.hostname?.includes('webgoat') ? 'webgoat'
       : state.assets?.[0]?.hostname?.includes('vampi') ? 'vampi'
       : state.assets?.[0]?.hostname?.includes('dvga') ? 'dvga'
+      : state.assets?.[0]?.hostname?.includes('brokencrystals') ? 'broken-crystals'
       : undefined;
     const methodologyCtx = buildMethodologyContext(targetPreset);
     const phaseToolCtx = buildPhaseToolContext('enumeration');
