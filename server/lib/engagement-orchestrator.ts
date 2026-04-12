@@ -5449,6 +5449,67 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     });
   }
 
+  // ── Taxonomy-based vulnerability enrichment ──
+  // Use the exploit source taxonomy to identify hypothesized vulnerabilities based on technology fingerprints
+  try {
+    const { getVulnsForTechnology, getMisconfigsForTechnology } = require('./exploit-source-taxonomy');
+    let taxonomyHypothesized = 0;
+    for (const asset of state.assets) {
+      const techs = [
+        ...(asset.type !== 'unknown' ? [asset.type] : []),
+        ...asset.ports.map((p: any) => p.service).filter(Boolean),
+        ...(asset.technologies || []),
+      ];
+      for (const tech of techs) {
+        // Get hypothesized vulns from taxonomy
+        const taxVulns = getVulnsForTechnology(tech);
+        for (const tv of taxVulns) {
+          // Only add as pendingVulns (low confidence) — they'll be confirmed by active scanning
+          const hypothesizedVuln = {
+            title: `[Taxonomy] ${tv.name} (hypothesized for ${tech})`,
+            severity: tv.severity,
+            source: 'exploit-taxonomy',
+            __taxonomyHint: true,
+            __vulnClassId: tv.id,
+            __category: tv.category,
+            __layer: tv.layer,
+          };
+          // Check if already discovered
+          const alreadyFound = asset.vulns.some((v: any) =>
+            v.title.toLowerCase().includes(tv.name.toLowerCase().split(' ')[0]) ||
+            (v.__vulnClassId && v.__vulnClassId === tv.id)
+          );
+          if (!alreadyFound) {
+            if (!asset.taxonomyHints) asset.taxonomyHints = [];
+            asset.taxonomyHints.push(hypothesizedVuln);
+            taxonomyHypothesized++;
+          }
+        }
+        // Get misconfigs from taxonomy
+        const misconfigs = getMisconfigsForTechnology(tech);
+        for (const mc of misconfigs) {
+          if (!asset.taxonomyHints) asset.taxonomyHints = [];
+          asset.taxonomyHints.push({
+            title: `[Taxonomy] Potential misconfiguration: ${mc}`,
+            severity: 'medium',
+            source: 'exploit-taxonomy',
+            __taxonomyHint: true,
+          });
+          taxonomyHypothesized++;
+        }
+      }
+    }
+    if (taxonomyHypothesized > 0) {
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: `🧬 Taxonomy enrichment: ${taxonomyHypothesized} hypothesized vulnerabilities`,
+        detail: `Exploit source taxonomy identified ${taxonomyHypothesized} potential vulnerabilities based on detected technologies. These will guide active scanning and be available for cross-layer reasoning during exploitation.`,
+      });
+    }
+  } catch (e: any) {
+    console.warn(`[ExploitTaxonomy] Enrichment failed: ${e.message}`);
+  }
+
   // ── Log Nuclei fast-path hint coverage ──
   const nucleiHintedVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter((v: any) => v.__nucleiHint).length, 0);
   if (nucleiHintedVulns > 0) {
@@ -8990,6 +9051,47 @@ ${await (async () => {
     { label: 'burp', content: burpExploitCtx || '' },
     { label: 'secrets', content: sourceSecretsExploitCtx },
     { label: 'threatActorCatalog', content: threatActorCatalogCtx },
+    // Cross-layer exploit reasoning engine — attack graph, multi-step paths, novel hypotheses
+    { label: 'crossLayerReasoning', content: (() => {
+      try {
+        const { runReasoningEngine, buildReasoningPromptSection } = require('./exploit-reasoning-engine');
+        const reasoningInput = {
+          engagementId: state.engagementId,
+          target: state.assets[0]?.hostname || '',
+          assets: state.assets.map((a: any) => ({
+            hostname: a.hostname,
+            ip: a.ip,
+            os: a.os,
+            technologies: [
+              ...(a.type !== 'unknown' ? [a.type] : []),
+              ...a.ports.map((p: any) => p.service).filter(Boolean),
+              ...(a.technologies || []),
+            ],
+            services: a.ports.map((p: any) => ({ port: p.port, service: p.service || '', version: p.version })),
+            vulns: a.vulns.map((v: any) => ({ title: v.title, severity: v.severity, cve: v.cve, description: v.description, source: v.source, port: v.port })),
+            confirmedCredentials: a.confirmedCredentials,
+            wafDetected: a.wafDetected,
+          })),
+          defenses: state.assets.some((a: any) => a.wafDetected && a.wafDetected !== 'none') ? ['waf' as const] : [],
+          enableLLMHypotheses: false,
+          maxPathDepth: 5,
+          trainingLabMode: state.engagementType === 'training_lab',
+        };
+        const output = runReasoningEngine(reasoningInput);
+        const promptSection = buildReasoningPromptSection(output);
+        // Log reasoning engine stats
+        addLog(state, {
+          phase: 'exploitation',
+          type: 'info',
+          title: '🧠 Cross-Layer Reasoning Engine',
+          detail: `Attack graph: ${output.graph.stats.totalNodes} nodes (${output.graph.stats.discoveredNodes} discovered, ${output.graph.stats.hypothesizedNodes} hypothesized), ${output.graph.stats.totalEdges} edges, ${output.graph.stats.totalPaths} paths. ${output.novelHypotheses.length} novel hypotheses generated. Coverage: ${Math.round(output.coverage.taxonomyCoverage * 100)}% of taxonomy.`,
+        });
+        return promptSection;
+      } catch (e: any) {
+        console.warn(`[ExploitReasoning] Failed: ${e.message}`);
+        return '';
+      }
+    })() },
     // Fingerprint-based CVE intelligence — prioritized exploit targets from service fingerprinting
     { label: 'fingerprintCveIntel', content: (() => {
       try {
