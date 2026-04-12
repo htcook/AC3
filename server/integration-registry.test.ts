@@ -352,27 +352,27 @@ import {
 } from "./lib/integration-registry/registry";
 
 describe("Registry Lifecycle", () => {
-  it("getAllIntegrations should include built-in catalog", () => {
-    const all = getAllIntegrations();
+  it("getAllIntegrations should include built-in catalog", async () => {
+    const all = await getAllIntegrations();
     expect(all.length).toBeGreaterThanOrEqual(BUILTIN_CATALOG.length);
   });
 
-  it("getIntegration should find built-in integrations", () => {
-    const shodan = getIntegration("shodan");
+  it("getIntegration should find built-in integrations", async () => {
+    const shodan = await getIntegration("shodan");
     expect(shodan).toBeDefined();
     expect((shodan as any).displayName).toContain("Shodan");
   });
 
-  it("getIntegrationsByCategory should filter correctly", () => {
-    const osint = getIntegrationsByCategory("osint");
+  it("getIntegrationsByCategory should filter correctly", async () => {
+    const osint = await getIntegrationsByCategory("osint");
     expect(osint.length).toBeGreaterThan(0);
     for (const item of osint) {
       expect(item.category).toBe("osint");
     }
   });
 
-  it("getIntegrationsByStage should filter correctly", () => {
-    const recon = getIntegrationsByStage("recon");
+  it("getIntegrationsByStage should filter correctly", async () => {
+    const recon = await getIntegrationsByStage("recon");
     expect(recon.length).toBeGreaterThan(0);
     for (const item of recon) {
       const stages = (item as any).pipelineStages || (item as any).capabilities?.pipelineStages || [];
@@ -380,43 +380,249 @@ describe("Registry Lifecycle", () => {
     }
   });
 
-  it("getCategorySummary should return all categories with counts", () => {
-    const summary = getCategorySummary();
+  it("getCategorySummary should return all categories with counts", async () => {
+    const summary = await getCategorySummary();
     expect(summary.length).toBe(11);
     const osintSummary = summary.find(s => s.category === "osint");
     expect(osintSummary).toBeDefined();
     expect(osintSummary!.builtInCount).toBeGreaterThan(0);
   });
 
-  it("getHealthSummary should return correct counts", () => {
-    const health = getHealthSummary();
+  it("getHealthSummary should return correct counts", async () => {
+    const health = await getHealthSummary();
     expect(health.total).toBeGreaterThanOrEqual(BUILTIN_CATALOG.length);
     expect(health.builtIn).toBe(BUILTIN_CATALOG.length);
   });
 
-  it("activateIntegration should fail for non-existent integration", () => {
-    const result = activateIntegration("non-existent-id");
+  it("activateIntegration should fail for non-existent integration", async () => {
+    const result = await activateIntegration("non-existent-id");
     expect(result.success).toBe(false);
     expect(result.error).toBeTruthy();
   });
 
-  it("pauseIntegration should fail for non-existent integration", () => {
-    const result = pauseIntegration("non-existent-id");
+  it("pauseIntegration should fail for non-existent integration", async () => {
+    const result = await pauseIntegration("non-existent-id");
     expect(result.success).toBe(false);
   });
 
-  it("removeIntegration should fail for non-existent integration", () => {
-    const result = removeIntegration("non-existent-id");
+  it("removeIntegration should fail for non-existent integration", async () => {
+    const result = await removeIntegration("non-existent-id");
     expect(result.success).toBe(false);
   });
 
-  it("submitCustomerReview should fail for non-existent discovery", () => {
-    const result = submitCustomerReview("non-existent-discovery", {
+  it("submitCustomerReview should fail for non-existent discovery", async () => {
+    const result = await submitCustomerReview("non-existent-discovery", {
       approved: true,
       reviewedBy: "test-user",
       reviewedAt: Date.now(),
     });
     expect(result.success).toBe(false);
     expect(result.error).toContain("not found");
+  });
+});
+
+
+// ─── DB Persistence Tests ─────────────────────────────────────────
+
+import * as db from "./db";
+
+describe("Customer Integration DB Persistence", () => {
+  it("createCustomerIntegration should insert and return an ID", async () => {
+    const id = await db.createCustomerIntegration({
+      integrationId: `test-persist-${Date.now()}`,
+      name: "test-persist",
+      displayName: "Test Persistence Integration",
+      category: "osint",
+      pipelineStages: JSON.stringify(["recon", "passive_discovery"]),
+      dataTypes: JSON.stringify(["subdomains"]),
+      authMethod: "api_key",
+      endpointBaseUrl: "https://api.example.com",
+      credentials: JSON.stringify({ apiKey: "test-key" }),
+      status: "proposed",
+      autoDiscoveryResult: JSON.stringify({ classification: { category: "osint" } }),
+      addedBy: "1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    expect(id).toBeGreaterThan(0);
+  });
+
+  it("getCustomerIntegrationsByStatus should filter by status", async () => {
+    const uniqueId = `test-status-${Date.now()}`;
+    await db.createCustomerIntegration({
+      integrationId: uniqueId,
+      name: "status-filter-test",
+      displayName: "Status Filter Test",
+      category: "scanner",
+      pipelineStages: JSON.stringify(["vuln_detection"]),
+      dataTypes: JSON.stringify(["vulnerabilities"]),
+      authMethod: "bearer_token",
+      endpointBaseUrl: "https://scanner.example.com",
+      credentials: JSON.stringify({}),
+      status: "active",
+      addedBy: "1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const active = await db.getCustomerIntegrationsByStatus("active");
+    const found = active.find(i => i.integrationId === uniqueId);
+    expect(found).toBeDefined();
+    expect(found?.status).toBe("active");
+  });
+
+  it("updateCustomerIntegration should update fields", async () => {
+    const uniqueId = `test-update-${Date.now()}`;
+    await db.createCustomerIntegration({
+      integrationId: uniqueId,
+      name: "update-test",
+      displayName: "Update Test",
+      category: "threat_intel",
+      pipelineStages: JSON.stringify(["enrichment"]),
+      dataTypes: JSON.stringify(["threat_indicators"]),
+      authMethod: "api_key",
+      endpointBaseUrl: "https://ti.example.com",
+      credentials: JSON.stringify({}),
+      status: "proposed",
+      addedBy: "1",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await db.updateCustomerIntegration(uniqueId, {
+      status: "approved",
+      displayName: "Updated Name",
+    } as any);
+
+    const updated = await db.getCustomerIntegrationByIntegrationId(uniqueId);
+    expect(updated?.status).toBe("approved");
+    expect(updated?.displayName).toBe("Updated Name");
+  });
+});
+
+// ─── Health Monitor Tests ─────────────────────────────────────────
+
+import {
+  getHealthStatusSummary,
+} from "./lib/integration-registry/health-monitor";
+
+describe("Health Monitor", () => {
+  it("getHealthStatusSummary should return initial empty state", () => {
+    const summary = getHealthStatusSummary();
+    expect(summary).toBeDefined();
+    expect(typeof summary.tracked).toBe("number");
+    expect(typeof summary.healthy).toBe("number");
+    expect(typeof summary.down).toBe("number");
+    expect(typeof summary.authExpired).toBe("number");
+    expect(typeof summary.rateLimited).toBe("number");
+  });
+
+  it("createHealthCheck should record a check in the DB", async () => {
+    const uniqueId = `health-test-${Date.now()}`;
+    await db.createHealthCheck({
+      integrationId: uniqueId,
+      status: "healthy",
+      httpStatus: 200,
+      latencyMs: 150,
+      errorMessage: null,
+      checkedAt: Date.now(),
+    } as any);
+
+    // hoursBack = 24 by default, our check was just created so it should be within range
+    const history = await db.getHealthCheckHistory(uniqueId, 24);
+    expect(history.length).toBeGreaterThanOrEqual(1);
+    const latest = history.find(h => h.integrationId === uniqueId);
+    expect(latest?.status).toBe("healthy");
+    expect(latest?.httpStatus).toBe(200);
+  });
+});
+
+// ─── Pipeline Bridge Tests ────────────────────────────────────────
+
+import {
+  getActiveSourcesForStage,
+} from "./lib/integration-registry/pipeline-bridge";
+
+describe("Pipeline Bridge", () => {
+  it("getActiveIntegrationsForStage should return array for any stage", async () => {
+    const integrations = await getActiveSourcesForStage("recon");
+    expect(Array.isArray(integrations)).toBe(true);
+  });
+
+  it("getActiveSourcesForStage should return array for vuln_detection", async () => {
+    const integrations = await getActiveSourcesForStage("vuln_detection");
+    expect(Array.isArray(integrations)).toBe(true);
+  });
+
+  it("getActiveSourcesForStage should return array for exploitation", async () => {
+    const integrations = await getActiveSourcesForStage("exploitation");
+    expect(Array.isArray(integrations)).toBe(true);
+  });
+});
+
+// ─── Scan Scheduler Change Detection Fix Tests ────────────────────
+
+import { detectSubdomainChanges } from "./lib/domain-intel-advanced";
+
+describe("Scan Scheduler Change Detection (Fixed)", () => {
+  it("detectSubdomainChanges should accept 10 parameters and return structured result", () => {
+    const result = detectSubdomainChanges(
+      1,    // currentScanId
+      0,    // previousScanId
+      "example.com",
+      [],   // currentAssets
+      [],   // previousAssets
+      { discoveredSubdomains: [], discoveredPorts: [] },  // currentPipeline
+      { discoveredSubdomains: [], discoveredPorts: [] },  // previousPipeline
+      Date.now(),
+      Date.now() - 86400000,
+    );
+
+    expect(result).toBeDefined();
+    expect(result.domain).toBe("example.com");
+    expect(result.totalChanges).toBe(0);
+    expect(Array.isArray(result.newSubdomains)).toBe(true);
+    expect(Array.isArray(result.removedSubdomains)).toBe(true);
+    expect(Array.isArray(result.modifiedSubdomains)).toBe(true);
+  });
+
+  it("should detect new subdomains from pipeline output", () => {
+    const result = detectSubdomainChanges(
+      2, 1, "example.com",
+      [], [],
+      {
+        discoveredSubdomains: [
+          { name: "new.example.com", ip: "1.2.3.4" },
+          { name: "api.example.com", ip: "5.6.7.8" },
+        ],
+        discoveredPorts: [],
+      },
+      { discoveredSubdomains: [], discoveredPorts: [] },
+      Date.now(),
+      Date.now() - 86400000,
+    );
+
+    expect(result.totalChanges).toBe(2);
+    expect(result.newSubdomains.length).toBe(2);
+    expect(result.newSubdomains[0].changeType).toBe("new");
+  });
+
+  it("should detect removed subdomains", () => {
+    const result = detectSubdomainChanges(
+      2, 1, "example.com",
+      [], [],
+      { discoveredSubdomains: [], discoveredPorts: [] },
+      {
+        discoveredSubdomains: [
+          { name: "old.example.com", ip: "1.2.3.4" },
+        ],
+        discoveredPorts: [],
+      },
+      Date.now(),
+      Date.now() - 86400000,
+    );
+
+    expect(result.removedSubdomains.length).toBe(1);
+    expect(result.removedSubdomains[0].changeType).toBe("removed");
   });
 });

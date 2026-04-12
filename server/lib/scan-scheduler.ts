@@ -256,22 +256,51 @@ async function triggerScheduledScan(monitor: any): Promise<void> {
     let changesDetected = 0;
     if (monitor.baselineSnapshot) {
       try {
-        const currentSnapshot = buildScanSnapshot(scanId, monitor.domain, result);
-        const previousSnapshot = {
-          scanId: 0,
-          domain: monitor.domain,
-          scanDate: new Date(monitor.lastScanAt || 0).getTime(),
-          subdomains: new Map(Object.entries(monitor.baselineSnapshot.subdomains || {})),
-          ports: new Map(Object.entries(monitor.baselineSnapshot.ports || {})),
-          technologies: new Map(Object.entries(monitor.baselineSnapshot.technologies || {})),
+        // Get previous scan's assets for proper comparison
+        // The baseline stores the previous scan's pipeline output shape
+        const previousScanId = 0; // baseline doesn't track scan IDs
+        const previousScanDate = new Date(monitor.lastScanAt || 0).getTime();
+        
+        // Reconstruct previous assets from baseline snapshot for the change detection function
+        const baselineSubdomains = monitor.baselineSnapshot.subdomains || {};
+        const previousAssets = Object.entries(baselineSubdomains).map(([hostname, data]: [string, any]) => ({
+          hostname,
+          dnsRecords: data.ips ? { A: data.ips } : null,
+          technologies: data.technologies || [],
+          postureFindings: (data.ports || []).map((p: number) => ({ category: 'open_port', title: `Open port ${p}` })),
+        }));
+        
+        // Build previous pipeline output from baseline
+        const previousPipeline = {
+          discoveredSubdomains: Object.entries(baselineSubdomains).map(([name, data]: [string, any]) => ({
+            name,
+            ip: data.ips?.[0] || null,
+            tags: data.tags || [],
+          })),
+          discoveredPorts: Object.entries(monitor.baselineSnapshot.ports || {}).map(([key, data]: [string, any]) => {
+            const [ip, port] = key.split(':');
+            return { ip, port: parseInt(port), hostname: ip, transport: data.transport || 'tcp', product: data.product || '' };
+          }),
         };
 
-        const changeResult = (detectSubdomainChanges as any)(currentSnapshot, previousSnapshot);
-        changesDetected = ((changeResult as any)?.changes || []).length;
+        const changeResult = detectSubdomainChanges(
+          scanId,
+          previousScanId,
+          monitor.domain,
+          storedAssets,
+          previousAssets,
+          trimmedOutput,
+          previousPipeline,
+          Date.now(),
+          previousScanDate
+        );
+        
+        const allChanges = [...changeResult.newSubdomains, ...changeResult.removedSubdomains, ...changeResult.modifiedSubdomains];
+        changesDetected = allChanges.length;
 
         if (changesDetected > 0) {
           await db.bulkCreateMonitorChanges(
-            ((changeResult as any)?.changes || []).slice(0, 50).map((c: any) => ({
+            allChanges.slice(0, 50).map((c: any) => ({
               monitorId: monitor.id,
               domain: monitor.domain,
               changeType: c.changeType,
@@ -288,7 +317,7 @@ async function triggerScheduledScan(monitor: any): Promise<void> {
               const { notifyOwner } = await import("../_core/notification");
               await notifyOwner({
                 title: `Scheduled Scan Alert: ${changesDetected} change(s) on ${monitor.domain}`,
-                content: `Automated scan detected ${changesDetected} infrastructure change(s) on ${monitor.domain}.\n\nTop changes:\n${((changeResult as any)?.changes || []).slice(0, 5).map((c: any) => `• [${c.severity.toUpperCase()}] ${c.description}`).join("\n")}`,
+                content: `Automated scan detected ${changesDetected} infrastructure change(s) on ${monitor.domain}.\n\nTop changes:\n${allChanges.slice(0, 5).map((c: any) => `[${c.severity.toUpperCase()}] ${c.description}`).join("\n")}`,
               });
             } catch { /* notification non-fatal */ }
           }
@@ -358,32 +387,51 @@ function buildScanSnapshot(scanId: number, domain: string, result: any) {
   const subdomains = new Map<string, any>();
   const ports = new Map<string, any>();
   const technologies = new Map<string, any>();
-
   if (result.passiveRecon?.allObservations) {
     for (const obs of result.passiveRecon.allObservations) {
       if (obs.assetType === "subdomain" && obs.name) {
-        subdomains.set(obs.name, { ips: obs.ip ? [obs.ip] : [], source: obs.source, tags: obs.tags || [] });
+        const existing = subdomains.get(obs.name);
+        if (existing) {
+          if (obs.ip && !existing.ips.includes(obs.ip)) existing.ips.push(obs.ip);
+        } else {
+          subdomains.set(obs.name, { ips: obs.ip ? [obs.ip] : [], ports: [], services: [], technologies: [], source: obs.source, tags: obs.tags || [] });
+        }
       }
       if (obs.assetType === "ip" && obs.ip) {
         const evidence = obs.evidence as any;
         if (evidence?.port) {
           ports.set(`${obs.ip}:${evidence.port}`, { port: evidence.port, transport: evidence.transport || "tcp", product: evidence.product || "", version: evidence.version || "" });
+          // Also add port info to matching subdomains
+          const hostname = obs.name || obs.ip;
+          const sub = subdomains.get(hostname);
+          if (sub && !sub.ports.includes(evidence.port)) {
+            sub.ports.push(evidence.port);
+            if (evidence.product && !sub.services.includes(evidence.product)) sub.services.push(evidence.product);
+          }
         }
       }
     }
   }
-
   if (Array.isArray(result.assets)) {
     for (const a of result.assets) {
+      const hostname = a.asset?.hostname;
       if (a.asset?.technologies) {
         for (const t of a.asset.technologies) {
-          if (!technologies.has(t)) technologies.set(t, { hosts: [a.asset.hostname] });
-          else technologies.get(t)!.hosts.push(a.asset.hostname);
+          if (!technologies.has(t)) technologies.set(t, { hosts: [hostname] });
+          else technologies.get(t)!.hosts.push(hostname);
+        }
+        // Also add technologies to subdomain entry
+        if (hostname) {
+          const sub = subdomains.get(hostname);
+          if (sub) {
+            for (const t of a.asset.technologies) {
+              if (!sub.technologies.includes(t)) sub.technologies.push(t);
+            }
+          }
         }
       }
     }
   }
-
   return { scanId, domain, scanDate: Date.now(), subdomains, ports, technologies };
 }
 
@@ -435,6 +483,16 @@ export function initScanScheduler(): void {
       console.error("[ScanScheduler] Initial check failed:", err);
     });
   }, 3 * 60 * 1000);
+
+  // Start integration health monitoring (every 5 minutes, deferred 2 min)
+  setTimeout(async () => {
+    try {
+      const { startPeriodicHealthChecks } = await import('./integration-registry/health-monitor');
+      startPeriodicHealthChecks(5 * 60 * 1000);
+    } catch (err: any) {
+      console.error('[ScanScheduler] Failed to start integration health monitor:', err.message);
+    }
+  }, 2 * 60 * 1000);
 }
 
 /**
@@ -446,6 +504,10 @@ export function stopScanScheduler(): void {
     _cronTask = null;
     console.log("[ScanScheduler] Stopped");
   }
+  // Also stop integration health monitoring
+  import('./integration-registry/health-monitor').then(({ stopPeriodicHealthChecks }) => {
+    stopPeriodicHealthChecks();
+  }).catch(() => { /* non-fatal */ });
 }
 
 /**

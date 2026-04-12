@@ -8,6 +8,7 @@
  *   - Review & approve proposals (human-in-the-loop)
  *   - Manage lifecycle (activate, pause, remove)
  *   - Pipeline coverage analysis
+ *   - API health monitoring with periodic checks
  */
 
 import { z } from "zod";
@@ -64,45 +65,45 @@ export const integrationRegistryRouter = router({
   // ─── Catalog Browsing ─────────────────────────────────────────────
 
   /** Get all integrations (built-in + customer) */
-  getAll: protectedProcedure.query(() => {
+  getAll: protectedProcedure.query(async () => {
     return getAllIntegrations();
   }),
 
   /** Get a single integration by ID */
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(({ input }) => {
-      return getIntegration(input.id) ?? null;
+    .query(async ({ input }) => {
+      return (await getIntegration(input.id)) ?? null;
     }),
 
   /** Get integrations by category */
   getByCategory: protectedProcedure
     .input(z.object({ category: categoryEnum }))
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       return getIntegrationsByCategory(input.category as IntegrationCategory);
     }),
 
   /** Get integrations by pipeline stage */
   getByStage: protectedProcedure
     .input(z.object({ stage: stageEnum }))
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       return getIntegrationsByStage(input.stage as PipelineStage);
     }),
 
   /** Get customer-added integrations only */
-  getCustomer: protectedProcedure.query(() => {
+  getCustomer: protectedProcedure.query(async () => {
     return getCustomerIntegrations();
   }),
 
   /** Get integrations by status */
   getByStatus: protectedProcedure
     .input(z.object({ status: statusEnum }))
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       return getIntegrationsByStatus(input.status as IntegrationStatus);
     }),
 
   /** Get category summary with counts */
-  getCategorySummary: protectedProcedure.query(() => {
+  getCategorySummary: protectedProcedure.query(async () => {
     return getCategorySummary();
   }),
 
@@ -150,7 +151,7 @@ export const integrationRegistryRouter = router({
       notes: z.string().optional(),
       priority: z.number().min(1).max(5).optional(),
     }))
-    .mutation(({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       return submitCustomerReview(input.discoveryId, {
         approved: input.approved,
         correctedCategory: input.correctedCategory as IntegrationCategory | undefined,
@@ -168,35 +169,90 @@ export const integrationRegistryRouter = router({
   /** Activate an approved integration */
   activate: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       return activateIntegration(input.id);
     }),
 
   /** Pause an active integration */
   pause: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       return pauseIntegration(input.id);
     }),
 
   /** Remove a customer integration */
   remove: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       return removeIntegration(input.id);
     }),
 
   // ─── Pipeline Coverage & Health ───────────────────────────────────
 
   /** Get pipeline coverage report */
-  getCoverage: protectedProcedure.query(() => {
+  getCoverage: protectedProcedure.query(async () => {
     return getPipelineCoverageReport();
   }),
 
   /** Get integration health summary */
-  getHealth: protectedProcedure.query(() => {
+  getHealth: protectedProcedure.query(async () => {
     return getHealthSummary();
   }),
+
+  // ─── Health Monitoring ────────────────────────────────────────────
+
+  /** Get health check history for a specific integration */
+  getHealthHistory: protectedProcedure
+    .input(z.object({
+      integrationId: z.string(),
+      hoursBack: z.number().min(1).max(168).default(24),
+    }))
+    .query(async ({ input }) => {
+      const { getHealthCheckHistory } = await import("../db");
+      return getHealthCheckHistory(input.integrationId, input.hoursBack);
+    }),
+
+  /** Get latest health status for all customer integrations */
+  getHealthDashboard: protectedProcedure.query(async () => {
+    const { getLatestHealthCheckPerIntegration, getAllCustomerIntegrations } = await import("../db");
+    const [healthChecks, integrations] = await Promise.all([
+      getLatestHealthCheckPerIntegration(),
+      getAllCustomerIntegrations(),
+    ]);
+
+    const healthMap = new Map(healthChecks.map(h => [h.integrationId, h]));
+
+    return integrations.map(integ => ({
+      integrationId: integ.integrationId,
+      displayName: integ.displayName,
+      category: integ.category,
+      status: integ.status,
+      lastHealthCheck: healthMap.get(integ.integrationId) || null,
+      lastHealthStatus: integ.lastHealthStatus,
+      totalCalls: integ.totalCalls,
+      totalErrors: integ.totalErrors,
+      avgLatencyMs: integ.avgLatencyMs,
+    }));
+  }),
+
+  /** Trigger an immediate health check for a specific integration */
+  triggerHealthCheck: protectedProcedure
+    .input(z.object({ integrationId: z.string() }))
+    .mutation(async ({ input }) => {
+      const { runHealthCheckForIntegration } = await import("../lib/integration-registry/health-monitor");
+      return runHealthCheckForIntegration(input.integrationId);
+    }),
+
+  /** Get execution logs for an integration */
+  getExecutionLogs: protectedProcedure
+    .input(z.object({
+      integrationId: z.string(),
+      limit: z.number().min(1).max(200).default(50),
+    }))
+    .query(async ({ input }) => {
+      const { getExecutionLogsByIntegration } = await import("../db");
+      return getExecutionLogsByIntegration(input.integrationId, input.limit);
+    }),
 
   // ─── Test Mode ────────────────────────────────────────────────────
 
@@ -208,7 +264,6 @@ export const integrationRegistryRouter = router({
       apiKeyHeader: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      // Import probeApi directly for lightweight testing
       const { probeApi } = await import("../lib/integration-registry/auto-discovery-engine");
       return probeApi(input);
     }),

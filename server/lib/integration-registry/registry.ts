@@ -1,5 +1,5 @@
 /**
- * Integration Registry — Central Orchestrator
+ * Integration Registry — Central Orchestrator (DB-Backed)
  * ═══════════════════════════════════════════════════════════════════════
  * 
  * The single entry point for all integration management. Ties together:
@@ -9,8 +9,9 @@
  *   - Value assessment (overlap analysis, coverage gaps)
  *   - Customer review workflow (propose → review → approve → activate)
  * 
- * State is held in-memory with DB persistence for customer-added integrations.
- * Built-in integrations are always available from the catalog.
+ * Customer integrations are persisted to the `customer_integrations` DB table.
+ * Built-in integrations are always available from the in-memory catalog.
+ * Discovery/wiring caches are transient (in-memory) since they're session-scoped.
  */
 
 import { BUILTIN_CATALOG, CATALOG_BY_ID, type CatalogEntry } from "./builtin-catalog";
@@ -29,63 +30,181 @@ import type {
 import { CATEGORY_METADATA, PIPELINE_STAGE_METADATA } from "./types";
 
 // ═══════════════════════════════════════════════════════════════════════
-// §1 — IN-MEMORY STORE
+// §1 — DB HELPERS (lazy import to avoid circular deps)
 // ═══════════════════════════════════════════════════════════════════════
 
-/** Customer-added integrations (keyed by integration ID) */
-const customerIntegrations = new Map<string, IntegrationDefinition>();
+async function db() {
+  return import("../../db");
+}
 
-/** Credential store (keyed by `${integrationId}:${tenantId}`) */
-const credentialStore = new Map<string, IntegrationCredential>();
+// ═══════════════════════════════════════════════════════════════════════
+// §1b — TRANSIENT CACHES (session-scoped, not persisted)
+// ═══════════════════════════════════════════════════════════════════════
 
-/** Discovery results cache (keyed by discovery ID) */
+/** Discovery results cache (keyed by discovery ID) — transient per session */
 const discoveryCache = new Map<string, DiscoveryPipelineResult>();
 
-/** Wiring proposals cache (keyed by integration ID) */
+/** Wiring proposals cache (keyed by discovery ID) — transient per session */
 const wiringCache = new Map<string, WiringProposal>();
 
+/** Credential store (keyed by `${integrationId}:${tenantId}`) — in-memory for fast access */
+const credentialStore = new Map<string, IntegrationCredential>();
+
 // ═══════════════════════════════════════════════════════════════════════
-// §2 — REGISTRY QUERIES
+// §2 — CONVERSION: DB row ↔ IntegrationDefinition
 // ═══════════════════════════════════════════════════════════════════════
 
-/** Get all integrations (built-in + customer-added) */
-export function getAllIntegrations(): Array<CatalogEntry | IntegrationDefinition> {
-  return [...BUILTIN_CATALOG, ...customerIntegrations.values()];
+function dbRowToDefinition(row: any): IntegrationDefinition {
+  return {
+    id: row.integrationId,
+    name: row.name,
+    displayName: row.displayName,
+    description: row.description || "",
+    category: row.category as IntegrationCategory,
+    licenseModel: row.licenseModel || "custom",
+    status: row.status as IntegrationStatus,
+    auth: row.authConfig || {
+      method: row.authMethod || "api_key",
+      fields: { apiKey: { label: "API Key", placeholder: "Enter your API key", required: true, sensitive: true } },
+      injection: "header",
+      headerName: "X-API-Key",
+    },
+    endpoint: row.endpointConfig || {
+      baseUrl: row.endpointBaseUrl || "",
+      dataFormat: "json",
+      timeout: 30_000,
+    },
+    capabilities: row.capabilities || {
+      dataTypes: row.dataTypes || [],
+      pipelineStages: row.pipelineStages || [],
+      enhancesModules: [],
+      inputTypes: row.inputTypes || [],
+      outputTypes: row.outputTypes || [],
+      supportsPassiveOnly: true,
+      requiresActiveProbing: false,
+    },
+    valueAssessment: row.valueAssessment,
+    autoDiscovery: row.autoDiscoveryResult,
+    customerReview: row.customerReview,
+    pipelineWiring: row.pipelineWiring,
+    addedBy: row.addedBy || "customer",
+    allowCustomerOverride: true,
+    isBuiltIn: Boolean(row.isBuiltIn),
+    tags: row.tags || [row.category, ...(row.pipelineStages || [])],
+    lastError: row.lastError || undefined,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function definitionToDbRow(def: IntegrationDefinition): any {
+  return {
+    integrationId: def.id,
+    name: def.name,
+    displayName: def.displayName,
+    description: def.description,
+    category: def.category,
+    licenseModel: def.licenseModel || "custom",
+    status: def.status,
+    authMethod: def.auth?.method || "api_key",
+    authConfig: def.auth,
+    endpointBaseUrl: def.endpoint?.baseUrl || "",
+    endpointConfig: def.endpoint,
+    pipelineStages: def.capabilities?.pipelineStages || [],
+    dataTypes: def.capabilities?.dataTypes || [],
+    inputTypes: def.capabilities?.inputTypes || [],
+    outputTypes: def.capabilities?.outputTypes || [],
+    capabilities: def.capabilities,
+    pipelineWiring: def.pipelineWiring,
+    valueAssessment: def.valueAssessment,
+    autoDiscoveryResult: def.autoDiscovery,
+    customerReview: def.customerReview,
+    tags: def.tags,
+    priority: 3,
+    isBuiltIn: 0,
+    addedBy: def.addedBy || "customer",
+    lastError: def.lastError || null,
+    createdAt: def.createdAt || Date.now(),
+    updatedAt: def.updatedAt || Date.now(),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3 — REGISTRY QUERIES (DB-backed)
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Get all integrations (built-in + customer-added from DB) */
+export async function getAllIntegrations(): Promise<Array<CatalogEntry | IntegrationDefinition>> {
+  try {
+    const { getAllCustomerIntegrations } = await db();
+    const dbRows = await getAllCustomerIntegrations();
+    return [...BUILTIN_CATALOG, ...dbRows.map(dbRowToDefinition)];
+  } catch {
+    return [...BUILTIN_CATALOG];
+  }
 }
 
 /** Get a specific integration by ID */
-export function getIntegration(id: string): CatalogEntry | IntegrationDefinition | undefined {
-  return CATALOG_BY_ID.get(id) || customerIntegrations.get(id);
+export async function getIntegration(id: string): Promise<CatalogEntry | IntegrationDefinition | undefined> {
+  const builtIn = CATALOG_BY_ID.get(id);
+  if (builtIn) return builtIn;
+  try {
+    const { getCustomerIntegrationByIntegrationId } = await db();
+    const row = await getCustomerIntegrationByIntegrationId(id);
+    return row ? dbRowToDefinition(row) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Get all integrations for a category */
-export function getIntegrationsByCategory(category: IntegrationCategory): Array<CatalogEntry | IntegrationDefinition> {
+export async function getIntegrationsByCategory(category: IntegrationCategory): Promise<Array<CatalogEntry | IntegrationDefinition>> {
   const builtIn = BUILTIN_CATALOG.filter(e => e.category === category);
-  const custom = [...customerIntegrations.values()].filter(e => e.category === category);
-  return [...builtIn, ...custom];
+  try {
+    const { getCustomerIntegrationsByCategory } = await db();
+    const dbRows = await getCustomerIntegrationsByCategory(category);
+    return [...builtIn, ...dbRows.map(dbRowToDefinition)];
+  } catch {
+    return builtIn;
+  }
 }
 
 /** Get all integrations for a pipeline stage */
-export function getIntegrationsByStage(stage: PipelineStage): Array<CatalogEntry | IntegrationDefinition> {
+export async function getIntegrationsByStage(stage: PipelineStage): Promise<Array<CatalogEntry | IntegrationDefinition>> {
   const builtIn = BUILTIN_CATALOG.filter(e => e.pipelineStages.includes(stage));
-  const custom = [...customerIntegrations.values()].filter(e =>
-    e.capabilities.pipelineStages.includes(stage) || e.pipelineWiring?.stages.includes(stage)
-  );
-  return [...builtIn, ...custom];
+  try {
+    const { getActiveCustomerIntegrationsByStage } = await db();
+    const dbRows = await getActiveCustomerIntegrationsByStage(stage);
+    return [...builtIn, ...dbRows.map(dbRowToDefinition)];
+  } catch {
+    return builtIn;
+  }
 }
 
-/** Get all customer-added integrations */
-export function getCustomerIntegrations(): IntegrationDefinition[] {
-  return [...customerIntegrations.values()];
+/** Get all customer-added integrations from DB */
+export async function getCustomerIntegrations(): Promise<IntegrationDefinition[]> {
+  try {
+    const { getAllCustomerIntegrations } = await db();
+    const dbRows = await getAllCustomerIntegrations();
+    return dbRows.map(dbRowToDefinition);
+  } catch {
+    return [];
+  }
 }
 
-/** Get integrations by status */
-export function getIntegrationsByStatus(status: IntegrationStatus): IntegrationDefinition[] {
-  return [...customerIntegrations.values()].filter(e => e.status === status);
+/** Get integrations by status from DB */
+export async function getIntegrationsByStatus(status: IntegrationStatus): Promise<IntegrationDefinition[]> {
+  try {
+    const { getCustomerIntegrationsByStatus } = await db();
+    const dbRows = await getCustomerIntegrationsByStatus(status);
+    return dbRows.map(dbRowToDefinition);
+  } catch {
+    return [];
+  }
 }
 
 /** Get category summary (count per category) */
-export function getCategorySummary(): Array<{
+export async function getCategorySummary(): Promise<Array<{
   category: IntegrationCategory;
   label: string;
   description: string;
@@ -94,12 +213,17 @@ export function getCategorySummary(): Array<{
   builtInCount: number;
   customerCount: number;
   totalCount: number;
-}> {
+}>> {
+  let customerList: IntegrationDefinition[] = [];
+  try {
+    customerList = await getCustomerIntegrations();
+  } catch { /* fallback to empty */ }
+
   const categories = Object.keys(CATEGORY_METADATA) as IntegrationCategory[];
   return categories.map(cat => {
     const meta = CATEGORY_METADATA[cat];
     const builtIn = BUILTIN_CATALOG.filter(e => e.category === cat).length;
-    const custom = [...customerIntegrations.values()].filter(e => e.category === cat).length;
+    const custom = customerList.filter(e => e.category === cat).length;
     return {
       category: cat,
       ...meta,
@@ -111,7 +235,7 @@ export function getCategorySummary(): Array<{
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §3 — DISCOVERY & CLASSIFICATION
+// §4 — DISCOVERY & CLASSIFICATION
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
@@ -124,24 +248,21 @@ export async function discoverNewSource(input: ApiProbeInput): Promise<{
   wiringProposal: WiringProposal;
   valueComparison: ValueComparisonResult;
 }> {
-  // Run the discovery pipeline
   const result = await runDiscoveryPipeline(input);
 
   const discoveryId = `disc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   discoveryCache.set(discoveryId, result);
 
-  // Generate wiring proposal
   const wiringProposal = generateWiringConfig({
     id: result.classification.suggestedName,
     category: result.classification.category,
     pipelineStages: result.classification.pipelineStages,
     dataTypes: result.classification.dataTypes,
-    requiresActiveProbing: !result.classification.hasOpenApiSpec, // Heuristic
+    requiresActiveProbing: !result.classification.hasOpenApiSpec,
     valueAssessment: result.classification.valueAssessment,
   });
   wiringCache.set(discoveryId, wiringProposal);
 
-  // Compare value against existing integrations
   const existingForComparison = BUILTIN_CATALOG.map(e => ({
     id: e.id,
     name: e.displayName,
@@ -164,21 +285,21 @@ export async function discoverNewSource(input: ApiProbeInput): Promise<{
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §4 — CUSTOMER REVIEW & APPROVAL
+// §5 — CUSTOMER REVIEW & APPROVAL (DB-persisted)
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
  * Submit a customer review for a discovered integration.
- * If approved, creates the integration and wires it into the pipeline.
+ * If approved, persists the integration to the DB and wires it into the pipeline.
  * If corrections were made, records feedback for future learning.
  */
-export function submitCustomerReview(
+export async function submitCustomerReview(
   discoveryId: string,
   review: CustomerReview,
-): { success: boolean; integration?: IntegrationDefinition; error?: string } {
+): Promise<{ success: boolean; integration?: IntegrationDefinition; error?: string }> {
   const discovery = discoveryCache.get(discoveryId);
   if (!discovery) {
-    return { success: false, error: `Discovery ${discoveryId} not found` };
+    return { success: false, error: `Discovery ${discoveryId} not found or expired` };
   }
 
   const classification = discovery.classification;
@@ -279,60 +400,86 @@ export function submitCustomerReview(
     updatedAt: Date.now(),
   };
 
-  customerIntegrations.set(integration.id, integration);
+  // Persist to DB
+  try {
+    const { createCustomerIntegration } = await db();
+    await createCustomerIntegration(definitionToDbRow(integration));
+  } catch (err: any) {
+    console.error(`[IntegrationRegistry] Failed to persist integration to DB: ${err.message}`);
+    return { success: false, error: `Database error: ${err.message}` };
+  }
+
+  // Clean up transient caches
+  discoveryCache.delete(discoveryId);
+  wiringCache.delete(discoveryId);
 
   return { success: true, integration };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §5 — INTEGRATION LIFECYCLE
+// §6 — INTEGRATION LIFECYCLE (DB-backed)
 // ═══════════════════════════════════════════════════════════════════════
 
 /** Activate an approved integration (wire into live pipeline) */
-export function activateIntegration(id: string): { success: boolean; error?: string } {
-  const integration = customerIntegrations.get(id);
-  if (!integration) return { success: false, error: `Integration ${id} not found` };
-  if (integration.status !== "approved" && integration.status !== "paused") {
-    return { success: false, error: `Integration must be approved or paused to activate (current: ${integration.status})` };
+export async function activateIntegration(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { getCustomerIntegrationByIntegrationId, updateCustomerIntegration } = await db();
+    const row = await getCustomerIntegrationByIntegrationId(id);
+    if (!row) return { success: false, error: `Integration ${id} not found` };
+    if (row.status !== "approved" && row.status !== "paused") {
+      return { success: false, error: `Integration must be approved or paused to activate (current: ${row.status})` };
+    }
+    await updateCustomerIntegration(id, { status: "active" });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
-  integration.status = "active";
-  integration.updatedAt = Date.now();
-  return { success: true };
 }
 
 /** Pause an active integration */
-export function pauseIntegration(id: string): { success: boolean; error?: string } {
-  const integration = customerIntegrations.get(id);
-  if (!integration) return { success: false, error: `Integration ${id} not found` };
-  if (integration.status !== "active") {
-    return { success: false, error: `Integration must be active to pause (current: ${integration.status})` };
+export async function pauseIntegration(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { getCustomerIntegrationByIntegrationId, updateCustomerIntegration } = await db();
+    const row = await getCustomerIntegrationByIntegrationId(id);
+    if (!row) return { success: false, error: `Integration ${id} not found` };
+    if (row.status !== "active") {
+      return { success: false, error: `Integration must be active to pause (current: ${row.status})` };
+    }
+    await updateCustomerIntegration(id, { status: "paused" });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
-  integration.status = "paused";
-  integration.updatedAt = Date.now();
-  return { success: true };
 }
 
 /** Remove a customer integration */
-export function removeIntegration(id: string): { success: boolean; error?: string } {
-  if (!customerIntegrations.has(id)) {
-    return { success: false, error: `Integration ${id} not found` };
+export async function removeIntegration(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { getCustomerIntegrationByIntegrationId, deleteCustomerIntegration } = await db();
+    const row = await getCustomerIntegrationByIntegrationId(id);
+    if (!row) return { success: false, error: `Integration ${id} not found` };
+    await deleteCustomerIntegration(id);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
-  customerIntegrations.delete(id);
-  return { success: true };
 }
 
-/** Update integration status */
-export function updateIntegrationStatus(id: string, status: IntegrationStatus, error?: string): void {
-  const integration = customerIntegrations.get(id);
-  if (integration) {
-    integration.status = status;
-    integration.updatedAt = Date.now();
-    if (error) integration.lastError = error;
+/** Update integration status in DB */
+export async function updateIntegrationStatus(id: string, status: IntegrationStatus, error?: string): Promise<void> {
+  try {
+    const { updateCustomerIntegration } = await db();
+    await updateCustomerIntegration(id, {
+      status: status as any,
+      ...(error ? { lastError: error } : {}),
+    });
+  } catch (err: any) {
+    console.error(`[IntegrationRegistry] Failed to update status for ${id}: ${err.message}`);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §6 — CREDENTIAL MANAGEMENT
+// §7 — CREDENTIAL MANAGEMENT (in-memory for fast access)
 // ═══════════════════════════════════════════════════════════════════════
 
 /** Store credentials for an integration */
@@ -343,18 +490,24 @@ export function storeCredentials(cred: IntegrationCredential): void {
 
 /** Get credentials for an integration */
 export function getCredentials(integrationId: string, tenantId?: string): IntegrationCredential | undefined {
-  // Try tenant-specific first, then platform default
   const tenantKey = `${integrationId}:${tenantId ?? "platform"}`;
   const platformKey = `${integrationId}:platform`;
   return credentialStore.get(tenantKey) || credentialStore.get(platformKey);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §7 — PIPELINE COVERAGE & HEALTH
+// §8 — PIPELINE COVERAGE & HEALTH (DB-backed)
 // ═══════════════════════════════════════════════════════════════════════
 
 /** Get pipeline coverage report */
-export function getPipelineCoverageReport(): PipelineCoverageReport {
+export async function getPipelineCoverageReport(): Promise<PipelineCoverageReport> {
+  let customerList: IntegrationDefinition[] = [];
+  try {
+    const { getCustomerIntegrationsByStatus } = await db();
+    const activeRows = await getCustomerIntegrationsByStatus("active");
+    customerList = activeRows.map(dbRowToDefinition);
+  } catch { /* fallback to empty */ }
+
   const activeIntegrations = [
     ...BUILTIN_CATALOG.map(e => ({
       id: e.id,
@@ -362,20 +515,18 @@ export function getPipelineCoverageReport(): PipelineCoverageReport {
       stages: e.pipelineStages,
       dataTypes: e.dataTypes,
     })),
-    ...[...customerIntegrations.values()]
-      .filter(e => e.status === "active")
-      .map(e => ({
-        id: e.id,
-        category: e.category,
-        stages: e.capabilities.pipelineStages,
-        dataTypes: e.capabilities.dataTypes,
-      })),
+    ...customerList.map(e => ({
+      id: e.id,
+      category: e.category,
+      stages: e.capabilities?.pipelineStages || [],
+      dataTypes: e.capabilities?.dataTypes || [],
+    })),
   ];
   return analyzePipelineCoverage(activeIntegrations);
 }
 
-/** Get integration health summary */
-export function getHealthSummary(): {
+/** Get integration health summary (DB-backed) */
+export async function getHealthSummary(): Promise<{
   total: number;
   active: number;
   proposed: number;
@@ -383,21 +534,31 @@ export function getHealthSummary(): {
   error: number;
   builtIn: number;
   customer: number;
-} {
-  const customer = [...customerIntegrations.values()];
-  return {
-    total: BUILTIN_CATALOG.length + customer.length,
-    active: customer.filter(i => i.status === "active").length,
-    proposed: customer.filter(i => i.status === "proposed").length,
-    paused: customer.filter(i => i.status === "paused").length,
-    error: customer.filter(i => i.status === "error").length,
-    builtIn: BUILTIN_CATALOG.length,
-    customer: customer.length,
-  };
+}> {
+  try {
+    const { getCustomerIntegrationStats } = await db();
+    const stats = await getCustomerIntegrationStats();
+    return {
+      total: BUILTIN_CATALOG.length + stats.total,
+      active: stats.active,
+      proposed: stats.proposed,
+      paused: stats.paused,
+      error: stats.error,
+      builtIn: BUILTIN_CATALOG.length,
+      customer: stats.total,
+    };
+  } catch {
+    return {
+      total: BUILTIN_CATALOG.length,
+      active: 0, proposed: 0, paused: 0, error: 0,
+      builtIn: BUILTIN_CATALOG.length,
+      customer: 0,
+    };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §8 — EXPORTS
+// §9 — EXPORTS
 // ═══════════════════════════════════════════════════════════════════════
 
 export {

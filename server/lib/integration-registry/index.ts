@@ -54,6 +54,33 @@ export type {
   DiscoveryPipelineResult,
 } from "./registry";
 
+// Pipeline Bridge — wires customer integrations into live pipeline
+export {
+  executeCustomerIntegrationsForStage,
+  mergeIntegrationResultsIntoObservations,
+  getActiveSourcesForStage,
+} from "./pipeline-bridge";
+
+export type {
+  PipelineIntegrationResult,
+  PipelineExecutionContext,
+} from "./pipeline-bridge";
+
+// Health Monitor
+export {
+  runHealthCheckForIntegration,
+  runAllHealthChecks,
+  startPeriodicHealthChecks,
+  stopPeriodicHealthChecks,
+  getHealthStatusSummary,
+} from "./health-monitor";
+
+export type {
+  HealthCheckResult,
+  HealthAlert,
+  HealthStatus,
+} from "./health-monitor";
+
 // Types
 export type {
   IntegrationAuth,

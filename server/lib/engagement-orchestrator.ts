@@ -11083,6 +11083,19 @@ export async function executeEngagement(
         addLog(state, { phase: 'recon', type: 'warning', title: '🛡️ Safety: Recon Blocked', detail: reconGate.reason });
       } else {
         await executeRecon(state, engagement, operatorCtx);
+        // ─── Customer Integration Bridge: Recon ───
+        try {
+          const { executeCustomerIntegrationsForStage, mergeIntegrationResultsIntoObservations } = await import('./integration-registry/pipeline-bridge');
+          const custReconResults = await executeCustomerIntegrationsForStage({
+            engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'recon',
+            targetIps: state.assets.flatMap(a => a.ips || []),
+          });
+          if (custReconResults.length > 0) {
+            const successCount = custReconResults.filter(r => r.status === 'success').length;
+            const totalRecords = custReconResults.reduce((s, r) => s + r.recordsReturned, 0);
+            addLog(state, { phase: 'recon', type: 'info', title: '🔌 Customer Integrations (Recon)', detail: `${successCount}/${custReconResults.length} sources executed, ${totalRecords} records enriched` });
+          }
+        } catch (e: any) { addLog(state, { phase: 'recon', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
         await phaseCheckpoint('recon');
         if (!state.isRunning) return;
       }
@@ -11092,6 +11105,19 @@ export async function executeEngagement(
     if (['recon', 'passive_discovery'].includes(startPhase)) {
       try {
         await executePassiveDiscovery(state, engagement, addLog, broadcastOpsUpdate);
+        // ─── Customer Integration Bridge: Passive Discovery ───
+        try {
+          const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
+          const custPassiveResults = await executeCustomerIntegrationsForStage({
+            engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'passive_discovery',
+            targetIps: state.assets.flatMap(a => a.ips || []),
+          });
+          if (custPassiveResults.length > 0) {
+            const successCount = custPassiveResults.filter(r => r.status === 'success').length;
+            const totalRecords = custPassiveResults.reduce((s, r) => s + r.recordsReturned, 0);
+            addLog(state, { phase: 'passive_discovery', type: 'info', title: '🔌 Customer Integrations (Passive)', detail: `${successCount}/${custPassiveResults.length} sources executed, ${totalRecords} records enriched` });
+          }
+        } catch (e: any) { addLog(state, { phase: 'passive_discovery', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
         state.progress = 15;
         await phaseCheckpoint('passive_discovery');
         if (!state.isRunning) return;
@@ -11150,6 +11176,20 @@ export async function executeEngagement(
           addLog(state, { phase: 'enumeration', type: 'warning', title: '🛡️ Safety: Enumeration Blocked', detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
         } else {
           await executeEnumeration(state, engagement, operatorCtx);
+          // ─── Customer Integration Bridge: Enumeration ───
+          try {
+            const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
+            const custEnumResults = await executeCustomerIntegrationsForStage({
+              engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'enumeration',
+              targetIps: state.assets.flatMap(a => a.ips || []),
+              assets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ips?.[0], assetType: a.assetType })),
+            });
+            if (custEnumResults.length > 0) {
+              const successCount = custEnumResults.filter(r => r.status === 'success').length;
+              const totalRecords = custEnumResults.reduce((s, r) => s + r.recordsReturned, 0);
+              addLog(state, { phase: 'enumeration', type: 'info', title: '🔌 Customer Integrations (Enum)', detail: `${successCount}/${custEnumResults.length} sources executed, ${totalRecords} records enriched` });
+            }
+          } catch (e: any) { addLog(state, { phase: 'enumeration', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
           await phaseCheckpoint('enumeration');
           if (!state.isRunning) return;
         }
@@ -11162,6 +11202,20 @@ export async function executeEngagement(
           addLog(state, { phase: 'vuln_detection', type: 'warning', title: '🛡️ Safety: Vuln Detection Blocked', detail: `${vulnGate.reason}. Requires safety level '${vulnGate.requiredLevel}' or higher.` });
         } else {
           await executeVulnDetection(state, engagement, operatorCtx);
+          // ─── Customer Integration Bridge: Vuln Detection ───
+          try {
+            const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
+            const custVulnResults = await executeCustomerIntegrationsForStage({
+              engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'vuln_detection',
+              targetIps: state.assets.flatMap(a => a.ips || []),
+              assets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ips?.[0], assetType: a.assetType })),
+            });
+            if (custVulnResults.length > 0) {
+              const successCount = custVulnResults.filter(r => r.status === 'success').length;
+              const totalRecords = custVulnResults.reduce((s, r) => s + r.recordsReturned, 0);
+              addLog(state, { phase: 'vuln_detection', type: 'info', title: '🔌 Customer Integrations (Vuln)', detail: `${successCount}/${custVulnResults.length} sources executed, ${totalRecords} records enriched` });
+            }
+          } catch (e: any) { addLog(state, { phase: 'vuln_detection', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
           await phaseCheckpoint('vuln_detection');
           if (!state.isRunning) return;
 
@@ -11693,6 +11747,19 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
         addLog(state, { phase: 'exploitation', type: 'warning', title: '🛡️ Safety: Exploitation Blocked', detail: `${exploitGate.reason}. Requires safety level '${exploitGate.requiredLevel}' or higher. ${state.stats.vulnsFound} vulns found but exploitation is not permitted at current safety level.` });
       } else if (state.stats.vulnsFound > 0) {
         await executeExploitation(state, engagement, operatorCtx);
+        // ─── Customer Integration Bridge: Exploitation ───
+        try {
+          const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
+          const custExploitResults = await executeCustomerIntegrationsForStage({
+            engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'exploitation',
+            targetIps: state.assets.flatMap(a => a.ips || []),
+            assets: state.assets.map(a => ({ hostname: a.hostname, ip: a.ips?.[0], assetType: a.assetType })),
+          });
+          if (custExploitResults.length > 0) {
+            const successCount = custExploitResults.filter(r => r.status === 'success').length;
+            addLog(state, { phase: 'exploitation', type: 'info', title: '🔌 Customer Integrations (Exploit)', detail: `${successCount}/${custExploitResults.length} sources executed` });
+          }
+        } catch (e: any) { addLog(state, { phase: 'exploitation', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
         await phaseCheckpoint('exploitation');
         if (!state.isRunning) return;
       } else {
@@ -11705,6 +11772,18 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
         addLog(state, { phase: 'post_exploit', type: 'warning', title: '🛡️ Safety: Post-Exploit Blocked', detail: `${postExploitGate.reason}. Requires safety level '${postExploitGate.requiredLevel}' or higher.` });
       } else if (state.stats.exploitsSucceeded > 0) {
         await executePostExploit(state, engagement, operatorCtx);
+        // ─── Customer Integration Bridge: Post-Exploit ───
+        try {
+          const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
+          const custPostResults = await executeCustomerIntegrationsForStage({
+            engagementId, targetDomain: state.assets[0]?.hostname || '', phase: 'post_exploit',
+            targetIps: state.assets.flatMap(a => a.ips || []),
+          });
+          if (custPostResults.length > 0) {
+            const successCount = custPostResults.filter(r => r.status === 'success').length;
+            addLog(state, { phase: 'post_exploit', type: 'info', title: '🔌 Customer Integrations (Post-Exploit)', detail: `${successCount}/${custPostResults.length} sources executed` });
+          }
+        } catch (e: any) { addLog(state, { phase: 'post_exploit', type: 'warning', title: 'Customer Integration Warning', detail: e.message }); }
         await phaseCheckpoint('post_exploit');
       }
     } else {

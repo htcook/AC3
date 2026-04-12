@@ -11,7 +11,8 @@ import {
   exploitPlanHistory, InsertExploitPlanHistory, ExploitPlanHistory,
   trainingLabSessions, InsertTrainingLabSession, SelectTrainingLabSession,
   trainingLabFeedback, InsertTrainingLabFeedback, SelectTrainingLabFeedback,
-  exploitLearningOutcomes, exploitLearningPatterns, exploitLearningChains
+  exploitLearningOutcomes, exploitLearningPatterns, exploitLearningChains,
+  customerIntegrations, integrationHealthChecks, integrationExecutionLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -4386,4 +4387,148 @@ export async function getExploitLearningDbStats(): Promise<{
     console.error(`[DB] getExploitLearningDbStats failed: ${err.message}`);
     return { totalOutcomes: 0, totalSuccesses: 0, totalFailures: 0, patternsStored: 0, chainsStored: 0, successRate: 0 };
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// §INTEGRATION REGISTRY — DB-backed persistence
+// ═══════════════════════════════════════════════════════════════════════
+
+export type InsertCustomerIntegration = typeof customerIntegrations.$inferInsert;
+export type SelectCustomerIntegration = typeof customerIntegrations.$inferSelect;
+
+export async function createCustomerIntegration(data: InsertCustomerIntegration): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(customerIntegrations).values(data);
+  return (result as any).insertId;
+}
+
+export async function getCustomerIntegrationByIntegrationId(integrationId: string): Promise<SelectCustomerIntegration | undefined> {
+  const db = await getDbRequired();
+  const rows = await db.select().from(customerIntegrations).where(eq(customerIntegrations.integrationId, integrationId)).limit(1);
+  return rows[0];
+}
+
+export async function getAllCustomerIntegrations(): Promise<SelectCustomerIntegration[]> {
+  const db = await getDbRequired();
+  return db.select().from(customerIntegrations).orderBy(desc(customerIntegrations.createdAt));
+}
+
+export async function getCustomerIntegrationsByCategory(category: string): Promise<SelectCustomerIntegration[]> {
+  const db = await getDbRequired();
+  return db.select().from(customerIntegrations).where(eq(customerIntegrations.category, category as any));
+}
+
+export async function getCustomerIntegrationsByStatus(status: string): Promise<SelectCustomerIntegration[]> {
+  const db = await getDbRequired();
+  return db.select().from(customerIntegrations).where(eq(customerIntegrations.status, status as any));
+}
+
+export async function getActiveCustomerIntegrationsByStage(stage: string): Promise<SelectCustomerIntegration[]> {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import("drizzle-orm");
+  return db.select().from(customerIntegrations)
+    .where(and(
+      eq(customerIntegrations.status, "active"),
+      sqlTag`JSON_CONTAINS(${customerIntegrations.pipelineStages}, JSON_QUOTE(${stage}))`
+    ));
+}
+
+export async function updateCustomerIntegration(integrationId: string, updates: Partial<InsertCustomerIntegration>): Promise<void> {
+  const db = await getDbRequired();
+  await db.update(customerIntegrations).set({ ...updates, updatedAt: Date.now() }).where(eq(customerIntegrations.integrationId, integrationId));
+}
+
+export async function deleteCustomerIntegration(integrationId: string): Promise<void> {
+  const db = await getDbRequired();
+  await db.delete(customerIntegrations).where(eq(customerIntegrations.integrationId, integrationId));
+}
+
+export async function getCustomerIntegrationStats(): Promise<{
+  total: number; active: number; proposed: number; paused: number; error: number;
+}> {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import("drizzle-orm");
+  const [stats] = await db.select({
+    total: sqlTag<number>`COUNT(*)`,
+    active: sqlTag<number>`SUM(CASE WHEN ${customerIntegrations.status} = 'active' THEN 1 ELSE 0 END)`,
+    proposed: sqlTag<number>`SUM(CASE WHEN ${customerIntegrations.status} = 'proposed' THEN 1 ELSE 0 END)`,
+    paused: sqlTag<number>`SUM(CASE WHEN ${customerIntegrations.status} = 'paused' THEN 1 ELSE 0 END)`,
+    error: sqlTag<number>`SUM(CASE WHEN ${customerIntegrations.status} = 'error' THEN 1 ELSE 0 END)`,
+  }).from(customerIntegrations);
+  return {
+    total: Number(stats?.total ?? 0),
+    active: Number(stats?.active ?? 0),
+    proposed: Number(stats?.proposed ?? 0),
+    paused: Number(stats?.paused ?? 0),
+    error: Number(stats?.error ?? 0),
+  };
+}
+
+// ─── Health Checks ──────────────────────────────────────────────────
+
+export type InsertHealthCheck = typeof integrationHealthChecks.$inferInsert;
+export type SelectHealthCheck = typeof integrationHealthChecks.$inferSelect;
+
+export async function createHealthCheck(data: InsertHealthCheck): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(integrationHealthChecks).values(data);
+  return (result as any).insertId;
+}
+
+export async function getRecentHealthChecks(integrationId: string, limit = 20): Promise<SelectHealthCheck[]> {
+  const db = await getDbRequired();
+  return db.select().from(integrationHealthChecks)
+    .where(eq(integrationHealthChecks.integrationId, integrationId))
+    .orderBy(desc(integrationHealthChecks.checkedAt))
+    .limit(limit);
+}
+
+export async function getLatestHealthCheckPerIntegration(): Promise<SelectHealthCheck[]> {
+  const db = await getDbRequired();
+  const { sql: sqlTag } = await import("drizzle-orm");
+  // Get the latest health check for each integration
+  return db.select().from(integrationHealthChecks)
+    .where(sqlTag`${integrationHealthChecks.id} IN (
+      SELECT MAX(id) FROM integration_health_checks GROUP BY integration_id
+    )`)
+    .orderBy(desc(integrationHealthChecks.checkedAt));
+}
+
+export async function getHealthCheckHistory(integrationId: string, hoursBack = 24): Promise<SelectHealthCheck[]> {
+  const db = await getDbRequired();
+  const { gte } = await import("drizzle-orm");
+  const cutoff = Date.now() - hoursBack * 60 * 60 * 1000;
+  return db.select().from(integrationHealthChecks)
+    .where(and(
+      eq(integrationHealthChecks.integrationId, integrationId),
+      gte(integrationHealthChecks.checkedAt, cutoff)
+    ))
+    .orderBy(desc(integrationHealthChecks.checkedAt));
+}
+
+// ─── Execution Logs ─────────────────────────────────────────────────
+
+export type InsertExecutionLog = typeof integrationExecutionLog.$inferInsert;
+export type SelectExecutionLog = typeof integrationExecutionLog.$inferSelect;
+
+export async function createExecutionLog(data: InsertExecutionLog): Promise<number> {
+  const db = await getDbRequired();
+  const [result] = await db.insert(integrationExecutionLog).values(data);
+  return (result as any).insertId;
+}
+
+export async function getExecutionLogsByIntegration(integrationId: string, limit = 50): Promise<SelectExecutionLog[]> {
+  const db = await getDbRequired();
+  return db.select().from(integrationExecutionLog)
+    .where(eq(integrationExecutionLog.integrationId, integrationId))
+    .orderBy(desc(integrationExecutionLog.executedAt))
+    .limit(limit);
+}
+
+export async function getExecutionLogsByEngagement(engagementId: number): Promise<SelectExecutionLog[]> {
+  const db = await getDbRequired();
+  return db.select().from(integrationExecutionLog)
+    .where(eq(integrationExecutionLog.engagementId, engagementId))
+    .orderBy(desc(integrationExecutionLog.executedAt));
 }
