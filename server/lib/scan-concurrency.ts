@@ -53,10 +53,10 @@ interface ConcurrencyMetrics {
 }
 
 const DEFAULT_CONFIG: ScanConcurrencyConfig = {
-  maxConcurrentNuclei: 4,
-  maxConcurrentZap: 2,
-  maxConcurrentTotal: 6,
-  maxPerEngagement: 3,
+  maxConcurrentNuclei: 2,
+  maxConcurrentZap: 1,
+  maxConcurrentTotal: 4,
+  maxPerEngagement: 2,
   queueTimeoutMs: 5 * 60 * 1000, // 5 minutes
 };
 
