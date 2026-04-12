@@ -6834,7 +6834,8 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
 	deliveredAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-export const webhookEndpoints = mysqlTable("webhook_endpoints", {
+// Legacy webhookEndpoints table replaced by enhanced version in §WEBHOOKS section below
+export const webhookEndpointsLegacy = mysqlTable("webhook_endpoints_legacy", {
 	id: int().autoincrement().notNull(),
 	webhookId: varchar({ length: 64 }).notNull(),
 	name: varchar({ length: 255 }).notNull(),
@@ -7530,3 +7531,76 @@ export const integrationExecutionLog = mysqlTable("integration_execution_log", {
 	index("iel_engagement_idx").on(table.engagementId),
 	index("iel_stage_idx").on(table.pipelineStage),
 ]);
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// §WEBHOOKS — Real-Time Integration Triggers
+// ═══════════════════════════════════════════════════════════════════════
+
+export const webhookEndpoints = mysqlTable("webhook_endpoints", {
+	id: int().autoincrement().notNull(),
+	endpointId: varchar("endpoint_id", { length: 64 }).notNull(),
+	integrationId: varchar("integration_id", { length: 128 }),
+	name: varchar({ length: 255 }).notNull(),
+	description: text(),
+	secret: varchar({ length: 255 }).notNull(),
+	signatureHeader: varchar("signature_header", { length: 128 }).default("x-webhook-signature").notNull(),
+	signatureAlgorithm: mysqlEnum("signature_algorithm", ["hmac_sha256", "hmac_sha1", "hmac_sha512", "none"]).default("hmac_sha256").notNull(),
+	status: mysqlEnum(["active", "paused", "disabled", "error"]).default("active").notNull(),
+	eventTypes: json("event_types"),
+	targetPipelineStages: json("target_pipeline_stages"),
+	dataCategory: mysqlEnum("data_category", ["osint", "exploit_db", "threat_intel", "scanner", "pentest_tool", "phishing", "c2", "siem_soar", "cloud", "credential", "custom"]).default("custom").notNull(),
+	payloadFormat: mysqlEnum("payload_format", ["json", "form", "xml", "raw"]).default("json").notNull(),
+	transformTemplate: text("transform_template"),
+	rateLimitPerMinute: int("rate_limit_per_minute").default(60),
+	rateLimitPerHour: int("rate_limit_per_hour").default(1000),
+	totalEventsReceived: int("total_events_received").default(0),
+	totalEventsProcessed: int("total_events_processed").default(0),
+	totalEventsFailed: int("total_events_failed").default(0),
+	lastEventAt: bigint("last_event_at", { mode: "number" }),
+	lastErrorAt: bigint("last_error_at", { mode: "number" }),
+	lastError: text("last_error"),
+	createdBy: varchar("created_by", { length: 64 }),
+	tenantId: varchar("tenant_id", { length: 64 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("wh_endpoint_id_idx").on(table.endpointId),
+	index("wh_integration_idx").on(table.integrationId),
+	index("wh_status_idx").on(table.status),
+	index("wh_tenant_idx").on(table.tenantId),
+]);
+
+export const webhookEvents = mysqlTable("webhook_events", {
+	id: int().autoincrement().notNull(),
+	endpointId: varchar("endpoint_id", { length: 64 }).notNull(),
+	eventId: varchar("event_id", { length: 64 }).notNull(),
+	eventType: varchar("event_type", { length: 128 }),
+	rawPayload: text("raw_payload"),
+	normalizedPayload: json("normalized_payload"),
+	headers: json(),
+	sourceIp: varchar("source_ip", { length: 45 }),
+	status: mysqlEnum(["received", "processing", "processed", "failed", "skipped", "replayed"]).default("received").notNull(),
+	processingStartedAt: bigint("processing_started_at", { mode: "number" }),
+	processingCompletedAt: bigint("processing_completed_at", { mode: "number" }),
+	processingDurationMs: int("processing_duration_ms"),
+	error: text(),
+	routedToStage: varchar("routed_to_stage", { length: 64 }),
+	routedToEngagement: int("routed_to_engagement"),
+	resultSummary: json("result_summary"),
+	retryCount: int("retry_count").default(0),
+	maxRetries: int("max_retries").default(3),
+	nextRetryAt: bigint("next_retry_at", { mode: "number" }),
+	receivedAt: bigint("received_at", { mode: "number" }).notNull(),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("we_endpoint_idx").on(table.endpointId),
+	index("we_event_id_idx").on(table.eventId),
+	index("we_status_idx").on(table.status),
+	index("we_received_idx").on(table.receivedAt),
+]);
+
+export type InsertWebhookEndpoint = typeof webhookEndpoints.$inferInsert;
+export type SelectWebhookEndpoint = typeof webhookEndpoints.$inferSelect;
+export type InsertWebhookEvent = typeof webhookEvents.$inferInsert;
+export type SelectWebhookEvent = typeof webhookEvents.$inferSelect;

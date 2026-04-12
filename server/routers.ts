@@ -166,6 +166,7 @@ import { exploitLearningDashboardRouter } from "./routers/exploit-learning-dashb
 import { exploitGuardrailsDashboardRouter } from "./routers/exploit-guardrails-dashboard";
 import { roeUploadRouter } from "./routers/roe-upload";
 import { integrationRegistryRouter } from "./routers/integration-registry";
+import { webhookManagementRouter } from "./routers/webhook-management";
 
 // --- Extracted inline routers ---
 import { authRouter, calderaAuthRouter } from "./routers/auth-core";
@@ -591,6 +592,8 @@ export const appRouter = router({
   roeUpload: roeUploadRouter,
   // ─── Integration Registry (Auto-Discovery, Classification, Pipeline Wiring) ──
   integrationRegistry: integrationRegistryRouter,
+  // ─── Webhook Management (Real-Time Integration Triggers) ──
+  webhooks: webhookManagementRouter,
 });
 export type AppRouter = typeof appRouter;
 

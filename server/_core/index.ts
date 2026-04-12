@@ -700,6 +700,14 @@ async function startServer() {
   const { registerSSEEventStream } = await import("../lib/sse-event-stream");
   registerSSEEventStream(app);
 
+  // ─── Webhook Receiver (Real-Time Integration Triggers) ──────────────
+  try {
+    const { registerWebhookRoutes } = await import("../lib/integration-registry/webhook-receiver");
+    registerWebhookRoutes(app);
+  } catch (err: any) {
+    console.warn("[Webhooks] Failed to initialize:", err.message);
+  }
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

@@ -2,13 +2,14 @@ import { lazy } from "react";
 import type { ComponentType } from "react";
 import AppShell from "@/components/AppShell";
 import HubTabs from "@/components/HubTabs";
-import { Webhook, Database, MessageSquare, Workflow, GitBranch, Network } from "lucide-react";
+import { Webhook, Database, MessageSquare, Workflow, GitBranch, Network, ArrowDownToLine } from "lucide-react";
 
 const IntegrationRegistry = lazy(() => import("./IntegrationRegistry"));
 const SiemConnectors = lazy(() => import("./SiemConnectors"));
 const SiemFeedback = lazy(() => import("./SiemFeedback"));
 const SoarConnectors = lazy(() => import("./SoarConnectors"));
 const Webhooks = lazy(() => import("./Webhooks"));
+const WebhookReceivers = lazy(() => import("./WebhookReceivers"));
 const CicdPipeline = lazy(() => import("./CicdPipeline"));
 
 const tabs = [
@@ -16,7 +17,8 @@ const tabs = [
   { id: "siem", label: "SIEM Connectors", icon: Database as ComponentType<{ className?: string }>, component: SiemConnectors },
   { id: "feedback", label: "SIEM Feedback", icon: MessageSquare as ComponentType<{ className?: string }>, component: SiemFeedback },
   { id: "soar", label: "SOAR Connectors", icon: Workflow as ComponentType<{ className?: string }>, component: SoarConnectors },
-  { id: "webhooks", label: "Webhooks", icon: Webhook as ComponentType<{ className?: string }>, component: Webhooks },
+  { id: "webhooks", label: "Outbound Webhooks", icon: Webhook as ComponentType<{ className?: string }>, component: Webhooks },
+  { id: "receivers", label: "Inbound Receivers", icon: ArrowDownToLine as ComponentType<{ className?: string }>, component: WebhookReceivers },
   { id: "cicd", label: "CI/CD Pipeline", icon: GitBranch as ComponentType<{ className?: string }>, component: CicdPipeline },
 ];
 

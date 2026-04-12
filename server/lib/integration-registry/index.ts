@@ -81,6 +81,21 @@ export type {
   HealthStatus,
 } from "./health-monitor";
 
+// Webhook Receiver — Real-Time Integration Triggers
+export {
+  receiveWebhook,
+  replayEvent,
+  retryFailedEvents,
+  getWebhookStats,
+  registerWebhookRoutes,
+} from "./webhook-receiver";
+
+export type {
+  WebhookReceiveResult,
+  NormalizedWebhookData,
+  WebhookProcessingContext,
+} from "./webhook-receiver";
+
 // Types
 export type {
   IntegrationAuth,
