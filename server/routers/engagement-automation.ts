@@ -748,6 +748,8 @@ export const engagementAutomationRouter = router({
         status: 'active',
         targetDomain: input.target,
         targetIpRange: null,
+        roeStatus: 'signed',
+        roeSignedDate: new Date(),
         createdBy: ctx.user.id,
         notes: JSON.stringify({
           trainingLab: true,
@@ -828,20 +830,27 @@ export const engagementAutomationRouter = router({
       broadcastOpsUpdate(engagementId, { type: 'phase_change', phase: 'recon' });
       await persistOpsStateNow(engagementId);
 
-      // 4. The pipeline is initialized with trainingLabMode=true and RoE signed.
-      // The user triggers the scan from the Engagement Ops UI (startPassiveScan),
-      // which will see trainingLabMode=true and auto-approve all gates.
-      // We stop the isRunning flag so the user can trigger it cleanly.
-      state.isRunning = false;
-      state.phase = 'idle';
+      // 4. Auto-execute the full pipeline (like batchTrainingRun does)
+      // The pipeline is initialized with trainingLabMode=true and RoE signed.
+      // Auto-run the full pipeline instead of waiting for manual trigger.
+      await persistOpsStateNow(engagementId);
 
       addLog(state, {
         phase: 'recon',
         type: 'info',
-        title: '\u2705 Training Lab Ready',
-        detail: `Engagement created with all approval gates set to auto-approve. Navigate to Engagement Ops and click "Start Scan" to begin the full pipeline in ${input.scanMode} mode.`,
+        title: '\u2705 Training Lab Auto-Executing',
+        detail: `Full pipeline auto-started for ${input.target} in ${input.scanMode} mode. All approval gates auto-approved.`,
       });
-      await persistOpsStateNow(engagementId);
+
+      // Fire-and-forget: launch the full pipeline execution
+      const { executeEngagement } = await import('../lib/engagement-orchestrator');
+      executeEngagement(
+        engagementId,
+        { id: ctx.user.id, name: ctx.user.name || ctx.user.username },
+        { startPhase: 'recon', scanProfile: 'standard' },
+      ).catch((err: any) => {
+        console.error(`[LaunchTrainingLab] Pipeline execution error for #${engagementId}:`, err.message);
+      });
 
       return {
         engagementId,
@@ -902,8 +911,13 @@ export const engagementAutomationRouter = router({
         },
         'brokencrystals.com': {
           name: 'Broken Crystals (NeuraLegion)',
-          description: 'Modern vulnerable web application with OWASP Top 10 vulnerabilities.',
-          expectedVulns: ['SQL Injection', 'XSS', 'SSRF', 'XXE', 'JWT Vulnerabilities', 'Insecure Deserialization'],
+          description: 'Modern Node.js/React benchmark app with 30+ vuln classes: JWT bypass, prototype pollution, GraphQL introspection, SSTI, SSRF, LDAP injection, OS command injection.',
+          expectedVulns: ['JWT Bypass', 'SQL Injection', 'XSS', 'SSRF', 'SSTI', 'CSRF', 'IDOR', 'XXE', 'LDAP Injection', 'OS Command Injection', 'Prototype Pollution', 'GraphQL Introspection', 'File Upload', 'Mass Assignment', 'Default Login', 'Insecure Deserialization'],
+        },
+        'brokencrystals.lab.aceofcloud.io': {
+          name: 'Broken Crystals (AceOfCloud Lab)',
+          description: 'Self-hosted Broken Crystals instance with 30+ vuln classes: JWT bypass (kid-sql, jku, jwk, x5c, x5u, hmac, weak-key), prototype pollution, GraphQL introspection, SSTI, SSRF, LDAP injection, OS command injection, Keycloak OIDC, gRPC, and AI chat.',
+          expectedVulns: ['JWT Bypass', 'SQL Injection', 'XSS', 'SSRF', 'SSTI', 'CSRF', 'IDOR', 'XXE', 'LDAP Injection', 'OS Command Injection', 'Prototype Pollution', 'GraphQL Introspection', 'File Upload', 'Mass Assignment', 'Default Login', 'Email Header Injection', 'HTTP Method Tampering', 'Unvalidated Redirect', 'Cookie Security', 'Header Security', 'Full Path Disclosure', 'Version Control', 'Business Constraint Bypass', 'Date Manipulation', 'ID Enumeration', 'Brute Force', 'Open Database', 'Secret Tokens', 'Common Files', 'HTML Injection'],
         },
         'hackazon.webscantest.com': {
           name: 'Hackazon (Rapid7)',
