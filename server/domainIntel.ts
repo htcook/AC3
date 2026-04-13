@@ -2554,6 +2554,107 @@ export async function runDomainIntelPipeline(
   let hasMx = false;
 
   await yieldEventLoop();
+
+  // ── Stage 3.45: Technology Contradiction Detection & Cleanup ──
+  // Cross-check detected technologies for contradictions BEFORE KEV matching.
+  // Contradictory tech stacks produce false positive vuln matches.
+  {
+    // Mutually exclusive technology groups — only one per group should survive.
+    // When a conflict is found, keep the tech with more corroborating evidence
+    // (i.e., the one that appears on more assets), or keep the first one.
+    const EXCLUSIVE_GROUPS: { label: string; members: RegExp[] }[] = [
+      {
+        label: 'CDN/WAF provider',
+        members: [/^akamai$/i, /^cloudflare$/i, /^cloudfront$/i, /^fastly$/i, /^incapsula$/i, /^sucuri$/i],
+      },
+      {
+        label: 'Backend framework',
+        members: [/^django$/i, /^flask$/i, /^rails$/i, /^laravel$/i, /^express$/i, /^spring$/i, /^asp\.net$/i],
+      },
+      {
+        label: 'CMS platform',
+        members: [/^wordpress$/i, /^drupal$/i, /^joomla$/i, /^magento$/i, /^shopify$/i, /^squarespace$/i, /^wix$/i],
+      },
+      {
+        label: 'Backend language',
+        members: [/^php$/i, /^python$/i, /^ruby$/i, /^java$/i, /^node\.?js$/i, /^go$/i, /^rust$/i],
+      },
+    ];
+
+    // Framework-CMS incompatibility: Django/Flask/Rails can't coexist with WordPress/Drupal/Joomla
+    // on the same asset (different language stacks entirely)
+    const INCOMPATIBLE_PAIRS: [RegExp, RegExp, string][] = [
+      [/^django$/i, /^wordpress$/i, 'Django (Python) cannot coexist with WordPress (PHP)'],
+      [/^django$/i, /^drupal$/i, 'Django (Python) cannot coexist with Drupal (PHP)'],
+      [/^flask$/i, /^wordpress$/i, 'Flask (Python) cannot coexist with WordPress (PHP)'],
+      [/^flask$/i, /^drupal$/i, 'Flask (Python) cannot coexist with Drupal (PHP)'],
+      [/^rails$/i, /^wordpress$/i, 'Rails (Ruby) cannot coexist with WordPress (PHP)'],
+      [/^rails$/i, /^drupal$/i, 'Rails (Ruby) cannot coexist with Drupal (PHP)'],
+      [/^express$/i, /^wordpress$/i, 'Express (Node.js) cannot coexist with WordPress (PHP)'],
+      [/^spring$/i, /^wordpress$/i, 'Spring (Java) cannot coexist with WordPress (PHP)'],
+    ];
+
+    let techContradictionsFixed = 0;
+    for (const a of analyses) {
+      if (!a.asset.technologies || !Array.isArray(a.asset.technologies)) continue;
+      const techs: string[] = a.asset.technologies;
+      const toRemove = new Set<string>();
+
+      // Check exclusive groups: if multiple members match, keep only the most common one
+      for (const group of EXCLUSIVE_GROUPS) {
+        const matched = techs.filter(t => group.members.some(re => re.test(t)));
+        if (matched.length > 1) {
+          // Count global frequency across all assets to decide which to keep
+          const freq = (tech: string) => analyses.filter(aa =>
+            (aa.asset.technologies || []).some((t: string) => t.toLowerCase() === tech.toLowerCase())
+          ).length;
+          matched.sort((a, b) => freq(b) - freq(a));
+          // Keep the most frequent, remove the rest
+          for (let i = 1; i < matched.length; i++) {
+            toRemove.add(matched[i]);
+            console.log(`[TechValidation] ${a.asset.hostname}: removing '${matched[i]}' — conflicts with '${matched[0]}' in ${group.label} group`);
+          }
+        }
+      }
+
+      // Check incompatible pairs
+      for (const [reA, reB, reason] of INCOMPATIBLE_PAIRS) {
+        const matchA = techs.find(t => reA.test(t));
+        const matchB = techs.find(t => reB.test(t));
+        if (matchA && matchB && !toRemove.has(matchA) && !toRemove.has(matchB)) {
+          // For framework vs CMS conflicts, keep the one with more corroborating signals
+          // (e.g., if PHP is also detected, keep WordPress; if Python is detected, keep Django)
+          const phpSignals = techs.some(t => /^php$/i.test(t));
+          const pythonSignals = techs.some(t => /^python$/i.test(t));
+          const rubySignals = techs.some(t => /^ruby$/i.test(t));
+          const nodeSignals = techs.some(t => /^node\.?js$/i.test(t));
+
+          let remove: string;
+          if (/wordpress|drupal|joomla/i.test(matchB) && (pythonSignals || rubySignals || nodeSignals) && !phpSignals) {
+            remove = matchB; // CMS needs PHP but Python/Ruby/Node detected → CMS is hallucinated
+          } else if (/django|flask/i.test(matchA) && phpSignals && !pythonSignals) {
+            remove = matchA; // Framework needs Python but PHP detected → framework is hallucinated
+          } else {
+            // Default: remove the less common one
+            const freqA = analyses.filter(aa => (aa.asset.technologies || []).some((t: string) => t.toLowerCase() === matchA.toLowerCase())).length;
+            const freqB = analyses.filter(aa => (aa.asset.technologies || []).some((t: string) => t.toLowerCase() === matchB.toLowerCase())).length;
+            remove = freqA >= freqB ? matchB : matchA;
+          }
+          toRemove.add(remove);
+          console.log(`[TechValidation] ${a.asset.hostname}: removing '${remove}' — ${reason}`);
+        }
+      }
+
+      if (toRemove.size > 0) {
+        a.asset.technologies = techs.filter(t => !toRemove.has(t));
+        techContradictionsFixed += toRemove.size;
+      }
+    }
+    if (techContradictionsFixed > 0) {
+      console.log(`[DomainIntel] Stage 3.45 Tech Validation: Resolved ${techContradictionsFixed} contradictory technology detections`);
+    }
+  }
+
   // Stage 3.5: CISA KEV Enrichment
   const preKevSnapshot = snapshotScores();
   await onProgress?.('scoring');
@@ -2563,7 +2664,32 @@ export async function runDomainIntelPipeline(
     const uniqueTechs = Array.from(new Set(allTechnologies.filter(Boolean)));
     if (uniqueTechs.length > 0) {
       const kevCatalog = await fetchKevCatalog();
-      const kevMatches = matchTechnologiesAgainstKev(uniqueTechs, kevCatalog);
+      const kevMatchesRaw = matchTechnologiesAgainstKev(uniqueTechs, kevCatalog);
+
+      // ── Global managed-provider filter ──
+      // Remove KEV matches for products managed by the detected mail provider
+      // BEFORE storing them in kevEnrichment. This prevents Exchange Server CVEs
+      // from appearing in the global summary when the client uses M365 SaaS.
+      const _globalMpName = emailSecurityReport?.managedProvider?.name
+        || emailSecurityReport?.mx?.provider || null;
+      const GLOBAL_MANAGED_PRODUCTS: Record<string, string[]> = {
+        'Microsoft 365': ['exchange server', 'exchange', 'outlook'],
+        'Google Workspace': ['gmail'],
+        'Proofpoint': ['proofpoint'],
+        'Mimecast': ['mimecast'],
+      };
+      const globalManagedProducts = _globalMpName ? (GLOBAL_MANAGED_PRODUCTS[_globalMpName] || []) : [];
+      const kevMatches = globalManagedProducts.length > 0
+        ? kevMatchesRaw.filter(m => {
+            const p = (m.product || '').toLowerCase();
+            const isManaged = globalManagedProducts.some(mp => p.includes(mp));
+            if (isManaged) {
+              console.log(`[KEV] Global filter: removing ${m.cveID} (${m.product}) — managed by ${_globalMpName}`);
+            }
+            return !isManaged;
+          })
+        : kevMatchesRaw;
+
       if (kevMatches.length > 0) {
         const boost = calculateKevRiskBoost(kevMatches);
         const chainSteps = getKevChainSteps(kevMatches);

@@ -21,7 +21,7 @@ import {
   ChevronRight, X, Cpu, Globe, Server, Database, Cloud, Brain, Zap, Timer,
   ArrowLeft,
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
+// wouter imports removed — back button uses window.history.back()
 
 // ── Reasoning Status Indicator ─────────────────────────────────────
 function ReasoningStatusBar({ reasoning, performance }: {
@@ -400,6 +400,21 @@ export default function Battlespace() {
     return '';
   });
 
+  // Store the referrer page so the back button returns to the correct origin
+  const [backPath] = useState(() => {
+    if (typeof window !== 'undefined') {
+      // Check if the browser has a real history entry we can go back to
+      // document.referrer gives us the previous page URL within the SPA
+      const params = new URLSearchParams(window.location.search);
+      const from = params.get('from');
+      if (from) return from;
+      // Fallback: infer from the query params
+      if (params.get('di')) return '/domain-intel';
+      if (params.get('eid')) return '/engagements';
+    }
+    return '/';
+  });
+
   // State
   const [mode, setMode] = useState<BattlespaceMode>(initialDi ? "di_scan" : "engagement");
   const [engagementId, setEngagementId] = useState<string>(initialEid);
@@ -724,10 +739,10 @@ export default function Battlespace() {
         {/* Top Bar */}
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
           {/* Back to Dashboard — always visible */}
-          <Link href={initialEid ? "/engagements" : "/"} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
+          <button onClick={() => { if (window.history.length > 1) { window.history.back(); } else { window.location.href = backPath; } }} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332] bg-transparent border-0 cursor-pointer">
             <ArrowLeft size={12} />
             <span>Back</span>
-          </Link>
+          </button>
           <div className="flex items-center gap-2">
             <Crosshair size={16} className="text-teal-400" />
             <span className="font-mono text-xs uppercase tracking-widest text-white font-bold">OPS VIEWER</span>
