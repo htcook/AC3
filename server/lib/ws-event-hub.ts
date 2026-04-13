@@ -136,7 +136,16 @@ export type WsEventType =
   | "campaign_orch:condition_eval"
   | "campaign_orch:completed"
   | "campaign_orch:paused"
-  | "campaign_orch:aborted";
+  | "campaign_orch:aborted"
+  // DI scan live stream events
+  | "di:scan_started"
+  | "di:stage_changed"
+  | "di:asset_discovered"
+  | "di:finding_detected"
+  | "di:interception_detected"
+  | "di:threat_matched"
+  | "di:scan_complete"
+  | "di:connector_progress";
 
 export interface WsEvent {
   type: WsEventType;
@@ -1769,4 +1778,146 @@ export function emitEmberPersistenceEstablished(data: {
     eventHub.broadcastEngagement(data.engagementId, event);
   }
   eventHub.broadcastGlobal(event);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DI SCAN LIVE STREAM EVENTS
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Emit when a DI scan starts */
+export function emitDIScanStarted(data: {
+  scanId: number;
+  domain: string;
+  scanMode: string;
+  engagementId?: number;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:scan_started",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan changes stage */
+export function emitDIStageChanged(data: {
+  scanId: number;
+  domain: string;
+  stage: string;
+  previousStage?: string;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:stage_changed",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan discovers an asset */
+export function emitDIAssetDiscovered(data: {
+  scanId: number;
+  domain: string;
+  asset: {
+    hostname: string;
+    assetType: string;
+    technologies?: string[];
+    riskBand?: string;
+    missionImpactScore?: number;
+    hybridRiskScore?: number;
+  };
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:asset_discovered",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan detects a posture finding */
+export function emitDIFindingDetected(data: {
+  scanId: number;
+  domain: string;
+  hostname: string;
+  finding: {
+    title: string;
+    severity: string;
+    category?: string;
+    description?: string;
+  };
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:finding_detected",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when the fingerprinting engine detects an interception mechanism */
+export function emitDIInterceptionDetected(data: {
+  scanId: number;
+  domain: string;
+  interception: {
+    vendor: string;
+    product: string;
+    category: string;
+    domain: string;
+    confidence: number;
+    operationalImpact: string;
+  };
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:interception_detected",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan matches a threat actor */
+export function emitDIThreatMatched(data: {
+  scanId: number;
+  domain: string;
+  threatGroup: {
+    groupId: string;
+    groupName: string;
+    matchScore: number;
+    riskLevel: string;
+  };
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:threat_matched",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan completes */
+export function emitDIScanComplete(data: {
+  scanId: number;
+  domain: string;
+  totalAssets: number;
+  totalFindings: number;
+  overallRiskScore: number;
+  interceptionFindings?: number;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:scan_complete",
+    timestamp: Date.now(),
+    data,
+  });
+}
+
+/** Emit when a DI scan connector makes progress */
+export function emitDIConnectorProgress(data: {
+  scanId: number;
+  domain: string;
+  connector: string;
+  status: "started" | "completed" | "failed" | "skipped";
+  observations?: number;
+  durationMs?: number;
+  error?: string;
+}): void {
+  eventHub.broadcastGlobal({
+    type: "di:connector_progress",
+    timestamp: Date.now(),
+    data,
+  });
 }

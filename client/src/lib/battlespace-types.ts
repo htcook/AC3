@@ -44,7 +44,8 @@ export type BattlespaceEdgeType =
   | "proxies_to"     // Proxy/CDN/LB → target asset
   | "c2_channel"     // Agent → C2 server callback
   | "intercepts"     // Tap/SPAN/mirror point intercepting traffic
-  | "routes_through"; // Traffic routing through intermediate hop
+  | "routes_through" // Traffic routing through intermediate hop
+  | "bypass";         // Direct path bypassing proxy/CDN (origin IP exposed)
 
 export type ProtocolType = "tcp" | "udp" | "icmp" | "http" | "https" | "dns" | "smb" | "ssh" | "rdp" | "other";
 export type PlatformType = "cloud" | "on_prem" | "hybrid" | "container" | "serverless" | "iot" | "unknown";
@@ -125,6 +126,9 @@ export interface BattlespaceEdge {
   isIntercepted?: boolean;      // True if blue team is monitoring this link
   interceptionType?: "mirrored" | "inline" | "ssl_decrypted" | "logged";
   interceptedBy?: string;       // SOC tool or blue team indicator
+  // Proxy bypass detection
+  isBypassOpportunity?: boolean; // True if this edge represents a direct path that bypasses a proxy
+  bypassesProxy?: string;        // ID of the proxy node being bypassed
 }
 
 // ── Visual Constants (Brutalist Design System) ──────────────────────
@@ -204,6 +208,7 @@ export const EDGE_VISUAL_CONFIG: Record<BattlespaceEdgeType, {
   c2_channel:    { color: "#00FF88", dashPattern: [12, 4, 2, 4], particleColor: "#00FF88", particleSpeed: 3.5, width: 2.5 },
   intercepts:    { color: "#FF4444", dashPattern: [2, 2, 8, 2], particleColor: "#FF6666", particleSpeed: 0.5, width: 3 },
   routes_through:{ color: "#6B7280", dashPattern: [6, 6],   particleColor: "#9CA3AF", particleSpeed: 1.0, width: 1 },
+  bypass:         { color: "#FFD600", dashPattern: [4, 2, 4, 2], particleColor: "#FFE082", particleSpeed: 3.0, width: 2.5 },
 };
 
 /** Protocol line style encoding */

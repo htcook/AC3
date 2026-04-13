@@ -466,6 +466,62 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     }
   }
 
+  // ── Pass 9: Proxy bypass detection ──
+  // When a proxy node exists for a host but the host also has direct network_link
+  // edges (meaning the origin IP is reachable without going through the proxy),
+  // flag it as a bypass opportunity.
+  const proxyTargetHosts = new Map<string, string[]>(); // hostname → [proxyNodeId]
+  for (const e of edges) {
+    if (e.type === "proxies_to") {
+      const tgtNode = nodes.find(n => n.id === e.target);
+      if (tgtNode?.hostname) {
+        const existing = proxyTargetHosts.get(tgtNode.hostname) || [];
+        existing.push(e.source);
+        proxyTargetHosts.set(tgtNode.hostname, existing);
+      }
+    }
+  }
+  // Check if any host behind a proxy also has direct network_link/exploits/enables edges
+  // from non-proxy source nodes (indicating origin IP is directly reachable)
+  for (const [hostname, proxyIds] of proxyTargetHosts) {
+    const hostId = hostNodes.get(hostname);
+    if (!hostId) continue;
+    const directEdges = edges.filter(e =>
+      e.target === hostId &&
+      !proxyIds.includes(e.source) &&
+      ["network_link", "exploits", "enables"].includes(e.type) &&
+      !nodes.find(n => n.id === e.source && n.type === "proxy")
+    );
+    if (directEdges.length > 0) {
+      // Mark the host as having a bypass opportunity
+      const hostNode = nodes.find(n => n.id === hostId);
+      if (hostNode) {
+        hostNode.tags = [...(hostNode.tags || []), "PROXY_BYPASS"];
+      }
+      // Add explicit bypass edges from the direct source to the host
+      for (const de of directEdges) {
+        edges.push({
+          source: de.source,
+          target: hostId,
+          type: "bypass",
+          weight: 3,
+          label: `Direct access bypasses ${proxyIds.map(pid => {
+            const pn = nodes.find(n => n.id === pid);
+            return pn?.label || "proxy";
+          }).join(", ")}`,
+          isBypassOpportunity: true,
+          bypassesProxy: proxyIds[0],
+        });
+      }
+      // Mark existing proxy edges as bypassable
+      for (const e of edges) {
+        if (e.type === "proxies_to" && proxyIds.includes(e.source)) {
+          (e as any).isBypassed = true;
+        }
+      }
+    }
+  }
+
   return {
     nodes,
     edges,

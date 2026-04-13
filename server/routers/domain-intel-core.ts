@@ -69,6 +69,7 @@ export const domainIntelRouter = router({
           const _pipelineStartMs = Date.now();
           try {
             console.log(`[DomainIntel] Pipeline started for scan ${scanId}: ${input.primaryDomain}`);
+            try { const { emitDIScanStarted } = await import('../lib/ws-event-hub'); emitDIScanStarted({ scanId, domain: input.primaryDomain, scanMode: input.scanMode || 'standard' }); } catch {}
             const { runDomainIntelPipeline } = await import('../domainIntel');
 
             // ═══ ADAPTIVE STRATEGY — Compute scan tuning from graduation history ═══
@@ -102,13 +103,72 @@ export const domainIntelRouter = router({
                 complianceFlags: pipelineInput.complianceFlags || [],
                 notes: pipelineInput.notes,
               },
-              // Progress callback: update scan status in DB so frontend can poll
+              // Progress callback: update scan status in DB + emit live WS events
               async (stage) => {
                 await db.updateDomainIntelScan(scanId, { status: stage }).catch(() => {});
                 console.log(`[DomainIntel] Scan ${scanId} stage: ${stage}`);
+                try {
+                  const { emitDIStageChanged } = await import('../lib/ws-event-hub');
+                  emitDIStageChanged({ scanId, domain: pipelineInput.primaryDomain, stage });
+                } catch {}
               },
               { scanMode: effectiveScanMode as any, skipEngagement: !!pipelineInput.scanOnly, scopedAssets: pipelineInput.scopedAssets }
             );
+
+            // ═══ EMIT DI LIVE STREAM — Asset discovery events ═══
+            try {
+              const { emitDIAssetDiscovered, emitDIFindingDetected, emitDIInterceptionDetected } = await import('../lib/ws-event-hub');
+              const { buildFingerprintInputFromDIScan, fingerprintInterceptions } = await import('../lib/interception-fingerprint-engine');
+
+              for (const a of result.assets) {
+                const techs = a.asset.technologies || [];
+                emitDIAssetDiscovered({
+                  scanId,
+                  domain: pipelineInput.primaryDomain,
+                  asset: {
+                    hostname: a.asset.hostname,
+                    assetType: a.asset.assetType,
+                    technologies: techs,
+                    riskBand: a.riskBand,
+                    missionImpactScore: a.missionImpactScore,
+                    hybridRiskScore: a.hybridRiskScore,
+                  },
+                });
+                // Emit posture findings
+                for (const pf of (a.postureFindings || []).slice(0, 10)) {
+                  emitDIFindingDetected({
+                    scanId,
+                    domain: pipelineInput.primaryDomain,
+                    hostname: a.asset.hostname,
+                    finding: {
+                      title: typeof pf === 'string' ? pf : pf.title || pf.finding || 'Finding',
+                      severity: typeof pf === 'object' ? (pf.severity || 'medium') : 'medium',
+                      category: typeof pf === 'object' ? pf.category : undefined,
+                    },
+                  });
+                }
+              }
+
+              // Run fingerprinting engine and emit interception findings
+              const fpInput = buildFingerprintInputFromDIScan({ assets: result.assets.map(a => ({ ...a.asset, postureFindings: a.postureFindings, contextIndicators: a.contextIndicators })), scan: { id: scanId, primaryDomain: pipelineInput.primaryDomain } });
+              const fpReport = fingerprintInterceptions(fpInput);
+              for (const finding of fpReport.findings) {
+                emitDIInterceptionDetected({
+                  scanId,
+                  domain: pipelineInput.primaryDomain,
+                  interception: {
+                    vendor: finding.vendor,
+                    product: finding.product,
+                    category: finding.category,
+                    domain: finding.domain,
+                    confidence: finding.confidence.score,
+                    operationalImpact: finding.operationalImpact,
+                  },
+                });
+              }
+            } catch (liveErr: any) {
+              console.warn(`[DomainIntel] Live stream events failed (non-fatal):`, liveErr.message);
+            }
 
             // Store discovered assets — batch inserts to avoid oversized queries
             const assetRecords = result.assets.map(a => ({
@@ -546,7 +606,7 @@ export const domainIntelRouter = router({
                 pipelineOutput: outputWithDelta,
               });
               console.log(`[DomainIntel] Scan-only completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
-              try { const { emitReconComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); } catch {}
+              try { const { emitReconComplete, emitDIScanComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitDIScanComplete({ scanId, domain: pipelineInput.primaryDomain, totalAssets: result.totalAssets, totalFindings: result.totalFindings, overallRiskScore: result.overallRiskScore }); } catch {}
               // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
               try {
                 const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');
@@ -633,7 +693,7 @@ export const domainIntelRouter = router({
               });
 
               console.log(`[DomainIntel] Pipeline completed for scan ${scanId}: ${result.totalAssets} assets, risk=${result.overallRiskScore}`);
-              try { const { emitReconComplete, emitSystemNotification } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
+              try { const { emitReconComplete, emitSystemNotification, emitDIScanComplete } = await import('../lib/ws-event-hub'); emitReconComplete({ scanId, domain: pipelineInput.primaryDomain, findings: result.totalFindings || 0, engagementId: pipelineInput.engagementId }); emitDIScanComplete({ scanId, domain: pipelineInput.primaryDomain, totalAssets: result.totalAssets, totalFindings: result.totalFindings, overallRiskScore: result.overallRiskScore }); emitSystemNotification({ title: 'Domain Intel Complete', message: `Scan of ${pipelineInput.primaryDomain}: ${result.totalAssets} assets, ${result.totalFindings} findings, risk=${result.overallRiskScore}`, severity: 'info' }); } catch {}
               // ═══ POST-PIPELINE GRADUATION — Score specialist models and collect training data ═══
               try {
                 const { runPostPipelineGraduation, extractDIScanMetrics } = await import('../lib/post-pipeline-graduation');

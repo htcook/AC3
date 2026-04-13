@@ -58,6 +58,11 @@ interface SimEdge extends SimulationLinkDatum<SimNode> {
   dataFlow?: string;
   killChainPhase?: BattlespaceEdge["killChainPhase"];
   isHighlighted?: boolean;
+  isIntercepted?: boolean;
+  interceptionType?: "logged" | "inline" | "ssl_decrypted" | "mirrored";
+  interceptedBy?: string;
+  isBypassOpportunity?: boolean;
+  bypassesProxy?: string;
   particles: Array<{ progress: number; speed: number }>;
 }
 
@@ -213,6 +218,7 @@ export class BattlespaceEngine {
   private simNodes: SimNode[] = [];
   private simEdges: SimEdge[] = [];
   private nodeMap = new Map<string, SimNode>();
+  private hiddenNodeTypes = new Set<string>();
 
   private scale = 0.6;
   private panX = 0;
@@ -323,6 +329,11 @@ export class BattlespaceEngine {
           protocol: e.protocol,
           dataFlow: e.dataFlow,
           killChainPhase: e.killChainPhase,
+          isIntercepted: e.isIntercepted,
+          interceptionType: e.interceptionType,
+          interceptedBy: e.interceptedBy,
+          isBypassOpportunity: e.isBypassOpportunity,
+          bypassesProxy: e.bypassesProxy,
           particles: this.options.particlesEnabled
             ? Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => ({
                 progress: Math.random(),
@@ -373,6 +384,11 @@ export class BattlespaceEngine {
           protocol: e.protocol,
           dataFlow: e.dataFlow,
           killChainPhase: e.killChainPhase,
+          isIntercepted: e.isIntercepted,
+          interceptionType: e.interceptionType,
+          interceptedBy: e.interceptedBy,
+          isBypassOpportunity: e.isBypassOpportunity,
+          bypassesProxy: e.bypassesProxy,
           particles: this.options.particlesEnabled
             ? Array.from({ length: 2 }, () => ({
                 progress: Math.random(),
@@ -436,6 +452,19 @@ export class BattlespaceEngine {
 
   getNodeCount(): number { return this.simNodes.length; }
   getEdgeCount(): number { return this.simEdges.length; }
+
+  // ── Node Type Visibility (Topology Filters) ──────────────────────
+  setNodeTypeVisibility(nodeType: string, visible: boolean): void {
+    if (visible) {
+      this.hiddenNodeTypes.delete(nodeType);
+    } else {
+      this.hiddenNodeTypes.add(nodeType);
+    }
+  }
+
+  getHiddenNodeTypes(): Set<string> {
+    return new Set(this.hiddenNodeTypes);
+  }
 
   // ── Simulation ────────────────────────────────────────────────────
   private startSimulation(): void {
@@ -636,11 +665,19 @@ export class BattlespaceEngine {
     // Grid
     if (this.options.gridEnabled) this.drawGrid(ctx);
 
-    // Edges
-    for (const e of this.simEdges) this.drawEdge(ctx, e);
+    // Edges (skip edges connected to hidden node types)
+    for (const e of this.simEdges) {
+      const srcType = (e.source as SimNode).type;
+      const tgtType = (e.target as SimNode).type;
+      if (this.hiddenNodeTypes.has(srcType) || this.hiddenNodeTypes.has(tgtType)) continue;
+      this.drawEdge(ctx, e);
+    }
 
-    // Nodes
-    for (const n of this.simNodes) this.drawNode(ctx, n);
+    // Nodes (skip hidden node types)
+    for (const n of this.simNodes) {
+      if (this.hiddenNodeTypes.has(n.type)) continue;
+      this.drawNode(ctx, n);
+    }
 
     ctx.restore();
 
@@ -707,22 +744,132 @@ export class BattlespaceEngine {
     const dash = PROTOCOL_DASH[e.protocol || "default"] || PROTOCOL_DASH.default;
 
     ctx.save();
-    ctx.strokeStyle = rgbaStr(config.color, alpha);
-    ctx.lineWidth = lineWidth;
-    ctx.setLineDash(dash);
 
-    ctx.beginPath();
-    ctx.moveTo(src.x, src.y);
-    ctx.lineTo(tgt.x, tgt.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // ── Interception visual: pulsing red/blue stripe pattern ──────
+    if (e.isIntercepted) {
+      const pulse = Math.sin(this.animationTime * 3) * 0.2 + 0.8;
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const edgeLen = Math.sqrt(dx * dx + dy * dy);
+      const stripeWidth = 12;
+      const numStripes = Math.max(2, Math.floor(edgeLen / stripeWidth));
+      const angle = Math.atan2(dy, dx);
+
+      // Determine interception colors based on type
+      const interceptColors = {
+        ssl_decrypted: { primary: "#FF4444", secondary: "#2196F3" },  // Red/Blue
+        inline: { primary: "#FF6600", secondary: "#2196F3" },          // Orange/Blue
+        logged: { primary: "#FFAA00", secondary: "#4A90D9" },          // Amber/Blue
+        mirrored: { primary: "#E040FB", secondary: "#4A90D9" },        // Purple/Blue
+      };
+      const colors = interceptColors[e.interceptionType || "logged"];
+
+      // Draw alternating stripe segments along the edge
+      for (let i = 0; i < numStripes; i++) {
+        const t0 = i / numStripes;
+        const t1 = (i + 1) / numStripes;
+        const x0 = src.x + dx * t0;
+        const y0 = src.y + dy * t0;
+        const x1 = src.x + dx * t1;
+        const y1 = src.y + dy * t1;
+        const isEven = i % 2 === 0;
+        ctx.strokeStyle = rgbaStr(isEven ? colors.primary : colors.secondary, alpha * pulse);
+        ctx.lineWidth = lineWidth + 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+
+      // Outer glow for intercepted edge
+      ctx.strokeStyle = rgbaStr(colors.primary, 0.15 * pulse);
+      ctx.lineWidth = lineWidth + 6;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+
+      // Eye icon at midpoint (interception indicator)
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = rgbaStr(colors.primary, pulse);
+      ctx.fillText("\uD83D\uDC41", mx, my); // 👁 eye emoji
+
+      // Interception label at MESO/MICRO zoom
+      if (this.currentZoomLevel !== "MACRO" && e.interceptedBy) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr(colors.primary, 0.9);
+        ctx.textAlign = "center";
+        const label = e.interceptedBy.length > 25 ? e.interceptedBy.slice(0, 23) + "…" : e.interceptedBy;
+        ctx.fillText(label, mx, my + 10);
+      }
+    } else if (e.isBypassOpportunity) {
+      // ── Bypass opportunity: pulsing gold dashed line with warning ──
+      const pulse = Math.sin(this.animationTime * 4) * 0.3 + 0.7;
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+
+      // Outer glow — gold warning
+      ctx.strokeStyle = rgbaStr("#FFD600", 0.2 * pulse);
+      ctx.lineWidth = lineWidth + 8;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+
+      // Main bypass line — gold dashed
+      ctx.strokeStyle = rgbaStr("#FFD600", alpha * pulse);
+      ctx.lineWidth = lineWidth + 1;
+      ctx.setLineDash([8, 4, 2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Warning triangle at midpoint
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = rgbaStr("#FFD600", pulse);
+      ctx.fillText("\u26A0", mx, my); // ⚠ warning
+
+      // Bypass label at MESO/MICRO zoom
+      if (this.currentZoomLevel !== "MACRO" && e.label) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr("#FFD600", 0.9);
+        ctx.textAlign = "center";
+        const label = e.label.length > 30 ? e.label.slice(0, 28) + "\u2026" : e.label;
+        ctx.fillText(label, mx, my + 12);
+      }
+    } else {
+      // Normal edge rendering
+      ctx.strokeStyle = rgbaStr(config.color, alpha);
+      ctx.lineWidth = lineWidth;
+      ctx.setLineDash(dash);
+
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     // Arrow head
     const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
     const arrowLen = 8;
     const ax = tgt.x - Math.cos(angle) * 15;
     const ay = tgt.y - Math.sin(angle) * 15;
-    ctx.fillStyle = rgbaStr(config.color, alpha);
+    const arrowColor = e.isIntercepted ? "#FF4444" : config.color;
+    ctx.fillStyle = rgbaStr(arrowColor, alpha);
     ctx.beginPath();
     ctx.moveTo(ax + Math.cos(angle) * arrowLen, ay + Math.sin(angle) * arrowLen);
     ctx.lineTo(ax + Math.cos(angle + 2.5) * arrowLen * 0.5, ay + Math.sin(angle + 2.5) * arrowLen * 0.5);
@@ -754,7 +901,7 @@ export class BattlespaceEngine {
     }
 
     // Edge label at MICRO zoom
-    if (this.currentZoomLevel === "MICRO" && e.protocol) {
+    if (this.currentZoomLevel === "MICRO" && e.protocol && !e.isIntercepted) {
       const mx = (src.x + tgt.x) / 2;
       const my = (src.y + tgt.y) / 2;
       ctx.font = "bold 7px 'JetBrains Mono', monospace";
@@ -792,6 +939,70 @@ export class BattlespaceEngine {
       ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.arc(n.x, n.y, glowR * pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Blue team tap point: pulsing blue glow with scanning ring ───
+    if (this.options.glowEnabled && n.type === "tap_point") {
+      const tapPulse = Math.sin(this.animationTime * 4 + (n._pulsePhase || 0)) * 0.3 + 0.7;
+      const glowR = r * 3;
+      // Blue team glow
+      const tapGrad = ctx.createRadialGradient(n.x, n.y, r * 0.3, n.x, n.y, glowR * tapPulse);
+      tapGrad.addColorStop(0, rgbaStr("#2196F3", 0.35));
+      tapGrad.addColorStop(0.5, rgbaStr("#2196F3", 0.12));
+      tapGrad.addColorStop(1, rgbaStr("#2196F3", 0));
+      ctx.fillStyle = tapGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowR * tapPulse, 0, Math.PI * 2);
+      ctx.fill();
+      // Rotating scanning ring
+      const scanAngle = this.animationTime * 1.5;
+      ctx.strokeStyle = rgbaStr("#2196F3", 0.5 * tapPulse);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 6, scanAngle, scanAngle + Math.PI * 0.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 6, scanAngle + Math.PI, scanAngle + Math.PI * 1.6);
+      ctx.stroke();
+    }
+
+    // ── Proxy/CDN/LB node: shield arc with vendor label ───────────
+    if (this.options.glowEnabled && n.type === "proxy") {
+      const proxyPulse = Math.sin(this.animationTime * 1.5) * 0.1 + 0.9;
+      const proxyGlowR = r * 2.2;
+      const proxyGrad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, proxyGlowR * proxyPulse);
+      proxyGrad.addColorStop(0, rgbaStr("#FF9800", 0.2));
+      proxyGrad.addColorStop(1, rgbaStr("#FF9800", 0));
+      ctx.fillStyle = proxyGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, proxyGlowR * proxyPulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── C2 server node: red command glow ─────────────────────
+    if (this.options.glowEnabled && n.type === "c2_server") {
+      const c2Pulse = Math.sin(this.animationTime * 2) * 0.15 + 0.85;
+      const c2GlowR = r * 2.5;
+      const c2Grad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, c2GlowR * c2Pulse);
+      c2Grad.addColorStop(0, rgbaStr("#FF1744", 0.3));
+      c2Grad.addColorStop(1, rgbaStr("#FF1744", 0));
+      ctx.fillStyle = c2Grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, c2GlowR * c2Pulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Gateway hop: subtle network pulse ────────────────────
+    if (this.options.glowEnabled && n.type === "gateway") {
+      const gwPulse = Math.sin(this.animationTime * 1.2 + (n._pulsePhase || 0)) * 0.1 + 0.9;
+      const gwGlowR = r * 1.8;
+      const gwGrad = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, gwGlowR * gwPulse);
+      gwGrad.addColorStop(0, rgbaStr("#78909C", 0.15));
+      gwGrad.addColorStop(1, rgbaStr("#78909C", 0));
+      ctx.fillStyle = gwGrad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, gwGlowR * gwPulse, 0, Math.PI * 2);
       ctx.fill();
     }
 

@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useOpsViewerLiveStream } from "@/hooks/useOpsViewerLiveStream";
+import { useDIScanLiveStream } from "@/hooks/useDIScanLiveStream";
 import { BattlespaceEngine, type EngineCallbacks, type EngineStats } from "@/lib/battlespace-engine";
 import { transformEngagementGraph, transformDIScan } from "@/lib/battlespace-transform";
 import type { BattlespaceNode, BattlespaceMode, ZoomLevel, KillChainPhase } from "@/lib/battlespace-types";
@@ -402,6 +404,13 @@ export default function Battlespace() {
   const [hoveredNode, setHoveredNode] = useState<{ node: BattlespaceNode; x: number; y: number } | null>(null);
   const [showLegend, setShowLegend] = useState(true);
   const [selectedPath, setSelectedPath] = useState<number | null>(null);
+  const [showTopologyFilters, setShowTopologyFilters] = useState(false);
+  const [topologyLayers, setTopologyLayers] = useState<Record<string, boolean>>({
+    proxy: true,
+    gateway: true,
+    c2_server: true,
+    tap_point: true,
+  });
 
   // Data queries
   const engagementsQuery = trpc.engagements.list.useQuery(undefined, { retry: 1 });
@@ -536,50 +545,103 @@ export default function Battlespace() {
     setTimeout(() => engineRef.current?.fitToView(), 1500);
   }, [graphQuery.data]);
 
-  // Handle WebSocket events for real-time growth
+  // ── Real-time progressive rendering via useOpsViewerLiveStream ──────
+  const [liveEventCount, setLiveEventCount] = useState(0);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+
+  const handleLiveNodesDiscovered = useCallback((newNodes: BattlespaceNode[], newEdges: any[]) => {
+    if (!engineRef.current) return;
+    engineRef.current.addNodes(newNodes, newEdges);
+  }, []);
+
+  const handlePhaseChanged = useCallback((phase: string, _prev: string) => {
+    setCurrentPhase(phase);
+  }, []);
+
+  const handleEventCount = useCallback((count: number) => {
+    setLiveEventCount(count);
+  }, []);
+
+  const { isConnected: liveStreamConnected } = useOpsViewerLiveStream({
+    engagementId: engagementEnabled ? parsedEngagementId : null,
+    onNodesDiscovered: handleLiveNodesDiscovered,
+    onPhaseChanged: handlePhaseChanged,
+    onEventCount: handleEventCount,
+    enabled: mode === "engagement" && engineReady,
+  });
+
+  // ── DI Scan data loading + live stream ──────────────────────────────
+  const parsedDiScanId = parseInt(diScanId);
+  const diScanEnabled = mode === "di_scan" && !!diScanId && !isNaN(parsedDiScanId);
+
+  const diScanQuery = trpc.domainIntel.getScan.useQuery(
+    { id: parsedDiScanId },
+    { enabled: diScanEnabled, retry: 1 }
+  );
+
+  // Load DI scan data into the engine
+  useEffect(() => {
+    if (!engineRef.current || !diScanQuery.data) return;
+    const { scan, assets } = diScanQuery.data;
+    const graphData = transformDIScan(scan, assets);
+    engineRef.current.loadGraph(graphData);
+    setTimeout(() => engineRef.current?.fitToView(), 1500);
+  }, [diScanQuery.data]);
+
+  // DI scan live stream state
+  const [diLiveEventCount, setDiLiveEventCount] = useState(0);
+  const [diCurrentStage, setDiCurrentStage] = useState<string | null>(null);
+  const [diScanComplete, setDiScanComplete] = useState(false);
+
+  const handleDiNodesDiscovered = useCallback((newNodes: BattlespaceNode[], newEdges: any[]) => {
+    if (!engineRef.current) return;
+    engineRef.current.addNodes(newNodes, newEdges);
+  }, []);
+
+  const handleDiStageChanged = useCallback((stage: string, _prev: string) => {
+    setDiCurrentStage(stage);
+  }, []);
+
+  const handleDiEventCount = useCallback((count: number) => {
+    setDiLiveEventCount(count);
+  }, []);
+
+  const handleDiScanComplete = useCallback((_data: { totalAssets: number; totalFindings: number; overallRiskScore: number }) => {
+    setDiScanComplete(true);
+    // Refresh the scan data to get the final state
+    diScanQuery.refetch();
+  }, [diScanQuery]);
+
+  const diScanDomain = diScanQuery.data?.scan?.primaryDomain;
+
+  const { isConnected: diLiveStreamConnected } = useDIScanLiveStream({
+    scanId: diScanEnabled ? parsedDiScanId : null,
+    domain: diScanDomain,
+    onNodesDiscovered: handleDiNodesDiscovered,
+    onStageChanged: handleDiStageChanged,
+    onEventCount: handleDiEventCount,
+    onScanComplete: handleDiScanComplete,
+    enabled: mode === "di_scan" && engineReady,
+  });
+
+  // Reset DI live state when scan changes
+  useEffect(() => {
+    setDiLiveEventCount(0);
+    setDiCurrentStage(null);
+    setDiScanComplete(false);
+  }, [diScanId]);
+
+  // Route Ember events through the engine's unified handler
   useEffect(() => {
     if (!ws.events || ws.events.length === 0 || !engineRef.current) return;
     const latest = ws.events[ws.events.length - 1];
     if (!latest?.data) return;
 
-    // Route Ember events through the engine's unified handler
     if (latest.type?.startsWith("ember:")) {
       engineRef.current.processWsEvent({ type: latest.type, data: latest.data });
-      return;
     }
-
-    // Transform other WS events into new nodes/edges
-    const newNodes: BattlespaceNode[] = [];
-    const newEdges: any[] = [];
-
-    if (latest.type === "recon:finding" && latest.data.finding) {
-      const f = latest.data.finding;
-      newNodes.push({
-        id: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        type: f.severity === "critical" ? "vulnerability" : "host",
-        label: f.title || f.hostname || "New Finding",
-        severity: f.severity || "medium",
-        weaknessLevel: f.severity === "critical" ? 0.9 : f.severity === "high" ? 0.7 : 0.4,
-        hostname: f.hostname,
-        isNew: true,
-        discoveredAt: Date.now(),
-      });
-    }
-
-    if (latest.type === "agent:deployed" && latest.data) {
-      newNodes.push({
-        id: `agent-${Date.now()}`,
-        type: "agent",
-        label: latest.data.agentName || "Agent",
-        hostname: latest.data.hostname,
-        isNew: true,
-        discoveredAt: Date.now(),
-      });
-    }
-
-    // Handle OPSEC events
+    // OPSEC events → flash relevant Ember nodes
     if (latest.type === "opsec:action_scored" && latest.data) {
-      // Flash the relevant node if we can identify it
       const action = latest.data.action || "";
       if (action.startsWith("ember:")) {
         engineRef.current.processWsEvent({
@@ -587,37 +649,6 @@ export default function Battlespace() {
           data: { ...latest.data, agentId: action.split(":")[1] },
         });
       }
-    }
-
-    // Handle scan discovery events
-    if (latest.type === "scan:host_discovered" && latest.data) {
-      const d = latest.data;
-      newNodes.push({
-        id: `host-${(d.ip || "").replace(/\./g, "-")}`,
-        type: "host",
-        label: d.hostname || d.ip || "Unknown Host",
-        hostname: d.hostname,
-        ip: d.ip,
-        os: d.os,
-        isNew: true,
-        discoveredAt: Date.now(),
-      });
-    }
-
-    // Handle domain discovery events
-    if (latest.type === "di:domain_discovered" && latest.data) {
-      const d = latest.data;
-      newNodes.push({
-        id: `domain-${(d.domain || "").replace(/\./g, "-")}`,
-        type: d.isSubdomain ? "subdomain" : "domain",
-        label: d.domain || "Unknown Domain",
-        isNew: true,
-        discoveredAt: Date.now(),
-      });
-    }
-
-    if (newNodes.length > 0) {
-      engineRef.current.addNodes(newNodes, newEdges);
     }
   }, [ws.events]);
 
@@ -643,9 +674,9 @@ export default function Battlespace() {
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
           {/* Back to Engagement button — shown when deep-linked from EngagementOps */}
           {initialEid && (
-            <a href={`/engagement-ops?id=${initialEid}`} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
+            <a href={`/engagements`} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
               <ArrowLeft size={12} />
-              <span>Back to Engagement</span>
+              <span>Back to Dashboard</span>
             </a>
           )}
           <div className="flex items-center gap-2">
@@ -719,6 +750,37 @@ export default function Battlespace() {
             ) : null;
           })()}
 
+          {/* Live Stream Status Indicator */}
+          {mode === "engagement" && engagementId && (
+            <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
+              <div className={`w-2 h-2 rounded-full ${liveStreamConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400">
+                {liveStreamConnected ? 'LIVE' : 'OFFLINE'}
+              </span>
+              {liveEventCount > 0 && (
+                <span className="text-[9px] font-mono text-teal-400">{liveEventCount} events</span>
+              )}
+              {currentPhase && (
+                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]">{currentPhase}</span>
+              )}
+            </div>
+          )}
+          {/* DI Scan Live Stream Status Indicator */}
+          {mode === "di_scan" && diScanId && (
+            <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
+              <div className={`w-2 h-2 rounded-full ${diLiveStreamConnected ? 'bg-teal-500 animate-pulse' : diScanComplete ? 'bg-blue-500' : 'bg-gray-600'}`} />
+              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400">
+                {diScanComplete ? 'COMPLETE' : diLiveStreamConnected ? 'LIVE' : 'OFFLINE'}
+              </span>
+              {diLiveEventCount > 0 && (
+                <span className="text-[9px] font-mono text-teal-400">{diLiveEventCount} events</span>
+              )}
+              {diCurrentStage && !diScanComplete && (
+                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]">{diCurrentStage}</span>
+              )}
+            </div>
+          )}
+
           <div className="flex-1" />
 
           {/* Toolbar */}
@@ -753,8 +815,18 @@ export default function Battlespace() {
               size="sm"
               className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${showLegend ? "bg-[#1A2332] text-teal-400" : "bg-transparent"}`}
               onClick={() => setShowLegend(!showLegend)}
+              title="Toggle Legend"
             >
               <Layers size={12} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${showTopologyFilters ? "bg-[#1A2332] text-orange-400" : "bg-transparent"}`}
+              onClick={() => setShowTopologyFilters(!showTopologyFilters)}
+              title="Network Topology Filters"
+            >
+              <Network size={12} />
             </Button>
           </div>
         </div>
@@ -812,6 +884,65 @@ export default function Battlespace() {
             performance={graphQuery.data?.performance}
           />
           <LegendPanel visible={showLegend} />
+
+          {/* Network Topology Filters */}
+          {showTopologyFilters && (
+            <div className="absolute top-2 left-2 z-40 bg-[#0A0E14]/95 border border-[#1A2332] p-3 font-mono" style={{ minWidth: 200 }}>
+              <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-1">
+                <Network size={10} />
+                TOPOLOGY LAYERS
+              </div>
+              {[
+                { key: "proxy", label: "Proxies / CDN / LB", icon: "\u{1F6E1}", color: "#FF9800" },
+                { key: "gateway", label: "Network Hops", icon: "\u{1F310}", color: "#78909C" },
+                { key: "c2_server", label: "C2 Infrastructure", icon: "\u{1F4E1}", color: "#FF1744" },
+                { key: "tap_point", label: "Blue Team / Taps", icon: "\u{1F441}", color: "#2196F3" },
+              ].map(({ key, label, icon, color }) => (
+                <button
+                  key={key}
+                  className="flex items-center gap-2 w-full py-1 px-1 hover:bg-[#1A2332]/50 transition-colors"
+                  onClick={() => {
+                    const newState = { ...topologyLayers, [key]: !topologyLayers[key] };
+                    setTopologyLayers(newState);
+                    engineRef.current?.setNodeTypeVisibility(key, newState[key]);
+                  }}
+                >
+                  <div
+                    className="w-3 h-3 border flex items-center justify-center text-[8px]"
+                    style={{
+                      borderColor: color,
+                      backgroundColor: topologyLayers[key] ? color + "33" : "transparent",
+                    }}
+                  >
+                    {topologyLayers[key] && <span style={{ color }}>\u2713</span>}
+                  </div>
+                  <span className="text-[10px]" style={{ color: topologyLayers[key] ? color : "#555" }}>
+                    {icon} {label}
+                  </span>
+                  {!topologyLayers[key] && (
+                    <span className="text-[8px] text-gray-600 ml-auto">HIDDEN</span>
+                  )}
+                </button>
+              ))}
+              <div className="mt-2 pt-2 border-t border-[#1A2332]">
+                <button
+                  className="text-[9px] uppercase tracking-wider text-gray-500 hover:text-teal-400 transition-colors"
+                  onClick={() => {
+                    const allVisible = Object.values(topologyLayers).every(v => v);
+                    const newState = Object.fromEntries(
+                      Object.keys(topologyLayers).map(k => [k, !allVisible])
+                    );
+                    setTopologyLayers(newState);
+                    Object.entries(newState).forEach(([k, v]) => {
+                      engineRef.current?.setNodeTypeVisibility(k, v);
+                    });
+                  }}
+                >
+                  {Object.values(topologyLayers).every(v => v) ? "HIDE ALL" : "SHOW ALL"}
+                </button>
+              </div>
+            </div>
+          )}
           <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
           <PathSelector
             paths={reasoningMerged && reasoningQuery.data?.paths ? reasoningQuery.data.paths : (graphQuery.data?.paths || [])}

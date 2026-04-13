@@ -107,7 +107,16 @@ export type WsEventType =
   | "evidence:chain_flushed"
   | "evidence:anchor_created"
   | "evidence:anchor_verified"
-  | "evidence:tamper_detected";
+  | "evidence:tamper_detected"
+  // DI scan live stream events
+  | "di:scan_started"
+  | "di:stage_changed"
+  | "di:asset_discovered"
+  | "di:finding_detected"
+  | "di:interception_detected"
+  | "di:threat_matched"
+  | "di:scan_complete"
+  | "di:connector_progress";
 
 export interface WsEvent {
   type: WsEventType;
