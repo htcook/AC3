@@ -716,6 +716,49 @@ export class BattlespaceEngine {
   getNodeCount(): number { return this.simNodes.length; }
   getEdgeCount(): number { return this.simEdges.length; }
 
+  // ── Options API (for visual effect toggles) ──────────────────────
+  setOption<K extends keyof EngineOptions>(key: K, value: Required<EngineOptions>[K]): void {
+    (this.options as any)[key] = value;
+  }
+
+  getOptions(): Readonly<Required<EngineOptions>> {
+    return { ...this.options };
+  }
+
+  // ── Timeline API (for chronological replay) ──────────────────────
+  private timeWindowEnd: number | null = null; // null = show all
+  private timeWindowStart: number | null = null;
+
+  /** Set the visible time window. Nodes/edges outside this window are hidden. */
+  setTimeWindow(startMs: number | null, endMs: number | null): void {
+    this.timeWindowStart = startMs;
+    this.timeWindowEnd = endMs;
+    // Update node visibility based on discoveredAt
+    for (const n of this.simNodes) {
+      const t = (n as any).discoveredAt as number | undefined;
+      if (t != null && endMs != null) {
+        (n as any)._timeHidden = t > endMs || (startMs != null && t < startMs);
+      } else {
+        (n as any)._timeHidden = false;
+      }
+    }
+  }
+
+  /** Get the min/max discoveredAt timestamps across all nodes */
+  getTimeRange(): { min: number; max: number } | null {
+    let min = Infinity, max = -Infinity;
+    let found = false;
+    for (const n of this.simNodes) {
+      const t = (n as any).discoveredAt as number | undefined;
+      if (t != null && t > 0) {
+        if (t < min) min = t;
+        if (t > max) max = t;
+        found = true;
+      }
+    }
+    return found ? { min, max } : null;
+  }
+
   getCanvas(): HTMLCanvasElement | null { return this.canvas; }
 
   /** Request fullscreen on the canvas element */
@@ -1112,17 +1155,19 @@ export class BattlespaceEngine {
       }
     }
 
-    // Edges (skip edges connected to hidden node types)
+    // Edges (skip edges connected to hidden or time-filtered nodes)
     for (const e of this.simEdges) {
-      const srcType = (e.source as SimNode).type;
-      const tgtType = (e.target as SimNode).type;
-      if (this.hiddenNodeTypes.has(srcType) || this.hiddenNodeTypes.has(tgtType)) continue;
+      const src = e.source as SimNode;
+      const tgt = e.target as SimNode;
+      if (this.hiddenNodeTypes.has(src.type) || this.hiddenNodeTypes.has(tgt.type)) continue;
+      if ((src as any)._timeHidden || (tgt as any)._timeHidden) continue;
       this.drawEdge(ctx, e);
     }
 
-    // Nodes (skip hidden node types)
+    // Nodes (skip hidden node types and time-filtered nodes)
     for (const n of this.simNodes) {
       if (this.hiddenNodeTypes.has(n.type)) continue;
+      if ((n as any)._timeHidden) continue;
       this.drawNode(ctx, n);
     }
 

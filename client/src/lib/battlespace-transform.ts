@@ -115,6 +115,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
         severity: "info",
         weaknessLevel: 0,
         priorityScore: 0.3,
+        discoveredAt: (n as any).discoveredAt || undefined,
       });
     }
   }
@@ -142,6 +143,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
       mitreIds: extractMitreIds(techs),
       killChainPhase: mapLayerToKillChain(n.layer),
       defenses: n.defenses || [],
+      discoveredAt: (n as any).discoveredAt || undefined,
     };
     nodes.push(bNode);
 

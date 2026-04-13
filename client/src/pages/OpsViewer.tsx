@@ -10,6 +10,9 @@ import { NODE_VISUAL_CONFIG, SEVERITY_COLORS, KILL_CHAIN_COLORS, EDGE_VISUAL_CON
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TimelineScrubber } from "@/components/TimelineScrubber";
+import { VisualEffectToggles } from "@/components/VisualEffectToggles";
+import type { EngineOptions } from "@/lib/battlespace-engine";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -416,6 +419,14 @@ export default function Battlespace() {
     tap_point: true,
   });
 
+  // Timeline scrubber state
+  const [timeRange, setTimeRange] = useState<{ min: number; max: number } | null>(null);
+  const [visibleNodeCount, setVisibleNodeCount] = useState(0);
+  const [totalNodeCount, setTotalNodeCount] = useState(0);
+
+  // Visual effect toggles state
+  const [engineOptions, setEngineOptions] = useState<Partial<EngineOptions>>({});
+
   // Data queries
   const engagementsQuery = trpc.engagements.list.useQuery(undefined, { retry: 1 });
   const engagements = engagementsQuery.data || [];
@@ -549,8 +560,41 @@ export default function Battlespace() {
     if (!engineRef.current || !graphQuery.data) return;
     const graphData = transformEngagementGraph(graphQuery.data);
     engineRef.current.loadGraph(graphData);
-    setTimeout(() => engineRef.current?.fitToView(), 600);
+    setTimeout(() => {
+      engineRef.current?.fitToView();
+      // Compute time range for timeline scrubber
+      const range = engineRef.current?.getTimeRange() || null;
+      setTimeRange(range);
+      setTotalNodeCount(graphData.nodes.length);
+      setVisibleNodeCount(graphData.nodes.length);
+      // Sync engine options to state
+      if (engineRef.current) setEngineOptions({ ...engineRef.current.getOptions() });
+    }, 600);
   }, [graphQuery.data]);
+
+  // Timeline scrubber callback
+  const handleTimeChange = useCallback((startMs: number | null, endMs: number | null) => {
+    if (!engineRef.current) return;
+    engineRef.current.setTimeWindow(startMs, endMs);
+    // Count visible nodes
+    if (startMs == null && endMs == null) {
+      setVisibleNodeCount(totalNodeCount);
+    } else {
+      // Approximate: count nodes with discoveredAt <= endMs
+      const range = engineRef.current.getTimeRange();
+      if (range && endMs != null) {
+        const pct = Math.max(0, Math.min(1, (endMs - range.min) / (range.max - range.min)));
+        setVisibleNodeCount(Math.round(pct * totalNodeCount));
+      }
+    }
+  }, [totalNodeCount]);
+
+  // Visual effect toggle callback
+  const handleToggle = useCallback((key: keyof EngineOptions, value: boolean) => {
+    if (!engineRef.current) return;
+    engineRef.current.setOption(key, value as any);
+    setEngineOptions(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   // ── Real-time progressive rendering via useOpsViewerLiveStream ──────
   const [liveEventCount, setLiveEventCount] = useState(0);
@@ -864,6 +908,8 @@ export default function Battlespace() {
             >
               <Network size={12} />
             </Button>
+            <div className="h-6 w-px bg-[#1A2332]" />
+            <VisualEffectToggles options={engineOptions} onToggle={handleToggle} />
           </div>
         </div>
 
@@ -1036,6 +1082,17 @@ export default function Battlespace() {
                 </>
               )}
             </div>
+          )}
+
+          {/* Timeline Scrubber */}
+          {timeRange && mode === "engagement" && (
+            <TimelineScrubber
+              minTime={timeRange.min}
+              maxTime={timeRange.max}
+              onTimeChange={handleTimeChange}
+              visibleNodeCount={visibleNodeCount}
+              totalNodeCount={totalNodeCount}
+            />
           )}
 
           {/* Scan line animation (decorative) */}
