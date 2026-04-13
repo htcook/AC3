@@ -1206,7 +1206,7 @@ function Router() {
         </Route>
         <Route path="/battlespace">
           {/* TODO: restore ProtectedRoute after testing */}
-          <Suspense fallback={<div className="h-screen bg-[#0A0E14] flex items-center justify-center font-mono text-xs text-teal-400">LOADING BATTLESPACE...</div>}><Battlespace /></Suspense>
+          <Suspense fallback={<div className="h-screen bg-[#0A0E14] flex items-center justify-center font-mono text-xs text-teal-400">LOADING OPS VIEWER...</div>}><Battlespace /></Suspense>
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

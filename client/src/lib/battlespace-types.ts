@@ -1,8 +1,8 @@
 /**
- * Battlespace Visualization — Shared Types & Visual Encoding Constants
- * ═══════════════════════════════════════════════════════════════════════
+ * Ops Viewer — Shared Types & Visual Encoding Constants
+ * ═══════════════════════════════════════════════════════════════════
  * MIL-STD-2525D inspired symbology with brutalist design system.
- * Dual-mode: Engagement Battlespace + DI Customer Demo
+ * Dual-mode: Engagement Ops Viewer + DI Customer Demo
  */
 
 // ── Node Types ──────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ export function getZoomLevel(scale: number): ZoomLevel {
   return "MICRO";
 }
 
-// ── Battlespace Mode ────────────────────────────────────────────────
+// ── Ops Viewer Mode ────────────────────────────────────────────────
 export type BattlespaceMode = "engagement" | "di_scan";
 
 // ── Graph Transform Helpers ─────────────────────────────────────────

@@ -370,14 +370,23 @@ function PathSelector({
   );
 }
 
-// ── Main Battlespace Component ──────────────────────────────────────
+// ── Main Ops Viewer Component ──────────────────────────────────────────────────────
 export default function Battlespace() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<BattlespaceEngine | null>(null);
 
+  // Read ?eid= query param for deep-linking from EngagementOps
+  const [initialEid] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('eid') || '';
+    }
+    return '';
+  });
+
   // State
   const [mode, setMode] = useState<BattlespaceMode>("engagement");
-  const [engagementId, setEngagementId] = useState<string>("");
+  const [engagementId, setEngagementId] = useState<string>(initialEid);
   const [diScanId, setDiScanId] = useState<string>("");
   const [stats, setStats] = useState<EngineStats | null>(null);
   const [selectedNode, setSelectedNode] = useState<BattlespaceNode | null>(null);
@@ -490,7 +499,7 @@ export default function Battlespace() {
         if (!cancelled) setEngineReady(true);
       })
       .catch((err) => {
-        console.error("[Battlespace] Engine init failed:", err);
+        console.error("[OpsViewer] Engine init failed:", err);
         if (!cancelled) setEngineError(err?.message || "WebGL initialization failed");
       });
 
@@ -625,7 +634,7 @@ export default function Battlespace() {
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <Crosshair size={16} className="text-teal-400" />
-            <span className="font-mono text-xs uppercase tracking-widest text-white font-bold">BATTLESPACE</span>
+            <span className="font-mono text-xs uppercase tracking-widest text-white font-bold">OPS VIEWER</span>
           </div>
 
           <div className="h-6 w-px bg-[#1A2332]" />
