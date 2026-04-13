@@ -355,7 +355,7 @@ describe("Ops Viewer Layout", () => {
       "utf-8"
     );
     // Back link should not be conditional on initialEid
-    expect(source).toContain('<Link href={initialEid ? "/engagements" : "/operator"}');
+    expect(source).toContain('<Link href={initialEid ? "/engagements" : "/"}');
     expect(source).toContain('>Back</span>');
   });
 

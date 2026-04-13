@@ -468,31 +468,24 @@ export default function Battlespace() {
   const diScansQuery = trpc.domainIntel.listScans.useQuery(undefined, { retry: 1 });
   const diScans = diScansQuery?.data || [];
 
-  // WebSocket for real-time updates
-  const ws = useWebSocket({
-    filterTypes: [
-      "recon:finding",
-      "recon:complete",
-      "exploit:result",
-      "agent:deployed",
-      "agent:checkin",
-      "lateral:movement_executed",
-      "privesc:escalation_found",
-      "credential:found",
-      "scan:host_discovered",
-      "di:domain_discovered",
-      "opsec:action_scored",
-      "ember:agent_registered",
-      "ember:beacon",
-      "ember:task_complete",
-      "ember:lateral_movement",
-      "ember:network_discovered",
-      "ember:credential_harvested",
-      "ember:data_exfiltrated",
-      "ember:persistence_established",
-      "ember:burn_response",
-      "ember:opsec_scored",
-    ],
+  // Engine state — declared before hooks that reference engineReady
+  const [engineReady, setEngineReady] = useState(false);
+  const [engineError, setEngineError] = useState<string | null>(null);
+
+  // Ember C2 + OPSEC events — lightweight hook for engine.processWsEvent
+  // (Recon/exploit/agent events are handled by useOpsViewerLiveStream)
+  const emberFilterTypes = useMemo<import("@/hooks/useWebSocket").WsEventType[]>(() => [
+    "opsec:action_scored",
+    "opsec:burn_detected",
+    "c2:agent_checkin",
+    "c2:ability_executed",
+    "c2:operation_update",
+  ], []);
+  const emberWs = useWebSocket({
+    filterTypes: emberFilterTypes,
+    maxEvents: 20,
+    showToasts: false,
+    enabled: mode === "engagement" && engineReady,
   });
 
   // Engine callbacks
@@ -505,10 +498,6 @@ export default function Battlespace() {
     onZoomChange: (_scale, _level) => {},
     onStatsUpdate: (s) => setStats(s),
   }), []);
-
-  // Initialize engine
-  const [engineReady, setEngineReady] = useState(false);
-  const [engineError, setEngineError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -649,17 +638,14 @@ export default function Battlespace() {
     setDiScanComplete(false);
   }, [diScanId]);
 
-  // Route Ember events through the engine's unified handler
+  // Route OPSEC/C2 events through the engine's unified handler
+  // Uses lastEvent (stable reference) instead of events array to avoid re-processing
   useEffect(() => {
-    if (!ws.events || ws.events.length === 0 || !engineRef.current) return;
-    const latest = ws.events[ws.events.length - 1];
-    if (!latest?.data) return;
+    const latest = emberWs.lastEvent;
+    if (!latest?.data || !engineRef.current) return;
 
-    if (latest.type?.startsWith("ember:")) {
-      engineRef.current.processWsEvent({ type: latest.type, data: latest.data });
-    }
     // OPSEC events → flash relevant Ember nodes
-    if (latest.type === "opsec:action_scored" && latest.data) {
+    if (latest.type === "opsec:action_scored") {
       const action = latest.data.action || "";
       if (action.startsWith("ember:")) {
         engineRef.current.processWsEvent({
@@ -668,7 +654,11 @@ export default function Battlespace() {
         });
       }
     }
-  }, [ws.events]);
+    // C2 events → route to engine
+    if (latest.type.startsWith("c2:")) {
+      engineRef.current.processWsEvent({ type: latest.type, data: latest.data });
+    }
+  }, [emberWs.lastEvent]);
 
   // Handle path highlighting — uses reasoning paths if available
   const activePaths = reasoningMerged && reasoningQuery.data?.paths
@@ -690,7 +680,7 @@ export default function Battlespace() {
         {/* Top Bar */}
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
           {/* Back to Dashboard — always visible */}
-          <Link href={initialEid ? "/engagements" : "/operator"} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
+          <Link href={initialEid ? "/engagements" : "/"} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
             <ArrowLeft size={12} />
             <span>Back</span>
           </Link>

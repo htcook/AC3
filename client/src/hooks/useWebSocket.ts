@@ -385,8 +385,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           wsUpgradeFailuresRef.current++;
           transportRef.current = "sse";
           setTransport("sse");
-          // Reconnect SSE if it was closed
-          if (!sseRef.current) {
+          // Reconnect SSE if it was closed and component is still mounted
+          if (!sseRef.current && mountedRef.current) {
             connectSSERef.current();
           }
         } else {
@@ -456,12 +456,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           }
 
           // Exponential backoff reconnect
-          if (autoReconnectRef.current && enabledRef.current) {
+          if (autoReconnectRef.current && enabledRef.current && mountedRef.current) {
             const attempts = sseReconnectAttemptsRef.current;
             const delay = Math.min(5000 * Math.pow(2, attempts), 60000);
             sseReconnectAttemptsRef.current++;
             console.log(`[EventStream] SSE reconnect attempt ${attempts + 1}, waiting ${delay}ms`);
-            reconnectTimeoutRef.current = setTimeout(() => connectSSERef.current(), delay);
+            reconnectTimeoutRef.current = setTimeout(() => {
+              if (mountedRef.current) connectSSERef.current();
+            }, delay);
           }
         }
       };
@@ -534,6 +536,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     // Skip the initial run — connection is handled by the mount effect
     if (prevChannelKeyRef.current === channelKey) return;
     prevChannelKeyRef.current = channelKey;
+
+    // Guard: don't reconnect if component is unmounting or hook is disabled
+    if (!mountedRef.current || !enabledRef.current) return;
 
     // WebSocket: send subscribe message
     if (wsRef.current?.readyState === WebSocket.OPEN && channels.length > 0) {
