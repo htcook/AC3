@@ -1437,14 +1437,32 @@ export class BattlespaceEngine {
       }
     }
 
-    // Edge label at MICRO zoom
-    if (this.currentZoomLevel === "MICRO" && e.protocol && !e.isIntercepted) {
+    // Edge label at MICRO zoom (protocol or affected tech)
+    if (this.currentZoomLevel === "MICRO" || (this.currentZoomLevel === "MESO" && e.label)) {
       const mx = (src.x + tgt.x) / 2;
       const my = (src.y + tgt.y) / 2;
-      ctx.font = "bold 7px 'JetBrains Mono', monospace";
-      ctx.fillStyle = rgbaStr(config.color, 0.7);
-      ctx.textAlign = "center";
-      ctx.fillText(e.protocol.toUpperCase(), mx, my - 4);
+      // Show affected technology label on exploit edges
+      if (e.label && (e.type === "exploits" || e.type === "targets")) {
+        const techKey = e.label.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        ctx.font = "bold 8px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(e.label).width;
+        // Dark pill background
+        ctx.fillStyle = "rgba(10,14,20,0.85)";
+        ctx.fillRect(mx - tw / 2 - 4, my - 8, tw + 8, 14);
+        ctx.strokeStyle = rgbaStr(techInfo.color, 0.5);
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(mx - tw / 2 - 4, my - 8, tw + 8, 14);
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.9);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(e.label, mx, my - 1);
+      } else if (this.currentZoomLevel === "MICRO" && e.protocol && !e.isIntercepted) {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        ctx.fillStyle = rgbaStr(config.color, 0.7);
+        ctx.textAlign = "center";
+        ctx.fillText(e.protocol.toUpperCase(), mx, my - 4);
+      }
     }
 
     ctx.restore();
@@ -1597,7 +1615,7 @@ export class BattlespaceEngine {
 
     // Label (MESO and MICRO zoom)
     if (this.currentZoomLevel !== "MACRO") {
-      const labelText = n.label.length > 24 ? n.label.slice(0, 22) + "…" : n.label;
+      const labelText = n.label.length > 24 ? n.label.slice(0, 22) + "\u2026" : n.label;
       ctx.font = "bold 11px 'JetBrains Mono', monospace";
       const labelWidth = ctx.measureText(labelText).width;
       // Dark background pill for readability
@@ -1607,11 +1625,31 @@ export class BattlespaceEngine {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(labelText, n.x, n.y + r + 12);
+
+      // Affected technology badge below label (vulnerability nodes only)
+      if (n.type === "vulnerability" && n.affectedTechnology) {
+        const techKey = n.affectedTechnology.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        ctx.font = "bold 8px 'JetBrains Mono', monospace";
+        const techLabel = techInfo.label !== "???" ? techInfo.label : n.affectedTechnology.slice(0, 8);
+        const tw = ctx.measureText(techLabel).width;
+        const tagY = n.y + r + 24;
+        // Colored pill
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.15);
+        ctx.fillRect(n.x - tw / 2 - 5, tagY - 5, tw + 10, 12);
+        ctx.strokeStyle = rgbaStr(techInfo.color, 0.6);
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(n.x - tw / 2 - 5, tagY - 5, tw + 10, 12);
+        ctx.fillStyle = techInfo.color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(techLabel, n.x, tagY + 1);
+      }
     }
 
-    // Badges at MICRO zoom
-    if (this.currentZoomLevel === "MICRO") {
-      this.drawNodeBadges(ctx, n, r);
+    // Tech stack badges at MESO and MICRO zoom
+    if (this.currentZoomLevel === "MICRO" || this.currentZoomLevel === "MESO") {
+      this.drawTechOrbit(ctx, n, r);
     }
 
     // Priority target indicator
@@ -1653,46 +1691,111 @@ export class BattlespaceEngine {
     ctx.restore();
   }
 
-  private drawNodeBadges(ctx: CanvasRenderingContext2D, n: SimNode, r: number): void {
-    const badges: string[] = [];
+  /**
+   * Draw orbiting tech-stack pill badges around an asset node.
+   * Each pill is color-coded by technology, connected to the node
+   * with a thin line, and slowly orbits for visual appeal.
+   */
+  private drawTechOrbit(ctx: CanvasRenderingContext2D, n: SimNode, r: number): void {
+    if (!n.x || !n.y) return;
+    const techs = (n.technologies || []).filter(Boolean);
+    const services = (n.exposedServices || []).slice(0, 3);
+    const hasPlatform = !!n.platform;
 
-    // Tech stack badges
-    if (n.technologies) {
-      for (const t of n.technologies.slice(0, 3)) {
-        const tech = TECH_ICONS[t.toLowerCase()] || TECH_ICONS.default;
-        badges.push(tech.label);
-      }
+    // Build badge list: tech pills + platform + services
+    interface Badge { label: string; color: string; fullName: string }
+    const badges: Badge[] = [];
+
+    // Tech stack (max 6 at MICRO, 4 at MESO)
+    const maxTechs = this.currentZoomLevel === "MICRO" ? 6 : 4;
+    for (const t of techs.slice(0, maxTechs)) {
+      const key = t.toLowerCase();
+      const tech = TECH_ICONS[key] || TECH_ICONS.default;
+      badges.push({ label: tech.label, color: tech.color, fullName: t });
     }
 
     // Platform badge
-    if (n.platform) {
-      const icon = PLATFORM_ICONS[n.platform] || PLATFORM_ICONS.on_prem;
-      badges.push(icon);
+    if (hasPlatform && this.currentZoomLevel === "MICRO") {
+      const icon = PLATFORM_ICONS[n.platform!] || PLATFORM_ICONS.on_prem;
+      badges.push({ label: icon, color: "#6B7280", fullName: n.platform! });
     }
 
-    // Exposed services badges
-    if (n.exposedServices) {
-      for (const s of n.exposedServices.slice(0, 2)) {
-        badges.push(s.port ? `⚡${s.port}` : "⚡");
+    // Exposed services (MICRO only)
+    if (this.currentZoomLevel === "MICRO") {
+      for (const s of services) {
+        badges.push({
+          label: s.port ? `${s.port}` : "svc",
+          color: "#3B82F6",
+          fullName: s.name || `port ${s.port}`,
+        });
       }
     }
 
     if (badges.length === 0) return;
 
-    // Draw badges in a row above the node
-    const badgeY = (n.y || 0) - r - 16;
-    const startX = (n.x || 0) - (badges.length * 12) / 2;
-    ctx.font = "8px sans-serif";
+    // Orbit geometry
+    const orbitR = r + 22 + (badges.length > 4 ? 6 : 0);
+    const angleStep = (Math.PI * 2) / badges.length;
+    // Slow rotation (one full revolution every ~40s)
+    const baseAngle = this.animationTime * 0.15 + (n._pulsePhase || 0);
+
     for (let i = 0; i < badges.length; i++) {
-      const bx = startX + i * 14;
-      ctx.fillStyle = "rgba(10,14,20,0.9)";
-      ctx.fillRect(bx - 5, badgeY - 5, 12, 12);
-      ctx.strokeStyle = "rgba(26,35,50,0.8)";
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(bx - 5, badgeY - 5, 12, 12);
-      ctx.fillStyle = "#E8EAED";
+      const badge = badges[i];
+      const angle = baseAngle + angleStep * i;
+      const bx = n.x + Math.cos(angle) * orbitR;
+      const by = n.y + Math.sin(angle) * orbitR;
+
+      // Connecting line from node edge to badge
+      const lineStartX = n.x + Math.cos(angle) * (r + 2);
+      const lineStartY = n.y + Math.sin(angle) * (r + 2);
+      ctx.strokeStyle = rgbaStr(badge.color, 0.25);
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(lineStartX, lineStartY);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Pill background
+      const pillW = Math.max(ctx.measureText(badge.label).width + 10, 22);
+      const pillH = 14;
+      const pillR = pillH / 2;
+
+      // Measure text for pill width
+      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      const textW = ctx.measureText(badge.label).width;
+      const actualPillW = Math.max(textW + 10, 22);
+
+      // Pill shape (rounded rect)
+      ctx.beginPath();
+      ctx.moveTo(bx - actualPillW / 2 + pillR, by - pillH / 2);
+      ctx.lineTo(bx + actualPillW / 2 - pillR, by - pillH / 2);
+      ctx.arc(bx + actualPillW / 2 - pillR, by, pillR, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(bx - actualPillW / 2 + pillR, by + pillH / 2);
+      ctx.arc(bx - actualPillW / 2 + pillR, by, pillR, Math.PI / 2, -Math.PI / 2);
+      ctx.closePath();
+
+      // Fill with dark bg + colored border
+      ctx.fillStyle = "rgba(10,14,20,0.92)";
+      ctx.fill();
+      ctx.strokeStyle = rgbaStr(badge.color, 0.7);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Subtle glow behind pill at MICRO zoom
+      if (this.currentZoomLevel === "MICRO" && this.options.glowEnabled) {
+        ctx.shadowColor = badge.color;
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Text label
+      ctx.fillStyle = badge.color;
       ctx.textAlign = "center";
-      ctx.fillText(badges[i], bx + 1, badgeY + 4);
+      ctx.textBaseline = "middle";
+      ctx.fillText(badge.label, bx, by);
     }
   }
 

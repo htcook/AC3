@@ -144,6 +144,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
       killChainPhase: mapLayerToKillChain(n.layer),
       defenses: n.defenses || [],
       discoveredAt: (n as any).discoveredAt || undefined,
+      affectedTechnology: n.details?.technology || n.details?.service || undefined,
     };
     nodes.push(bNode);
 
@@ -644,20 +645,25 @@ export function transformDIScan(
     for (let i = 0; i < postureFindings.length; i++) {
       const pf = postureFindings[i];
       const pfId = `finding-${asset.id}-${i}`;
+      const findingTitle = typeof pf === "string" ? pf : pf.title || pf.finding || "Finding";
+      // Extract affected technology from finding title — e.g. "CVE-2024-1234: Buffer Overflow (Apache HTTP Server)"
+      const affectedTech = extractAffectedTech(findingTitle, techs);
       nodes.push({
         id: pfId,
         type: "vulnerability",
-        label: typeof pf === "string" ? pf : pf.title || pf.finding || "Finding",
+        label: findingTitle,
         severity: normalizeSeverity(typeof pf === "object" ? pf.severity : "medium"),
         weaknessLevel: typeof pf === "object" && pf.severity === "critical" ? 0.95 : 0.5,
         hostname: asset.hostname,
+        affectedTechnology: affectedTech || undefined,
       });
       edges.push({
         id: `vuln-${assetId}-${pfId}`,
         source: assetId,
         target: pfId,
-        type: "network_link",
-        weight: 0.4,
+        type: "exploits",
+        weight: 0.5,
+        label: affectedTech || undefined,
       });
     }
   }
@@ -841,6 +847,36 @@ function mapEdgeType(type: string): BattlespaceEdgeType {
   if (t.includes("target")) return "targets";
   if (t.includes("dns")) return "dns_resolve";
   return "enables";
+}
+
+/**
+ * Extract the affected technology from a finding title.
+ * Looks for parenthesized product names like "(Apache HTTP Server)" or "(nginx 1.18)"
+ * and cross-references with the asset's known technologies.
+ */
+function extractAffectedTech(title: string, assetTechs: string[]): string | null {
+  // 1. Try parenthesized product: "CVE-2024-1234: Vuln Name (Apache HTTP Server)"
+  const parenMatch = title.match(/\(([^)]+)\)\s*$/);
+  if (parenMatch) {
+    const product = parenMatch[1].trim();
+    // Check if this matches any known tech on the asset
+    const lower = product.toLowerCase();
+    for (const tech of assetTechs) {
+      if (lower.includes(tech.toLowerCase()) || tech.toLowerCase().includes(lower.split(/\s+/)[0])) {
+        return tech;
+      }
+    }
+    // Return the product name even if not in asset techs (it's still useful)
+    return product;
+  }
+  // 2. Try matching known asset techs against the title text
+  const titleLower = title.toLowerCase();
+  for (const tech of assetTechs) {
+    if (tech.length > 2 && titleLower.includes(tech.toLowerCase())) {
+      return tech;
+    }
+  }
+  return null;
 }
 
 function normalizeSeverity(s: any): SeverityLevel {

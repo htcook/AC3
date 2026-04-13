@@ -354,8 +354,8 @@ describe("Ops Viewer Layout", () => {
       new URL("../client/src/pages/OpsViewer.tsx", import.meta.url),
       "utf-8"
     );
-    // Back link should not be conditional on initialEid
-    expect(source).toContain('<Link href={initialEid ? "/engagements" : "/"}');
+    // Back button uses history.back() with fallback
+    expect(source).toContain('window.history.back()');
     expect(source).toContain('>Back</span>');
   });
 

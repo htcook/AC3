@@ -108,6 +108,9 @@ export interface BattlespaceNode {
   tapType?: "span_port" | "ssl_inspection" | "ids_inline" | "traffic_mirror" | "proxy_intercept";
   interceptedBy?: string;       // SOC tool name or blue team indicator
   isIntercepted?: boolean;      // True if traffic through this node is being monitored
+  // Vulnerability→Technology linkage
+  affectedTechnology?: string;   // Technology this finding targets (parsed from title)
+  isCompromised?: boolean;       // True if host is compromised
 }
 
 // ── Edge Data ───────────────────────────────────────────────────────
@@ -242,29 +245,96 @@ export const PLATFORM_ICONS: Record<PlatformType, string> = {
 
 /** Tech stack icon mapping (abbreviated) */
 export const TECH_ICONS: Record<string, { label: string; color: string }> = {
-  apache:       { label: "APH", color: "#D22128" },
-  nginx:        { label: "NGX", color: "#009639" },
-  iis:          { label: "IIS", color: "#0078D4" },
-  tomcat:       { label: "TOM", color: "#F8DC75" },
-  wordpress:    { label: "WP",  color: "#21759B" },
-  php:          { label: "PHP", color: "#777BB4" },
-  java:         { label: "JVA", color: "#ED8B00" },
-  python:       { label: "PY",  color: "#3776AB" },
-  node:         { label: "NOD", color: "#339933" },
-  ".net":       { label: "NET", color: "#512BD4" },
-  react:        { label: "RCT", color: "#61DAFB" },
-  docker:       { label: "DKR", color: "#2496ED" },
-  kubernetes:   { label: "K8S", color: "#326CE5" },
-  mysql:        { label: "SQL", color: "#4479A1" },
-  postgresql:   { label: "PG",  color: "#4169E1" },
-  mongodb:      { label: "MDB", color: "#47A248" },
-  redis:        { label: "RDS", color: "#DC382D" },
-  elasticsearch:{ label: "ELS", color: "#005571" },
-  jenkins:      { label: "JNK", color: "#D24939" },
-  spring:       { label: "SPR", color: "#6DB33F" },
-  django:       { label: "DJG", color: "#092E20" },
-  laravel:      { label: "LRV", color: "#FF2D20" },
-  default:      { label: "???" , color: "#4A5568" },
+  // Web servers
+  apache:         { label: "APH", color: "#D22128" },
+  nginx:          { label: "NGX", color: "#009639" },
+  iis:            { label: "IIS", color: "#0078D4" },
+  tomcat:         { label: "TOM", color: "#F8DC75" },
+  lighttpd:       { label: "LHT", color: "#E8E8E8" },
+  caddy:          { label: "CDY", color: "#1F88C9" },
+  // CMS
+  wordpress:      { label: "WP",  color: "#21759B" },
+  drupal:         { label: "DPL", color: "#0678BE" },
+  joomla:         { label: "JML", color: "#5091CD" },
+  magento:        { label: "MGT", color: "#EE672F" },
+  shopify:        { label: "SHO", color: "#96BF48" },
+  wix:            { label: "WIX", color: "#FAAD4D" },
+  squarespace:    { label: "SQS", color: "#222222" },
+  // Languages
+  php:            { label: "PHP", color: "#777BB4" },
+  java:           { label: "JVA", color: "#ED8B00" },
+  python:         { label: "PY",  color: "#3776AB" },
+  ruby:           { label: "RB",  color: "#CC342D" },
+  go:             { label: "GO",  color: "#00ADD8" },
+  rust:           { label: "RST", color: "#DEA584" },
+  typescript:     { label: "TS",  color: "#3178C6" },
+  javascript:     { label: "JS",  color: "#F7DF1E" },
+  "c#":           { label: "C#",  color: "#239120" },
+  // Runtimes/Platforms
+  node:           { label: "NOD", color: "#339933" },
+  "node.js":      { label: "NOD", color: "#339933" },
+  ".net":         { label: "NET", color: "#512BD4" },
+  "asp.net":      { label: "ASP", color: "#512BD4" },
+  // Frontend frameworks
+  react:          { label: "RCT", color: "#61DAFB" },
+  angular:        { label: "ANG", color: "#DD0031" },
+  vue:            { label: "VUE", color: "#4FC08D" },
+  svelte:         { label: "SVT", color: "#FF3E00" },
+  jquery:         { label: "JQ",  color: "#0769AD" },
+  bootstrap:      { label: "BS",  color: "#7952B3" },
+  tailwind:       { label: "TW",  color: "#06B6D4" },
+  // Backend frameworks
+  spring:         { label: "SPR", color: "#6DB33F" },
+  django:         { label: "DJG", color: "#092E20" },
+  flask:          { label: "FLK", color: "#000000" },
+  laravel:        { label: "LRV", color: "#FF2D20" },
+  rails:          { label: "RLS", color: "#CC0000" },
+  express:        { label: "EXP", color: "#000000" },
+  fastapi:        { label: "FPI", color: "#009688" },
+  // Containers/Infra
+  docker:         { label: "DKR", color: "#2496ED" },
+  kubernetes:     { label: "K8S", color: "#326CE5" },
+  // Databases
+  mysql:          { label: "SQL", color: "#4479A1" },
+  postgresql:     { label: "PG",  color: "#4169E1" },
+  mongodb:        { label: "MDB", color: "#47A248" },
+  redis:          { label: "RDS", color: "#DC382D" },
+  elasticsearch:  { label: "ELS", color: "#005571" },
+  mariadb:        { label: "MDB", color: "#003545" },
+  sqlite:         { label: "SLT", color: "#003B57" },
+  mssql:          { label: "MSQ", color: "#CC2927" },
+  "sql server":   { label: "MSQ", color: "#CC2927" },
+  oracle:         { label: "ORA", color: "#F80000" },
+  // CI/CD
+  jenkins:        { label: "JNK", color: "#D24939" },
+  gitlab:         { label: "GLB", color: "#FC6D26" },
+  github:         { label: "GH",  color: "#181717" },
+  // CDN/Proxy
+  cloudflare:     { label: "CF",  color: "#F38020" },
+  akamai:         { label: "AKM", color: "#009BDE" },
+  fastly:         { label: "FST", color: "#FF282D" },
+  "aws cloudfront":{ label: "CFT", color: "#FF9900" },
+  // Cloud
+  aws:            { label: "AWS", color: "#FF9900" },
+  azure:          { label: "AZR", color: "#0078D4" },
+  gcp:            { label: "GCP", color: "#4285F4" },
+  // Microsoft
+  exchange:       { label: "EXC", color: "#0078D4" },
+  "microsoft 365": { label: "M365", color: "#D83B01" },
+  sharepoint:     { label: "SPT", color: "#0078D4" },
+  outlook:        { label: "OLK", color: "#0078D4" },
+  // Security
+  openssl:        { label: "SSL", color: "#721412" },
+  letsencrypt:    { label: "LE",  color: "#003A70" },
+  // Analytics
+  "google analytics":{ label: "GA", color: "#E37400" },
+  "google tag manager":{ label: "GTM", color: "#246FDB" },
+  // Misc
+  varnish:        { label: "VRN", color: "#00BFFF" },
+  haproxy:        { label: "HAP", color: "#106DA9" },
+  grafana:        { label: "GRF", color: "#F46800" },
+  prometheus:     { label: "PRO", color: "#E6522C" },
+  default:        { label: "???" , color: "#4A5568" },
 };
 
 /** Defense type visual config */
@@ -284,7 +354,7 @@ export const ZOOM_LEVELS = {
   /** Zoomed out: shapes + colors only, no labels */
   MACRO:  { min: 0,    max: 0.15, showLabels: false, showBadges: false, showEdgeLabels: false, showParticles: false },
   /** Medium: labels appear, basic badges */
-  MESO:   { min: 0.15, max: 0.5, showLabels: true,  showBadges: false, showEdgeLabels: false, showParticles: true },
+  MESO:   { min: 0.15, max: 0.5, showLabels: true,  showBadges: true,  showEdgeLabels: false, showParticles: true },
   /** Zoomed in: full detail — labels, badges, edge labels, particles */
   MICRO:  { min: 0.5,  max: 3.0, showLabels: true,  showBadges: true,  showEdgeLabels: true,  showParticles: true },
 } as const;
