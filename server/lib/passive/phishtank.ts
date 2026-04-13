@@ -164,7 +164,7 @@ export const phishtankConnector: PassiveConnector = {
       observations.push({
         assetId: makeAssetId(domain, "phishtank-clean", "phishtank"),
         domain,
-        assetType: "subdomain",
+        assetType: "infrastructure",
         name: `PhishTank: ${domain} — No phishing URLs found`,
         source: "phishtank",
         observedAt: now,

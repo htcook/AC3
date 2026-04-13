@@ -2261,6 +2261,8 @@ export async function runDomainIntelPipeline(
       if (THIRD_PARTY_PATTERNS_PASSIVE.some(p => p.test(hostname))) continue;
       // Skip malformed NS/SOA/MX record hostnames
       if (hostname.startsWith('ns:') || hostname.startsWith('soa:') || hostname.startsWith('mx:')) continue;
+      // Skip non-hostname strings (e.g., PhishTank status messages, tool output labels)
+      if (/[\s:]/.test(hostname) || hostname.length > 253 || !hostname.includes('.')) continue;
       seenSubdomains.add(hostname);
       // Build tags from observation evidence
       const tags: string[] = [...(obs.tags || [])];
