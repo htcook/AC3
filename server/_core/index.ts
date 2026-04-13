@@ -72,8 +72,39 @@ async function startServer() {
   // ─── Health Check Endpoint (before HTTPS redirect) ──────────────────
   // Platform health checks may hit HTTP without X-Forwarded-Proto.
   // This must be registered before HTTPS redirect to avoid redirect loops.
+  // ─── Event Loop Lag Monitor ──────────────────────────────────────
+  // Continuously measures event loop lag via setInterval drift.
+  // If the event loop is blocked, the interval fires late.
+  let _eventLoopLagMs = 0;
+  let _eventLoopLagMax = 0;
+  let _eventLoopLagSamples = 0;
+  const EL_CHECK_INTERVAL = 1000; // check every 1s
+  const EL_LAG_THRESHOLD = 2000; // 2s lag = unhealthy
+  const EL_LAG_DEGRADED = 500;   // 500ms lag = degraded
+  let _elLastCheck = Date.now();
+  const _elTimer = setInterval(() => {
+    const now = Date.now();
+    const expected = EL_CHECK_INTERVAL;
+    const actual = now - _elLastCheck;
+    const lag = Math.max(0, actual - expected);
+    _eventLoopLagMs = lag;
+    if (lag > _eventLoopLagMax) _eventLoopLagMax = lag;
+    _eventLoopLagSamples++;
+    _elLastCheck = now;
+  }, EL_CHECK_INTERVAL);
+  _elTimer.unref(); // don't keep process alive just for health checks
+
   app.get('/healthz', (_req, res) => {
-    res.status(200).json({ status: 'ok', timestamp: Date.now() });
+    // DO health check: return 503 if event loop is frozen
+    if (_eventLoopLagMs > EL_LAG_THRESHOLD) {
+      return res.status(503).json({
+        status: 'unhealthy',
+        reason: 'event_loop_blocked',
+        eventLoopLagMs: _eventLoopLagMs,
+        timestamp: Date.now(),
+      });
+    }
+    res.status(200).json({ status: 'ok', eventLoopLagMs: _eventLoopLagMs, timestamp: Date.now() });
   });
   app.get('/api/health', async (_req, res) => {
     const os = await import('os');
@@ -90,6 +121,13 @@ async function startServer() {
         heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
         rssMB: Math.round(mem.rss / 1024 / 1024),
         heapUtilization: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+      },
+      eventLoop: {
+        lagMs: _eventLoopLagMs,
+        maxLagMs: _eventLoopLagMax,
+        samples: _eventLoopLagSamples,
+        status: _eventLoopLagMs > EL_LAG_THRESHOLD ? 'blocked' :
+                _eventLoopLagMs > EL_LAG_DEGRADED ? 'degraded' : 'healthy',
       },
       database: { connected: false, latencyMs: -1 },
       engagements: null,
@@ -125,8 +163,15 @@ async function startServer() {
     if (baseHealth.memory.heapUtilization > 90) {
       baseHealth.status = 'degraded';
     }
+    // Event loop lag check
+    if (_eventLoopLagMs > EL_LAG_THRESHOLD) {
+      baseHealth.status = 'unhealthy';
+    } else if (_eventLoopLagMs > EL_LAG_DEGRADED) {
+      baseHealth.status = baseHealth.status === 'ok' ? 'degraded' : baseHealth.status;
+    }
 
-    const httpStatus = baseHealth.status === 'error' ? 503 : 200;
+    const httpStatus = baseHealth.status === 'unhealthy' ? 503 :
+                       baseHealth.status === 'error' ? 503 : 200;
     res.status(httpStatus).json(baseHealth);
   });
 

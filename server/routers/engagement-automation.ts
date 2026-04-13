@@ -1162,9 +1162,10 @@ export const engagementAutomationRouter = router({
         .limit(50);
 
       // Get ops state for each
-      const { getOpsState } = await import('../lib/engagement-orchestrator');
-      const statuses = trainingEngagements.map(eng => {
-        const state = getOpsState(eng.id);
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      const statuses = await Promise.all(trainingEngagements.map(async eng => {
+        let state = getOpsState(eng.id);
+        if (!state) state = await getOpsStateWithRecovery(eng.id);
         return {
           engagementId: eng.id,
           name: eng.name,

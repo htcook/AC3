@@ -1046,8 +1046,9 @@ export const calderaProxyRouter = router({
         // Fetch engagement ops data if engagementId provided
         let engagementOpsData: any = undefined;
         if (input.engagementId) {
-          const { getOpsState } = await import('../lib/engagement-orchestrator');
-          const opsState = getOpsState(input.engagementId);
+          const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+          let opsState = getOpsState(input.engagementId);
+          if (!opsState) opsState = await getOpsStateWithRecovery(input.engagementId);
           if (opsState) {
             engagementOpsData = {
               assets: opsState.assets.map(a => ({
