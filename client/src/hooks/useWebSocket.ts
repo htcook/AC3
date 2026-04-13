@@ -1,9 +1,14 @@
 /**
  * useWebSocket — React hook for real-time event streaming
  *
- * Connects to the WebSocket event hub at /ws/events and provides:
- * - Auto-reconnection with exponential backoff
- * - **SSE fallback** when WebSocket fails (Cloud Run / proxy compatibility)
+ * **SSE-first transport:** Connects via Server-Sent Events at /api/events/stream
+ * as the primary transport. WebSocket (/ws/events) is attempted as an optional
+ * upgrade only after SSE is confirmed working. This ensures instant connectivity
+ * on platforms like DigitalOcean App Platform where WebSocket upgrades fail.
+ *
+ * Features:
+ * - SSE primary transport with auto-reconnection and exponential backoff
+ * - Optional WebSocket upgrade for bidirectional communication
  * - Channel subscription management
  * - Event filtering by type
  * - Connection status tracking
@@ -240,10 +245,18 @@ function getToastInfo(event: WsEvent): { title: string; description: string; var
   }
 }
 
-// ─── SSE Fallback Transport ─────────────────────────────────────────
+// ─── SSE-First Transport ─────────────────────────────────────────────
 
-/** Max WebSocket failures before switching to SSE */
-const WS_FAILURE_THRESHOLD = 3;
+/**
+ * Delay (ms) before attempting optional WebSocket upgrade after SSE connects.
+ * Keeps SSE as primary; WS upgrade is a nice-to-have for bidirectional comms.
+ */
+const WS_UPGRADE_DELAY = 10_000;
+
+/**
+ * If the WebSocket upgrade fails this many times, stop trying and stay on SSE.
+ */
+const WS_UPGRADE_MAX_FAILURES = 2;
 
 // ─── Hook ───────────────────────────────────────────────────────────
 
@@ -264,120 +277,86 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const wsFailureCountRef = useRef(0);
+  const wsUpgradeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sseReconnectAttemptsRef = useRef(0);
+  const wsUpgradeFailuresRef = useRef(0);
   const channelsRef = useRef(channels);
   const lastSseIdRef = useRef(0);
+  const mountedRef = useRef(true);
+  const transportRef = useRef<TransportMode>("none");
+  const enabledRef = useRef(enabled);
+  const autoReconnectRef = useRef(autoReconnect);
 
-  // Keep channels ref up to date
+  // Keep refs up to date without causing re-renders
   channelsRef.current = channels;
+  enabledRef.current = enabled;
+  autoReconnectRef.current = autoReconnect;
 
-  // ─── Shared event handler ──────────────────────────────────────
-  const handleEvent = useCallback(
-    (event: WsEvent) => {
-      // Filter by type if specified
-      if (filterTypes && filterTypes.length > 0 && !filterTypes.includes(event.type)) {
-        return;
-      }
-
-      setLastEvent(event);
-      setEvents((prev) => {
-        const next = [event, ...prev];
-        return next.length > maxEvents ? next.slice(0, maxEvents) : next;
-      });
-
-      // Show toast for critical events
-      if (showToasts && TOAST_EVENT_TYPES.includes(event.type)) {
-        const toastInfo = getToastInfo(event);
-        if (toastInfo) {
-          if (toastInfo.variant === "destructive") {
-            toast.error(toastInfo.title, { description: toastInfo.description });
-          } else {
-            toast.success(toastInfo.title, { description: toastInfo.description });
-          }
-        }
-      }
-    },
-    [filterTypes, maxEvents, showToasts]
-  );
-
-  // ─── SSE Connect ──────────────────────────────────────────────
-  const connectSSE = useCallback(() => {
-    if (!enabled) return;
-    if (sseRef.current) return;
-
-    try {
-      const channelStr = channelsRef.current.join(",");
-      const url = `/api/events/stream?channels=${encodeURIComponent(channelStr)}`;
-      const sse = new EventSource(url);
-      sseRef.current = sse;
-      setStatus("connecting");
-      setTransport("sse");
-
-      sse.addEventListener("connected", () => {
-        setStatus("connected");
-        sseReconnectAttemptsRef.current = 0; // Reset backoff on successful connect
-        console.log("[EventStream] Connected via SSE fallback");
-      });
-
-      sse.addEventListener("message", (msg) => {
-        try {
-          const event: WsEvent = JSON.parse(msg.data);
-          // Track last event ID for reconnect catch-up
-          if (msg.lastEventId) {
-            lastSseIdRef.current = parseInt(msg.lastEventId) || 0;
-          }
-          handleEvent(event);
-        } catch {
-          // Ignore malformed messages
-        }
-      });
-
-      sse.onerror = () => {
-        // EventSource auto-reconnects, but if it keeps failing, show error
-        if (sse.readyState === EventSource.CLOSED) {
-          sseRef.current = null;
-          setStatus("error");
-          // Exponential backoff to prevent rate-limit flooding
-          if (autoReconnect && enabled) {
-            const attempts = sseReconnectAttemptsRef.current;
-            const delay = Math.min(5000 * Math.pow(2, attempts), 60000); // 5s, 10s, 20s, 40s, 60s max
-            sseReconnectAttemptsRef.current++;
-            console.log(`[EventStream] SSE reconnect attempt ${attempts + 1}, waiting ${delay}ms`);
-            reconnectTimeoutRef.current = setTimeout(connectSSE, delay);
-          }
-        }
-      };
-    } catch {
-      setStatus("error");
-    }
-  }, [enabled, autoReconnect, handleEvent]);
-
-  // ─── WebSocket Connect ────────────────────────────────────────
-  const connect = useCallback(() => {
-    if (!enabled) return;
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    // If WebSocket has failed too many times, switch to SSE
-    if (wsFailureCountRef.current >= WS_FAILURE_THRESHOLD) {
-      console.log(`[EventStream] WebSocket failed ${wsFailureCountRef.current} times, switching to SSE`);
-      connectSSE();
+  // ─── Shared event handler (stable via ref) ────────────────────
+  const handleEventRef = useRef<(event: WsEvent) => void>(() => {});
+  handleEventRef.current = (event: WsEvent) => {
+    // Filter by type if specified
+    if (filterTypes && filterTypes.length > 0 && !filterTypes.includes(event.type)) {
       return;
     }
+
+    setLastEvent(event);
+    setEvents((prev) => {
+      const next = [event, ...prev];
+      return next.length > maxEvents ? next.slice(0, maxEvents) : next;
+    });
+
+    // Show toast for critical events
+    if (showToasts && TOAST_EVENT_TYPES.includes(event.type)) {
+      const toastInfo = getToastInfo(event);
+      if (toastInfo) {
+        if (toastInfo.variant === "destructive") {
+          toast.error(toastInfo.title, { description: toastInfo.description });
+        } else {
+          toast.success(toastInfo.title, { description: toastInfo.description });
+        }
+      }
+    }
+  };
+
+  // ─── Forward-declared refs for stable cross-references ────────
+  const connectSSERef = useRef<() => void>(() => {});
+  const attemptWsUpgradeRef = useRef<() => void>(() => {});
+
+  // ─── Optional WebSocket Upgrade ───────────────────────────────
+  attemptWsUpgradeRef.current = () => {
+    if (!enabledRef.current || !mountedRef.current) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (wsUpgradeFailuresRef.current >= WS_UPGRADE_MAX_FAILURES) return;
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/ws/events`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-      setStatus("connecting");
-      setTransport("websocket");
+
+      // Give WS 5 seconds to open, otherwise abort
+      const upgradeTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+        }
+      }, 5000);
 
       ws.onopen = () => {
-        setStatus("connected");
-        reconnectAttemptsRef.current = 0;
-        wsFailureCountRef.current = 0; // Reset failure count on successful connect
+        clearTimeout(upgradeTimeout);
+        if (!mountedRef.current) { ws.close(); return; }
+
+        // WS connected — promote to primary transport, close SSE
+        console.log("[EventStream] WebSocket upgrade succeeded, switching from SSE");
+        wsUpgradeFailuresRef.current = 0;
+        transportRef.current = "websocket";
+        setTransport("websocket");
+
+        // Close SSE since WS is now active
+        if (sseRef.current) {
+          sseRef.current.close();
+          sseRef.current = null;
+        }
 
         // Subscribe to channels
         if (channelsRef.current.length > 0) {
@@ -388,54 +367,122 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onmessage = (msg) => {
         try {
           const event: WsEvent = JSON.parse(msg.data);
-          handleEvent(event);
+          handleEventRef.current(event);
         } catch {
           // Ignore malformed messages
         }
       };
 
-      ws.onclose = (event) => {
+      ws.onclose = () => {
+        clearTimeout(upgradeTimeout);
         wsRef.current = null;
 
-        // Track consecutive failures (close without ever opening = failure)
-        if (event.code === 1006) {
-          wsFailureCountRef.current++;
-        }
+        if (!mountedRef.current) return;
 
-        // If we've hit the threshold, switch to SSE immediately
-        if (wsFailureCountRef.current >= WS_FAILURE_THRESHOLD) {
-          console.log(`[EventStream] WebSocket failed ${wsFailureCountRef.current} times, falling back to SSE`);
-          connectSSE();
-          return;
-        }
-
-        // Auto-reconnect with exponential backoff
-        if (autoReconnect && enabled) {
-          const attempts = reconnectAttemptsRef.current;
-          setStatus(attempts < 3 ? "connecting" : "disconnected");
-          const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
-          reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
+        // If WS was the active transport, fall back to SSE
+        if (transportRef.current === "websocket" || !sseRef.current) {
+          console.log("[EventStream] WebSocket closed, reverting to SSE");
+          wsUpgradeFailuresRef.current++;
+          transportRef.current = "sse";
+          setTransport("sse");
+          // Reconnect SSE if it was closed
+          if (!sseRef.current) {
+            connectSSERef.current();
+          }
         } else {
-          setStatus("disconnected");
+          // WS upgrade failed silently — SSE is still active, no disruption
+          wsUpgradeFailuresRef.current++;
+          console.log(`[EventStream] WebSocket upgrade failed (${wsUpgradeFailuresRef.current}/${WS_UPGRADE_MAX_FAILURES}), staying on SSE`);
         }
       };
 
       ws.onerror = () => {
-        // Only show error if we've exhausted quick reconnect attempts
-        if (reconnectAttemptsRef.current >= 3) {
-          setStatus("error");
+        clearTimeout(upgradeTimeout);
+        // Silently handled by onclose — no user-visible error since SSE is still active
+      };
+    } catch {
+      wsUpgradeFailuresRef.current++;
+      console.log(`[EventStream] WebSocket upgrade exception (${wsUpgradeFailuresRef.current}/${WS_UPGRADE_MAX_FAILURES}), staying on SSE`);
+    }
+  };
+
+  // ─── SSE Connect (Primary Transport) ──────────────────────────
+  connectSSERef.current = () => {
+    if (!enabledRef.current) return;
+    if (sseRef.current) return;
+
+    try {
+      const channelStr = channelsRef.current.join(",");
+      const url = `/api/events/stream?channels=${encodeURIComponent(channelStr)}`;
+      const sse = new EventSource(url);
+      sseRef.current = sse;
+      setStatus("connecting");
+      transportRef.current = "sse";
+      setTransport("sse");
+
+      sse.addEventListener("connected", () => {
+        if (!mountedRef.current) return;
+        setStatus("connected");
+        sseReconnectAttemptsRef.current = 0;
+        console.log("[EventStream] Connected via SSE (primary transport)");
+
+        // After SSE is confirmed working, optionally try WebSocket upgrade
+        if (wsUpgradeFailuresRef.current < WS_UPGRADE_MAX_FAILURES) {
+          if (wsUpgradeTimeoutRef.current) clearTimeout(wsUpgradeTimeoutRef.current);
+          wsUpgradeTimeoutRef.current = setTimeout(() => attemptWsUpgradeRef.current(), WS_UPGRADE_DELAY);
+        }
+      });
+
+      sse.addEventListener("message", (msg) => {
+        try {
+          const event: WsEvent = JSON.parse(msg.data);
+          if (msg.lastEventId) {
+            lastSseIdRef.current = parseInt(msg.lastEventId) || 0;
+          }
+          handleEventRef.current(event);
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+
+      sse.onerror = () => {
+        if (sse.readyState === EventSource.CLOSED) {
+          sseRef.current = null;
+          if (!mountedRef.current) return;
+
+          // Only show error if WS isn't active as backup
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            setStatus("error");
+          }
+
+          // Exponential backoff reconnect
+          if (autoReconnectRef.current && enabledRef.current) {
+            const attempts = sseReconnectAttemptsRef.current;
+            const delay = Math.min(5000 * Math.pow(2, attempts), 60000);
+            sseReconnectAttemptsRef.current++;
+            console.log(`[EventStream] SSE reconnect attempt ${attempts + 1}, waiting ${delay}ms`);
+            reconnectTimeoutRef.current = setTimeout(() => connectSSERef.current(), delay);
+          }
         }
       };
     } catch {
       setStatus("error");
     }
-  }, [enabled, autoReconnect, handleEvent, connectSSE]);
+  };
+
+  // ─── Stable public API (never changes reference) ──────────────
+  const connect = useCallback(() => {
+    connectSSERef.current();
+  }, []);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+    if (wsUpgradeTimeoutRef.current) {
+      clearTimeout(wsUpgradeTimeoutRef.current);
+      wsUpgradeTimeoutRef.current = null;
     }
     if (wsRef.current) {
       wsRef.current.close();
@@ -445,6 +492,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       sseRef.current.close();
       sseRef.current = null;
     }
+    transportRef.current = "none";
     setStatus("disconnected");
     setTransport("none");
   }, []);
@@ -453,8 +501,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: "subscribe", channel }));
     }
-    // SSE doesn't support dynamic subscription — would need to reconnect
-    // with updated channel list. For now, SSE channels are set at connect time.
   }, []);
 
   const unsubscribe = useCallback((channel: string) => {
@@ -470,26 +516,37 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   // Connect on mount, disconnect on unmount
   useEffect(() => {
+    mountedRef.current = true;
     if (enabled) {
-      connect();
+      connectSSERef.current();
     }
     return () => {
+      mountedRef.current = false;
       disconnect();
     };
-  }, [enabled, connect, disconnect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
 
-  // Re-subscribe when channels change (WebSocket only)
+  // Re-subscribe when channels change (compare serialized value)
+  const channelKey = channels.join(",");
+  const prevChannelKeyRef = useRef(channelKey);
   useEffect(() => {
+    // Skip the initial run — connection is handled by the mount effect
+    if (prevChannelKeyRef.current === channelKey) return;
+    prevChannelKeyRef.current = channelKey;
+
+    // WebSocket: send subscribe message
     if (wsRef.current?.readyState === WebSocket.OPEN && channels.length > 0) {
       wsRef.current.send(JSON.stringify({ action: "subscribe", channels }));
     }
-    // For SSE: reconnect with new channels
-    if (sseRef.current && transport === "sse") {
+    // SSE: reconnect with new channels (SSE channels are set at connect time)
+    if (sseRef.current && transportRef.current === "sse") {
       sseRef.current.close();
       sseRef.current = null;
-      connectSSE();
+      connectSSERef.current();
     }
-  }, [channels, transport, connectSSE]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelKey]);
 
   // Memoize event counts by type
   const eventCounts = useMemo(() => {

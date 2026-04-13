@@ -7,7 +7,6 @@ import { BattlespaceEngine, type EngineCallbacks, type EngineStats } from "@/lib
 import { transformEngagementGraph, transformDIScan } from "@/lib/battlespace-transform";
 import type { BattlespaceNode, BattlespaceMode, ZoomLevel, KillChainPhase } from "@/lib/battlespace-types";
 import { NODE_VISUAL_CONFIG, SEVERITY_COLORS, KILL_CHAIN_COLORS, EDGE_VISUAL_CONFIG } from "@/lib/battlespace-types";
-import AppShell from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -687,17 +686,14 @@ export default function Battlespace() {
   }, [selectedPath, activePaths]);
 
   return (
-    <AppShell>
       <div className="h-screen flex flex-col bg-[#0A0E14] overflow-hidden">
         {/* Top Bar */}
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
-          {/* Back to Engagement button — shown when deep-linked from EngagementOps */}
-          {initialEid && (
-            <Link href="/engagements" className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
-              <ArrowLeft size={12} />
-              <span>Back to Dashboard</span>
-            </Link>
-          )}
+          {/* Back to Dashboard — always visible */}
+          <Link href={initialEid ? "/engagements" : "/operator"} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
+            <ArrowLeft size={12} />
+            <span>Back</span>
+          </Link>
           <div className="flex items-center gap-2">
             <Crosshair size={16} className="text-teal-400" />
             <span className="font-mono text-xs uppercase tracking-widest text-white font-bold">OPS VIEWER</span>
@@ -894,13 +890,47 @@ export default function Battlespace() {
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Empty state — engagement mode */}
           {!engagementId && mode === "engagement" && (
             <div className="absolute inset-0 z-30 flex items-center justify-center">
               <div className="text-center font-mono">
                 <Crosshair size={48} className="text-[#1A2332] mx-auto mb-4" />
                 <div className="text-xs uppercase tracking-widest text-gray-600 mb-1">NO TARGET SELECTED</div>
                 <div className="text-[10px] text-gray-700">Select an engagement to visualize the attack surface</div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state — DI scan mode */}
+          {!diScanId && mode === "di_scan" && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center">
+              <div className="text-center font-mono">
+                <Globe size={48} className="text-[#1A2332] mx-auto mb-4" />
+                <div className="text-xs uppercase tracking-widest text-gray-600 mb-1">NO SCAN SELECTED</div>
+                <div className="text-[10px] text-gray-700">Select a DI scan to visualize discovered assets</div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty graph state — engagement selected but no data */}
+          {engagementId && mode === "engagement" && !graphQuery.isLoading && graphQuery.data && graphQuery.data.nodes?.length === 0 && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center">
+              <div className="text-center font-mono">
+                <AlertTriangle size={48} className="text-amber-500/30 mx-auto mb-4" />
+                <div className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">NO GRAPH DATA</div>
+                <div className="text-[10px] text-gray-700 max-w-xs">This engagement has no findings yet. Run scans or exploits to populate the attack graph.</div>
+                <div className="text-[9px] text-gray-600 mt-2">Live events will render automatically when available.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty graph state — DI scan selected but no assets */}
+          {diScanId && mode === "di_scan" && !diScanQuery.isLoading && diScanQuery.data && diScanQuery.data.assets?.length === 0 && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center">
+              <div className="text-center font-mono">
+                <AlertTriangle size={48} className="text-amber-500/30 mx-auto mb-4" />
+                <div className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">NO ASSETS DISCOVERED</div>
+                <div className="text-[10px] text-gray-700 max-w-xs">This scan completed but found no assets. Try scanning a different domain.</div>
               </div>
             </div>
           )}
@@ -1023,6 +1053,5 @@ export default function Battlespace() {
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/10 to-transparent pointer-events-none" />
         </div>
       </div>
-    </AppShell>
   );
 }
