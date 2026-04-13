@@ -121,7 +121,10 @@ export default function Engagements() {
   // Engagement data
   const { data: engagements, refetch } = trpc.engagements.list.useQuery();
   const { data: allCampaignLinks, refetch: refetchLinks } = trpc.campaignEngagements.listAll.useQuery();
-  const { data: gophishCampaigns } = trpc.gophishProxy.getCampaigns.useQuery();
+  const { data: gophishCampaigns } = trpc.gophishProxy.getCampaigns.useQuery(undefined, {
+    staleTime: 60_000, // Cache for 60s to avoid re-fetching on every navigation
+    refetchOnWindowFocus: false,
+  });
 
   // Live ops status for all engagements (polls every 5s if any are running)
   const engagementIds = useMemo(() => (engagements || []).map((e: any) => e.id), [engagements]);
@@ -137,8 +140,14 @@ export default function Engagements() {
   );
 
   // adversary operations data
-  const { data: operations, isLoading: opsLoading, refetch: refetchOps, isRefetching } = trpc.calderaProxy.getOperations.useQuery();
-  const { data: allAbilities } = trpc.calderaProxy.getAbilities.useQuery();
+  const { data: operations, isLoading: opsLoading, refetch: refetchOps, isRefetching } = trpc.calderaProxy.getOperations.useQuery(undefined, {
+    staleTime: 60_000, // Cache for 60s — Caldera API can be slow/unreachable
+    refetchOnWindowFocus: false,
+  });
+  const { data: allAbilities } = trpc.calderaProxy.getAbilities.useQuery(undefined, {
+    staleTime: 120_000, // Cache abilities for 2min — they rarely change
+    refetchOnWindowFocus: false,
+  });
 
   const abilityMap = useMemo(() => {
     if (!allAbilities) return new Map();

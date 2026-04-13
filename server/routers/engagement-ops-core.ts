@@ -3612,9 +3612,6 @@ Return ONLY a JSON object with vulnerabilities array.`;
         for (const id of input.engagementIds) {
           let state = getOpsState(id);
           if (!state) state = await getOpsStateWithRecovery(id);
-          if (!state) {
-            state = await getOpsStateWithRecovery(id);
-          }
           if (state) {
             const lastLog = state.log?.length > 0 ? state.log[state.log.length - 1] : null;
             results[id] = {

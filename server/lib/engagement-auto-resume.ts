@@ -323,7 +323,27 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       return;
     }
 
-    console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase}...`);
+    // ── Memory Pressure Guard: skip auto-resume if RSS is above 75% of container limit ──
+    const memUsage = process.memoryUsage();
+    const rssGB = memUsage.rss / (1024 * 1024 * 1024);
+    const CONTAINER_LIMIT_GB = parseFloat(process.env.CONTAINER_MEMORY_LIMIT_GB || '4');
+    const MAX_RSS_RATIO = 0.75;
+    if (rssGB > CONTAINER_LIMIT_GB * MAX_RSS_RATIO) {
+      console.warn(
+        `[AutoResume] MEMORY GUARD: RSS=${rssGB.toFixed(2)}GB exceeds ${(MAX_RSS_RATIO * 100)}% of ` +
+        `${CONTAINER_LIMIT_GB}GB container limit. Skipping auto-resume for engagement #${engagementId} ` +
+        `to prevent OOM. Manual resume required after memory stabilizes.`
+      );
+      eventHub.broadcastEngagement(engagementId, {
+        type: "engagement:auto_resume_skipped",
+        engagementId,
+        reason: `Memory pressure too high (RSS=${rssGB.toFixed(1)}GB/${CONTAINER_LIMIT_GB}GB)`,
+        message: `Auto-resume skipped for #${engagementId}: memory pressure too high. Resume manually.`,
+      });
+      return;
+    }
+
+    console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase} (RSS=${rssGB.toFixed(2)}GB)...`);
 
     // ── Dismiss stale approval gates from the interrupted run ──
     // After server restart, in-memory resolvers are lost. Any pending approval gates

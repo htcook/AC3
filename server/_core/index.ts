@@ -866,12 +866,8 @@ async function startServer() {
     setTimeout(() => {
       console.log("[Background] Phase 2: Starting recovery + lightweight schedulers...");
 
-      // Startup Recovery + Auto-Resume: detect interrupted engagements and auto-resume them.
-      // NOTE: We use ONLY the auto-resume hook (which handles detection, notification, AND resume).
-      // The old recoverInterruptedEngagements() was racing with initAutoResumeHook() — both
-      // tried to find isRunning=1 records, and whichever ran first would clear the flag,
-      // causing the other to find nothing. Now initAutoResumeHook() is the single source of truth.
       // One-time migration: enable auto-resume for all existing engagements that still have it disabled
+      // NOTE: Auto-resume itself is deferred to Phase 5 (after all indexing completes) to prevent OOM.
       import("../db").then(async ({ getDbRequired }) => {
         try {
           const db = await getDbRequired();
@@ -889,13 +885,6 @@ async function startServer() {
           console.warn("[AutoResume] Migration failed (non-fatal):", migErr.message);
         }
       }).catch(() => {});
-
-      import("../lib/engagement-auto-resume").then(async ({ initAutoResumeHook }) => {
-        await initAutoResumeHook();
-        console.log("[AutoResume] Engagement auto-resume hook initialized");
-      }).catch((err) => {
-        console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
-      });
 
       // Initialize Scan Recovery cron job (every 5 minutes)
       import("../lib/scan-recovery").then(({ initScanRecoverySchedule }) => {
@@ -1089,6 +1078,56 @@ async function startServer() {
 
       console.log("[Background] All background schedulers initialized");
     }, 300_000);
+
+    // ── PHASE 5: After 6 min — Auto-resume interrupted engagements ─────────
+    // Deferred from Phase 2 to ensure all Phase 3 indexing (ExploitDB 47K entries,
+    // MSF modules, GitHub PoCs) and Phase 4 monitors are fully loaded before
+    // engagements resume and start consuming memory for scans.
+    setTimeout(() => {
+      console.log("[Background] Phase 5: Starting engagement auto-resume (post-indexing)...");
+
+      import("../lib/engagement-auto-resume").then(async ({ initAutoResumeHook }) => {
+        // Memory pressure guard: check RSS before resuming
+        const mem = process.memoryUsage();
+        const rssMB = Math.round(mem.rss / 1024 / 1024);
+        const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+        const heapLimitMB = Math.round(mem.heapTotal / 1024 / 1024);
+        console.log(`[AutoResume] Pre-resume memory check: RSS=${rssMB}MB, Heap=${heapMB}/${heapLimitMB}MB`);
+
+        // If RSS is above 75% of a 4GB container (3072MB), skip auto-resume
+        const RSS_LIMIT_MB = 3072;
+        if (rssMB > RSS_LIMIT_MB) {
+          console.warn(
+            `[AutoResume] ⚠ RSS ${rssMB}MB exceeds safe threshold (${RSS_LIMIT_MB}MB). ` +
+            `Skipping auto-resume to prevent OOM. Resume engagements manually from the UI.`
+          );
+          try {
+            const { notifyOwner } = await import("../_core/notification");
+            await notifyOwner({
+              title: "⚠ Auto-Resume Skipped — High Memory",
+              content: [
+                `Server RSS is ${rssMB}MB (threshold: ${RSS_LIMIT_MB}MB).`,
+                `Auto-resume of interrupted engagements has been skipped to prevent OOM.`,
+                `Please resume engagements manually from the Engagement Ops page.`,
+              ].join("\n"),
+            });
+          } catch (_) {}
+          return;
+        }
+
+        // Force GC before resuming to reclaim any indexing garbage
+        if (global.gc) {
+          global.gc();
+          const postGc = process.memoryUsage();
+          console.log(`[AutoResume] Post-GC: RSS=${Math.round(postGc.rss/1024/1024)}MB, Heap=${Math.round(postGc.heapUsed/1024/1024)}MB`);
+        }
+
+        await initAutoResumeHook();
+        console.log("[AutoResume] Engagement auto-resume hook initialized (Phase 5)");
+      }).catch((err) => {
+        console.warn("[AutoResume] Failed to initialize auto-resume hook:", err);
+      });
+    }, 360_000);
   });
 }
 

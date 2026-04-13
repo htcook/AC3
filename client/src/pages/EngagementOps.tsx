@@ -11,7 +11,7 @@
  * 7. Red Team: C2 agent deploy → Cyber C2 callback → pivot
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useRoute, useLocation } from "wouter";
+import { Link, useRoute, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -1679,11 +1679,11 @@ export default function EngagementOps() {
 
             {/* ── Supplemental Scan Tools ── */}
             <div className="flex items-center gap-1 ml-2 border-l border-border/30 pl-2">
-              <a href={`/ops-viewer?eid=${engagementId}`}>
+              <Link href={`/ops-viewer?eid=${engagementId}`}>
                 <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-8" title="Open Ops Viewer — interactive visualization of exploit paths, kill chain coverage, and attack surface">
                   <Network className="h-3.5 w-3.5 mr-1" /> Ops Viewer
                 </Button>
-              </a>
+              </Link>
               <a href={`/web-app-scanner?engagementId=${engagementId}`}>
                 <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 text-xs h-8" title="Open Web App Scanner for supplemental testing">
                   <Scan className="h-3.5 w-3.5 mr-1" /> Scan Tools
@@ -4329,11 +4329,11 @@ export default function EngagementOps() {
                     Interactive visualization of exploit paths, kill chain coverage, and attack surface topology for this engagement.
                   </p>
                 </div>
-                <a href={`/ops-viewer?eid=${engagementId}`}>
+                <Link href={`/ops-viewer?eid=${engagementId}`}>
                   <Button className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500">
                     <Network className="h-4 w-4 mr-2" /> Open Ops Viewer
                   </Button>
-                </a>
+                </Link>
                 <p className="text-[10px] text-muted-foreground font-mono">Opens in full-screen mode for optimal visualization</p>
               </div>
             </TabsContent>

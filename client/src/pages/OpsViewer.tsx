@@ -19,7 +19,7 @@ import {
   ChevronRight, X, Cpu, Globe, Server, Database, Cloud, Brain, Zap, Timer,
   ArrowLeft,
 } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 
 // ── Reasoning Status Indicator ─────────────────────────────────────
 function ReasoningStatusBar({ reasoning, performance }: {
@@ -693,10 +693,10 @@ export default function Battlespace() {
         <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
           {/* Back to Engagement button — shown when deep-linked from EngagementOps */}
           {initialEid && (
-            <a href={`/engagements`} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
+            <Link href="/engagements" className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332]">
               <ArrowLeft size={12} />
               <span>Back to Dashboard</span>
-            </a>
+            </Link>
           )}
           <div className="flex items-center gap-2">
             <Crosshair size={16} className="text-teal-400" />
