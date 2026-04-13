@@ -113,11 +113,23 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [location]);
 
-  // Prevent body scroll when mobile drawer is open
+  // Prevent body scroll when mobile drawer is open (iOS Safari needs position:fixed)
   useEffect(() => {
     if (mobileOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
       document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
+      return () => {
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
+        document.body.style.overflow = "";
+        window.scrollTo(0, scrollY);
+      };
     }
   }, [mobileOpen]);
 
@@ -192,9 +204,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Mobile drawer overlay */}
         {mobileOpen && (
-          <div className="fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 z-50 flex" style={{ height: '100dvh' }}>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-            <div className="relative w-[85vw] max-w-[320px] bg-background border-r flex flex-col h-full animate-in slide-in-from-left duration-200 shadow-2xl">
+            <div
+              className="relative w-[85vw] max-w-[320px] bg-background border-r flex flex-col animate-in slide-in-from-left duration-200 shadow-2xl"
+              style={{ height: '100dvh', maxHeight: '100dvh' }}
+            >
               <div className="h-14 flex items-center justify-between px-4 border-b shrink-0">
                 <span className="font-semibold text-sm tracking-tight">{wlConfig.platformName}</span>
                 <button
@@ -208,11 +223,19 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               <div className="px-3 py-2 shrink-0">
                 <CommandPaletteTrigger />
               </div>
-              <EngagementSwitcher isCollapsed={false} />
-              <ScrollArea className="flex-1">
+              <div className="shrink-0">
+                <EngagementSwitcher isCollapsed={false} />
+              </div>
+              {/* Native scroll for iOS Safari — Radix ScrollArea blocks touch scrolling on iOS */}
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+                style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+              >
                 <MobileNavList location={location} setLocation={(p) => { setLocation(p); setMobileOpen(false); }} filteredNavGroups={filteredNavGroups} />
-              </ScrollArea>
-              <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+              </div>
+              <div className="shrink-0">
+                <SidebarFooterSection user={user} logout={logout} isCollapsed={false} />
+              </div>
             </div>
           </div>
         )}
@@ -595,10 +618,10 @@ function MobileNavList({
   });
 
   return (
-    <div className="py-1">
+    <div className="py-1" style={{ touchAction: 'pan-y' }}>
       <button
         onClick={() => setLocation("/home")}
-        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors min-h-[44px] active:bg-accent/70 ${
           location === "/" || location === "/home"
             ? "bg-accent text-foreground font-medium"
             : "text-muted-foreground hover:bg-accent/50"
@@ -616,7 +639,7 @@ function MobileNavList({
           <div key={group.id}>
             <button
               onClick={() => setOpenGroups(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left ${
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left min-h-[44px] active:bg-accent/70 ${
                 hasActiveItem ? group.color : "text-muted-foreground"
               }`}
             >
@@ -630,7 +653,7 @@ function MobileNavList({
                 <button
                   key={item.path}
                   onClick={() => setLocation(item.path)}
-                  className={`w-full flex items-center gap-3 pl-11 pr-4 py-2.5 text-left min-h-[44px] ${
+                  className={`w-full flex items-center gap-3 pl-11 pr-4 py-2.5 text-left min-h-[44px] active:bg-accent/70 ${
                     isActive ? "text-foreground font-medium bg-accent/50" : "text-muted-foreground hover:bg-accent/30"
                   }`}
                 >

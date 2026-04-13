@@ -1266,13 +1266,13 @@ async function persistScanResult(opts: {
   operatorId?: number;
 }) {
   try {
-    const { insertScanResult } = await import("../db");
+    const { insertScanResult, saveEngagementFindings } = await import("../db");
     const severitySummary = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     for (const f of opts.findings) {
       const sev = (f.severity || "info").toLowerCase();
       if (sev in severitySummary) severitySummary[sev as keyof typeof severitySummary]++;
     }
-    await insertScanResult({
+    const scanResult = await insertScanResult({
       engagementId: opts.engagementId,
       tool: opts.tool,
       target: opts.target,
@@ -1288,6 +1288,50 @@ async function persistScanResult(opts: {
       phase: opts.phase,
       operatorId: opts.operatorId,
     });
+
+    // ── Real-time Finding Promotion ──────────────────────────────────────
+    // Promote scan findings to engagement_findings immediately (not just at completion).
+    // This ensures findings are visible in the DB and UI as soon as they're discovered.
+    if (opts.findings.length > 0) {
+      try {
+        const resultId = scanResult?.id;
+        const findingsToPromote = opts.findings
+          .filter((f: any) => f.title || f.name || f.alert || f.template_id)
+          .map((f: any) => {
+            const sev = (f.severity || f.risk || 'info').toLowerCase();
+            const mappedSev = sev === 'moderate' ? 'medium' : (['critical','high','medium','low','info'].includes(sev) ? sev : 'info');
+            return {
+              engagementId: opts.engagementId,
+              resultId,
+              title: (f.title || f.name || f.alert || f.template_id || 'Untitled').slice(0, 500),
+              severity: mappedSev as 'critical' | 'high' | 'medium' | 'low' | 'info',
+              cve: f.cve || f.cve_id || undefined,
+              cwe: f.cwe || undefined,
+              description: (f.description || f.desc || f.info || '').slice(0, 65000) || undefined,
+              endpoint: f.endpoint || f.url || f.matched_at || undefined,
+              hostname: f.hostname || f.host || opts.target?.replace(/https?:\/\//, '').split(':')[0] || undefined,
+              port: f.port || undefined,
+              source: f.source || opts.tool,
+              tool: opts.tool,
+              corroborationTier: (f.corroborationTier || f.corroboration_tier || 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
+              rawEvidence: (f.rawEvidence || f.raw_evidence || f.evidence || f.curl_command || '').slice(0, 65000) || undefined,
+              exploitAttempted: !!f.exploit_attempted,
+              exploitSucceeded: !!f.exploit_succeeded,
+              owaspCategory: f.owasp_category || f.owaspCategory || undefined,
+              mitreTechnique: f.mitre_technique || f.mitreTechnique || undefined,
+            };
+          });
+        if (findingsToPromote.length > 0) {
+          const promoted = await saveEngagementFindings(findingsToPromote);
+          if (promoted > 0) {
+            console.log(`[FindingPromotion] Real-time: promoted ${promoted} findings from ${opts.tool} scan on ${opts.target} to engagement_findings`);
+          }
+        }
+      } catch (promoteErr: any) {
+        // Non-fatal: findings still exist in scan_results and ops state
+        console.error(`[FindingPromotion] Failed to promote ${opts.tool} findings:`, promoteErr.message);
+      }
+    }
   } catch (e: any) {
     console.error(`[persistScanResult] Failed to save ${opts.tool} result for ${opts.target}:`, e.message);
   }

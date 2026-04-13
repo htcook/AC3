@@ -654,6 +654,25 @@ code {
   h1 { font-size: 1.5rem !important; }
 }
 
+/* ── iOS Safari: safe-area insets and mobile drawer fixes ─────────── */
+@supports (padding: env(safe-area-inset-top)) {
+  .fixed.inset-0 {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── iOS Safari: ensure touch scrolling works in overflow containers ── */
+@media (max-width: 767px) {
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Remove 300ms tap delay on iOS */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
 /* ── Small phone (< 400px) extra compaction ──────────────────────── */
 @media (max-width: 400px) {
   [data-slot="tabs-trigger"] {

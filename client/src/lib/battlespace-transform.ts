@@ -38,9 +38,11 @@ const PROXY_SIGNATURES: Array<{ pattern: RegExp; vendor: string; role: Battlespa
 ];
 
 /** Detect if a technology/service string matches a known proxy */
-function detectProxy(tech: string): { vendor: string; role: BattlespaceNode["proxyRole"] } | null {
+function detectProxy(tech: any): { vendor: string; role: BattlespaceNode["proxyRole"] } | null {
+  const t = String(tech || "");
+  if (!t) return null;
   for (const sig of PROXY_SIGNATURES) {
-    if (sig.pattern.test(tech)) return { vendor: sig.vendor, role: sig.role };
+    if (sig.pattern.test(t)) return { vendor: sig.vendor, role: sig.role };
   }
   return null;
 }
@@ -54,7 +56,7 @@ function detectInterception(asset: any): Array<{
   const taps: Array<{ tapType: BattlespaceNode["tapType"]; interceptedBy: string; evidence: string }> = [];
   const waf = asset.wafDetected || asset.passiveRecon?.wafDetected;
   const techs = (asset.technologies || asset.passiveRecon?.technologies || []).map((t: any) => typeof t === "string" ? t : t.name || "");
-  const allText = [waf, ...techs, asset.hostname || "", JSON.stringify(asset.passiveRecon?.riskSignals || [])].join(" ").toLowerCase();
+  const allText = [String(waf || ""), ...techs, String(asset.hostname || ""), JSON.stringify(asset.passiveRecon?.riskSignals || [])].join(" ").toLowerCase();
 
   // SSL inspection: cert issuer mismatch (blue team MitM proxy)
   if (/ssl.?inspect|ssl.?bump|ssl.?decrypt|mitm.?proxy|bluecoat|zscaler|palo.?alto.?decrypt|fortigate.?ssl/i.test(allText)) {
@@ -522,6 +524,55 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     }
   }
 
+  // ── Pass 10: Interception Fingerprinting Report ──
+  // When the server returns an interceptionReport from the fingerprinting engine,
+  // create defense/tap nodes for each identified interception mechanism.
+  const interceptionReport = graphData.interceptionReport;
+  if (interceptionReport?.findings?.length > 0) {
+    for (const finding of interceptionReport.findings) {
+      const findingId = `fp-${finding.vendorId || finding.mechanism.replace(/\s+/g, "-").toLowerCase()}`;
+      if (nodes.find(n => n.id === findingId)) continue;
+
+      const tapType: BattlespaceNode["tapType"] = finding.domain === "network"
+        ? (finding.mechanism.toLowerCase().includes("ssl") ? "ssl_inspection" : "ids_inline")
+        : finding.domain === "endpoint"
+          ? "proxy_intercept"
+          : "traffic_mirror";
+
+      nodes.push({
+        id: findingId,
+        type: "tap_point",
+        label: `${finding.vendorName || finding.mechanism} [${finding.confidence.level}]`,
+        tapType,
+        interceptedBy: finding.vendorName || finding.mechanism,
+        isIntercepted: true,
+        severity: finding.confidence.level === "confirmed" || finding.confidence.level === "high" ? "critical" : "high",
+        priorityScore: finding.confidence.score / 100,
+        defenseType: finding.domain,
+        tags: [
+          ...(finding.mitreMapping ? [finding.mitreMapping.techniqueId] : []),
+          `confidence:${finding.confidence.level}`,
+          `domain:${finding.domain}`,
+        ],
+      });
+
+      // Link interception finding to all host nodes
+      for (const [, hostId] of hostNodes) {
+        edges.push({
+          id: `fp-intercept-${findingId}-${hostId}`,
+          source: findingId,
+          target: hostId,
+          type: "intercepts",
+          weight: finding.confidence.score / 100,
+          probability: finding.confidence.score / 100,
+          isIntercepted: true,
+          interceptedBy: finding.vendorName || finding.mechanism,
+          interceptionType: tapType === "ssl_inspection" ? "ssl_decrypted" : "logged",
+        });
+      }
+    }
+  }
+
   return {
     nodes,
     edges,
@@ -530,6 +581,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
       engagementName: graphData.engagement?.name,
       targetDomain: graphData.engagement?.name,
       taxonomyCoverage: graphData.taxonomy,
+      interceptionReport: interceptionReport || undefined,
     },
   };
 }
@@ -777,7 +829,7 @@ function mapNodeType(type: string, category: string, layer: string): Battlespace
 }
 
 function mapEdgeType(type: string): BattlespaceEdgeType {
-  const t = type.toLowerCase();
+  const t = String(type || "").toLowerCase();
   if (t.includes("exploit")) return "exploits";
   if (t.includes("chain")) return "chains_with";
   if (t.includes("enable") || t.includes("provide")) return "enables";
@@ -789,8 +841,16 @@ function mapEdgeType(type: string): BattlespaceEdgeType {
   return "enables";
 }
 
-function normalizeSeverity(s: string): SeverityLevel {
-  const sl = (s || "").toLowerCase();
+function normalizeSeverity(s: any): SeverityLevel {
+  // Handle numeric severity (e.g. CVSS-like scores from postureFindings)
+  if (typeof s === "number") {
+    if (s >= 9) return "critical";
+    if (s >= 7) return "high";
+    if (s >= 4) return "medium";
+    if (s >= 1) return "low";
+    return "info";
+  }
+  const sl = String(s || "").toLowerCase();
   if (sl === "critical") return "critical";
   if (sl === "high") return "high";
   if (sl === "medium") return "medium";
@@ -799,7 +859,7 @@ function normalizeSeverity(s: string): SeverityLevel {
 }
 
 function guessPlatform(hostname: string, details: any): PlatformType {
-  const h = hostname.toLowerCase();
+  const h = String(hostname || "").toLowerCase();
   if (h.includes("aws") || h.includes("azure") || h.includes("gcp") || h.includes("cloud")) return "cloud";
   if (h.includes("docker") || h.includes("container") || h.includes("k8s")) return "container";
   if (h.includes("lambda") || h.includes("function")) return "serverless";
@@ -820,10 +880,10 @@ function guessProtocols(port?: number, service?: string): ProtocolType[] {
   return protos;
 }
 
-function guessProtocolsFromTech(techs: string[]): ProtocolType[] {
+function guessProtocolsFromTech(techs: any[]): ProtocolType[] {
   const protos = new Set<ProtocolType>();
   for (const t of techs) {
-    const tl = t.toLowerCase();
+    const tl = String(t || "").toLowerCase();
     if (tl.includes("http") || tl.includes("web") || tl.includes("nginx") || tl.includes("apache")) protos.add("https");
     if (tl.includes("ssh")) protos.add("ssh");
     if (tl.includes("dns")) protos.add("dns");
@@ -851,8 +911,8 @@ function extractMitreIds(techniques: string[]): string[] {
   return ids;
 }
 
-function mapLayerToKillChain(layer: string): KillChainPhase | undefined {
-  const l = (layer || "").toLowerCase();
+function mapLayerToKillChain(layer: any): KillChainPhase | undefined {
+  const l = String(layer || "").toLowerCase();
   if (l === "network" || l === "transport") return "recon";
   if (l === "application" || l === "binary") return "exploit";
   if (l === "identity") return "deliver";
