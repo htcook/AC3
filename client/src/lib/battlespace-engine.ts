@@ -40,6 +40,7 @@ import {
   PLATFORM_ICONS,
   getZoomLevel,
 } from "./battlespace-types";
+import { ForceWorkerBridge, type PositionUpdate } from "./force-worker-bridge";
 
 // ── Types ───────────────────────────────────────────────────────────
 interface SimNode extends SimulationNodeDatum, BattlespaceNode {
@@ -103,6 +104,11 @@ export interface EngineOptions {
   gridEnabled?: boolean;
   particlesEnabled?: boolean;
   glowEnabled?: boolean;
+  edgeBloomEnabled?: boolean;
+  nodeHeartbeatEnabled?: boolean;
+  hudEnabled?: boolean;
+  heatmapEnabled?: boolean;
+  animatedPathReveal?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<EngineOptions> = {
@@ -111,6 +117,11 @@ const DEFAULT_OPTIONS: Required<EngineOptions> = {
   gridEnabled: true,
   particlesEnabled: true,
   glowEnabled: true,
+  edgeBloomEnabled: true,
+  nodeHeartbeatEnabled: true,
+  hudEnabled: true,
+  heatmapEnabled: true,
+  animatedPathReveal: true,
 };
 
 // ── Helper: parse hex color to rgba components ─────────────────────
@@ -295,6 +306,15 @@ export class BattlespaceEngine {
   private callbacks: EngineCallbacks;
   private destroyed = false;
   private rafId = 0;
+  private workerBridge: ForceWorkerBridge | null = null;
+  private workerAlpha = 0;
+
+  // ── Wow-factor visual state ─────────────────────────────────────
+  private ripples: Array<{ x: number; y: number; radius: number; maxRadius: number; alpha: number; color: string }> = [];
+  private animatedPathEdges: SimEdge[] = [];
+  private animatedPathProgress = 0;
+  private animatedPathActive = false;
+  private nodeHeartbeats = new Map<string, { phase: number; intensity: number }>();
 
   constructor(callbacks: EngineCallbacks = {}, options: EngineOptions = {}) {
     this.callbacks = callbacks;
@@ -336,6 +356,10 @@ export class BattlespaceEngine {
     if (this.simulation) {
       this.simulation.stop();
       this.simulation = null;
+    }
+    if (this.workerBridge) {
+      this.workerBridge.destroy();
+      this.workerBridge = null;
     }
     if (this.canvas?.parentElement) {
       this.canvas.parentElement.removeChild(this.canvas);
@@ -538,6 +562,10 @@ export class BattlespaceEngine {
       this.simulation.stop();
       this.simulation = null;
     }
+    if (this.workerBridge) {
+      this.workerBridge.destroy();
+      this.workerBridge = null;
+    }
     this.simNodes = [];
     this.simEdges = [];
     this.nodeMap.clear();
@@ -555,6 +583,11 @@ export class BattlespaceEngine {
       };
       this.simNodes.push(sn);
       this.nodeMap.set(sn.id, sn);
+      // Spawn ripple on new node appearance
+      if (sn.x != null && sn.y != null) {
+        const config = NODE_VISUAL_CONFIG[sn.type] || NODE_VISUAL_CONFIG.host;
+        this.spawnRipple(sn.x, sn.y, config.strokeColor, 80);
+      }
     }
 
     for (const e of newEdges) {
@@ -586,7 +619,23 @@ export class BattlespaceEngine {
         });
       }
     }
-    if (this.simulation) {
+    if (this.workerBridge?.isAvailable) {
+      // Send incremental update to the worker
+      const workerNewNodes = newNodes
+        .filter((n) => this.nodeMap.has(n.id))
+        .map((n) => ({
+          id: n.id,
+          type: n.type,
+          baseSize: (NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host).baseSize,
+          clusterId: n.clusterId,
+          x: this.nodeMap.get(n.id)?.x,
+          y: this.nodeMap.get(n.id)?.y,
+        }));
+      const workerNewEdges = newEdges
+        .filter((e) => this.nodeMap.has(e.source) && this.nodeMap.has(e.target))
+        .map((e) => ({ id: e.id, source: e.source, target: e.target }));
+      this.workerBridge.addNodes(workerNewNodes, workerNewEdges);
+    } else if (this.simulation) {
       this.simulation.nodes(this.simNodes);
       (this.simulation.force("link") as any)?.links(this.simEdges);
       this.simulation.alpha(0.3).restart();
@@ -598,16 +647,43 @@ export class BattlespaceEngine {
   highlightPath(nodeIds: string[]): void {
     const pathSet = new Set(nodeIds);
     for (const sn of this.simNodes) (sn as any)._isHighlighted = pathSet.has(sn.id);
-    for (const se of this.simEdges) {
-      const srcId = typeof se.source === "object" ? (se.source as SimNode).id : se.source;
-      const tgtId = typeof se.target === "object" ? (se.target as SimNode).id : se.target;
-      se.isHighlighted = pathSet.has(srcId) && pathSet.has(tgtId);
+
+    // Collect path edges in order for animated reveal
+    const pathEdges: SimEdge[] = [];
+    for (let i = 0; i < nodeIds.length - 1; i++) {
+      const fromId = nodeIds[i];
+      const toId = nodeIds[i + 1];
+      const edge = this.simEdges.find(se => {
+        const srcId = typeof se.source === "object" ? (se.source as SimNode).id : se.source;
+        const tgtId = typeof se.target === "object" ? (se.target as SimNode).id : se.target;
+        return (srcId === fromId && tgtId === toId) || (srcId === toId && tgtId === fromId);
+      });
+      if (edge) pathEdges.push(edge);
+    }
+
+    if (this.options.animatedPathReveal && pathEdges.length > 0) {
+      // Animated sequential reveal
+      this.animatedPathEdges = pathEdges;
+      this.animatedPathProgress = 0;
+      this.animatedPathActive = true;
+      // Initially hide all path edges
+      for (const se of this.simEdges) se.isHighlighted = false;
+    } else {
+      // Instant highlight
+      for (const se of this.simEdges) {
+        const srcId = typeof se.source === "object" ? (se.source as SimNode).id : se.source;
+        const tgtId = typeof se.target === "object" ? (se.target as SimNode).id : se.target;
+        se.isHighlighted = pathSet.has(srcId) && pathSet.has(tgtId);
+      }
     }
   }
 
   clearHighlight(): void {
     for (const sn of this.simNodes) (sn as any)._isHighlighted = undefined;
     for (const se of this.simEdges) se.isHighlighted = false;
+    this.animatedPathActive = false;
+    this.animatedPathEdges = [];
+    this.animatedPathProgress = 0;
   }
 
   fitToView(): void {
@@ -671,6 +747,54 @@ export class BattlespaceEngine {
 
   // ── Simulation ──────────────────────────────────────────────────
   private startSimulation(): void {
+    // Try to offload to WebWorker first
+    this.workerBridge = new ForceWorkerBridge({
+      onTick: (positions: PositionUpdate[], alpha: number) => {
+        this.applyWorkerPositions(positions);
+        this.workerAlpha = alpha;
+      },
+      onSettled: () => {
+        this.workerAlpha = 0;
+      },
+    });
+
+    if (this.workerBridge.isAvailable) {
+      // Send nodes to the worker
+      const workerNodes = this.simNodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        baseSize: (NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host).baseSize,
+        clusterId: n.clusterId,
+        x: n.x,
+        y: n.y,
+      }));
+      const workerEdges = this.simEdges.map((e) => ({
+        id: e.id,
+        source: typeof e.source === "string" ? e.source : (e.source as SimNode).id,
+        target: typeof e.target === "string" ? e.target : (e.target as SimNode).id,
+      }));
+      this.workerBridge.init(workerNodes, workerEdges);
+    } else {
+      // Fallback: run d3-force on main thread (original behavior)
+      this.workerBridge.destroy();
+      this.workerBridge = null;
+      this.startMainThreadSimulation();
+    }
+  }
+
+  /** Apply position updates from the WebWorker to the SimNode array */
+  private applyWorkerPositions(positions: PositionUpdate[]): void {
+    for (const p of positions) {
+      const node = this.nodeMap.get(p.id);
+      if (node) {
+        node.x = p.x;
+        node.y = p.y;
+      }
+    }
+  }
+
+  /** Fallback: main-thread d3-force simulation (used when Worker is unavailable) */
+  private startMainThreadSimulation(): void {
     this.simulation = forceSimulation<SimNode>(this.simNodes)
       .force("link", forceLink<SimNode, SimEdge>(this.simEdges)
         .id((d) => d.id)
@@ -753,6 +877,9 @@ export class BattlespaceEngine {
         this.draggedNode = hit;
         hit.fx = hit.x;
         hit.fy = hit.y;
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.pinNode(hit.id, hit.x || 0, hit.y || 0);
+        }
         this.dragStartX = e.offsetX;
         this.dragStartY = e.offsetY;
         this.isDragging = true;
@@ -773,6 +900,11 @@ export class BattlespaceEngine {
         const [wx, wy] = this.screenToWorld(e.offsetX, e.offsetY);
         this.draggedNode.fx = wx;
         this.draggedNode.fy = wy;
+        this.draggedNode.x = wx;
+        this.draggedNode.y = wy;
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.pinNode(this.draggedNode.id, wx, wy);
+        }
         this.simulation?.alpha(0.1).restart();
       } else if (this.isPanning) {
         this.panX = this.panStartX + (e.offsetX - this.dragStartX);
@@ -797,6 +929,9 @@ export class BattlespaceEngine {
         if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
           this.selectedNodeId = this.draggedNode.id;
           this.callbacks.onNodeClick?.(this.draggedNode);
+        }
+        if (this.workerBridge?.isAvailable) {
+          this.workerBridge.unpinNode(this.draggedNode.id);
         }
         this.draggedNode.fx = null;
         this.draggedNode.fy = null;
@@ -922,6 +1057,18 @@ export class BattlespaceEngine {
       }
     }
 
+    // Animated path reveal progression
+    if (this.animatedPathActive && this.animatedPathEdges.length > 0) {
+      this.animatedPathProgress += 0.016 * 1.5; // ~1.5 edges per second
+      const revealedCount = Math.floor(this.animatedPathProgress);
+      for (let i = 0; i < this.animatedPathEdges.length; i++) {
+        this.animatedPathEdges[i].isHighlighted = i < revealedCount;
+      }
+      if (revealedCount >= this.animatedPathEdges.length) {
+        this.animatedPathActive = false;
+      }
+    }
+
     this.draw();
 
     // Stats callback (throttled — fires every second after FPS counter resets)
@@ -954,6 +1101,9 @@ export class BattlespaceEngine {
     // Grid
     if (this.options.gridEnabled) this.drawGrid(ctx);
 
+    // Threat heatmap zones (drawn behind everything else)
+    if (this.options.heatmapEnabled) this.drawThreatHeatmap(ctx);
+
     // Cluster bounding boxes (drawn behind edges and nodes)
     if (this.clustersEnabled && this.clusters.length > 0) {
       this.updateClusterBounds();
@@ -976,10 +1126,16 @@ export class BattlespaceEngine {
       this.drawNode(ctx, n);
     }
 
+    // Ripple effects (drawn on top of nodes)
+    this.drawRipples(ctx);
+
     ctx.restore();
 
     // Scanline overlay (brutalist CRT effect)
     this.drawScanlines(ctx);
+
+    // HUD overlay (screen-space, drawn after ctx.restore)
+    if (this.options.hudEnabled) this.drawHUD(ctx);
   }
 
   private drawGrid(ctx: CanvasRenderingContext2D): void {
@@ -1148,11 +1304,28 @@ export class BattlespaceEngine {
         ctx.fillText(label, mx, my + 12);
       }
     } else {
-      // Normal edge rendering
+      // Normal edge rendering with optional bloom/glow
+      if (this.options.edgeBloomEnabled) {
+        // Pass 1: Wide outer glow
+        ctx.strokeStyle = rgbaStr(config.color, alpha * 0.08);
+        ctx.lineWidth = lineWidth + 8;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+        ctx.stroke();
+        // Pass 2: Medium glow
+        ctx.strokeStyle = rgbaStr(config.color, alpha * 0.2);
+        ctx.lineWidth = lineWidth + 3;
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+        ctx.stroke();
+      }
+      // Pass 3 (or only pass): Bright core line
       ctx.strokeStyle = rgbaStr(config.color, alpha);
       ctx.lineWidth = lineWidth;
       ctx.setLineDash(dash);
-
       ctx.beginPath();
       ctx.moveTo(src.x, src.y);
       ctx.lineTo(tgt.x, tgt.y);
@@ -1174,26 +1347,48 @@ export class BattlespaceEngine {
     ctx.closePath();
     ctx.fill();
 
-    // Directional particles
+    // Directional particles with enhanced glow trails
     if (this.options.particlesEnabled && e.particles.length > 0) {
       const killColor = e.killChainPhase ? KILL_CHAIN_COLORS[e.killChainPhase] : config.color;
       for (const p of e.particles) {
         const px = src.x + (tgt.x - src.x) * p.progress;
         const py = src.y + (tgt.y - src.y) * p.progress;
-        ctx.fillStyle = rgbaStr(killColor, 0.9);
+
+        // Multi-segment fade trail (4 segments fading out)
+        const trailSegments = 4;
+        const trailStep = 0.015;
+        for (let s = trailSegments; s >= 1; s--) {
+          const tp = Math.max(0, p.progress - trailStep * s);
+          const tx = src.x + (tgt.x - src.x) * tp;
+          const ty = src.y + (tgt.y - src.y) * tp;
+          const ta = 0.15 * (1 - s / (trailSegments + 1));
+          ctx.fillStyle = rgbaStr(killColor, ta);
+          ctx.beginPath();
+          ctx.arc(tx, ty, 2 + (trailSegments - s) * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Outer glow halo
+        const particleGlow = ctx.createRadialGradient(px, py, 0, px, py, 6);
+        particleGlow.addColorStop(0, rgbaStr(killColor, 0.6));
+        particleGlow.addColorStop(0.5, rgbaStr(killColor, 0.15));
+        particleGlow.addColorStop(1, rgbaStr(killColor, 0));
+        ctx.fillStyle = particleGlow;
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bright core
+        ctx.fillStyle = rgbaStr(killColor, 1);
         ctx.beginPath();
         ctx.arc(px, py, 2.5, 0, Math.PI * 2);
         ctx.fill();
-        // Particle trail
-        const trailLen = 0.04;
-        const tx = src.x + (tgt.x - src.x) * Math.max(0, p.progress - trailLen);
-        const ty = src.y + (tgt.y - src.y) * Math.max(0, p.progress - trailLen);
-        ctx.strokeStyle = rgbaStr(killColor, 0.3);
-        ctx.lineWidth = 1;
+
+        // White-hot center dot
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
         ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(px, py);
-        ctx.stroke();
+        ctx.arc(px, py, 1, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 
@@ -1301,6 +1496,30 @@ export class BattlespaceEngine {
       ctx.beginPath();
       ctx.arc(n.x, n.y, gwGlowR * gwPulse, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Node heartbeat pulse rings (for active agents, compromised hosts, beacons)
+    if (this.options.nodeHeartbeatEnabled && (n.type === "agent" || n.type === "c2_server" || n.severity === "critical" || n.isCompromised)) {
+      let hb = this.nodeHeartbeats.get(n.id);
+      if (!hb) {
+        hb = { phase: n._pulsePhase || Math.random() * Math.PI * 2, intensity: n.type === "agent" ? 0.8 : 0.5 };
+        this.nodeHeartbeats.set(n.id, hb);
+      }
+      // Heartbeat ring animation uses time-based phase cycling
+      // Two expanding concentric rings
+      for (let ring = 0; ring < 2; ring++) {
+        const ringPhase = (this.animationTime * 0.8 + hb.phase + ring * 1.5) % 3;
+        const ringProgress = ringPhase / 3; // 0 to 1
+        const ringR = r + ringProgress * r * 2.5;
+        const ringAlpha = (1 - ringProgress) * hb.intensity * 0.35;
+        if (ringAlpha > 0.01) {
+          ctx.strokeStyle = rgbaStr(sevColor, ringAlpha);
+          ctx.lineWidth = 1.5 * (1 - ringProgress);
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, ringR, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
     }
 
     // Node shape
@@ -1484,6 +1703,105 @@ export class BattlespaceEngine {
     ctx.restore();
   }
 
+  /** Threat heatmap: radial gradients behind high-severity node clusters */
+  private drawThreatHeatmap(ctx: CanvasRenderingContext2D): void {
+    for (const n of this.simNodes) {
+      if (!n.x || !n.y) continue;
+      if (n.severity !== "critical" && n.severity !== "high") continue;
+      const heatR = n.severity === "critical" ? 120 : 80;
+      const heatAlpha = n.severity === "critical" ? 0.06 : 0.03;
+      const pulse = Math.sin(this.animationTime * 0.5 + (n._pulsePhase || 0)) * 0.01 + heatAlpha;
+      const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, heatR);
+      const heatColor = n.severity === "critical" ? "#FF0040" : "#FF6B00";
+      grad.addColorStop(0, rgbaStr(heatColor, pulse));
+      grad.addColorStop(0.6, rgbaStr(heatColor, pulse * 0.4));
+      grad.addColorStop(1, rgbaStr(heatColor, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, heatR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** Ripple effects: expanding rings when new nodes appear */
+  private drawRipples(ctx: CanvasRenderingContext2D): void {
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      r.radius += 2;
+      r.alpha -= 0.02;
+      if (r.alpha <= 0 || r.radius > r.maxRadius) {
+        this.ripples.splice(i, 1);
+        continue;
+      }
+      ctx.strokeStyle = rgbaStr(r.color, r.alpha);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  /** Spawn a ripple effect at world coordinates */
+  private spawnRipple(x: number, y: number, color: string, maxRadius = 60): void {
+    this.ripples.push({ x, y, radius: 5, maxRadius, alpha: 0.7, color });
+  }
+
+  /** HUD overlay: live stats in screen space (military C2 style) */
+  private drawHUD(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    const pad = 16;
+    const lineH = 18;
+    const x = pad;
+    const y = this.height - pad;
+
+    // Semi-transparent background strip
+    ctx.fillStyle = "rgba(10,14,20,0.75)";
+    ctx.fillRect(0, y - lineH * 5 - 8, 260, lineH * 5 + 16);
+
+    // Left border accent
+    ctx.fillStyle = "#00E5CC";
+    ctx.fillRect(0, y - lineH * 5 - 8, 3, lineH * 5 + 16);
+
+    ctx.font = "bold 11px 'JetBrains Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    // Count stats
+    const agents = this.simNodes.filter(n => n.type === "agent").length;
+    const criticals = this.simNodes.filter(n => n.severity === "critical").length;
+    const lines = [
+      { label: "NODES", value: `${this.simNodes.length}`, color: "#E8EAED" },
+      { label: "EDGES", value: `${this.simEdges.length}`, color: "#E8EAED" },
+      { label: "AGENTS", value: `${agents}`, color: agents > 0 ? "#00E5CC" : "#4A5568" },
+      { label: "CRITICAL", value: `${criticals}`, color: criticals > 0 ? "#FF0040" : "#4A5568" },
+      { label: "FPS", value: `${this.currentFps}`, color: this.currentFps < 30 ? "#FFB800" : "#4A5568" },
+    ];
+
+    for (let i = 0; i < lines.length; i++) {
+      const ly = y - (lines.length - 1 - i) * lineH;
+      // Label
+      ctx.fillStyle = "#4A5568";
+      ctx.fillText(lines[i].label, x + 6, ly);
+      // Value
+      ctx.fillStyle = lines[i].color;
+      ctx.fillText(lines[i].value, x + 90, ly);
+    }
+
+    // Timestamp in top-right
+    const now = new Date();
+    const ts = now.toLocaleTimeString("en-US", { hour12: false });
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "rgba(0,229,204,0.5)";
+    ctx.textAlign = "right";
+    ctx.fillText(ts, this.width - pad, pad + 10);
+
+    // Zoom level indicator
+    ctx.fillStyle = "rgba(232,234,237,0.4)";
+    ctx.fillText(`${this.currentZoomLevel} ×${this.scale.toFixed(2)}`, this.width - pad, pad + 24);
+
+    ctx.restore();
+  }
+
   // ── Ember Event Handlers ──────────────────────────────────────────
   processWsEvent(event: { type: string; data: any }): void {
     const { type, data } = event;
@@ -1527,11 +1845,14 @@ export class BattlespaceEngine {
       protocol: "https",
     }] : []);
 
-    // Flash the new agent green
+    // Flash the new agent green + ripple
     const agent = this.nodeMap.get(id);
     if (agent) {
       agent._flashColor = "#00E5CC";
       agent._flashAlpha = 0.8;
+      if (agent.x != null && agent.y != null) {
+        this.spawnRipple(agent.x, agent.y, "#00E5CC", 100);
+      }
     }
   }
 
