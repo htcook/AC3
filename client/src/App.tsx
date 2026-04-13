@@ -328,7 +328,7 @@ const LicenseManagement = lazyWithRetry(() => import("./pages/LicenseManagement"
 const UpdateManager = lazyWithRetry(() => import("./pages/UpdateManager"));
 const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
 const RoeDocUpload = lazyWithRetry(() => import("./pages/RoeDocUpload"));
-const Battlespace = lazyWithRetry(() => import("./pages/Battlespace"));
+const OpsViewer = lazyWithRetry(() => import("./pages/OpsViewer"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -389,7 +389,7 @@ function ProtectedRoute({ component: Component, pageName }: { component: React.C
 function Router() {
   const [location] = useLocation();
   // Routes that should NOT have the sidebar
-  const noSidebarRoutes = ["/", "/overview", "/login", "/404", "/battlespace"];
+  const noSidebarRoutes = ["/", "/overview", "/login", "/404", "/ops-viewer"];
   const isPortalRoute = location.startsWith("/portal/") || location.startsWith("/customer-");
   const showSidebar = !noSidebarRoutes.includes(location) && !isPortalRoute;
 
@@ -1204,9 +1204,9 @@ function Router() {
         <Route path="/my-portal">
           <ProtectedRoute component={CustomerPortalSelfService} pageName="CustomerPortalSelfService" />
         </Route>
-        <Route path="/battlespace">
+        <Route path="/ops-viewer">
           {/* TODO: restore ProtectedRoute after testing */}
-          <Suspense fallback={<div className="h-screen bg-[#0A0E14] flex items-center justify-center font-mono text-xs text-teal-400">LOADING OPS VIEWER...</div>}><Battlespace /></Suspense>
+          <Suspense fallback={<div className="h-screen bg-[#0A0E14] flex items-center justify-center font-mono text-xs text-teal-400">LOADING OPS VIEWER...</div>}><OpsViewer /></Suspense>
         </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

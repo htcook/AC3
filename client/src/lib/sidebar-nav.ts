@@ -149,7 +149,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Engagement Pipeline", path: "/engagement-pipeline", icon: Workflow, roles: ["admin", "operator", "team_lead"] },
       { label: "Engagement Automation", path: "/engagement-automation", icon: Rocket, roles: ["admin", "operator", "team_lead"] },
       { label: "Kill Chain", path: "/kill-chain", icon: Workflow, roles: ["admin", "operator", "team_lead", "analyst"] },
-      { label: "Ops Viewer", path: "/battlespace", icon: Network, roles: ["admin", "operator", "team_lead"] },
+      { label: "Ops Viewer", path: "/ops-viewer", icon: Network, roles: ["admin", "operator", "team_lead"] },
       { label: "Engagement Timeline", path: "/engagement-timeline", icon: Clock },
       { label: "Credentials", path: "/credentials", icon: Key, roles: ["admin", "operator", "team_lead"] },
       { label: "OEM Credentials", path: "/oem-credentials", icon: Key, roles: ["admin", "operator"] },

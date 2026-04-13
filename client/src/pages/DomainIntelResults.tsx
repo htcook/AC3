@@ -866,7 +866,7 @@ export default function DomainIntelResults() {
             variant="outline"
             size="sm"
             className="text-xs border-green-500/30 text-green-400 hover:bg-green-500/10"
-            onClick={() => navigate(`/battlespace?di=${scanId}`)}
+            onClick={() => navigate(`/ops-viewer?di=${scanId}`)}
           >
             <Network className="h-3.5 w-3.5 mr-1.5" />
             Ops Viewer

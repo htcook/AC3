@@ -1665,7 +1665,7 @@ export function emitEvidenceTamperDetected(data: {
 
 
 // ─── Ember Battlespace Events ──────────────────────────────────────────────
-// Specialized events for the real-time battlespace visualization
+// Specialized events for the real-time ops viewer visualization
 
 /** Emit when an Ember agent performs lateral movement to a new host */
 export function emitEmberLateralMovement(data: {

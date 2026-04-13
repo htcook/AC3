@@ -568,7 +568,7 @@ function broadcastProgress(
     channel
   );
 
-  // Also broadcast to global for the battlespace page
+  // Also broadcast to global for the ops viewer page
   eventHub.broadcast(
     {
       type: "system:notification",

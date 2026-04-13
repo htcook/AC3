@@ -348,7 +348,7 @@ export function registerEmberBeaconRoutes(app: Express): void {
                 opsecRiskScore: opsecScore.riskScore,
               });
 
-              // ── Emit specialized battlespace events based on task type ──
+              // ── Emit specialized ops viewer events based on task type ──
               if (result.status === "success") {
                 const params = typeof task.params === 'string' ? JSON.parse(task.params || '{}') : (task.params || {});
                 switch (task.type) {

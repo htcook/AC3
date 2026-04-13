@@ -1679,7 +1679,7 @@ export default function EngagementOps() {
 
             {/* ── Supplemental Scan Tools ── */}
             <div className="flex items-center gap-1 ml-2 border-l border-border/30 pl-2">
-              <a href={`/battlespace?eid=${engagementId}`}>
+              <a href={`/ops-viewer?eid=${engagementId}`}>
                 <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-8" title="Open Ops Viewer — interactive visualization of exploit paths, kill chain coverage, and attack surface">
                   <Network className="h-3.5 w-3.5 mr-1" /> Ops Viewer
                 </Button>
@@ -2213,7 +2213,7 @@ export default function EngagementOps() {
                   { value: 'exploits', label: 'Exploit Match', icon: <Swords className="h-3 w-3" />, count: exploitsQ.data?.exploits?.length || 0 },
                   { value: 'attackchains', label: 'Attack Chains', icon: <GitBranch className="h-3 w-3" />, count: attackChainsQ.data?.chains?.length || 0 },
                   { value: 'genexploits', label: 'Exploit Code', icon: <Bolt className="h-3 w-3" />, count: generatedExploitsQ.data?.length || 0 },
-                  { value: 'battlespace', label: 'Ops Viewer', icon: <Network className="h-3 w-3" /> },
+                  { value: 'ops-viewer', label: 'Ops Viewer', icon: <Network className="h-3 w-3" /> },
                   { value: 'evidence', label: 'Evidence', icon: <Shield className="h-3 w-3" />, count: 0 },
                 ],
               },
@@ -4318,7 +4318,7 @@ export default function EngagementOps() {
             </TabsContent>
 
             {/* ── Ops Viewer Tab ── */}
-            <TabsContent value="battlespace" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+            <TabsContent value="ops-viewer" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <div className="h-full flex flex-col items-center justify-center gap-4 py-8">
                 <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
                   <Network className="h-8 w-8 text-red-400" />
@@ -4329,7 +4329,7 @@ export default function EngagementOps() {
                     Interactive visualization of exploit paths, kill chain coverage, and attack surface topology for this engagement.
                   </p>
                 </div>
-                <a href={`/battlespace?eid=${engagementId}`}>
+                <a href={`/ops-viewer?eid=${engagementId}`}>
                   <Button className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500">
                     <Network className="h-4 w-4 mr-2" /> Open Ops Viewer
                   </Button>
