@@ -1,13 +1,15 @@
 // ─── Resolve GoPhish URL ────────────────────────────────────────────────────
-// GoPhish runs on the mail server (137.184.7.224:3333) but is proxied through
-// nginx on the app server at https://gophish.aceofcloud.io. The HTTPS proxy is
-// the only reliable path from the Manus production server, since direct IP:port
-// connections may be blocked by firewalls or self-signed cert issues.
+// GoPhish runs on the mail server (137.184.7.224:3333) with a self-signed cert.
+// The gophish-client.ts uses an undici dispatcher with TLS override to handle
+// the self-signed cert, so direct IP:port connections work reliably.
+// Previously defaulted to https://gophish.aceofcloud.io but the DNS record
+// was never created, causing silent failures on the DO deployment.
 function resolveGophishUrl(): string {
   const env = process.env.GOPHISH_BASE_URL;
-  // Accept if it points to the HTTPS domain proxy or the mail server directly
+  // Accept any explicitly set URL (domain proxy or direct IP)
   if (env && (env.includes("gophish.aceofcloud.io") || env.includes("137.184.7.224"))) return env;
-  return "https://gophish.aceofcloud.io";
+  // Default to direct IP — TLS override in gophish-client.ts handles self-signed cert
+  return "https://137.184.7.224:3333";
 }
 
 // ─── Resolve Cyber C2 URL ────────────────────────────────────────────────────
