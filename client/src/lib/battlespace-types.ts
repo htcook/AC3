@@ -90,6 +90,9 @@ export interface BattlespaceNode {
   // Defense details
   defenses?: string[];           // Active defense names on this node
   layer?: string;                // Network layer (application, transport, etc.)
+  // Exposed services (for badge rendering)
+  exposedServices?: Array<{ port?: number; name?: string }>;
+  isPriorityTarget?: boolean;    // High-value target indicator
   // State
   isHighlighted?: boolean;
   isSelected?: boolean;
@@ -129,6 +132,7 @@ export interface BattlespaceEdge {
   // Proxy bypass detection
   isBypassOpportunity?: boolean; // True if this edge represents a direct path that bypasses a proxy
   bypassesProxy?: string;        // ID of the proxy node being bypassed
+  label?: string;                 // Optional label for edge display
 }
 
 // ── Visual Constants (Brutalist Design System) ──────────────────────
@@ -162,26 +166,26 @@ export const NODE_VISUAL_CONFIG: Record<BattlespaceNodeType, {
   baseSize: number;
   zIndex: number;
 }> = {
-  host:           { shape: "rect",     baseColor: "#1A2332", strokeColor: "#2D4A6F", icon: "⬡", baseSize: 28, zIndex: 10 },
-  subnet:         { shape: "hexagon",  baseColor: "#0D1B2A", strokeColor: "#1B3A5C", icon: "⎔", baseSize: 40, zIndex: 5 },
-  domain:         { shape: "diamond",  baseColor: "#1A2332", strokeColor: "#00E5CC", icon: "◆", baseSize: 32, zIndex: 8 },
-  subdomain:      { shape: "rect",     baseColor: "#141E2B", strokeColor: "#2D4A6F", icon: "◇", baseSize: 20, zIndex: 7 },
-  service:        { shape: "circle",   baseColor: "#1A2332", strokeColor: "#3B82F6", icon: "●", baseSize: 18, zIndex: 9 },
-  vulnerability:  { shape: "diamond",  baseColor: "#2A1215", strokeColor: "#FF0040", icon: "⚠", baseSize: 24, zIndex: 15 },
-  hypothesis:     { shape: "diamond",  baseColor: "#1A1A2E", strokeColor: "#8B5CF6", icon: "?", baseSize: 22, zIndex: 14 },
-  credential:     { shape: "octagon",  baseColor: "#2A1F00", strokeColor: "#FFB800", icon: "🔑", baseSize: 20, zIndex: 12 },
-  agent:          { shape: "triangle", baseColor: "#001A0D", strokeColor: "#00FF88", icon: "▲", baseSize: 22, zIndex: 20 },
-  defense:        { shape: "hexagon",  baseColor: "#0A1628", strokeColor: "#3B82F6", icon: "🛡", baseSize: 26, zIndex: 11 },
-  threat_actor:   { shape: "octagon",  baseColor: "#2A0A0A", strokeColor: "#FF0040", icon: "☠", baseSize: 30, zIndex: 18 },
-  ioc:            { shape: "circle",   baseColor: "#1A0A20", strokeColor: "#D946EF", icon: "◉", baseSize: 16, zIndex: 13 },
-  data_asset:     { shape: "rect",     baseColor: "#0A1A28", strokeColor: "#06B6D4", icon: "⛁", baseSize: 22, zIndex: 9 },
-  cloud_resource: { shape: "hexagon",  baseColor: "#0A1628", strokeColor: "#818CF8", icon: "☁", baseSize: 24, zIndex: 10 },
-  pivot_point:    { shape: "diamond",  baseColor: "#1A1500", strokeColor: "#F59E0B", icon: "⤳", baseSize: 20, zIndex: 16 },
-  crown_jewel:    { shape: "octagon",  baseColor: "#1A0A00", strokeColor: "#FFD700", icon: "★", baseSize: 34, zIndex: 25 },
-  proxy:          { shape: "hexagon",  baseColor: "#0A2818", strokeColor: "#009639", icon: "⇋", baseSize: 26, zIndex: 12 },
-  gateway:        { shape: "diamond",  baseColor: "#1A1A28", strokeColor: "#6B7280", icon: "⊳", baseSize: 20, zIndex: 8 },
-  c2_server:      { shape: "triangle", baseColor: "#0A1A0A", strokeColor: "#00FF88", icon: "⌘", baseSize: 28, zIndex: 22 },
-  tap_point:      { shape: "octagon",  baseColor: "#1A0A2A", strokeColor: "#FF4444", icon: "◎", baseSize: 24, zIndex: 23 },
+  host:           { shape: "rect",     baseColor: "#1A2332", strokeColor: "#2D4A6F", icon: "⬡", baseSize: 38, zIndex: 10 },
+  subnet:         { shape: "hexagon",  baseColor: "#0D1B2A", strokeColor: "#1B3A5C", icon: "⎌", baseSize: 52, zIndex: 5 },
+  domain:         { shape: "diamond",  baseColor: "#1A2332", strokeColor: "#00E5CC", icon: "◆", baseSize: 44, zIndex: 8 },
+  subdomain:      { shape: "rect",     baseColor: "#141E2B", strokeColor: "#2D4A6F", icon: "◇", baseSize: 30, zIndex: 7 },
+  service:        { shape: "circle",   baseColor: "#1A2332", strokeColor: "#3B82F6", icon: "●", baseSize: 26, zIndex: 9 },
+  vulnerability:  { shape: "diamond",  baseColor: "#2A1215", strokeColor: "#FF0040", icon: "⚠", baseSize: 34, zIndex: 15 },
+  hypothesis:     { shape: "diamond",  baseColor: "#1A1A2E", strokeColor: "#8B5CF6", icon: "?", baseSize: 30, zIndex: 14 },
+  credential:     { shape: "octagon",  baseColor: "#2A1F00", strokeColor: "#FFB800", icon: "🔑", baseSize: 28, zIndex: 12 },
+  agent:          { shape: "triangle", baseColor: "#001A0D", strokeColor: "#00FF88", icon: "▲", baseSize: 30, zIndex: 20 },
+  defense:        { shape: "hexagon",  baseColor: "#0A1628", strokeColor: "#3B82F6", icon: "🛡", baseSize: 36, zIndex: 11 },
+  threat_actor:   { shape: "octagon",  baseColor: "#2A0A0A", strokeColor: "#FF0040", icon: "☠", baseSize: 40, zIndex: 18 },
+  ioc:            { shape: "circle",   baseColor: "#1A0A20", strokeColor: "#D946EF", icon: "◉", baseSize: 24, zIndex: 13 },
+  data_asset:     { shape: "rect",     baseColor: "#0A1A28", strokeColor: "#06B6D4", icon: "⛁", baseSize: 30, zIndex: 9 },
+  cloud_resource: { shape: "hexagon",  baseColor: "#0A1628", strokeColor: "#818CF8", icon: "☁", baseSize: 34, zIndex: 10 },
+  pivot_point:    { shape: "diamond",  baseColor: "#1A1500", strokeColor: "#F59E0B", icon: "⤳", baseSize: 28, zIndex: 16 },
+  crown_jewel:    { shape: "octagon",  baseColor: "#1A0A00", strokeColor: "#FFD700", icon: "★", baseSize: 46, zIndex: 25 },
+  proxy:          { shape: "hexagon",  baseColor: "#0A2818", strokeColor: "#009639", icon: "⇋", baseSize: 36, zIndex: 12 },
+  gateway:        { shape: "diamond",  baseColor: "#1A1A28", strokeColor: "#6B7280", icon: "⊳", baseSize: 28, zIndex: 8 },
+  c2_server:      { shape: "triangle", baseColor: "#0A1A0A", strokeColor: "#00FF88", icon: "⌘", baseSize: 38, zIndex: 22 },
+  tap_point:      { shape: "octagon",  baseColor: "#1A0A2A", strokeColor: "#FF4444", icon: "◎", baseSize: 34, zIndex: 23 },
 };
 
 /** Edge type visual config */
@@ -260,6 +264,7 @@ export const TECH_ICONS: Record<string, { label: string; color: string }> = {
   spring:       { label: "SPR", color: "#6DB33F" },
   django:       { label: "DJG", color: "#092E20" },
   laravel:      { label: "LRV", color: "#FF2D20" },
+  default:      { label: "???" , color: "#4A5568" },
 };
 
 /** Defense type visual config */
@@ -277,11 +282,11 @@ export const DEFENSE_ICONS: Record<string, { label: string; color: string; shape
 // ── Zoom-dependent detail levels ────────────────────────────────────
 export const ZOOM_LEVELS = {
   /** Zoomed out: shapes + colors only, no labels */
-  MACRO:  { min: 0,    max: 0.4, showLabels: false, showBadges: false, showEdgeLabels: false, showParticles: false },
+  MACRO:  { min: 0,    max: 0.15, showLabels: false, showBadges: false, showEdgeLabels: false, showParticles: false },
   /** Medium: labels appear, basic badges */
-  MESO:   { min: 0.4,  max: 0.8, showLabels: true,  showBadges: false, showEdgeLabels: false, showParticles: true },
+  MESO:   { min: 0.15, max: 0.5, showLabels: true,  showBadges: false, showEdgeLabels: false, showParticles: true },
   /** Zoomed in: full detail — labels, badges, edge labels, particles */
-  MICRO:  { min: 0.8,  max: 3.0, showLabels: true,  showBadges: true,  showEdgeLabels: true,  showParticles: true },
+  MICRO:  { min: 0.5,  max: 3.0, showLabels: true,  showBadges: true,  showEdgeLabels: true,  showParticles: true },
 } as const;
 
 export type ZoomLevel = keyof typeof ZOOM_LEVELS;

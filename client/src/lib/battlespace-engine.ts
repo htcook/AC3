@@ -63,6 +63,7 @@ interface SimEdge extends SimulationLinkDatum<SimNode> {
   interceptedBy?: string;
   isBypassOpportunity?: boolean;
   bypassesProxy?: string;
+  label?: string;
   particles: Array<{ progress: number; speed: number }>;
 }
 
@@ -206,6 +207,25 @@ function getShape(name: string): ShapeFn {
   return SHAPES[name] || SHAPES.circle;
 }
 
+// ── Deterministic hash for stable layout ────────────────────────────
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return hash;
+}
+
+function seededRandom(seed: number): number {
+  // Mulberry32 PRNG — deterministic float in [0, 1)
+  let t = (seed + 0x6D2B79F5) | 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
 // ── Engine Class ────────────────────────────────────────────────────
 export class BattlespaceEngine {
   private canvas: HTMLCanvasElement | null = null;
@@ -304,12 +324,15 @@ export class BattlespaceEngine {
   loadGraph(data: BattlespaceGraphData): void {
     this.clearGraph();
 
-    this.simNodes = data.nodes.map((n) => ({
-      ...n,
-      x: n.x ?? (Math.random() - 0.5) * 800,
-      y: n.y ?? (Math.random() - 0.5) * 600,
-      _revealProgress: 0,
-    }));
+    this.simNodes = data.nodes.map((n) => {
+      const seed = hashCode(n.id);
+      return {
+        ...n,
+        x: n.x ?? (seededRandom(seed) - 0.5) * 800,
+        y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
+        _revealProgress: 0,
+      };
+    });
 
     this.nodeMap.clear();
     for (const sn of this.simNodes) this.nodeMap.set(sn.id, sn);
@@ -334,6 +357,7 @@ export class BattlespaceEngine {
           interceptedBy: e.interceptedBy,
           isBypassOpportunity: e.isBypassOpportunity,
           bypassesProxy: e.bypassesProxy,
+          label: e.label,
           particles: this.options.particlesEnabled
             ? Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => ({
                 progress: Math.random(),
@@ -343,7 +367,6 @@ export class BattlespaceEngine {
         });
       }
     }
-
     this.startSimulation();
   }
 
@@ -360,10 +383,11 @@ export class BattlespaceEngine {
   addNodes(newNodes: BattlespaceNode[], newEdges: BattlespaceEdge[]): void {
     for (const n of newNodes) {
       if (this.nodeMap.has(n.id)) continue;
+      const seed = hashCode(n.id);
       const sn: SimNode = {
         ...n,
-        x: n.x ?? (Math.random() - 0.5) * 800,
-        y: n.y ?? (Math.random() - 0.5) * 600,
+        x: n.x ?? (seededRandom(seed) - 0.5) * 800,
+        y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
         _revealProgress: 0,
       };
       this.simNodes.push(sn);
@@ -389,6 +413,7 @@ export class BattlespaceEngine {
           interceptedBy: e.interceptedBy,
           isBypassOpportunity: e.isBypassOpportunity,
           bypassesProxy: e.bypassesProxy,
+          label: e.label,
           particles: this.options.particlesEnabled
             ? Array.from({ length: 2 }, () => ({
                 progress: Math.random(),
@@ -398,7 +423,6 @@ export class BattlespaceEngine {
         });
       }
     }
-
     if (this.simulation) {
       this.simulation.nodes(this.simNodes);
       (this.simulation.force("link") as any)?.links(this.simEdges);
@@ -453,6 +477,22 @@ export class BattlespaceEngine {
   getNodeCount(): number { return this.simNodes.length; }
   getEdgeCount(): number { return this.simEdges.length; }
 
+  getCanvas(): HTMLCanvasElement | null { return this.canvas; }
+
+  /** Request fullscreen on the canvas element */
+  requestFullscreen(): void {
+    const el = this.canvas?.parentElement;
+    if (!el) return;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+  }
+
+  /** Exit fullscreen */
+  exitFullscreen(): void {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if ((document as any).webkitFullscreenElement) (document as any).webkitExitFullscreen();
+  }
+
   // ── Node Type Visibility (Topology Filters) ──────────────────────
   setNodeTypeVisibility(nodeType: string, visible: boolean): void {
     if (visible) {
@@ -466,23 +506,23 @@ export class BattlespaceEngine {
     return new Set(this.hiddenNodeTypes);
   }
 
-  // ── Simulation ────────────────────────────────────────────────────
+  // ── Simulation ──────────────────────────────────────────────────
   private startSimulation(): void {
     this.simulation = forceSimulation<SimNode>(this.simNodes)
       .force("link", forceLink<SimNode, SimEdge>(this.simEdges)
         .id((d) => d.id)
-        .distance(120)
-        .strength(0.4))
-      .force("charge", forceManyBody().strength(-400).distanceMax(600))
+        .distance(160)
+        .strength(0.35))
+      .force("charge", forceManyBody().strength(-600).distanceMax(800))
       .force("center", forceCenter(0, 0).strength(0.05))
       .force("collide", forceCollide<SimNode>().radius((d) => {
         const config = NODE_VISUAL_CONFIG[d.type] || NODE_VISUAL_CONFIG.host;
-        return config.baseRadius + 10;
-      }).strength(0.7))
-      .force("x", forceX(0).strength(0.02))
-      .force("y", forceY(0).strength(0.02))
+        return config.baseSize + 14;
+      }).strength(0.8))
+      .force("x", forceX(0).strength(0.015))
+      .force("y", forceY(0).strength(0.015))
       .alphaDecay(0.01)
-      .velocityDecay(0.3);
+       .velocityDecay(0.3);
   }
 
   private updateZoomLevel(): void {
@@ -578,6 +618,60 @@ export class BattlespaceEngine {
       const hit = this.hitTest(wx, wy);
       if (hit) this.callbacks.onNodeDoubleClick?.(hit);
     });
+
+    // ── Touch: Pinch-to-zoom for mobile ─────────────────────────────
+    let lastTouchDist = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+
+    c.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        lastTouchDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        lastTouchCenter = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+      }
+    }, { passive: false });
+
+    c.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const center = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+
+        if (lastTouchDist > 0) {
+          const factor = dist / lastTouchDist;
+          const rect = c.getBoundingClientRect();
+          const mx = center.x - rect.left;
+          const my = center.y - rect.top;
+          // Zoom toward pinch center
+          this.panX = mx - (mx - this.panX) * factor;
+          this.panY = my - (my - this.panY) * factor;
+          this.scale *= factor;
+          this.scale = Math.max(0.05, Math.min(8, this.scale));
+          this.updateZoomLevel();
+        }
+
+        // Pan with two-finger drag
+        this.panX += center.x - lastTouchCenter.x;
+        this.panY += center.y - lastTouchCenter.y;
+
+        lastTouchDist = dist;
+        lastTouchCenter = center;
+      }
+    }, { passive: false });
+
+    c.addEventListener("touchend", () => {
+      lastTouchDist = 0;
+    });
   }
 
   private screenToWorld(sx: number, sy: number): [number, number] {
@@ -593,7 +687,7 @@ export class BattlespaceEngine {
     for (let i = this.simNodes.length - 1; i >= 0; i--) {
       const n = this.simNodes[i];
       const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
-      const r = config.baseRadius * (1 + (n.weaknessLevel || 0) * 0.5);
+      const r = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5);
       const dx = (n.x || 0) - wx;
       const dy = (n.y || 0) - wy;
       if (dx * dx + dy * dy < r * r * 1.5) return n;
@@ -636,8 +730,8 @@ export class BattlespaceEngine {
 
     this.draw();
 
-    // Stats callback (throttled)
-    if (this.frameCount === 0) {
+    // Stats callback (throttled — fires every second after FPS counter resets)
+    if (this.frameCount === 0 && this.simNodes.length > 0) {
       this.callbacks.onStatsUpdate?.({
         nodeCount: this.simNodes.length,
         edgeCount: this.simEdges.length,
@@ -919,7 +1013,7 @@ export class BattlespaceEngine {
     const reveal = n._revealProgress ?? 1;
     if (reveal <= 0) return;
 
-    const baseR = config.baseRadius * (1 + (n.weaknessLevel || 0) * 0.5);
+    const baseR = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5);
     const r = baseR * reveal;
     const isSelected = n.id === this.selectedNodeId;
     const isHovered = n === this.hoveredNode;
@@ -1011,7 +1105,7 @@ export class BattlespaceEngine {
     shapeFn(ctx, n.x, n.y, r);
 
     // Fill
-    ctx.fillStyle = rgbaStr(config.fillColor, 0.85);
+    ctx.fillStyle = rgbaStr(config.baseColor, 0.85);
     ctx.fill();
 
     // Border — thickness encodes weakness level
@@ -1036,14 +1130,16 @@ export class BattlespaceEngine {
 
     // Label (MESO and MICRO zoom)
     if (this.currentZoomLevel !== "MACRO") {
-      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      const labelText = n.label.length > 24 ? n.label.slice(0, 22) + "…" : n.label;
+      ctx.font = "bold 11px 'JetBrains Mono', monospace";
+      const labelWidth = ctx.measureText(labelText).width;
+      // Dark background pill for readability
+      ctx.fillStyle = "rgba(10,14,20,0.85)";
+      ctx.fillRect(n.x - labelWidth / 2 - 4, n.y + r + 4, labelWidth + 8, 16);
       ctx.fillStyle = "#E8EAED";
       ctx.textAlign = "center";
-      ctx.fillText(
-        n.label.length > 20 ? n.label.slice(0, 18) + "…" : n.label,
-        n.x,
-        n.y + r + 12,
-      );
+      ctx.textBaseline = "middle";
+      ctx.fillText(labelText, n.x, n.y + r + 12);
     }
 
     // Badges at MICRO zoom
@@ -1096,14 +1192,14 @@ export class BattlespaceEngine {
     // Tech stack badges
     if (n.technologies) {
       for (const t of n.technologies.slice(0, 3)) {
-        const icon = TECH_ICONS[t.toLowerCase()] || TECH_ICONS.default;
-        badges.push(icon);
+        const tech = TECH_ICONS[t.toLowerCase()] || TECH_ICONS.default;
+        badges.push(tech.label);
       }
     }
 
     // Platform badge
     if (n.platform) {
-      const icon = PLATFORM_ICONS[n.platform] || PLATFORM_ICONS.onprem;
+      const icon = PLATFORM_ICONS[n.platform] || PLATFORM_ICONS.on_prem;
       badges.push(icon);
     }
 

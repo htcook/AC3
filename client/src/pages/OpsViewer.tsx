@@ -405,6 +405,7 @@ export default function Battlespace() {
   const [showLegend, setShowLegend] = useState(true);
   const [selectedPath, setSelectedPath] = useState<number | null>(null);
   const [showTopologyFilters, setShowTopologyFilters] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [topologyLayers, setTopologyLayers] = useState<Record<string, boolean>>({
     proxy: true,
     gateway: true,
@@ -528,9 +529,23 @@ export default function Battlespace() {
     };
     window.addEventListener("resize", handleResize);
 
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement || !!(document as any).webkitFullscreenElement);
+      // Resize canvas after fullscreen transition
+      setTimeout(() => {
+        if (containerRef.current) {
+          engine.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+        }
+      }, 100);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
     return () => {
       cancelled = true;
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
       engine.destroy();
       engineRef.current = null;
       setEngineReady(false);
@@ -542,7 +557,7 @@ export default function Battlespace() {
     if (!engineRef.current || !graphQuery.data) return;
     const graphData = transformEngagementGraph(graphQuery.data);
     engineRef.current.loadGraph(graphData);
-    setTimeout(() => engineRef.current?.fitToView(), 1500);
+    setTimeout(() => engineRef.current?.fitToView(), 600);
   }, [graphQuery.data]);
 
   // ── Real-time progressive rendering via useOpsViewerLiveStream ──────
@@ -585,7 +600,7 @@ export default function Battlespace() {
     const { scan, assets } = diScanQuery.data;
     const graphData = transformDIScan(scan, assets);
     engineRef.current.loadGraph(graphData);
-    setTimeout(() => engineRef.current?.fitToView(), 1500);
+    setTimeout(() => engineRef.current?.fitToView(), 600);
   }, [diScanQuery.data]);
 
   // DI scan live stream state
@@ -806,8 +821,26 @@ export default function Battlespace() {
               size="sm"
               className="h-7 w-7 p-0 rounded-none border-[#1A2332] bg-transparent hover:bg-[#1A2332]"
               onClick={() => engineRef.current?.fitToView()}
+              title="Fit to View"
             >
               <Maximize2 size={12} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${isFullscreen ? 'bg-[#1A2332] text-teal-400' : 'bg-transparent'}`}
+              onClick={() => {
+                if (isFullscreen) {
+                  engineRef.current?.exitFullscreen();
+                  setIsFullscreen(false);
+                } else {
+                  engineRef.current?.requestFullscreen();
+                  setIsFullscreen(true);
+                }
+              }}
+              title="Toggle Fullscreen"
+            >
+              <Crosshair size={12} />
             </Button>
             <div className="h-6 w-px bg-[#1A2332]" />
             <Button
