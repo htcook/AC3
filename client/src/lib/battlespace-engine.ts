@@ -146,6 +146,13 @@ const PROTOCOL_DASH: Record<string, number[]> = {
 type ShapeFn = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void;
 
 const SHAPES: Record<string, ShapeFn> = {
+  rect(ctx, x, y, r) {
+    // Wider rectangle (1.6:1 aspect ratio) for host/server nodes
+    const hw = r * 1.2;
+    const hh = r * 0.75;
+    ctx.beginPath();
+    ctx.rect(x - hw, y - hh, hw * 2, hh * 2);
+  },
   diamond(ctx, x, y, r) {
     ctx.beginPath();
     ctx.moveTo(x, y - r);
@@ -212,6 +219,17 @@ const SHAPES: Record<string, ShapeFn> = {
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
+    ctx.closePath();
+  },
+  shield(ctx, x, y, r) {
+    // Shield shape — pointed bottom, rounded top
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.8, y - r * 0.6);
+    ctx.quadraticCurveTo(x - r * 0.8, y - r, x, y - r);
+    ctx.quadraticCurveTo(x + r * 0.8, y - r, x + r * 0.8, y - r * 0.6);
+    ctx.lineTo(x + r * 0.8, y + r * 0.1);
+    ctx.quadraticCurveTo(x + r * 0.6, y + r * 0.8, x, y + r);
+    ctx.quadraticCurveTo(x - r * 0.6, y + r * 0.8, x - r * 0.8, y + r * 0.1);
     ctx.closePath();
   },
 };

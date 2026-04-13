@@ -372,16 +372,48 @@ export const graphCache = new GraphCache();
  *
  * Returns in <500ms for typical engagements (50-200 findings).
  */
+/**
+ * Hard ceiling on total asset findings passed into buildAttackGraph.
+ * If deduplication still leaves more than this, we keep only the
+ * highest-severity findings to stay within the performance budget.
+ */
+const MAX_TOTAL_FINDINGS = 300;
+
+function capFindings(
+  assets: ReasoningInput["assets"]
+): ReasoningInput["assets"] {
+  let total = assets.reduce((s, a) => s + a.vulns.length, 0);
+  if (total <= MAX_TOTAL_FINDINGS) return assets;
+
+  // Sort each asset's vulns by severity desc, then truncate globally
+  const ranked = assets.map((a) => ({
+    ...a,
+    vulns: [...a.vulns].sort(
+      (x, y) => severityRank(y.severity) - severityRank(x.severity)
+    ),
+  }));
+
+  let remaining = MAX_TOTAL_FINDINGS;
+  return ranked.map((a) => {
+    const take = Math.min(a.vulns.length, remaining);
+    remaining -= take;
+    return { ...a, vulns: a.vulns.slice(0, take) };
+  }).filter((a) => a.vulns.length > 0);
+}
+
 export function buildGraphFast(input: ReasoningInput): CachedGraph {
   const startTime = Date.now();
 
   // Step 1: Deduplicate
   const { assets: dedupedAssets, stats: dedupStats } = deduplicateFindings(input.assets);
 
-  // Step 2: Build graph with deduped input
+  // Step 1b: Cap total findings to prevent combinatorial explosion
+  const cappedAssets = capFindings(dedupedAssets);
+
+  // Step 2: Build graph with deduped + capped input
   const dedupedInput: ReasoningInput = {
     ...input,
-    assets: dedupedAssets,
+    assets: cappedAssets,
     enableLLMHypotheses: false,
   };
   const graph = buildAttackGraph(dedupedInput);
@@ -392,7 +424,7 @@ export function buildGraphFast(input: ReasoningInput): CachedGraph {
   graph.stats.totalPaths = prunedPaths.length;
 
   // Step 4: Pre-compute taxonomy
-  const taxonomyContext = precomputeTaxonomy(dedupedAssets);
+  const taxonomyContext = precomputeTaxonomy(cappedAssets);
 
   // Step 5: Compute hash and cache
   const findingsHash = computeFindingsHash(input.assets);
