@@ -1168,6 +1168,86 @@ export const engagementOpsRouter = router({
             // Force-persist final state on completion
             const { persistOpsStateNow: persistOnComplete } = await import('../lib/engagement-orchestrator');
             await persistOnComplete(input.engagementId).catch(() => {});
+
+            // ── Promote passive findings to engagement_findings table ──
+            // This ensures getGraphFast can build the attack graph from DB data
+            try {
+              const { saveEngagementFindings } = await import('../db');
+              const findingsToPromote: Array<{
+                engagementId: number;
+                title: string;
+                severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+                cve?: string;
+                description?: string;
+                endpoint?: string;
+                hostname?: string;
+                port?: number;
+                source?: string;
+                tool?: string;
+                corroborationTier?: 'confirmed' | 'corroborated' | 'unverified';
+              }> = [];
+
+              for (const asset of (state!.assets || [])) {
+                // Promote vulns
+                for (const v of (asset.vulns || [])) {
+                  const sev = (v.severity || 'info').toLowerCase();
+                  const mappedSev = (['critical','high','medium','low','info'].includes(sev) ? sev : 'info') as 'critical' | 'high' | 'medium' | 'low' | 'info';
+                  findingsToPromote.push({
+                    engagementId: input.engagementId,
+                    title: (v.title || v.id || 'Untitled').slice(0, 500),
+                    severity: mappedSev,
+                    cve: v.cve || undefined,
+                    description: v.description || undefined,
+                    hostname: asset.hostname,
+                    port: v.port || undefined,
+                    source: 'passive_recon',
+                    tool: 'passive_discovery',
+                    corroborationTier: (v.corroborationTier || 'unverified') as 'confirmed' | 'corroborated' | 'unverified',
+                  });
+                }
+
+                // Promote risk signals as info-level findings
+                const riskSignals = asset.passiveRecon?.riskSignals || [];
+                for (const rs of riskSignals) {
+                  const sev = (rs.severity || 'info').toLowerCase();
+                  const mappedSev = (['critical','high','medium','low','info'].includes(sev) ? sev : 'info') as 'critical' | 'high' | 'medium' | 'low' | 'info';
+                  findingsToPromote.push({
+                    engagementId: input.engagementId,
+                    title: (`Risk Signal: ${rs.type || 'unknown'}`).slice(0, 500),
+                    severity: mappedSev,
+                    description: (rs.rationale || '').slice(0, 65000) || undefined,
+                    hostname: asset.hostname,
+                    source: 'passive_recon',
+                    tool: 'passive_discovery',
+                    corroborationTier: 'unverified',
+                  });
+                }
+
+                // Promote open ports as info findings so graph shows services
+                for (const p of (asset.ports || [])) {
+                  findingsToPromote.push({
+                    engagementId: input.engagementId,
+                    title: `Open Port: ${p.port}/${p.service || 'unknown'}${p.version ? ' ' + p.version : ''}`,
+                    severity: 'info',
+                    hostname: asset.hostname,
+                    port: typeof p.port === 'number' ? p.port : parseInt(p.port) || undefined,
+                    source: 'passive_recon',
+                    tool: 'passive_discovery',
+                    corroborationTier: 'unverified',
+                  });
+                }
+              }
+
+              if (findingsToPromote.length > 0) {
+                const promoted = await saveEngagementFindings(findingsToPromote);
+                console.log(`[PassiveScan] Promoted ${promoted} findings to engagement_findings for engagement #${input.engagementId} (${findingsToPromote.length} total)`);
+                const promoLog = { id: `log-${Date.now()}-promo`, timestamp: Date.now(), phase: 'recon' as const, type: 'info' as const, title: '📊 Findings Promoted to DB', detail: `${promoted} findings (vulns, risk signals, open ports) saved to database for attack graph visualization.` };
+                state!.log.push(promoLog);
+                broadcastOpsUpdate(input.engagementId, { type: 'log', entry: promoLog });
+              }
+            } catch (promoErr: any) {
+              console.error(`[PassiveScan] Failed to promote findings to DB:`, promoErr.message);
+            }
           } catch (e: any) {
             console.error(`[PassiveScan] Pipeline error for engagement #${input.engagementId}:`, e.message, e.stack?.slice(0, 500));
             state!.phase = 'error';
