@@ -1181,7 +1181,7 @@ export const engagementAutomationRouter = router({
           error: state?.error,
           createdAt: eng.createdAt,
         };
-      });
+      }));
 
       // Get training data stats
       let trainingStats = { totalExamples: 0, totalDecisions: 0, callerBreakdown: {} as Record<string, number> };
