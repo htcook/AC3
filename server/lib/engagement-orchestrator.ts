@@ -57,6 +57,12 @@ import {
 } from "./knowledge-lazy";
 // Re-export KEV functions with original names for compatibility
 const fetchKevCatalog = lazyFetchKevCatalog;
+
+/**
+ * Yield the event loop to prevent starvation during long-running pipeline phases.
+ * Call this between CPU-intensive operations to keep the server responsive.
+ */
+const breathe = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
 const matchCvesAgainstKev = lazyMatchCvesAgainstKev;
 const calculateKevRiskBoost = lazyCalculateKevRiskBoost;
 type KevMatch = any; // Type-only import not needed at runtime
@@ -11467,6 +11473,7 @@ export async function executeEngagement(
         addLog(state, { phase: 'recon', type: 'warning', title: '🛡️ Safety: Recon Blocked', detail: reconGate.reason });
       } else {
         await executeRecon(state, engagement, operatorCtx);
+        await breathe(); // yield event loop between phases
         // ─── Customer Integration Bridge: Recon ───
         try {
           const { executeCustomerIntegrationsForStage, mergeIntegrationResultsIntoObservations } = await import('./integration-registry/pipeline-bridge');
@@ -11489,6 +11496,7 @@ export async function executeEngagement(
     if (['recon', 'passive_discovery'].includes(startPhase)) {
       try {
         await executePassiveDiscovery(state, engagement, addLog, broadcastOpsUpdate);
+        await breathe(); // yield event loop between phases
         // ─── Customer Integration Bridge: Passive Discovery ───
         try {
           const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
@@ -11560,6 +11568,7 @@ export async function executeEngagement(
           addLog(state, { phase: 'enumeration', type: 'warning', title: '🛡️ Safety: Enumeration Blocked', detail: `${enumGate.reason}. Requires safety level '${enumGate.requiredLevel}' or higher.` });
         } else {
           await executeEnumeration(state, engagement, operatorCtx);
+          await breathe(); // yield event loop between phases
           // ─── Customer Integration Bridge: Enumeration ───
           try {
             const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
@@ -11586,6 +11595,7 @@ export async function executeEngagement(
           addLog(state, { phase: 'vuln_detection', type: 'warning', title: '🛡️ Safety: Vuln Detection Blocked', detail: `${vulnGate.reason}. Requires safety level '${vulnGate.requiredLevel}' or higher.` });
         } else {
           await executeVulnDetection(state, engagement, operatorCtx);
+          await breathe(); // yield event loop between phases
           // ─── Customer Integration Bridge: Vuln Detection ───
           try {
             const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');
@@ -12131,6 +12141,7 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
         addLog(state, { phase: 'exploitation', type: 'warning', title: '🛡️ Safety: Exploitation Blocked', detail: `${exploitGate.reason}. Requires safety level '${exploitGate.requiredLevel}' or higher. ${state.stats.vulnsFound} vulns found but exploitation is not permitted at current safety level.` });
       } else if (state.stats.vulnsFound > 0) {
         await executeExploitation(state, engagement, operatorCtx);
+        await breathe(); // yield event loop between phases
         // ─── Customer Integration Bridge: Exploitation ───
         try {
           const { executeCustomerIntegrationsForStage } = await import('./integration-registry/pipeline-bridge');

@@ -20,7 +20,7 @@ import { SERVER_INSTANCE_ID } from "./server-instance";
 // ─── Configuration ──────────────────────────────────────────────────────────
 
 /** Maximum interrupts within the crash-loop window before blocking auto-resume */
-const MAX_INTERRUPTS_BEFORE_BLOCK = 10; // Raised from 3: deployment restarts are expected, not crash loops
+const MAX_INTERRUPTS_BEFORE_BLOCK = 5; // 5 interrupts within 24h triggers crash-loop guard
 
 /** Time window for crash-loop detection (24 hours in ms) */
 const CRASH_LOOP_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -343,6 +343,36 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       return;
     }
 
+    // ── Event Loop Health Check: ensure the server can handle requests before resuming ──
+    try {
+      const eventLoopOk = await new Promise<boolean>((resolve) => {
+        const start = Date.now();
+        setImmediate(() => {
+          const lag = Date.now() - start;
+          if (lag > 2000) {
+            console.warn(`[AutoResume] Event loop lag: ${lag}ms — server is under heavy load`);
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        });
+        // Timeout fallback
+        setTimeout(() => resolve(false), 5000);
+      });
+      if (!eventLoopOk) {
+        console.warn(`[AutoResume] Event loop health check FAILED for #${engagementId}. Deferring auto-resume.`);
+        eventHub.broadcastEngagement(engagementId, {
+          type: "engagement:auto_resume_skipped",
+          engagementId,
+          reason: "Event loop overloaded — server cannot accept new work",
+          message: `Auto-resume deferred for #${engagementId}: server event loop is overloaded. Will retry on next restart.`,
+        });
+        return;
+      }
+    } catch {
+      // If the health check itself fails, proceed anyway
+    }
+
     console.log(`[AutoResume] Executing auto-resume for engagement #${engagementId} from ${interruption.phase} (RSS=${rssGB.toFixed(2)}GB)...`);
 
     // ── Dismiss stale approval gates from the interrupted run ──
@@ -424,7 +454,11 @@ async function executeAutoResume(engagementId: number): Promise<void> {
     // Call rerunFullPipeline via internal HTTP (uses the same code path as the UI)
     // We need to get the owner's JWT to authenticate the internal call
     try {
-      const { sign } = await import("jsonwebtoken");
+      const jwt = await import("jsonwebtoken");
+      const signFn = (jwt as any).default?.sign || (jwt as any).sign;
+      if (typeof signFn !== 'function') {
+        throw new Error(`JWT sign not available: got ${typeof signFn} from jsonwebtoken import`);
+      }
       const jwtSecret = process.env.JWT_SECRET;
       const ownerOpenId = process.env.OWNER_OPEN_ID;
       const ownerName = process.env.OWNER_NAME || "Auto-Resume System";
@@ -434,7 +468,7 @@ async function executeAutoResume(engagementId: number): Promise<void> {
       }
       
       // Create a short-lived internal JWT for the owner
-      const internalToken = sign(
+      const internalToken = signFn(
         { sub: ownerOpenId, name: ownerName, iat: Math.floor(Date.now() / 1000) },
         jwtSecret,
         { expiresIn: "5m" }
