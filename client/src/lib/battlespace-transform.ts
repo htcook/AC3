@@ -16,15 +16,84 @@ import type {
   KillChainPhase,
 } from "./battlespace-types";
 
-// ── Engagement Attack Graph → Battlespace ───────────────────────────
+// ── Proxy / CDN / LB Detection Heuristics ─────────────────────────
+const PROXY_SIGNATURES: Array<{ pattern: RegExp; vendor: string; role: BattlespaceNode["proxyRole"] }> = [
+  { pattern: /nginx/i, vendor: "nginx", role: "reverse_proxy" },
+  { pattern: /haproxy/i, vendor: "HAProxy", role: "load_balancer" },
+  { pattern: /cloudflare/i, vendor: "Cloudflare", role: "cdn" },
+  { pattern: /akamai/i, vendor: "Akamai", role: "cdn" },
+  { pattern: /aws.?(?:alb|elb|cloudfront)/i, vendor: "AWS", role: "load_balancer" },
+  { pattern: /azure.?(?:front.?door|app.?gateway|cdn)/i, vendor: "Azure", role: "cdn" },
+  { pattern: /varnish/i, vendor: "Varnish", role: "reverse_proxy" },
+  { pattern: /traefik/i, vendor: "Traefik", role: "reverse_proxy" },
+  { pattern: /envoy/i, vendor: "Envoy", role: "reverse_proxy" },
+  { pattern: /f5.?big.?ip/i, vendor: "F5 BIG-IP", role: "load_balancer" },
+  { pattern: /imperva|incapsula/i, vendor: "Imperva", role: "waf_inline" },
+  { pattern: /sucuri/i, vendor: "Sucuri", role: "waf_inline" },
+  { pattern: /fastly/i, vendor: "Fastly", role: "cdn" },
+  { pattern: /kong/i, vendor: "Kong", role: "reverse_proxy" },
+  { pattern: /apache.?traffic.?server|ats/i, vendor: "Apache TS", role: "reverse_proxy" },
+  { pattern: /squid/i, vendor: "Squid", role: "reverse_proxy" },
+  { pattern: /caddy/i, vendor: "Caddy", role: "reverse_proxy" },
+];
+
+/** Detect if a technology/service string matches a known proxy */
+function detectProxy(tech: string): { vendor: string; role: BattlespaceNode["proxyRole"] } | null {
+  for (const sig of PROXY_SIGNATURES) {
+    if (sig.pattern.test(tech)) return { vendor: sig.vendor, role: sig.role };
+  }
+  return null;
+}
+
+/** Detect blue team interception indicators from asset data */
+function detectInterception(asset: any): Array<{
+  tapType: BattlespaceNode["tapType"];
+  interceptedBy: string;
+  evidence: string;
+}> {
+  const taps: Array<{ tapType: BattlespaceNode["tapType"]; interceptedBy: string; evidence: string }> = [];
+  const waf = asset.wafDetected || asset.passiveRecon?.wafDetected;
+  const techs = (asset.technologies || asset.passiveRecon?.technologies || []).map((t: any) => typeof t === "string" ? t : t.name || "");
+  const allText = [waf, ...techs, asset.hostname || "", JSON.stringify(asset.passiveRecon?.riskSignals || [])].join(" ").toLowerCase();
+
+  // SSL inspection: cert issuer mismatch (blue team MitM proxy)
+  if (/ssl.?inspect|ssl.?bump|ssl.?decrypt|mitm.?proxy|bluecoat|zscaler|palo.?alto.?decrypt|fortigate.?ssl/i.test(allText)) {
+    taps.push({ tapType: "ssl_inspection", interceptedBy: "SSL Inspection Proxy", evidence: "SSL decryption/inspection detected" });
+  }
+  // IDS/IPS inline
+  if (/snort|suricata|ids.?inline|ips.?inline|zeek|bro.?ids/i.test(allText)) {
+    taps.push({ tapType: "ids_inline", interceptedBy: "IDS/IPS", evidence: "Inline IDS/IPS signatures detected" });
+  }
+  // NGFW with deep packet inspection
+  if (/ngfw|next.?gen.?firewall|palo.?alto|fortinet|fortigate|checkpoint|sophos.?xg/i.test(allText)) {
+    taps.push({ tapType: "ids_inline", interceptedBy: "NGFW", evidence: "Next-gen firewall with DPI detected" });
+  }
+  // WAF in transparent/inline mode (not just CDN WAF)
+  if (waf && !/cloudflare|akamai|fastly|sucuri/i.test(waf)) {
+    taps.push({ tapType: "proxy_intercept", interceptedBy: `WAF: ${waf}`, evidence: "Inline WAF intercepting and analyzing traffic" });
+  }
+  // Traffic mirroring / SPAN indicators
+  if (/span.?port|mirror|tap|packet.?broker|gigamon|ixia|network.?tap/i.test(allText)) {
+    taps.push({ tapType: "span_port", interceptedBy: "Network TAP/SPAN", evidence: "Traffic mirroring detected" });
+  }
+  // SIEM/SOC logging indicators
+  if (/splunk|elastic.?siem|sentinel|qradar|arcsight|siem/i.test(allText)) {
+    taps.push({ tapType: "traffic_mirror", interceptedBy: "SIEM", evidence: "SIEM log collection detected" });
+  }
+  return taps;
+}
+
+// ── Engagement Attack Graph → Ops Viewer ───────────────────────────
 export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
   const nodes: BattlespaceNode[] = [];
   const edges: BattlespaceEdge[] = [];
   const hostNodes = new Map<string, string>(); // hostname → nodeId
+  const proxyNodes = new Map<string, string>(); // proxyVendor-hostname → nodeId
+  const tapNodes = new Map<string, string>();   // tapType-hostname → nodeId
 
   if (!graphData?.nodes) return { nodes: [], edges: [], mode: "engagement" };
 
-  // Pass 1: Create host grouping nodes from unique targets
+  // ── Pass 1: Create host grouping nodes from unique targets ──
   const targets = new Set<string>();
   for (const n of graphData.nodes) {
     const target = n.details?.target || n.details?.hostname;
@@ -48,7 +117,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     }
   }
 
-  // Pass 2: Transform attack graph nodes
+  // ── Pass 2: Transform attack graph nodes ──
   for (const n of graphData.nodes) {
     const nodeType = mapNodeType(n.type, n.category, n.layer);
     const severity = normalizeSeverity(n.severity);
@@ -87,7 +156,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     }
   }
 
-  // Pass 3: Transform edges
+  // ── Pass 3: Transform edges ──
   for (const e of graphData.edges || []) {
     edges.push({
       id: `edge-${e.source}-${e.target}`,
@@ -101,7 +170,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     });
   }
 
-  // Pass 4: Add defense nodes from node defense data
+  // ── Pass 4: Defense nodes ──
   const defenseSet = new Set<string>();
   for (const n of graphData.nodes) {
     for (const def of (n.defenses || [])) {
@@ -117,7 +186,6 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
           priorityScore: 0.5,
         });
       }
-      // Connect defense to the node it protects
       edges.push({
         id: `protect-${defId}-${n.id}`,
         source: defId,
@@ -129,7 +197,255 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
     }
   }
 
-  // Aggregate host weakness levels
+  // ── Pass 5: Detect proxies, CDNs, load balancers from asset data ──
+  // Extract from engagement metadata (assets with waf/cdn/tech data)
+  const engAssets = graphData.engagement?.assets || graphData.assets || [];
+  for (const asset of engAssets) {
+    const hostname = asset.hostname || asset.target;
+    if (!hostname) continue;
+    const hostId = hostNodes.get(hostname);
+    const allTechs = [
+      ...(asset.technologies || []),
+      ...(asset.passiveRecon?.technologies || []),
+      asset.wafDetected || "",
+      asset.passiveRecon?.wafDetected || "",
+    ].map((t: any) => typeof t === "string" ? t : t.name || "").filter(Boolean);
+
+    // Detect proxies from technologies
+    const detectedProxies = new Map<string, { vendor: string; role: BattlespaceNode["proxyRole"] }>();
+    for (const tech of allTechs) {
+      const proxy = detectProxy(tech);
+      if (proxy && !detectedProxies.has(proxy.vendor)) {
+        detectedProxies.set(proxy.vendor, proxy);
+      }
+    }
+
+    // CDN detection from passiveRecon
+    const cdnData = asset.passiveRecon?.riskSignals?.filter((r: any) => r.type === "cdn_waf") || [];
+    for (const cdn of cdnData) {
+      const cdnName = (cdn.rationale || "").replace(/CDN\/WAF detected:\s*/i, "").trim();
+      if (cdnName && !detectedProxies.has(cdnName)) {
+        detectedProxies.set(cdnName, { vendor: cdnName, role: "cdn" });
+      }
+    }
+
+    // Create proxy nodes and wire them between internet and host
+    for (const [, proxyInfo] of detectedProxies) {
+      const proxyKey = `${proxyInfo.vendor}-${hostname}`;
+      if (proxyNodes.has(proxyKey)) continue;
+      const proxyId = `proxy-${proxyInfo.vendor.toLowerCase().replace(/\s+/g, "-")}-${hostname}`;
+      proxyNodes.set(proxyKey, proxyId);
+      const roleLabel = proxyInfo.role === "cdn" ? "CDN" : proxyInfo.role === "load_balancer" ? "LB" : proxyInfo.role === "waf_inline" ? "WAF" : "Proxy";
+      nodes.push({
+        id: proxyId,
+        type: "proxy",
+        label: `${proxyInfo.vendor} ${roleLabel}`,
+        hostname,
+        proxyVendor: proxyInfo.vendor,
+        proxyRole: proxyInfo.role,
+        severity: "info",
+        priorityScore: 0.4,
+        technologies: [proxyInfo.vendor],
+      });
+      // Edge: proxy → host (proxies_to)
+      if (hostId) {
+        edges.push({
+          id: `proxies-${proxyId}-${hostId}`,
+          source: proxyId,
+          target: hostId,
+          type: "proxies_to",
+          weight: 0.8,
+          probability: 0.95,
+          dataFlow: `${roleLabel} forwarding`,
+          protocol: "https",
+        });
+      }
+    }
+
+    // ── Pass 5b: Detect blue team interception / tap points ──
+    const taps = detectInterception(asset);
+    for (const tap of taps) {
+      const tapKey = `${tap.tapType}-${hostname}`;
+      if (tapNodes.has(tapKey)) continue;
+      const tapId = `tap-${tap.tapType}-${hostname}`;
+      tapNodes.set(tapKey, tapId);
+      nodes.push({
+        id: tapId,
+        type: "tap_point",
+        label: `${tap.interceptedBy}`,
+        hostname,
+        tapType: tap.tapType,
+        interceptedBy: tap.interceptedBy,
+        isIntercepted: true,
+        severity: "high",
+        priorityScore: 0.9,
+      });
+      // Edge: tap intercepts the host's traffic
+      if (hostId) {
+        edges.push({
+          id: `intercept-${tapId}-${hostId}`,
+          source: tapId,
+          target: hostId,
+          type: "intercepts",
+          weight: 0.9,
+          probability: 0.85,
+          dataFlow: tap.evidence,
+          isIntercepted: true,
+          interceptionType: tap.tapType === "ssl_inspection" ? "ssl_decrypted" : tap.tapType === "ids_inline" ? "inline" : tap.tapType === "span_port" ? "mirrored" : "logged",
+          interceptedBy: tap.interceptedBy,
+        });
+      }
+      // Mark all edges to/from this host as intercepted
+      for (const edge of edges) {
+        if ((edge.source === hostId || edge.target === hostId) && edge.type !== "intercepts") {
+          edge.isIntercepted = true;
+          edge.interceptedBy = tap.interceptedBy;
+          edge.interceptionType = tap.tapType === "ssl_inspection" ? "ssl_decrypted" : "logged";
+        }
+      }
+    }
+  }
+
+  // ── Pass 6: C2 infrastructure nodes ──
+  // Detect from engagement timeline log entries (c2_deploy events) and agent data
+  const timeline = graphData.engagement?.timeline || graphData.timeline || [];
+  const c2Hosts = new Set<string>();
+  const agentHosts = new Set<string>();
+  for (const entry of timeline) {
+    if (entry.type === "c2_deploy" || entry.type === "exploit_success") {
+      const target = entry.data?.target || entry.data?.hostname || entry.hostname;
+      if (target) {
+        if (entry.type === "c2_deploy") c2Hosts.add(target);
+        if (entry.type === "exploit_success" && /session.*opened|shell|meterpreter/i.test(entry.detail || "")) {
+          agentHosts.add(target);
+        }
+      }
+    }
+  }
+  // Also check assets with status=compromised
+  for (const asset of engAssets) {
+    if (asset.status === "compromised") {
+      agentHosts.add(asset.hostname || asset.target);
+    }
+  }
+
+  // Create C2 server node (our infrastructure)
+  if (c2Hosts.size > 0 || agentHosts.size > 0) {
+    const c2ServerId = "c2-server-caldera";
+    nodes.push({
+      id: c2ServerId,
+      type: "c2_server",
+      label: "Caldera C2",
+      c2Platform: "caldera",
+      c2Protocol: "https",
+      severity: "info",
+      priorityScore: 0.8,
+      killChainPhase: "c2",
+    });
+
+    // Create agent nodes on compromised hosts and link to C2
+    for (const agentHost of agentHosts) {
+      const agentId = `agent-${agentHost}`;
+      // Check if agent node already exists
+      if (!nodes.find(n => n.id === agentId)) {
+        nodes.push({
+          id: agentId,
+          type: "agent",
+          label: `Agent: ${agentHost}`,
+          hostname: agentHost,
+          c2Platform: "caldera",
+          severity: "info",
+          priorityScore: 0.7,
+          killChainPhase: "c2",
+        });
+        // Link agent to its host
+        const hostId = hostNodes.get(agentHost);
+        if (hostId) {
+          edges.push({
+            id: `agent-host-${agentId}-${hostId}`,
+            source: hostId,
+            target: agentId,
+            type: "network_link",
+            weight: 0.5,
+            probability: 1,
+            dataFlow: "implant deployed",
+          });
+        }
+      }
+      // C2 channel: agent → C2 server
+      edges.push({
+        id: `c2-channel-${agentId}-${c2ServerId}`,
+        source: agentId,
+        target: c2ServerId,
+        type: "c2_channel",
+        weight: 0.9,
+        probability: 0.95,
+        dataFlow: "C2 callback (HTTPS)",
+        protocol: "https",
+        killChainPhase: "c2",
+      });
+
+      // Check if C2 traffic passes through any detected tap points
+      const hostTaps = Array.from(tapNodes.entries()).filter(([key]) => key.includes(agentHost));
+      for (const [, tapId] of hostTaps) {
+        const c2Edge = edges.find(e => e.id === `c2-channel-${agentId}-${c2ServerId}`);
+        if (c2Edge) {
+          c2Edge.isIntercepted = true;
+          c2Edge.interceptionType = "logged";
+          c2Edge.interceptedBy = nodes.find(n => n.id === tapId)?.interceptedBy;
+        }
+      }
+    }
+  }
+
+  // ── Pass 7: Intermediate gateway/hop nodes ──
+  // Detect from traceroute data, DNS chain, or CDN origin resolution
+  const tracerouteData = graphData.engagement?.traceroute || graphData.traceroute || [];
+  for (const route of tracerouteData) {
+    const targetHost = route.target;
+    const hops = route.hops || [];
+    let prevNodeId = "c2-server-caldera"; // Start from our infra
+    if (!nodes.find(n => n.id === prevNodeId)) prevNodeId = hostNodes.values().next().value || "";
+
+    for (let i = 0; i < hops.length; i++) {
+      const hop = hops[i];
+      const hopId = `gateway-hop${i}-${targetHost}`;
+      nodes.push({
+        id: hopId,
+        type: "gateway",
+        label: hop.ip || hop.hostname || `Hop ${i + 1}`,
+        ip: hop.ip,
+        hostname: hop.hostname,
+        severity: "info",
+        priorityScore: 0.2,
+      });
+      edges.push({
+        id: `route-${prevNodeId}-${hopId}`,
+        source: prevNodeId,
+        target: hopId,
+        type: "routes_through",
+        weight: 0.3,
+        probability: 1,
+        dataFlow: `${hop.latency || "?"}ms`,
+        protocol: "tcp",
+      });
+      prevNodeId = hopId;
+    }
+    // Final hop → target host
+    const targetHostId = hostNodes.get(targetHost);
+    if (targetHostId && prevNodeId) {
+      edges.push({
+        id: `route-${prevNodeId}-${targetHostId}`,
+        source: prevNodeId,
+        target: targetHostId,
+        type: "routes_through",
+        weight: 0.5,
+        probability: 1,
+      });
+    }
+  }
+
+  // ── Pass 8: Aggregate host weakness levels ──
   for (const [hostname, hostId] of hostNodes) {
     const childNodes = nodes.filter(n => n.hostname === hostname && n.id !== hostId);
     const maxWeakness = Math.max(0, ...childNodes.map(n => n.weaknessLevel || 0));
@@ -139,12 +455,14 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
       hostNode.weaknessLevel = maxWeakness;
       hostNode.priorityScore = maxPriority;
       hostNode.severity = maxWeakness > 0.8 ? "critical" : maxWeakness > 0.6 ? "high" : maxWeakness > 0.3 ? "medium" : "low";
-      // Collect all technologies from children
       const allTechs = new Set<string>();
       for (const cn of childNodes) {
         for (const t of cn.technologies || []) allTechs.add(t);
       }
       hostNode.technologies = Array.from(allTechs);
+      // Mark host as intercepted if any tap point monitors it
+      const hasTap = Array.from(tapNodes.keys()).some(k => k.includes(hostname));
+      if (hasTap) hostNode.isIntercepted = true;
     }
   }
 
@@ -284,6 +602,93 @@ export function transformDIScan(
           });
         }
       }
+    }
+  }
+
+  // ── Proxy / CDN / LB detection for DI assets ──
+  const diProxyNodes = new Map<string, string>();
+  for (const asset of assets) {
+    const assetId = `asset-${asset.id}`;
+    const hostname = asset.hostname;
+    const allTechs = [
+      ...(Array.isArray(asset.technologies) ? asset.technologies.map((t: any) => typeof t === "string" ? t : t.name || "") : []),
+      asset.wafDetected || "",
+      asset.passiveRecon?.wafDetected || "",
+    ].filter(Boolean);
+
+    // Detect proxies from technologies
+    for (const tech of allTechs) {
+      const proxy = detectProxy(tech);
+      if (proxy) {
+        const proxyKey = `${proxy.vendor}-${hostname}`;
+        if (diProxyNodes.has(proxyKey)) continue;
+        const proxyId = `proxy-${proxy.vendor.toLowerCase().replace(/\s+/g, "-")}-${hostname}`;
+        diProxyNodes.set(proxyKey, proxyId);
+        const roleLabel = proxy.role === "cdn" ? "CDN" : proxy.role === "load_balancer" ? "LB" : proxy.role === "waf_inline" ? "WAF" : "Proxy";
+        nodes.push({
+          id: proxyId,
+          type: "proxy",
+          label: `${proxy.vendor} ${roleLabel}`,
+          hostname,
+          proxyVendor: proxy.vendor,
+          proxyRole: proxy.role,
+          severity: "info",
+          priorityScore: 0.4,
+          technologies: [proxy.vendor],
+        });
+        // Proxy sits between root domain and asset
+        edges.push({
+          id: `proxies-${proxyId}-${assetId}`,
+          source: proxyId,
+          target: assetId,
+          type: "proxies_to",
+          weight: 0.8,
+          probability: 0.95,
+          dataFlow: `${roleLabel} forwarding`,
+          protocol: "https",
+        });
+        // Connect root → proxy instead of root → asset directly
+        edges.push({
+          id: `dns-${rootId}-${proxyId}`,
+          source: rootId,
+          target: proxyId,
+          type: "dns_resolve",
+          weight: 0.5,
+          probability: 1,
+        });
+      }
+    }
+
+    // Detect blue team interception on DI assets
+    const taps = detectInterception(asset);
+    for (const tap of taps) {
+      const tapId = `tap-${tap.tapType}-${hostname}`;
+      nodes.push({
+        id: tapId,
+        type: "tap_point",
+        label: tap.interceptedBy,
+        hostname,
+        tapType: tap.tapType,
+        interceptedBy: tap.interceptedBy,
+        isIntercepted: true,
+        severity: "high",
+        priorityScore: 0.9,
+      });
+      edges.push({
+        id: `intercept-${tapId}-${assetId}`,
+        source: tapId,
+        target: assetId,
+        type: "intercepts",
+        weight: 0.9,
+        probability: 0.85,
+        dataFlow: tap.evidence,
+        isIntercepted: true,
+        interceptionType: tap.tapType === "ssl_inspection" ? "ssl_decrypted" : tap.tapType === "ids_inline" ? "inline" : "logged",
+        interceptedBy: tap.interceptedBy,
+      });
+      // Mark the asset node as intercepted
+      const assetNode = nodes.find(n => n.id === assetId);
+      if (assetNode) assetNode.isIntercepted = true;
     }
   }
 

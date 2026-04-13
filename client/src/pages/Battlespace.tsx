@@ -377,7 +377,7 @@ export default function Battlespace() {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<BattlespaceEngine | null>(null);
 
-  // Read ?eid= query param for deep-linking from EngagementOps
+  // Read ?eid= and ?di= query params for deep-linking
   const [initialEid] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -385,11 +385,18 @@ export default function Battlespace() {
     }
     return '';
   });
+  const [initialDi] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('di') || '';
+    }
+    return '';
+  });
 
   // State
-  const [mode, setMode] = useState<BattlespaceMode>("engagement");
+  const [mode, setMode] = useState<BattlespaceMode>(initialDi ? "di_scan" : "engagement");
   const [engagementId, setEngagementId] = useState<string>(initialEid);
-  const [diScanId, setDiScanId] = useState<string>("");
+  const [diScanId, setDiScanId] = useState<string>(initialDi);
   const [stats, setStats] = useState<EngineStats | null>(null);
   const [selectedNode, setSelectedNode] = useState<BattlespaceNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<{ node: BattlespaceNode; x: number; y: number } | null>(null);
@@ -690,6 +697,27 @@ export default function Battlespace() {
               </SelectContent>
             </Select>
           )}
+
+          {/* Active engagement/scan name display */}
+          {mode === "engagement" && engagementId && (() => {
+            const eng = engagements.find((e: any) => String(e.id) === engagementId);
+            return eng ? (
+              <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
+                <Target size={10} className="text-red-400" />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-gray-300">{eng.name}</span>
+                {eng.targetDomain && <span className="text-[9px] font-mono text-gray-500">({eng.targetDomain})</span>}
+              </div>
+            ) : null;
+          })()}
+          {mode === "di_scan" && diScanId && (() => {
+            const scan = Array.isArray(diScans) && diScans.find((s: any) => String(s.id) === diScanId);
+            return scan ? (
+              <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
+                <Globe size={10} className="text-teal-400" />
+                <span className="text-[10px] font-mono uppercase tracking-wider text-gray-300">{scan.primaryDomain}</span>
+              </div>
+            ) : null;
+          })()}
 
           <div className="flex-1" />
 

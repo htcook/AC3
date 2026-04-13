@@ -862,6 +862,15 @@ export default function DomainIntelResults() {
             <Eye className="h-3.5 w-3.5 mr-1.5" />
             Review & Curate Findings
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs border-green-500/30 text-green-400 hover:bg-green-500/10"
+            onClick={() => navigate(`/battlespace?di=${scanId}`)}
+          >
+            <Network className="h-3.5 w-3.5 mr-1.5" />
+            Ops Viewer
+          </Button>
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
               <RiskGauge score={scan.overallRiskScore || 0} band={scan.overallRiskBand || "low"} />

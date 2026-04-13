@@ -22,7 +22,11 @@ export type BattlespaceNodeType =
   | "data_asset"     // Exposed data (DB, file share, API)
   | "cloud_resource" // Cloud IAM, S3, Lambda
   | "pivot_point"    // Lateral movement node
-  | "crown_jewel";   // High-value target
+  | "crown_jewel"    // High-value target
+  | "proxy"          // Reverse proxy, CDN, load balancer (nginx, HAProxy, Cloudflare)
+  | "gateway"        // Network hop, router, NAT gateway between platform and target
+  | "c2_server"      // Our C2 infrastructure (Caldera, Sliver listener)
+  | "tap_point";     // SOC/Blue team interception point (SPAN, SSL inspection, IDS inline)
 
 export type BattlespaceEdgeType =
   | "network_link"   // L3/L4 connectivity
@@ -36,7 +40,11 @@ export type BattlespaceEdgeType =
   | "data_flow"      // Data exfil path
   | "dns_resolve"    // Domain → IP
   | "trust"          // Trust relationship
-  | "escalates";     // Privilege escalation
+  | "escalates"      // Privilege escalation
+  | "proxies_to"     // Proxy/CDN/LB → target asset
+  | "c2_channel"     // Agent → C2 server callback
+  | "intercepts"     // Tap/SPAN/mirror point intercepting traffic
+  | "routes_through"; // Traffic routing through intermediate hop
 
 export type ProtocolType = "tcp" | "udp" | "icmp" | "http" | "https" | "dns" | "smb" | "ssh" | "rdp" | "other";
 export type PlatformType = "cloud" | "on_prem" | "hybrid" | "container" | "serverless" | "iot" | "unknown";
@@ -86,6 +94,16 @@ export interface BattlespaceNode {
   isSelected?: boolean;
   isNew?: boolean;              // Recently discovered (animate in)
   discoveredAt?: number;        // Timestamp
+  // Proxy/Gateway metadata
+  proxyVendor?: string;         // nginx, HAProxy, Cloudflare, Akamai, AWS ALB
+  proxyRole?: "reverse_proxy" | "cdn" | "load_balancer" | "waf_inline" | "ssl_terminator";
+  // C2 metadata
+  c2Platform?: string;          // caldera, sliver, cobalt_strike
+  c2Protocol?: string;          // http, https, dns, smb
+  // Tap/Interception metadata
+  tapType?: "span_port" | "ssl_inspection" | "ids_inline" | "traffic_mirror" | "proxy_intercept";
+  interceptedBy?: string;       // SOC tool name or blue team indicator
+  isIntercepted?: boolean;      // True if traffic through this node is being monitored
 }
 
 // ── Edge Data ───────────────────────────────────────────────────────
@@ -103,6 +121,10 @@ export interface BattlespaceEdge {
   isHighlighted?: boolean;
   isActive?: boolean;           // Currently being traversed
   killChainPhase?: KillChainPhase;
+  // Interception indicators
+  isIntercepted?: boolean;      // True if blue team is monitoring this link
+  interceptionType?: "mirrored" | "inline" | "ssl_decrypted" | "logged";
+  interceptedBy?: string;       // SOC tool or blue team indicator
 }
 
 // ── Visual Constants (Brutalist Design System) ──────────────────────
@@ -152,6 +174,10 @@ export const NODE_VISUAL_CONFIG: Record<BattlespaceNodeType, {
   cloud_resource: { shape: "hexagon",  baseColor: "#0A1628", strokeColor: "#818CF8", icon: "☁", baseSize: 24, zIndex: 10 },
   pivot_point:    { shape: "diamond",  baseColor: "#1A1500", strokeColor: "#F59E0B", icon: "⤳", baseSize: 20, zIndex: 16 },
   crown_jewel:    { shape: "octagon",  baseColor: "#1A0A00", strokeColor: "#FFD700", icon: "★", baseSize: 34, zIndex: 25 },
+  proxy:          { shape: "hexagon",  baseColor: "#0A2818", strokeColor: "#009639", icon: "⇋", baseSize: 26, zIndex: 12 },
+  gateway:        { shape: "diamond",  baseColor: "#1A1A28", strokeColor: "#6B7280", icon: "⊳", baseSize: 20, zIndex: 8 },
+  c2_server:      { shape: "triangle", baseColor: "#0A1A0A", strokeColor: "#00FF88", icon: "⌘", baseSize: 28, zIndex: 22 },
+  tap_point:      { shape: "octagon",  baseColor: "#1A0A2A", strokeColor: "#FF4444", icon: "◎", baseSize: 24, zIndex: 23 },
 };
 
 /** Edge type visual config */
@@ -174,6 +200,10 @@ export const EDGE_VISUAL_CONFIG: Record<BattlespaceEdgeType, {
   dns_resolve:  { color: "#00E5CC", dashPattern: [2, 2],   particleColor: "#00FFE0", particleSpeed: 0.5, width: 0.5 },
   trust:        { color: "#10B981", dashPattern: [10, 5],  particleColor: "#34D399", particleSpeed: 0.6, width: 1 },
   escalates:    { color: "#FF0040", dashPattern: [3, 3],   particleColor: "#FF4060", particleSpeed: 2.2, width: 2 },
+  proxies_to:    { color: "#009639", dashPattern: [8, 2],   particleColor: "#00C853", particleSpeed: 1.2, width: 2 },
+  c2_channel:    { color: "#00FF88", dashPattern: [12, 4, 2, 4], particleColor: "#00FF88", particleSpeed: 3.5, width: 2.5 },
+  intercepts:    { color: "#FF4444", dashPattern: [2, 2, 8, 2], particleColor: "#FF6666", particleSpeed: 0.5, width: 3 },
+  routes_through:{ color: "#6B7280", dashPattern: [6, 6],   particleColor: "#9CA3AF", particleSpeed: 1.0, width: 1 },
 };
 
 /** Protocol line style encoding */
