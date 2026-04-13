@@ -326,7 +326,7 @@ async function executeAutoResume(engagementId: number): Promise<void> {
     // ── Memory Pressure Guard: skip auto-resume if RSS is above 75% of container limit ──
     const memUsage = process.memoryUsage();
     const rssGB = memUsage.rss / (1024 * 1024 * 1024);
-    const CONTAINER_LIMIT_GB = parseFloat(process.env.CONTAINER_MEMORY_LIMIT_GB || '4');
+    const CONTAINER_LIMIT_GB = parseFloat(process.env.CONTAINER_MEMORY_LIMIT_GB || '8');
     const MAX_RSS_RATIO = 0.75;
     if (rssGB > CONTAINER_LIMIT_GB * MAX_RSS_RATIO) {
       console.warn(
