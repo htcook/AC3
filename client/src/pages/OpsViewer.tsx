@@ -93,6 +93,9 @@ function StatsHUD({ stats, mode }: { stats: EngineStats | null; mode: Battlespac
         <span>{stats.nodeCount} NODES</span>
         <span className="text-gray-600">|</span>
         <span>{stats.edgeCount} EDGES</span>
+        {stats.clusterCount > 0 && (
+          <><span className="text-gray-600">|</span><span className="text-blue-400">{stats.clusterCount} CLUSTERS</span></>
+        )}
         <span className="text-gray-600">|</span>
         <span>α {stats.simulationAlpha.toFixed(3)}</span>
       </div>
@@ -406,6 +409,7 @@ export default function Battlespace() {
   const [selectedPath, setSelectedPath] = useState<number | null>(null);
   const [showTopologyFilters, setShowTopologyFilters] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showClusters, setShowClusters] = useState(true);
   const [topologyLayers, setTopologyLayers] = useState<Record<string, boolean>>({
     proxy: true,
     gateway: true,
@@ -843,6 +847,19 @@ export default function Battlespace() {
               <Crosshair size={12} />
             </Button>
             <div className="h-6 w-px bg-[#1A2332]" />
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${showClusters ? 'bg-[#1A2332] text-blue-400' : 'bg-transparent'}`}
+              onClick={() => {
+                const next = !showClusters;
+                setShowClusters(next);
+                engineRef.current?.setClustersEnabled(next);
+              }}
+              title="Toggle Cluster Grouping"
+            >
+              <Database size={12} />
+            </Button>
             <Button
               variant="outline"
               size="sm"

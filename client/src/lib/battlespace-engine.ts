@@ -78,10 +78,23 @@ export interface EngineCallbacks {
 export interface EngineStats {
   nodeCount: number;
   edgeCount: number;
+  clusterCount: number;
   fps: number;
   zoomLevel: ZoomLevel;
   scale: number;
   simulationAlpha: number;
+}
+
+/** Cluster bounding box computed each frame */
+interface Cluster {
+  id: string;
+  label: string;
+  color: string;
+  nodeIds: Set<string>;
+  // Bounding box (world coords, updated each frame)
+  minX: number; minY: number;
+  maxX: number; maxY: number;
+  cx: number; cy: number;
 }
 
 export interface EngineOptions {
@@ -239,6 +252,8 @@ export class BattlespaceEngine {
   private simEdges: SimEdge[] = [];
   private nodeMap = new Map<string, SimNode>();
   private hiddenNodeTypes = new Set<string>();
+  private clusters: Cluster[] = [];
+  private clustersEnabled = true;
 
   private scale = 0.6;
   private panX = 0;
@@ -367,7 +382,137 @@ export class BattlespaceEngine {
         });
       }
     }
+    this.buildClusters();
     this.startSimulation();
+  }
+
+  // ── Cluster Detection ────────────────────────────────────────────
+  private buildClusters(): void {
+    const clusterMap = new Map<string, Set<string>>();
+
+    for (const n of this.simNodes) {
+      // 1. Explicit clusterId
+      if (n.clusterId) {
+        const key = `cluster:${n.clusterId}`;
+        if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+        clusterMap.get(key)!.add(n.id);
+        continue;
+      }
+
+      // 2. Group by hostname domain suffix (e.g. "*.example.com")
+      if (n.hostname) {
+        const parts = n.hostname.split(".");
+        if (parts.length >= 2) {
+          const domain = parts.slice(-2).join(".");
+          const key = `domain:${domain}`;
+          if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+          clusterMap.get(key)!.add(n.id);
+          continue;
+        }
+      }
+
+      // 3. Group subnets
+      if (n.type === "subnet") {
+        const key = `subnet:${n.label}`;
+        if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+        clusterMap.get(key)!.add(n.id);
+        continue;
+      }
+
+      // 4. Group by IP /24 subnet
+      if (n.ip) {
+        const octets = n.ip.split(".");
+        if (octets.length === 4) {
+          const subnet24 = `${octets[0]}.${octets[1]}.${octets[2]}.0/24`;
+          const key = `net:${subnet24}`;
+          if (!clusterMap.has(key)) clusterMap.set(key, new Set());
+          clusterMap.get(key)!.add(n.id);
+          continue;
+        }
+      }
+    }
+
+    // Also add nodes connected to subnet nodes into that subnet's cluster
+    for (const e of this.simEdges) {
+      const src = typeof e.source === "object" ? (e.source as SimNode) : this.nodeMap.get(e.source as string);
+      const tgt = typeof e.target === "object" ? (e.target as SimNode) : this.nodeMap.get(e.target as string);
+      if (!src || !tgt) continue;
+      if (src.type === "subnet") {
+        const key = `subnet:${src.label}`;
+        if (clusterMap.has(key)) clusterMap.get(key)!.add(tgt.id);
+      }
+      if (tgt.type === "subnet") {
+        const key = `subnet:${tgt.label}`;
+        if (clusterMap.has(key)) clusterMap.get(key)!.add(src.id);
+      }
+    }
+
+    // Cluster color palette (muted, translucent)
+    const CLUSTER_COLORS = [
+      "#2D4A6F", "#4A2D6F", "#6F4A2D", "#2D6F4A",
+      "#6F2D4A", "#4A6F2D", "#2D6F6F", "#6F6F2D",
+      "#3B82F6", "#8B5CF6", "#F59E0B", "#10B981",
+    ];
+
+    // Filter out clusters with < 2 nodes (no point drawing a box around 1 node)
+    this.clusters = [];
+    let colorIdx = 0;
+    for (const [key, nodeIds] of clusterMap) {
+      if (nodeIds.size < 2) continue;
+      const label = key.replace(/^(cluster|domain|subnet|net):/, "").toUpperCase();
+      this.clusters.push({
+        id: key,
+        label,
+        color: CLUSTER_COLORS[colorIdx % CLUSTER_COLORS.length],
+        nodeIds,
+        minX: 0, minY: 0, maxX: 0, maxY: 0, cx: 0, cy: 0,
+      });
+      colorIdx++;
+    }
+  }
+
+  /** Update cluster bounding boxes from current node positions */
+  private updateClusterBounds(): void {
+    for (const c of this.clusters) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let count = 0;
+      for (const nid of c.nodeIds) {
+        const n = this.nodeMap.get(nid);
+        if (!n || this.hiddenNodeTypes.has(n.type)) continue;
+        const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+        const r = config.baseSize;
+        const nx = n.x || 0;
+        const ny = n.y || 0;
+        minX = Math.min(minX, nx - r);
+        minY = Math.min(minY, ny - r - 20); // extra space for label
+        maxX = Math.max(maxX, nx + r);
+        maxY = Math.max(maxY, ny + r + 20);
+        count++;
+      }
+      if (count < 2) {
+        c.minX = c.minY = c.maxX = c.maxY = c.cx = c.cy = 0;
+        continue;
+      }
+      const pad = 30;
+      c.minX = minX - pad;
+      c.minY = minY - pad;
+      c.maxX = maxX + pad;
+      c.maxY = maxY + pad;
+      c.cx = (c.minX + c.maxX) / 2;
+      c.cy = (c.minY + c.maxY) / 2;
+    }
+  }
+
+  setClustersEnabled(enabled: boolean): void {
+    this.clustersEnabled = enabled;
+  }
+
+  getClustersEnabled(): boolean {
+    return this.clustersEnabled;
+  }
+
+  getClusterCount(): number {
+    return this.clusters.length;
   }
 
   private clearGraph(): void {
@@ -521,8 +666,39 @@ export class BattlespaceEngine {
       }).strength(0.8))
       .force("x", forceX(0).strength(0.015))
       .force("y", forceY(0).strength(0.015))
+      .force("cluster", this.clusterForce())
       .alphaDecay(0.01)
-       .velocityDecay(0.3);
+      .velocityDecay(0.3);
+  }
+
+  /** Custom D3 force that gently pulls cluster members toward their centroid */
+  private clusterForce() {
+    const strength = 0.03;
+    const engine = this;
+    return function force(alpha: number) {
+      if (!engine.clustersEnabled || engine.clusters.length === 0) return;
+      for (const c of engine.clusters) {
+        // Compute centroid
+        let sumX = 0, sumY = 0, count = 0;
+        for (const nid of c.nodeIds) {
+          const n = engine.nodeMap.get(nid);
+          if (!n) continue;
+          sumX += n.x || 0;
+          sumY += n.y || 0;
+          count++;
+        }
+        if (count < 2) continue;
+        const cx = sumX / count;
+        const cy = sumY / count;
+        // Pull each member toward centroid
+        for (const nid of c.nodeIds) {
+          const n = engine.nodeMap.get(nid);
+          if (!n || n.fx != null) continue; // skip fixed nodes
+          n.vx = (n.vx || 0) + (cx - (n.x || 0)) * strength * alpha;
+          n.vy = (n.vy || 0) + (cy - (n.y || 0)) * strength * alpha;
+        }
+      }
+    };
   }
 
   private updateZoomLevel(): void {
@@ -735,6 +911,7 @@ export class BattlespaceEngine {
       this.callbacks.onStatsUpdate?.({
         nodeCount: this.simNodes.length,
         edgeCount: this.simEdges.length,
+        clusterCount: this.clusters.length,
         fps: this.currentFps,
         zoomLevel: this.currentZoomLevel,
         scale: this.scale,
@@ -758,6 +935,14 @@ export class BattlespaceEngine {
 
     // Grid
     if (this.options.gridEnabled) this.drawGrid(ctx);
+
+    // Cluster bounding boxes (drawn behind edges and nodes)
+    if (this.clustersEnabled && this.clusters.length > 0) {
+      this.updateClusterBounds();
+      for (const c of this.clusters) {
+        this.drawCluster(ctx, c);
+      }
+    }
 
     // Edges (skip edges connected to hidden node types)
     for (const e of this.simEdges) {
@@ -1226,6 +1411,48 @@ export class BattlespaceEngine {
       ctx.fillStyle = "#E8EAED";
       ctx.textAlign = "center";
       ctx.fillText(badges[i], bx + 1, badgeY + 4);
+    }
+  }
+
+  /** Draw a single cluster bounding box with label */
+  private drawCluster(ctx: CanvasRenderingContext2D, c: Cluster): void {
+    const w = c.maxX - c.minX;
+    const h = c.maxY - c.minY;
+    if (w <= 0 || h <= 0) return; // cluster has < 2 visible nodes
+
+    const cornerR = 12;
+
+    // Filled background
+    ctx.beginPath();
+    ctx.roundRect(c.minX, c.minY, w, h, cornerR);
+    ctx.fillStyle = rgbaStr(c.color, 0.06);
+    ctx.fill();
+
+    // Dashed border
+    ctx.strokeStyle = rgbaStr(c.color, 0.25);
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label in top-left corner
+    if (this.currentZoomLevel !== "MACRO") {
+      const labelText = c.label.length > 28 ? c.label.slice(0, 26) + "…" : c.label;
+      ctx.font = "bold 10px 'JetBrains Mono', monospace";
+      const labelW = ctx.measureText(labelText).width;
+      // Label background pill
+      ctx.fillStyle = rgbaStr(c.color, 0.15);
+      ctx.fillRect(c.minX + 6, c.minY + 6, labelW + 12, 16);
+      // Label text
+      ctx.fillStyle = rgbaStr(c.color, 0.7);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(labelText, c.minX + 12, c.minY + 14);
+      // Node count badge
+      const countText = `${c.nodeIds.size}`;
+      ctx.font = "9px 'JetBrains Mono', monospace";
+      ctx.fillStyle = rgbaStr(c.color, 0.5);
+      ctx.fillText(countText + " nodes", c.minX + 12 + labelW + 16, c.minY + 14);
     }
   }
 
