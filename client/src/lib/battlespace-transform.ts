@@ -628,11 +628,24 @@ export function transformDIScan(
       }
     }
 
+    // Extract open ports/services for this asset from pipelineOutput.discoveredPorts
+    const assetPorts: Array<{ port?: number; name?: string }> = [];
+    const pipelineOutput = scan.pipelineOutput as any;
+    const discoveredPorts: any[] = pipelineOutput?.discoveredPorts || pipelineOutput?.trimmedOutput?.discoveredPorts || [];
+    if (Array.isArray(discoveredPorts)) {
+      for (const dp of discoveredPorts) {
+        if (dp.hostname === asset.hostname || dp.ip === asset.hostname) {
+          assetPorts.push({ port: dp.port, name: dp.product || dp.transport || 'tcp' });
+        }
+      }
+    }
+
     nodes.push({
       id: assetId,
       type: asset.assetType === "subdomain" ? "subdomain" : "host",
       label: asset.hostname,
       hostname: asset.hostname,
+      ip: asset.ip || undefined,
       severity: normalizeSeverity(asset.riskBand || "low"),
       weaknessLevel: (asset.hybridRiskScore || 0) / 100,
       priorityScore: (asset.missionImpactScore || asset.hybridRiskScore || 0) / 100,
@@ -640,7 +653,33 @@ export function transformDIScan(
       technologies: techs,
       technologyVersions: Object.keys(techVersions).length > 0 ? techVersions : undefined,
       protocols: guessProtocolsFromTech(techs),
+      exposedServices: assetPorts.length > 0 ? assetPorts : undefined,
     });
+
+    // Add individual service nodes for each discovered port
+    for (const sp of assetPorts) {
+      if (!sp.port) continue;
+      const svcId = `svc-${asset.id}-${sp.port}`;
+      nodes.push({
+        id: svcId,
+        type: "service",
+        label: `${sp.name || 'tcp'}:${sp.port}`,
+        port: sp.port,
+        serviceName: sp.name || 'tcp',
+        hostname: asset.hostname,
+        severity: "info",
+        priorityScore: 0.3,
+      });
+      edges.push({
+        id: `svc-link-${assetId}-${svcId}`,
+        source: assetId,
+        target: svcId,
+        type: "network_link",
+        weight: 0.4,
+        probability: 1,
+        protocol: sp.name === 'https' || sp.port === 443 ? 'https' : sp.name === 'ssh' || sp.port === 22 ? 'ssh' : 'tcp',
+      });
+    }
 
     // Connect to root domain
     edges.push({
@@ -816,6 +855,83 @@ export function transformDIScan(
       // Mark the asset node as intercepted
       const assetNode = nodes.find(n => n.id === assetId);
       if (assetNode) assetNode.isIntercepted = true;
+    }
+  }
+
+  // ── Platform Infrastructure Nodes ──────────────────────────────────
+  // Show AC3 platform components and their connections to target assets
+  const infraNodes: Array<{ id: string; label: string; type: BattlespaceNodeType; c2Platform?: string; c2Protocol?: string; technologies?: string[]; severity?: SeverityLevel }> = [
+    { id: 'infra-scanforge', label: 'ScanForge', type: 'gateway', technologies: ['ScanForge', 'Naabu', 'Nuclei', 'Masscan'], severity: 'info' },
+    { id: 'infra-caldera', label: 'Caldera C2', type: 'c2_server', c2Platform: 'caldera', c2Protocol: 'https', technologies: ['MITRE Caldera'], severity: 'info' },
+    { id: 'infra-zap', label: 'ZAP DAST', type: 'gateway', technologies: ['OWASP ZAP'], severity: 'info' },
+    { id: 'infra-gophish', label: 'GoPhish', type: 'gateway', technologies: ['GoPhish'], severity: 'info' },
+  ];
+  for (const infra of infraNodes) {
+    nodes.push({
+      id: infra.id,
+      type: infra.type,
+      label: infra.label,
+      severity: infra.severity || 'info',
+      priorityScore: 0.2,
+      technologies: infra.technologies,
+      c2Platform: infra.c2Platform,
+      c2Protocol: infra.c2Protocol,
+      platform: 'on_prem',
+      clusterId: 'ac3-platform',
+    });
+  }
+  // Connect ScanForge → all assets (it scans them)
+  for (const asset of assets) {
+    const assetId = `asset-${asset.id}`;
+    edges.push({
+      id: `infra-scan-${assetId}`,
+      source: 'infra-scanforge',
+      target: assetId,
+      type: 'routes_through',
+      weight: 0.3,
+      probability: 0.9,
+      dataFlow: 'port scan + vuln scan',
+      protocol: 'https',
+    });
+  }
+  // Connect ZAP → root domain (DAST scanning)
+  edges.push({
+    id: `infra-zap-${rootId}`,
+    source: 'infra-zap',
+    target: rootId,
+    type: 'routes_through',
+    weight: 0.3,
+    probability: 0.8,
+    dataFlow: 'DAST spider + active scan',
+    protocol: 'https',
+  });
+  // Connect GoPhish → root domain (phishing campaigns)
+  edges.push({
+    id: `infra-gophish-${rootId}`,
+    source: 'infra-gophish',
+    target: rootId,
+    type: 'routes_through',
+    weight: 0.2,
+    probability: 0.6,
+    dataFlow: 'phishing campaign',
+    protocol: 'https',
+  });
+  // Connect Caldera → compromised assets (C2 channel)
+  for (const asset of assets) {
+    const assetId = `asset-${asset.id}`;
+    const assetNode = nodes.find(n => n.id === assetId);
+    if (assetNode?.isCompromised) {
+      edges.push({
+        id: `infra-c2-${assetId}`,
+        source: 'infra-caldera',
+        target: assetId,
+        type: 'c2_channel',
+        weight: 0.8,
+        probability: 0.95,
+        dataFlow: 'C2 callback',
+        protocol: 'https',
+        isActive: true,
+      });
     }
   }
 

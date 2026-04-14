@@ -2064,7 +2064,7 @@ export class BattlespaceEngine {
   private drawTechOrbit(ctx: CanvasRenderingContext2D, n: SimNode, r: number): void {
     if (!n.x || !n.y) return;
     const techs = (n.technologies || []).filter(Boolean);
-    const services = (n.exposedServices || []).slice(0, 3);
+    const services = (n.exposedServices || []).slice(0, this.currentZoomLevel === "MICRO" ? 8 : 4);
     const hasPlatform = !!n.platform;
     const versions = n.technologyVersions || {};
 
@@ -2095,8 +2095,8 @@ export class BattlespaceEngine {
       badges.push({ label: icon, color: "#6B7280", fullName: n.platform! });
     }
 
-    // Exposed services (MICRO only)
-    if (this.currentZoomLevel === "MICRO") {
+    // Exposed services (MICRO + MESO)
+    if (this.currentZoomLevel === "MICRO" || this.currentZoomLevel === "MESO") {
       for (const s of services) {
         badges.push({
           label: s.port ? `${s.port}` : "svc",

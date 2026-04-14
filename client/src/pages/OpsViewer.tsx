@@ -250,6 +250,40 @@ function NodeDetailPanel({
           </div>
         )}
 
+        {/* Exposed Ports / Services */}
+        {node.exposedServices && node.exposedServices.length > 0 && (
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">OPEN PORTS / SERVICES</div>
+            <div className="space-y-0.5">
+              {node.exposedServices.map((svc, i) => (
+                <div key={i} className="flex items-center gap-2 bg-[#111820] px-2 py-1 border border-[#1A2332]">
+                  <span className="text-blue-400 font-bold w-12 text-right">{svc.port || '?'}</span>
+                  <span className="text-gray-600">/</span>
+                  <span className="text-gray-300 uppercase">{svc.name || 'tcp'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* C2 Platform Info */}
+        {node.c2Platform && (
+          <div className="bg-[#0A1A0A] p-2 border border-[#00FF88]">
+            <div className="text-[9px] uppercase tracking-widest text-green-400 mb-1">C2 PLATFORM</div>
+            <div className="text-green-300 font-bold uppercase">{node.c2Platform}</div>
+            {node.c2Protocol && <div className="text-gray-400 mt-0.5">Protocol: {node.c2Protocol}</div>}
+          </div>
+        )}
+
+        {/* Proxy Info */}
+        {node.proxyVendor && (
+          <div className="bg-[#0A2818] p-2 border border-[#009639]">
+            <div className="text-[9px] uppercase tracking-widest text-green-400 mb-1">PROXY / CDN</div>
+            <div className="text-green-300 font-bold">{node.proxyVendor}</div>
+            {node.proxyRole && <div className="text-gray-400 mt-0.5 uppercase">{node.proxyRole.replace('_', ' ')}</div>}
+          </div>
+        )}
+
         {/* Kill Chain Phase */}
         {node.killChainPhase && (
           <div className="bg-[#111820] p-2 border border-[#1A2332]">
@@ -297,6 +331,11 @@ function LegendPanel({ visible }: { visible: boolean }) {
     { type: "ioc", label: "IOC" },
     { type: "data_asset", label: "Data Asset" },
     { type: "cloud_resource", label: "Cloud Resource" },
+    { type: "service", label: "Open Port/Service" },
+    { type: "proxy", label: "Proxy / CDN / LB" },
+    { type: "gateway", label: "Platform Tool" },
+    { type: "c2_server", label: "C2 Server" },
+    { type: "tap_point", label: "Tap / Intercept" },
   ] as const;
 
   const edgeTypes = [
