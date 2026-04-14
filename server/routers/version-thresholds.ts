@@ -27,6 +27,7 @@ import {
   setManualThreshold,
   deleteThreshold,
   getMinSafeVersion,
+  getNvdApiKeyStatus,
 } from "../lib/version-threshold-service";
 
 export const versionThresholdsRouter = router({
@@ -42,6 +43,14 @@ export const versionThresholdsRouter = router({
    */
   getStats: protectedProcedure.query(async () => {
     return getThresholdStats();
+  }),
+
+  /**
+   * Get NVD API key configuration status.
+   * Shows whether an API key is configured and the resulting rate limits.
+   */
+  nvdApiKeyStatus: protectedProcedure.query(() => {
+    return getNvdApiKeyStatus();
   }),
 
   /**

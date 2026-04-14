@@ -67,6 +67,7 @@ export default function VersionThresholds() {
 
   const thresholdsQuery = trpc.versionThresholds.getAll.useQuery();
   const statsQuery = trpc.versionThresholds.getStats.useQuery();
+  const nvdKeyQuery = trpc.versionThresholds.nvdApiKeyStatus.useQuery();
   const utils = trpc.useUtils();
 
   const refreshMutation = trpc.versionThresholds.refresh.useMutation({
@@ -220,6 +221,45 @@ export default function VersionThresholds() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* NVD API Key Status */}
+        {nvdKeyQuery.data && (
+          <Card className={`border ${nvdKeyQuery.data.configured ? 'bg-green-950/30 border-green-700/50' : 'bg-amber-950/30 border-amber-700/50'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded ${nvdKeyQuery.data.configured ? 'bg-green-900/50' : 'bg-amber-900/50'}`}>
+                    <Shield className={`h-5 w-5 ${nvdKeyQuery.data.configured ? 'text-green-400' : 'text-amber-400'}`} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-white">NVD API Key</span>
+                      {nvdKeyQuery.data.configured ? (
+                        <Badge className="bg-green-600/30 text-green-300 border-green-600/50 text-[10px]">
+                          <CheckCircle className="h-2.5 w-2.5 mr-0.5" /> Configured
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-600/30 text-amber-300 border-amber-600/50 text-[10px]">
+                          <AlertTriangle className="h-2.5 w-2.5 mr-0.5" /> Not Configured
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Rate limit: <span className="font-mono text-gray-300">{nvdKeyQuery.data.rateLimitMs}ms</span> between requests
+                      {' · '}
+                      <span className="font-mono text-gray-300">~{nvdKeyQuery.data.requestsPerMinute} req/min</span>
+                    </p>
+                  </div>
+                </div>
+                {!nvdKeyQuery.data.configured && (
+                  <div className="text-xs text-amber-400/80 max-w-[200px] text-right">
+                    Add NVD_API_KEY in Secrets to increase rate from 9 req/min to 100 req/min
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Refresh History */}

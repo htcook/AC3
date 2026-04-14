@@ -14,7 +14,7 @@ import {
 import {
   ArrowLeftRight, TrendingUp, TrendingDown, Minus, Shield,
   AlertTriangle, Plus, X, ChevronDown, ChevronUp, ExternalLink,
-  Calendar, Globe, Bug, CheckCircle, Clock, HelpCircle,
+  Calendar, Globe, Bug, CheckCircle, Clock, HelpCircle, Cpu,
 } from "lucide-react";
 
 function riskBandColor(band: string) {
@@ -513,6 +513,133 @@ export default function ScanComparison() {
                   </div>
                 </CardContent>
               )}
+            </Card>
+          )}
+
+          {/* Tech Stack Diff */}
+          {comparison.techStackDiff && (
+            <Card className="border-border/50 bg-card/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-cyan-400" />
+                  Technology Stack Changes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Tech summary stats */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <div className="bg-muted/30 rounded p-2 text-center">
+                    <p className="text-[10px] text-muted-foreground">Scan A</p>
+                    <p className="text-lg font-bold">{comparison.techStackDiff.summary.totalA}</p>
+                  </div>
+                  <div className="bg-muted/30 rounded p-2 text-center">
+                    <p className="text-[10px] text-muted-foreground">Scan B</p>
+                    <p className="text-lg font-bold">{comparison.techStackDiff.summary.totalB}</p>
+                  </div>
+                  <div className="bg-green-500/10 rounded p-2 text-center border border-green-500/20">
+                    <p className="text-[10px] text-green-400">Added</p>
+                    <p className="text-lg font-bold text-green-400">+{comparison.techStackDiff.summary.added}</p>
+                  </div>
+                  <div className="bg-red-500/10 rounded p-2 text-center border border-red-500/20">
+                    <p className="text-[10px] text-red-400">Removed</p>
+                    <p className="text-lg font-bold text-red-400">-{comparison.techStackDiff.summary.removed}</p>
+                  </div>
+                  <div className="bg-blue-500/10 rounded p-2 text-center border border-blue-500/20">
+                    <p className="text-[10px] text-blue-400">Upgraded</p>
+                    <p className="text-lg font-bold text-blue-400">{comparison.techStackDiff.summary.upgraded}</p>
+                  </div>
+                </div>
+
+                {/* Upgraded technologies */}
+                {comparison.techStackDiff.upgraded.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" /> Upgraded ({comparison.techStackDiff.upgraded.length})
+                    </h4>
+                    <div className="space-y-1">
+                      {comparison.techStackDiff.upgraded.map((t: any) => (
+                        <div key={t.name} className="flex items-center gap-2 bg-blue-500/5 border border-blue-500/20 rounded px-2 py-1 text-xs">
+                          <span className="font-medium text-blue-300 capitalize">{t.name}</span>
+                          <span className="text-muted-foreground">v{t.versionA}</span>
+                          <span className="text-blue-400">→</span>
+                          <span className="text-blue-300 font-medium">v{t.versionB}</span>
+                          <span className="ml-auto text-muted-foreground text-[10px]">{t.assetCount} asset{t.assetCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Downgraded technologies */}
+                {comparison.techStackDiff.downgraded.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <TrendingDown className="h-3 w-3" /> Downgraded ({comparison.techStackDiff.downgraded.length})
+                    </h4>
+                    <div className="space-y-1">
+                      {comparison.techStackDiff.downgraded.map((t: any) => (
+                        <div key={t.name} className="flex items-center gap-2 bg-orange-500/5 border border-orange-500/20 rounded px-2 py-1 text-xs">
+                          <span className="font-medium text-orange-300 capitalize">{t.name}</span>
+                          <span className="text-muted-foreground">v{t.versionA}</span>
+                          <span className="text-orange-400">→</span>
+                          <span className="text-orange-300 font-medium">v{t.versionB}</span>
+                          <span className="ml-auto text-muted-foreground text-[10px]">{t.assetCount} asset{t.assetCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Added technologies */}
+                {comparison.techStackDiff.added.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Plus className="h-3 w-3" /> New Technologies ({comparison.techStackDiff.added.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-1">
+                      {comparison.techStackDiff.added.map((t: any) => (
+                        <Badge key={t.name} className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">
+                          <Plus className="h-2.5 w-2.5 mr-0.5" />
+                          {t.name}{t.version ? ` v${t.version}` : ''}
+                          <span className="ml-1 text-green-600">({t.assetCount}x)</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Removed technologies */}
+                {comparison.techStackDiff.removed.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-medium text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <X className="h-3 w-3" /> Removed Technologies ({comparison.techStackDiff.removed.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-1">
+                      {comparison.techStackDiff.removed.map((t: any) => (
+                        <Badge key={t.name} className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px] line-through">
+                          {t.name}{t.version ? ` v${t.version}` : ''}
+                          <span className="ml-1 text-red-600 no-underline">({t.assetCount}x)</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Unchanged count */}
+                {comparison.techStackDiff.unchanged.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {comparison.techStackDiff.unchanged.length} technologies unchanged between scans
+                  </p>
+                )}
+
+                {/* No changes */}
+                {comparison.techStackDiff.summary.added === 0 &&
+                 comparison.techStackDiff.summary.removed === 0 &&
+                 comparison.techStackDiff.summary.upgraded === 0 &&
+                 comparison.techStackDiff.summary.downgraded === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No technology stack changes detected between scans</p>
+                )}
+              </CardContent>
             </Card>
           )}
 

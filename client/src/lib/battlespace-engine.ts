@@ -741,6 +741,63 @@ export class BattlespaceEngine {
     return { assetId: this._highlightedAssetId, techName: this._highlightedTech };
   }
 
+  // ── Focus / Zoom-to-Node API ──────────────────────────────────
+  private _focusAnimation: {
+    startPanX: number; startPanY: number; startScale: number;
+    targetPanX: number; targetPanY: number; targetScale: number;
+    progress: number; duration: number;
+  } | null = null;
+
+  /**
+   * Smoothly zoom and pan to center a specific node on screen.
+   * Optionally highlight a specific technology on that node.
+   */
+  focusNode(nodeId: string, opts?: { highlightTech?: string; targetScale?: number }): boolean {
+    const node = this.simNodes.find(n => n.id === nodeId);
+    if (!node || node.x == null || node.y == null) return false;
+
+    const targetScale = opts?.targetScale ?? Math.max(this.scale, 1.5);
+    const targetPanX = this.width / 2 - node.x * targetScale;
+    const targetPanY = this.height / 2 - node.y * targetScale;
+
+    this._focusAnimation = {
+      startPanX: this.panX,
+      startPanY: this.panY,
+      startScale: this.scale,
+      targetPanX,
+      targetPanY,
+      targetScale,
+      progress: 0,
+      duration: 0.6, // seconds
+    };
+
+    // Flash the node
+    node._flashAlpha = 1.5;
+
+    // Highlight tech if requested
+    if (opts?.highlightTech) {
+      this.highlightTechOnAsset(nodeId, opts.highlightTech);
+    }
+
+    // Fire selection callback
+    this.callbacks.onNodeClick?.(node);
+    return true;
+  }
+
+  /**
+   * Find the first asset node that has a specific technology.
+   * Returns the node ID or null.
+   */
+  findAssetWithTech(techName: string): string | null {
+    const key = techName.toLowerCase();
+    for (const n of this.simNodes) {
+      if (n.type === 'asset' && n.technologies?.some(t => t.toLowerCase() === key)) {
+        return n.id;
+      }
+    }
+    return null;
+  }
+
   // ── Options API (for visual effect toggles) ──────────────────────
   setOption<K extends keyof EngineOptions>(key: K, value: Required<EngineOptions>[K]): void {
     (this.options as any)[key] = value;
@@ -1122,6 +1179,30 @@ export class BattlespaceEngine {
       for (const p of e.particles) {
         p.progress += p.speed;
         if (p.progress > 1) p.progress -= 1;
+      }
+    }
+
+    // Focus animation (smooth zoom/pan to node)
+    if (this._focusAnimation) {
+      const fa = this._focusAnimation;
+      fa.progress += 0.016 / fa.duration;
+      if (fa.progress >= 1) {
+        this.panX = fa.targetPanX;
+        this.panY = fa.targetPanY;
+        this.scale = fa.targetScale;
+        this._focusAnimation = null;
+        // Update zoom level after animation completes
+        const level = getZoomLevel(this.scale);
+        if (level !== this.currentZoomLevel) {
+          this.currentZoomLevel = level;
+          this.callbacks.onZoomChange?.(this.scale, level);
+        }
+      } else {
+        // Ease-out cubic: 1 - (1-t)^3
+        const t = 1 - Math.pow(1 - fa.progress, 3);
+        this.panX = fa.startPanX + (fa.targetPanX - fa.startPanX) * t;
+        this.panY = fa.startPanY + (fa.targetPanY - fa.startPanY) * t;
+        this.scale = fa.startScale + (fa.targetScale - fa.startScale) * t;
       }
     }
 

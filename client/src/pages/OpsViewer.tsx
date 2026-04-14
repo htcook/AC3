@@ -423,9 +423,17 @@ function TechSummaryPanel({ visible, engineRef }: {
             const tech = TECH_ICONS[key] || TECH_ICONS.default;
             const versions = Array.from(data.versions);
             return (
-              <div
+              <button
                 key={key}
-                className={`flex items-center gap-2 px-1.5 py-1 border ${
+                onClick={() => {
+                  const eng = engineRef.current;
+                  if (!eng) return;
+                  const assetId = eng.findAssetWithTech(key);
+                  if (assetId) {
+                    eng.focusNode(assetId, { highlightTech: key, targetScale: 2.0 });
+                  }
+                }}
+                className={`flex items-center gap-2 px-1.5 py-1 border w-full text-left cursor-pointer transition-colors hover:bg-cyan-900/20 hover:border-cyan-500/40 ${
                   data.outdated ? "bg-[#2A0808]/50 border-[#FF0040]/40" : "bg-[#111820]/50 border-[#1A2332]"
                 }`}
               >
@@ -442,7 +450,8 @@ function TechSummaryPanel({ visible, engineRef }: {
                   </div>
                 </div>
                 <span className="text-gray-500 tabular-nums">{data.count}x</span>
-              </div>
+                <span className="text-cyan-600 text-[8px]">\u279C</span>
+              </button>
             );
           })}
         </div>

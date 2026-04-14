@@ -2218,6 +2218,108 @@ export const domainIntelRouter = router({
             cveIds: f.cveIds, corroborationTier: f.corroborationTier, assetHostname: f.assetHostname,
           })),
           tierComparison: { scanA: tierCountA, scanB: tierCountB },
+
+          // ── Tech Stack Diff ──────────────────────────────────────
+          techStackDiff: (() => {
+            // Build tech→version maps for each scan
+            type TechEntry = { name: string; version: string; assets: string[] };
+            const techMapA = new Map<string, TechEntry>();
+            const techMapB = new Map<string, TechEntry>();
+
+            for (const assetAnalysis of (outA.assets || [])) {
+              const asset = assetAnalysis.asset || assetAnalysis;
+              const hostname = asset.hostname || 'unknown';
+              const techs = asset.detectedTechnologies || asset.technologies || [];
+              for (const t of (Array.isArray(techs) ? techs : [])) {
+                const name = (typeof t === 'string' ? t : t.name || '').toLowerCase();
+                if (!name) continue;
+                const version = typeof t === 'object' ? (t.version || '') : '';
+                if (!techMapA.has(name)) techMapA.set(name, { name, version, assets: [] });
+                const entry = techMapA.get(name)!;
+                entry.assets.push(hostname);
+                if (version && (!entry.version || version > entry.version)) entry.version = version;
+              }
+            }
+
+            for (const assetAnalysis of (outB.assets || [])) {
+              const asset = assetAnalysis.asset || assetAnalysis;
+              const hostname = asset.hostname || 'unknown';
+              const techs = asset.detectedTechnologies || asset.technologies || [];
+              for (const t of (Array.isArray(techs) ? techs : [])) {
+                const name = (typeof t === 'string' ? t : t.name || '').toLowerCase();
+                if (!name) continue;
+                const version = typeof t === 'object' ? (t.version || '') : '';
+                if (!techMapB.has(name)) techMapB.set(name, { name, version, assets: [] });
+                const entry = techMapB.get(name)!;
+                entry.assets.push(hostname);
+                if (version && (!entry.version || version > entry.version)) entry.version = version;
+              }
+            }
+
+            const added: Array<{ name: string; version: string; assetCount: number }> = [];
+            const removed: Array<{ name: string; version: string; assetCount: number }> = [];
+            const upgraded: Array<{ name: string; versionA: string; versionB: string; assetCount: number }> = [];
+            const downgraded: Array<{ name: string; versionA: string; versionB: string; assetCount: number }> = [];
+            const unchanged: Array<{ name: string; version: string; assetCount: number }> = [];
+
+            // New technologies in scan B
+            for (const [name, entryB] of techMapB) {
+              if (!techMapA.has(name)) {
+                added.push({ name, version: entryB.version, assetCount: entryB.assets.length });
+              }
+            }
+
+            // Removed technologies from scan A
+            for (const [name, entryA] of techMapA) {
+              if (!techMapB.has(name)) {
+                removed.push({ name, version: entryA.version, assetCount: entryA.assets.length });
+              }
+            }
+
+            // Version changes for common technologies
+            for (const [name, entryA] of techMapA) {
+              const entryB = techMapB.get(name);
+              if (!entryB) continue;
+              if (entryA.version && entryB.version && entryA.version !== entryB.version) {
+                // Compare versions
+                const partsA = entryA.version.replace(/^v/i, '').split('.').map(Number);
+                const partsB = entryB.version.replace(/^v/i, '').split('.').map(Number);
+                let cmp = 0;
+                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                  const va = partsA[i] || 0;
+                  const vb = partsB[i] || 0;
+                  if (va < vb) { cmp = -1; break; }
+                  if (va > vb) { cmp = 1; break; }
+                }
+                if (cmp < 0) {
+                  upgraded.push({ name, versionA: entryA.version, versionB: entryB.version, assetCount: entryB.assets.length });
+                } else if (cmp > 0) {
+                  downgraded.push({ name, versionA: entryA.version, versionB: entryB.version, assetCount: entryB.assets.length });
+                } else {
+                  unchanged.push({ name, version: entryB.version, assetCount: entryB.assets.length });
+                }
+              } else {
+                unchanged.push({ name, version: entryB.version || entryA.version || '', assetCount: entryB.assets.length });
+              }
+            }
+
+            return {
+              summary: {
+                totalA: techMapA.size,
+                totalB: techMapB.size,
+                added: added.length,
+                removed: removed.length,
+                upgraded: upgraded.length,
+                downgraded: downgraded.length,
+                unchanged: unchanged.length,
+              },
+              added: added.sort((a, b) => b.assetCount - a.assetCount),
+              removed: removed.sort((a, b) => b.assetCount - a.assetCount),
+              upgraded: upgraded.sort((a, b) => b.assetCount - a.assetCount),
+              downgraded: downgraded.sort((a, b) => b.assetCount - a.assetCount),
+              unchanged: unchanged.sort((a, b) => b.assetCount - a.assetCount),
+            };
+          })(),
         };
       }),
 

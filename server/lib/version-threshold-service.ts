@@ -66,14 +66,41 @@ export interface ThresholdStats {
 // ─── NVD CVE API for Version Ranges ────────────────────────────────
 
 const NVD_CVE_API = "https://services.nvd.nist.gov/rest/json/cves/2.0";
-const NVD_RATE_LIMIT_MS = 6500; // 6.5s between requests (no API key)
+const NVD_RATE_LIMIT_NO_KEY_MS = 6500; // 6.5s between requests (no API key)
+const NVD_RATE_LIMIT_WITH_KEY_MS = 600; // 0.6s between requests (with API key: 50 req/30s)
 let lastNvdRequest = 0;
 
+/** Get the NVD API key from environment, if configured */
+function getNvdApiKey(): string | null {
+  return process.env.NVD_API_KEY || null;
+}
+
+/** Check if NVD API key is configured */
+export function hasNvdApiKey(): boolean {
+  return !!getNvdApiKey();
+}
+
+/** Get NVD API key status info for the admin UI */
+export function getNvdApiKeyStatus(): {
+  configured: boolean;
+  rateLimitMs: number;
+  requestsPerMinute: number;
+} {
+  const hasKey = hasNvdApiKey();
+  const rateLimitMs = hasKey ? NVD_RATE_LIMIT_WITH_KEY_MS : NVD_RATE_LIMIT_NO_KEY_MS;
+  return {
+    configured: hasKey,
+    rateLimitMs,
+    requestsPerMinute: Math.floor(60000 / rateLimitMs),
+  };
+}
+
 async function nvdRateLimit(): Promise<void> {
+  const rateLimitMs = hasNvdApiKey() ? NVD_RATE_LIMIT_WITH_KEY_MS : NVD_RATE_LIMIT_NO_KEY_MS;
   const now = Date.now();
   const elapsed = now - lastNvdRequest;
-  if (elapsed < NVD_RATE_LIMIT_MS) {
-    await new Promise(resolve => setTimeout(resolve, NVD_RATE_LIMIT_MS - elapsed));
+  if (elapsed < rateLimitMs) {
+    await new Promise(resolve => setTimeout(resolve, rateLimitMs - elapsed));
   }
   lastNvdRequest = Date.now();
 }
@@ -98,8 +125,12 @@ async function queryNvdForLatestAffectedVersion(
     // Search for recent high/critical CVEs for this product
     const cpeName = `cpe:2.3:a:${cpeVendor}:${cpeProduct}`;
     const url = `${NVD_CVE_API}?cpeName=${encodeURIComponent(cpeName)}:*&resultsPerPage=${maxResults}&cvssV3Severity=HIGH`;
+    const headers: Record<string, string> = { "User-Agent": "AC3-VersionThresholdService/1.0" };
+    const apiKey = getNvdApiKey();
+    if (apiKey) headers["apiKey"] = apiKey;
+
     const res = await fetch(url, {
-      headers: { "User-Agent": "AC3-VersionThresholdService/1.0" },
+      headers,
       signal: AbortSignal.timeout(15000),
     });
 
