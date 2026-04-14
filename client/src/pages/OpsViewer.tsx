@@ -975,6 +975,11 @@ export default function Battlespace() {
   const parsedDiScanId = parseInt(diScanId);
   const diScanEnabled = mode === "di_scan" && !!diScanId && !isNaN(parsedDiScanId);
 
+  // DI scan live stream state (declared before diScanQuery which references diScanComplete)
+  const [diLiveEventCount, setDiLiveEventCount] = useState(0);
+  const [diCurrentStage, setDiCurrentStage] = useState<string | null>(null);
+  const [diScanComplete, setDiScanComplete] = useState(false);
+
   const diScanQuery = trpc.domainIntel.getScan.useQuery(
     { id: parsedDiScanId },
     {
@@ -994,11 +999,6 @@ export default function Battlespace() {
     engineRef.current.loadGraph(graphData);
     setTimeout(() => engineRef.current?.fitToView(), 600);
   }, [diScanQuery.data]);
-
-  // DI scan live stream state
-  const [diLiveEventCount, setDiLiveEventCount] = useState(0);
-  const [diCurrentStage, setDiCurrentStage] = useState<string | null>(null);
-  const [diScanComplete, setDiScanComplete] = useState(false);
 
   const handleDiNodesDiscovered = useCallback((newNodes: BattlespaceNode[], newEdges: any[]) => {
     if (!engineRef.current) return;

@@ -141,6 +141,13 @@
       "when": 1776016429805,
       "tag": "0019_ambitious_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1776173939559,
+      "tag": "0020_noisy_kulan_gath",
+      "breakpoints": true
     }
   ]
 }
