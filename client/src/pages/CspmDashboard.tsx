@@ -72,8 +72,8 @@ function ToolBadge({ tool }: { tool: string }) {
 
 // ── Stats Cards ───────────────────────────────────────────────────────────
 
-function StatsOverview() {
-  const { data: stats, isLoading } = trpc.cspmDashboard.getStats.useQuery();
+function StatsOverview({ engagementId }: { engagementId?: number }) {
+  const { data: stats, isLoading } = trpc.cspmDashboard.getStats.useQuery({ engagementId });
 
   if (isLoading) {
     return (
@@ -124,11 +124,12 @@ const trendChartConfig: ChartConfig = {
   highCount: { label: "High", color: "oklch(0.70 0.17 55)" },
 };
 
-function ComplianceTrendChart() {
+function ComplianceTrendChart({ engagementId }: { engagementId?: number }) {
   const [trendTool, setTrendTool] = useState<string>("all");
   const { data: trendData, isLoading } = trpc.cspmDashboard.getComplianceTrend.useQuery({
     tool: trendTool !== "all" ? trendTool as any : undefined,
     days: 90,
+    engagementId,
   });
 
   const chartData = useMemo(() => {
@@ -230,7 +231,7 @@ function ComplianceTrendChart() {
 
 // ── Scan History Table ────────────────────────────────────────────────────
 
-function ScanHistoryTable({ onSelectRun }: { onSelectRun: (id: number) => void }) {
+function ScanHistoryTable({ onSelectRun, engagementId }: { onSelectRun: (id: number) => void; engagementId?: number }) {
   const [toolFilter, setToolFilter] = useState<string>("all");
   const [providerFilter, setProviderFilter] = useState<string>("all");
 
@@ -238,6 +239,7 @@ function ScanHistoryTable({ onSelectRun }: { onSelectRun: (id: number) => void }
     tool: toolFilter !== "all" ? toolFilter as any : undefined,
     provider: providerFilter !== "all" ? providerFilter : undefined,
     limit: 100,
+    engagementId,
   });
 
   return (
@@ -843,6 +845,10 @@ function LaunchScanButton() {
 
 export default function CspmDashboard() {
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [engagementId, setEngagementId] = useState<number | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const engagements = trpc.engagements.list.useQuery();
 
   return (
     <div className="space-y-6 p-1">
@@ -857,23 +863,283 @@ export default function CspmDashboard() {
             Cloud Security Posture Management — Prowler, ScoutSuite, and Trivy scan results with historical tracking
           </p>
         </div>
-        <LaunchScanButton />
+        <div className="flex items-center gap-3">
+          {/* Engagement Filter */}
+          <Select
+            value={engagementId?.toString() || "all"}
+            onValueChange={(v) => setEngagementId(v === "all" ? undefined : parseInt(v))}
+          >
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="All Engagements" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Engagements</SelectItem>
+              {engagements.data?.map((eng: any) => (
+                <SelectItem key={eng.id} value={eng.id.toString()}>
+                  {eng.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <LaunchScanButton />
+        </div>
       </div>
 
-      {selectedRunId ? (
-        <FindingsDetail scanRunId={selectedRunId} onBack={() => setSelectedRunId(null)} />
-      ) : (
-        <>
-          {/* Stats */}
-          <StatsOverview />
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="scheduled">
+            <Clock className="h-4 w-4 mr-1" /> Scheduled Scans
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Compliance Trend Chart */}
-          <ComplianceTrendChart />
+        <TabsContent value="overview">
+          {selectedRunId ? (
+            <FindingsDetail scanRunId={selectedRunId} onBack={() => setSelectedRunId(null)} />
+          ) : (
+            <div className="space-y-6">
+              {/* Stats */}
+              <StatsOverview engagementId={engagementId} />
 
-          {/* Scan History */}
-          <ScanHistoryTable onSelectRun={setSelectedRunId} />
-        </>
-      )}
+              {/* Compliance Trend Chart */}
+              <ComplianceTrendChart engagementId={engagementId} />
+
+              {/* Scan History */}
+              <ScanHistoryTable onSelectRun={setSelectedRunId} engagementId={engagementId} />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="scheduled">
+          <ScheduledScansPanel engagementId={engagementId} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ── Scheduled Scans Panel ──────────────────────────────────────────────────
+
+function ScheduledScansPanel({ engagementId }: { engagementId?: number }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    name: "",
+    credentialId: 0,
+    scanTool: "prowler" as "prowler" | "scoutsuite" | "trivy",
+    cronExpression: "0 0 * * *",
+    complianceFramework: "",
+    timeoutSeconds: 600,
+  });
+
+  const schedules = trpc.cspmScheduledScans.list.useQuery({ engagementId, activeOnly: false });
+  const presets = trpc.cspmScheduledScans.getCronPresets.useQuery();
+  const schedulerStatus = trpc.cspmScheduledScans.getSchedulerStatus.useQuery();
+  const credentials = trpc.cloudCredentials.listCredentials.useQuery();
+
+  const createMut = trpc.cspmScheduledScans.create.useMutation({
+    onSuccess: () => {
+      toast.success("Scheduled scan created");
+      setShowCreate(false);
+      schedules.refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const toggleMut = trpc.cspmScheduledScans.toggleActive.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.isActive ? "Schedule activated" : "Schedule paused");
+      schedules.refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMut = trpc.cspmScheduledScans.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Schedule deleted");
+      schedules.refetch();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const startSchedulerMut = trpc.cspmScheduledScans.startScheduler.useMutation({
+    onSuccess: () => {
+      toast.success("Scheduler started");
+      schedulerStatus.refetch();
+    },
+  });
+
+  const stopSchedulerMut = trpc.cspmScheduledScans.stopScheduler.useMutation({
+    onSuccess: () => {
+      toast.success("Scheduler stopped");
+      schedulerStatus.refetch();
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Scheduler Status Bar */}
+      <Card className="border-border/50">
+        <CardContent className="py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${schedulerStatus.data?.running ? "bg-emerald-500 animate-pulse" : "bg-gray-500"}`} />
+            <span className="text-sm font-medium">
+              Scheduler: {schedulerStatus.data?.running ? "Running" : "Stopped"}
+            </span>
+            {schedulerStatus.data?.lastCheckAt && (
+              <span className="text-xs text-muted-foreground">
+                Last check: {new Date(schedulerStatus.data.lastCheckAt).toLocaleTimeString()}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              Total triggered: {schedulerStatus.data?.totalScansTriggered ?? 0}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {schedulerStatus.data?.running ? (
+              <Button variant="outline" size="sm" onClick={() => stopSchedulerMut.mutate()}>
+                <XCircle className="h-4 w-4 mr-1" /> Stop
+              </Button>
+            ) : (
+              <Button variant="default" size="sm" onClick={() => startSchedulerMut.mutate()}>
+                <Play className="h-4 w-4 mr-1" /> Start Scheduler
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
+              <Zap className="h-4 w-4 mr-1" /> New Schedule
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Schedules List */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base">Scheduled Scans</CardTitle>
+          <CardDescription>Recurring cloud security scans with cron scheduling</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {schedules.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !schedules.data?.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p>No scheduled scans configured</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowCreate(true)}>
+                Create First Schedule
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {schedules.data.map((schedule: any) => (
+                <div key={schedule.id} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-card/50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${schedule.isActive ? "bg-emerald-500" : "bg-gray-500"}`} />
+                    <div>
+                      <div className="font-medium text-sm">{schedule.name}</div>
+                      <div className="text-xs text-muted-foreground flex items-center gap-2">
+                        <ToolBadge tool={schedule.scanTool} />
+                        <span className="font-mono">{schedule.cronExpression}</span>
+                        {schedule.lastRunAt && (
+                          <span>Last: {new Date(schedule.lastRunAt).toLocaleString()}</span>
+                        )}
+                        {schedule.nextRunAt && (
+                          <span>Next: {new Date(schedule.nextRunAt).toLocaleString()}</span>
+                        )}
+                        <span>Runs: {schedule.totalRuns}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {schedule.lastRunStatus && <StatusBadge status={schedule.lastRunStatus} />}
+                    <Button variant="ghost" size="sm" onClick={() => toggleMut.mutate({ id: schedule.id })}>
+                      {schedule.isActive ? "Pause" : "Resume"}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300"
+                      onClick={() => { if (confirm("Delete this schedule?")) deleteMut.mutate({ id: schedule.id }); }}>
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create Schedule Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Scheduled Scan</DialogTitle>
+            <DialogDescription>Set up a recurring cloud security scan</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Schedule Name</Label>
+              <Input value={newSchedule.name} onChange={(e) => setNewSchedule(s => ({ ...s, name: e.target.value }))} placeholder="Daily AWS Prowler Scan" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Scan Tool</Label>
+                <Select value={newSchedule.scanTool} onValueChange={(v: any) => setNewSchedule(s => ({ ...s, scanTool: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="prowler">Prowler</SelectItem>
+                    <SelectItem value="scoutsuite">ScoutSuite</SelectItem>
+                    <SelectItem value="trivy">Trivy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Credential</Label>
+                <Select value={newSchedule.credentialId.toString()} onValueChange={(v) => setNewSchedule(s => ({ ...s, credentialId: parseInt(v) }))}>
+                  <SelectTrigger><SelectValue placeholder="Select credential" /></SelectTrigger>
+                  <SelectContent>
+                    {credentials.data?.map((cred: any) => (
+                      <SelectItem key={cred.id} value={cred.id.toString()}>
+                        {cred.credentialName} ({cred.credProvider})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Cron Schedule</Label>
+              <Select value={newSchedule.cronExpression} onValueChange={(v) => setNewSchedule(s => ({ ...s, cronExpression: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {presets.data?.map((preset: any) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label} — {preset.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input className="mt-2" value={newSchedule.cronExpression} onChange={(e) => setNewSchedule(s => ({ ...s, cronExpression: e.target.value }))} placeholder="Custom cron expression" />
+            </div>
+            <div>
+              <Label>Compliance Framework (optional)</Label>
+              <Input value={newSchedule.complianceFramework} onChange={(e) => setNewSchedule(s => ({ ...s, complianceFramework: e.target.value }))} placeholder="cis_aws, pci_dss, etc." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button
+              onClick={() => createMut.mutate({
+                ...newSchedule,
+                engagementId: engagementId,
+              })}
+              disabled={!newSchedule.name || !newSchedule.credentialId || createMut.isPending}
+            >
+              {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Zap className="h-4 w-4 mr-1" />}
+              Create Schedule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

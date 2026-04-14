@@ -7703,3 +7703,32 @@ export type InsertCspmFinding = typeof cspmFindings.$inferInsert;
 export type SelectCspmFinding = typeof cspmFindings.$inferSelect;
 export type InsertContainerVulnerability = typeof containerVulnerabilities.$inferInsert;
 export type SelectContainerVulnerability = typeof containerVulnerabilities.$inferSelect;
+
+// ─── Scheduled CSPM Scans ──────────────────────────────────────────────────
+export const scheduledCspmScans = mysqlTable("scheduled_cspm_scans", {
+	id: int().autoincrement().notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	credentialId: int("credential_id").notNull(),
+	engagementId: int("engagement_id"),
+	scanTool: mysqlEnum("scan_tool", ['prowler','scoutsuite','trivy']).notNull(),
+	cronExpression: varchar("cron_expression", { length: 64 }).notNull(),
+	isActive: tinyint("is_active").default(1).notNull(),
+	services: json(),
+	complianceFramework: varchar("compliance_framework", { length: 128 }),
+	timeoutSeconds: int("timeout_seconds").default(600),
+	lastRunId: int("last_run_id"),
+	lastRunAt: bigint("last_run_at", { mode: "number" }),
+	lastRunStatus: mysqlEnum("last_run_status", ['pending','running','completed','error']),
+	nextRunAt: bigint("next_run_at", { mode: "number" }),
+	totalRuns: int("total_runs").default(0),
+	createdBy: varchar("created_by", { length: 255 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("scs_credential_idx").on(table.credentialId),
+	index("scs_engagement_idx").on(table.engagementId),
+	index("scs_active_idx").on(table.isActive),
+	index("scs_next_run_idx").on(table.nextRunAt),
+]);
+export type InsertScheduledCspmScan = typeof scheduledCspmScans.$inferInsert;
+export type SelectScheduledCspmScan = typeof scheduledCspmScans.$inferSelect;

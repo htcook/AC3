@@ -233,6 +233,7 @@ export async function storeContainerVulnerabilities(params: StoreContainerVulnsP
 export async function getScanRuns(opts: {
   tool?: "prowler" | "scoutsuite" | "trivy";
   provider?: string;
+  engagementId?: number;
   limit?: number;
 }) {
   const db = await getDb();
@@ -241,6 +242,7 @@ export async function getScanRuns(opts: {
   const conditions = [];
   if (opts.tool) conditions.push(eq(cspmScanRuns.scanTool, opts.tool));
   if (opts.provider) conditions.push(eq(cspmScanRuns.scanProvider, opts.provider as any));
+  if (opts.engagementId) conditions.push(eq(cspmScanRuns.engagementId, opts.engagementId));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -292,11 +294,11 @@ export async function getContainerVulnsForRun(scanRunId: number, opts?: {
     .limit(opts?.limit ?? 500);
 }
 
-export async function getScanRunStats() {
+export async function getScanRunStats(engagementId?: number) {
   const db = await getDb();
   if (!db) return null;
 
-  const [totals] = await db.select({
+  const query = db.select({
     totalRuns: sql<number>`COUNT(*)`,
     completedRuns: sql<number>`SUM(CASE WHEN scan_status = 'completed' THEN 1 ELSE 0 END)`,
     totalFindings: sql<number>`SUM(total_findings)`,
@@ -305,6 +307,11 @@ export async function getScanRunStats() {
     avgComplianceScore: sql<number>`AVG(compliance_score)`,
   }).from(cspmScanRuns);
 
+  if (engagementId) {
+    const [totals] = await query.where(eq(cspmScanRuns.engagementId, engagementId));
+    return totals;
+  }
+  const [totals] = await query;
   return totals;
 }
 
@@ -313,6 +320,7 @@ export async function getScanRunStats() {
 export async function getComplianceTrend(opts?: {
   tool?: "prowler" | "scoutsuite" | "trivy";
   days?: number;
+  engagementId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
@@ -325,6 +333,7 @@ export async function getComplianceTrend(opts?: {
     sql`${cspmScanRuns.createdAt} >= ${cutoff}`,
   ];
   if (opts?.tool) conditions.push(eq(cspmScanRuns.scanTool, opts.tool));
+  if (opts?.engagementId) conditions.push(eq(cspmScanRuns.engagementId, opts.engagementId));
 
   const rows = await db.select({
     id: cspmScanRuns.id,

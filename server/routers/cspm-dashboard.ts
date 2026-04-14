@@ -143,19 +143,23 @@ function parseScoutSuiteOutput(stdout: string): ProwlerFinding[] {
 export const cspmDashboardRouter = router({
 
   // ── Aggregate Stats ──
-  getStats: protectedProcedure.query(async () => {
-    return getScanRunStats();
-  }),
+  getStats: protectedProcedure
+    .input(z.object({ engagementId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      return getScanRunStats(input?.engagementId);
+    }),
   // ── Compliance Trend Data ──
   getComplianceTrend: protectedProcedure
     .input(z.object({
       tool: z.enum(["prowler", "scoutsuite", "trivy"]).optional(),
       days: z.number().min(7).max(365).default(90),
+      engagementId: z.number().optional(),
     }).optional())
     .query(async ({ input }) => {
       return getComplianceTrend({
         tool: input?.tool,
         days: input?.days,
+        engagementId: input?.engagementId,
       });
     }),
 
@@ -164,12 +168,14 @@ export const cspmDashboardRouter = router({
     .input(z.object({
       tool: z.enum(["prowler", "scoutsuite", "trivy"]).optional(),
       provider: z.string().optional(),
+      engagementId: z.number().optional(),
       limit: z.number().min(1).max(200).default(50),
     }).optional())
     .query(async ({ input }) => {
       return getScanRuns({
         tool: input?.tool,
         provider: input?.provider,
+        engagementId: input?.engagementId,
         limit: input?.limit,
       });
     }),

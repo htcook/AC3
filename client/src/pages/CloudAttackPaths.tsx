@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Cloud, Plus, Search, Shield, AlertTriangle, Server,
-  ArrowRight, RefreshCw, TrendingUp, Activity, GitBranch
+  ArrowRight, RefreshCw, TrendingUp, Activity, GitBranch, Network
 } from "lucide-react";
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -360,6 +360,7 @@ export default function CloudAttackPaths() {
             <TabsTrigger value="catalog">Attack Catalog ({catalog.data?.total ?? 0})</TabsTrigger>
             <TabsTrigger value="paths">Discovered Paths ({filteredPaths.length})</TabsTrigger>
             <TabsTrigger value="providers">Providers ({providers.data?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="graph"><Network className="h-4 w-4 mr-1" /> Attack Graph</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -502,8 +503,443 @@ export default function CloudAttackPaths() {
               </div>
             )}
           </TabsContent>
+
+          {/* ── Attack Graph Tab ── */}
+          <TabsContent value="graph">
+            <AttackPathGraph
+              attackPaths={attackPaths.data ?? []}
+              catalog={catalog.data?.attacks ?? []}
+              providers={providers.data ?? []}
+            />
+          </TabsContent>
         </Tabs>
       </div>
     </AppShell>
+  );
+}
+
+// ── Attack Path Graph Visualization ──────────────────────────────────────
+interface AttackPathGraphProps {
+  attackPaths: any[];
+  catalog: any[];
+  providers: any[];
+}
+
+function AttackPathGraph({ attackPaths, catalog, providers }: AttackPathGraphProps) {
+  const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [graphProvider, setGraphProvider] = useState<string>("all");
+
+  // Build graph data from attack paths + catalog
+  const graphData = useMemo(() => {
+    const nodes: { id: string; type: string; data: any; position: { x: number; y: number } }[] = [];
+    const edges: { id: string; source: string; target: string; animated?: boolean; style?: any; label?: string }[] = [];
+    const nodeSet = new Set<string>();
+
+    // Add provider nodes as root nodes
+    const activeProviders = graphProvider === "all"
+      ? ["aws", "azure", "gcp"]
+      : [graphProvider];
+
+    activeProviders.forEach((prov, pi) => {
+      const provId = `provider-${prov}`;
+      if (!nodeSet.has(provId)) {
+        nodeSet.add(provId);
+        nodes.push({
+          id: provId,
+          type: "provider",
+          data: {
+            label: prov.toUpperCase(),
+            provider: prov,
+            icon: prov === "aws" ? "\uD83D\uDD36" : prov === "azure" ? "\uD83D\uDD37" : "\uD83D\uDD34",
+            accountCount: providers.filter(p => p.provider === prov).length,
+          },
+          position: { x: 400 * pi + 100, y: 50 },
+        });
+      }
+    });
+
+    // Add discovered attack paths as nodes and edges
+    const pathsByProvider: Record<string, any[]> = {};
+    const filteredPaths = graphProvider === "all" ? attackPaths : attackPaths.filter(p => p.provider === graphProvider);
+    filteredPaths.forEach(path => {
+      if (!pathsByProvider[path.provider]) pathsByProvider[path.provider] = [];
+      pathsByProvider[path.provider].push(path);
+    });
+
+    Object.entries(pathsByProvider).forEach(([prov, paths]) => {
+      paths.forEach((path, idx) => {
+        // Source identity node
+        const sourceId = `source-${path.id}-${path.sourceIdentity || "unknown"}`;
+        if (!nodeSet.has(sourceId)) {
+          nodeSet.add(sourceId);
+          nodes.push({
+            id: sourceId,
+            type: "identity",
+            data: {
+              label: path.sourceIdentity || "Unknown Identity",
+              identityType: path.attackType?.includes("service_account") ? "service_account" : "user",
+              severity: path.severity,
+              path,
+            },
+            position: { x: 100 + (idx % 4) * 250, y: 200 + Math.floor(idx / 4) * 200 },
+          });
+        }
+
+        // Attack type node
+        const attackId = `attack-${path.id}`;
+        nodes.push({
+          id: attackId,
+          type: "attack",
+          data: {
+            label: path.pathName || path.attackType?.replace(/_/g, " "),
+            attackType: path.attackType,
+            severity: path.severity,
+            riskScore: path.riskScore,
+            mitreTechniques: path.mitreTechniques,
+            description: path.description,
+            path,
+          },
+          position: { x: 100 + (idx % 4) * 250, y: 400 + Math.floor(idx / 4) * 200 },
+        });
+
+        // Target resource node
+        const targetId = `target-${path.id}-${path.targetResource || "unknown"}`;
+        if (!nodeSet.has(targetId)) {
+          nodeSet.add(targetId);
+          nodes.push({
+            id: targetId,
+            type: "resource",
+            data: {
+              label: path.targetResource || "Target Resource",
+              severity: path.severity,
+              path,
+            },
+            position: { x: 100 + (idx % 4) * 250, y: 600 + Math.floor(idx / 4) * 200 },
+          });
+        }
+
+        // Edges: provider -> source -> attack -> target
+        edges.push({
+          id: `e-prov-${prov}-${sourceId}`,
+          source: `provider-${prov}`,
+          target: sourceId,
+          style: { stroke: "#64748b" },
+        });
+        edges.push({
+          id: `e-${sourceId}-${attackId}`,
+          source: sourceId,
+          target: attackId,
+          animated: path.severity === "critical" || path.severity === "high",
+          style: {
+            stroke: path.severity === "critical" ? "#ef4444"
+              : path.severity === "high" ? "#f97316"
+              : path.severity === "medium" ? "#eab308" : "#3b82f6",
+          },
+          label: path.attackType?.replace(/_/g, " "),
+        });
+        edges.push({
+          id: `e-${attackId}-${targetId}`,
+          source: attackId,
+          target: targetId,
+          animated: path.severity === "critical",
+          style: {
+            stroke: path.severity === "critical" ? "#ef4444"
+              : path.severity === "high" ? "#f97316" : "#64748b",
+          },
+        });
+      });
+    });
+
+    // If no discovered paths, show catalog items as potential paths
+    if (filteredPaths.length === 0) {
+      const catalogItems = graphProvider === "all" ? catalog.slice(0, 12) : catalog.filter(c => c.provider === graphProvider).slice(0, 8);
+      catalogItems.forEach((item, idx) => {
+        const prov = item.provider;
+        const itemId = `catalog-${item.id}`;
+        nodes.push({
+          id: itemId,
+          type: "catalog",
+          data: {
+            label: item.name,
+            attackType: item.attackType,
+            severity: item.severity,
+            description: item.description,
+            mitreTechniques: item.mitreTechniques,
+            prerequisites: item.prerequisites,
+            remediationSteps: item.remediationSteps,
+          },
+          position: { x: 80 + (idx % 4) * 280, y: 200 + Math.floor(idx / 4) * 160 },
+        });
+        edges.push({
+          id: `e-prov-${prov}-${itemId}`,
+          source: `provider-${prov}`,
+          target: itemId,
+          style: { stroke: "#475569", strokeDasharray: "5 5" },
+        });
+      });
+    }
+
+    return { nodes, edges };
+  }, [attackPaths, catalog, providers, graphProvider]);
+
+  const sevColor = (sev: string) =>
+    sev === "critical" ? "border-red-500 bg-red-500/10"
+    : sev === "high" ? "border-orange-500 bg-orange-500/10"
+    : sev === "medium" ? "border-yellow-500 bg-yellow-500/10"
+    : "border-blue-500 bg-blue-500/10";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Network className="h-5 w-5 text-cyan-400" />
+            Attack Path Graph
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Interactive visualization of discovered attack paths and privilege escalation chains.
+            {attackPaths.length === 0 && " Showing potential attack patterns from the catalog."}
+          </p>
+        </div>
+        <Select value={graphProvider} onValueChange={setGraphProvider}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Providers</SelectItem>
+            <SelectItem value="aws">AWS</SelectItem>
+            <SelectItem value="azure">Azure</SelectItem>
+            <SelectItem value="gcp">GCP</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Graph Canvas */}
+      <Card className="border-border/50">
+        <CardContent className="p-0">
+          <div className="h-[600px] bg-background/50 rounded-lg overflow-hidden relative">
+            {/* SVG-based graph rendering */}
+            <svg width="100%" height="100%" viewBox={`0 0 ${Math.max(1200, graphData.nodes.length * 100)} ${Math.max(800, graphData.nodes.length * 60)}`} className="select-none">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+                </marker>
+                <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+                </marker>
+                <marker id="arrowhead-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#f97316" />
+                </marker>
+              </defs>
+
+              {/* Edges */}
+              {graphData.edges.map(edge => {
+                const source = graphData.nodes.find(n => n.id === edge.source);
+                const target = graphData.nodes.find(n => n.id === edge.target);
+                if (!source || !target) return null;
+                const sx = source.position.x + 60;
+                const sy = source.position.y + 30;
+                const tx = target.position.x + 60;
+                const ty = target.position.y;
+                const mid = (sy + ty) / 2;
+                return (
+                  <g key={edge.id}>
+                    <path
+                      d={`M ${sx} ${sy} C ${sx} ${mid}, ${tx} ${mid}, ${tx} ${ty}`}
+                      fill="none"
+                      stroke={edge.style?.stroke || "#64748b"}
+                      strokeWidth={edge.animated ? 2 : 1.5}
+                      strokeDasharray={edge.style?.strokeDasharray}
+                      markerEnd={edge.style?.stroke === "#ef4444" ? "url(#arrowhead-red)" : edge.style?.stroke === "#f97316" ? "url(#arrowhead-orange)" : "url(#arrowhead)"}
+                      opacity={0.7}
+                    />
+                    {edge.animated && (
+                      <circle r="3" fill={edge.style?.stroke || "#ef4444"}>
+                        <animateMotion dur="2s" repeatCount="indefinite" path={`M ${sx} ${sy} C ${sx} ${mid}, ${tx} ${mid}, ${tx} ${ty}`} />
+                      </circle>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* Nodes */}
+              {graphData.nodes.map(node => {
+                const x = node.position.x;
+                const y = node.position.y;
+                const isSelected = selectedNode?.id === node.id;
+
+                if (node.type === "provider") {
+                  return (
+                    <g key={node.id} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                      <rect x={x} y={y} width={120} height={50} rx={8}
+                        fill={node.data.provider === "aws" ? "#1a1a2e" : node.data.provider === "azure" ? "#1a1a2e" : "#1a1a2e"}
+                        stroke={node.data.provider === "aws" ? "#f97316" : node.data.provider === "azure" ? "#3b82f6" : "#ef4444"}
+                        strokeWidth={isSelected ? 3 : 2} />
+                      <text x={x + 60} y={y + 22} textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">
+                        {node.data.icon} {node.data.label}
+                      </text>
+                      <text x={x + 60} y={y + 40} textAnchor="middle" fill="#94a3b8" fontSize="11">
+                        {node.data.accountCount} account{node.data.accountCount !== 1 ? "s" : ""}
+                      </text>
+                    </g>
+                  );
+                }
+
+                if (node.type === "identity") {
+                  return (
+                    <g key={node.id} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                      <rect x={x} y={y} width={200} height={45} rx={6}
+                        fill="#0f172a" stroke={isSelected ? "#22d3ee" : "#334155"} strokeWidth={isSelected ? 2 : 1} />
+                      <text x={x + 10} y={y + 18} fill="#e2e8f0" fontSize="12" fontWeight="600">
+                        \uD83D\uDC64 {(node.data.label || "").substring(0, 25)}
+                      </text>
+                      <text x={x + 10} y={y + 35} fill="#94a3b8" fontSize="10">
+                        {node.data.identityType}
+                      </text>
+                    </g>
+                  );
+                }
+
+                if (node.type === "attack") {
+                  const sev = node.data.severity || "medium";
+                  const borderColor = sev === "critical" ? "#ef4444" : sev === "high" ? "#f97316" : sev === "medium" ? "#eab308" : "#3b82f6";
+                  return (
+                    <g key={node.id} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                      <rect x={x} y={y} width={220} height={55} rx={6}
+                        fill="#1e1b2e" stroke={isSelected ? "#a855f7" : borderColor} strokeWidth={isSelected ? 2.5 : 1.5} />
+                      <text x={x + 10} y={y + 20} fill="white" fontSize="12" fontWeight="bold">
+                        \u26A0\uFE0F {(node.data.label || "").substring(0, 28)}
+                      </text>
+                      <text x={x + 10} y={y + 36} fill="#94a3b8" fontSize="10">
+                        Risk: {node.data.riskScore ?? "N/A"} | {sev.toUpperCase()}
+                      </text>
+                      {node.data.mitreTechniques?.length > 0 && (
+                        <text x={x + 10} y={y + 50} fill="#64748b" fontSize="9">
+                          MITRE: {node.data.mitreTechniques.slice(0, 3).join(", ")}
+                        </text>
+                      )}
+                    </g>
+                  );
+                }
+
+                if (node.type === "resource") {
+                  return (
+                    <g key={node.id} onClick={() => setSelectedNode(node)} className="cursor-pointer">
+                      <rect x={x} y={y} width={200} height={40} rx={6}
+                        fill="#0f172a" stroke={isSelected ? "#22d3ee" : "#1e293b"} strokeWidth={isSelected ? 2 : 1} />
+                      <text x={x + 10} y={y + 25} fill="#cbd5e1" fontSize="11">
+                        \uD83C\uDFAF {(node.data.label || "").substring(0, 28)}
+                      </text>
+                    </g>
+                  );
+                }
+
+                if (node.type === "catalog") {
+                  const sev = node.data.severity || "medium";
+                  const borderColor = sev === "critical" ? "#ef4444" : sev === "high" ? "#f97316" : sev === "medium" ? "#eab308" : "#3b82f6";
+                  return (
+                    <g key={node.id} onClick={() => setSelectedNode(node)} className="cursor-pointer" opacity={0.8}>
+                      <rect x={x} y={y} width={240} height={55} rx={6}
+                        fill="#0f172a" stroke={borderColor} strokeWidth={1} strokeDasharray="4 2" />
+                      <text x={x + 10} y={y + 20} fill="#e2e8f0" fontSize="12" fontWeight="500">
+                        {(node.data.label || "").substring(0, 30)}
+                      </text>
+                      <text x={x + 10} y={y + 36} fill="#94a3b8" fontSize="10">
+                        {node.data.attackType?.replace(/_/g, " ")} | {sev}
+                      </text>
+                      {node.data.mitreTechniques?.length > 0 && (
+                        <text x={x + 10} y={y + 50} fill="#64748b" fontSize="9">
+                          MITRE: {node.data.mitreTechniques.slice(0, 3).join(", ")}
+                        </text>
+                      )}
+                    </g>
+                  );
+                }
+
+                return null;
+              })}
+            </svg>
+
+            {/* Legend */}
+            <div className="absolute bottom-3 left-3 bg-background/90 border border-border/50 rounded-lg p-3 text-xs space-y-1">
+              <div className="font-semibold text-foreground mb-1">Legend</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-orange-500 bg-orange-500/20" /> Provider</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-slate-500 bg-slate-500/20" /> Identity</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-purple-500 bg-purple-500/20" /> Attack Path</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-cyan-500 bg-cyan-500/20" /> Target Resource</div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-slate-600 bg-slate-600/10" style={{ borderStyle: "dashed" }} /> Catalog (Potential)</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-red-400">\u25CF</span> Animated = Critical/High severity
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Selected Node Detail Panel */}
+      {selectedNode && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                {selectedNode.data.label}
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedNode(null)}>\u2715</Button>
+            </div>
+            {selectedNode.data.severity && (
+              <Badge className={SEVERITY_COLORS[selectedNode.data.severity]}>
+                {selectedNode.data.severity}
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {selectedNode.data.description && (
+              <div>
+                <span className="font-medium text-muted-foreground">Description:</span>
+                <p className="mt-1 text-foreground">{selectedNode.data.description}</p>
+              </div>
+            )}
+            {selectedNode.data.attackType && (
+              <div>
+                <span className="font-medium text-muted-foreground">Attack Type:</span>
+                <span className="ml-2 text-foreground">{selectedNode.data.attackType.replace(/_/g, " ")}</span>
+              </div>
+            )}
+            {selectedNode.data.riskScore != null && (
+              <div>
+                <span className="font-medium text-muted-foreground">Risk Score:</span>
+                <span className="ml-2 text-foreground font-mono">{selectedNode.data.riskScore}</span>
+              </div>
+            )}
+            {selectedNode.data.mitreTechniques?.length > 0 && (
+              <div>
+                <span className="font-medium text-muted-foreground">MITRE Techniques:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {selectedNode.data.mitreTechniques.map((t: string) => (
+                    <Badge key={t} variant="outline" className="text-xs">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedNode.data.prerequisites?.length > 0 && (
+              <div>
+                <span className="font-medium text-muted-foreground">Prerequisites:</span>
+                <ul className="list-disc list-inside mt-1 text-foreground">
+                  {selectedNode.data.prerequisites.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                </ul>
+              </div>
+            )}
+            {selectedNode.data.remediationSteps?.length > 0 && (
+              <div>
+                <span className="font-medium text-muted-foreground">Remediation:</span>
+                <ul className="list-disc list-inside mt-1 text-foreground">
+                  {selectedNode.data.remediationSteps.map((r: string, i: number) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

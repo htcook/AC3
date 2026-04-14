@@ -227,6 +227,7 @@ import { trivyIntegrationRouter } from "./routers/trivy-integration";
 import { cloudResourceEnumRouter } from "./routers/cloud-resource-enum";
 import { scoutsuiteIntegrationRouter } from "./routers/scoutsuite-integration";
 import { cspmDashboardRouter } from "./routers/cspm-dashboard";
+import { cspmScheduledScansRouter } from "./routers/cspm-scheduled-scans";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -620,6 +621,7 @@ export const appRouter = router({
   // ─── ScoutSuite Multi-Cloud Security Auditing (AWS, Azure, GCP, DO, Alibaba, Oracle) ──
   scoutsuiteIntegration: scoutsuiteIntegrationRouter,
   cspmDashboard: cspmDashboardRouter,
+  cspmScheduledScans: cspmScheduledScansRouter,
 });
 export type AppRouter = typeof appRouter;
 
