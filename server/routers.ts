@@ -221,6 +221,11 @@ import { engagementResultsRouter } from "./routers/engagement-results";
 import { zeroDayRouter } from "./routers/zero-day";
 import { versionThresholdsRouter } from "./routers/version-thresholds";
 import { docTrackerRouter } from "./routers/doc-tracker";
+import { fabricScannerRouter } from "./routers/fabric-scanner";
+import { prowlerIntegrationRouter } from "./routers/prowler-integration";
+import { trivyIntegrationRouter } from "./routers/trivy-integration";
+import { cloudResourceEnumRouter } from "./routers/cloud-resource-enum";
+import { scoutsuiteIntegrationRouter } from "./routers/scoutsuite-integration";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -603,6 +608,16 @@ export const appRouter = router({
   versionThresholds: versionThresholdsRouter,
   // ─── Documentation Version Tracker (Auto-Update Detection) ──
   docTracker: docTrackerRouter,
+  // ─── Microsoft Fabric Scanner (Workspace, Item, Sensitivity, Governance) ──
+  fabricScanner: fabricScannerRouter,
+  // ─── Prowler/ScoutSuite Cloud Security Posture Management ──
+  prowlerIntegration: prowlerIntegrationRouter,
+  // ─── Trivy Container Image Vulnerability Scanning ──
+  trivyIntegration: trivyIntegrationRouter,
+  // ─── Extended Cloud Resource Enumeration (EC2, S3, VMs, Storage, etc.) ──
+  cloudResourceEnum: cloudResourceEnumRouter,
+  // ─── ScoutSuite Multi-Cloud Security Auditing (AWS, Azure, GCP, DO, Alibaba, Oracle) ──
+  scoutsuiteIntegration: scoutsuiteIntegrationRouter,
 });
 export type AppRouter = typeof appRouter;
 
