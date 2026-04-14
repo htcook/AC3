@@ -307,3 +307,41 @@ export async function getScanRunStats() {
 
   return totals;
 }
+
+// ── Compliance Trend Data ─────────────────────────────────────────────────
+
+export async function getComplianceTrend(opts?: {
+  tool?: "prowler" | "scoutsuite" | "trivy";
+  days?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const daysBack = opts?.days ?? 90;
+  const cutoff = Date.now() - (daysBack * 24 * 60 * 60 * 1000);
+
+  const conditions = [
+    sql`${cspmScanRuns.scanStatus} = 'completed'`,
+    sql`${cspmScanRuns.createdAt} >= ${cutoff}`,
+  ];
+  if (opts?.tool) conditions.push(eq(cspmScanRuns.scanTool, opts.tool));
+
+  const rows = await db.select({
+    id: cspmScanRuns.id,
+    scanTool: cspmScanRuns.scanTool,
+    scanProvider: cspmScanRuns.scanProvider,
+    complianceScore: cspmScanRuns.complianceScore,
+    totalFindings: cspmScanRuns.totalFindings,
+    criticalCount: cspmScanRuns.criticalCount,
+    highCount: cspmScanRuns.highCount,
+    mediumCount: cspmScanRuns.mediumCount,
+    lowCount: cspmScanRuns.lowCount,
+    createdAt: cspmScanRuns.createdAt,
+  })
+    .from(cspmScanRuns)
+    .where(and(...conditions))
+    .orderBy(cspmScanRuns.createdAt)
+    .limit(200);
+
+  return rows;
+}

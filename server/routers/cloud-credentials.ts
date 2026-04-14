@@ -8,11 +8,12 @@ import { z } from "zod";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
-const providerEnum = z.enum(["aws", "azure", "gcp"]);
+const providerEnum = z.enum(["aws", "azure", "gcp", "digitalocean", "alibaba", "oracle"]);
 const credTypeEnum = z.enum([
   "aws_access_key", "aws_assume_role", "aws_session_token",
   "azure_client_secret", "azure_managed_identity", "azure_cli",
   "gcp_service_account_key", "gcp_workload_identity", "gcp_oauth",
+  "do_api_token", "alibaba_access_key", "oracle_api_key",
 ]);
 
 export const cloudCredentialsRouter = router({
@@ -30,33 +31,33 @@ export const cloudCredentialsRouter = router({
       const { eq, and, desc } = await import("drizzle-orm");
 
       const conditions = [];
-      if (input?.provider) conditions.push(eq(cloudCredentials.provider, input.provider));
+      if (input?.provider) conditions.push(eq(cloudCredentials.credProvider, input.provider));
       if (input?.engagementId) conditions.push(eq(cloudCredentials.engagementId, input.engagementId));
 
       const creds = conditions.length > 0
-        ? await db.select().from(cloudCredentials).where(and(...conditions)).orderBy(desc(cloudCredentials.createdAt))
-        : await db.select().from(cloudCredentials).orderBy(desc(cloudCredentials.createdAt));
+        ? await db.select().from(cloudCredentials).where(and(...conditions)).orderBy(desc(cloudCredentials.credCreatedAt))
+        : await db.select().from(cloudCredentials).orderBy(desc(cloudCredentials.credCreatedAt));
 
       // Return masked credentials (never expose encrypted data)
       return creds.map(c => ({
         id: c.id,
         providerId: c.providerId,
         engagementId: c.engagementId,
-        provider: c.provider,
+        provider: c.credProvider,
         credentialName: c.credentialName,
         credentialType: c.credentialType,
-        accountId: c.accountId,
-        region: c.region,
+        accountId: c.credAccountId,
+        region: c.credRegion,
         roleArn: c.roleArn,
         tenantId: c.tenantId,
         subscriptionId: c.subscriptionId,
         projectId: c.projectId,
-        status: c.status,
+        status: c.credStatus,
         lastValidatedAt: c.lastValidatedAt,
         lastUsedAt: c.lastUsedAt,
         expiresAt: c.expiresAt,
-        createdBy: c.createdBy,
-        createdAt: c.createdAt,
+        createdBy: c.credCreatedBy,
+        createdAt: c.credCreatedAt,
       }));
     }),
 
@@ -89,21 +90,21 @@ export const cloudCredentialsRouter = router({
       const [result] = await db.insert(cloudCredentials).values({
         providerId: input.providerId ?? null,
         engagementId: input.engagementId ?? null,
-        provider: input.provider,
+        credProvider: input.provider,
         credentialName: input.credentialName,
         credentialType: input.credentialType,
         encryptedData: encrypted.encryptedData,
         encryptionIv: encrypted.iv,
         encryptionTag: encrypted.tag,
-        accountId: input.accountId ?? null,
-        region: input.region ?? null,
+        credAccountId: input.accountId ?? null,
+        credRegion: input.region ?? null,
         roleArn: input.roleArn ?? null,
         externalId: input.externalId ?? null,
         tenantId: input.tenantId ?? null,
         subscriptionId: input.subscriptionId ?? null,
         projectId: input.projectId ?? null,
-        status: "active",
-        createdBy: ctx.user?.name || ctx.user?.openId || null,
+        credStatus: "active",
+        credCreatedBy: ctx.user?.name || ctx.user?.openId || null,
       });
 
       return { id: result.insertId, success: true };
@@ -132,13 +133,13 @@ export const cloudCredentialsRouter = router({
 
       let validationResult: { valid: boolean; identity?: string; error?: string };
 
-      switch (cred.provider) {
+      switch (cred.credProvider) {
         case "aws":
           validationResult = await validateAWSCredentials({
             accessKeyId: decrypted.accessKeyId,
             secretAccessKey: decrypted.secretAccessKey,
             sessionToken: decrypted.sessionToken,
-            region: cred.region || undefined,
+            region: cred.credRegion || undefined,
             roleArn: cred.roleArn || undefined,
             externalId: cred.externalId || undefined,
           });
@@ -157,13 +158,13 @@ export const cloudCredentialsRouter = router({
           });
           break;
         default:
-          throw new TRPCError({ code: "BAD_REQUEST", message: `Unsupported provider: ${cred.provider}` });
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Unsupported provider: ${cred.credProvider}` });
       }
 
       // Update status
       await db.update(cloudCredentials)
         .set({
-          status: validationResult.valid ? "active" : "error",
+          credStatus: validationResult.valid ? "active" : "error",
           lastValidatedAt: new Date(),
         })
         .where(eq(cloudCredentials.id, input.credentialId));
@@ -213,24 +214,24 @@ export const cloudCredentialsRouter = router({
       // Create enumeration run record
       const [run] = await db.insert(cloudEnumerationRuns).values({
         credentialId: input.credentialId,
-        providerId: input.providerId ?? cred.providerId ?? null,
-        engagementId: input.engagementId ?? cred.engagementId ?? null,
-        provider: cred.provider,
-        status: "running",
-        startedAt: new Date(),
+        enumProviderId: input.providerId ?? cred.providerId ?? null,
+        enumEngagementId: input.engagementId ?? cred.engagementId ?? null,
+        enumProvider: cred.credProvider,
+        enumStatus: "running",
+        enumStartedAt: new Date(),
       });
       const runId = run.insertId;
 
       try {
         let enumResult: any;
 
-        switch (cred.provider) {
+        switch (cred.credProvider) {
           case "aws":
             enumResult = await enumerateAWS({
               accessKeyId: decrypted.accessKeyId,
               secretAccessKey: decrypted.secretAccessKey,
               sessionToken: decrypted.sessionToken,
-              region: cred.region || undefined,
+              region: cred.credRegion || undefined,
               roleArn: cred.roleArn || undefined,
               externalId: cred.externalId || undefined,
             });
@@ -250,7 +251,7 @@ export const cloudCredentialsRouter = router({
             });
             break;
           default:
-            throw new Error(`Unsupported provider: ${cred.provider}`);
+            throw new Error(`Unsupported provider: ${cred.credProvider}`);
         }
 
         // Store identities in cloud_identities table
@@ -298,22 +299,22 @@ export const cloudCredentialsRouter = router({
         // Update enumeration run
         await db.update(cloudEnumerationRuns)
           .set({
-            status: enumResult.errors.length > 0 ? "partial" : "completed",
+            enumStatus: enumResult.errors.length > 0 ? "partial" : "completed",
             totalUsersFound: enumResult.summary.totalUsers,
             totalRolesFound: enumResult.summary.totalRoles,
             totalPoliciesFound: enumResult.summary.totalPolicies,
             totalGroupsFound: enumResult.summary.totalGroups,
             totalServiceAccountsFound: enumResult.summary.totalServiceAccounts,
             totalMisconfigsFound: enumResult.summary.totalMisconfigs,
-            results: enumResult.summary,
-            errorLog: enumResult.errors.length > 0 ? enumResult.errors : null,
-            completedAt: new Date(),
+            enumResults: enumResult.summary,
+            enumErrorLog: enumResult.errors.length > 0 ? enumResult.errors : null,
+            enumCompletedAt: new Date(),
           })
           .where(eq(cloudEnumerationRuns.id, Number(runId)));
 
         // Update credential last used
         await db.update(cloudCredentials)
-          .set({ lastUsedAt: new Date(), status: "active" })
+          .set({ lastUsedAt: new Date(), credStatus: "active" })
           .where(eq(cloudCredentials.id, input.credentialId));
 
         return {
@@ -324,7 +325,7 @@ export const cloudCredentialsRouter = router({
         };
       } catch (e: any) {
         await db.update(cloudEnumerationRuns)
-          .set({ status: "error", errorLog: [e.message], completedAt: new Date() })
+          .set({ enumStatus: "error", enumErrorLog: [e.message], enumCompletedAt: new Date() })
           .where(eq(cloudEnumerationRuns.id, Number(runId)));
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Enumeration failed: ${e.message}` });
       }
@@ -346,12 +347,12 @@ export const cloudCredentialsRouter = router({
 
       const conditions = [];
       if (input?.credentialId) conditions.push(eq(cloudEnumerationRuns.credentialId, input.credentialId));
-      if (input?.engagementId) conditions.push(eq(cloudEnumerationRuns.engagementId, input.engagementId));
-      if (input?.provider) conditions.push(eq(cloudEnumerationRuns.provider, input.provider));
+      if (input?.engagementId) conditions.push(eq(cloudEnumerationRuns.enumEngagementId, input.engagementId));
+      if (input?.provider) conditions.push(eq(cloudEnumerationRuns.enumProvider, input.provider));
 
       const runs = conditions.length > 0
-        ? await db.select().from(cloudEnumerationRuns).where(and(...conditions)).orderBy(desc(cloudEnumerationRuns.createdAt))
-        : await db.select().from(cloudEnumerationRuns).orderBy(desc(cloudEnumerationRuns.createdAt));
+        ? await db.select().from(cloudEnumerationRuns).where(and(...conditions)).orderBy(desc(cloudEnumerationRuns.enumCreatedAt))
+        : await db.select().from(cloudEnumerationRuns).orderBy(desc(cloudEnumerationRuns.enumCreatedAt));
       return runs;
     }),
 

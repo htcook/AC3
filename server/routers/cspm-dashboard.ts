@@ -10,16 +10,10 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
-  createScanRun,
-  completeScanRun,
-  failScanRun,
-  storeFindings,
-  storeContainerVulnerabilities,
-  getScanRuns,
-  getScanRunById,
-  getFindingsForRun,
-  getContainerVulnsForRun,
-  getScanRunStats,
+  createScanRun, completeScanRun, failScanRun, storeFindings,
+  storeContainerVulnerabilities, getScanRuns, getScanRunById,
+  getFindingsForRun, getContainerVulnsForRun, getScanRunStats,
+  getComplianceTrend,
 } from "../lib/cspm-db";
 import { executeRawCommand } from "../lib/scan-server-executor";
 
@@ -152,6 +146,18 @@ export const cspmDashboardRouter = router({
   getStats: protectedProcedure.query(async () => {
     return getScanRunStats();
   }),
+  // ── Compliance Trend Data ──
+  getComplianceTrend: protectedProcedure
+    .input(z.object({
+      tool: z.enum(["prowler", "scoutsuite", "trivy"]).optional(),
+      days: z.number().min(7).max(365).default(90),
+    }).optional())
+    .query(async ({ input }) => {
+      return getComplianceTrend({
+        tool: input?.tool,
+        days: input?.days,
+      });
+    }),
 
   // ── Scan History ──
   getScanHistory: protectedProcedure
@@ -361,6 +367,155 @@ export const cspmDashboardRouter = router({
       } catch (e: any) {
         await failScanRun(scanRunId, e.message);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `ScoutSuite scan failed: ${e.message}` });
+      }
+    }),
+
+  // ── Launch scan using a stored credential ID ──
+  launchScanFromCredential: protectedProcedure
+    .input(z.object({
+      credentialId: z.number(),
+      tool: z.enum(["prowler", "scoutsuite"]),
+      services: z.array(z.string()).optional(),
+      compliance: z.string().optional(),
+      engagementId: z.number().optional(),
+      timeoutSeconds: z.number().min(60).max(3600).default(600),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Fetch and decrypt the credential
+      const { getDb } = await import("../db");
+      const { cloudCredentials } = await import("../../drizzle/schema");
+      const { decryptCredentialObject } = await import("../lib/credential-crypto");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [cred] = await db.select().from(cloudCredentials).where(eq(cloudCredentials.id, input.credentialId));
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+
+      const decrypted = decryptCredentialObject({
+        encryptedData: cred.encryptedData,
+        iv: cred.encryptionIv,
+        tag: cred.encryptionTag,
+      });
+
+      // Build credentials map based on provider
+      const credentials: Record<string, string> = {};
+      switch (cred.credProvider) {
+        case "aws":
+          credentials.accessKeyId = decrypted.accessKeyId || "";
+          credentials.secretAccessKey = decrypted.secretAccessKey || "";
+          if (decrypted.sessionToken) credentials.sessionToken = decrypted.sessionToken;
+          credentials.region = cred.credRegion || "us-east-1";
+          if (cred.roleArn) credentials.roleArn = cred.roleArn;
+          if (cred.externalId) credentials.externalId = cred.externalId;
+          break;
+        case "azure":
+          credentials.clientId = decrypted.clientId || "";
+          credentials.clientSecret = decrypted.clientSecret || "";
+          credentials.tenantId = cred.tenantId || decrypted.tenantId || "";
+          if (cred.subscriptionId) credentials.subscriptionId = cred.subscriptionId;
+          break;
+        case "gcp":
+          credentials.projectId = cred.projectId || decrypted.projectId || "";
+          credentials.serviceAccountKey = typeof decrypted === "string" ? decrypted : JSON.stringify(decrypted);
+          break;
+        default:
+          // For DO, Alibaba, Oracle — pass through all decrypted fields
+          Object.assign(credentials, decrypted);
+      }
+
+      // Update lastUsedAt
+      await db.update(cloudCredentials)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(cloudCredentials.id, input.credentialId));
+
+      // Determine provider
+      const provider = cred.credProvider as any;
+
+      if (input.tool === "prowler") {
+        // Prowler only supports aws, azure, gcp
+        if (!["aws", "azure", "gcp"].includes(provider)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Prowler does not support provider: ${provider}` });
+        }
+        // Create scan run
+        const scanRunId = await createScanRun({
+          credentialId: input.credentialId,
+          engagementId: input.engagementId,
+          scanTool: "prowler",
+          scanProvider: provider,
+          scanScope: { services: input.services, compliance: input.compliance },
+          triggeredBy: ctx.user?.name || ctx.user?.openId || "unknown",
+          complianceFramework: input.compliance,
+        });
+        if (!scanRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create scan run" });
+
+        const startTime = Date.now();
+        try {
+          let cmd = `prowler ${provider} -M json-ocsf --no-banner`;
+          if (provider === "aws") {
+            cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${credentials.sessionToken ? `AWS_SESSION_TOKEN='${credentials.sessionToken}' ` : ""}AWS_DEFAULT_REGION='${credentials.region}' ${cmd}`;
+            if (credentials.roleArn) cmd += ` -R ${credentials.roleArn}`;
+          } else if (provider === "azure") {
+            cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --sp-env-auth`;
+          }
+          if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
+          if (input.compliance) cmd += ` --compliance ${input.compliance}`;
+
+          const result = await executeRawCommand(cmd, input.timeoutSeconds);
+          const findings = parseProwlerJsonOutput(result.stdout || "");
+          const scanResult = {
+            provider, totalChecks: findings.length,
+            passed: findings.filter(f => f.status === "PASS").length,
+            failed: findings.filter(f => f.status === "FAIL").length,
+            warnings: findings.filter(f => f.status === "WARNING").length,
+            findings, rawOutput: (result.stdout || "").substring(0, 50000),
+            durationMs: Date.now() - startTime, errors: [] as string[],
+          };
+          await completeScanRun(scanRunId, scanResult);
+          await storeFindings({ scanRunId, scanTool: "prowler", findings, provider });
+          return { scanRunId, tool: "prowler", provider, totalFindings: findings.length, durationMs: scanResult.durationMs };
+        } catch (e: any) {
+          await failScanRun(scanRunId, e.message);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Prowler scan failed: ${e.message}` });
+        }
+      } else {
+        // ScoutSuite
+        const scanRunId = await createScanRun({
+          credentialId: input.credentialId,
+          engagementId: input.engagementId,
+          scanTool: "scoutsuite",
+          scanProvider: provider,
+          scanScope: { services: input.services },
+          triggeredBy: ctx.user?.name || ctx.user?.openId || "unknown",
+        });
+        if (!scanRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create scan run" });
+
+        const startTime = Date.now();
+        try {
+          let cmd = `python3 -m ScoutSuite --provider ${provider} --no-browser --result-format json`;
+          if (provider === "aws") {
+            cmd = `AWS_ACCESS_KEY_ID='${credentials.accessKeyId}' AWS_SECRET_ACCESS_KEY='${credentials.secretAccessKey}' ${cmd}`;
+          } else if (provider === "azure") {
+            cmd = `AZURE_TENANT_ID='${credentials.tenantId}' AZURE_CLIENT_ID='${credentials.clientId}' AZURE_CLIENT_SECRET='${credentials.clientSecret}' ${cmd} --cli`;
+          }
+          if (input.services?.length) cmd += ` --services ${input.services.join(" ")}`;
+
+          const result = await executeRawCommand(cmd, input.timeoutSeconds);
+          const findings = parseScoutSuiteOutput(result.stdout || "");
+          const scanResult = {
+            provider, totalChecks: findings.length,
+            passed: findings.filter(f => f.status === "PASS").length,
+            failed: findings.filter(f => f.status === "FAIL").length,
+            warnings: findings.filter(f => f.status === "WARNING").length,
+            findings, rawOutput: (result.stdout || "").substring(0, 50000),
+            durationMs: Date.now() - startTime, errors: [] as string[],
+          };
+          await completeScanRun(scanRunId, scanResult);
+          await storeFindings({ scanRunId, scanTool: "scoutsuite", findings, provider });
+          return { scanRunId, tool: "scoutsuite", provider, totalFindings: findings.length, durationMs: scanResult.durationMs };
+        } catch (e: any) {
+          await failScanRun(scanRunId, e.message);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `ScoutSuite scan failed: ${e.message}` });
+        }
       }
     }),
 

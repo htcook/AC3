@@ -8,12 +8,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, ResponsiveContainer, Area, AreaChart } from "recharts";
 import {
   Shield, ShieldAlert, ShieldCheck, Activity, AlertTriangle, Bug,
   Clock, RefreshCw, Search, Filter, ChevronDown, ChevronRight,
   Container, Cloud, Server, FileCode, CheckCircle, XCircle,
-  TrendingUp, BarChart3, Loader2, Info,
+  TrendingUp, BarChart3, Loader2, Info, Play, Zap, Rocket,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ── Severity badge helper ─────────────────────────────────────────────────
 
@@ -105,6 +113,118 @@ function StatsOverview() {
         </Card>
       ))}
     </div>
+  );
+}
+
+// ── Compliance Trend Chart ────────────────────────────────────────────────
+
+const trendChartConfig: ChartConfig = {
+  complianceScore: { label: "Compliance Score", color: "oklch(0.72 0.17 162)" },
+  criticalCount: { label: "Critical", color: "oklch(0.63 0.24 25)" },
+  highCount: { label: "High", color: "oklch(0.70 0.17 55)" },
+};
+
+function ComplianceTrendChart() {
+  const [trendTool, setTrendTool] = useState<string>("all");
+  const { data: trendData, isLoading } = trpc.cspmDashboard.getComplianceTrend.useQuery({
+    tool: trendTool !== "all" ? trendTool as any : undefined,
+    days: 90,
+  });
+
+  const chartData = useMemo(() => {
+    if (!trendData?.length) return [];
+    return trendData.map((d: any) => ({
+      date: new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      complianceScore: d.complianceScore ?? 0,
+      criticalCount: d.criticalCount ?? 0,
+      highCount: d.highCount ?? 0,
+      tool: d.scanTool,
+      provider: d.scanProvider,
+    }));
+  }, [trendData]);
+
+  return (
+    <Card className="bg-card/50 border-border/50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-cyan-400" />
+              Compliance Trend
+            </CardTitle>
+            <CardDescription>Score and critical findings over time (last 90 days)</CardDescription>
+          </div>
+          <Select value={trendTool} onValueChange={setTrendTool}>
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <SelectValue placeholder="All Tools" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tools</SelectItem>
+              <SelectItem value="prowler">Prowler</SelectItem>
+              <SelectItem value="scoutsuite">ScoutSuite</SelectItem>
+              <SelectItem value="trivy">Trivy</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
+            <p className="text-sm">No completed scans yet</p>
+            <p className="text-xs mt-1">Run a scan to start tracking compliance trends</p>
+          </div>
+        ) : (
+          <ChartContainer config={trendChartConfig} className="h-[280px] w-full">
+            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="complianceGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="oklch(0.72 0.17 162)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="oklch(0.72 0.17 162)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0 0)" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="oklch(0.5 0 0)" />
+              <YAxis yAxisId="score" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="oklch(0.5 0 0)" />
+              <YAxis yAxisId="count" orientation="right" tick={{ fontSize: 11 }} stroke="oklch(0.5 0 0)" />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Area
+                yAxisId="score"
+                type="monotone"
+                dataKey="complianceScore"
+                stroke="oklch(0.72 0.17 162)"
+                fill="url(#complianceGradient)"
+                strokeWidth={2}
+                name="Compliance Score"
+              />
+              <Line
+                yAxisId="count"
+                type="monotone"
+                dataKey="criticalCount"
+                stroke="oklch(0.63 0.24 25)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Critical"
+              />
+              <Line
+                yAxisId="count"
+                type="monotone"
+                dataKey="highCount"
+                stroke="oklch(0.70 0.17 55)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="High"
+              />
+            </AreaChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -222,7 +342,7 @@ function ScanHistoryTable({ onSelectRun }: { onSelectRun: (id: number) => void }
                       {scan.scanDurationMs ? `${(scan.scanDurationMs / 1000).toFixed(1)}s` : "—"}
                     </td>
                     <td className="p-3 text-right text-xs text-muted-foreground">
-                      {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : "—"}
+                      {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : "—"}
                     </td>
                   </tr>
                 ))}
@@ -493,80 +613,229 @@ function FindingCard({ item, isTrivy }: { item: any; isTrivy: boolean }) {
   );
 }
 
-// ── Quick Scan Launcher ───────────────────────────────────────────────────
+// ── Launch Scan Dialog ────────────────────────────────────────────────────
 
-function QuickScanLauncher() {
+function LaunchScanButton() {
+  const [open, setOpen] = useState(false);
+  const [selectedTool, setSelectedTool] = useState<string>("prowler");
+  const [selectedCredId, setSelectedCredId] = useState<string>("");
+  const [trivyImage, setTrivyImage] = useState("");
+  const [trivyTag, setTrivyTag] = useState("latest");
+  const [compliance, setCompliance] = useState("");
+  const [services, setServices] = useState("");
+
+  const utils = trpc.useUtils();
+  const { data: creds } = trpc.cloudCredentials.listCredentials.useQuery(undefined, { enabled: open });
+
+  const launchFromCred = trpc.cspmDashboard.launchScanFromCredential.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.tool} scan completed`, {
+        description: `${data.totalFindings} findings in ${(data.durationMs / 1000).toFixed(1)}s`,
+      });
+      utils.cspmDashboard.getStats.invalidate();
+      utils.cspmDashboard.getScanHistory.invalidate();
+      utils.cspmDashboard.getComplianceTrend.invalidate();
+      setOpen(false);
+    },
+    onError: (err) => {
+      toast.error("Scan failed", { description: err.message });
+    },
+  });
+
+  const launchTrivy = trpc.cspmDashboard.runTrivyScan.useMutation({
+    onSuccess: (data) => {
+      toast.success("Trivy scan completed", {
+        description: `${data.totalVulns} vulnerabilities found in ${(data.durationMs / 1000).toFixed(1)}s`,
+      });
+      utils.cspmDashboard.getStats.invalidate();
+      utils.cspmDashboard.getScanHistory.invalidate();
+      utils.cspmDashboard.getComplianceTrend.invalidate();
+      setOpen(false);
+    },
+    onError: (err) => {
+      toast.error("Trivy scan failed", { description: err.message });
+    },
+  });
+
+  const isRunning = launchFromCred.isPending || launchTrivy.isPending;
+
+  const handleLaunch = () => {
+    if (selectedTool === "trivy") {
+      if (!trivyImage) {
+        toast.error("Please enter a Docker image name");
+        return;
+      }
+      launchTrivy.mutate({
+        image: trivyImage,
+        imageTag: trivyTag || "latest",
+      });
+    } else {
+      if (!selectedCredId) {
+        toast.error("Please select a credential");
+        return;
+      }
+      launchFromCred.mutate({
+        credentialId: Number(selectedCredId),
+        tool: selectedTool as "prowler" | "scoutsuite",
+        services: services ? services.split(",").map(s => s.trim()).filter(Boolean) : undefined,
+        compliance: compliance || undefined,
+        timeoutSeconds: 600,
+      });
+    }
+  };
+
   return (
-    <Card className="bg-card/50 border-border/50">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <ShieldAlert className="h-5 w-5 text-purple-400" />
-          Quick Scan
-        </CardTitle>
-        <CardDescription>
-          Launch scans from the individual tool pages (Prowler, ScoutSuite, Trivy) or use the Cloud Credentials page to configure provider access.
-          Results from all tools are automatically persisted and displayed here.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Card className="bg-purple-950/20 border-purple-900/30">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="h-5 w-5 text-purple-400" />
-                <span className="font-medium">Prowler</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                CIS benchmarks, compliance frameworks, 300+ security checks for AWS, Azure, GCP
-              </p>
-              <div className="flex flex-wrap gap-1">
-                <Badge variant="outline" className="text-xs">AWS</Badge>
-                <Badge variant="outline" className="text-xs">Azure</Badge>
-                <Badge variant="outline" className="text-xs">GCP</Badge>
-              </div>
-            </CardContent>
-          </Card>
+    <>
+      <Button onClick={() => setOpen(true)} className="gap-2 bg-purple-600 hover:bg-purple-700">
+        <Rocket className="h-4 w-4" />
+        Launch Scan
+      </Button>
 
-          <Card className="bg-cyan-950/20 border-cyan-900/30">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Cloud className="h-5 w-5 text-cyan-400" />
-                <span className="font-medium">ScoutSuite</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Multi-cloud security auditing for 6 providers with detailed service-level findings
-              </p>
-              <div className="flex flex-wrap gap-1">
-                <Badge variant="outline" className="text-xs">AWS</Badge>
-                <Badge variant="outline" className="text-xs">Azure</Badge>
-                <Badge variant="outline" className="text-xs">GCP</Badge>
-                <Badge variant="outline" className="text-xs">DO</Badge>
-                <Badge variant="outline" className="text-xs">Alibaba</Badge>
-                <Badge variant="outline" className="text-xs">Oracle</Badge>
-              </div>
-            </CardContent>
-          </Card>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-purple-400" />
+              Launch CSPM Scan
+            </DialogTitle>
+            <DialogDescription>
+              Select a tool and credential to run a cloud security scan. Results will be persisted automatically.
+            </DialogDescription>
+          </DialogHeader>
 
-          <Card className="bg-emerald-950/20 border-emerald-900/30">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Container className="h-5 w-5 text-emerald-400" />
-                <span className="font-medium">Trivy</span>
+          <div className="space-y-4 py-2">
+            {/* Tool Selection */}
+            <div className="space-y-2">
+              <Label>Scan Tool</Label>
+              <Select value={selectedTool} onValueChange={setSelectedTool}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prowler">
+                    <span className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-purple-400" /> Prowler (CIS Benchmarks)
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="scoutsuite">
+                    <span className="flex items-center gap-2">
+                      <Cloud className="h-4 w-4 text-cyan-400" /> ScoutSuite (Multi-Cloud Audit)
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="trivy">
+                    <span className="flex items-center gap-2">
+                      <Container className="h-4 w-4 text-emerald-400" /> Trivy (Container Scan)
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Credential or Image selection */}
+            {selectedTool === "trivy" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Docker Image</Label>
+                  <Input
+                    placeholder="e.g. nginx, ubuntu, myregistry/myapp"
+                    value={trivyImage}
+                    onChange={(e) => setTrivyImage(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tag</Label>
+                  <Input
+                    placeholder="latest"
+                    value={trivyTag}
+                    onChange={(e) => setTrivyTag(e.target.value)}
+                  />
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mb-3">
-                Container image scanning, filesystem/IaC analysis, SBOM generation, self-scan
-              </p>
-              <div className="flex flex-wrap gap-1">
-                <Badge variant="outline" className="text-xs">Docker</Badge>
-                <Badge variant="outline" className="text-xs">Filesystem</Badge>
-                <Badge variant="outline" className="text-xs">IaC</Badge>
-                <Badge variant="outline" className="text-xs">SBOM</Badge>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Cloud Credential</Label>
+                  <Select value={selectedCredId} onValueChange={setSelectedCredId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a stored credential..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {creds?.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          <span className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">{c.provider?.toUpperCase()}</Badge>
+                            {c.credentialName}
+                          </span>
+                        </SelectItem>
+                      ))}
+                      {(!creds || creds.length === 0) && (
+                        <div className="p-3 text-xs text-muted-foreground text-center">
+                          No credentials stored. Add one in Cloud Credentials first.
+                        </div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {selectedTool === "prowler" && (
+                  <div className="space-y-2">
+                    <Label>Compliance Framework (optional)</Label>
+                    <Select value={compliance} onValueChange={setCompliance}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (all checks)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (all checks)</SelectItem>
+                        <SelectItem value="cis_1.5_aws">CIS 1.5 AWS</SelectItem>
+                        <SelectItem value="cis_2.0_aws">CIS 2.0 AWS</SelectItem>
+                        <SelectItem value="cis_3.0_aws">CIS 3.0 AWS</SelectItem>
+                        <SelectItem value="cis_2.0_azure">CIS 2.0 Azure</SelectItem>
+                        <SelectItem value="cis_2.0_gcp">CIS 2.0 GCP</SelectItem>
+                        <SelectItem value="pci_3.2.1_aws">PCI DSS 3.2.1</SelectItem>
+                        <SelectItem value="hipaa_aws">HIPAA</SelectItem>
+                        <SelectItem value="soc2_aws">SOC2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Services (optional, comma-separated)</Label>
+                  <Input
+                    placeholder="e.g. s3, ec2, iam"
+                    value={services}
+                    onChange={(e) => setServices(e.target.value)}
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </CardContent>
-    </Card>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)} disabled={isRunning}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleLaunch}
+              disabled={isRunning}
+              className="gap-2 bg-purple-600 hover:bg-purple-700"
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Launch Scan
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -578,14 +847,17 @@ export default function CspmDashboard() {
   return (
     <div className="space-y-6 p-1">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <ShieldAlert className="h-6 w-6 text-purple-400" />
-          CSPM Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Cloud Security Posture Management — Prowler, ScoutSuite, and Trivy scan results with historical tracking
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ShieldAlert className="h-6 w-6 text-purple-400" />
+            CSPM Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Cloud Security Posture Management — Prowler, ScoutSuite, and Trivy scan results with historical tracking
+          </p>
+        </div>
+        <LaunchScanButton />
       </div>
 
       {selectedRunId ? (
@@ -595,8 +867,8 @@ export default function CspmDashboard() {
           {/* Stats */}
           <StatsOverview />
 
-          {/* Tool Overview */}
-          <QuickScanLauncher />
+          {/* Compliance Trend Chart */}
+          <ComplianceTrendChart />
 
           {/* Scan History */}
           <ScanHistoryTable onSelectRun={setSelectedRunId} />
