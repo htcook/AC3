@@ -972,6 +972,13 @@ async function startServer() {
         console.warn("[Enrichment] Failed to initialize enrichment scheduler:", err);
       });
 
+      // Initialize Version Threshold auto-refresh (NVD CVE + DI scan learning, 24h interval)
+      import("../lib/version-threshold-service").then(({ startAutoRefresh }) => {
+        startAutoRefresh(24 * 60 * 60 * 1000); // 24 hours
+      }).catch((err) => {
+        console.warn("[VersionThreshold] Failed to initialize auto-refresh:", err);
+      });
+
       // Register Campaign Advisor Burp completion listener
       import("../lib/campaign-advisor").then(({ registerBurpCompletionListener }) => {
         registerBurpCompletionListener();

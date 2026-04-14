@@ -4521,5 +4521,30 @@ export async function runDomainIntelPipeline(
         return undefined;
       }
     })(),
+    versionThresholdLearning: (() => {
+      try {
+        // Stage 4.7: Feed detected technologies with versions to the version threshold learning engine
+        const techsWithVersions = analyses.flatMap(a => {
+          const versions = a.asset.technologyVersions || {};
+          return Object.entries(versions)
+            .filter(([, v]) => v && /^\d/.test(v))
+            .map(([name, version]) => ({ name, version, category: 'detected' }));
+        });
+        if (techsWithVersions.length > 0) {
+          const { learnFromDiScan } = require('./lib/version-threshold-service');
+          const result = learnFromDiScan(techsWithVersions);
+          if (result.updated.length > 0) {
+            console.log(`[DomainIntel] Stage 4.7: Version threshold learning — ${result.updated.length} thresholds bumped: ${result.updated.join(', ')}`);
+          } else {
+            console.log(`[DomainIntel] Stage 4.7: Version threshold learning — ${techsWithVersions.length} techs checked, no threshold bumps needed`);
+          }
+          return { techsChecked: techsWithVersions.length, updated: result.updated };
+        }
+        return undefined;
+      } catch (err: any) {
+        console.error(`[DomainIntel] Version threshold learning failed (non-fatal): ${err.message}`);
+        return undefined;
+      }
+    })(),
   };
 }

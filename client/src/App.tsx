@@ -326,6 +326,7 @@ const TestPlanReview = lazyWithRetry(() => import("./pages/TestPlanReview"));
 const ScanForgeDashboard = lazyWithRetry(() => import("./pages/ScanForgeDashboard"));
 const LicenseManagement = lazyWithRetry(() => import("./pages/LicenseManagement"));
 const UpdateManager = lazyWithRetry(() => import("./pages/UpdateManager"));
+const VersionThresholds = lazyWithRetry(() => import("./pages/VersionThresholds"));
 const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
 const RoeDocUpload = lazyWithRetry(() => import("./pages/RoeDocUpload"));
 const OpsViewer = lazyWithRetry(() => import("./pages/OpsViewer"));
@@ -1200,6 +1201,9 @@ function Router() {
         </Route>
         <Route path="/admin/updates">
           <ProtectedRoute component={UpdateManager} pageName="UpdateManager" />
+        </Route>
+        <Route path="/admin/version-thresholds">
+          <ProtectedRoute component={VersionThresholds} pageName="VersionThresholds" />
         </Route>
         <Route path="/my-portal">
           <ProtectedRoute component={CustomerPortalSelfService} pageName="CustomerPortalSelfService" />

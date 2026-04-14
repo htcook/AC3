@@ -219,6 +219,7 @@ import { aiVulnResearchRouter } from "./routers/ai-vuln-research";
 import { testPlanGeneratorRouter } from "./routers/test-plan-generator";
 import { engagementResultsRouter } from "./routers/engagement-results";
 import { zeroDayRouter } from "./routers/zero-day";
+import { versionThresholdsRouter } from "./routers/version-thresholds";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -597,6 +598,8 @@ export const appRouter = router({
   webhooks: webhookManagementRouter,
   // ─── Exploit Attack Graph (Cross-Layer Reasoning Visualization) ──
   exploitAttackGraph: exploitAttackGraphRouter,
+  // ─── Version Threshold Auto-Refresh (NVD CVE + DI Scan Learning) ──
+  versionThresholds: versionThresholdsRouter,
 });
 export type AppRouter = typeof appRouter;
 

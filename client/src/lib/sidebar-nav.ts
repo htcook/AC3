@@ -535,6 +535,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Unified Pipeline", path: "/unified-pipeline", icon: Workflow, roles: ["admin"] },
       { label: "License Management", path: "/admin/licenses", icon: Key, roles: ["admin"] },
       { label: "Update Manager", path: "/admin/updates", icon: Package, roles: ["admin"] },
+      { label: "Version Thresholds", path: "/admin/version-thresholds", icon: Shield, roles: ["admin"] },
       { label: "Customer Portal", path: "/my-portal", icon: Globe },
     ],
   },
