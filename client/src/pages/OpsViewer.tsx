@@ -19,8 +19,10 @@ import {
   ZoomIn, ZoomOut, Maximize2, Crosshair, Layers, Shield, AlertTriangle,
   Activity, Eye, EyeOff, Target, Network, Skull, Radio, Lock,
   ChevronRight, X, Cpu, Globe, Server, Database, Cloud, Brain, Zap, Timer,
-  ArrowLeft,
+  ArrowLeft, GitBranch,
 } from "lucide-react";
+import { TechDependencyGraph } from "@/components/TechDependencyGraph";
+import { buildTechDepGraph, type TechDepNode, CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/tech-dependency-graph";
 // wouter imports removed — back button uses window.history.back()
 
 // ── Reasoning Status Indicator ─────────────────────────────────────
@@ -92,14 +94,20 @@ function StatsHUD({ stats, mode }: { stats: EngineStats | null; mode: Battlespac
         <span>{stats.fps} FPS</span>
       </div>
       <div className="flex items-center gap-2">
-        <span>{stats.nodeCount} NODES</span>
+        <span>{stats.visibleNodes ?? stats.nodeCount}/{stats.nodeCount} NODES</span>
         <span className="text-gray-600">|</span>
-        <span>{stats.edgeCount} EDGES</span>
-        {stats.clusterCount > 0 && (
+        <span>{stats.visibleEdges ?? stats.edgeCount}/{stats.edgeCount} EDGES</span>
+        {(stats.supernodeCount ?? 0) > 0 && (
+          <><span className="text-gray-600">|</span><span className="text-purple-400">{stats.supernodeCount} SUPERNODES</span></>
+        )}
+        {(stats.supernodeCount ?? 0) === 0 && stats.clusterCount > 0 && (
           <><span className="text-gray-600">|</span><span className="text-blue-400">{stats.clusterCount} CLUSTERS</span></>
         )}
         <span className="text-gray-600">|</span>
         <span>α {stats.simulationAlpha.toFixed(3)}</span>
+        {(stats.newNodesSinceInteraction ?? 0) > 0 && (
+          <><span className="text-gray-600">|</span><span className="text-teal-400 animate-pulse">+{stats.newNodesSinceInteraction} NEW</span></>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <span>ZOOM: {stats.zoomLevel}</span>
@@ -129,8 +137,16 @@ function NodeDetailPanel({
         <div className="flex items-center gap-2">
           <span className="text-lg">{config.icon}</span>
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-gray-500">{node.type.replace("_", " ")}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-gray-500">{node.type.replace("_", " ")}</span>
+              {node.type === "hypothesis" && (
+                <span className="text-[8px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded uppercase tracking-wider font-semibold">INFERRED</span>
+              )}
+            </div>
             <div className="text-white font-bold truncate max-w-[200px]">{node.label}</div>
+            {node.type === "hypothesis" && (
+              <div className="text-[9px] text-purple-400/70 mt-0.5">This finding was inferred from technology fingerprints, not confirmed by a scanner.</div>
+            )}
           </div>
         </div>
         <button onClick={onClose} className="text-gray-500 hover:text-white p-1"><X size={14} /></button>
@@ -508,6 +524,138 @@ function PathSelector({ paths,
   );
 }
 
+// ── Tech Dependency Graph Overlay ──────────────────────────────────────────────
+function TechDepGraphOverlay({ engineRef, onClose }: {
+  engineRef: React.RefObject<BattlespaceEngine | null>;
+  onClose: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+
+  // Measure container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setDimensions({
+          width: Math.max(400, entry.contentRect.width - 32),
+          height: Math.max(300, entry.contentRect.height - 80),
+        });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Build graph from engine's detected technologies
+  const graph = useMemo(() => {
+    const nodes = engineRef.current?.getNodes() || [];
+    const techCounts: Record<string, { count: number; version?: string; isOutdated?: boolean }> = {};
+    for (const n of nodes) {
+      if (!n.technologies || n.technologies.length === 0) continue;
+      for (const t of n.technologies) {
+        const key = t.toLowerCase();
+        if (!techCounts[key]) {
+          techCounts[key] = { count: 0 };
+        }
+        techCounts[key].count++;
+        const ver = n.technologyVersions?.[t] || n.technologyVersions?.[key];
+        if (ver) {
+          techCounts[key].version = ver;
+          if (isVersionOutdated(key, ver)) {
+            techCounts[key].isOutdated = true;
+          }
+        }
+      }
+    }
+    const detected = Object.entries(techCounts).map(([name, data]) => ({
+      name,
+      count: data.count,
+      version: data.version,
+      isOutdated: data.isOutdated,
+    }));
+    return buildTechDepGraph(detected);
+  }, [engineRef.current?.getNodes()]);
+
+  const handleNodeClick = useCallback((node: TechDepNode) => {
+    if (!node.detected || !engineRef.current) return;
+    const assetId = engineRef.current.findAssetWithTech(node.name.toLowerCase());
+    if (assetId) {
+      engineRef.current.focusNode(assetId, { highlightTech: node.name.toLowerCase(), targetScale: 2.0 });
+      onClose();
+    }
+  }, [engineRef, onClose]);
+
+  if (graph.nodes.length === 0) {
+    return (
+      <div className="absolute inset-4 z-50 bg-[#0A0E14]/98 border border-[#1A2332] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-[#1A2332]">
+          <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest">
+            <GitBranch size={14} className="text-emerald-400" />
+            <span className="text-white font-bold">TECH DEPENDENCY GRAPH</span>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center font-mono">
+            <GitBranch size={32} className="text-gray-600 mx-auto mb-3" />
+            <div className="text-gray-500 text-xs uppercase tracking-widest">NO TECHNOLOGIES DETECTED</div>
+            <div className="text-gray-600 text-[10px] mt-1">Load a DI scan or engagement with tech fingerprinting</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="absolute inset-4 z-50 bg-[#0A0E14]/98 border border-[#1A2332] flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#1A2332] shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest">
+            <GitBranch size={14} className="text-emerald-400" />
+            <span className="text-white font-bold">TECH DEPENDENCY GRAPH</span>
+          </div>
+          <span className="text-[9px] font-mono text-gray-500">
+            {graph.nodes.filter(n => n.detected).length} detected &middot; {graph.nodes.length} total &middot; {graph.edges.length} dependencies
+          </span>
+          {/* Category pills */}
+          <div className="flex items-center gap-1 ml-2">
+            {graph.categories.slice(0, 6).map(({ category, count }) => (
+              <span
+                key={category}
+                className="text-[8px] font-mono px-1.5 py-0.5 border"
+                style={{ color: CATEGORY_COLORS[category], borderColor: CATEGORY_COLORS[category] + '40' }}
+              >
+                {CATEGORY_LABELS[category]} ({count})
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-mono text-gray-600">SCROLL TO ZOOM &middot; DRAG TO PAN &middot; CLICK NODE TO NAVIGATE</span>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors ml-2">
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div className="flex-1 overflow-hidden p-4">
+        <TechDependencyGraph
+          graph={graph}
+          width={dimensions.width}
+          height={dimensions.height}
+          onNodeClick={handleNodeClick}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Main Ops Viewer Component ──────────────────────────────────────────────────────
 export default function Battlespace() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -557,6 +705,7 @@ export default function Battlespace() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showClusters, setShowClusters] = useState(true);
   const [showTechSummary, setShowTechSummary] = useState(false);
+  const [showTechDepGraph, setShowTechDepGraph] = useState(false);
   const [topologyLayers, setTopologyLayers] = useState<Record<string, boolean>>({
     proxy: true,
     gateway: true,
@@ -789,7 +938,13 @@ export default function Battlespace() {
 
   const diScanQuery = trpc.domainIntel.getScan.useQuery(
     { id: parsedDiScanId },
-    { enabled: diScanEnabled, retry: 1 }
+    {
+      enabled: diScanEnabled,
+      retry: 1,
+      // Auto-refetch every 15s during active scans to pick up new assets/findings
+      // Uses scan status from the query data itself to determine if scan is still running
+      refetchInterval: diScanEnabled && !diScanComplete ? 15000 : false,
+    }
   );
 
   // Load DI scan data into the engine
@@ -1079,6 +1234,15 @@ export default function Battlespace() {
             >
               <Cpu size={12} />
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${showTechDepGraph ? "bg-[#1A2332] text-emerald-400" : "bg-transparent"}`}
+              onClick={() => setShowTechDepGraph(!showTechDepGraph)}
+              title="Tech Dependency Graph"
+            >
+              <GitBranch size={12} />
+            </Button>
             <div className="h-6 w-px bg-[#1A2332]" />
             <VisualEffectToggles options={engineOptions} onToggle={handleToggle} />
           </div>
@@ -1172,6 +1336,11 @@ export default function Battlespace() {
           />
           <LegendPanel visible={showLegend} />
           <TechSummaryPanel visible={showTechSummary} engineRef={engineRef} />
+
+          {/* Tech Dependency Graph Overlay */}
+          {showTechDepGraph && (
+            <TechDepGraphOverlay engineRef={engineRef} onClose={() => setShowTechDepGraph(false)} />
+          )}
 
           {/* Network Topology Filters */}
           {showTopologyFilters && (

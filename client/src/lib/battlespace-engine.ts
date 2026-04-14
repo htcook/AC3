@@ -85,6 +85,14 @@ export interface EngineStats {
   zoomLevel: ZoomLevel;
   scale: number;
   simulationAlpha: number;
+  /** Number of nodes actually drawn (after viewport culling) */
+  visibleNodes: number;
+  /** Number of edges actually drawn (after viewport culling) */
+  visibleEdges: number;
+  /** Number of supernodes (collapsed clusters at MACRO zoom) */
+  supernodeCount: number;
+  /** Number of new nodes added since last user interaction */
+  newNodesSinceInteraction: number;
 }
 
 /** Cluster bounding box computed each frame */
@@ -316,6 +324,22 @@ export class BattlespaceEngine {
   private animatedPathProgress = 0;
   private animatedPathActive = false;
   private nodeHeartbeats = new Map<string, { phase: number; intensity: number }>();
+
+  // ── Viewport culling & LOD state ──────────────────────────────────
+  private _visibleNodes = 0;
+  private _visibleEdges = 0;
+  private _supernodeCount = 0;
+  /** Supernode aggregates: at MACRO zoom with 200+ nodes, collapse clusters into single supernodes */
+  private _supernodes: Array<{
+    cluster: Cluster;
+    cx: number; cy: number;
+    nodeCount: number;
+    criticalCount: number;
+    highCount: number;
+    mediumCount: number;
+    techSummary: string[];
+    maxSeverity: string;
+  }> = [];
 
   constructor(callbacks: EngineCallbacks = {}, options: EngineOptions = {}) {
     this.callbacks = callbacks;
@@ -573,6 +597,7 @@ export class BattlespaceEngine {
   }
 
   addNodes(newNodes: BattlespaceNode[], newEdges: BattlespaceEdge[]): void {
+    let addedCount = 0;
     for (const n of newNodes) {
       if (this.nodeMap.has(n.id)) continue;
       const seed = hashCode(n.id);
@@ -581,14 +606,23 @@ export class BattlespaceEngine {
         x: n.x ?? (seededRandom(seed) - 0.5) * 800,
         y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
         _revealProgress: 0,
+        _flashColor: "#00E5CC",
+        _flashAlpha: 1.2,
       };
       this.simNodes.push(sn);
       this.nodeMap.set(sn.id, sn);
+      addedCount++;
       // Spawn ripple on new node appearance
       if (sn.x != null && sn.y != null) {
         const config = NODE_VISUAL_CONFIG[sn.type] || NODE_VISUAL_CONFIG.host;
         this.spawnRipple(sn.x, sn.y, config.strokeColor, 80);
       }
+    }
+    // Track cumulative new-node count for the HUD badge
+    this._newNodesSinceInteraction = (this._newNodesSinceInteraction || 0) + addedCount;
+    // Auto-fit viewport when a large batch arrives (>10 nodes at once)
+    if (addedCount > 10) {
+      setTimeout(() => this.fitToView(), 800);
     }
 
     for (const e of newEdges) {
@@ -724,6 +758,7 @@ export class BattlespaceEngine {
 
   // ── Tech Highlight API ─────────────────────────────────────────
   private _highlightedTech: string | null = null;
+  private _newNodesSinceInteraction = 0;
   private _highlightedAssetId: string | null = null;
 
   /**
@@ -790,8 +825,9 @@ export class BattlespaceEngine {
    */
   findAssetWithTech(techName: string): string | null {
     const key = techName.toLowerCase();
+    const assetTypes = new Set(['host', 'subdomain', 'asset', 'cloud_resource', 'domain']);
     for (const n of this.simNodes) {
-      if (n.type === 'asset' && n.technologies?.some(t => t.toLowerCase() === key)) {
+      if (assetTypes.has(n.type) && n.technologies?.some(t => t.toLowerCase() === key)) {
         return n.id;
       }
     }
@@ -976,6 +1012,149 @@ export class BattlespaceEngine {
     }
   }
 
+  /** Get the visible world-coordinate bounding box based on current pan/zoom */
+  private getViewportBounds(): { minX: number; minY: number; maxX: number; maxY: number } {
+    const margin = 100; // extra margin in world coords to avoid pop-in
+    const minX = (-this.panX) / this.scale - margin;
+    const minY = (-this.panY) / this.scale - margin;
+    const maxX = (this.width - this.panX) / this.scale + margin;
+    const maxY = (this.height - this.panY) / this.scale + margin;
+    return { minX, minY, maxX, maxY };
+  }
+
+  /** Check if a point (with radius) is within the current viewport */
+  private isInViewport(x: number, y: number, r: number, vp: { minX: number; minY: number; maxX: number; maxY: number }): boolean {
+    return x + r >= vp.minX && x - r <= vp.maxX && y + r >= vp.minY && y - r <= vp.maxY;
+  }
+
+  /** Build supernodes from clusters when node count is high and zoom is MACRO */
+  private buildSupernodes(): void {
+    this._supernodes = [];
+    // Only collapse when there are many nodes and we're zoomed out
+    if (this.simNodes.length < 150 || this.currentZoomLevel !== "MACRO") {
+      this._supernodeCount = 0;
+      return;
+    }
+    // Build a supernode for each cluster with 3+ members
+    for (const c of this.clusters) {
+      if (c.nodeIds.size < 3) continue;
+      let cx = 0, cy = 0, count = 0;
+      let criticalCount = 0, highCount = 0, mediumCount = 0;
+      const techSet = new Set<string>();
+      let maxSev = "info";
+      const sevOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+
+      for (const nid of c.nodeIds) {
+        const n = this.nodeMap.get(nid);
+        if (!n || n.x == null || n.y == null) continue;
+        cx += n.x; cy += n.y; count++;
+        if (n.severity === "critical") criticalCount++;
+        else if (n.severity === "high") highCount++;
+        else if (n.severity === "medium") mediumCount++;
+        if ((sevOrder[n.severity || "info"] || 0) > (sevOrder[maxSev] || 0)) maxSev = n.severity || "info";
+        for (const t of (n.technologies || []).slice(0, 3)) techSet.add(t);
+      }
+      if (count < 3) continue;
+      cx /= count; cy /= count;
+      this._supernodes.push({
+        cluster: c,
+        cx, cy,
+        nodeCount: count,
+        criticalCount, highCount, mediumCount,
+        techSummary: Array.from(techSet).slice(0, 5),
+        maxSeverity: maxSev,
+      });
+    }
+    this._supernodeCount = this._supernodes.length;
+  }
+
+  /** Draw a supernode: a large aggregate circle representing a collapsed cluster */
+  private drawSupernode(ctx: CanvasRenderingContext2D, sn: typeof this._supernodes[0]): void {
+    const { cx, cy, nodeCount, criticalCount, highCount, mediumCount, maxSeverity, techSummary, cluster } = sn;
+    const baseR = Math.min(30 + Math.sqrt(nodeCount) * 8, 80);
+    const pulse = Math.sin(this.animationTime * 1.5) * 0.05 + 1;
+    const r = baseR * pulse;
+
+    // Severity color
+    const sevColors: Record<string, string> = { critical: "#FF0040", high: "#FF6B00", medium: "#FFB800", low: "#3B82F6", info: "#4A5568" };
+    const sevColor = sevColors[maxSeverity] || sevColors.info;
+
+    // Outer glow
+    if (this.options.glowEnabled && (maxSeverity === "critical" || maxSeverity === "high")) {
+      const glowGrad = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 2);
+      glowGrad.addColorStop(0, rgbaStr(sevColor, 0.15));
+      glowGrad.addColorStop(1, rgbaStr(sevColor, 0));
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Main circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = rgbaStr(cluster.color, 0.2);
+    ctx.fill();
+    ctx.strokeStyle = rgbaStr(cluster.color, 0.6);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Severity ring segments (pie chart style)
+    const total = criticalCount + highCount + mediumCount;
+    if (total > 0) {
+      const segments = [
+        { count: criticalCount, color: "#FF0040" },
+        { count: highCount, color: "#FF6B00" },
+        { count: mediumCount, color: "#FFB800" },
+      ];
+      let startAngle = -Math.PI / 2;
+      for (const seg of segments) {
+        if (seg.count === 0) continue;
+        const sweep = (seg.count / nodeCount) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r + 4, startAngle, startAngle + sweep);
+        ctx.strokeStyle = rgbaStr(seg.color, 0.8);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        startAngle += sweep;
+      }
+    }
+
+    // Count label in center
+    ctx.font = `bold ${Math.min(r * 0.5, 18)}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#E8EAED";
+    ctx.fillText(`${nodeCount}`, cx, cy - 4);
+
+    // Cluster label below
+    ctx.font = "bold 9px 'JetBrains Mono', monospace";
+    ctx.fillStyle = rgbaStr(cluster.color, 0.8);
+    const label = cluster.label.length > 20 ? cluster.label.slice(0, 18) + "\u2026" : cluster.label;
+    ctx.fillText(label, cx, cy + r + 12);
+
+    // "nodes" sub-label
+    ctx.font = "8px 'JetBrains Mono', monospace";
+    ctx.fillStyle = "#4A5568";
+    ctx.fillText("nodes", cx, cy + 8);
+
+    // Tech summary pills below cluster label
+    if (techSummary.length > 0) {
+      ctx.font = "bold 7px 'JetBrains Mono', monospace";
+      let tx = cx - (techSummary.length * 20) / 2;
+      for (const t of techSummary.slice(0, 4)) {
+        const techKey = t.toLowerCase();
+        const techInfo = TECH_ICONS[techKey] || TECH_ICONS.default;
+        const tw = ctx.measureText(techInfo.label).width;
+        ctx.fillStyle = rgbaStr(techInfo.color, 0.15);
+        ctx.fillRect(tx - 2, cy + r + 20, tw + 6, 10);
+        ctx.fillStyle = techInfo.color;
+        ctx.fillText(techInfo.label, tx + 1, cy + r + 25);
+        tx += tw + 10;
+      }
+    }
+  }
+
   // ── Input Handling ────────────────────────────────────────────────
   private setupInputHandlers(): void {
     if (!this.canvas) return;
@@ -1053,6 +1232,7 @@ export class BattlespaceEngine {
         const dy = e.offsetY - this.dragStartY;
         if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
           this.selectedNodeId = this.draggedNode.id;
+          this._newNodesSinceInteraction = 0;
           this.callbacks.onNodeClick?.(this.draggedNode);
         }
         if (this.workerBridge?.isAvailable) {
@@ -1230,11 +1410,14 @@ export class BattlespaceEngine {
         zoomLevel: this.currentZoomLevel,
         scale: this.scale,
         simulationAlpha: this.simulation?.alpha() || 0,
+        visibleNodes: this._visibleNodes,
+        visibleEdges: this._visibleEdges,
+        supernodeCount: this._supernodeCount,
+        newNodesSinceInteraction: this._newNodesSinceInteraction,
       });
     }
   };
-
-  // ── Drawing ───────────────────────────────────────────────────────
+  // ── Drawing ─────────────────────────────────────────────────────────
   private draw(): void {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -1247,35 +1430,84 @@ export class BattlespaceEngine {
     ctx.translate(this.panX, this.panY);
     ctx.scale(this.scale, this.scale);
 
+    // Compute viewport bounds for frustum culling
+    const vp = this.getViewportBounds();
+    const isLargeGraph = this.simNodes.length >= 150;
+
     // Grid
     if (this.options.gridEnabled) this.drawGrid(ctx);
 
     // Threat heatmap zones (drawn behind everything else)
     if (this.options.heatmapEnabled) this.drawThreatHeatmap(ctx);
 
+    // Build supernodes for MACRO zoom on large graphs
+    if (isLargeGraph) this.buildSupernodes();
+
+    // Collect supernode member IDs for skipping individual rendering
+    const supernodeMemberIds = new Set<string>();
+    if (this._supernodes.length > 0) {
+      for (const sn of this._supernodes) {
+        for (const nid of sn.cluster.nodeIds) supernodeMemberIds.add(nid);
+      }
+    }
+
     // Cluster bounding boxes (drawn behind edges and nodes)
-    if (this.clustersEnabled && this.clusters.length > 0) {
+    // Skip cluster boxes when supernodes are active (they replace them)
+    if (this.clustersEnabled && this.clusters.length > 0 && this._supernodes.length === 0) {
       this.updateClusterBounds();
       for (const c of this.clusters) {
+        // Viewport cull clusters
+        if (c.maxX < vp.minX || c.minX > vp.maxX || c.maxY < vp.minY || c.minY > vp.maxY) continue;
         this.drawCluster(ctx, c);
       }
     }
 
-    // Edges (skip edges connected to hidden or time-filtered nodes)
+    // Draw supernodes (collapsed cluster aggregates)
+    for (const sn of this._supernodes) {
+      if (this.isInViewport(sn.cx, sn.cy, 100, vp)) {
+        this.drawSupernode(ctx, sn);
+      }
+    }
+
+    // Edges (skip edges connected to hidden, time-filtered, or supernode-collapsed nodes)
+    let visibleEdges = 0;
     for (const e of this.simEdges) {
       const src = e.source as SimNode;
       const tgt = e.target as SimNode;
       if (this.hiddenNodeTypes.has(src.type) || this.hiddenNodeTypes.has(tgt.type)) continue;
       if ((src as any)._timeHidden || (tgt as any)._timeHidden) continue;
+      // Skip edges for supernode-collapsed nodes (unless highlighted)
+      if (supernodeMemberIds.has(src.id) && supernodeMemberIds.has(tgt.id) && !e.isHighlighted) continue;
+      // Viewport culling: skip edges where both endpoints are offscreen
+      if (src.x != null && src.y != null && tgt.x != null && tgt.y != null) {
+        const edgeMinX = Math.min(src.x, tgt.x);
+        const edgeMaxX = Math.max(src.x, tgt.x);
+        const edgeMinY = Math.min(src.y, tgt.y);
+        const edgeMaxY = Math.max(src.y, tgt.y);
+        if (edgeMaxX < vp.minX || edgeMinX > vp.maxX || edgeMaxY < vp.minY || edgeMinY > vp.maxY) continue;
+      }
+      visibleEdges++;
       this.drawEdge(ctx, e);
     }
+    this._visibleEdges = visibleEdges;
 
-    // Nodes (skip hidden node types and time-filtered nodes)
+    // Nodes (skip hidden, time-filtered, supernode-collapsed, and offscreen nodes)
+    let visibleNodes = 0;
     for (const n of this.simNodes) {
       if (this.hiddenNodeTypes.has(n.type)) continue;
       if ((n as any)._timeHidden) continue;
+      // Skip supernode-collapsed nodes (unless selected or highlighted)
+      if (supernodeMemberIds.has(n.id) && n.id !== this.selectedNodeId && !(n as any)._isHighlighted) continue;
+      // Viewport frustum culling
+      if (n.x != null && n.y != null) {
+        const config = NODE_VISUAL_CONFIG[n.type] || NODE_VISUAL_CONFIG.host;
+        const nodeR = config.baseSize * (1 + (n.weaknessLevel || 0) * 0.5) + 40; // +40 for orbit/labels
+        if (!this.isInViewport(n.x, n.y, nodeR, vp)) continue;
+      }
+      visibleNodes++;
       this.drawNode(ctx, n);
     }
+    this._visibleNodes = visibleNodes;
 
     // Ripple effects (drawn on top of nodes)
     this.drawRipples(ctx);
@@ -1288,7 +1520,6 @@ export class BattlespaceEngine {
     // HUD overlay (screen-space, drawn after ctx.restore)
     if (this.options.hudEnabled) this.drawHUD(ctx);
   }
-
   private drawGrid(ctx: CanvasRenderingContext2D): void {
     const gridSize = 80;
     const extent = 4000;
@@ -1703,7 +1934,14 @@ export class BattlespaceEngine {
     const borderWidth = 1 + (n.weaknessLevel || 0) * 3;
     ctx.strokeStyle = isSelected ? "#FFFFFF" : isHovered ? "#00E5CC" : sevColor;
     ctx.lineWidth = borderWidth;
-    ctx.stroke();
+    // Hypothesis nodes get a dashed border to visually distinguish from confirmed findings
+    if (n.type === "hypothesis") {
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.stroke();
+    }
 
     // Flash overlay
     if (n._flashColor && n._flashAlpha && n._flashAlpha > 0) {
@@ -1731,6 +1969,25 @@ export class BattlespaceEngine {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(labelText, n.x, n.y + r + 12);
+
+      // Hypothesis badge below label
+      if (n.type === "hypothesis") {
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
+        const inferTag = "\u26A0 INFERRED";
+        const inferW = ctx.measureText(inferTag).width;
+        const inferY = n.y + r + 24;
+        ctx.fillStyle = "rgba(139,92,246,0.15)";
+        ctx.fillRect(n.x - inferW / 2 - 4, inferY - 5, inferW + 8, 12);
+        ctx.strokeStyle = "rgba(139,92,246,0.5)";
+        ctx.lineWidth = 0.8;
+        ctx.setLineDash([2, 2]);
+        ctx.strokeRect(n.x - inferW / 2 - 4, inferY - 5, inferW + 8, 12);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#8B5CF6";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(inferTag, n.x, inferY + 1);
+      }
 
       // Affected technology badge below label (vulnerability nodes only)
       if (n.type === "vulnerability" && n.affectedTechnology) {
@@ -2055,13 +2312,14 @@ export class BattlespaceEngine {
     const x = pad;
     const y = this.height - pad;
 
-    // Semi-transparent background strip
+    // Semi-transparent background strip (dynamic height)
+    const hudLines = 7; // max possible lines
     ctx.fillStyle = "rgba(10,14,20,0.75)";
-    ctx.fillRect(0, y - lineH * 5 - 8, 260, lineH * 5 + 16);
+    ctx.fillRect(0, y - lineH * hudLines - 8, 260, lineH * hudLines + 16);
 
     // Left border accent
     ctx.fillStyle = "#00E5CC";
-    ctx.fillRect(0, y - lineH * 5 - 8, 3, lineH * 5 + 16);
+    ctx.fillRect(0, y - lineH * hudLines - 8, 3, lineH * hudLines + 16);
 
     ctx.font = "bold 11px 'JetBrains Mono', monospace";
     ctx.textAlign = "left";
@@ -2070,12 +2328,16 @@ export class BattlespaceEngine {
     // Count stats
     const agents = this.simNodes.filter(n => n.type === "agent").length;
     const criticals = this.simNodes.filter(n => n.severity === "critical").length;
+    const culled = this.simNodes.length - this._visibleNodes;
     const lines = [
-      { label: "NODES", value: `${this.simNodes.length}`, color: "#E8EAED" },
-      { label: "EDGES", value: `${this.simEdges.length}`, color: "#E8EAED" },
+      { label: "NODES", value: `${this._visibleNodes}/${this.simNodes.length}`, color: "#E8EAED" },
+      { label: "EDGES", value: `${this._visibleEdges}/${this.simEdges.length}`, color: "#E8EAED" },
       { label: "AGENTS", value: `${agents}`, color: agents > 0 ? "#00E5CC" : "#4A5568" },
       { label: "CRITICAL", value: `${criticals}`, color: criticals > 0 ? "#FF0040" : "#4A5568" },
       { label: "FPS", value: `${this.currentFps}`, color: this.currentFps < 30 ? "#FFB800" : "#4A5568" },
+      ...(this._supernodeCount > 0 ? [{ label: "CLUSTERS", value: `${this._supernodeCount}`, color: "#8B5CF6" }] : []),
+      ...(culled > 0 ? [{ label: "CULLED", value: `${culled}`, color: "#4A5568" }] : []),
+      ...(this._newNodesSinceInteraction > 0 ? [{ label: "NEW", value: `+${this._newNodesSinceInteraction}`, color: "#00E5CC" }] : []),
     ];
 
     for (let i = 0; i < lines.length; i++) {
