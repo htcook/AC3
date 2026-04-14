@@ -142,6 +142,12 @@ function buildNucleiCommand(input: {
   // Silent mode (no banner)
   parts.push('-silent');
 
+  // Disable update check (prevents hang on startup)
+  parts.push('-duc');
+
+  // No color codes in output
+  parts.push('-nc');
+
   return parts.join(' ');
 }
 

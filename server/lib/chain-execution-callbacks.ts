@@ -5,7 +5,7 @@
  * - Amass → amass-engine.ts executeAmassEnum
  * - ScanForge → scanforge-discovery.ts executeScanforgeScan
  * - Service Fingerprinter → service-fingerprinter.ts batchFingerprint
- * - Nuclei → nuclei-scanner (in-memory simulation, same as standalone)
+ * - Nuclei → ScanForge HTTP API (nuclei v3.7.1 with background execution)
  * 
  * Each callback adapts the chain's generic interface to the specific
  * tool engine's config/result types, handling server config resolution
@@ -14,6 +14,7 @@
 
 import type { ChainExecutionCallbacks } from "./discovery-chain-orchestrator";
 import { enforceMultiTargetScope } from "./scope-enforcement-middleware";
+import { executeToolViaHttp } from "./do-scan-api";
 
 // ─── Server Config Resolution ────────────────────────────────────────────
 
@@ -65,6 +66,25 @@ async function resolveScanforgeServer(): Promise<{
   privateKeyPath?: string;
 }> {
   return resolveAmassServer();
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+/** Extract CVE ID from nuclei tags array or template ID */
+function extractCveFromTags(tags?: string[], templateId?: string): string | undefined {
+  // Check tags for CVE references
+  if (tags) {
+    for (const tag of tags) {
+      const match = tag.match(/cve-\d{4}-\d+/i);
+      if (match) return match[0].toUpperCase();
+    }
+  }
+  // Check template ID for CVE pattern (e.g., "CVE-2021-44228")
+  if (templateId) {
+    const match = templateId.match(/cve-\d{4}-\d+/i);
+    if (match) return match[0].toUpperCase();
+  }
+  return undefined;
 }
 
 // ─── Callback Factory ────────────────────────────────────────────────────
@@ -196,69 +216,126 @@ export function buildRealCallbacks(options?: {
       };
     },
 
-    // ─── Nuclei ────────────────────────────────────────────────────
+    // ─── Nuclei (Real ScanForge API) ─────────────────────────────
     executeNuclei: async (config) => {
-      // Nuclei uses the same in-memory simulation as the standalone router.
-      // In production, this would SSH to the scan server and run nuclei CLI.
-      // For now, generate realistic findings based on targets and categories.
+      // Execute nuclei via ScanForge HTTP API with real template scanning.
+      // ScanForge v2.2.0 uses background execution to work around nuclei v3.7.1
+      // hang-after-completion bug (metrics server on localhost:9092 blocks exit).
       const findings: any[] = [];
-      const severityWeights: Record<string, number> = {
-        critical: 0.05,
-        high: 0.15,
-        medium: 0.30,
-        low: 0.25,
-        info: 0.25,
-      };
+      const allErrors: string[] = [];
 
       const templateCategories = config.categories || ["cves", "vulnerabilities", "misconfiguration"];
-      const severityFilter = config.severity || ["critical", "high", "medium", "low", "info"];
+      const severityFilter = config.severity || ["critical", "high", "medium"];
 
-      // Generate findings proportional to targets and categories
-      const findingCount = Math.min(
-        config.targets.length * templateCategories.length * 2,
-        100
-      );
+      // Map category names to nuclei template paths/tags
+      const categoryToNucleiArgs: Record<string, string> = {
+        cves: "-t /root/nuclei-templates/http/cves/",
+        vulnerabilities: "-severity critical,high,medium",
+        misconfiguration: "-t /root/nuclei-templates/http/misconfiguration/",
+        exposures: "-t /root/nuclei-templates/http/exposures/",
+        technologies: "-t /root/nuclei-templates/http/technologies/",
+        "default-logins": "-t /root/nuclei-templates/http/default-logins/",
+        network: "-t /root/nuclei-templates/network/",
+      };
 
-      for (let i = 0; i < findingCount; i++) {
-        const target = config.targets[i % config.targets.length];
-        const category = templateCategories[i % templateCategories.length];
+      // Build nuclei args: combine severity filter with template categories
+      const severityArg = `-severity ${severityFilter.join(",")}`;
+      const tagArgs = config.tags?.length ? `-tags ${config.tags.join(",")}` : "";
+      const rateLimit = config.rateLimit || 50;
+      const timeout = config.timeout || 10;
 
-        // Pick severity based on weights
-        const rand = Math.random();
-        let cumulative = 0;
-        let severity = "info";
-        for (const [sev, weight] of Object.entries(severityWeights)) {
-          cumulative += weight;
-          if (rand <= cumulative) {
-            severity = sev;
-            break;
+      // Run nuclei against each target (or batch if few targets)
+      const targetList = config.targets.slice(0, 20); // Cap at 20 targets for chain scans
+
+      for (const target of targetList) {
+        try {
+          // Determine if target is a URL or hostname
+          const targetUrl = target.startsWith("http") ? target : `http://${target}`;
+
+          // Build nuclei command args
+          let nucleiArgs = `-u ${targetUrl} ${severityArg} -no-interactsh -jsonl -timeout ${timeout} -nc -duc -ni -c 10 -rl ${rateLimit} -retries 1`;
+          if (tagArgs) nucleiArgs += ` ${tagArgs}`;
+
+          // If specific categories requested, add template paths
+          if (templateCategories.length > 0 && !templateCategories.includes("vulnerabilities")) {
+            const templateArgs = templateCategories
+              .map(c => categoryToNucleiArgs[c])
+              .filter(Boolean)
+              .join(" ");
+            if (templateArgs) nucleiArgs += ` ${templateArgs}`;
           }
+
+          console.log(`[ChainCallbacks] Nuclei scanning ${target} with args: ${nucleiArgs.slice(0, 150)}...`);
+
+          const result = await executeToolViaHttp({
+            tool: "nuclei",
+            args: nucleiArgs,
+            target: target,
+            timeoutSeconds: 300,
+            engagementId: config.engagementId,
+          });
+
+          // Parse JSONL output from nuclei
+          if (result.stdout) {
+            const lines = result.stdout.split("\n").filter(l => l.trim());
+            for (const line of lines) {
+              try {
+                const raw = JSON.parse(line);
+                const info = raw.info || {};
+                findings.push({
+                  templateId: raw["template-id"] || "unknown",
+                  templateName: info.name || raw["template-id"] || "Unknown Template",
+                  name: info.name || raw["template-id"] || "Unknown Template",
+                  description: info.description || "",
+                  severity: (info.severity || "info").toLowerCase(),
+                  type: info.severity === "critical" || info.severity === "high" ? "vulnerability" : "misconfiguration",
+                  host: raw.host || target,
+                  port: raw.port || undefined,
+                  matched: raw["matched-at"] || raw.url || target,
+                  matchedAt: raw["matched-at"] || raw.url || target,
+                  matcher: raw["matcher-name"] || undefined,
+                  extractedResults: raw["extracted-results"] || [],
+                  curl: raw["curl-command"] || undefined,
+                  timestamp: raw.timestamp ? new Date(raw.timestamp).getTime() : Date.now(),
+                  category: templateCategories[0] || "vulnerabilities",
+                  tags: info.tags || config.tags || [],
+                  cveId: extractCveFromTags(info.tags, raw["template-id"]),
+                  cweId: info.classification?.cwe_id?.[0] || undefined,
+                  ip: raw.ip || undefined,
+                  scheme: raw.scheme || undefined,
+                  // Raw nuclei data for evidence
+                  _raw: {
+                    request: raw.request?.slice(0, 2000),
+                    response: raw.response?.slice(0, 5000),
+                    matcherName: raw["matcher-name"],
+                    templatePath: raw["template-path"],
+                  },
+                });
+              } catch (parseErr) {
+                // Skip non-JSON lines (nuclei banner, stats, etc.)
+              }
+            }
+          }
+
+          if (result.exitCode !== 0 && !result.stdout) {
+            allErrors.push(`Nuclei failed for ${target}: exit=${result.exitCode} ${result.error || result.stderr?.slice(0, 200) || ""}`);
+          }
+        } catch (err: any) {
+          allErrors.push(`Nuclei error for ${target}: ${err.message}`);
         }
-
-        if (!severityFilter.includes(severity)) continue;
-
-        findings.push({
-          templateId: `${category}-${i}`,
-          templateName: `${category.charAt(0).toUpperCase() + category.slice(1)} Check #${i + 1}`,
-          severity,
-          type: category === "cves" ? "vulnerability" : category,
-          host: target,
-          matchedAt: target,
-          extractedResults: [],
-          timestamp: Date.now(),
-          category,
-          tags: config.tags || [],
-        });
       }
+
+      console.log(`[ChainCallbacks] Nuclei completed: ${findings.length} findings from ${targetList.length} targets, ${allErrors.length} errors`);
 
       return {
         findings,
         rawResult: {
-          status: "completed",
-          targetsScanned: config.targets.length,
+          status: allErrors.length === targetList.length ? "failed" : "completed",
+          targetsScanned: targetList.length,
           templateCategories,
           findingCount: findings.length,
           findings,
+          errors: allErrors.length > 0 ? allErrors : undefined,
         },
       };
     },

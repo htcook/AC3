@@ -62,7 +62,7 @@ export interface ZapConfig {
 }
 
 export const DEFAULT_ZAP_CONFIG: ZapConfig = {
-  baseUrl: process.env.ZAP_BASE_URL || "http://137.184.71.192:8090",
+  baseUrl: process.env.ZAP_BASE_URL || "http://159.223.152.190:8090",
   apiKey: process.env.ZAP_API_KEY || "",
   spiderMaxDepth: 5,
   spiderMaxChildren: 20,
@@ -1005,21 +1005,71 @@ Tech Stack: ${finding.targetTechStack?.join(", ") || "Unknown"}`,
 /** Track consecutive poll failures per scan to detect and recover from stalled scans */
 const pollFailureCounters = new Map<number, number>();
 
-// ─── Scan Lifecycle Functions ───────────────────────────────────────────────
+// ─── ZAP Auto-Recovery ──────────────────────────────────────────────────────
+
+/** Last time ZAP was restarted (prevent restart loops) */
+let lastZapRestart = 0;
+const ZAP_RESTART_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between restarts
+
+/**
+ * Restart ZAP Docker container via SSH to the scan server.
+ * Used when ZAP becomes unresponsive (memory leak, hung process).
+ */
+async function restartZapDocker(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastZapRestart < ZAP_RESTART_COOLDOWN_MS) {
+    console.warn(`[ZAP Recovery] Restart cooldown active (${Math.round((ZAP_RESTART_COOLDOWN_MS - (now - lastZapRestart)) / 1000)}s remaining). Skipping restart.`);
+    return false;
+  }
+
+  try {
+    const { executeViaChildProcessSSH } = await import("./scan-server-executor");
+    console.log(`[ZAP Recovery] Restarting ZAP Docker container via SSH...`);
+    const result = await executeViaChildProcessSSH("docker restart zap", 60);
+    if (result.exitCode === 0) {
+      lastZapRestart = Date.now();
+      console.log(`[ZAP Recovery] ZAP container restarted successfully. Waiting for startup...`);
+      // Wait for ZAP to fully start (typically 30-60s for addon loading)
+      await new Promise(r => setTimeout(r, 60000));
+      return true;
+    } else {
+      console.error(`[ZAP Recovery] Docker restart failed: exit=${result.exitCode} ${result.stderr}`);
+      return false;
+    }
+  } catch (err: any) {
+    console.error(`[ZAP Recovery] Failed to restart ZAP: ${err.message}`);
+    return false;
+  }
+}
+
+// ─── Scan Lifecycle Functions ─────────────────────────────────────────────────────
 
 /**
  * Check if ZAP is reachable and return version info.
+ * If ZAP is unresponsive, attempts auto-restart of the Docker container.
  */
 export async function checkZapHealth(config?: Partial<ZapConfig>): Promise<{
   available: boolean;
   version?: string;
   error?: string;
+  restarted?: boolean;
 }> {
   const cfg = { ...DEFAULT_ZAP_CONFIG, ...config };
   try {
     const result = await zapRequest("/JSON/core/view/version/", {}, cfg);
     return { available: true, version: result.version };
   } catch (err: any) {
+    console.warn(`[ZAP Health] ZAP unreachable at ${cfg.baseUrl}: ${err.message}. Attempting auto-restart...`);
+    const restarted = await restartZapDocker();
+    if (restarted) {
+      // Verify ZAP is back
+      try {
+        const result = await zapRequest("/JSON/core/view/version/", {}, cfg);
+        return { available: true, version: result.version, restarted: true };
+      } catch (retryErr: any) {
+        return { available: false, error: `ZAP still unreachable after restart: ${retryErr.message}`, restarted: true };
+      }
+    }
     return { available: false, error: err.message };
   }
 }
@@ -1300,6 +1350,17 @@ export async function startScan(params: {
   if (!db) throw new Error("Database unavailable");
 
   const cfg = { ...DEFAULT_ZAP_CONFIG, ...params.config };
+
+  // ── Pre-scan health check: ensure ZAP is responsive before starting ──
+  // ZAP v2.17.0 is known to become unresponsive after extended uptime (memory leak).
+  // This check detects the issue early and auto-restarts the Docker container.
+  const health = await checkZapHealth(params.config);
+  if (!health.available) {
+    throw new Error(`ZAP is not available: ${health.error}. Please check the ZAP Docker container on the scan server.`);
+  }
+  if (health.restarted) {
+    console.log(`[ZAP startScan] ZAP was auto-restarted before scan. Version: ${health.version}`);
+  }
 
   // Validate target URL
   let parsedUrl: URL;
@@ -2099,9 +2160,26 @@ export async function pollScanProgress(scanId: number, config?: Partial<ZapConfi
     const failures = (pollFailureCounters.get(scanId) || 0) + 1;
     pollFailureCounters.set(scanId, failures);
 
-    const MAX_POLL_FAILURES = 5; // After 5 consecutive failures (~75s at 15s intervals), mark as error
+    // At 3 consecutive failures, attempt ZAP auto-restart before giving up
+    if (failures === 3) {
+      console.warn(`[ZAP pollScanProgress] Scan #${scanId}: 3 consecutive failures. Attempting ZAP auto-restart...`);
+      const restarted = await restartZapDocker();
+      if (restarted) {
+        console.log(`[ZAP pollScanProgress] Scan #${scanId}: ZAP restarted. Resetting failure counter.`);
+        pollFailureCounters.set(scanId, 0);
+        return {
+          status: scan.status,
+          spiderProgress: scan.spiderProgress || 0,
+          activeScanProgress: scan.activeScanProgress || 0,
+          urlsFound: scan.urlsDiscovered || 0,
+          alertCounts: JSON.parse(scan.alertCounts || '{"high":0,"medium":0,"low":0,"info":0}'),
+        };
+      }
+    }
+
+    const MAX_POLL_FAILURES = 8; // After 8 consecutive failures (~120s at 15s intervals), mark as error
     if (failures >= MAX_POLL_FAILURES) {
-      console.error(`[ZAP pollScanProgress] Scan #${scanId}: ${failures} consecutive failures. Marking as error.`);
+      console.error(`[ZAP pollScanProgress] Scan #${scanId}: ${failures} consecutive failures (including restart attempt). Marking as error.`);
       try {
         const db2 = await getDb();
         if (db2) {
