@@ -148,6 +148,13 @@
       "when": 1776173939559,
       "tag": "0020_noisy_kulan_gath",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1776200443200,
+      "tag": "0021_wooden_green_goblin",
+      "breakpoints": true
     }
   ]
 }

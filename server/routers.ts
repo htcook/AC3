@@ -226,6 +226,7 @@ import { prowlerIntegrationRouter } from "./routers/prowler-integration";
 import { trivyIntegrationRouter } from "./routers/trivy-integration";
 import { cloudResourceEnumRouter } from "./routers/cloud-resource-enum";
 import { scoutsuiteIntegrationRouter } from "./routers/scoutsuite-integration";
+import { cspmDashboardRouter } from "./routers/cspm-dashboard";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -618,6 +619,7 @@ export const appRouter = router({
   cloudResourceEnum: cloudResourceEnumRouter,
   // ─── ScoutSuite Multi-Cloud Security Auditing (AWS, Azure, GCP, DO, Alibaba, Oracle) ──
   scoutsuiteIntegration: scoutsuiteIntegrationRouter,
+  cspmDashboard: cspmDashboardRouter,
 });
 export type AppRouter = typeof appRouter;
 

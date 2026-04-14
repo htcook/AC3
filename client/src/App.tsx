@@ -279,6 +279,7 @@ const ReviewQueue = lazyWithRetry(() => import("./pages/ReviewQueue"));
 const JobQueueDashboard = lazyWithRetry(() => import("./pages/JobQueueDashboard"));
 const SocIntegrationHub = lazyWithRetry(() => import("./pages/SocIntegrationHub"));
 const CloudWorkloadTesting = lazyWithRetry(() => import("./pages/CloudWorkloadTesting"));
+const CspmDashboard = lazyWithRetry(() => import("./pages/CspmDashboard"));
 const LlmReliabilityDashboard = lazyWithRetry(() => import("./pages/LlmReliabilityDashboard"));
 const AgentInstallerGenerator = lazyWithRetry(() => import("./pages/AgentInstallerGenerator"));
 const MsspAnalyticsDashboard = lazyWithRetry(() => import("./pages/MsspAnalyticsDashboard"));
@@ -1085,6 +1086,9 @@ function Router() {
         </Route>
         <Route path="/cloud-workload-testing">
           <ProtectedRoute component={CloudWorkloadTesting} />
+        </Route>
+        <Route path="/cspm-dashboard">
+          <ProtectedRoute component={CspmDashboard} />
         </Route>
         <Route path="/llm-reliability">
           <ProtectedRoute component={LlmReliabilityDashboard} />

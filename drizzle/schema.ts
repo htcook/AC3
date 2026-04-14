@@ -1516,9 +1516,9 @@ export const cloudCredentials = mysqlTable("cloud_credentials", {
 	id: int().autoincrement().notNull(),
 	providerId: int("provider_id"),
 	engagementId: int("engagement_id"),
-	credProvider: mysqlEnum("cred_provider", ['aws','azure','gcp']).notNull(),
+	credProvider: mysqlEnum("cred_provider", ['aws','azure','gcp','digitalocean','alibaba','oracle']).notNull(),
 	credentialName: varchar("credential_name", { length: 255 }).notNull(),
-	credentialType: mysqlEnum("credential_type", ['aws_access_key','aws_assume_role','aws_session_token','azure_client_secret','azure_managed_identity','azure_cli','gcp_service_account_key','gcp_workload_identity','gcp_oauth']).notNull(),
+	credentialType: mysqlEnum("credential_type", ['aws_access_key','aws_assume_role','aws_session_token','azure_client_secret','azure_managed_identity','azure_cli','gcp_service_account_key','gcp_workload_identity','gcp_oauth','do_api_token','alibaba_access_key','oracle_api_key']).notNull(),
 	encryptedData: text("encrypted_data").notNull(),
 	encryptionIv: varchar("encryption_iv", { length: 64 }).notNull(),
 	encryptionTag: varchar("encryption_tag", { length: 64 }).notNull(),
@@ -1543,7 +1543,7 @@ export const cloudEnumerationRuns = mysqlTable("cloud_enumeration_runs", {
 	credentialId: int("credential_id").notNull(),
 	enumProviderId: int("enum_provider_id"),
 	enumEngagementId: int("enum_engagement_id"),
-	enumProvider: mysqlEnum("enum_provider", ['aws','azure','gcp']).notNull(),
+	enumProvider: mysqlEnum("enum_provider", ['aws','azure','gcp','digitalocean','alibaba','oracle']).notNull(),
 	enumStatus: mysqlEnum("enum_status", ['pending','running','completed','error','partial']).default('pending').notNull(),
 	enumScope: json("enum_scope"),
 	totalUsersFound: int("total_users_found").default(0),
@@ -1594,7 +1594,7 @@ export const cloudMisconfigurations = mysqlTable("cloud_misconfigurations", {
 export const cloudProviders = mysqlTable("cloud_providers", {
 	id: int().autoincrement().notNull(),
 	engagementId: int("engagement_id"),
-	provider: mysqlEnum(['aws','azure','gcp']).notNull(),
+	provider: mysqlEnum(['aws','azure','gcp','digitalocean','alibaba','oracle']).notNull(),
 	accountId: varchar("account_id", { length: 255 }).notNull(),
 	accountAlias: varchar("account_alias", { length: 255 }),
 	region: varchar({ length: 64 }),
@@ -7604,3 +7604,102 @@ export type InsertWebhookEndpoint = typeof webhookEndpoints.$inferInsert;
 export type SelectWebhookEndpoint = typeof webhookEndpoints.$inferSelect;
 export type InsertWebhookEvent = typeof webhookEvents.$inferInsert;
 export type SelectWebhookEvent = typeof webhookEvents.$inferSelect;
+
+
+// ─── CSPM Scan Runs ─────────────────────────────────────────────────────────
+export const cspmScanRuns = mysqlTable("cspm_scan_runs", {
+	id: int().autoincrement().notNull(),
+	credentialId: int("credential_id"),
+	engagementId: int("engagement_id"),
+	scanTool: mysqlEnum("scan_tool", ['prowler','scoutsuite','trivy']).notNull(),
+	scanProvider: mysqlEnum("scan_provider", ['aws','azure','gcp','digitalocean','alibaba','oracle','kubernetes','docker','filesystem']).notNull(),
+	scanStatus: mysqlEnum("scan_status", ['pending','running','completed','error','cancelled']).default('pending').notNull(),
+	scanScope: json("scan_scope"),
+	totalFindings: int("total_findings").default(0),
+	criticalCount: int("critical_count").default(0),
+	highCount: int("high_count").default(0),
+	mediumCount: int("medium_count").default(0),
+	lowCount: int("low_count").default(0),
+	infoCount: int("info_count").default(0),
+	passCount: int("pass_count").default(0),
+	failCount: int("fail_count").default(0),
+	complianceScore: int("compliance_score"),
+	complianceFramework: varchar("compliance_framework", { length: 128 }),
+	scanDurationMs: int("scan_duration_ms"),
+	rawOutputUrl: text("raw_output_url"),
+	errorMessage: text("error_message"),
+	triggeredBy: varchar("triggered_by", { length: 255 }),
+	scanStartedAt: bigint("scan_started_at", { mode: "number" }),
+	scanCompletedAt: bigint("scan_completed_at", { mode: "number" }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("cspm_scan_tool_idx").on(table.scanTool),
+	index("cspm_scan_provider_idx").on(table.scanProvider),
+	index("cspm_scan_status_idx").on(table.scanStatus),
+	index("cspm_credential_idx").on(table.credentialId),
+	index("cspm_created_idx").on(table.createdAt),
+]);
+
+// ─── CSPM Findings ──────────────────────────────────────────────────────────
+export const cspmFindings = mysqlTable("cspm_findings", {
+	id: int().autoincrement().notNull(),
+	scanRunId: int("scan_run_id").notNull(),
+	scanTool: mysqlEnum("scan_tool", ['prowler','scoutsuite','trivy']).notNull(),
+	findingUid: varchar("finding_uid", { length: 512 }),
+	severity: mysqlEnum(['critical','high','medium','low','info']).default('medium').notNull(),
+	status: mysqlEnum(['fail','pass','warning','manual','not_available']).default('fail').notNull(),
+	provider: varchar({ length: 64 }).notNull(),
+	service: varchar({ length: 128 }),
+	region: varchar({ length: 64 }),
+	resourceArn: varchar("resource_arn", { length: 512 }),
+	resourceName: varchar("resource_name", { length: 255 }),
+	resourceType: varchar("resource_type", { length: 128 }),
+	checkId: varchar("check_id", { length: 255 }),
+	checkTitle: varchar("check_title", { length: 512 }),
+	description: text(),
+	riskDetails: text("risk_details"),
+	remediation: text(),
+	complianceFrameworks: json("compliance_frameworks"),
+	categories: json(),
+	rawFinding: json("raw_finding"),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("cspmf_scan_run_idx").on(table.scanRunId),
+	index("cspmf_severity_idx").on(table.severity),
+	index("cspmf_status_idx").on(table.status),
+	index("cspmf_check_id_idx").on(table.checkId),
+	index("cspmf_provider_idx").on(table.provider),
+]);
+
+// ─── Container Vulnerabilities ──────────────────────────────────────────────
+export const containerVulnerabilities = mysqlTable("container_vulnerabilities", {
+	id: int().autoincrement().notNull(),
+	scanRunId: int("scan_run_id").notNull(),
+	imageName: varchar("image_name", { length: 512 }).notNull(),
+	imageTag: varchar("image_tag", { length: 128 }),
+	imageDigest: varchar("image_digest", { length: 128 }),
+	vulnId: varchar("vuln_id", { length: 64 }).notNull(),
+	severity: mysqlEnum(['critical','high','medium','low','unknown']).default('unknown').notNull(),
+	pkgName: varchar("pkg_name", { length: 255 }).notNull(),
+	installedVersion: varchar("installed_version", { length: 128 }),
+	fixedVersion: varchar("fixed_version", { length: 128 }),
+	title: text(),
+	description: text(),
+	primaryUrl: text("primary_url"),
+	dataSource: varchar("data_source", { length: 128 }),
+	publishedDate: varchar("published_date", { length: 32 }),
+	cvssScore: varchar("cvss_score", { length: 10 }),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("cv_scan_run_idx").on(table.scanRunId),
+	index("cv_severity_idx").on(table.severity),
+	index("cv_vuln_id_idx").on(table.vulnId),
+	index("cv_image_idx").on(table.imageName),
+]);
+
+export type InsertCspmScanRun = typeof cspmScanRuns.$inferInsert;
+export type SelectCspmScanRun = typeof cspmScanRuns.$inferSelect;
+export type InsertCspmFinding = typeof cspmFindings.$inferInsert;
+export type SelectCspmFinding = typeof cspmFindings.$inferSelect;
+export type InsertContainerVulnerability = typeof containerVulnerabilities.$inferInsert;
+export type SelectContainerVulnerability = typeof containerVulnerabilities.$inferSelect;

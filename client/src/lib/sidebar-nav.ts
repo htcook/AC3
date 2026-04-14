@@ -29,6 +29,7 @@ import {
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
   Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
   Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
+  ShieldAlert, Container,
 } from "lucide-react";
 
 export type UserRole = 'admin' | 'operator' | 'analyst' | 'team_lead' | 'executive' | 'client' | 'soc' | 'viewer';
@@ -374,6 +375,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Cloud Attack Paths", path: "/cloud-attack-paths", icon: Cloud },
       { label: "Cloud Credentials", path: "/cloud-credentials", icon: Key },
       { label: "Cloud Workload Testing", path: "/cloud-workload-testing", icon: Cloud },
+      { label: "CSPM Dashboard", path: "/cspm-dashboard", icon: ShieldAlert },
       { label: "ICS/OT Security", path: "/ics-ot-security", icon: Factory },
     ],
   },
