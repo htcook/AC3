@@ -330,6 +330,7 @@ const VersionThresholds = lazyWithRetry(() => import("./pages/VersionThresholds"
 const CustomerPortalSelfService = lazyWithRetry(() => import("./pages/CustomerPortalSelfService"));
 const RoeDocUpload = lazyWithRetry(() => import("./pages/RoeDocUpload"));
 const OpsViewer = lazyWithRetry(() => import("./pages/OpsViewer"));
+const DocTracker = lazyWithRetry(() => import("./pages/DocTracker"));
 
 // ─── Loading fallback ────────────────────────────────────────────────────────
 function PageLoader() {
@@ -1207,6 +1208,9 @@ function Router() {
         </Route>
         <Route path="/my-portal">
           <ProtectedRoute component={CustomerPortalSelfService} pageName="CustomerPortalSelfService" />
+        </Route>
+        <Route path="/doc-tracker">
+          <ProtectedRoute component={DocTracker} pageName="DocTracker" />
         </Route>
         <Route path="/ops-viewer">
           {/* TODO: restore ProtectedRoute after testing */}

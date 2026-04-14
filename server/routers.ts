@@ -220,6 +220,7 @@ import { testPlanGeneratorRouter } from "./routers/test-plan-generator";
 import { engagementResultsRouter } from "./routers/engagement-results";
 import { zeroDayRouter } from "./routers/zero-day";
 import { versionThresholdsRouter } from "./routers/version-thresholds";
+import { docTrackerRouter } from "./routers/doc-tracker";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -600,6 +601,8 @@ export const appRouter = router({
   exploitAttackGraph: exploitAttackGraphRouter,
   // ─── Version Threshold Auto-Refresh (NVD CVE + DI Scan Learning) ──
   versionThresholds: versionThresholdsRouter,
+  // ─── Documentation Version Tracker (Auto-Update Detection) ──
+  docTracker: docTrackerRouter,
 });
 export type AppRouter = typeof appRouter;
 

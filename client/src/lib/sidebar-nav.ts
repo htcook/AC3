@@ -537,6 +537,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Update Manager", path: "/admin/updates", icon: Package, roles: ["admin"] },
       { label: "Version Thresholds", path: "/admin/version-thresholds", icon: Shield, roles: ["admin"] },
       { label: "Customer Portal", path: "/my-portal", icon: Globe },
+      { label: "Doc Tracker", path: "/doc-tracker", icon: BookOpen, roles: ["admin", "team_lead"] },
     ],
   },
 ];
