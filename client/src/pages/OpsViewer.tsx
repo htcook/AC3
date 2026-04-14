@@ -6,7 +6,7 @@ import { useDIScanLiveStream } from "@/hooks/useDIScanLiveStream";
 import { BattlespaceEngine, type EngineCallbacks, type EngineStats } from "@/lib/battlespace-engine";
 import { transformEngagementGraph, transformDIScan } from "@/lib/battlespace-transform";
 import type { BattlespaceNode, BattlespaceMode, ZoomLevel, KillChainPhase } from "@/lib/battlespace-types";
-import { NODE_VISUAL_CONFIG, SEVERITY_COLORS, KILL_CHAIN_COLORS, EDGE_VISUAL_CONFIG } from "@/lib/battlespace-types";
+import { NODE_VISUAL_CONFIG, SEVERITY_COLORS, KILL_CHAIN_COLORS, EDGE_VISUAL_CONFIG, TECH_ICONS, isVersionOutdated } from "@/lib/battlespace-types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -185,14 +185,31 @@ function NodeDetailPanel({
           </div>
         )}
 
-        {/* Technologies */}
+        {/* Technologies with version badges */}
         {node.technologies && node.technologies.length > 0 && (
           <div>
             <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">TECH STACK</div>
             <div className="flex flex-wrap gap-1">
-              {node.technologies.map((t, i) => (
-                <span key={i} className="px-1.5 py-0.5 bg-[#111820] border border-[#2D4A6F] text-[9px] uppercase tracking-wider text-gray-300">{t}</span>
-              ))}
+              {node.technologies.map((t, i) => {
+                const key = t.toLowerCase();
+                const tech = TECH_ICONS[key] || TECH_ICONS.default;
+                const ver = node.technologyVersions?.[t] || node.technologyVersions?.[key] || "";
+                const outdated = ver ? isVersionOutdated(key, ver) : false;
+                return (
+                  <span
+                    key={i}
+                    className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider border ${
+                      outdated
+                        ? "bg-[#2A0808] border-[#FF0040] text-red-400"
+                        : "bg-[#111820] border-[#2D4A6F] text-gray-300"
+                    }`}
+                    style={{ borderLeftColor: tech.color, borderLeftWidth: 3 }}
+                  >
+                    {tech.label}{ver ? ` v${ver}` : ""}
+                    {outdated && <span className="ml-1 text-red-500" title="Outdated version">\u26A0</span>}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
@@ -330,9 +347,112 @@ function LegendPanel({ visible }: { visible: boolean }) {
   );
 }
 
-// ── Attack Path Selector ────────────────────────────────────────────
-function PathSelector({
-  paths,
+// ── Tech Stack Summary Panel ────────────────────────────────────────────────────
+function TechSummaryPanel({ visible, engineRef }: {
+  visible: boolean;
+  engineRef: React.RefObject<BattlespaceEngine | null>;
+}) {
+  if (!visible) return null;
+
+  // Aggregate tech data from all nodes
+  const nodes = engineRef.current?.getNodes() || [];
+  const techCounts: Record<string, { count: number; versions: Set<string>; outdated: boolean; assets: string[] }> = {};
+  let totalTechs = 0;
+  let outdatedCount = 0;
+
+  for (const n of nodes) {
+    if (!n.technologies || n.technologies.length === 0) continue;
+    for (const t of n.technologies) {
+      const key = t.toLowerCase();
+      if (!techCounts[key]) {
+        techCounts[key] = { count: 0, versions: new Set(), outdated: false, assets: [] };
+      }
+      techCounts[key].count++;
+      techCounts[key].assets.push(n.label);
+      totalTechs++;
+
+      // Check versions
+      const ver = n.technologyVersions?.[t] || n.technologyVersions?.[key] || "";
+      if (ver) {
+        techCounts[key].versions.add(ver);
+        if (isVersionOutdated(key, ver)) {
+          techCounts[key].outdated = true;
+          outdatedCount++;
+        }
+      }
+    }
+  }
+
+  // Sort: outdated first, then by count descending
+  const sorted = Object.entries(techCounts).sort(([, a], [, b]) => {
+    if (a.outdated !== b.outdated) return a.outdated ? -1 : 1;
+    return b.count - a.count;
+  });
+
+  const uniqueTechs = sorted.length;
+
+  return (
+    <div className="absolute bottom-3 right-3 z-20 bg-[#0A0E14]/95 border border-[#1A2332] p-3 font-mono text-[9px] w-[260px] max-h-[50vh] overflow-y-auto">
+      <div className="uppercase tracking-widest text-gray-500 mb-2 text-[10px] font-bold flex items-center gap-1">
+        <Cpu size={10} className="text-cyan-400" />
+        TECH STACK SUMMARY
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-1 mb-3">
+        <div className="bg-[#111820] p-1.5 border border-[#1A2332] text-center">
+          <div className="text-[8px] text-gray-500">UNIQUE</div>
+          <div className="text-cyan-400 font-bold text-sm">{uniqueTechs}</div>
+        </div>
+        <div className="bg-[#111820] p-1.5 border border-[#1A2332] text-center">
+          <div className="text-[8px] text-gray-500">TOTAL</div>
+          <div className="text-white font-bold text-sm">{totalTechs}</div>
+        </div>
+        <div className={`p-1.5 border text-center ${outdatedCount > 0 ? "bg-[#2A0808] border-[#FF0040]" : "bg-[#111820] border-[#1A2332]"}`}>
+          <div className="text-[8px] text-gray-500">OUTDATED</div>
+          <div className={`font-bold text-sm ${outdatedCount > 0 ? "text-red-400" : "text-green-400"}`}>{outdatedCount}</div>
+        </div>
+      </div>
+
+      {/* Tech list */}
+      {sorted.length === 0 ? (
+        <div className="text-gray-600 text-center py-4">No technologies detected</div>
+      ) : (
+        <div className="space-y-1">
+          {sorted.map(([key, data]) => {
+            const tech = TECH_ICONS[key] || TECH_ICONS.default;
+            const versions = Array.from(data.versions);
+            return (
+              <div
+                key={key}
+                className={`flex items-center gap-2 px-1.5 py-1 border ${
+                  data.outdated ? "bg-[#2A0808]/50 border-[#FF0040]/40" : "bg-[#111820]/50 border-[#1A2332]"
+                }`}
+              >
+                <span className="w-4 text-center" style={{ color: tech.color }}>{tech.label}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-300 uppercase truncate">{key}</span>
+                    {versions.length > 0 && (
+                      <span className={`text-[8px] ${data.outdated ? "text-red-400" : "text-gray-500"}`}>
+                        v{versions.join(", v")}
+                      </span>
+                    )}
+                    {data.outdated && <span className="text-red-500 text-[8px]">\u26A0</span>}
+                  </div>
+                </div>
+                <span className="text-gray-500 tabular-nums">{data.count}x</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Attack Path Selector ────────────────────────────────────────────────────────
+function PathSelector({ paths,
   selectedPath,
   onSelect,
 }: {
@@ -427,6 +547,7 @@ export default function Battlespace() {
   const [showTopologyFilters, setShowTopologyFilters] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showClusters, setShowClusters] = useState(true);
+  const [showTechSummary, setShowTechSummary] = useState(false);
   const [topologyLayers, setTopologyLayers] = useState<Record<string, boolean>>({
     proxy: true,
     gateway: true,
@@ -520,7 +641,24 @@ export default function Battlespace() {
       if (node) setHoveredNode({ node, x, y });
       else setHoveredNode(null);
     },
-    onNodeClick: (node) => setSelectedNode(node),
+    onNodeClick: (node) => {
+      setSelectedNode(node);
+      // When a vulnerability node is selected, highlight its affected tech on the parent asset
+      if (node.type === "vulnerability" && node.affectedTechnology && engineRef.current) {
+        // Find the parent asset by looking at edges
+        const edges = engineRef.current.getEdges();
+        const parentEdge = edges.find((e: any) => {
+          const tgt = typeof e.target === "string" ? e.target : e.target?.id;
+          return tgt === node.id;
+        });
+        const parentId = parentEdge ? (typeof parentEdge.source === "string" ? parentEdge.source : (parentEdge.source as any)?.id) : null;
+        if (parentId) {
+          engineRef.current.highlightTechOnAsset(parentId, node.affectedTechnology);
+        }
+      } else if (engineRef.current) {
+        engineRef.current.highlightTechOnAsset(null, null);
+      }
+    },
     onZoomChange: (_scale, _level) => {},
     onStatsUpdate: (s) => setStats(s),
   }), []);
@@ -923,6 +1061,15 @@ export default function Battlespace() {
             >
               <Network size={12} />
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 w-7 p-0 rounded-none border-[#1A2332] ${showTechSummary ? "bg-[#1A2332] text-cyan-400" : "bg-transparent"}`}
+              onClick={() => setShowTechSummary(!showTechSummary)}
+              title="Tech Stack Summary"
+            >
+              <Cpu size={12} />
+            </Button>
             <div className="h-6 w-px bg-[#1A2332]" />
             <VisualEffectToggles options={engineOptions} onToggle={handleToggle} />
           </div>
@@ -1015,6 +1162,7 @@ export default function Battlespace() {
             performance={graphQuery.data?.performance}
           />
           <LegendPanel visible={showLegend} />
+          <TechSummaryPanel visible={showTechSummary} engineRef={engineRef} />
 
           {/* Network Topology Filters */}
           {showTopologyFilters && (
@@ -1074,7 +1222,7 @@ export default function Battlespace() {
               </div>
             </div>
           )}
-          <NodeDetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />
+          <NodeDetailPanel node={selectedNode} onClose={() => { setSelectedNode(null); engineRef.current?.highlightTechOnAsset(null, null); }} />
           <PathSelector
             paths={reasoningMerged && reasoningQuery.data?.paths ? reasoningQuery.data.paths : (graphQuery.data?.paths || [])}
             selectedPath={selectedPath}

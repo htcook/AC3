@@ -36,6 +36,7 @@ import {
   SEVERITY_COLORS,
   KILL_CHAIN_COLORS,
   TECH_ICONS,
+  isVersionOutdated,
   DEFENSE_ICONS,
   PLATFORM_ICONS,
   getZoomLevel,
@@ -715,6 +716,30 @@ export class BattlespaceEngine {
 
   getNodeCount(): number { return this.simNodes.length; }
   getEdgeCount(): number { return this.simEdges.length; }
+
+  /** Return a readonly snapshot of all graph nodes */
+  getNodes(): readonly BattlespaceNode[] { return this.simNodes; }
+  /** Return a readonly snapshot of all graph edges */
+  getEdges(): readonly SimEdge[] { return this.simEdges; }
+
+  // ── Tech Highlight API ─────────────────────────────────────────
+  private _highlightedTech: string | null = null;
+  private _highlightedAssetId: string | null = null;
+
+  /**
+   * Highlight a specific technology on a specific asset node.
+   * When a vulnerability node is selected, call this with the
+   * parent asset ID and the affected technology name.
+   */
+  highlightTechOnAsset(assetId: string | null, techName: string | null): void {
+    this._highlightedAssetId = assetId;
+    this._highlightedTech = techName ? techName.toLowerCase() : null;
+  }
+
+  /** Get the currently highlighted tech (for external UI) */
+  getHighlightedTech(): { assetId: string | null; techName: string | null } {
+    return { assetId: this._highlightedAssetId, techName: this._highlightedTech };
+  }
 
   // ── Options API (for visual effect toggles) ──────────────────────
   setOption<K extends keyof EngineOptions>(key: K, value: Required<EngineOptions>[K]): void {
@@ -1695,15 +1720,24 @@ export class BattlespaceEngine {
    * Draw orbiting tech-stack pill badges around an asset node.
    * Each pill is color-coded by technology, connected to the node
    * with a thin line, and slowly orbits for visual appeal.
+   * Supports: version display, outdated version flagging, and
+   * highlight-on-select when a vulnerability targets a specific tech.
    */
   private drawTechOrbit(ctx: CanvasRenderingContext2D, n: SimNode, r: number): void {
     if (!n.x || !n.y) return;
     const techs = (n.technologies || []).filter(Boolean);
     const services = (n.exposedServices || []).slice(0, 3);
     const hasPlatform = !!n.platform;
+    const versions = n.technologyVersions || {};
 
     // Build badge list: tech pills + platform + services
-    interface Badge { label: string; color: string; fullName: string }
+    interface Badge {
+      label: string;
+      color: string;
+      fullName: string;
+      version?: string;
+      isOutdated?: boolean;
+    }
     const badges: Badge[] = [];
 
     // Tech stack (max 6 at MICRO, 4 at MESO)
@@ -1711,7 +1745,10 @@ export class BattlespaceEngine {
     for (const t of techs.slice(0, maxTechs)) {
       const key = t.toLowerCase();
       const tech = TECH_ICONS[key] || TECH_ICONS.default;
-      badges.push({ label: tech.label, color: tech.color, fullName: t });
+      // Look up version from multiple possible key formats
+      const ver = versions[t] || versions[key] || versions[t.toLowerCase()] || "";
+      const outdated = ver ? isVersionOutdated(key, ver) : false;
+      badges.push({ label: tech.label, color: tech.color, fullName: t, version: ver || undefined, isOutdated: outdated });
     }
 
     // Platform badge
@@ -1733,6 +1770,10 @@ export class BattlespaceEngine {
 
     if (badges.length === 0) return;
 
+    // Check if this node has a highlighted tech
+    const isThisAssetHighlighted = this._highlightedAssetId === n.id;
+    const highlightedTechKey = this._highlightedTech;
+
     // Orbit geometry
     const orbitR = r + 22 + (badges.length > 4 ? 6 : 0);
     const angleStep = (Math.PI * 2) / badges.length;
@@ -1745,27 +1786,37 @@ export class BattlespaceEngine {
       const bx = n.x + Math.cos(angle) * orbitR;
       const by = n.y + Math.sin(angle) * orbitR;
 
+      // Is this badge the highlighted tech?
+      const isBadgeHighlighted = isThisAssetHighlighted &&
+        highlightedTechKey &&
+        badge.fullName.toLowerCase().includes(highlightedTechKey);
+
+      // Dim non-highlighted badges when a tech is highlighted on this asset
+      const dimmed = isThisAssetHighlighted && highlightedTechKey && !isBadgeHighlighted;
+      const alphaMultiplier = dimmed ? 0.25 : 1;
+
       // Connecting line from node edge to badge
       const lineStartX = n.x + Math.cos(angle) * (r + 2);
       const lineStartY = n.y + Math.sin(angle) * (r + 2);
-      ctx.strokeStyle = rgbaStr(badge.color, 0.25);
-      ctx.lineWidth = 0.8;
-      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = rgbaStr(isBadgeHighlighted ? "#FFFFFF" : badge.color, (isBadgeHighlighted ? 0.8 : 0.25) * alphaMultiplier);
+      ctx.lineWidth = isBadgeHighlighted ? 1.5 : 0.8;
+      ctx.setLineDash(isBadgeHighlighted ? [] : [2, 3]);
       ctx.beginPath();
       ctx.moveTo(lineStartX, lineStartY);
       ctx.lineTo(bx, by);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Pill background
-      const pillW = Math.max(ctx.measureText(badge.label).width + 10, 22);
-      const pillH = 14;
-      const pillR = pillH / 2;
-
-      // Measure text for pill width
+      // Build display text: label + version at MICRO zoom
       ctx.font = "bold 9px 'JetBrains Mono', monospace";
-      const textW = ctx.measureText(badge.label).width;
-      const actualPillW = Math.max(textW + 10, 22);
+      let displayText = badge.label;
+      if (badge.version && this.currentZoomLevel === "MICRO") {
+        displayText = `${badge.label} ${badge.version}`;
+      }
+      const textW = ctx.measureText(displayText).width;
+      const pillH = badge.isOutdated ? 18 : 14;
+      const pillR = pillH / 2;
+      const actualPillW = Math.max(textW + 12, 24);
 
       // Pill shape (rounded rect)
       ctx.beginPath();
@@ -1776,26 +1827,47 @@ export class BattlespaceEngine {
       ctx.arc(bx - actualPillW / 2 + pillR, by, pillR, Math.PI / 2, -Math.PI / 2);
       ctx.closePath();
 
-      // Fill with dark bg + colored border
-      ctx.fillStyle = "rgba(10,14,20,0.92)";
+      // Fill: highlighted = bright, outdated = red-tinted, normal = dark
+      if (isBadgeHighlighted) {
+        ctx.fillStyle = rgbaStr(badge.color, 0.25);
+      } else if (badge.isOutdated) {
+        ctx.fillStyle = "rgba(40,8,8,0.92)";
+      } else {
+        ctx.fillStyle = `rgba(10,14,20,${0.92 * alphaMultiplier})`;
+      }
       ctx.fill();
-      ctx.strokeStyle = rgbaStr(badge.color, 0.7);
-      ctx.lineWidth = 1.2;
+
+      // Border: highlighted = white, outdated = red, normal = tech color
+      const borderColor = isBadgeHighlighted ? "#FFFFFF" : badge.isOutdated ? "#FF0040" : badge.color;
+      ctx.strokeStyle = rgbaStr(borderColor, (isBadgeHighlighted ? 1 : 0.7) * alphaMultiplier);
+      ctx.lineWidth = isBadgeHighlighted ? 2 : 1.2;
       ctx.stroke();
 
-      // Subtle glow behind pill at MICRO zoom
-      if (this.currentZoomLevel === "MICRO" && this.options.glowEnabled) {
+      // Glow for highlighted or outdated badges
+      if (this.options.glowEnabled && (isBadgeHighlighted || badge.isOutdated)) {
+        ctx.shadowColor = isBadgeHighlighted ? "#FFFFFF" : "#FF0040";
+        ctx.shadowBlur = isBadgeHighlighted ? 10 : 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (this.currentZoomLevel === "MICRO" && this.options.glowEnabled) {
         ctx.shadowColor = badge.color;
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 4;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
 
       // Text label
-      ctx.fillStyle = badge.color;
+      ctx.fillStyle = rgbaStr(badge.isOutdated ? "#FF4444" : badge.color, alphaMultiplier);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(badge.label, bx, by);
+      ctx.fillText(displayText, bx, by);
+
+      // Outdated warning indicator (small ⚠ above pill)
+      if (badge.isOutdated && this.currentZoomLevel === "MICRO") {
+        ctx.font = "bold 8px sans-serif";
+        ctx.fillStyle = rgbaStr("#FF0040", alphaMultiplier);
+        ctx.fillText("\u26A0", bx + actualPillW / 2 + 2, by - pillH / 2 - 1);
+      }
     }
   }
 

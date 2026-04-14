@@ -68,6 +68,7 @@ export interface BattlespaceNode {
   priorityScore?: number;       // 0-1, maps to size + glow intensity
   platform?: PlatformType;
   technologies?: string[];      // Tech stack badges
+  technologyVersions?: Record<string, string>; // Tech name → version string
   protocols?: ProtocolType[];   // Protocol badges
   // Defense-specific
   defenseType?: string;         // waf | firewall | edr | ids | siem
@@ -367,10 +368,83 @@ export function getZoomLevel(scale: number): ZoomLevel {
   return "MICRO";
 }
 
-// ── Ops Viewer Mode ────────────────────────────────────────────────
+// ── Version Outdated Detection ──────────────────────────────────────────────────────────
+// Minimum "safe" versions for common technologies. Anything below is flagged.
+// Uses semver-style comparison (major.minor.patch). Update periodically.
+export const KNOWN_MIN_SAFE_VERSIONS: Record<string, string> = {
+  // Web servers
+  nginx: "1.25.0",
+  apache: "2.4.58",
+  "apache http server": "2.4.58",
+  iis: "10.0",
+  lighttpd: "1.4.73",
+  caddy: "2.7.0",
+  // Languages / Runtimes
+  php: "8.2.0",
+  "node.js": "20.0.0",
+  nodejs: "20.0.0",
+  python: "3.11.0",
+  java: "17.0.0",
+  ruby: "3.2.0",
+  // Databases
+  mysql: "8.0.35",
+  mariadb: "10.11.0",
+  postgresql: "16.0",
+  mongodb: "7.0.0",
+  redis: "7.2.0",
+  // CMS
+  wordpress: "6.4.0",
+  drupal: "10.2.0",
+  joomla: "5.0.0",
+  // Frameworks
+  jquery: "3.7.0",
+  react: "18.0.0",
+  angular: "17.0.0",
+  vue: "3.4.0",
+  django: "5.0",
+  laravel: "11.0",
+  spring: "6.1.0",
+  express: "4.18.0",
+  // TLS / Crypto
+  openssl: "3.1.0",
+  // Mail
+  exchange: "2019.0",
+  postfix: "3.8.0",
+  // Containers
+  docker: "24.0.0",
+  kubernetes: "1.28.0",
+};
+
+/** Compare two semver-ish version strings. Returns -1 if a < b, 0 if equal, 1 if a > b */
+function compareSemver(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+  }
+  return 0;
+}
+
+/** Check if a technology version is outdated (below known minimum safe version) */
+export function isVersionOutdated(techKey: string, version: string): boolean {
+  const key = techKey.toLowerCase();
+  const minSafe = KNOWN_MIN_SAFE_VERSIONS[key];
+  if (!minSafe || !version) return false;
+  // Strip leading 'v' if present
+  const cleanVer = version.replace(/^v/i, "");
+  // Only compare if the version looks numeric
+  if (!/^\d/.test(cleanVer)) return false;
+  return compareSemver(cleanVer, minSafe) < 0;
+}
+
+// ── Ops Viewer Mode ────────────────────────────────────────────────────────────────
 export type BattlespaceMode = "engagement" | "di_scan";
 
-// ── Graph Transform Helpers ─────────────────────────────────────────
+// ── Graph Transform Helpers ─────────────────────────────────────────────
 export interface BattlespaceGraphData {
   nodes: BattlespaceNode[];
   edges: BattlespaceEdge[];

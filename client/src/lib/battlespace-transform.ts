@@ -618,6 +618,16 @@ export function transformDIScan(
       : [];
     const postureFindings = Array.isArray(asset.postureFindings) ? asset.postureFindings : [];
 
+    // Build technologyVersions map from detectedTechnologies or technologyVersions
+    const techVersions: Record<string, string> = {};
+    if (asset.technologyVersions && typeof asset.technologyVersions === "object") {
+      Object.assign(techVersions, asset.technologyVersions);
+    } else if (Array.isArray(asset.detectedTechnologies)) {
+      for (const dt of asset.detectedTechnologies) {
+        if (dt.name && dt.version) techVersions[dt.name] = dt.version;
+      }
+    }
+
     nodes.push({
       id: assetId,
       type: asset.assetType === "subdomain" ? "subdomain" : "host",
@@ -628,6 +638,7 @@ export function transformDIScan(
       priorityScore: (asset.missionImpactScore || asset.hybridRiskScore || 0) / 100,
       platform: (asset.platformType as PlatformType) || guessPlatform(asset.hostname, asset),
       technologies: techs,
+      technologyVersions: Object.keys(techVersions).length > 0 ? techVersions : undefined,
       protocols: guessProtocolsFromTech(techs),
     });
 
