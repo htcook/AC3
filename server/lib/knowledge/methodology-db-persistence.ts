@@ -10,7 +10,7 @@
  *   6. Feed methodology success rates into graduation scoring
  */
 
-import { db } from "../../db";
+import { getDb } from "../../db";
 import {
   exploitMethodologies,
   methodologyAttempts,
@@ -27,6 +27,8 @@ import type { ExploitMethodology } from "./exploit-methodology-knowledge";
  */
 export async function persistMethodology(methodology: ExploitMethodology): Promise<void> {
   try {
+    const db = await getDb();
+    if (!db) return;
     await db.insert(exploitMethodologies).values({
       id: methodology.id,
       vulnClass: methodology.vulnClass,
@@ -70,6 +72,8 @@ export async function updateMethodologyStats(
   attemptCount: number,
 ): Promise<void> {
   try {
+    const db = await getDb();
+    if (!db) return;
     await db.update(exploitMethodologies)
       .set({ weight, successCount, attemptCount, updatedAt: Date.now() })
       .where(eq(exploitMethodologies.id, methodologyId));
@@ -83,6 +87,8 @@ export async function updateMethodologyStats(
  */
 export async function loadLearnedMethodologies(): Promise<ExploitMethodology[]> {
   try {
+    const db = await getDb();
+    if (!db) return [];
     const rows = await db.select().from(exploitMethodologies)
       .where(eq(exploitMethodologies.source, 'learned'))
       .orderBy(desc(exploitMethodologies.weight));
@@ -137,6 +143,8 @@ export async function recordMethodologyAttempt(
   record: MethodologyAttemptRecord,
 ): Promise<number | null> {
   try {
+    const db = await getDb();
+    if (!db) return null;
     const [result] = await db.insert(methodologyAttempts).values({
       methodologyId: record.methodologyId || null,
       engagementId: record.engagementId || null,
@@ -168,6 +176,8 @@ export async function markAttemptAsTrainingSource(
   graduationImpact: number,
 ): Promise<void> {
   try {
+    const db = await getDb();
+    if (!db) return;
     await db.update(methodologyAttempts)
       .set({
         trainingExampleGenerated: 1,
@@ -195,6 +205,8 @@ export async function updatePerformanceStats(
   const now = Date.now();
 
   try {
+    const db = await getDb();
+    if (!db) return;
     // Try to update existing row
     const [existing] = await db.select().from(methodologyPerformance)
       .where(and(
@@ -295,7 +307,7 @@ export function generateMethodologyTrainingExample(
         ].filter(Boolean).join('\n'),
       },
     ],
-    quality: methodology ? 'high' : 'medium', // Methodology-guided = higher quality
+    quality: methodology ? 'high' : 'medium',
     qualityScore: methodology ? 0.95 : 0.75,
     metadata: {
       vulnClass: attempt.vulnClass,
@@ -326,6 +338,8 @@ export async function getMethodologyGraduationMetrics(
   methodologyGuidedExploitRate: number; // % of exploits that used a methodology
 }> {
   try {
+    const db = await getDb();
+    if (!db) throw new Error('DB not available');
     // Get attempt stats
     const attemptFilter = engagementId
       ? and(eq(methodologyAttempts.engagementId, engagementId))
