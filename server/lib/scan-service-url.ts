@@ -20,8 +20,10 @@ const SCAN_HOST_RAW = process.env.SCAN_SERVER_HOST || "";
 export const SCANFORGE_DEDICATED_IP = "137.184.71.192";
 export const SCANFORGE_DEDICATED_URL = `http://${SCANFORGE_DEDICATED_IP}:4000`;
 
-// ─── Legacy Shared Scan Server ──────────────────────────────────────────────
+// ─── Legacy Shared Scan Server (also hosts ZAP + lab containers) ────────────
 export const LEGACY_SCAN_URL = "https://scan.aceofcloud.io";
+export const LEGACY_SCAN_IP = process.env.SCAN_SERVER_HOST || "137.184.211.238";
+export const LEGACY_ZAP_URL = process.env.ZAP_BASE_URL || `http://${LEGACY_SCAN_IP}:8090`;
 
 // ─── Primary URL (used by do-scan-api.ts and job-queue-bridge.ts) ───────────
 export const SCAN_SERVICE_URL = (() => {
@@ -75,11 +77,35 @@ export async function getActiveScanUrl(): Promise<string> {
 }
 
 /**
- * Get the ZAP base URL — dedicated droplet runs ZAP on port 8080.
- * Falls back to the env var ZAP_BASE_URL if the dedicated droplet is unhealthy.
+ * Get the ZAP base URL.
+ * ZAP runs on the legacy shared scan server (Docker container on port 8090),
+ * NOT on the dedicated ScanForge droplet (which only runs the Node.js scan service).
+ * The dedicated droplet does not have ZAP installed.
  */
+let _zapHealthy = true;
+let _lastZapCheck = 0;
+
 export async function getActiveZapUrl(): Promise<string> {
-  const healthy = await isDedicatedHealthy();
-  if (healthy) return `http://${SCANFORGE_DEDICATED_IP}:8090`;
-  return process.env.ZAP_BASE_URL || "http://localhost:8090";
+  // ZAP always runs on the legacy scan server
+  const zapUrl = LEGACY_ZAP_URL;
+
+  // Optional health check to detect if ZAP is down
+  const now = Date.now();
+  if (now - _lastZapCheck > 60_000) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5_000);
+      const resp = await fetch(`${zapUrl}/JSON/core/view/version/`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      _zapHealthy = resp.ok;
+    } catch {
+      _zapHealthy = false;
+    }
+    _lastZapCheck = now;
+  }
+
+  if (!_zapHealthy) {
+    console.warn(`[ScanServiceURL] ZAP unhealthy at ${zapUrl}`);
+  }
+  return zapUrl;
 }
