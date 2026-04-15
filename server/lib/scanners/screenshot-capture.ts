@@ -241,7 +241,7 @@ chmod +x ${scriptPath}`,
     // Execute the screenshot script
     const timeoutSec = Math.ceil(((req.timeout || 15000) + 10000) / 1000);
     const execResult = await executeRawCommand(
-      `cd /tmp && node ${scriptPath} 2>&1`,
+      `cd /tmp && NODE_PATH=/usr/lib/node_modules node ${scriptPath} 2>&1`,
       timeoutSec
     );
 

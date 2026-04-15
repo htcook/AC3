@@ -1,43 +1,64 @@
 import { describe, it, expect } from "vitest";
 
-describe("Scan Server SSH Key (base64-encoded)", () => {
-  it("SCAN_SERVER_SSH_KEY env should be set and base64-decodable", () => {
-    const sshKey = process.env.SCAN_SERVER_SSH_KEY ?? "";
-    if (sshKey) {
-      // The key should be base64-encoded (no -----BEGIN prefix, no newlines)
-      const isBase64 = !sshKey.startsWith("-----") && !sshKey.includes("\n");
-      if (isBase64) {
-        const decoded = Buffer.from(sshKey, "base64").toString("utf8");
-        expect(decoded).toContain("-----BEGIN");
-        expect(decoded).toContain("PRIVATE KEY-----");
-      }
-      // Also accept URL or raw PEM as fallback
-      const isUrl = sshKey.startsWith("http://") || sshKey.startsWith("https://");
-      const isRawKey = sshKey.startsWith("-----BEGIN");
-      expect(isBase64 || isUrl || isRawKey).toBe(true);
+/**
+ * These tests validate the scan server SSH configuration.
+ * The SCAN_SERVER_HOST was updated to 137.184.211.238 after the droplet
+ * was recreated. The .env update is handled by webdev_request_secrets
+ * and applied at deployment time.
+ */
+describe("Scan Server SSH Secrets", () => {
+  it("SCAN_SERVER_HOST should be a valid IP address", () => {
+    const host = process.env.SCAN_SERVER_HOST;
+    expect(host).toBeDefined();
+    expect(host).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+  });
+
+  it("SCAN_SERVER_SSH_KEY should be set and decodable", () => {
+    const key = process.env.SCAN_SERVER_SSH_KEY ?? "";
+    expect(key.length).toBeGreaterThan(50);
+
+    // Accept base64, URL, or raw PEM
+    const isBase64 = !key.startsWith("-----") && !key.startsWith("http");
+    const isUrl = key.startsWith("http://") || key.startsWith("https://");
+    const isRawPem = key.startsWith("-----BEGIN");
+
+    expect(isBase64 || isUrl || isRawPem).toBe(true);
+
+    if (isBase64) {
+      const decoded = Buffer.from(key, "base64").toString("utf8");
+      expect(decoded).toContain("PRIVATE KEY");
     }
   });
 
-  it("getScanServerConfig should correctly decode base64 SSH key", () => {
-    // Simulate the base64 decode path from getScanServerConfig
-    const b64 = "LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFBQUFBQkc1dmJtVUFBQUFFYm05dVpRQUFBQUFBQUFBQkFBQUFNd0FBQUF0emMyZ3RaVwpReU5UVXhPUUFBQUNDNHFoUFY1ZFZsSE1KSkpvbkF1bmVDWU94NDQxblAvMTFmV3pRZ2owbmRwd0FBQUtEckhZNXA2eDJPCmFRQUFBQXR6YzJndFpXUXlOVFV4T1FBQUFDQzRxaFBWNWRWbEhNSkpKb25BdW5lQ1lPeDQ0MW5QLzExZld6UWdqMG5kcHcKQUFBRUQ0cC9JTDRRZjEySEdmMjhiUkNjZ3c3MXV3K1hnQlN0N2x1WHZkMWJ6cng3aXFFOVhsMVdVY3dra21pY0M2ZDRKZwo3SGpqV2MvL1hWOWJOQ0NQU2QybkFBQUFGMk5oYkdSbGNtRXRjMk5oYmkxelpYSjJaWEl0Ym1WM0FRSURCQVVHCi0tLS0tRU5EIE9QRU5TU0ggUFJJVkFURSBLRVktLS0tLQo=";
-    
-    // This should NOT start with -----
-    expect(b64.startsWith("-----")).toBe(false);
-    
-    // Decode
-    const decoded = Buffer.from(b64, "base64").toString("utf8");
-    expect(decoded).toContain("-----BEGIN OPENSSH PRIVATE KEY-----");
-    expect(decoded).toContain("-----END OPENSSH PRIVATE KEY-----");
+  it("getScanServerConfig should resolve with valid host and key", async () => {
+    const { getScanServerConfig } = await import(
+      "./lib/scan-server-executor.js"
+    );
+    const config = await getScanServerConfig();
+    expect(config.host).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+    expect(config.username).toBe("root");
+    expect(config.privateKey).toContain("PRIVATE KEY");
   });
 
-  it("base64 key has no shell-breaking characters", () => {
-    const b64 = "LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0K";
-    // Base64 should only contain [A-Za-z0-9+/=] — no newlines, quotes, backslashes
-    expect(b64).toMatch(/^[A-Za-z0-9+/=]+$/);
-    expect(b64).not.toContain("\n");
-    expect(b64).not.toContain("\\");
-    expect(b64).not.toContain('"');
-    expect(b64).not.toContain("'");
+  it("new scan server IP 137.184.211.238 should be reachable", async () => {
+    // Simple TCP connectivity check to SSH port
+    const net = await import("net");
+    const isReachable = await new Promise<boolean>((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(5000);
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.on("timeout", () => {
+        socket.destroy();
+        resolve(false);
+      });
+      socket.on("error", () => {
+        resolve(false);
+      });
+      socket.connect(22, "137.184.211.238");
+    });
+    expect(isReachable).toBe(true);
   });
 });

@@ -116,6 +116,7 @@ import {
   getPersistedLearningStats,
   hydrateFromDb as hydrateLearningEngine,
   type ExploitOutcome as LearningExploitOutcome,
+  classifyVulnClass,
 } from "./exploit-learning-engine";
 
 // Cache server instance ID at module level for sync access in getHealthStatus
@@ -620,6 +621,10 @@ export function pushVulnDeduped(
     return false;
   });
   if (isDuplicate) return false;
+  // Auto-classify vulnClass if not already set
+  if (!vuln.vulnClass || vuln.vulnClass === 'unknown') {
+    vuln.vulnClass = classifyVulnClass(vuln.title, vuln.description);
+  }
   asset.vulns.push(vuln as any);
   return true;
 }
@@ -11375,6 +11380,23 @@ export async function executeEngagement(
 
   // Helper: checkpoint state to DB after each phase completes
   async function phaseCheckpoint(completedPhase: string) {
+    // ═══ POST-PHASE VULN CLASSIFICATION ═══
+    // Ensure all vulns have a vulnClass assigned (catches any that bypassed pushVulnDeduped)
+    let classifiedCount = 0;
+    for (const asset of state.assets) {
+      for (const vuln of (asset.vulns || [])) {
+        if (!vuln.vulnClass || vuln.vulnClass === 'unknown') {
+          const newClass = classifyVulnClass(vuln.title || '', vuln.description);
+          if (newClass !== 'unknown') {
+            vuln.vulnClass = newClass;
+            classifiedCount++;
+          }
+        }
+      }
+    }
+    if (classifiedCount > 0) {
+      console.log(`[VulnClassify] Eng#${engagementId} phase=${completedPhase}: classified ${classifiedCount} vulns`);
+    }
     await persistOpsStateNow(engagementId);
     console.log(`[OpsState] Phase checkpoint saved: ${completedPhase} for engagement #${engagementId}`);
     // ═══ POST-PHASE MEMORY CLEANUP ═══
