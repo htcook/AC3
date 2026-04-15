@@ -9,17 +9,37 @@ import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import * as db from "../db";
 
-const PHASE_ORDER = ['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit'] as const;
+const PHASE_ORDER = ['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit'] as const;
 const PHASE_LABELS: Record<string, string> = {
   idle: 'Idle',
-  recon: 'Phase 1: Recon & Discovery',
-  enumeration: 'Phase 2: Enumeration & Fingerprinting',
-  vuln_detection: 'Phase 3: Vulnerability Detection',
-  exploitation: 'Phase 4: Exploitation',
-  post_exploit: 'Phase 5: Post-Exploit',
+  recon: 'Phase 1: Recon & Domain Discovery',
+  passive_discovery: 'Phase 2: Passive Discovery',
+  scoping: 'Phase 3: Scoping & RoE Review',
+  test_plan: 'Phase 4: Test Plan Generation',
+  test_plan_approval: 'Phase 4b: Test Plan Approval',
+  enumeration: 'Phase 5: Active Enumeration & Fingerprinting',
+  vuln_detection: 'Phase 6: Vulnerability Detection',
+  social_engineering: 'Phase 6b: Social Engineering',
+  exploitation: 'Phase 7: Exploitation',
+  post_exploit: 'Phase 8: Post-Exploitation',
+  reporting: 'Phase 9: Reporting',
   completed: 'Completed',
   error: 'Error',
 };
+
+/** Infer the last active phase from the ops state log entries (for error recovery) */
+function inferLastActivePhase(state: any): typeof PHASE_ORDER[number] | null {
+  if (!state?.log?.length) return null;
+  // Walk the log backwards to find the last non-error phase
+  for (let i = state.log.length - 1; i >= 0; i--) {
+    const entry = state.log[i];
+    const phase = entry.phase;
+    if (phase && phase !== 'error' && phase !== 'idle' && PHASE_ORDER.includes(phase as any)) {
+      return phase as typeof PHASE_ORDER[number];
+    }
+  }
+  return null;
+}
 
 export const liveTriggerTempRouter = router({
   /** Trigger autonomous engagement execution with optional resume (TEMP - no auth) */
@@ -27,7 +47,7 @@ export const liveTriggerTempRouter = router({
     .input(z.object({
       engagementId: z.number(),
       resume: z.boolean().optional().default(false),
-      startPhase: z.enum(['recon', 'enumeration', 'vuln_detection', 'exploitation', 'post_exploit']).optional(),
+      startPhase: z.enum(['recon', 'passive_discovery', 'scoping', 'test_plan', 'test_plan_approval', 'enumeration', 'vuln_detection', 'social_engineering', 'exploitation', 'post_exploit']).optional(),
     }))
     .mutation(async ({ input }) => {
       const engagement = await db.getEngagementById(input.engagementId);
@@ -63,13 +83,15 @@ export const liveTriggerTempRouter = router({
         execOptions.resume = true;
         // Resume from the NEXT phase after the last completed one
         // Map non-standard phases to valid PHASE_ORDER entries
-        const PHASE_ALIAS: Record<string, typeof PHASE_ORDER[number]> = {
-          scanning: 'vuln_detection',
-          error: 'recon',
-          idle: 'recon',
-          completed: 'recon',
-        };
-        const normalizedPhase = PHASE_ALIAS[state!.phase] ?? state!.phase;
+        let normalizedPhase: string = state!.phase;
+        if (state!.phase === 'error') {
+          const inferred = inferLastActivePhase(state);
+          normalizedPhase = inferred || 'recon';
+        } else if (state!.phase === 'scanning') {
+          normalizedPhase = 'vuln_detection';
+        } else if (state!.phase === 'idle' || state!.phase === 'completed') {
+          normalizedPhase = 'recon';
+        }
         const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
         if (lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1) {
           execOptions.startPhase = PHASE_ORDER[lastPhaseIdx + 1];
@@ -170,13 +192,16 @@ export const liveTriggerTempRouter = router({
       // Can resume!
       // Map non-standard phases (e.g. 'scanning', 'error') to the closest valid PHASE_ORDER entry
       // so the frontend can pass a valid startPhase to triggerExecution
-      const PHASE_ALIAS: Record<string, typeof PHASE_ORDER[number]> = {
-        scanning: 'vuln_detection',
-        error: 'recon',
-        idle: 'recon',
-        completed: 'recon',
-      };
-      const normalizedPhase = PHASE_ALIAS[state.phase] ?? state.phase;
+      let normalizedPhase: string = state.phase;
+      if (state.phase === 'error') {
+        // Infer the actual last active phase from log entries instead of defaulting to recon
+        const inferred = inferLastActivePhase(state);
+        normalizedPhase = inferred || 'recon';
+      } else if (state.phase === 'scanning') {
+        normalizedPhase = 'vuln_detection';
+      } else if (state.phase === 'idle' || state.phase === 'completed') {
+        normalizedPhase = 'recon';
+      }
       const lastPhaseIdx = PHASE_ORDER.indexOf(normalizedPhase as any);
       const nextPhase = lastPhaseIdx >= 0 && lastPhaseIdx < PHASE_ORDER.length - 1
         ? PHASE_ORDER[lastPhaseIdx + 1]

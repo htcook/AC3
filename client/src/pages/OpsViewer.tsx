@@ -143,7 +143,7 @@ function NodeDetailPanel({
                 <span className="text-[8px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded uppercase tracking-wider font-semibold">INFERRED</span>
               )}
             </div>
-            <div className="text-white font-bold truncate max-w-[200px]">{node.label}</div>
+            <div className="text-white font-bold truncate max-w-[200px]" title={node.label}>{node.label}</div>
             {node.type === "hypothesis" && (
               <div className="text-[9px] text-purple-400/70 mt-0.5">This finding was inferred from technology fingerprints, not confirmed by a scanner.</div>
             )}
@@ -495,7 +495,7 @@ function TechSummaryPanel({ visible, engineRef }: {
                 <span className="w-4 text-center" style={{ color: tech.color }}>{tech.label}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">
-                    <span className="text-gray-300 uppercase truncate">{key}</span>
+                    <span className="text-gray-300 uppercase truncate" title={key}>{key}</span>
                     {versions.length > 0 && (
                       <span className={`text-[8px] ${data.outdated ? "text-red-400" : "text-gray-500"}`}>
                         v{versions.join(", v")}
@@ -541,15 +541,15 @@ function PathSelector({ paths,
             }`}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-white font-bold truncate">{path.name || `Path ${i + 1}`}</span>
-              <span className="text-[9px] uppercase px-1.5 py-0.5 border" style={{
+              <span className="text-white font-bold truncate" title={path.name || `Path ${i + 1}`}>{path.name || `Path ${i + 1}`}</span>
+              <span className="text-[9px] uppercase px-1.5 py-0.5 border whitespace-nowrap flex-shrink-0" style={{
                 color: path.feasibility > 0.7 ? "#FF0040" : path.feasibility > 0.4 ? "#FFB800" : "#00E5CC",
                 borderColor: path.feasibility > 0.7 ? "#FF0040" : path.feasibility > 0.4 ? "#FFB800" : "#00E5CC",
               }}>
                 {(path.feasibility * 100).toFixed(0)}% FEASIBLE
               </span>
             </div>
-            <div className="text-gray-500 text-[9px] truncate">{path.description}</div>
+            <div className="text-gray-500 text-[9px] truncate" title={path.description}>{path.description}</div>
             <div className="flex items-center gap-2 mt-1 text-[8px] text-gray-600">
               <span>{path.steps?.length || path.nodeIds?.length || 0} STEPS</span>
               <span>|</span>
@@ -1166,7 +1166,7 @@ export default function Battlespace() {
                 <span className="text-[9px] font-mono text-teal-400">{liveEventCount} events</span>
               )}
               {currentPhase && (
-                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]">{currentPhase}</span>
+                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]" title={currentPhase}>{currentPhase}</span>
               )}
             </div>
           )}
@@ -1181,7 +1181,7 @@ export default function Battlespace() {
                 <span className="text-[9px] font-mono text-teal-400">{diLiveEventCount} events</span>
               )}
               {diCurrentStage && !diScanComplete && (
-                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]">{diCurrentStage}</span>
+                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]" title={diCurrentStage}>{diCurrentStage}</span>
               )}
             </div>
           )}

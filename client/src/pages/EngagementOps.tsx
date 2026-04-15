@@ -1825,12 +1825,29 @@ export default function EngagementOps() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-red-300">Scan Error</h3>
-                  <p className="text-xs text-red-400/80 mt-0.5 max-w-[500px] truncate">
+                  <p className="text-xs text-red-400/80 mt-0.5 max-w-[500px] truncate" title={ops?.error || ''}>
                     {ops?.error || 'An unexpected error occurred during the scan pipeline.'}
                   </p>
+                  {ops?.error && /zap|proxy|owasp/i.test(ops.error) && (
+                    <p className="text-[10px] text-amber-400/80 mt-1 flex items-center gap-1">
+                      <ShieldAlert className="h-3 w-3" />
+                      ZAP proxy may be down. Check the Scan Server Health page for status.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {ops?.error && /zap|proxy|owasp/i.test(ops.error) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open('/scan-server-health', '_blank')}
+                    className="border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                  >
+                    <ShieldAlert className="h-4 w-4 mr-1" />
+                    Check ZAP Status
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -1859,7 +1876,9 @@ export default function EngagementOps() {
                   className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
                 >
                   {passiveScanMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
-                  Retry Passive Scan
+                  {resumeCapabilityQ.data?.currentPhaseLabel
+                    ? `Retry ${resumeCapabilityQ.data.currentPhaseLabel.replace(/^Phase \d+[a-z]?: /, '')}`
+                    : 'Retry Scan'}
                 </Button>
               </div>
             </div>

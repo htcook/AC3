@@ -80,8 +80,10 @@ function KpiCard({ item }: { item: KpiItem }) {
       parts.push(`${sign}${item.delta!.toLocaleString()}`);
     }
     if (hasPercent) {
-      const sign = item.deltaPercent! > 0 ? "+" : "";
-      parts.push(`${sign}${item.deltaPercent!.toFixed(1)}%`);
+      const pct = item.deltaPercent!;
+      const sign = pct > 0 ? "+" : "";
+      const capped = Math.abs(pct) > 999 ? `${sign}${pct > 0 ? '' : '-'}999%+` : `${sign}${pct.toFixed(1)}%`;
+      parts.push(capped);
     }
     return parts.join(" ");
   };
