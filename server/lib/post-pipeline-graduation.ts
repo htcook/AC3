@@ -291,9 +291,21 @@ export async function runPostPipelineGraduation(
 ): Promise<GraduationResult> {
   const { recordScenarioResult, recordTrainingData } = await import("./graduation-lab-bridge");
 
+  // Compute methodology knowledge bonus for exploit_selector (async)
+  let methodologyBonus = 0;
+  let methodologyRationale = '';
+  try {
+    const { computeMethodologyGraduationBonus } = await import('./knowledge/methodology-db-persistence');
+    const engagementId = metrics.pipelineType === 'engagement' ? Number(metrics.pipelineId) : undefined;
+    const bonusResult = await computeMethodologyGraduationBonus(engagementId);
+    methodologyBonus = bonusResult.bonus;
+    methodologyRationale = bonusResult.rationale;
+  } catch { /* methodology DB not available, no bonus */ }
+
+  const baseExploitScore = scoreExploitSelector(metrics);
   const scores = {
     recon_analyst: scoreReconAnalyst(metrics),
-    exploit_selector: scoreExploitSelector(metrics),
+    exploit_selector: Math.min(100, baseExploitScore + methodologyBonus),
     evasion_optimizer: scoreEvasionOptimizer(metrics),
     cognitive_core: scoreCognitiveCore(metrics),
     cloud_assessor: scoreCloudAssessor(metrics),
@@ -398,7 +410,8 @@ export async function runPostPipelineGraduation(
     : Math.round(scoreEntries.reduce((s, [, v]) => s + v, 0) / scoreEntries.length);
   const passedCount = Object.values(passed).filter(Boolean).length;
 
-  const summary = `${scoreEntries.length} specialist models scored (avg ${avgScore}/100, ${passedCount} passed). Training examples: ${trainingExamplesCollected}`;
+  const methodologyNote = methodologyRationale ? ` | ${methodologyRationale}` : '';
+  const summary = `${scoreEntries.length} specialist models scored (avg ${avgScore}/100, ${passedCount} passed). Training examples: ${trainingExamplesCollected}${methodologyNote}`;
 
   return {
     scores,

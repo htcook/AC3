@@ -5294,6 +5294,16 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
             cmd.command = cmd.command.replace(/-h\s+\S+/, `$& -ssl`);
           }
         }
+        // ── Reverse-proxy vhost fix ──
+        // When the asset is behind nginx virtual hosting (IP resolves to infra),
+        // nikto needs -vhost to send the correct Host header. Without it, nginx
+        // routes to the default server block (ScanForge dashboard) instead of
+        // the intended target (e.g., Broken Crystals).
+        if (!cmd.command.includes('-vhost') && asset.hostname && asset.ip && asset.hostname !== asset.ip) {
+          if (KNOWN_INFRA_IPS.has(asset.ip)) {
+            cmd.command += ` -vhost ${asset.hostname}`;
+          }
+        }
         // Ensure maxtime is set to prevent hanging
         if (!cmd.command.includes('-maxtime')) {
           cmd.command += ' -maxtime 300';

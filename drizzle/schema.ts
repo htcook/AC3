@@ -7732,3 +7732,85 @@ export const scheduledCspmScans = mysqlTable("scheduled_cspm_scans", {
 ]);
 export type InsertScheduledCspmScan = typeof scheduledCspmScans.$inferInsert;
 export type SelectScheduledCspmScan = typeof scheduledCspmScans.$inferSelect;
+
+// ─── Exploit Methodology Knowledge Base ────────────────────────────────────
+// Persists learned exploit methodologies so they survive server restarts
+// and feed into the LLM training/graduation pipeline.
+
+export const exploitMethodologies = mysqlTable("exploit_methodologies", {
+	id: varchar({ length: 128 }).primaryKey().notNull(),
+	vulnClass: varchar("vuln_class", { length: 64 }).notNull(),
+	name: varchar({ length: 512 }).notNull(),
+	techStack: json("tech_stack").$type<string[]>().notNull(),
+	owaspCategory: varchar("owasp_category", { length: 128 }),
+	mitreTechniques: json("mitre_techniques").$type<string[]>(),
+	cweIds: json("cwe_ids").$type<string[]>(),
+	steps: json().$type<Array<{ order: number; description: string; template: string }>>().notNull(),
+	payloads: json().$type<Array<{ name: string; payload: string; useWhen: string }>>().notNull(),
+	detectionSignatures: json("detection_signatures").$type<string[]>().notNull(),
+	escalationPaths: json("escalation_paths").$type<Array<{ from: string; to: string; technique: string }>>(),
+	successCriteria: json("success_criteria").$type<string[]>().notNull(),
+	failureModes: json("failure_modes").$type<Array<{ pattern: string; workaround: string }>>(),
+	weight: int().default(50).notNull(),
+	source: mysqlEnum(['seed', 'learned', 'community']).default('seed').notNull(),
+	successCount: int("success_count").default(0).notNull(),
+	attemptCount: int("attempt_count").default(0).notNull(),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("em_vuln_class_idx").on(table.vulnClass),
+	index("em_source_idx").on(table.source),
+	index("em_weight_idx").on(table.weight),
+]);
+export type InsertExploitMethodology = typeof exploitMethodologies.$inferInsert;
+export type SelectExploitMethodology = typeof exploitMethodologies.$inferSelect;
+
+// Per-attempt outcome records — feeds into training pipeline and graduation scoring
+export const methodologyAttempts = mysqlTable("methodology_attempts", {
+	id: int().autoincrement().primaryKey().notNull(),
+	methodologyId: varchar("methodology_id", { length: 128 }),
+	engagementId: int("engagement_id"),
+	vulnClass: varchar("vuln_class", { length: 64 }).notNull(),
+	techStack: json("tech_stack").$type<string[]>(),
+	target: varchar({ length: 512 }),
+	port: int(),
+	success: tinyint().default(0).notNull(),
+	approach: text().notNull(),
+	payloadUsed: text("payload_used"),
+	failureReason: text("failure_reason"),
+	executionTimeMs: int("execution_time_ms"),
+	// Training pipeline fields
+	trainingExampleGenerated: tinyint("training_example_generated").default(0),
+	trainingExampleId: varchar("training_example_id", { length: 128 }),
+	// Graduation pipeline fields
+	graduationScoreImpact: double("graduation_score_impact"),
+	createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("ma_methodology_idx").on(table.methodologyId),
+	index("ma_engagement_idx").on(table.engagementId),
+	index("ma_vuln_class_idx").on(table.vulnClass),
+	index("ma_success_idx").on(table.success),
+	index("ma_created_at_idx").on(table.createdAt),
+]);
+export type InsertMethodologyAttempt = typeof methodologyAttempts.$inferInsert;
+export type SelectMethodologyAttempt = typeof methodologyAttempts.$inferSelect;
+
+// Aggregated success rates per vuln_class + tech_stack combo — used for graduation criteria
+export const methodologyPerformance = mysqlTable("methodology_performance", {
+	id: int().autoincrement().primaryKey().notNull(),
+	vulnClass: varchar("vuln_class", { length: 64 }).notNull(),
+	techStackKey: varchar("tech_stack_key", { length: 255 }).notNull(),
+	totalAttempts: int("total_attempts").default(0).notNull(),
+	totalSuccesses: int("total_successes").default(0).notNull(),
+	successRate: double("success_rate").default(0).notNull(),
+	avgExecutionTimeMs: int("avg_execution_time_ms"),
+	lastAttemptAt: bigint("last_attempt_at", { mode: "number" }),
+	lastSuccessAt: bigint("last_success_at", { mode: "number" }),
+	updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (table) => [
+	index("mp_vuln_class_idx").on(table.vulnClass),
+	index("mp_tech_stack_idx").on(table.techStackKey),
+	index("mp_success_rate_idx").on(table.successRate),
+]);
+export type InsertMethodologyPerformance = typeof methodologyPerformance.$inferInsert;
+export type SelectMethodologyPerformance = typeof methodologyPerformance.$inferSelect;
