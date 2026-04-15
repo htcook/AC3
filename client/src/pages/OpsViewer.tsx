@@ -772,17 +772,7 @@ export default function Battlespace() {
   const parsedEngagementId = parseInt(engagementId);
   const engagementEnabled = mode === "engagement" && !!engagementId && !isNaN(parsedEngagementId);
 
-  const graphQuery = trpc.exploitAttackGraph.getGraphFast.useQuery(
-    { engagementId: parsedEngagementId },
-    {
-      enabled: engagementEnabled,
-      retry: 1,
-      // Re-fetch graph every 8s while scan is running to pick up new assets/vulns
-      refetchInterval: opsState?.isRunning ? 8000 : false,
-    }
-  );
-
-  // ── Ops state query for scan progress overlay ──
+  // ── Ops state query for scan progress overlay (must be before graphQuery which references opsState) ──
   const opsStateQuery = trpc.engagementOps.getState.useQuery(
     { engagementId: parsedEngagementId },
     {
@@ -795,6 +785,16 @@ export default function Battlespace() {
     }
   );
   const opsState = opsStateQuery.data;
+
+  const graphQuery = trpc.exploitAttackGraph.getGraphFast.useQuery(
+    { engagementId: parsedEngagementId },
+    {
+      enabled: engagementEnabled,
+      retry: 1,
+      // Re-fetch graph every 8s while scan is running to pick up new assets/vulns
+      refetchInterval: opsState?.isRunning ? 8000 : false,
+    }
+  );
 
   // Poll for reasoning results when status is 'analyzing'
   const reasoningStatus = graphQuery.data?.reasoning?.status;
