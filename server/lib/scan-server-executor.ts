@@ -83,6 +83,14 @@ const ALLOWED_TOOLS = new Set([
   "commix", "tplmap",
   // Service fingerprinting, SSH audit, and web crawling
   "nerva", "ssh-audit", "katana",
+  // Recursive content discovery & web fuzzing (Audit R4, R12)
+  "feroxbuster", "dirb", "dirsearch",
+  // Parameter discovery (Audit R7)
+  "arjun", "paramspider",
+  // WAF fingerprinting (Audit R15)
+  "wafw00f",
+  // TLS vulnerability testing (Audit R8)
+  "testssl.sh",
   // Screenshot capture
   "chromium", "chromium-browser", "google-chrome", "puppeteer",
   // Allow reading tool manifest and health check
@@ -1068,6 +1076,156 @@ export async function suggestToolCommands(asset: {
       purpose: `RDP credential testing (generic wordlist)`,
       priority: 3,
     });
+  }
+
+  // ── Audit R1: Katana JS-Aware Web Crawling ──────────────────────────────
+  // Crawls with headless browser to discover JS-rendered endpoints, forms, and API calls
+  if (webPorts.length > 0) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const url = `${scheme}://${target}:${wp.port}`;
+
+      commands.push({
+        tool: "katana",
+        args: `-u ${url} -d 3 -jc -kf -json -silent -headless -timeout 15 -rate-limit 10 -crawl-duration 300s`,
+        purpose: `JS-aware web crawling on ${url} — discovers endpoints hidden behind JavaScript rendering`,
+        priority: 1,
+      });
+    }
+  }
+
+  // ── Audit R4: Feroxbuster Recursive Content Discovery ──────────────────
+  // Replaces gobuster with recursive directory brute-force + auto-calibration
+  if (webPorts.length > 0) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const url = `${scheme}://${target}:${wp.port}`;
+
+      commands.push({
+        tool: "feroxbuster",
+        args: `-u ${url} -w /opt/SecLists/Discovery/Web-Content/raft-medium-directories.txt -t 50 --depth 3 --timeout 10 --status-codes 200,204,301,302,307,308,401,403,405 -x php,asp,aspx,jsp,html,js --json --quiet --no-state --auto-calibration --dont-scan /logout`,
+        purpose: `Recursive content discovery on ${url} — finds hidden directories, files, and endpoints`,
+        priority: 2,
+      });
+    }
+  }
+
+  // ── Audit R5: API Specification Discovery ──────────────────────────────
+  // Probes for exposed Swagger, OpenAPI, GraphQL, and WSDL endpoints
+  if (webPorts.length > 0) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const baseUrl = `${scheme}://${target}:${wp.port}`;
+
+      // Probe common API spec locations
+      const apiPaths = [
+        '/swagger.json', '/openapi.json', '/api-docs', '/api-docs.json',
+        '/v1/api-docs', '/v2/api-docs', '/v3/api-docs',
+        '/swagger-ui.html', '/swagger-ui/', '/redoc',
+        '/graphql', '/graphiql', '/playground',
+        '?wsdl', '/service?wsdl',
+        '/actuator', '/actuator/info', '/actuator/env', '/actuator/health',
+        '/.well-known/openapi',
+      ];
+      const probeUrls = apiPaths.map(p => `${baseUrl}${p}`).join(' ');
+
+      commands.push({
+        tool: "raw",
+        args: `for url in ${probeUrls}; do code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 "$url"); if [ "$code" != "000" ] && [ "$code" != "404" ] && [ "$code" != "503" ]; then echo "$code $url"; fi; done`,
+        purpose: `API specification discovery on ${baseUrl} — probes for Swagger, OpenAPI, GraphQL, WSDL, and Spring Actuator endpoints`,
+        priority: 2,
+      });
+
+      // GraphQL introspection probe
+      commands.push({
+        tool: "raw",
+        args: `curl -s -m 10 -X POST ${baseUrl}/graphql -H 'Content-Type: application/json' -d '{"query":"{__schema{queryType{name}types{name kind}}}"}'`,
+        purpose: `GraphQL introspection probe on ${baseUrl}/graphql`,
+        priority: 2,
+      });
+    }
+  }
+
+  // ── Audit R7: Parameter Discovery (Arjun + ParamSpider) ───────────────
+  if (webPorts.length > 0 && asset.hostname) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const url = `${scheme}://${target}:${wp.port}`;
+
+      commands.push({
+        tool: "arjun",
+        args: `-u ${url} -m GET -t 10 --timeout 15 -oJ /dev/stdout --passive`,
+        purpose: `Hidden parameter discovery on ${url} — finds unlinked GET parameters`,
+        priority: 2,
+      });
+
+      commands.push({
+        tool: "arjun",
+        args: `-u ${url} -m POST -t 10 --timeout 15 -oJ /dev/stdout --passive`,
+        purpose: `Hidden parameter discovery on ${url} — finds unlinked POST parameters`,
+        priority: 2,
+      });
+    }
+
+    // ParamSpider mines parameters from web archives
+    commands.push({
+      tool: "paramspider",
+      args: `-d ${asset.hostname} --exclude css,js,png,jpg,gif,svg,woff,ttf,ico,pdf --level high -o /dev/stdout`,
+      purpose: `Web archive parameter mining for ${asset.hostname} — discovers historical URL parameters`,
+      priority: 2,
+    });
+  }
+
+  // ── Audit R8: TLS Vulnerability Testing (testssl.sh) ──────────────────
+  const tlsPorts = asset.ports.filter(p =>
+    p.service === 'https' || p.service === 'ssl' ||
+    [443, 8443, 993, 995, 465, 636].includes(p.port)
+  );
+  if (tlsPorts.length > 0) {
+    for (const tp of tlsPorts) {
+      commands.push({
+        tool: "testssl.sh",
+        args: `--jsonfile - --quiet --color 0 --sneaky -U -p -S ${target}:${tp.port}`,
+        purpose: `TLS vulnerability testing on ${target}:${tp.port} — checks for Heartbleed, POODLE, ROBOT, DROWN, FREAK, BEAST, weak ciphers`,
+        priority: 2,
+      });
+    }
+  }
+
+  // ── Audit R12: Virtual Host Enumeration (ffuf) ────────────────────────
+  if (webPorts.length > 0 && asset.hostname) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const url = `${scheme}://${target}:${wp.port}`;
+
+      commands.push({
+        tool: "ffuf",
+        args: `-w /opt/SecLists/Discovery/DNS/subdomains-top1million-5000.txt -u ${url} -H "Host: FUZZ.${asset.hostname}" -mc 200,204,301,302,307,308,401,403 -json -s -ac`,
+        purpose: `Virtual host enumeration on ${url} — discovers hidden vhosts sharing the same IP`,
+        priority: 3,
+      });
+    }
+  }
+
+  // ── Audit R15: WAF Fingerprinting (wafw00f) ───────────────────────────
+  if (webPorts.length > 0) {
+    for (const wp of webPorts) {
+      const isHttps = wp.port === 443 || wp.port === 8443 || wp.service === 'https' || wp.service === 'ssl';
+      const scheme = isHttps ? "https" : "http";
+      const url = `${scheme}://${target}:${wp.port}`;
+
+      commands.push({
+        tool: "wafw00f",
+        args: `${url} -o - -a`,
+        purpose: `WAF fingerprinting on ${url} — identifies web application firewalls for evasion planning`,
+        priority: 3,
+      });
+    }
   }
 
   // Sort by priority

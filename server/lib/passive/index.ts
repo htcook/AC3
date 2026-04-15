@@ -59,6 +59,16 @@ import { googleSafeBrowsingConnector } from "./google-safebrowsing";
 import { phishtankConnector } from "./phishtank";
 import { darkwebCrossrefConnector } from "./darkweb-crossref";
 import { dehashedWhoisConnector } from "./dehashed-whois";
+import { anubisConnector } from "./anubis";
+import { hackertargetConnector } from "./hackertarget";
+import { rapiddnsConnector } from "./rapiddns";
+import { dnsrepoConnector } from "./dnsrepo";
+import { sitedossierConnector } from "./sitedossier";
+import { faviconHashConnector } from "./favicon-hash";
+import { jarmFingerprintConnector } from "./jarm-fingerprint";
+import { dnsZoneTransferConnector } from "./dns-zone-transfer";
+import { waybackDiffConnector } from "./wayback-diff";
+import { detectWildcardDns, tagWildcardObservations, createWildcardSignal } from "./wildcard-detection";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
 import { corroborateFindings, deduplicateWithCorroboration, type CorroborationResult, type CorroborationConfig, DEFAULT_CORROBORATION_CONFIG, type CorroboratedObservation } from "./corroboration-engine";
@@ -124,6 +134,19 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   darkwebCrossrefConnector,              // Cross-references domain against local underground intel DB (ransomware, IAB, data leaks)
   // --- Dehashed WHOIS & Subdomain Scan ---
   dehashedWhoisConnector,                  // Dehashed WHOIS — registration data, reverse WHOIS, subdomain scan
+  // --- Free Subdomain Enumeration Sources (Audit R2) ---
+  anubisConnector,                         // Anubis — free subdomain enum via jldc.me (CT + DNS aggregation)
+  hackertargetConnector,                   // HackerTarget — free host search (100 queries/day)
+  rapiddnsConnector,                       // RapidDNS — free subdomain enum from DNS zone files
+  dnsrepoConnector,                        // DNSRepo — free subdomain enum from DNS zone file database
+  sitedossierConnector,                    // Sitedossier — free subdomain enum from web crawl database
+  // --- Infrastructure Discovery (Audit R10, R11) ---
+  faviconHashConnector,                    // Favicon Hash — MMH3 hash for Shodan infrastructure discovery
+  jarmFingerprintConnector,                // JARM — TLS fingerprinting to detect C2, CDN, server software
+  // --- DNS Security (Audit R13) ---
+  dnsZoneTransferConnector,                // DNS Zone Transfer — AXFR attempt against nameservers
+  // --- Historical Analysis (Audit R14) ---
+  waybackDiffConnector,                    // Wayback Diff — historical content analysis for removed admin panels, leaked creds
 ];
 
 export interface PassiveReconConfig {
@@ -206,6 +229,17 @@ const LAB_FAST_TRACK_CONNECTORS = new Set([
   'wayback',         // Wayback Machine — fast fail for lab domains
   'container_discovery', // Docker/K8s discovery — works for lab infra
   'domain_health',     // Domain health — DNSBL, SMTP, PTR, DNS health (no API key needed)
+  // --- Audit R2: Free subdomain sources ---
+  'anubis',            // Anubis — free subdomain enum (no API key)
+  'hackertarget',      // HackerTarget — free host search (no API key)
+  'rapiddns',          // RapidDNS — free subdomain enum (no API key)
+  'dnsrepo',           // DNSRepo — free subdomain enum (no API key)
+  'sitedossier',       // Sitedossier — free subdomain enum (no API key)
+  // --- Audit R10, R11, R13, R14 ---
+  'favicon_hash',      // Favicon hash — local computation (no API key)
+  'jarm_fingerprint',  // JARM — direct TLS probe (no API key)
+  'dns_zone_transfer', // DNS zone transfer — direct DNS query (no API key)
+  'wayback_diff',      // Wayback diff — free Wayback CDX API (no API key)
 ]);
 
 export function isLabDomain(domain: string): boolean {
@@ -516,7 +550,7 @@ export async function runPassiveRecon(
 
   // Deduplicate observations by assetId
   const seenAssets = new Set<string>();
-  const allObservations: AssetObservation[] = [];
+  let allObservations: AssetObservation[] = [];
   for (const result of connectorResults) {
     for (const obs of result.observations) {
       if (!seenAssets.has(obs.assetId)) {
@@ -524,6 +558,20 @@ export async function runPassiveRecon(
         allObservations.push(obs);
       }
     }
+  }
+
+  // ── Wildcard DNS Detection (Audit R3) ──────────────────────────────
+  // Before accepting subdomain results, check for wildcard DNS.
+  // If detected, tag observations that resolve to wildcard IPs.
+  let wildcardResult: Awaited<ReturnType<typeof detectWildcardDns>> | null = null;
+  try {
+    wildcardResult = await detectWildcardDns(domain, 5000);
+    if (wildcardResult.isWildcard) {
+      console.log(`[PassiveRecon] ⚠️ Wildcard DNS detected for ${domain} — IPs: ${wildcardResult.wildcardIps.join(", ")}`);
+      allObservations = tagWildcardObservations(allObservations, wildcardResult);
+    }
+  } catch (err: any) {
+    console.log(`[PassiveRecon] Wildcard detection failed for ${domain}: ${err.message}`);
   }
 
   // Run signal classifier
@@ -561,6 +609,12 @@ export async function runPassiveRecon(
   const discoveryCoverage = computeDiscoveryCoverage(connectorResults, allObservations);
   console.log(`[PassiveRecon] Red team discovery coverage: ${discoveryCoverage.coverageScore}% (${discoveryCoverage.prioritiesCovered}/10 priorities)`);
 
+  // Add wildcard DNS signal if detected
+  if (wildcardResult?.isWildcard) {
+    const wcSignal = createWildcardSignal(domain, wildcardResult);
+    corroboratedSignals.push(wcSignal as any);
+  }
+
   return {
     domain,
     scanMode,
@@ -571,6 +625,11 @@ export async function runPassiveRecon(
     signalRules,
     corroboration,
     discoveryCoverage,
+    wildcardDetection: wildcardResult ? {
+      isWildcard: wildcardResult.isWildcard,
+      wildcardIps: wildcardResult.wildcardIps,
+      durationMs: wildcardResult.durationMs,
+    } : null,
     summary: {
       totalObservations: allObservations.length,
       totalSignals: corroboratedSignals.length,
