@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { TechDependencyGraph } from "@/components/TechDependencyGraph";
 import { buildTechDepGraph, type TechDepNode, CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/tech-dependency-graph";
+import { ScanProgressOverlay } from "@/components/ScanProgressOverlay";
 // wouter imports removed — back button uses window.history.back()
 
 // ── Reasoning Status Indicator ─────────────────────────────────────
@@ -1338,59 +1339,23 @@ export default function Battlespace() {
 
           {/* Empty graph state — engagement selected but no data */}
           {engagementId && mode === "engagement" && !graphQuery.isLoading && graphQuery.data && graphQuery.data.nodes?.length === 0 && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center">
-              <div className="text-center font-mono">
-                {opsState?.isRunning ? (
-                  /* ── SCAN IN PROGRESS overlay ── */
-                  <>
-                    <div className="relative mx-auto mb-5 w-16 h-16">
-                      <div className="absolute inset-0 border-2 border-teal-500/20 rounded-full" />
-                      <div className="absolute inset-0 border-2 border-transparent border-t-teal-400 rounded-full animate-spin" />
-                      <Radio size={24} className="absolute inset-0 m-auto text-teal-400 animate-pulse" />
-                    </div>
-                    <div className="text-xs uppercase tracking-widest text-teal-400 mb-1">SCAN IN PROGRESS</div>
-                    <div className="text-[10px] text-gray-500 mb-4">
-                      Phase: <span className="text-gray-300">{(opsState.phase || 'initializing').replace(/_/g, ' ').toUpperCase()}</span>
-                    </div>
-
-                    {/* Live stats grid */}
-                    <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-                      <div className="bg-[#111820] border border-[#1A2332] p-2">
-                        <div className="text-lg font-bold text-white">{opsState.stats?.assetsDiscovered ?? opsState.assets?.length ?? 0}</div>
-                        <div className="text-[8px] uppercase tracking-widest text-gray-600">Assets</div>
-                      </div>
-                      <div className="bg-[#111820] border border-[#1A2332] p-2">
-                        <div className="text-lg font-bold text-amber-400">{opsState.stats?.vulnsFound ?? opsState.assets?.reduce((s: number, a: any) => s + (a.vulns?.length || 0), 0) ?? 0}</div>
-                        <div className="text-[8px] uppercase tracking-widest text-gray-600">Vulns</div>
-                      </div>
-                      <div className="bg-[#111820] border border-[#1A2332] p-2">
-                        <div className="text-lg font-bold text-cyan-400">{opsState.assets?.reduce((s: number, a: any) => s + (a.ports?.length || 0), 0) ?? 0}</div>
-                        <div className="text-[8px] uppercase tracking-widest text-gray-600">Ports</div>
-                      </div>
-                    </div>
-
-                    {/* Latest log entry */}
-                    {opsState.log && opsState.log.length > 0 && (
-                      <div className="bg-[#111820] border border-[#1A2332] p-2 max-w-xs mx-auto">
-                        <div className="text-[9px] text-gray-500 truncate" title={(opsState.log as any[])[(opsState.log as any[]).length - 1]?.title}>
-                          {(opsState.log as any[])[(opsState.log as any[]).length - 1]?.title || 'Processing...'}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="text-[9px] text-gray-600 mt-3">Graph will render automatically when findings are available.</div>
-                  </>
-                ) : (
-                  /* ── Static NO GRAPH DATA state ── */
-                  <>
-                    <AlertTriangle size={48} className="text-amber-500/30 mx-auto mb-4" />
-                    <div className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">NO GRAPH DATA</div>
-                    <div className="text-[10px] text-gray-700 max-w-xs">This engagement has no findings yet. Run scans or exploits to populate the attack graph.</div>
-                    <div className="text-[9px] text-gray-600 mt-2">Live events will render automatically when available.</div>
-                  </>
-                )}
+            opsState?.isRunning ? (
+              <ScanProgressOverlay opsState={opsState} variant="full" />
+            ) : (
+              <div className="absolute inset-0 z-30 flex items-center justify-center">
+                <div className="text-center font-mono">
+                  <AlertTriangle size={48} className="text-amber-500/30 mx-auto mb-4" />
+                  <div className="text-xs uppercase tracking-widest text-amber-500/60 mb-1">NO GRAPH DATA</div>
+                  <div className="text-[10px] text-gray-700 max-w-xs">This engagement has no findings yet. Run scans or exploits to populate the attack graph.</div>
+                  <div className="text-[9px] text-gray-600 mt-2">Live events will render automatically when available.</div>
+                </div>
               </div>
-            </div>
+            )
+          )}
+
+          {/* Persistent scan progress bar — shows when scan is running AND graph has data */}
+          {engagementId && mode === "engagement" && opsState?.isRunning && graphQuery.data && (graphQuery.data.nodes?.length ?? 0) > 0 && (
+            <ScanProgressOverlay opsState={opsState} variant="bar" />
           )}
 
           {/* Empty graph state — DI scan selected but no assets */}
