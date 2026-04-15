@@ -2299,6 +2299,12 @@ Return valid JSON per the response_format schema.`;
 
   state.scanPlan = scanPlan;
 
+  // ═══ CRITICAL: Force-persist scanPlan immediately ═══
+  // The scanPlan must survive server restarts. Without this, a restart between
+  // plan generation and the next phaseCheckpoint loses the ZAP/Nuclei configs,
+  // causing ZAP scans to be silently skipped on recovery.
+  await persistOpsStateNow(engagementId);
+
   // Log the scan plan to the live feed
   const ep = scanPlan.discoveryEvasionProfile;
   const evasionFlags = [
@@ -5534,7 +5540,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
 }
 
-async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
+export async function executeVulnDetection(state: EngagementOpsState, engagement: any, operatorCtx: { id: string; name?: string }) {
   state.phase = "vuln_detection";
   state.currentAction = "Running vulnerability detection...";
   const scanServerHost = process.env.SCAN_SERVER_HOST || '';
@@ -6692,7 +6698,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
   // ── ZAP scan on web applications (WAF-aware, RoE scope enforced) ──
   const webApps = state.assets.filter(a =>
-    (a.type === "web_app" ||
+    (a.type === "web_app" || a.type === "web" ||
     a.ports.some(p => ["http", "https"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)))
     && isInRoeScope(state, a.hostname, a.ip)
   );

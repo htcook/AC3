@@ -2351,6 +2351,30 @@ export const engagementOpsRouter = router({
                 addLog(state!, { phase: 'scanning', type: 'error', title: '\u274c Active scanning failed', detail: err.message });
               }
 
+              // ── ZAP + Burp Vulnerability Scanning ──
+              // Call the full executeVulnDetection pipeline which includes:
+              // - ZAP web app scanning (WAF-aware, RoE scope enforced, credential injection)
+              // - ZAP → Burp cross-tool pipeline (auto-feeds ZAP discoveries into Burp)
+              // - Blind SQLi pass, Hydra credential testing, SQLMap deep injection
+              // - Nuclei targeted scans, header probing, and more
+              // This was previously missing from rerunFullPipeline, causing ZAP/Burp to be skipped.
+              try {
+                const { executeVulnDetection } = await import('../lib/engagement-orchestrator');
+                addLog(state!, { phase: 'scanning', type: 'info', title: '🛡️ ZAP + Burp Vulnerability Scanning', detail: 'Running OWASP ZAP web app scans and Burp Suite scanning pipeline...' });
+                broadcastOpsUpdate(input.engagementId, { type: 'phase_change', phase: 'vuln_detection' });
+                await executeVulnDetection(state!, engagement, { id: String(ctx.user.id), name: ctx.user.name || undefined });
+                addLog(state!, { phase: 'scanning', type: 'success', title: '✅ ZAP + Burp Scanning Complete', detail: `${state!.stats.zapScansRun} ZAP scans run, ${state!.stats.vulnsFound} total vulns found` });
+                // Restore phase to 'scanning' for the rest of the rerunFullPipeline flow
+                state!.phase = 'scanning';
+              } catch (vulnDetErr: any) {
+                console.error('[rerunFullPipeline] executeVulnDetection failed:', vulnDetErr.message);
+                addLog(state!, { phase: 'scanning', type: 'warning', title: '⚠️ ZAP + Burp Scanning Failed', detail: `Vulnerability detection pipeline error: ${vulnDetErr.message}. Continuing with existing findings.` });
+                // Restore phase to 'scanning' even on failure
+                state!.phase = 'scanning';
+              }
+              // ── Persist after ZAP + Burp scanning ──
+              await persistOpsStateNow(input.engagementId).catch(() => {});
+
               // LLM feedback loop
               if (input.phases.llmAnalysis) {
                 try {
