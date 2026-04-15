@@ -761,6 +761,9 @@ export default function Battlespace() {
   // Visual effect toggles state
   const [engineOptions, setEngineOptions] = useState<Partial<EngineOptions>>({});
 
+  // tRPC utils for query invalidation
+  const trpcUtils = trpc.useUtils();
+
   // Data queries
   const engagementsQuery = trpc.engagements.list.useQuery(undefined, { retry: 1 });
   const engagements = engagementsQuery.data || [];
@@ -771,7 +774,12 @@ export default function Battlespace() {
 
   const graphQuery = trpc.exploitAttackGraph.getGraphFast.useQuery(
     { engagementId: parsedEngagementId },
-    { enabled: engagementEnabled, retry: 1 }
+    {
+      enabled: engagementEnabled,
+      retry: 1,
+      // Re-fetch graph every 15s while scan is running to pick up new assets/vulns
+      refetchInterval: opsState?.isRunning ? 15000 : false,
+    }
   );
 
   // ── Ops state query for scan progress overlay ──
@@ -920,22 +928,35 @@ export default function Battlespace() {
     };
   }, [callbacks]);
 
-  // Load graph data when engagement changes
+  // Load graph data when engagement changes — use addNodes for live refetches
+  // to avoid clobbering nodes that were added via the live stream
+  const graphDataVersionRef = useRef(0);
+  // Reset version counter when engagement switches so the next load is a full replace
+  useEffect(() => { graphDataVersionRef.current = 0; }, [parsedEngagementId]);
   useEffect(() => {
     if (!engineRef.current || !graphQuery.data) return;
     const graphData = transformEngagementGraph(graphQuery.data);
-    engineRef.current.loadGraph(graphData);
-    setTimeout(() => {
-      engineRef.current?.fitToView();
-      // Compute time range for timeline scrubber
-      const range = engineRef.current?.getTimeRange() || null;
-      setTimeRange(range);
-      setTotalNodeCount(graphData.nodes.length);
-      setVisibleNodeCount(graphData.nodes.length);
-      // Sync engine options to state
-      if (engineRef.current) setEngineOptions({ ...engineRef.current.getOptions() });
-    }, 600);
-  }, [graphQuery.data]);
+    const isFirstLoad = graphDataVersionRef.current === 0;
+    graphDataVersionRef.current += 1;
+
+    if (isFirstLoad || !opsState?.isRunning) {
+      // First load or scan not running — full replace
+      engineRef.current.loadGraph(graphData);
+      setTimeout(() => {
+        engineRef.current?.fitToView();
+        const range = engineRef.current?.getTimeRange() || null;
+        setTimeRange(range);
+        setTotalNodeCount(graphData.nodes.length);
+        setVisibleNodeCount(graphData.nodes.length);
+        if (engineRef.current) setEngineOptions({ ...engineRef.current.getOptions() });
+      }, 600);
+    } else {
+      // Scan is running — merge new nodes/edges without clobbering live-streamed ones
+      engineRef.current.addNodes(graphData.nodes, graphData.edges);
+      setTotalNodeCount(engineRef.current.getNodeCount());
+      setVisibleNodeCount(engineRef.current.getNodeCount());
+    }
+  }, [graphQuery.data, opsState?.isRunning]);
 
   // Timeline scrubber callback
   const handleTimeChange = useCallback((startMs: number | null, endMs: number | null) => {
@@ -978,11 +999,21 @@ export default function Battlespace() {
     setLiveEventCount(count);
   }, []);
 
+  // Throttled graph invalidation — at most once per 10s to avoid hammering the server
+  const lastInvalidateRef = useRef(0);
+  const handleGraphInvalidate = useCallback(() => {
+    const now = Date.now();
+    if (now - lastInvalidateRef.current < 10000) return; // 10s throttle
+    lastInvalidateRef.current = now;
+    trpcUtils.exploitAttackGraph.getGraphFast.invalidate({ engagementId: parsedEngagementId });
+  }, [trpcUtils, parsedEngagementId]);
+
   const { isConnected: liveStreamConnected } = useOpsViewerLiveStream({
     engagementId: engagementEnabled ? parsedEngagementId : null,
     onNodesDiscovered: handleLiveNodesDiscovered,
     onPhaseChanged: handlePhaseChanged,
     onEventCount: handleEventCount,
+    onGraphInvalidate: handleGraphInvalidate,
     enabled: mode === "engagement" && engineReady,
   });
 
@@ -1172,16 +1203,33 @@ export default function Battlespace() {
 
           {/* Live Stream Status Indicator */}
           {mode === "engagement" && engagementId && (
-            <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
-              <div className={`w-2 h-2 rounded-full ${liveStreamConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-600'}`} />
-              <span className="text-[9px] font-mono uppercase tracking-wider text-gray-400">
-                {liveStreamConnected ? 'LIVE' : 'OFFLINE'}
+            <div className={`flex items-center gap-2 px-2 border-l ${
+              opsState?.isRunning ? 'border-teal-500/30 bg-teal-500/5' : 'border-[#1A2332]'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                opsState?.isRunning
+                  ? 'bg-teal-400 animate-pulse shadow-[0_0_6px_rgba(0,229,204,0.5)]'
+                  : liveStreamConnected ? 'bg-green-500' : 'bg-gray-600'
+              }`} />
+              <span className={`text-[9px] font-mono uppercase tracking-wider ${
+                opsState?.isRunning ? 'text-teal-400' : 'text-gray-400'
+              }`}>
+                {opsState?.isRunning ? 'SCANNING' : liveStreamConnected ? 'LIVE' : 'OFFLINE'}
               </span>
               {liveEventCount > 0 && (
-                <span className="text-[9px] font-mono text-teal-400">{liveEventCount} events</span>
+                <span className="text-[9px] font-mono text-cyan-400">
+                  {liveEventCount} <span className="text-gray-600">events</span>
+                </span>
+              )}
+              {totalNodeCount > 0 && opsState?.isRunning && (
+                <span className="text-[9px] font-mono text-emerald-400">
+                  {totalNodeCount} <span className="text-gray-600">nodes</span>
+                </span>
               )}
               {currentPhase && (
-                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]" title={currentPhase}>{currentPhase}</span>
+                <span className="text-[9px] font-mono text-amber-400 truncate max-w-[120px]" title={currentPhase}>
+                  {currentPhase.replace(/_/g, ' ').toUpperCase()}
+                </span>
               )}
             </div>
           )}

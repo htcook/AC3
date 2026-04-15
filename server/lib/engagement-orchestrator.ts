@@ -1188,6 +1188,78 @@ export function broadcastOpsUpdate(engagementId: number, data: Record<string, an
   }
 }
 
+/**
+ * Emit a recon:finding event for the Ops Viewer live stream.
+ * The useOpsViewerLiveStream hook converts these into graph nodes/edges in real-time.
+ */
+export function broadcastReconFinding(engagementId: number, finding: {
+  target?: string; host?: string; ip?: string; domain?: string;
+  port?: number; service?: string; protocol?: string;
+  vulnerability?: string; cve?: string; templateId?: string; finding?: string;
+  severity?: string; subdomain?: string;
+  technology?: string; waf?: string; cdn?: string;
+  tool?: string;
+}) {
+  try {
+    eventHub.broadcastEngagement(engagementId, {
+      type: "recon:finding",
+      timestamp: Date.now(),
+      engagementId,
+      data: finding,
+    });
+  } catch (e: any) {
+    // Non-critical — live stream is best-effort
+  }
+}
+
+/**
+ * Emit a credential:found event for the Ops Viewer live stream.
+ */
+export function broadcastCredentialFound(engagementId: number, cred: {
+  target?: string; host?: string; username?: string; credential?: string; tool?: string;
+}) {
+  try {
+    eventHub.broadcastEngagement(engagementId, {
+      type: "credential:found",
+      timestamp: Date.now(),
+      engagementId,
+      data: cred,
+    });
+  } catch (e: any) { /* best-effort */ }
+}
+
+/**
+ * Emit an exploit:fired event for the Ops Viewer live stream.
+ */
+export function broadcastExploitFired(engagementId: number, exploit: {
+  target?: string; targetIp?: string; module?: string; exploit?: string;
+}) {
+  try {
+    eventHub.broadcastEngagement(engagementId, {
+      type: "exploit:fired",
+      timestamp: Date.now(),
+      engagementId,
+      data: exploit,
+    });
+  } catch (e: any) { /* best-effort */ }
+}
+
+/**
+ * Emit an exploit:result event for the Ops Viewer live stream.
+ */
+export function broadcastExploitResult(engagementId: number, result: {
+  target?: string; targetIp?: string; module?: string; success?: boolean;
+}) {
+  try {
+    eventHub.broadcastEngagement(engagementId, {
+      type: "exploit:result",
+      timestamp: Date.now(),
+      engagementId,
+      data: result,
+    });
+  } catch (e: any) { /* best-effort */ }
+}
+
 export function addLog(state: EngagementOpsState, entry: Omit<OpsLogEntry, "id" | "timestamp">) {
   // Deduplicate consecutive identical log entries (same title + detail)
   // This prevents ZAP progress spam and other polling loops from flooding the feed
@@ -2958,7 +3030,59 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   }
 
   state.progress = 15;
-  addLog(state, { phase: "recon", type: "phase_complete", title: "✅ Phase 1 Complete", detail: `${state.assets.length} assets in scope` });
+  addLog(state, { phase: "recon", type: "phase_complete", title: "\u2705 Phase 1 Complete", detail: `${state.assets.length} assets in scope` });
+
+  // ═══ EMIT recon:finding EVENTS FOR LIVE GRAPH UPDATES ═══
+  // Broadcast each discovered asset so the Ops Viewer live stream can render them in real-time
+  for (const asset of state.assets) {
+    // Host node
+    broadcastReconFinding(state.engagementId, {
+      target: asset.hostname || asset.ip,
+      host: asset.hostname,
+      ip: asset.ip,
+      tool: "passive_recon",
+    });
+    // Ports
+    for (const p of (asset.ports || [])) {
+      broadcastReconFinding(state.engagementId, {
+        target: asset.hostname || asset.ip,
+        port: typeof p.port === "number" ? p.port : parseInt(String(p.port)) || undefined,
+        service: p.service || undefined,
+        protocol: "tcp",
+        tool: "passive_recon",
+      });
+    }
+    // Vulns from passive recon
+    for (const v of (asset.vulns || [])) {
+      broadcastReconFinding(state.engagementId, {
+        target: asset.hostname || asset.ip,
+        vulnerability: v.title || v.id,
+        cve: v.cve,
+        severity: v.severity || "info",
+        tool: "passive_recon",
+      });
+    }
+    // Subdomains
+    if (asset.passiveRecon?.subdomains) {
+      for (const sub of asset.passiveRecon.subdomains) {
+        broadcastReconFinding(state.engagementId, {
+          target: asset.hostname || asset.ip,
+          subdomain: typeof sub === "string" ? sub : sub.hostname,
+          tool: "passive_recon",
+        });
+      }
+    }
+    // Technologies / WAF / CDN
+    if (asset.passiveRecon?.technologies) {
+      for (const tech of asset.passiveRecon.technologies) {
+        broadcastReconFinding(state.engagementId, {
+          target: asset.hostname || asset.ip,
+          technology: typeof tech === "string" ? tech : tech.name,
+          tool: "passive_recon",
+        });
+      }
+    }
+  }
 }
 
 // ─── Tool Output Parser ────────────────────────────────────────────────────
@@ -4642,10 +4766,23 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   state.progress = 25;
   addLog(state, {
     phase: "enumeration", type: "phase_complete",
-    title: "✅ Phase A Discovery Complete",
+    title: "\u2705 Phase A Discovery Complete",
     detail: `${state.stats.hostsScanned} hosts scanned, ${state.stats.portsFound} ports discovered. Enriched data now available for Phase B targeted tool deployment.`,
   });
   broadcastOpsUpdate(state.engagementId, { type: "stats_update", stats: { ...state.stats } });
+
+  // ═══ EMIT recon:finding EVENTS FOR PORT DISCOVERY RESULTS ═══
+  for (const asset of state.assets) {
+    for (const p of (asset.ports || [])) {
+      broadcastReconFinding(state.engagementId, {
+        target: asset.hostname || asset.ip,
+        port: typeof p.port === "number" ? p.port : parseInt(String(p.port)) || undefined,
+        service: p.service || undefined,
+        protocol: "tcp",
+        tool: "scanforge_discovery",
+      });
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE A.5: Cloud Asset Detection & Storage Enumeration
@@ -6408,8 +6545,22 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       phase: "vuln_detection",
       type: "scan_result",
       title: "Nuclei Scan Complete",
-      detail: `Phase 3 nuclei found ${phase3NucleiFindings} new vulnerabilities across ${nucleiAssets.length} targets${phase3NucleiErrors > 0 ? ` (${phase3NucleiErrors} scans failed — SSH connection issues)` : ''}. Total vulns: ${totalVulns} (${priorVulns} from prior phases + ${phase3NucleiFindings} new)`,
+      detail: `Phase 3 nuclei found ${phase3NucleiFindings} new vulnerabilities across ${nucleiAssets.length} targets${phase3NucleiErrors > 0 ? ` (${phase3NucleiErrors} scans failed \u2014 SSH connection issues)` : ''}. Total vulns: ${totalVulns} (${priorVulns} from prior phases + ${phase3NucleiFindings} new)`,
     });
+
+    // ═══ EMIT recon:finding EVENTS FOR NUCLEI VULN RESULTS ═══
+    for (const asset of nucleiAssets) {
+      for (const v of (asset.vulns || [])) {
+        broadcastReconFinding(state.engagementId, {
+          target: asset.hostname || asset.ip,
+          vulnerability: v.title || v.id,
+          cve: v.cve,
+          severity: v.severity || "info",
+          port: v.port,
+          tool: "nuclei",
+        });
+      }
+    }
 
     // ── Network-Level Nuclei Scans (non-HTTP services) ──
     // Uses fingerprint data to run service-specific nuclei templates against non-HTTP ports
@@ -7543,6 +7694,17 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
           detail: `Found ${webApp.zapFindings.length} web application findings${wafVendor ? ` (WAF: ${wafVendor})` : ""}`,
           data: { findings: webApp.zapFindings.length, wafVendor },
         });
+
+        // ═══ EMIT recon:finding EVENTS FOR ZAP RESULTS ═══
+        for (const zf of webApp.zapFindings) {
+          broadcastReconFinding(state.engagementId, {
+            target: webApp.hostname || webApp.ip,
+            vulnerability: zf.alert,
+            severity: zf.risk || "info",
+            tool: "zap",
+          });
+        }
+
         // ── Checkpoint: mark this ZAP target as completed ──
         if (state.completedScans) {
           state.completedScans.zapCompleted.add(dedupKey);

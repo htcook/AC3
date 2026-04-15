@@ -64,6 +64,8 @@ interface LiveStreamOptions {
   onPhaseChanged?: (phase: string, previousPhase: string) => void;
   /** Called with live event count for status display */
   onEventCount?: (count: number) => void;
+  /** Called when a stats_update or phase_change event suggests the graph query should be refetched */
+  onGraphInvalidate?: () => void;
   enabled?: boolean;
 }
 
@@ -502,7 +504,7 @@ function eventToGraphDelta(event: WsEvent): { nodes: BattlespaceNode[]; edges: B
  * render discoveries in the Ops Viewer engine.
  */
 export function useOpsViewerLiveStream(options: LiveStreamOptions) {
-  const { engagementId, onNodesDiscovered, onPhaseChanged, onEventCount, enabled = true } = options;
+  const { engagementId, onNodesDiscovered, onPhaseChanged, onEventCount, onGraphInvalidate, enabled = true } = options;
   const eventCountRef = useRef(0);
   const processedEventsRef = useRef(new Set<string>());
 
@@ -537,6 +539,17 @@ export function useOpsViewerLiveStream(options: LiveStreamOptions) {
     // Handle phase changes
     if (lastEvent.type === "engagement:phase_changed" && onPhaseChanged) {
       onPhaseChanged(lastEvent.data.newPhase, lastEvent.data.previousPhase);
+      // Phase changes mean new data is likely available — trigger graph refetch
+      onGraphInvalidate?.();
+    }
+
+    // Handle progress updates with stats — trigger graph refetch so the
+    // deterministic graph builder picks up newly persisted assets/vulns
+    if (lastEvent.type === "engagement:progress_update") {
+      const subType = lastEvent.data?.type || lastEvent.data?.subtype;
+      if (subType === "stats_update" || subType === "phase_change") {
+        onGraphInvalidate?.();
+      }
     }
 
     // Convert event to graph delta
@@ -546,7 +559,7 @@ export function useOpsViewerLiveStream(options: LiveStreamOptions) {
       eventCountRef.current += 1;
       onEventCount?.(eventCountRef.current);
     }
-  }, [lastEvent, onNodesDiscovered, onPhaseChanged, onEventCount]);
+  }, [lastEvent, onNodesDiscovered, onPhaseChanged, onEventCount, onGraphInvalidate]);
 
   // Reset dedup sets when engagement changes
   useEffect(() => {
