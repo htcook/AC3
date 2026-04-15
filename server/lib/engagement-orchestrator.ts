@@ -573,6 +573,20 @@ export interface EngagementOpsState {
     hydraCompleted: Set<string>;
     /** Exploit targets that completed */
     exploitCompleted: Set<string>;
+    /** Katana JS crawl targets that completed */
+    katanaCompleted: Set<string>;
+    /** Feroxbuster content discovery targets that completed */
+    feroxbusterCompleted: Set<string>;
+    /** ffuf fuzzing targets that completed (vhost + param) */
+    ffufCompleted: Set<string>;
+    /** testssl.sh TLS scan targets that completed */
+    testsslCompleted: Set<string>;
+    /** Arjun/ParamSpider parameter discovery targets that completed */
+    paramDiscoveryCompleted: Set<string>;
+    /** wafw00f WAF detection targets that completed */
+    wafw00fCompleted: Set<string>;
+    /** Burp scan targets that completed */
+    burpCompleted: Set<string>;
     /** Timestamp of last checkpoint */
     lastCheckpointAt: number;
   };
@@ -688,10 +702,21 @@ export function normalizeOpsState(state: any): EngagementOpsState {
     zapCompleted: new Set<string>(),
     hydraCompleted: new Set<string>(),
     exploitCompleted: new Set<string>(),
+    katanaCompleted: new Set<string>(),
+    feroxbusterCompleted: new Set<string>(),
+    ffufCompleted: new Set<string>(),
+    testsslCompleted: new Set<string>(),
+    paramDiscoveryCompleted: new Set<string>(),
+    wafw00fCompleted: new Set<string>(),
+    burpCompleted: new Set<string>(),
     lastCheckpointAt: Date.now(),
   };
   if (state.completedScans) {
-    for (const key of ['nucleiCompleted', 'zapCompleted', 'hydraCompleted', 'exploitCompleted'] as const) {
+    for (const key of [
+      'nucleiCompleted', 'zapCompleted', 'hydraCompleted', 'exploitCompleted',
+      'katanaCompleted', 'feroxbusterCompleted', 'ffufCompleted',
+      'testsslCompleted', 'paramDiscoveryCompleted', 'wafw00fCompleted', 'burpCompleted',
+    ] as const) {
       const val = (state.completedScans as any)[key];
       if (val && !(val instanceof Set)) {
         try {
@@ -840,6 +865,13 @@ export function initOpsState(engagementId: number, engagementType: string): Enga
       zapCompleted: new Set(),
       hydraCompleted: new Set(),
       exploitCompleted: new Set(),
+      katanaCompleted: new Set(),
+      feroxbusterCompleted: new Set(),
+      ffufCompleted: new Set(),
+      testsslCompleted: new Set(),
+      paramDiscoveryCompleted: new Set(),
+      wafw00fCompleted: new Set(),
+      burpCompleted: new Set(),
       lastCheckpointAt: Date.now(),
     },
     exhaustiveExploit: true, // Default: attempt every exploit opportunity, don't stop at first success
@@ -5736,6 +5768,13 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       if (burpConfig.engagementId !== state.engagementId) return;
       const deduped = (burpState as any).deduplicatedCount || 0;
       console.log(`[EngagementOps] Burp scan ${burpState.scanId} completed for engagement #${state.engagementId}: ${burpState.issueCount} issues, ${burpState.importedCount} imported, ${deduped} deduplicated`);
+
+      // Track Burp scan completion for recovery/resume skip logic
+      const burpTarget = burpConfig.targetUrl || burpConfig.baseUrl || 'unknown';
+      if (state.completedScans) {
+        state.completedScans.burpCompleted.add(burpTarget);
+        state.completedScans.lastCheckpointAt = Date.now();
+      }
       addLog(state, {
         phase: "vuln_detection", type: "scan_result",
         title: `\u2705 Burp Scan Complete: ${burpState.importedCount} findings imported${deduped > 0 ? ` (${deduped} duplicates skipped)` : ''}`,
@@ -11211,13 +11250,13 @@ export async function executeEngagement(
         if (options?.startPhase) {
           startPhase = options.startPhase;
         } else {
-          const lastPhaseIdx = phaseOrder.indexOf(recovered.phase);
-          if (lastPhaseIdx >= 0 && lastPhaseIdx < phaseOrder.length - 1) {
-            // Advance to the NEXT phase (the interrupted phase's data is already saved)
-            startPhase = phaseOrder[lastPhaseIdx + 1] as any;
-          } else {
-            startPhase = recovered.phase as any;
-          }
+          // ═══ RESUME FROM SAME PHASE (not next) ═══
+          // Previously this advanced to the NEXT phase, which caused ZAP/Burp scans
+          // to be skipped if the server crashed during vuln_detection.
+          // Now we resume from the SAME phase — the completedScans tracking
+          // (nucleiCompleted, zapCompleted, hydraCompleted, etc.) ensures that
+          // already-finished work within the phase is skipped automatically.
+          startPhase = recovered.phase as any;
         }
         const recoveredPhaseLabel = recovered.phase.replace(/_/g, ' ');
         const startPhaseLabel = (startPhase as string).replace(/_/g, ' ');
