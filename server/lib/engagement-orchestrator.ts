@@ -20,6 +20,7 @@
  */
 
 import { invokeLLM } from "../_core/llm";
+import { SCANFORGE_DEDICATED_IP } from "./scan-service-url";
 import { throttledLLMCall } from "./llm-throttle";
 import {
   executePassiveDiscovery,
@@ -298,6 +299,49 @@ export interface AssetStatus {
 function fmtTarget(asset: { hostname: string; ip?: string } | null, fallbackTarget?: string): string {
   if (!asset) return fallbackTarget || 'unknown';
   if (asset.ip && asset.ip !== asset.hostname) return `${asset.hostname} (${asset.ip})`;
+  return asset.hostname;
+}
+
+/**
+ * Resolve the effective scan target for an asset.
+ *
+ * When a target is behind a reverse proxy / virtual host (e.g., nginx on the scan server),
+ * HTTP-based tools MUST use the hostname so the Host header triggers correct routing.
+ * Using the raw IP would hit the default nginx server block (wrong app or 404).
+ *
+ * Detection: if asset.ip matches a known infrastructure IP (scan server, ScanForge droplet)
+ * AND the asset has a hostname, prefer hostname for HTTP tools.
+ *
+ * For non-HTTP tools (raw TCP, nmap discovery), use `getEffectiveTarget(asset, 'discovery')`
+ * which still prefers IP for direct connection.
+ */
+const KNOWN_INFRA_IPS = new Set([
+  process.env.SCAN_SERVER_HOST || '',
+  SCANFORGE_DEDICATED_IP,          // 137.184.71.192
+  '159.223.152.190',               // Legacy scan server (hosts BC, DVWA, etc.)
+].filter(Boolean));
+
+export function getEffectiveTarget(
+  asset: { hostname: string; ip?: string },
+  mode: 'http' | 'discovery' | 'metadata' = 'http'
+): string {
+  // If no IP resolved, hostname is all we have
+  if (!asset.ip) return asset.hostname;
+  // If no hostname (IP-only target), use IP
+  if (!asset.hostname || asset.hostname === asset.ip) return asset.ip;
+  // For HTTP tools: prefer hostname when target is behind a virtual host on infra
+  if (mode === 'http' && KNOWN_INFRA_IPS.has(asset.ip)) {
+    return asset.hostname;
+  }
+  // For discovery (nmap, ScanForge port scans): IP is fine, no Host header needed
+  if (mode === 'discovery') {
+    return asset.ip;
+  }
+  // For metadata/logging: prefer hostname for readability
+  if (mode === 'metadata') {
+    return asset.hostname;
+  }
+  // Default: prefer hostname for safety (HTTP tools are the most common case)
   return asset.hostname;
 }
 
@@ -3677,7 +3721,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
   // Build target list preserving asset identity (avoid IP dedup when multiple assets share an IP)
   // Each entry maps to a unique asset by hostname, using IP only for ScanForge discovery execution
   const targets = scopedAssets.map(a => ({
-    scanTarget: a.ip || a.hostname,  // What ScanForge scans (IP preferred)
+    scanTarget: getEffectiveTarget(a, 'discovery'),  // Discovery: IP for port scans, hostname for vhosted targets
     assetHostname: a.hostname,       // Which asset this belongs to
   }));
 
@@ -4959,7 +5003,8 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
     );
     if (webPorts.length > 0) asset.type = "web_app";
 
-    const target = asset.ip || asset.hostname;
+    const target = getEffectiveTarget(asset, 'discovery');
+    const httpTarget = getEffectiveTarget(asset, 'http');
     const assetPlan = state.scanPlan?.assetPlans.find(
       ap => ap.hostname === asset.hostname || ap.ip === target
     );
@@ -5052,9 +5097,9 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
       cmdsToRun = assetPlan.activeTools.map(t => ({
         tool: t.tool,
         command: t.command
-          .replace(/\{target\}/g, asset.ip || asset.hostname)
-          .replace(/\{[^}]*host[^}]*\}/gi, asset.ip || asset.hostname)
-          .replace(/\{[^}]*ip[^}]*\}/gi, asset.ip || asset.hostname)
+          .replace(/\{target\}/g, httpTarget)
+          .replace(/\{[^}]*host[^}]*\}/gi, httpTarget)
+          .replace(/\{[^}]*ip[^}]*\}/gi, httpTarget)
           .replace(/\{[^}]*naabu[^}]*\}/gi, '')  // Remove any naabu placeholders
           .replace(/\s+/g, ' ').trim(),
         purpose: t.rationale,
@@ -5109,7 +5154,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
           // Only add tools that aren't already in the command list
           if (!existingTools.has(tool.tool)) {
             const resolvedFlags = tool.flags
-              .replace(/HOST|TARGET/g, asset.ip || asset.hostname)
+              .replace(/HOST|TARGET/g, httpTarget)
               .replace(/DISCOVERED_PORTS/g, asset.ports.map(p => p.port).join(','))
               .replace(/TARGET_URL/g, `https://${asset.hostname}`)
               .replace(/TARGET:PORT/g, `${asset.hostname}:443`);
@@ -5158,7 +5203,7 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         // The LLM sometimes generates 'nuclei -u URL nuclei -severity...' (doubled)
         nucleiCmd = nucleiCmd.replace(/\bnuclei\b/g, '').trim();
         const targetMatch = nucleiCmd.match(/-(?:target|u)\s+(\S+)/) || nucleiCmd.match(/(https?:\/\/\S+)/);
-        let nucleiTarget = targetMatch?.[1] || asset.ip || asset.hostname;
+        let nucleiTarget = targetMatch?.[1] || httpTarget;
         if (nucleiTarget && !nucleiTarget.startsWith('http')) {
           const webPorts = asset.ports.filter(p =>
             ['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
@@ -5605,6 +5650,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       gruyere: [
         { username: "test", password: "test", service: "http-form", loginPath: "/login" },
       ],
+      'broken-crystals': [
+        // BC exposes DB creds via /api/config: postgres://bc:bc@db:5432/bc
+        { username: "bc", password: "bc", service: "postgresql", loginPath: "/api/auth/login" },
+        // Default admin credentials for the application
+        { username: "admin", password: "admin", service: "http-post", loginPath: "/api/auth/login" },
+        { username: "john", password: "john", service: "http-post", loginPath: "/api/auth/login" },
+      ],
     };
 
     // Detect which training lab this is — works with or without trainingLabMode flag
@@ -5805,6 +5857,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       'juiceshop': { username: 'admin@juice-sh.op', password: 'admin123', loginPath: '/#/login' },
       'hackazon': { username: 'test_user', password: 'test_user', loginPath: '/user/login' },
       'testphp': { username: 'test', password: 'test', loginPath: '/login.php' },
+      'brokencrystals': { username: 'admin', password: 'admin', loginPath: '/api/auth/login' },
     };
     for (const asset of state.assets) {
       const hostname = (asset.hostname || '').toLowerCase();
@@ -5996,7 +6049,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
     const nucleiScanTasks: Array<{ asset: any; url: string; nucleiArgs: string; target: string; techTags: string[]; assetVulnKeys: Set<string> }> = [];
 
     for (const asset of nucleiAssets) {
-      const target = asset.ip || asset.hostname;
+      const target = getEffectiveTarget(asset, 'http');
       const NUCLEI_INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]);
       const webPorts = asset.ports.filter(p =>
         (["http", "https", "http-proxy", "http-alt"].includes(p.service) ||
@@ -6312,7 +6365,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         );
         if (nonHttpFps.length === 0) continue;
 
-        const target = asset.ip || asset.hostname;
+        const target = getEffectiveTarget(asset, 'discovery');  // Non-HTTP services: use IP for raw TCP
         const serviceTasks = generateServiceScanTasks(target, nonHttpFps, {
           rateLimit: nucleiRateLimit,
           maxTasks: 10,
@@ -6389,7 +6442,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
             })
           : [asset.hostname];
         const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
-        const target = asset.ip || asset.hostname;
+        const target = getEffectiveTarget(asset, 'http');
         for (const url of nucleiTargetUrls) {
           // No -tags flag: run ALL templates at critical+high severity
           const nucleiArgs = `-u ${url} -severity critical,high -jsonl -nc -duc -ni -timeout 15 -retries 1 -rate-limit 150`;
@@ -8102,7 +8155,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
 
       for (const cmd of credCmds) {
         // ── Resume checkpoint: skip already-completed hydra targets ──
-        const hydraKey = `${cmd.tool}:${asset.ip || asset.hostname}:${cmd.purpose}`;
+        const hydraKey = `${cmd.tool}:${getEffectiveTarget(asset, 'metadata')}:${cmd.purpose}`;
         if (state.completedScans.hydraCompleted.has(hydraKey)) {
           continue; // Already ran this credential test in a previous run
         }
@@ -8127,7 +8180,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
         if (cmd.tool === 'hydra') {
           const portMatch = cmd.args.match(/-s\s+(\d+)/);
           const targetPort = portMatch ? Number(portMatch[1]) : (cmd.args.includes('ssh') ? 22 : 80);
-          const targetHost = asset.ip || asset.hostname;
+          const targetHost = getEffectiveTarget(asset, 'discovery');  // TCP port check uses IP
           const netMod = await import('net');
           const isReachable = await new Promise<boolean>((resolve) => {
             const sock = new netMod.default.Socket();
@@ -8160,7 +8213,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           const result = await execToolCred({
             tool: cmd.tool,
             args: cmd.args,
-            target: asset.ip || asset.hostname,
+            target: getEffectiveTarget(asset, 'discovery'),  // Hydra uses raw TCP, IP is fine
             timeoutSeconds: 120,
             engagementId: state.engagementId,
           });
@@ -8251,7 +8304,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           await persistScanResult({
             engagementId: state.engagementId,
             tool: cmd.tool,
-            target: asset.ip || asset.hostname,
+            target: getEffectiveTarget(asset, 'metadata'),
             command: `${cmd.tool} ${cmd.args}`,
             stdout: result.stdout,
             stderr: result.stderr,
@@ -10892,7 +10945,7 @@ async function executePostExploit(state: EngagementOpsState, engagement: any, op
         rawOutput: assetEvidenceContent,
         targetHost: asset.hostname,
         sourceIp: process.env.SCAN_SERVER_HOST || '127.0.0.1',
-        destinationIp: asset.ip || asset.hostname,
+        destinationIp: getEffectiveTarget(asset, 'metadata'),
       });
       const assetGate = evidenceGate({
         content: assetEvidenceContent,
@@ -11830,7 +11883,7 @@ export async function executeEngagement(
               severity: v.severity,
               cve: v.cve,
               target: asset.hostname,
-              host: asset.ip || asset.hostname,
+              host: getEffectiveTarget(asset, 'http'),
               port: (v as any).port,
               service: (v as any).service,
               details: (v as any).description || v.title,
@@ -11840,7 +11893,7 @@ export async function executeEngagement(
               title: `${p.service || 'unknown'} on port ${p.port}`,
               severity: 'info',
               target: asset.hostname,
-              host: asset.ip || asset.hostname,
+              host: getEffectiveTarget(asset, 'http'),
               port: p.port,
               service: p.service,
               details: p.version ? `${p.service} ${p.version}` : p.service,
@@ -11850,7 +11903,7 @@ export async function executeEngagement(
               title: z.alert || z.name,
               severity: z.risk || 'info',
               target: asset.hostname,
-              host: asset.ip || asset.hostname,
+              host: getEffectiveTarget(asset, 'http'),
               details: z.url || '',
             })),
             // Include tool result summaries so the LLM can see what tools already ran
@@ -11860,7 +11913,7 @@ export async function executeEngagement(
               title: `[${tr.tool}] ${tr.findingCount} findings (exit ${tr.exitCode}, ${tr.phase})`,
               severity: tr.findingCount > 0 ? 'info' : 'low',
               target: asset.hostname,
-              host: asset.ip || asset.hostname,
+              host: getEffectiveTarget(asset, 'http'),
               details: tr.outputPreview ? tr.outputPreview.slice(0, 500) : `${tr.tool} ran with ${tr.findingCount} findings`,
               tool: tr.tool,
               phase: tr.phase,
@@ -11883,7 +11936,7 @@ export async function executeEngagement(
           }
 
           const scope = {
-            targets: state.assets.map(a => a.ip || a.hostname),
+            targets: state.assets.map(a => getEffectiveTarget(a, 'http')),
             engagementName: engagement?.name || `Engagement #${state.engagementId}`,
           };
 
