@@ -246,10 +246,10 @@ describe('Live Graph Updates', () => {
   });
 
   describe('refetchInterval behavior', () => {
-    it('should return 15000 when opsState.isRunning is true', () => {
+    it('should return 8000 when opsState.isRunning is true', () => {
       const opsState = { isRunning: true, phase: 'enumeration' };
-      const interval = opsState?.isRunning ? 15000 : false;
-      expect(interval).toBe(15000);
+      const interval = opsState?.isRunning ? 8000 : false;
+      expect(interval).toBe(8000);
     });
 
     it('should return false when opsState.isRunning is false', () => {

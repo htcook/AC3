@@ -777,8 +777,8 @@ export default function Battlespace() {
     {
       enabled: engagementEnabled,
       retry: 1,
-      // Re-fetch graph every 15s while scan is running to pick up new assets/vulns
-      refetchInterval: opsState?.isRunning ? 15000 : false,
+      // Re-fetch graph every 8s while scan is running to pick up new assets/vulns
+      refetchInterval: opsState?.isRunning ? 8000 : false,
     }
   );
 
@@ -1351,7 +1351,13 @@ export default function Battlespace() {
         </div>
 
         {/* Canvas Area */}
-        <div className="flex-1 relative">
+        <div className={`flex-1 relative ${opsState?.isRunning ? 'ring-1 ring-inset ring-teal-500/20' : ''}`}>
+          {/* Scan-active border glow */}
+          {opsState?.isRunning && (
+            <div className="absolute inset-0 z-[1] pointer-events-none" style={{
+              boxShadow: 'inset 0 0 30px rgba(0, 229, 204, 0.06), inset 0 0 60px rgba(0, 229, 204, 0.03)',
+            }} />
+          )}
           {/* Loading state — now shows fast-load progress */}
           {graphQuery.isLoading && (
             <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#0A0E14]/80">
@@ -1550,6 +1556,21 @@ export default function Battlespace() {
           {/* Scan line animation (decorative) */}
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/20 to-transparent animate-pulse pointer-events-none" />
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-400/10 to-transparent pointer-events-none" />
+
+          {/* Live discovery toast — shows when new nodes arrive during active scan */}
+          {opsState?.isRunning && liveEventCount > 0 && (
+            <div className="absolute bottom-4 right-4 z-40 pointer-events-none">
+              <div className="bg-[#0A0E14]/90 border border-teal-500/30 px-3 py-2 font-mono flex items-center gap-2 animate-pulse">
+                <div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(0,229,204,0.6)]" />
+                <span className="text-[10px] uppercase tracking-wider text-teal-400">
+                  {liveEventCount} live events
+                </span>
+                <span className="text-[9px] text-gray-500">|
+                  {totalNodeCount} nodes
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
   );

@@ -607,7 +607,7 @@ export class BattlespaceEngine {
         y: n.y ?? (seededRandom(seed + 1) - 0.5) * 600,
         _revealProgress: 0,
         _flashColor: "#00E5CC",
-        _flashAlpha: 1.2,
+        _flashAlpha: 2.0,
       };
       this.simNodes.push(sn);
       this.nodeMap.set(sn.id, sn);
@@ -615,7 +615,7 @@ export class BattlespaceEngine {
       // Spawn ripple on new node appearance
       if (sn.x != null && sn.y != null) {
         const config = NODE_VISUAL_CONFIG[sn.type] || NODE_VISUAL_CONFIG.host;
-        this.spawnRipple(sn.x, sn.y, config.strokeColor, 80);
+        this.spawnRipple(sn.x, sn.y, config.strokeColor, 120);
       }
     }
     // Track cumulative new-node count for the HUD badge
@@ -1350,7 +1350,7 @@ export class BattlespaceEngine {
         n._revealProgress = Math.min(1, (n._revealProgress || 0) + 0.03);
       }
       if (n._flashAlpha && n._flashAlpha > 0) {
-        n._flashAlpha -= 0.015;
+        n._flashAlpha -= 0.008;
       }
     }
 
