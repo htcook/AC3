@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development NODE_OPTIONS='--expose-gc --max-old-space-size=768' tsx watch server/_core/index.ts",
+    "dev": "NODE_ENV=development NODE_OPTIONS='--expose-gc --max-old-space-size=1536' tsx watch server/_core/index.ts",
     "build": "node build.cjs",
     "postinstall": "node postinstall.cjs",
     "start": "NODE_ENV=production node --expose-gc --max-old-space-size=1536 dist/index.js",

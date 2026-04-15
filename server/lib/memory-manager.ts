@@ -37,6 +37,55 @@ export const MAX_VULNS_IN_MEMORY = 50;
 /** Maximum pendingVulns per asset */
 export const MAX_PENDING_VULNS_IN_MEMORY = 20;
 
+/** Maximum toolResults kept per asset (older ones are trimmed) */
+export const MAX_TOOL_RESULTS_PER_ASSET = 30;
+
+/** Mid-scan output preview cap (more generous than post-phase) */
+export const MID_SCAN_OUTPUT_PREVIEW_CAP = 128;
+
+// ─── Mid-Scan Cleanup ──────────────────────────────────────────────────────
+
+/**
+ * Lightweight cleanup to call after each individual scan tool completes.
+ * Less aggressive than postPhaseCleanup — trims recent tool outputs and
+ * triggers GC to prevent heap accumulation during long vuln_detection phases.
+ */
+export function midScanCleanup(state: any): { freedEstimateBytes: number } {
+  let freed = 0;
+  for (const asset of (state.assets || [])) {
+    // Trim old toolResults (keep most recent MAX_TOOL_RESULTS_PER_ASSET)
+    if (asset.toolResults && asset.toolResults.length > MAX_TOOL_RESULTS_PER_ASSET) {
+      const excess = asset.toolResults.length - MAX_TOOL_RESULTS_PER_ASSET;
+      for (let i = 0; i < excess; i++) {
+        const tr = asset.toolResults[i];
+        freed += (tr.outputPreview?.length || 0) * 2;
+        freed += (tr.findings?.length || 0) * 200;
+      }
+      asset.toolResults = asset.toolResults.slice(-MAX_TOOL_RESULTS_PER_ASSET);
+    }
+    // Cap outputPreview on all current toolResults
+    for (const tr of (asset.toolResults || [])) {
+      if (tr.outputPreview && tr.outputPreview.length > MID_SCAN_OUTPUT_PREVIEW_CAP) {
+        freed += (tr.outputPreview.length - MID_SCAN_OUTPUT_PREVIEW_CAP) * 2;
+        tr.outputPreview = tr.outputPreview.slice(0, MID_SCAN_OUTPUT_PREVIEW_CAP) + '…';
+      }
+    }
+    // Cap vulns in memory (full data is persisted to DB)
+    if (asset.vulns && asset.vulns.length > MAX_VULNS_IN_MEMORY) {
+      freed += (asset.vulns.length - MAX_VULNS_IN_MEMORY) * 300;
+      asset.vulns = asset.vulns.slice(-MAX_VULNS_IN_MEMORY);
+    }
+  }
+  // Trim logs
+  if (state.log && state.log.length > MAX_IN_MEMORY_LOGS) {
+    freed += (state.log.length - MAX_IN_MEMORY_LOGS) * 500;
+    state.log = state.log.slice(-MAX_IN_MEMORY_LOGS);
+  }
+  // Trigger GC
+  if (global.gc) global.gc();
+  return { freedEstimateBytes: freed };
+}
+
 // ─── State Size Estimation ─────────────────────────────────────────────────
 
 /**

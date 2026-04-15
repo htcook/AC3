@@ -5456,7 +5456,10 @@ async function executeEnumeration(state: EngagementOpsState, engagement: any, op
         });
       }
       // ── Memory relief between enumeration batches ──
-      if (global.gc) global.gc();
+      try {
+        const { midScanCleanup } = await import('./memory-manager');
+        midScanCleanup(state);
+      } catch { if (global.gc) global.gc(); }
       const enumBatchMem = process.memoryUsage();
       const enumBatchHeapMB = enumBatchMem.heapUsed / 1024 / 1024;
       const enumHeapLimit = (global as any).__heapLimitMB || 768;
@@ -6320,9 +6323,13 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
       // Persist state after each batch completes (saves completedScans checkpoint)
       persistOpsStateDebounced(state.engagementId, 200);
       // ── Memory relief between batches ──
-      if (global.gc) {
-        global.gc();
-      }
+      try {
+        const { midScanCleanup } = await import('./memory-manager');
+        const cleaned = midScanCleanup(state);
+        if (cleaned.freedEstimateBytes > 50_000) {
+          console.log(`[MemoryRelief] midScanCleanup freed ~${(cleaned.freedEstimateBytes / 1024).toFixed(0)}KB after nuclei batch ${Math.floor(i / NUCLEI_BATCH_SIZE) + 1}`);
+        }
+      } catch { if (global.gc) global.gc(); }
       // Backpressure: if heap > 60% of limit, pause 2s to let GC reclaim
       const batchMem = process.memoryUsage();
       const batchHeapMB = batchMem.heapUsed / 1024 / 1024;
@@ -6407,7 +6414,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           if ((state as any)._heartbeatRef) (state as any)._heartbeatRef.lastActivityAt = Date.now();
           persistOpsStateDebounced(state.engagementId, 200);
           // Memory relief between network scan batches
-          if (global.gc) global.gc();
+          try { const { midScanCleanup } = await import('./memory-manager'); midScanCleanup(state); } catch { if (global.gc) global.gc(); }
         }
 
         addLog(state, {
@@ -6461,7 +6468,7 @@ async function executeVulnDetection(state: EngagementOpsState, engagement: any, 
           await Promise.allSettled(batch.map(task => executeNucleiTask(task)));
           persistOpsStateDebounced(state.engagementId, 500);
           // Memory relief between broad scan batches
-          if (global.gc) global.gc();
+          try { const { midScanCleanup } = await import('./memory-manager'); midScanCleanup(state); } catch { if (global.gc) global.gc(); }
         }
         addLog(state, {
           phase: "vuln_detection", type: "scan_result",
