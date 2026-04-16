@@ -1124,7 +1124,7 @@ export default function Battlespace() {
   return (
       <div className="h-screen flex flex-col bg-[#0A0E14] overflow-hidden">
         {/* Top Bar */}
-        <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0">
+        <div className="h-12 border-b border-[#1A2332] flex items-center px-4 gap-3 shrink-0 overflow-x-auto">
           {/* Back to Dashboard — always visible */}
           <button onClick={() => { if (window.history.length > 1) { window.history.back(); } else { window.location.href = backPath; } }} className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-mono text-gray-400 hover:text-teal-400 transition-colors pr-2 border-r border-[#1A2332] bg-transparent border-0 cursor-pointer">
             <ArrowLeft size={12} />
@@ -1184,8 +1184,8 @@ export default function Battlespace() {
           {mode === "engagement" && engagementId && (() => {
             const eng = engagements.find((e: any) => String(e.id) === engagementId);
             return eng ? (
-              <div className="flex items-center gap-2 px-2 border-l border-[#1A2332]">
-                <Target size={10} className="text-red-400" />
+              <div className="flex items-center gap-2 px-2 border-l border-[#1A2332] shrink-0 whitespace-nowrap">
+                <Target size={10} className="text-red-400 shrink-0" />
                 <span className="text-[10px] font-mono uppercase tracking-wider text-gray-300">{eng.name}</span>
                 {eng.targetDomain && <span className="text-[9px] font-mono text-gray-500">({eng.targetDomain})</span>}
               </div>
@@ -1203,7 +1203,7 @@ export default function Battlespace() {
 
           {/* Live Stream Status Indicator */}
           {mode === "engagement" && engagementId && (
-            <div className={`flex items-center gap-2 px-2 border-l ${
+            <div className={`flex items-center gap-2 px-2 border-l shrink-0 ${
               opsState?.isRunning ? 'border-teal-500/30 bg-teal-500/5' : 'border-[#1A2332]'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
@@ -1211,7 +1211,7 @@ export default function Battlespace() {
                   ? 'bg-teal-400 animate-pulse shadow-[0_0_6px_rgba(0,229,204,0.5)]'
                   : liveStreamConnected ? 'bg-green-500' : 'bg-gray-600'
               }`} />
-              <span className={`text-[9px] font-mono uppercase tracking-wider ${
+              <span className={`text-[9px] font-mono uppercase tracking-wider whitespace-nowrap ${
                 opsState?.isRunning ? 'text-teal-400' : 'text-gray-400'
               }`}>
                 {opsState?.isRunning ? 'SCANNING' : liveStreamConnected ? 'LIVE' : 'OFFLINE'}

@@ -1,0 +1,46 @@
+Server Architecture Audit — Apr 16, 2026
+==========================================
+
+=== NEW SCAN SERVER (137.184.211.238) — scan.aceofcloud.io ===
+Resources: 16GB RAM (12GB available), 194GB disk (165GB free), 4 vCPUs
+
+SCAN TOOLS:
+- ZAP (Docker: ghcr.io/zaproxy/zaproxy:stable) — port 8090 (public)
+- ScanForge API (PM2: scan-service) — port 4000 (nginx proxy)
+- Burp Suite Pro JAR downloaded to /opt/burp — NOT YET ACTIVATED
+- Nuclei templates at /root/nuclei-templates
+- SecLists at /opt/SecLists
+- testssl.sh at /opt/testssl.sh
+
+TRAINING LAB SITES (should be moved to dedicated test lab):
+- juice-shop (Docker: bkimminich/juice-shop) — port 3001 → nginx
+- dvwa (Docker: vulnerables/web-dvwa) — port 3002 → nginx
+- bwapp (Docker: raesene/bwapp) — port 3003 → nginx
+- mutillidae (Docker: webpwnized/mutillidae:www + :database) — port 3004 → nginx
+- vampi (Docker: erev0s/vampi) — port 5000 → nginx
+- dvga (Docker: dolevf/dvga) — port 5013 → nginx
+- webgoat (Docker: webgoat/webgoat) — port 8080 → nginx
+- crapi (Docker: crapi/* — 7 containers) — EXITED/stopped, port 8888
+
+NGINX: scan.aceofcloud.io — proxies all lab sites + scan tools
+
+=== OLD SERVER (159.223.152.190) ===
+- BrokenCrystals running (brokencrystals.lab.aceofcloud.io → this IP)
+- Ports 80, 443 open (BC web app)
+- Port 8090 open (ZAP — likely old ZAP instance)
+- SSH inaccessible (connection refused)
+- Cannot audit further without SSH access
+
+=== DEDICATED SCANFORGE SERVER (137.184.71.192) ===
+- Hardcoded in code as SCANFORGE_DEDICATED_IP
+- Port 4000 open (ScanForge API)
+- Port 8090 open (ZAP)
+- Port 22 open (SSH)
+- Need to audit what else is running
+
+ARCHITECTURE ISSUES:
+1. Scan tools and training labs are co-located on the same server
+2. BrokenCrystals is on the old server (inaccessible via SSH)
+3. Two ScanForge instances (137.184.211.238:4000 and 137.184.71.192:4000)
+4. Two ZAP instances (137.184.211.238:8090 and 137.184.71.192:8090)
+5. Burp Pro not yet activated on any server

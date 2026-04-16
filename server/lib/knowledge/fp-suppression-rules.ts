@@ -286,6 +286,43 @@ export const FP_SUPPRESSION_RULES: FPSuppressionRule[] = [
     tpRisk: "high",
     rationale: "Directory indexing is a real finding in production. Only suppress for known lab environments.",
   },
+  // ── Nikto garbage / malformed findings ──
+  {
+    id: "nikto-requires-value",
+    name: "Nikto 'Requires a Value' Garbage Findings",
+    description: "Suppress Nikto findings with 'requires a value' in the title — these are Nikto CLI argument errors, not real findings.",
+    category: "config_observation",
+    enabledByDefault: true,
+    severityFilter: [],
+    sourcePatterns: ["nikto"],
+    titlePatterns: [
+      /requires a value/i,
+      /^\[Nikto\]\s*$/i,
+      /^\[Nikto\]\s*-\s*$/i,
+    ],
+    agentClassPatterns: [],
+    estimatedSuppression: 10,
+    tpRisk: "low",
+    rationale: "These are Nikto CLI argument parsing errors, not vulnerability findings. They appear when Nikto is invoked with missing or malformed arguments.",
+  },
+  {
+    id: "nikto-empty-finding",
+    name: "Nikto Empty/Malformed Findings",
+    description: "Suppress Nikto findings with empty, whitespace-only, or nonsensical titles.",
+    category: "config_observation",
+    enabledByDefault: true,
+    severityFilter: [],
+    sourcePatterns: ["nikto"],
+    titlePatterns: [
+      /^\[Nikto\]\s*\d+\s*$/i,
+      /^\[Nikto\]\s+lines?$/i,
+      /^\[Nikto\]\s*-[A-Za-z]+/i,
+    ],
+    agentClassPatterns: [],
+    estimatedSuppression: 5,
+    tpRisk: "low",
+    rationale: "Malformed Nikto output lines that are not actionable findings.",
+  },
   // ── New rules based on FP/FN analysis (March 2026) ──
   {
     id: "zap-informational-alerts",
