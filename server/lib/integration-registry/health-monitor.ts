@@ -52,7 +52,25 @@ export interface HealthAlert {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// §2 — CONSECUTIVE FAILURE TRACKING
+// §2 — STATUS MAPPING (code → DB enum)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Map internal HealthStatus values to DB enum values.
+ * Code uses: healthy, degraded, down, auth_expired, rate_limited, unknown
+ * DB expects: healthy, degraded, unreachable, auth_failed, rate_limited, timeout, error
+ */
+function mapStatusToDb(status: HealthStatus): string {
+  switch (status) {
+    case "down":          return "unreachable";
+    case "auth_expired":  return "auth_failed";
+    case "unknown":       return "error";
+    default:              return status; // healthy, degraded, rate_limited pass through
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3 — CONSECUTIVE FAILURE TRACKING
 // ═══════════════════════════════════════════════════════════════════════
 
 const consecutiveFailures = new Map<string, number>();
@@ -88,7 +106,7 @@ export async function runHealthCheckForIntegration(integrationId: string): Promi
   try {
     await createHealthCheck({
       integrationId,
-      status: result.status,
+      status: mapStatusToDb(result.status) as any,
       httpStatus: result.httpStatus,
       latencyMs: result.latencyMs,
       errorMessage: result.errorMessage,

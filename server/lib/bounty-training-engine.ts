@@ -239,23 +239,23 @@ export async function extractFromEngagementFindings(opts: {
 
   // 4. AC3 Report findings — richest data
   const reports = await db.select().from(ac3ReportFindings)
-    .where(or(sql`${ac3ReportFindings.severity} IN ('critical', 'high', 'moderate')`, sql`${ac3ReportFindings.technicalDetails} IS NOT NULL`))
-    .orderBy(desc(ac3ReportFindings.createdAt)).limit(limit);
+    .where(or(sql`${ac3ReportFindings.rfSeverity} IN ('critical', 'high', 'moderate')`, sql`${ac3ReportFindings.rfTechnicalDetails} IS NOT NULL`))
+    .orderBy(desc(ac3ReportFindings.rfCreatedAt)).limit(limit);
 
   for (const rf of reports) {
     if (total >= limit) break;
     const key = `src:report:${rf.id}`;
     if (existingKeys.has(key)) continue;
-    const quality = computeQualityScore({ hasSummary: !!rf.summary, hasCve: !!rf.cvssScore, hasCwe: false, severity: rf.severity, bountyAmount: 0, hasExploit: false, hasEvidence: !!rf.evidence, isNovel: false });
+    const quality = computeQualityScore({ hasSummary: !!rf.rfSummary, hasCve: !!rf.rfCvssScore, hasCwe: false, severity: rf.rfSeverity, bountyAmount: 0, hasExploit: false, hasEvidence: !!rf.rfEvidence, isNovel: false });
     const tags = ["engagement", "report", key];
-    const attackTechniques = (rf.attackTechniques as Array<{ id?: string; name?: string }>) || [];
+    const attackTechniques = (rf.rfAttackTechniques as Array<{ id?: string; name?: string }>) || [];
     const mitre = attackTechniques.map((t) => t.id).filter(Boolean) as string[];
     await db.insert(bugBountyLlmTrainingSamples).values({
       category: "report_template", qualityScore: String(quality), bountyAmount: "0",
-      severityRating: rf.severity, systemPrompt: SYSTEM_PROMPTS.report_template,
-      userPrompt: `Write a pentest finding report:\n\nTitle: ${rf.title}\nSeverity: ${rf.severity}\n${rf.cvssScore ? `CVSS: ${rf.cvssScore}` : ""}\n${rf.summary || ""}\n${rf.technicalDetails ? String(rf.technicalDetails).slice(0, 1500) : ""}\n${rf.businessImpact || ""}`,
-      assistantResponse: `## ${rf.title}\n\n**Severity:** ${rf.severity?.toUpperCase()}${rf.cvssScore ? ` (CVSS ${rf.cvssScore})` : ""}\n\n### Summary\n${rf.summary || rf.title}\n\n### Technical Details\n${rf.technicalDetails || "See evidence."}\n\n### Business Impact\n${rf.businessImpact || "Impacts confidentiality, integrity, or availability."}\n\n### Remediation\n${rf.remediation || "Apply appropriate controls."}`,
-      rawTitle: rf.title, rawSummary: rf.summary,
+      severityRating: rf.rfSeverity, systemPrompt: SYSTEM_PROMPTS.report_template,
+      userPrompt: `Write a pentest finding report:\n\nTitle: ${rf.rfTitle}\nSeverity: ${rf.rfSeverity}\n${rf.rfCvssScore ? `CVSS: ${rf.rfCvssScore}` : ""}\n${rf.rfSummary || ""}\n${rf.rfTechnicalDetails ? String(rf.rfTechnicalDetails).slice(0, 1500) : ""}\n${rf.rfBusinessImpact || ""}`,
+      assistantResponse: `## ${rf.rfTitle}\n\n**Severity:** ${rf.rfSeverity?.toUpperCase()}${rf.rfCvssScore ? ` (CVSS ${rf.rfCvssScore})` : ""}\n\n### Summary\n${rf.rfSummary || rf.rfTitle}\n\n### Technical Details\n${rf.rfTechnicalDetails || "See evidence."}\n\n### Business Impact\n${rf.rfBusinessImpact || "Impacts confidentiality, integrity, or availability."}\n\n### Remediation\n${rf.rfRemediation || "Apply appropriate controls."}`,
+      rawTitle: rf.rfTitle, rawSummary: rf.rfSummary,
       enrichmentStatus: "raw", mitreTechniques: mitre.length ? mitre : null, tags,
     });
     total++; sources.report++;
