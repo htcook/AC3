@@ -260,12 +260,52 @@ export const cicdPipelineRouter = router({
             ));
 
             console.log(`[CICD] Run ${runId} completed: ${scanResult.status}`);
+
+            // Notify owner on gate failure
+            if (scanResult.status === "failed" || scanResult.status === "error") {
+              try {
+                const { notifyOwner } = await import("../_core/notification");
+                const pipelineName = pipeline.cicdName || `Pipeline #${input.pipelineId}`;
+                const severity = scanResult.criticalCount > 0 ? "CRITICAL" : scanResult.highCount > 0 ? "HIGH" : "MEDIUM";
+                await notifyOwner({
+                  title: `\u26a0\ufe0f CI/CD Gate ${scanResult.status === "error" ? "Error" : "Failed"}: ${pipelineName}`,
+                  content: [
+                    `Pipeline: ${pipelineName} (Run #${runId})`,
+                    `Status: ${scanResult.status.toUpperCase()}`,
+                    `Target: ${input.targetUrl}`,
+                    input.branch ? `Branch: ${input.branch}` : null,
+                    input.commitSha ? `Commit: ${input.commitSha.substring(0, 7)}` : null,
+                    `Max CVSS: ${scanResult.maxCvss.toFixed(1)} (threshold: ${pipeline.cicdFailThreshold || 7.0})`,
+                    `Findings: ${scanResult.criticalCount} critical, ${scanResult.highCount} high, ${scanResult.mediumCount} medium, ${scanResult.lowCount} low`,
+                    scanResult.newFindings ? `New since baseline: ${scanResult.newFindings}` : null,
+                    `Severity: ${severity}`,
+                    `\nTop findings:`,
+                    ...scanResult.findings.slice(0, 5).map((f: any, i: number) => `  ${i + 1}. [${f.severity?.toUpperCase()}] ${f.title}`),
+                  ].filter(Boolean).join("\n"),
+                });
+                console.log(`[CICD] Gate failure notification sent for run ${runId}`);
+              } catch (notifyErr: any) {
+                console.error(`[CICD] Failed to send gate failure notification: ${notifyErr.message}`);
+              }
+            }
           } catch (err: any) {
             console.error(`[CICD] Run ${runId} error: ${err.message}`);
             await db.update(cicdRuns).set({
               cicdRunStatus: "error",
               cicdCompletedAt: new Date().toISOString(),
             } as any).where(eq(cicdRuns.id, runId));
+
+            // Notify owner on scan error
+            try {
+              const { notifyOwner } = await import("../_core/notification");
+              const pipelineName = pipeline.cicdName || `Pipeline #${input.pipelineId}`;
+              await notifyOwner({
+                title: `\u274c CI/CD Scan Error: ${pipelineName}`,
+                content: `Pipeline "${pipelineName}" (Run #${runId}) encountered an error:\n${err.message}\n\nTarget: ${input.targetUrl || "N/A"}`,
+              });
+            } catch (notifyErr: any) {
+              console.error(`[CICD] Failed to send error notification: ${notifyErr.message}`);
+            }
           }
         });
       }
@@ -553,6 +593,66 @@ export const cicdPipelineRouter = router({
         input.namespace
       );
     }),
+
+  // ─── Run History for Chart ──────────────────────────────────────────────
+  getRunHistory: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number().optional(),
+      days: z.number().min(7).max(90).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const days = input.days || 30;
+      const pipelineFilter = input.pipelineId ? `AND cicd_run_pipeline_id = ${input.pipelineId}` : "";
+      const rows = await db.execute(sql.raw(
+        `SELECT 
+          DATE(cicd_run_created_at) as run_date,
+          SUM(CASE WHEN cicd_run_status = 'passed' THEN 1 ELSE 0 END) as passed,
+          SUM(CASE WHEN cicd_run_status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN cicd_run_status = 'error' THEN 1 ELSE 0 END) as errors,
+          COUNT(*) as total
+        FROM cicd_runs
+        WHERE cicd_run_created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        ${pipelineFilter}
+        GROUP BY DATE(cicd_run_created_at)
+        ORDER BY run_date ASC`
+      ));
+      const data = ((rows as any).rows || rows || []) as any[];
+      return data.map((r: any) => ({
+        date: r.run_date ? String(r.run_date).substring(0, 10) : "",
+        passed: Number(r.passed) || 0,
+        failed: Number(r.failed) || 0,
+        errors: Number(r.errors) || 0,
+        total: Number(r.total) || 0,
+      }));
+    }),
+
+  // ─── Baseline Auto-Refresh ──────────────────────────────────────────────
+  refreshBaselines: protectedProcedure.mutation(async () => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+    // For each pipeline, find the latest passing run and set it as the baseline
+    const result = await db.execute(sql.raw(
+      `UPDATE cicd_pipelines p
+       INNER JOIN (
+         SELECT cicd_run_pipeline_id, MAX(id) as latest_passing_id
+         FROM cicd_runs
+         WHERE cicd_run_status = 'passed'
+         GROUP BY cicd_run_pipeline_id
+       ) latest ON p.id = latest.cicd_run_pipeline_id
+       SET p.cicd_last_baseline_id = latest.latest_passing_id
+       WHERE p.cicd_last_baseline_id IS NULL OR p.cicd_last_baseline_id != latest.latest_passing_id`
+    ));
+    const affected = (result as any)?.[0]?.affectedRows || (result as any)?.rowsAffected || 0;
+    console.log(`[CICD] Baseline auto-refresh: ${affected} pipelines updated`);
+    return { updated: affected };
+  }),
 
   // ─── P3: Cloud IAM Enumeration ──────────────────────────────────────────
   enumerateCloudIam: protectedProcedure

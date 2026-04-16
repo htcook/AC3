@@ -136,6 +136,35 @@ export function registerCicdWebhookRoutes(app: Express) {
 
             console.log(`[CICD-WEBHOOK] Run ${runId} completed: ${scanResult.status}`);
 
+            // Notify owner on gate failure
+            if (scanResult.status === "failed" || scanResult.status === "error") {
+              try {
+                const { notifyOwner } = await import("../_core/notification");
+                const pipelineName = pipeline.cicdName || `Pipeline #${pipelineId}`;
+                const severity = scanResult.criticalCount > 0 ? "CRITICAL" : scanResult.highCount > 0 ? "HIGH" : "MEDIUM";
+                await notifyOwner({
+                  title: `\u26a0\ufe0f CI/CD Gate ${scanResult.status === "error" ? "Error" : "Failed"}: ${pipelineName} (webhook)`,
+                  content: [
+                    `Pipeline: ${pipelineName} (Run #${runId})`,
+                    `Trigger: Webhook (${event})`,
+                    `Status: ${scanResult.status.toUpperCase()}`,
+                    `Target: ${targetUrl}`,
+                    branch ? `Branch: ${branch}` : null,
+                    commitSha ? `Commit: ${commitSha.substring(0, 7)}` : null,
+                    `Max CVSS: ${scanResult.maxCvss.toFixed(1)} (threshold: ${pipeline.cicdFailThreshold || 7.0})`,
+                    `Findings: ${scanResult.criticalCount} critical, ${scanResult.highCount} high, ${scanResult.mediumCount} medium, ${scanResult.lowCount} low`,
+                    scanResult.newFindings ? `New since baseline: ${scanResult.newFindings}` : null,
+                    `Severity: ${severity}`,
+                    `\nTop findings:`,
+                    ...scanResult.findings.slice(0, 5).map((f: any, i: number) => `  ${i + 1}. [${f.severity?.toUpperCase()}] ${f.title}`),
+                  ].filter(Boolean).join("\n"),
+                });
+                console.log(`[CICD-WEBHOOK] Gate failure notification sent for run ${runId}`);
+              } catch (notifyErr: any) {
+                console.error(`[CICD-WEBHOOK] Failed to send gate failure notification: ${notifyErr.message}`);
+              }
+            }
+
             // If GitHub webhook, try to post back as a Check Run
             if (pipeline.cicdProvider === "github_actions" && commitSha && repository) {
               try {
@@ -156,6 +185,18 @@ export function registerCicdWebhookRoutes(app: Express) {
               cicdRunStatus: "error",
               cicdCompletedAt: new Date().toISOString(),
             } as any).where(eq(cicdRuns.id, runId));
+
+            // Notify owner on scan error
+            try {
+              const { notifyOwner } = await import("../_core/notification");
+              const pipelineName = pipeline.cicdName || `Pipeline #${pipelineId}`;
+              await notifyOwner({
+                title: `\u274c CI/CD Scan Error: ${pipelineName} (webhook)`,
+                content: `Pipeline "${pipelineName}" (Run #${runId}) encountered an error:\n${err.message}\n\nTarget: ${targetUrl || "N/A"}\nTrigger: Webhook (${event})`,
+              });
+            } catch (notifyErr: any) {
+              console.error(`[CICD-WEBHOOK] Failed to send error notification: ${notifyErr.message}`);
+            }
           }
         });
       }

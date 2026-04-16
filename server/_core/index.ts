@@ -1051,6 +1051,13 @@ async function startServer() {
         console.warn("[CPEUpdater] Failed to initialize CPE dictionary auto-updater:", err);
       });
 
+      // Initialize CI/CD Baseline Auto-Refresh (weekly, Sundays at 03:00 UTC)
+      import("../lib/cicd-baseline-scheduler").then(({ initCicdBaselineScheduler }) => {
+        initCicdBaselineScheduler();
+      }).catch((err) => {
+        console.warn("[CICD-Baseline] Failed to initialize baseline scheduler:", err);
+      });
+
       // Force GC after cron scheduler registration
       if (global.gc) {
         global.gc();

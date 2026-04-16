@@ -64,6 +64,16 @@ import {
   EyeOff,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -98,6 +108,85 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
     <Button size="icon" variant="ghost" onClick={handleCopy} className="h-7 w-7 shrink-0">
       {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
     </Button>
+  );
+}
+
+// ─── Run History Chart ────────────────────────────────────────────────────────
+
+function RunHistoryChart({ pipelineId }: { pipelineId: number | null }) {
+  const historyQuery = trpc.cicdPipeline.getRunHistory.useQuery(
+    { pipelineId: pipelineId || undefined, days: 30 },
+    { refetchInterval: 60000 }
+  );
+
+  const data = useMemo(() => historyQuery.data || [], [historyQuery.data]);
+
+  if (!data.length && !historyQuery.isLoading) return null;
+
+  return (
+    <Card className="bg-muted/10 border-muted/20">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-medium">Pipeline Run History</CardTitle>
+            <CardDescription className="text-xs">
+              {pipelineId ? "Selected pipeline" : "All pipelines"} — last 30 days
+            </CardDescription>
+          </div>
+          {historyQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
+      </CardHeader>
+      <CardContent className="pb-4">
+        {data.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted)/0.3)" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                tickFormatter={(v: string) => {
+                  const d = new Date(v + "T00:00:00");
+                  return `${d.getMonth() + 1}/${d.getDate()}`;
+                }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "hsl(var(--card-foreground))",
+                }}
+                labelFormatter={(v: string) => {
+                  const d = new Date(v + "T00:00:00");
+                  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+                }}
+              />
+              <Legend
+                wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                iconType="circle"
+                iconSize={8}
+              />
+              <Bar dataKey="passed" name="Passed" fill="#34d399" radius={[2, 2, 0, 0]} stackId="stack" />
+              <Bar dataKey="failed" name="Failed" fill="#f87171" radius={[0, 0, 0, 0]} stackId="stack" />
+              <Bar dataKey="errors" name="Errors" fill="#991b1b" radius={[2, 2, 0, 0]} stackId="stack" />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[200px] text-muted-foreground text-sm">
+            No run data yet
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -526,6 +615,9 @@ export default function CicdPipelinePage() {
               </Card>
             </div>
           )}
+
+          {/* Run History Chart */}
+          <RunHistoryChart pipelineId={selectedPipelineId} />
 
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
