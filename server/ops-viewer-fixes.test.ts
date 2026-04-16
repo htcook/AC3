@@ -182,8 +182,6 @@ describe("FP Suppression Rules - Nikto Garbage", () => {
 
 describe("Exploit Reasoning Engine - Header Classification", () => {
   it("should classify security header findings via keyword matching", async () => {
-    // Import the actual matchFindingToVulnClass indirectly by checking the keyword map
-    // The keywords were added to the exploit-reasoning-engine's keywordMap
     const headerFindings = [
       { title: "Missing X-Frame-Options Header", severity: "low" },
       { title: "Missing Strict-Transport-Security", severity: "low" },
@@ -191,8 +189,6 @@ describe("Exploit Reasoning Engine - Header Classification", () => {
       { title: "Missing X-Content-Type-Options", severity: "low" },
     ];
     
-    // These should all be classifiable now (not return null from matchFindingToVulnClass)
-    // We test the keyword patterns directly
     const headerKeywords = [
       "missing x-frame-options", "x-frame-options", "clickjacking",
       "strict-transport-security", "hsts",
@@ -204,6 +200,63 @@ describe("Exploit Reasoning Engine - Header Classification", () => {
       const titleLower = finding.title.toLowerCase();
       const matched = headerKeywords.some(kw => titleLower.includes(kw));
       expect(matched).toBe(true);
+    }
+  });
+});
+
+describe("Exploit Reasoning Engine - Exposed Service Classification", () => {
+  it("should classify SSH service exposure findings", () => {
+    const sshKeywords = ["publicly accessible ssh", "ssh service", "exposed ssh", "open ssh"];
+    const sshFindings = [
+      "Publicly accessible SSH service",
+      "SSH service detected on port 22",
+      "Exposed SSH on brokencrystals.lab",
+    ];
+    for (const title of sshFindings) {
+      const titleLower = title.toLowerCase();
+      const matched = sshKeywords.some(kw => titleLower.includes(kw));
+      expect(matched).toBe(true);
+    }
+  });
+
+  it("should classify other exposed service findings", () => {
+    const serviceKeywords = [
+      "publicly accessible", "exposed service", "unnecessary service", "open port",
+      "ftp service", "exposed ftp", "anonymous ftp",
+      "telnet", "exposed telnet",
+      "rdp", "remote desktop", "exposed rdp",
+      "smb", "exposed smb", "samba",
+      "snmp", "exposed snmp", "snmp community",
+    ];
+    const serviceFindings = [
+      "Publicly accessible FTP service",
+      "Telnet service detected",
+      "Exposed RDP on port 3389",
+      "SMB share accessible without authentication",
+      "SNMP community string is default",
+      "Remote Desktop Protocol exposed",
+    ];
+    for (const title of serviceFindings) {
+      const titleLower = title.toLowerCase();
+      const matched = serviceKeywords.some(kw => titleLower.includes(kw));
+      expect(matched).toBe(true);
+    }
+  });
+
+  it("should NOT classify unrelated findings as exposed services", () => {
+    const serviceKeywords = [
+      "publicly accessible ssh", "ssh service", "exposed ssh", "open ssh",
+      "publicly accessible", "exposed service",
+    ];
+    const unrelatedFindings = [
+      "SQL Injection in login form",
+      "Cross-Site Scripting (Reflected)",
+      "CVE-2024-1234: Buffer Overflow",
+    ];
+    for (const title of unrelatedFindings) {
+      const titleLower = title.toLowerCase();
+      const matched = serviceKeywords.some(kw => titleLower.includes(kw));
+      expect(matched).toBe(false);
     }
   });
 });

@@ -927,7 +927,7 @@ async function runLabScan(sessionId: string, targetUrl: string, scanProfile: str
     // When the scan server scans its own IP, Docker-published ports appear "filtered".
     // Detect self-hosted targets and rewrite to 127.0.0.1 for all tools.
     const scanServerHost = process.env.SCAN_SERVER_HOST || '';
-    const isSelfHosted = (hostname === scanServerHost || hostname === '159.223.152.190' || hostname === 'scan.aceofcloud.io');
+    const isSelfHosted = (hostname === scanServerHost || hostname === '137.184.211.238' || hostname === 'scan.aceofcloud.io');
     const scanUrl = isSelfHosted ? fullTargetUrl.replace(hostname, '127.0.0.1') : fullTargetUrl;
     const scanHostname = isSelfHosted ? '127.0.0.1' : hostname;
 

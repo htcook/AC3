@@ -6,7 +6,7 @@
  *
  * Architecture:
  *   Primary:  scanforge-dedicated (137.184.71.192) — CPU-optimized 4vCPU/8GB, scan tools only
- *   Fallback: scan.aceofcloud.io (159.223.152.190) — shared server with lab containers
+ *   Fallback: scan.aceofcloud.io (137.184.211.238) — shared server with lab containers
  *
  * The dedicated droplet runs scan tools without competing for resources with
  * Docker lab containers, resulting in 2-3x faster scan execution.

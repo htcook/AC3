@@ -319,7 +319,7 @@ function fmtTarget(asset: { hostname: string; ip?: string } | null, fallbackTarg
 const KNOWN_INFRA_IPS = new Set([
   process.env.SCAN_SERVER_HOST || '',
   SCANFORGE_DEDICATED_IP,          // 137.184.71.192
-  '159.223.152.190',               // Legacy scan server (hosts BC, DVWA, etc.)
+  '137.184.211.238',               // New scan server (hosts BC, DVWA, etc.)
 ].filter(Boolean));
 
 export function getEffectiveTarget(
