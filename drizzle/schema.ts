@@ -1472,6 +1472,9 @@ export const cicdPipelines = mysqlTable("cicd_pipelines", {
 	cicdLastTriggered: timestamp("cicd_last_triggered", { mode: 'string' }),
 	cicdCreatedBy: varchar("cicd_created_by", { length: 255 }),
 	cicdCreatedAt: timestamp("cicd_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	// Bridge columns: link CI/CD pipeline to engagement + threat context
+	cicdEngagementId: int("cicd_engagement_id"),
+	cicdSectorContext: varchar("cicd_sector_context", { length: 128 }),
 });
 
 export const cicdRuns = mysqlTable("cicd_runs", {
@@ -1485,10 +1488,13 @@ export const cicdRuns = mysqlTable("cicd_runs", {
 	cicdPassedTests: int("cicd_passed_tests").default(0),
 	cicdFailedTests: int("cicd_failed_tests").default(0),
 	cicdRiskScore: double("cicd_risk_score"),
-	cicdReportUrl: varchar("cicd_report_url", { length: 512 }),
+	cicdReportUrl: text("cicd_report_url"),
 	cicdStartedAt: timestamp("cicd_started_at", { mode: 'string' }),
 	cicdCompletedAt: timestamp("cicd_completed_at", { mode: 'string' }),
 	cicdRunCreatedAt: timestamp("cicd_run_created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	// Bridge: link run to engagement + threat intelligence results
+	cicdRunEngagementId: int("cicd_run_engagement_id"),
+	cicdThreatContext: json("cicd_threat_context"),
 });
 
 export const cloudAttackPaths = mysqlTable("cloud_attack_paths", {

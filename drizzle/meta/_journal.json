@@ -176,6 +176,13 @@
       "when": 1776373183301,
       "tag": "0024_absurd_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1776381380461,
+      "tag": "0025_equal_smiling_tiger",
+      "breakpoints": true
     }
   ]
 }

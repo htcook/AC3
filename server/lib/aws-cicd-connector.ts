@@ -74,15 +74,17 @@ export interface CicdScanResult {
   maxCvss: number;
   duration: number; // seconds
   findings: CicdFinding[];
-  reportUrl?: string;
-  // Baseline comparison results
-  newFindings?: number;
-  fixedFindings?: number;
-  baselineCompared?: boolean;
-  // SBOM artifact
-  sbomUrl?: string;
-  sbomPackageCount?: number;
-}
+    reportUrl?: string;
+    // Baseline comparison results
+    newFindings?: number;
+    fixedFindings?: number;
+    baselineCompared?: boolean;
+    // SBOM artifact
+    sbomUrl?: string;
+    sbomPackageCount?: number;
+    // Threat intelligence context
+    threatContext?: any;
+  }
 
 export interface CicdFinding {
   title: string;
@@ -485,7 +487,9 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
 
   const duration = Math.round((Date.now() - startTime) / 1000);
 
-  // Categorize findings
+  // (Severity counts are recalculated after threat intel boosting below)
+
+  // Recategorize after threat intel boosting
   const criticalCount = findings.filter(f => f.severity === "critical").length;
   const highCount = findings.filter(f => f.severity === "high").length;
   const mediumCount = findings.filter(f => f.severity === "medium").length;
@@ -499,6 +503,28 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
   const status = (hasCriticalOrHigh || exceedsThreshold) ? "failed" : "passed";
 
   console.log(`[CICD-SCAN] Completed: ${findings.length} findings, max CVSS ${maxCvss}, status: ${status}`);
+
+  // P0: Threat Intelligence Correlation — enrich findings with actor attribution
+  let threatContext: any = null;
+  try {
+    const { correlateCicdFindings } = await import("./cicd-threat-correlator");
+    threatContext = await correlateCicdFindings(findings);
+    console.log(`[CICD-SCAN] Threat intel: ${threatContext.summary.uniqueActorsMatched} actors matched, ${threatContext.summary.severityBoostedCount} findings boosted, exposure score: ${threatContext.summary.actorExposureScore}`);
+
+    // Apply boosted severities back to findings array for pass/fail recalculation
+    if (threatContext.enrichedFindings?.length) {
+      for (let i = 0; i < findings.length && i < threatContext.enrichedFindings.length; i++) {
+        findings[i].severity = threatContext.enrichedFindings[i].severity;
+        if (threatContext.enrichedFindings[i].cvss === undefined && threatContext.enrichedFindings[i].severityBoosted) {
+          // Assign synthetic CVSS for boosted findings without one
+          const severityCvss: Record<string, number> = { critical: 9.5, high: 8.0, medium: 5.5, low: 3.0, info: 0 };
+          findings[i].cvss = severityCvss[findings[i].severity] || findings[i].cvss;
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn(`[CICD-SCAN] Threat intel correlation failed (non-blocking): ${e.message}`);
+  }
 
   // P1: Baseline comparison — mark new vs existing findings
   let newFindings = findings.length;
@@ -547,6 +573,7 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
     baselineCompared,
     sbomUrl,
     sbomPackageCount,
+    threatContext,
   };
 }
 

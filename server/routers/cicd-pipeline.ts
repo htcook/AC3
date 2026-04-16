@@ -21,6 +21,9 @@ function mapPipeline(row: any) {
     allowedDomains: tryParseJson(row.cicd_allowed_domains) || [],
     scanTypes: tryParseJson(row.cicd_scan_types) || [],
     lastBaselineId: row.cicd_last_baseline_id,
+    // Bridge fields
+    engagementId: row.cicdEngagementId || null,
+    sectorContext: row.cicdSectorContext || null,
   };
 }
 
@@ -42,6 +45,9 @@ function mapRun(row: any) {
     createdAt: row.cicdRunCreatedAt,
     // scan result fields (stored as JSON in reportUrl or separate)
     scanResults: row.cicdReportUrl ? tryParseJson(row.cicdReportUrl) : null,
+    // Threat intelligence context
+    threatContext: row.cicdThreatContext ? (typeof row.cicdThreatContext === 'string' ? tryParseJson(row.cicdThreatContext) : row.cicdThreatContext) : null,
+    engagementId: row.cicdRunEngagementId || null,
   };
 }
 
@@ -204,11 +210,29 @@ export const cicdPipelineRouter = router({
         const allowedDomains = tryParseJson((pipeline as any).cicd_allowed_domains) || [];
         const lastBaselineId = (pipeline as any).cicd_last_baseline_id;
 
+        // P1: Get sector context for threat-informed scanning
+        const sectorContext = (pipeline as any).cicdSectorContext || undefined;
+
         // Fire and forget — scan runs in background
         import("../lib/aws-cicd-connector").then(async ({ executeCicdScan }) => {
           try {
             // Mark as running
             await db.update(cicdRuns).set({ cicdRunStatus: "running", cicdStartedAt: new Date().toISOString() } as any).where(eq(cicdRuns.id, runId));
+
+            // P1: Sector-aware pre-scan template selection
+            let sectorTemplateHint = "";
+            if (sectorContext) {
+              try {
+                const { getPreScanTemplates } = await import("../lib/cicd-threat-correlator");
+                const templates = await getPreScanTemplates(sectorContext);
+                if (templates.priorityCVEs.length > 0) {
+                  sectorTemplateHint = templates.priorityCVEs.slice(0, 10).join(",");
+                  console.log(`[CICD] P1: Sector "${sectorContext}" → ${templates.priorityCVEs.length} priority CVEs, ${templates.templateTags.length} tags from ${templates.targetedGroups.length} groups`);
+                }
+              } catch (e: any) {
+                console.warn(`[CICD] P1: Pre-scan template selection failed: ${e.message}`);
+              }
+            }
 
             const scanResult = await executeCicdScan({
               targetUrl: input.targetUrl!,
@@ -250,6 +274,18 @@ export const cicdPipelineRouter = router({
               cicdCompletedAt: new Date().toISOString(),
             } as any).where(eq(cicdRuns.id, runId));
 
+            // Store threat context in dedicated JSON column
+            if (scanResult.threatContext) {
+              try {
+                await db.execute(sql.raw(
+                  `UPDATE cicd_runs SET cicd_threat_context = '${JSON.stringify(scanResult.threatContext).replace(/'/g, "''")}' WHERE id = ${runId}`
+                ));
+                console.log(`[CICD] Threat context stored for run ${runId}: ${scanResult.threatContext.summary?.uniqueActorsMatched || 0} actors`);
+              } catch (tcErr: any) {
+                console.warn(`[CICD] Failed to store threat context: ${tcErr.message}`);
+              }
+            }
+
             // Update baseline and new/fixed counts via raw SQL
             await db.execute(sql.raw(
               `UPDATE cicd_runs SET cicd_new_findings = ${scanResult.newFindings || 0}, cicd_fixed_findings = ${scanResult.fixedFindings || 0} WHERE id = ${runId}`
@@ -261,12 +297,32 @@ export const cicdPipelineRouter = router({
 
             console.log(`[CICD] Run ${runId} completed: ${scanResult.status}`);
 
-            // Notify owner on gate failure
+            // P2: Threat-enriched gate failure notifications
             if (scanResult.status === "failed" || scanResult.status === "error") {
               try {
                 const { notifyOwner } = await import("../_core/notification");
                 const pipelineName = pipeline.cicdName || `Pipeline #${input.pipelineId}`;
                 const severity = scanResult.criticalCount > 0 ? "CRITICAL" : scanResult.highCount > 0 ? "HIGH" : "MEDIUM";
+
+                // Build threat intel section for notification
+                const tc = scanResult.threatContext;
+                const threatLines: string[] = [];
+                if (tc?.summary) {
+                  threatLines.push(`\n━━━ THREAT INTELLIGENCE ━━━`);
+                  threatLines.push(`Actors Matched: ${tc.summary.uniqueActorsMatched} | Exposure Score: ${tc.summary.actorExposureScore}/100`);
+                  threatLines.push(`Severity Boosted: ${tc.summary.severityBoostedCount} findings`);
+                  if (tc.summary.ransomwareRiskFindings > 0) threatLines.push(`⚠️ RANSOMWARE RISK: ${tc.summary.ransomwareRiskFindings} findings linked to ransomware groups`);
+                  if (tc.summary.aptRiskFindings > 0) threatLines.push(`🛡️ APT RISK: ${tc.summary.aptRiskFindings} findings linked to APT groups`);
+                  threatLines.push(`Kill Chain Coverage: ${tc.summary.killChainCoverage}%`);
+                  // Top 3 actors
+                  if (tc.actorExposure?.length > 0) {
+                    threatLines.push(`\nTop Threat Actors:`);
+                    for (const actor of tc.actorExposure.slice(0, 3)) {
+                      threatLines.push(`  • ${actor.groupName} (${actor.groupType}, ${actor.threatLevel}) — ${actor.findingCount} findings, score: ${actor.exposureScore}`);
+                    }
+                  }
+                }
+
                 await notifyOwner({
                   title: `\u26a0\ufe0f CI/CD Gate ${scanResult.status === "error" ? "Error" : "Failed"}: ${pipelineName}`,
                   content: [
@@ -281,9 +337,10 @@ export const cicdPipelineRouter = router({
                     `Severity: ${severity}`,
                     `\nTop findings:`,
                     ...scanResult.findings.slice(0, 5).map((f: any, i: number) => `  ${i + 1}. [${f.severity?.toUpperCase()}] ${f.title}`),
+                    ...threatLines,
                   ].filter(Boolean).join("\n"),
                 });
-                console.log(`[CICD] Gate failure notification sent for run ${runId}`);
+                console.log(`[CICD] Threat-enriched gate failure notification sent for run ${runId}`);
               } catch (notifyErr: any) {
                 console.error(`[CICD] Failed to send gate failure notification: ${notifyErr.message}`);
               }
@@ -662,5 +719,193 @@ export const cicdPipelineRouter = router({
     .mutation(async ({ input }) => {
       const { enumerateCloudIam } = await import("../lib/aws-cicd-connector");
       return enumerateCloudIam(input.provider);
+    }),
+
+  // ═══ P1: Sector-Aware Pre-Scan Template Selection ═══════════════════════
+  getPreScanTemplates: protectedProcedure
+    .input(z.object({
+      sector: z.string().optional(),
+      pipelineId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getPreScanTemplates } = await import("../lib/cicd-threat-correlator");
+      let sector = input.sector;
+
+      // If pipelineId provided, look up sector from pipeline
+      if (!sector && input.pipelineId) {
+        const { getDb } = await import("../db");
+        const { cicdPipelines } = await import("../../drizzle/schema");
+        const db = await getDb();
+        if (db) {
+          const { eq } = await import("drizzle-orm");
+          const rows = await db.select().from(cicdPipelines).where(eq(cicdPipelines.id, input.pipelineId));
+          if (rows[0]) sector = rows[0].cicdSectorContext || undefined;
+        }
+      }
+
+      return getPreScanTemplates(sector);
+    }),
+
+  // ═══ P2: Engagement Bridge ══════════════════════════════════════════════
+  linkEngagement: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      engagementId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdPipelines } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      await db.update(cicdPipelines).set({ cicdEngagementId: input.engagementId } as any).where(eq(cicdPipelines.id, input.pipelineId));
+      return { success: true };
+    }),
+
+  unlinkEngagement: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.execute(sql.raw(`UPDATE cicd_pipelines SET cicd_engagement_id = NULL WHERE id = ${input.pipelineId}`));
+      return { success: true };
+    }),
+
+  updateSectorContext: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      sector: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdPipelines } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      await db.update(cicdPipelines).set({ cicdSectorContext: input.sector } as any).where(eq(cicdPipelines.id, input.pipelineId));
+      return { success: true };
+    }),
+
+  // ═══ P3: Threat Analytics Endpoints ═════════════════════════════════════
+  getRunThreatContext: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const rows = await db.execute(sql.raw(
+        `SELECT cicd_threat_context FROM cicd_runs WHERE id = ${input.runId}`
+      ));
+      const row = (rows.rows || rows)?.[0] as any;
+      if (!row?.cicd_threat_context) return null;
+      return typeof row.cicd_threat_context === 'string'
+        ? JSON.parse(row.cicd_threat_context)
+        : row.cicd_threat_context;
+    }),
+
+  getThreatSummaryAcrossRuns: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number().optional(),
+      days: z.number().min(7).max(90).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const days = input.days || 30;
+      const pipelineFilter = input.pipelineId ? `AND cicd_run_pipeline_id = ${input.pipelineId}` : "";
+
+      const rows = await db.execute(sql.raw(
+        `SELECT id, cicd_threat_context FROM cicd_runs
+         WHERE cicd_threat_context IS NOT NULL
+         AND cicd_run_created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+         ${pipelineFilter}
+         ORDER BY id DESC
+         LIMIT 50`
+      ));
+      const data = ((rows as any).rows || rows || []) as any[];
+
+      // Aggregate threat context across runs
+      let totalActorsMatched = 0;
+      let totalBoosted = 0;
+      let totalRansomwareRisk = 0;
+      let totalAptRisk = 0;
+      const actorFrequency = new Map<string, { name: string; type: string; count: number; threatLevel: string }>();
+      const killChainHits = new Map<string, number>();
+
+      for (const row of data) {
+        const tc = typeof row.cicd_threat_context === 'string'
+          ? tryParseJson(row.cicd_threat_context)
+          : row.cicd_threat_context;
+        if (!tc?.summary) continue;
+
+        totalActorsMatched += tc.summary.uniqueActorsMatched || 0;
+        totalBoosted += tc.summary.severityBoostedCount || 0;
+        totalRansomwareRisk += tc.summary.ransomwareRiskFindings || 0;
+        totalAptRisk += tc.summary.aptRiskFindings || 0;
+
+        for (const actor of (tc.actorExposure || [])) {
+          const existing = actorFrequency.get(actor.groupId);
+          if (existing) {
+            existing.count += actor.findingCount;
+          } else {
+            actorFrequency.set(actor.groupId, {
+              name: actor.groupName,
+              type: actor.groupType,
+              count: actor.findingCount,
+              threatLevel: actor.threatLevel,
+            });
+          }
+        }
+
+        for (const kc of (tc.killChainMap || [])) {
+          if (kc.findingCount > 0) {
+            killChainHits.set(kc.phase, (killChainHits.get(kc.phase) || 0) + kc.findingCount);
+          }
+        }
+      }
+
+      // Sort actors by frequency
+      const topActors = [...actorFrequency.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 15);
+
+      const killChainSummary = [...killChainHits.entries()]
+        .map(([phase, count]) => ({ phase, count }))
+        .sort((a, b) => b.count - a.count);
+
+      return {
+        runsAnalyzed: data.length,
+        totalActorsMatched,
+        totalBoosted,
+        totalRansomwareRisk,
+        totalAptRisk,
+        topActors,
+        killChainSummary,
+      };
+    }),
+
+  getQuickThreatScore: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdRuns } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(cicdRuns).where(eq(cicdRuns.id, input.runId));
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      const report = rows[0].cicdReportUrl ? tryParseJson(rows[0].cicdReportUrl as string) : null;
+      if (!report?.findings?.length) {
+        return { score: 0, actorCount: 0, hasRansomwareRisk: false, hasAptRisk: false, topActor: null };
+      }
+
+      const { quickThreatScore } = await import("../lib/cicd-threat-correlator");
+      return quickThreatScore(report.findings);
     }),
 });

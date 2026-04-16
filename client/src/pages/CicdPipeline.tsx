@@ -502,12 +502,417 @@ function YamlSnippetPanel({ pipelineId }: { pipelineId: number }) {
       )}
     </div>
   );
+}// ─── Threat Intelligence Panel (P3) ─────────────────────────────────────────────
+
+const SECTOR_OPTIONS = [
+  "financial", "healthcare", "government", "defense", "energy",
+  "technology", "telecommunications", "manufacturing", "retail",
+  "education", "transportation", "media", "legal", "aerospace",
+];
+
+const KILL_CHAIN_COLORS: Record<string, string> = {
+  "Reconnaissance": "bg-slate-600",
+  "Resource Development": "bg-slate-500",
+  "Initial Access": "bg-red-600",
+  "Execution": "bg-red-500",
+  "Persistence": "bg-orange-600",
+  "Privilege Escalation": "bg-orange-500",
+  "Defense Evasion": "bg-amber-600",
+  "Credential Access": "bg-amber-500",
+  "Discovery": "bg-yellow-600",
+  "Lateral Movement": "bg-cyan-600",
+  "Collection": "bg-blue-600",
+  "Command and Control": "bg-indigo-600",
+  "Exfiltration": "bg-violet-600",
+  "Impact": "bg-rose-700",
+};
+
+function ThreatIntelPanel({
+  pipelineId,
+  selectedRun,
+  sectorContext,
+}: {
+  pipelineId: number;
+  selectedRun: any;
+  sectorContext?: string | null;
+}) {
+  const [sector, setSector] = useState(sectorContext || "");
+  const utils = trpc.useUtils();
+
+  // P2: Sector context mutation
+  const updateSector = trpc.cicdPipeline.updateSectorContext.useMutation({
+    onSuccess: () => {
+      utils.cicdPipeline.listPipelines.invalidate();
+      toast.success(`Sector context updated to "${sector}"`);
+    },
+    onError: (e: any) => toast.error(`Failed: ${e.message}`),
+  });
+
+  // P3: Run-level threat context
+  const threatCtxQuery = trpc.cicdPipeline.getRunThreatContext.useQuery(
+    { runId: selectedRun?.id || 0 },
+    { enabled: !!selectedRun?.id }
+  );
+
+  // P3: Cross-run threat summary
+  const summaryQuery = trpc.cicdPipeline.getThreatSummaryAcrossRuns.useQuery(
+    { pipelineId, days: 30 },
+    { enabled: !!pipelineId }
+  );
+
+  // P1: Pre-scan template recommendations
+  const templatesQuery = trpc.cicdPipeline.getPreScanTemplates.useQuery(
+    { pipelineId, sector: sector || undefined },
+    { enabled: !!pipelineId }
+  );
+
+  const tc = threatCtxQuery.data;
+  const summary = summaryQuery.data;
+  const templates = templatesQuery.data;
+
+  return (
+    <div className="space-y-5">
+      {/* Sector Context Config */}
+      <div className="flex items-end gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+        <div className="flex-1 min-w-0">
+          <Label className="text-xs text-muted-foreground mb-1 block">Industry Sector (for threat-informed scanning)</Label>
+          <Select value={sector} onValueChange={setSector}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select sector..." />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTOR_OPTIONS.map(s => (
+                <SelectItem key={s} value={s} className="text-xs capitalize">{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs h-8"
+          disabled={!sector || updateSector.isPending}
+          onClick={() => updateSector.mutate({ pipelineId, sector })}
+        >
+          {updateSector.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+          Apply
+        </Button>
+      </div>
+
+      {/* Run-Level Threat Context */}
+      {selectedRun ? (
+        threatCtxQuery.isLoading ? (
+          <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : tc ? (
+          <div className="space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="bg-red-950/20 border border-red-900/30 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-red-400">{tc.summary?.uniqueActorsMatched || 0}</p>
+                <p className="text-[10px] uppercase tracking-wider text-red-400/70">Actors Matched</p>
+              </div>
+              <div className="bg-amber-950/20 border border-amber-900/30 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-amber-400">{tc.summary?.severityBoostedCount || 0}</p>
+                <p className="text-[10px] uppercase tracking-wider text-amber-400/70">Severity Boosted</p>
+              </div>
+              <div className="bg-violet-950/20 border border-violet-900/30 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-violet-400">{tc.summary?.actorExposureScore || 0}</p>
+                <p className="text-[10px] uppercase tracking-wider text-violet-400/70">Exposure Score</p>
+              </div>
+              <div className="bg-cyan-950/20 border border-cyan-900/30 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-cyan-400">{tc.summary?.killChainCoverage || 0}%</p>
+                <p className="text-[10px] uppercase tracking-wider text-cyan-400/70">Kill Chain Coverage</p>
+              </div>
+            </div>
+
+            {/* Risk Flags */}
+            {(tc.summary?.ransomwareRiskFindings > 0 || tc.summary?.aptRiskFindings > 0) && (
+              <div className="flex gap-2">
+                {tc.summary.ransomwareRiskFindings > 0 && (
+                  <Alert className="border-rose-900/40 bg-rose-950/20 flex-1">
+                    <ShieldAlert className="h-4 w-4 text-rose-400" />
+                    <AlertTitle className="text-rose-400 text-xs">Ransomware Risk</AlertTitle>
+                    <AlertDescription className="text-[10px] text-rose-400/70">
+                      {tc.summary.ransomwareRiskFindings} finding(s) linked to known ransomware groups
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {tc.summary.aptRiskFindings > 0 && (
+                  <Alert className="border-violet-900/40 bg-violet-950/20 flex-1">
+                    <Shield className="h-4 w-4 text-violet-400" />
+                    <AlertTitle className="text-violet-400 text-xs">APT Risk</AlertTitle>
+                    <AlertDescription className="text-[10px] text-violet-400/70">
+                      {tc.summary.aptRiskFindings} finding(s) linked to APT groups
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
+            {/* Actor Exposure Table */}
+            {tc.actorExposure?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+                  <ShieldAlert className="h-3.5 w-3.5 text-red-400" />
+                  Threat Actor Exposure ({tc.actorExposure.length} groups)
+                </p>
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-border/50">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[10px]">Group</TableHead>
+                        <TableHead className="text-[10px]">Type</TableHead>
+                        <TableHead className="text-[10px]">Level</TableHead>
+                        <TableHead className="text-[10px]">Origin</TableHead>
+                        <TableHead className="text-[10px] text-right">Findings</TableHead>
+                        <TableHead className="text-[10px] text-right">Score</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tc.actorExposure.slice(0, 15).map((actor: any) => (
+                        <TableRow key={actor.groupId} className="hover:bg-muted/20">
+                          <TableCell className="text-xs font-medium">
+                            {actor.groupName}
+                            {actor.active && <Badge variant="outline" className="ml-1.5 text-[8px] border-emerald-500 text-emerald-400">ACTIVE</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[9px] ${
+                              actor.groupType === "apt" ? "border-violet-500 text-violet-400" :
+                              actor.groupType === "ransomware" ? "border-rose-500 text-rose-400" :
+                              actor.groupType === "cybercrime" ? "border-amber-500 text-amber-400" :
+                              "border-blue-500 text-blue-400"
+                            }`}>{actor.groupType?.toUpperCase()}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[9px] ${
+                              actor.threatLevel === "critical" ? "border-red-500 text-red-400" :
+                              actor.threatLevel === "high" ? "border-orange-500 text-orange-400" :
+                              actor.threatLevel === "medium" ? "border-amber-500 text-amber-400" :
+                              "border-blue-500 text-blue-400"
+                            }`}>{actor.threatLevel?.toUpperCase()}</Badge>
+                          </TableCell>
+                          <TableCell className="text-[10px] text-muted-foreground">{actor.origin}</TableCell>
+                          <TableCell className="text-xs text-right font-mono">{actor.findingCount}</TableCell>
+                          <TableCell className="text-right">
+                            <span className={`text-xs font-bold ${
+                              actor.exposureScore >= 70 ? "text-red-400" :
+                              actor.exposureScore >= 40 ? "text-amber-400" :
+                              "text-emerald-400"
+                            }`}>{actor.exposureScore}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {/* Kill Chain Coverage Map */}
+            {tc.killChainMap?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-cyan-400" />
+                  MITRE ATT&CK Kill Chain Coverage
+                </p>
+                <div className="grid grid-cols-7 gap-1">
+                  {tc.killChainMap.map((kc: any) => {
+                    const hasFindings = kc.findingCount > 0;
+                    const bgColor = hasFindings
+                      ? (KILL_CHAIN_COLORS[kc.phase] || "bg-gray-600")
+                      : "bg-muted/20";
+                    return (
+                      <div
+                        key={kc.phase}
+                        className={`rounded-lg p-2 text-center transition-all ${
+                          hasFindings
+                            ? `${bgColor} text-white shadow-sm`
+                            : "bg-muted/20 text-muted-foreground/40"
+                        }`}
+                        title={`${kc.phase} (${kc.tacticId})\n${kc.findingCount} findings\n${kc.activeGroups?.join(", ") || "No groups"}`}
+                      >
+                        <p className="text-[8px] font-medium leading-tight truncate">{kc.phase}</p>
+                        <p className="text-sm font-bold mt-0.5">{kc.findingCount}</p>
+                        <p className="text-[7px] opacity-70">{kc.tacticId}</p>
+                        {kc.hasBoostedFindings && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mx-auto mt-0.5" title="Contains severity-boosted findings" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Severity-Boosted Findings */}
+            {tc.enrichedFindings?.filter((f: any) => f.severityBoosted)?.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
+                  Severity-Boosted Findings ({tc.enrichedFindings.filter((f: any) => f.severityBoosted).length})
+                </p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {tc.enrichedFindings.filter((f: any) => f.severityBoosted).slice(0, 10).map((f: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 p-2 rounded bg-amber-950/20 border border-amber-900/20">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge variant="outline" className="text-[9px] border-muted text-muted-foreground line-through">{f.originalSeverity?.toUpperCase()}</Badge>
+                        <span className="text-[10px] text-muted-foreground">&rarr;</span>
+                        <Badge variant="outline" className={`text-[9px] ${
+                          f.severity === "critical" ? "border-red-500 text-red-400" :
+                          f.severity === "high" ? "border-orange-500 text-orange-400" :
+                          "border-amber-500 text-amber-400"
+                        }`}>{f.severity?.toUpperCase()}</Badge>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-medium truncate">{f.title}</p>
+                        <p className="text-[9px] text-amber-400/70 truncate">{f.boostReason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center text-muted-foreground py-6 text-sm">
+            <Shield className="h-8 w-8 mx-auto mb-2 opacity-20" />
+            No threat intelligence data for this run.
+            <p className="text-[10px] mt-1">Threat correlation runs automatically during scans.</p>
+          </div>
+        )
+      ) : (
+        /* No run selected — show cross-run summary */
+        <div className="space-y-4">
+          {summaryQuery.isLoading ? (
+            <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : summary && summary.runsAnalyzed > 0 ? (
+            <>
+              <Alert className="border-cyan-900/30 bg-cyan-950/20">
+                <Shield className="h-4 w-4 text-cyan-400" />
+                <AlertTitle className="text-cyan-400 text-xs">Cross-Run Threat Summary (Last 30 Days)</AlertTitle>
+                <AlertDescription className="text-[10px] text-cyan-400/70">
+                  Aggregated threat intelligence across {summary.runsAnalyzed} runs. Select a specific run from the Runs tab for detailed per-finding analysis.
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="bg-red-950/20 border border-red-900/30 rounded-lg p-3 text-center">
+                  <p className="text-xl font-bold text-red-400">{summary.totalActorsMatched}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-red-400/70">Total Actor Hits</p>
+                </div>
+                <div className="bg-amber-950/20 border border-amber-900/30 rounded-lg p-3 text-center">
+                  <p className="text-xl font-bold text-amber-400">{summary.totalBoosted}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-amber-400/70">Severity Boosts</p>
+                </div>
+                <div className="bg-rose-950/20 border border-rose-900/30 rounded-lg p-3 text-center">
+                  <p className="text-xl font-bold text-rose-400">{summary.totalRansomwareRisk}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-rose-400/70">Ransomware Flags</p>
+                </div>
+                <div className="bg-violet-950/20 border border-violet-900/30 rounded-lg p-3 text-center">
+                  <p className="text-xl font-bold text-violet-400">{summary.totalAptRisk}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-violet-400/70">APT Flags</p>
+                </div>
+              </div>
+
+              {/* Top Actors Across Runs */}
+              {summary.topActors?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2">Most Frequently Matched Actors</p>
+                  <div className="space-y-1">
+                    {summary.topActors.slice(0, 8).map((actor: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded bg-muted/20 hover:bg-muted/30 transition-colors">
+                        <span className="text-[10px] text-muted-foreground w-5 text-right">#{i + 1}</span>
+                        <span className="text-xs font-medium flex-1">{actor.name}</span>
+                        <Badge variant="outline" className={`text-[8px] ${
+                          actor.type === "apt" ? "border-violet-500 text-violet-400" :
+                          actor.type === "ransomware" ? "border-rose-500 text-rose-400" :
+                          "border-amber-500 text-amber-400"
+                        }`}>{actor.type?.toUpperCase()}</Badge>
+                        <Badge variant="outline" className={`text-[8px] ${
+                          actor.threatLevel === "critical" ? "border-red-500 text-red-400" :
+                          actor.threatLevel === "high" ? "border-orange-500 text-orange-400" :
+                          "border-amber-500 text-amber-400"
+                        }`}>{actor.threatLevel}</Badge>
+                        <span className="text-xs font-mono text-muted-foreground">{actor.count} hits</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Kill Chain Summary */}
+              {summary.killChainSummary?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-2">Kill Chain Phase Frequency</p>
+                  <div className="space-y-1">
+                    {summary.killChainSummary.map((kc: any, i: number) => {
+                      const maxCount = summary.killChainSummary[0]?.count || 1;
+                      const pct = Math.round((kc.count / maxCount) * 100);
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground w-28 text-right truncate">{kc.phase}</span>
+                          <div className="flex-1 h-4 bg-muted/20 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${KILL_CHAIN_COLORS[kc.phase] || "bg-gray-600"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">{kc.count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center text-muted-foreground py-6 text-sm">
+              <Shield className="h-8 w-8 mx-auto mb-2 opacity-20" />
+              No threat intelligence data yet.
+              <p className="text-[10px] mt-1">Run a scan to generate threat actor correlation data.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* P1: Template Recommendations */}
+      {templates && (templates.priorityCVEs?.length > 0 || templates.templateTags?.length > 0) && (
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+            <Search className="h-3.5 w-3.5 text-emerald-400" />
+            Threat-Informed Template Recommendations
+          </p>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Based on {templates.targetedGroups?.length || 0} active threat groups{sector ? ` targeting the ${sector} sector` : ""}.
+          </p>
+
+          {templates.templateTags?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {templates.templateTags.map((tag: string) => (
+                <Badge key={tag} variant="outline" className="text-[9px] border-emerald-500/50 text-emerald-400">{tag}</Badge>
+              ))}
+            </div>
+          )}
+
+          {templates.priorityCVEs?.length > 0 && (
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {templates.priorityCVEs.slice(0, 15).map((cve: string) => (
+                <div key={cve} className="flex items-center gap-2 p-1.5 rounded bg-muted/20 hover:bg-muted/30 transition-colors">
+                  <Badge variant="outline" className="text-[9px] font-mono border-red-500/50 text-red-400">{cve}</Badge>
+                  <span className="text-[10px] text-muted-foreground">Priority scan target</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// ─── Main Component ──────────────────────────────────────────────────────────────
 
-export default function CicdPipelinePage() {
-  const [isCreateOpen, setCreateOpen] = useState(false);
+export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen] = useState(false);
   const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("pipelines");
@@ -700,6 +1105,7 @@ export default function CicdPipelinePage() {
                         <TabsTrigger value="yaml" className="text-xs gap-1.5"><FileCode className="h-3.5 w-3.5" /> YAML Snippets</TabsTrigger>
                         <TabsTrigger value="results" className="text-xs gap-1.5"><Shield className="h-3.5 w-3.5" /> Results</TabsTrigger>
                         <TabsTrigger value="scan-types" className="text-xs gap-1.5"><Settings className="h-3.5 w-3.5" /> Scan Types</TabsTrigger>
+                        <TabsTrigger value="threat-intel" className="text-xs gap-1.5"><ShieldAlert className="h-3.5 w-3.5" /> Threat Intel</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -781,6 +1187,15 @@ export default function CicdPipelinePage() {
                             Select a run from the Runs tab to view detailed results.
                           </div>
                         )}
+                      </TabsContent>
+
+                      {/* Threat Intel Tab */}
+                      <TabsContent value="threat-intel" className="mt-0">
+                        <ThreatIntelPanel
+                          pipelineId={selectedPipelineId}
+                          selectedRun={selectedRun}
+                          sectorContext={selectedPipeline?.sectorContext}
+                        />
                       </TabsContent>
 
                       {/* Scan Types Tab */}
