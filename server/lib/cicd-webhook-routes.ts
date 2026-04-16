@@ -69,6 +69,10 @@ export function registerCicdWebhookRoutes(app: Express) {
       const cloudProvider = body.cloud_provider || "aws";
       // Allow webhook payload to specify scan types; default to nuclei + config
       const requestedScanTypes = Array.isArray(body.scan_types) ? body.scan_types : ["nuclei", "config"];
+      const generateSbom = body.generate_sbom === true;
+      const incrementalOnly = body.incremental_only === true;
+      const allowedDomains = (() => { try { return JSON.parse((pipeline as any).cicd_allowed_domains || '[]'); } catch { return []; } })();
+      const lastBaselineId = (pipeline as any).cicd_last_baseline_id;
 
       console.log(`[CICD-WEBHOOK] Event: ${event}, Target: ${targetUrl}, Commit: ${commitSha?.substring(0, 7)}`);
 
@@ -101,6 +105,10 @@ export function registerCicdWebhookRoutes(app: Express) {
               containerImage: containerImage || undefined,
               iacRepoUrl: iacRepoUrl || undefined,
               cloudProvider: cloudProvider as any,
+              allowedDomains,
+              baselineId: lastBaselineId || undefined,
+              generateSbom,
+              incrementalOnly,
             });
 
             await db.update(cicdRuns).set({
@@ -117,6 +125,11 @@ export function registerCicdWebhookRoutes(app: Express) {
                 maxCvss: scanResult.maxCvss,
                 duration: scanResult.duration,
                 findings: scanResult.findings.slice(0, 100),
+                newFindings: scanResult.newFindings,
+                fixedFindings: scanResult.fixedFindings,
+                baselineCompared: scanResult.baselineCompared,
+                sbomUrl: scanResult.sbomUrl,
+                sbomPackageCount: scanResult.sbomPackageCount,
               }),
               cicdCompletedAt: new Date().toISOString(),
             } as any).where(eq(cicdRuns.id, runId));

@@ -7814,3 +7814,61 @@ export const methodologyPerformance = mysqlTable("methodology_performance", {
 ]);
 export type InsertMethodologyPerformance = typeof methodologyPerformance.$inferInsert;
 export type SelectMethodologyPerformance = typeof methodologyPerformance.$inferSelect;
+
+// ─── CI/CD Baselines & Findings ──────────────────────────────────────────────
+
+export const cicdBaselines = mysqlTable("cicd_baselines", {
+id: int().autoincrement().primaryKey().notNull(),
+pipelineId: int("pipeline_id").notNull(),
+commitSha: varchar("commit_sha", { length: 64 }).notNull(),
+branch: varchar("branch", { length: 255 }),
+findingHashes: json("finding_hashes").notNull(),
+totalFindings: int("total_findings").default(0).notNull(),
+createdAt: bigint("created_at", { mode: "number" }).notNull(),
+createdBy: varchar("created_by", { length: 255 }),
+}, (table) => [
+index("cicd_bl_pipeline_idx").on(table.pipelineId),
+index("cicd_bl_commit_idx").on(table.commitSha),
+]);
+export type InsertCicdBaseline = typeof cicdBaselines.$inferInsert;
+export type SelectCicdBaseline = typeof cicdBaselines.$inferSelect;
+
+export const cicdRunFindings = mysqlTable("cicd_run_findings", {
+id: int().autoincrement().primaryKey().notNull(),
+runId: int("run_id").notNull(),
+pipelineId: int("pipeline_id").notNull(),
+title: varchar("title", { length: 512 }).notNull(),
+titleHash: varchar("title_hash", { length: 64 }).notNull(),
+severity: mysqlEnum(["critical", "high", "medium", "low", "info"]).default("medium").notNull(),
+cvss: double(),
+scanner: varchar("scanner", { length: 64 }).notNull(),
+url: varchar("url", { length: 1024 }),
+description: text(),
+cweId: varchar("cwe_id", { length: 32 }),
+isNew: tinyint("is_new").default(1).notNull(),
+createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+index("cicd_rf_run_idx").on(table.runId),
+index("cicd_rf_pipeline_idx").on(table.pipelineId),
+index("cicd_rf_hash_idx").on(table.titleHash),
+index("cicd_rf_severity_idx").on(table.severity),
+]);
+export type InsertCicdRunFinding = typeof cicdRunFindings.$inferInsert;
+export type SelectCicdRunFinding = typeof cicdRunFindings.$inferSelect;
+
+export const cicdSbomArtifacts = mysqlTable("cicd_sbom_artifacts", {
+id: int().autoincrement().primaryKey().notNull(),
+runId: int("run_id").notNull(),
+pipelineId: int("pipeline_id").notNull(),
+imageRef: varchar("image_ref", { length: 512 }).notNull(),
+format: mysqlEnum(["cyclonedx", "spdx"]).default("cyclonedx").notNull(),
+storageUrl: varchar("storage_url", { length: 1024 }).notNull(),
+storageKey: varchar("storage_key", { length: 512 }).notNull(),
+packageCount: int("package_count").default(0),
+createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (table) => [
+index("cicd_sbom_run_idx").on(table.runId),
+index("cicd_sbom_pipeline_idx").on(table.pipelineId),
+]);
+export type InsertCicdSbomArtifact = typeof cicdSbomArtifacts.$inferInsert;
+export type SelectCicdSbomArtifact = typeof cicdSbomArtifacts.$inferSelect;

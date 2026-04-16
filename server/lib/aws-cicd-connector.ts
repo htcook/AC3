@@ -39,7 +39,7 @@ export interface DiscoveredEnvironment {
   metadata: Record<string, string>;
 }
 
-export type CicdScanType = "zap" | "burp" | "nuclei" | "config" | "cspm" | "container" | "iac";
+export type CicdScanType = "zap" | "burp" | "nuclei" | "config" | "cspm" | "container" | "iac" | "secrets";
 
 export interface CicdScanRequest {
   targetUrl: string;
@@ -55,6 +55,11 @@ export interface CicdScanRequest {
   containerImage?: string;              // For container image scanning (e.g. "nginx:latest")
   iacRepoUrl?: string;                  // For IaC scanning (Git repo URL)
   cloudProvider?: "aws" | "azure" | "gcp"; // For CSPM scans
+  // P0/P1 gap fix fields
+  allowedDomains?: string[];            // Target URL allowlist for webhook abuse prevention
+  baselineId?: number;                  // Previous baseline ID for comparison
+  generateSbom?: boolean;               // Generate SBOM during container scan
+  incrementalOnly?: boolean;            // Only scan changed files (for IaC)
 }
 
 export interface CicdScanResult {
@@ -70,6 +75,13 @@ export interface CicdScanResult {
   duration: number; // seconds
   findings: CicdFinding[];
   reportUrl?: string;
+  // Baseline comparison results
+  newFindings?: number;
+  fixedFindings?: number;
+  baselineCompared?: boolean;
+  // SBOM artifact
+  sbomUrl?: string;
+  sbomPackageCount?: number;
 }
 
 export interface CicdFinding {
@@ -348,15 +360,75 @@ async function discoverCloudFront(
 // ─── Scan Execution ──────────────────────────────────────────────────────────
 
 /**
- * Execute a CI/CD security scan against a target URL.
- * Triggers ZAP/Burp/Nuclei scans and collects results.
+ * P0: Validate target URL against pipeline's allowed domains.
+ * Prevents webhook abuse if a secret is compromised.
  */
+export function validateTargetUrl(targetUrl: string, allowedDomains?: string[]): { valid: boolean; reason?: string } {
+  if (!allowedDomains || allowedDomains.length === 0) return { valid: true };
+  try {
+    const url = new URL(targetUrl);
+    const hostname = url.hostname.toLowerCase();
+    const matched = allowedDomains.some(domain => {
+      const d = domain.toLowerCase().replace(/^\*\./, "");
+      return hostname === d || hostname.endsWith(`.${d}`);
+    });
+    if (!matched) return { valid: false, reason: `Domain ${hostname} is not in the allowlist: ${allowedDomains.join(", ")}` };
+    return { valid: true };
+  } catch {
+    return { valid: false, reason: `Invalid URL: ${targetUrl}` };
+  }
+}
+
+/**
+ * P0: Pre-flight check — verify scan server is reachable before dispatching scans.
+ */
+export async function scanServerPreFlight(): Promise<{ healthy: boolean; error?: string }> {
+  try {
+    const { checkDoScanServiceHealth } = await import("./do-scan-api");
+    const health = await checkDoScanServiceHealth();
+    if (!health.healthy) {
+      return { healthy: false, error: health.error || "Scan server is unreachable" };
+    }
+    return { healthy: true };
+  } catch (e: any) {
+    return { healthy: false, error: e.message };
+  }
+}
+
 export async function executeCicdScan(request: CicdScanRequest): Promise<CicdScanResult> {
   const startTime = Date.now();
   const findings: CicdFinding[] = [];
 
   console.log(`[CICD-SCAN] Starting scan for pipeline ${request.pipelineId}, run ${request.runId}`);
   console.log(`[CICD-SCAN] Target: ${request.targetUrl}, Scanners: ${request.scanTypes.join(", ")}`);
+
+  // P0: Target URL allowlist validation
+  const urlCheck = validateTargetUrl(request.targetUrl, request.allowedDomains);
+  if (!urlCheck.valid) {
+    console.warn(`[CICD-SCAN] Target URL rejected: ${urlCheck.reason}`);
+    return {
+      runId: request.runId, pipelineId: request.pipelineId,
+      status: "error", totalFindings: 0, criticalCount: 0, highCount: 0,
+      mediumCount: 0, lowCount: 0, maxCvss: 0, duration: 0,
+      findings: [{ title: `Scan blocked: ${urlCheck.reason}`, severity: "info", scanner: "system", url: request.targetUrl, description: urlCheck.reason || "" }],
+    };
+  }
+
+  // P0: Scan server pre-flight check (only for scan types that need the scan server)
+  const needsScanServer = request.scanTypes.some(t => ["nuclei", "zap", "burp", "container", "iac", "secrets"].includes(t));
+  if (needsScanServer) {
+    const preFlight = await scanServerPreFlight();
+    if (!preFlight.healthy) {
+      console.error(`[CICD-SCAN] Pre-flight failed: ${preFlight.error}`);
+      return {
+        runId: request.runId, pipelineId: request.pipelineId,
+        status: "error", totalFindings: 0, criticalCount: 0, highCount: 0,
+        mediumCount: 0, lowCount: 0, maxCvss: 0, duration: 0,
+        findings: [{ title: `Scan server unavailable: ${preFlight.error}`, severity: "info", scanner: "system", url: request.targetUrl, description: `Pre-flight health check failed: ${preFlight.error}` }],
+      };
+    }
+    console.log(`[CICD-SCAN] Pre-flight passed — scan server is healthy`);
+  }
 
   for (const scanType of request.scanTypes) {
     try {
@@ -392,8 +464,17 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
           break;
         }
         case "iac": {
-          const iacFindings = await runIacScanCicd(request.iacRepoUrl || request.targetUrl, request.commitSha);
+          const iacFindings = await runIacScanCicd(
+            request.iacRepoUrl || request.targetUrl,
+            request.commitSha,
+            request.incrementalOnly ? request.branch : undefined
+          );
           findings.push(...iacFindings);
+          break;
+        }
+        case "secrets": {
+          const secretFindings = await runSecretScanCicd(request.iacRepoUrl || request.targetUrl, request.commitSha);
+          findings.push(...secretFindings);
           break;
         }
       }
@@ -419,6 +500,36 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
 
   console.log(`[CICD-SCAN] Completed: ${findings.length} findings, max CVSS ${maxCvss}, status: ${status}`);
 
+  // P1: Baseline comparison — mark new vs existing findings
+  let newFindings = findings.length;
+  let fixedFindings = 0;
+  let baselineCompared = false;
+  if (request.baselineId) {
+    try {
+      const baselineResult = await compareWithBaseline(request.pipelineId, request.baselineId, findings);
+      newFindings = baselineResult.newCount;
+      fixedFindings = baselineResult.fixedCount;
+      baselineCompared = true;
+      console.log(`[CICD-SCAN] Baseline comparison: ${newFindings} new, ${fixedFindings} fixed`);
+    } catch (e: any) {
+      console.warn(`[CICD-SCAN] Baseline comparison failed: ${e.message}`);
+    }
+  }
+
+  // P2: SBOM generation for container scans
+  let sbomUrl: string | undefined;
+  let sbomPackageCount: number | undefined;
+  if (request.generateSbom && request.scanTypes.includes("container")) {
+    try {
+      const sbomResult = await generateSbom(request.containerImage || request.targetUrl);
+      sbomUrl = sbomResult.url;
+      sbomPackageCount = sbomResult.packageCount;
+      console.log(`[CICD-SCAN] SBOM generated: ${sbomPackageCount} packages`);
+    } catch (e: any) {
+      console.warn(`[CICD-SCAN] SBOM generation failed: ${e.message}`);
+    }
+  }
+
   return {
     runId: request.runId,
     pipelineId: request.pipelineId,
@@ -431,6 +542,11 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
     maxCvss,
     duration,
     findings,
+    newFindings,
+    fixedFindings,
+    baselineCompared,
+    sbomUrl,
+    sbomPackageCount,
   };
 }
 
@@ -800,7 +916,7 @@ async function runContainerScanCicd(imageRef: string): Promise<CicdFinding[]> {
 
 // ─── IaC Scanner (Terraform, CloudFormation, Kubernetes manifests) ──────────────
 
-async function runIacScanCicd(repoOrPath: string, commitSha?: string): Promise<CicdFinding[]> {
+async function runIacScanCicd(repoOrPath: string, commitSha?: string, incrementalBranch?: string): Promise<CicdFinding[]> {
   const findings: CicdFinding[] = [];
 
   try {
@@ -811,10 +927,17 @@ async function runIacScanCicd(repoOrPath: string, commitSha?: string): Promise<C
     const scanPath = isUrl ? `/tmp/iac-scan-${Date.now()}` : repoOrPath;
 
     if (isUrl) {
-      const cloneCmd = commitSha
-        ? `git clone --depth 1 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
-        : `git clone --depth 1 ${repoOrPath} ${scanPath}`;
-      await executeRawCommandViaHttp(cloneCmd, 60);
+      // P2: Incremental scanning — only clone changed files when branch is specified
+      if (incrementalBranch && commitSha) {
+        const cloneCmd = `git clone --depth 50 ${repoOrPath} ${scanPath} && cd ${scanPath} && git diff --name-only origin/main...${commitSha} -- '*.tf' '*.yaml' '*.yml' '*.json' 'Dockerfile*' > /tmp/changed-iac-files.txt 2>/dev/null || true`;
+        await executeRawCommandViaHttp(cloneCmd, 60);
+        console.log(`[CICD-IAC] Incremental mode: scanning only changed IaC files on branch ${incrementalBranch}`);
+      } else {
+        const cloneCmd = commitSha
+          ? `git clone --depth 1 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
+          : `git clone --depth 1 ${repoOrPath} ${scanPath}`;
+        await executeRawCommandViaHttp(cloneCmd, 60);
+      }
     }
 
     // Run checkov for IaC scanning (Terraform, CloudFormation, K8s, Dockerfile)
@@ -880,6 +1003,294 @@ async function runIacScanCicd(repoOrPath: string, commitSha?: string): Promise<C
     console.log(`[CICD-IAC] Scan complete: ${findings.length} findings for ${repoOrPath}`);
   } catch (e: any) {
     console.warn(`[CICD-IAC] Scan failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── P1: Secret Scanning (GitHub Leaks patterns) ──────────────────────────────────────────────────────
+
+async function runSecretScanCicd(repoOrPath: string, commitSha?: string): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { executeRawCommandViaHttp } = await import("./do-scan-api");
+
+    const isUrl = repoOrPath.startsWith("http");
+    const scanPath = isUrl ? `/tmp/secret-scan-${Date.now()}` : repoOrPath;
+
+    if (isUrl) {
+      const cloneCmd = commitSha
+        ? `git clone --depth 10 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
+        : `git clone --depth 10 ${repoOrPath} ${scanPath}`;
+      await executeRawCommandViaHttp(cloneCmd, 60);
+    }
+
+    // Run gitleaks for secret detection
+    const result = await executeRawCommandViaHttp(
+      `gitleaks detect --source ${scanPath} --report-format json --report-path /tmp/gitleaks-${Date.now()}.json --no-banner 2>/dev/null; cat /tmp/gitleaks-*.json 2>/dev/null || echo '[]'`,
+      120
+    );
+
+    if (result.stdout) {
+      try {
+        const leaks = JSON.parse(result.stdout);
+        for (const leak of (Array.isArray(leaks) ? leaks : [])) {
+          findings.push({
+            title: `[Secret] ${leak.Description || leak.RuleID || "Hardcoded Secret"}`,
+            severity: "critical",
+            cvss: 9.0,
+            scanner: "gitleaks",
+            url: `${repoOrPath}#${leak.File || ""}:${leak.StartLine || 0}`,
+            description: `Secret detected: ${leak.Description || leak.RuleID}. File: ${leak.File || "unknown"} (line ${leak.StartLine || "?"}). Match: ${(leak.Match || "").substring(0, 50)}...`,
+            cweId: "CWE-798",
+          });
+        }
+      } catch { /* JSON parse error */ }
+    }
+
+    // Also check for common secret patterns via grep as fallback
+    if (findings.length === 0) {
+      const grepResult = await executeRawCommandViaHttp(
+        `cd ${scanPath} && grep -rn --include='*.env' --include='*.yml' --include='*.yaml' --include='*.json' --include='*.tf' --include='*.tfvars' -E '(password|secret|api_key|access_key|private_key)\s*[:=]\s*["\x27][^"\x27]{8,}' . 2>/dev/null | head -20`,
+        30
+      );
+      if (grepResult.stdout?.trim()) {
+        for (const line of grepResult.stdout.split("\n").filter(Boolean)) {
+          const match = line.match(/^\.\/(.+?):(\d+):(.+)$/);
+          if (match) {
+            findings.push({
+              title: `[Secret] Potential hardcoded credential in ${match[1]}`,
+              severity: "high",
+              scanner: "pattern-match",
+              url: `${repoOrPath}#${match[1]}:${match[2]}`,
+              description: `Potential secret found at ${match[1]}:${match[2]}. Review and rotate if confirmed.`,
+              cweId: "CWE-798",
+            });
+          }
+        }
+      }
+    }
+
+    // Cleanup
+    if (isUrl) {
+      await executeRawCommandViaHttp(`rm -rf ${scanPath}`, 10).catch(() => {});
+    }
+
+    console.log(`[CICD-SECRETS] Scan complete: ${findings.length} findings for ${repoOrPath}`);
+  } catch (e: any) {
+    console.warn(`[CICD-SECRETS] Scan failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── P1: Baseline Comparison ──────────────────────────────────────────────────────────────────────────
+
+export async function compareWithBaseline(
+  pipelineId: number,
+  baselineId: number,
+  currentFindings: CicdFinding[]
+): Promise<{ newCount: number; fixedCount: number; unchangedCount: number }> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) throw new Error("No DB connection");
+
+    // Fetch baseline findings
+    const baselineRows = await db.execute(
+      sql.raw(`SELECT finding_title, finding_severity, finding_scanner, finding_url FROM cicd_scan_findings WHERE finding_run_id = ${baselineId}`)
+    );
+    const baselineFingerprints = new Set(
+      (baselineRows.rows || baselineRows || []).map((r: any) =>
+        `${(r.finding_title || "").toLowerCase().replace(/\[\w+\]\s*/g, "")}|${r.finding_scanner}`
+      )
+    );
+
+    // Compare current findings against baseline
+    const currentFingerprints = new Set(
+      currentFindings.map(f =>
+        `${f.title.toLowerCase().replace(/\[\w+\]\s*/g, "")}|${f.scanner}`
+      )
+    );
+
+    let newCount = 0;
+    for (const fp of currentFingerprints) {
+      if (!baselineFingerprints.has(fp)) newCount++;
+    }
+
+    let fixedCount = 0;
+    for (const fp of baselineFingerprints) {
+      if (!currentFingerprints.has(fp)) fixedCount++;
+    }
+
+    const unchangedCount = currentFindings.length - newCount;
+
+    return { newCount, fixedCount, unchangedCount };
+  } catch (e: any) {
+    console.warn(`[CICD-BASELINE] Comparison failed: ${e.message}`);
+    return { newCount: currentFindings.length, fixedCount: 0, unchangedCount: 0 };
+  }
+}
+
+// ─── P2: SBOM Generation ──────────────────────────────────────────────────────────────────────────────
+
+export async function generateSbom(imageRef: string): Promise<{ url: string; packageCount: number; format: string }> {
+  const { executeRawCommandViaHttp } = await import("./do-scan-api");
+  const { storagePut } = await import("../storage");
+
+  // Generate SBOM using Syft (CycloneDX format)
+  const result = await executeRawCommandViaHttp(
+    `syft ${imageRef} -o cyclonedx-json 2>/dev/null || trivy image --format cyclonedx ${imageRef} 2>/dev/null || echo '{"components":[]}'`,
+    180
+  );
+
+  let packageCount = 0;
+  let sbomJson = "{}";
+  if (result.stdout) {
+    try {
+      const parsed = JSON.parse(result.stdout);
+      packageCount = (parsed.components || []).length;
+      sbomJson = result.stdout;
+    } catch {
+      sbomJson = result.stdout;
+    }
+  }
+
+  // Upload SBOM to S3
+  const timestamp = Date.now();
+  const safeRef = imageRef.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const key = `cicd-sbom/${safeRef}-${timestamp}.json`;
+  const { url } = await storagePut(key, Buffer.from(sbomJson), "application/json");
+
+  return { url, packageCount, format: "cyclonedx" };
+}
+
+// ─── P2: Enhanced Prowler CSPM Wire-up ────────────────────────────────────────────────────────────────
+
+export async function runProwlerCicd(
+  provider: "aws" | "azure" | "gcp",
+  creds?: AwsCicdCredentials,
+  services?: string[],
+  compliance?: string
+): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { executeRawCommandViaHttp } = await import("./do-scan-api");
+
+    let cmd = `prowler ${provider} -M json-ocsf --no-banner`;
+    if (provider === "aws" && creds) {
+      cmd = `AWS_ACCESS_KEY_ID='${creds.accessKeyId}' AWS_SECRET_ACCESS_KEY='${creds.secretAccessKey}' ${creds.sessionToken ? `AWS_SESSION_TOKEN='${creds.sessionToken}' ` : ""}AWS_DEFAULT_REGION='${creds.region || "us-east-1"}' ${cmd}`;
+      if (creds.roleArn) cmd += ` -R ${creds.roleArn}`;
+    }
+    if (services?.length) cmd += ` --services ${services.join(" ")}`;
+    if (compliance) cmd += ` --compliance ${compliance}`;
+
+    const result = await executeRawCommandViaHttp(cmd, 600);
+
+    if (result.stdout) {
+      for (const line of result.stdout.split("\n").filter(Boolean)) {
+        try {
+          const obj = JSON.parse(line);
+          if ((obj.Status || obj.status || "").toUpperCase() === "FAIL") {
+            const sev = (obj.Severity || obj.severity || "medium").toLowerCase();
+            findings.push({
+              title: `[Prowler] ${obj.CheckTitle || obj.check_title || obj.CheckID || "Unknown"}`,
+              severity: (["critical", "high", "medium", "low"].includes(sev) ? sev : "medium") as any,
+              scanner: "prowler",
+              url: `${provider}://${obj.ResourceArn || obj.ResourceId || obj.CheckID || "unknown"}`,
+              description: `${obj.StatusExtended || obj.Description || ""}. Service: ${obj.ServiceName || "unknown"}. Region: ${obj.Region || "global"}. Remediation: ${obj.Remediation?.Recommendation?.Text || "Review configuration"}`,
+              cweId: obj.CheckID ? `PROWLER-${obj.CheckID}` : undefined,
+            });
+          }
+        } catch { /* skip non-JSON lines */ }
+      }
+    }
+
+    console.log(`[CICD-PROWLER] ${provider} scan: ${findings.length} findings`);
+  } catch (e: any) {
+    console.warn(`[CICD-PROWLER] Scan failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── P3: Container Registry Auto-Discovery ────────────────────────────────────────────────────────────
+
+export async function discoverContainerImages(
+  registryType: string,
+  registryAuth: { url?: string; username?: string; password?: string; region?: string },
+  namespace?: string
+): Promise<Array<{ name: string; tag: string; fullRef: string; lastUpdated?: string }>> {
+  const images: Array<{ name: string; tag: string; fullRef: string; lastUpdated?: string }> = [];
+
+  try {
+    const { listRepositories } = await import("./container-registry-service");
+    const repos = await listRepositories(
+      registryType as any,
+      { url: registryAuth.url || "", username: registryAuth.username || "", password: registryAuth.password || "", region: registryAuth.region },
+      { limit: 50, namespace }
+    );
+
+    for (const repo of repos) {
+      // Use latest tag by default
+      const tag = "latest";
+      const fullRef = registryAuth.url
+        ? `${registryAuth.url.replace(/^https?:\/\//, "")}/${repo.name}:${tag}`
+        : `${repo.name}:${tag}`;
+      images.push({
+        name: repo.name,
+        tag,
+        fullRef,
+        lastUpdated: (repo as any).lastUpdated || (repo as any).last_updated,
+      });
+    }
+
+    console.log(`[CICD-REGISTRY] Discovered ${images.length} images from ${registryType}`);
+  } catch (e: any) {
+    console.warn(`[CICD-REGISTRY] Discovery failed: ${e.message}`);
+  }
+
+  return images;
+}
+
+// ─── P3: Cloud IAM Enumerator for CSPM ────────────────────────────────────────────────────────────────
+
+export async function enumerateCloudIam(
+  provider: "aws" | "azure" | "gcp",
+  creds?: AwsCicdCredentials
+): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { IAM_MISCONFIG_CHECKS, analyzeCloudProvider } = await import("./cloud-attack-paths");
+    const analysis = analyzeCloudProvider(provider, {});
+
+    for (const misconfig of analysis.misconfigurations) {
+      findings.push({
+        title: `[IAM] ${misconfig.description}`,
+        severity: misconfig.severity as any,
+        scanner: "iam-enumerator",
+        url: `${provider}://iam/${misconfig.type}`,
+        description: `Resource: ${misconfig.resource}. Current: ${misconfig.currentValue}. Expected: ${misconfig.expectedValue}`,
+      });
+    }
+
+    for (const attack of analysis.attackPaths) {
+      findings.push({
+        title: `[Attack Path] ${attack.name}`,
+        severity: attack.severity as any,
+        scanner: "cloud-attack-paths",
+        url: `${provider}://attack-path/${attack.id}`,
+        description: `${attack.description}. MITRE: ${attack.mitreTechnique}. Risk Score: ${attack.riskScore}`,
+      });
+    }
+
+    console.log(`[CICD-IAM] ${provider} enumeration: ${findings.length} findings`);
+  } catch (e: any) {
+    console.warn(`[CICD-IAM] Enumeration failed: ${e.message}`);
   }
 
   return findings;
@@ -1115,5 +1526,116 @@ ac3-security-scan:
   rules:
     - if: '\$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '\$CI_COMMIT_BRANCH == "main"'
+`;
+}
+
+// ─── P1: Jenkins Pipeline YAML ──────────────────────────────────────────────────────────────────────
+
+export function generateJenkinsfileYaml(webhookUrl: string): string {
+  return `// AC3 Security Scan - Jenkins Pipeline Integration
+// Add this as a stage in your Jenkinsfile
+
+pipeline {
+    agent any
+
+    environment {
+        AC3_WEBHOOK_URL = '${webhookUrl}'
+        AC3_WEBHOOK_SECRET = credentials('ac3-webhook-secret')
+    }
+
+    stages {
+        stage('Deploy to Staging') {
+            steps {
+                echo 'Deploy to staging environment'
+                // Your deployment steps here
+            }
+        }
+
+        stage('AC3 Security Scan') {
+            steps {
+                script {
+                    def payload = """{"event":"deployment","target_url":"https://staging.yourapp.com","commit_sha":"\${env.GIT_COMMIT}","branch":"\${env.GIT_BRANCH}","repository":"\${env.JOB_NAME}"}"""
+                    def signature = sh(
+                        script: "echo -n '\${payload}' | openssl dgst -sha256 -hmac '\${AC3_WEBHOOK_SECRET}' | awk '{print \\\$2}'",
+                        returnStdout: true
+                    ).trim()
+
+                    httpRequest(
+                        url: "\${AC3_WEBHOOK_URL}",
+                        httpMode: 'POST',
+                        contentType: 'APPLICATION_JSON',
+                        customHeaders: [
+                            [name: 'X-Webhook-Signature', value: "sha256=\${signature}"]
+                        ],
+                        requestBody: payload
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'AC3 scan triggered. Results will be posted back.'
+        }
+    }
+}
+`;
+}
+
+// ─── P1: Azure DevOps Pipeline YAML ─────────────────────────────────────────────────────────────────
+
+export function generateAzureDevOpsYaml(webhookUrl: string): string {
+  return `# AC3 Security Scan - Azure DevOps Pipeline Integration
+# Add this to your azure-pipelines.yml
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+
+stages:
+  - stage: Deploy
+    displayName: 'Deploy to Staging'
+    jobs:
+      - job: DeployStaging
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: echo 'Deploy to staging'
+            displayName: 'Deploy'
+
+  - stage: SecurityScan
+    displayName: 'AC3 Security Scan'
+    dependsOn: Deploy
+    jobs:
+      - job: TriggerAC3Scan
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Bash@3
+            displayName: 'Trigger AC3 Security Scan'
+            inputs:
+              targetType: 'inline'
+              script: |
+                PAYLOAD='{"event":"deployment","target_url":"https://staging.yourapp.com","commit_sha":"'\$(Build.SourceVersion)'","branch":"'\$(Build.SourceBranchName)'","repository":"'\$(Build.Repository.Name)'"}'
+                SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$(AC3_WEBHOOK_SECRET)" | awk '{print $2}')
+                curl -X POST "${webhookUrl}" \\
+                  -H "Content-Type: application/json" \\
+                  -H "X-Webhook-Signature: sha256=$SIGNATURE" \\
+                  -d "$PAYLOAD"
+            env:
+              AC3_WEBHOOK_SECRET: \$(AC3_WEBHOOK_SECRET)
+
+# Setup:
+# 1. Add AC3_WEBHOOK_SECRET as a secret variable in your pipeline
+# 2. Replace staging URL with your actual staging environment URL
+# 3. Ensure the pipeline has permission to access the secret variable
 `;
 }

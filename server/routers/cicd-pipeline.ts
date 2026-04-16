@@ -18,6 +18,9 @@ function mapPipeline(row: any) {
     lastTriggered: row.cicdLastTriggered,
     createdBy: row.cicdCreatedBy,
     createdAt: row.cicdCreatedAt,
+    allowedDomains: tryParseJson(row.cicd_allowed_domains) || [],
+    scanTypes: tryParseJson(row.cicd_scan_types) || [],
+    lastBaselineId: row.cicd_last_baseline_id,
   };
 }
 
@@ -68,11 +71,13 @@ export const cicdPipelineRouter = router({
       triggerOn: z.enum(["push", "pull_request", "release", "manual", "schedule"]).optional(),
       failThreshold: z.number().optional(),
       targetUrl: z.string().optional(),
-      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac"])).optional(),
+      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac", "secrets"])).optional(),
+      allowedDomains: z.array(z.string()).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { getDb } = await import("../db");
       const { cicdPipelines } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -89,7 +94,17 @@ export const cicdPipelineRouter = router({
         cicdFailThreshold: input.failThreshold ?? 7.0,
         cicdCreatedBy: String(ctx.user.id),
       });
-      return { id: result[0].insertId, webhookSecret };
+      const insertId = result[0].insertId;
+
+      // Set JSON columns via raw SQL (not in Drizzle schema)
+      if (input.scanTypes?.length || input.allowedDomains?.length) {
+        const updates: string[] = [];
+        if (input.scanTypes?.length) updates.push(`cicd_scan_types = '${JSON.stringify(input.scanTypes)}'`);
+        if (input.allowedDomains?.length) updates.push(`cicd_allowed_domains = '${JSON.stringify(input.allowedDomains)}'`);
+        await db.execute(sql.raw(`UPDATE cicd_pipelines SET ${updates.join(", ")} WHERE id = ${insertId}`));
+      }
+
+      return { id: insertId, webhookSecret };
     }),
 
   updatePipeline: protectedProcedure
@@ -155,17 +170,24 @@ export const cicdPipelineRouter = router({
       commitSha: z.string().optional(),
       branch: z.string().optional(),
       targetUrl: z.string().optional(),
-      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac"])).optional(),
+      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac", "secrets"])).optional(),
       containerImage: z.string().optional(),
       iacRepoUrl: z.string().optional(),
       cloudProvider: z.enum(["aws", "azure", "gcp"]).optional(),
+      generateSbom: z.boolean().optional(),
+      incrementalOnly: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
       const { cicdRuns, cicdPipelines } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const { eq } = await import("drizzle-orm");
+      const { eq, sql } = await import("drizzle-orm");
+
+      // Fetch pipeline for allowedDomains and lastBaselineId
+      const pipelineRows = await db.select().from(cicdPipelines).where(eq(cicdPipelines.id, input.pipelineId));
+      const pipeline = pipelineRows[0];
+      if (!pipeline) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline not found" });
 
       // Create the run record
       const result = await db.insert(cicdRuns).values({
@@ -179,6 +201,9 @@ export const cicdPipelineRouter = router({
       // If targetUrl is provided, kick off async scan
       if (input.targetUrl) {
         const scanTypes = input.scanTypes || ["nuclei"];
+        const allowedDomains = tryParseJson((pipeline as any).cicd_allowed_domains) || [];
+        const lastBaselineId = (pipeline as any).cicd_last_baseline_id;
+
         // Fire and forget — scan runs in background
         import("../lib/aws-cicd-connector").then(async ({ executeCicdScan }) => {
           try {
@@ -195,11 +220,15 @@ export const cicdPipelineRouter = router({
               containerImage: input.containerImage,
               iacRepoUrl: input.iacRepoUrl,
               cloudProvider: input.cloudProvider,
+              allowedDomains,
+              baselineId: lastBaselineId || undefined,
+              generateSbom: input.generateSbom,
+              incrementalOnly: input.incrementalOnly,
             });
 
             // Update run with results
             await db.update(cicdRuns).set({
-              cicdRunStatus: scanResult.status === "passed" ? "passed" : "failed",
+              cicdRunStatus: scanResult.status === "passed" ? "passed" : scanResult.status === "error" ? "error" : "failed",
               cicdTotalTests: scanResult.totalFindings,
               cicdPassedTests: scanResult.mediumCount + scanResult.lowCount,
               cicdFailedTests: scanResult.criticalCount + scanResult.highCount,
@@ -211,10 +240,24 @@ export const cicdPipelineRouter = router({
                 lowCount: scanResult.lowCount,
                 maxCvss: scanResult.maxCvss,
                 duration: scanResult.duration,
-                findings: scanResult.findings.slice(0, 100), // Cap at 100 for storage
+                findings: scanResult.findings.slice(0, 100),
+                newFindings: scanResult.newFindings,
+                fixedFindings: scanResult.fixedFindings,
+                baselineCompared: scanResult.baselineCompared,
+                sbomUrl: scanResult.sbomUrl,
+                sbomPackageCount: scanResult.sbomPackageCount,
               }),
               cicdCompletedAt: new Date().toISOString(),
             } as any).where(eq(cicdRuns.id, runId));
+
+            // Update baseline and new/fixed counts via raw SQL
+            await db.execute(sql.raw(
+              `UPDATE cicd_runs SET cicd_new_findings = ${scanResult.newFindings || 0}, cicd_fixed_findings = ${scanResult.fixedFindings || 0} WHERE id = ${runId}`
+            ));
+            // Set this run as the new baseline
+            await db.execute(sql.raw(
+              `UPDATE cicd_pipelines SET cicd_last_baseline_id = ${runId} WHERE id = ${input.pipelineId}`
+            ));
 
             console.log(`[CICD] Run ${runId} completed: ${scanResult.status}`);
           } catch (err: any) {
@@ -375,7 +418,7 @@ export const cicdPipelineRouter = router({
   generateYamlSnippet: protectedProcedure
     .input(z.object({
       pipelineId: z.number(),
-      provider: z.enum(["github_actions", "gitlab_ci", "codepipeline"]),
+      provider: z.enum(["github_actions", "gitlab_ci", "codepipeline", "jenkins", "azure_devops"]),
     }))
     .query(async ({ input }) => {
       const { getDb } = await import("../db");
@@ -392,6 +435,8 @@ export const cicdPipelineRouter = router({
         generateGitHubActionsYaml,
         generateGitLabCiYaml,
         generateCodePipelineYaml,
+        generateJenkinsfileYaml,
+        generateAzureDevOpsYaml,
       } = await import("../lib/aws-cicd-connector");
 
       const webhookUrl = generateWebhookUrl(input.pipelineId);
@@ -404,6 +449,10 @@ export const cicdPipelineRouter = router({
           return { yaml: generateGitLabCiYaml(webhookUrl) };
         case "codepipeline":
           return { yaml: generateCodePipelineYaml() };
+        case "jenkins":
+          return { yaml: generateJenkinsfileYaml(webhookUrl) };
+        case "azure_devops":
+          return { yaml: generateAzureDevOpsYaml(webhookUrl) };
         default:
           return { yaml: "# No snippet available for this provider" };
       }
@@ -424,5 +473,94 @@ export const cicdPipelineRouter = router({
 
       await db.update(cicdPipelines).set({ cicdWebhookSecret: newSecret } as any).where(eq(cicdPipelines.id, input.pipelineId));
       return { webhookSecret: newSecret };
+    }),
+
+  // ─── P0: Update Allowed Domains ─────────────────────────────────────────
+  updateAllowedDomains: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      allowedDomains: z.array(z.string()),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET cicd_allowed_domains = '${JSON.stringify(input.allowedDomains)}' WHERE id = ${input.pipelineId}`
+      ));
+      return { success: true };
+    }),
+
+  // ─── P0: Scan Server Pre-flight ─────────────────────────────────────────
+  scanServerHealth: protectedProcedure.query(async () => {
+    const { scanServerPreFlight } = await import("../lib/aws-cicd-connector");
+    return scanServerPreFlight();
+  }),
+
+  // ─── P1: Get Baseline Comparison ────────────────────────────────────────
+  getBaselineComparison: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdRuns } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const rows = await db.execute(sql.raw(
+        `SELECT cicd_new_findings, cicd_fixed_findings FROM cicd_runs WHERE id = ${input.runId}`
+      ));
+      const row = (rows.rows || rows)?.[0] as any;
+      return {
+        newFindings: row?.cicd_new_findings || 0,
+        fixedFindings: row?.cicd_fixed_findings || 0,
+      };
+    }),
+
+  // ─── P2: Update Scan Types ──────────────────────────────────────────────
+  updateScanTypes: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac", "secrets"])),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET cicd_scan_types = '${JSON.stringify(input.scanTypes)}' WHERE id = ${input.pipelineId}`
+      ));
+      return { success: true };
+    }),
+
+  // ─── P3: Container Registry Discovery ───────────────────────────────────
+  discoverContainerImages: protectedProcedure
+    .input(z.object({
+      registryType: z.string(),
+      registryUrl: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
+      region: z.string().optional(),
+      namespace: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { discoverContainerImages } = await import("../lib/aws-cicd-connector");
+      return discoverContainerImages(
+        input.registryType,
+        { url: input.registryUrl, username: input.username, password: input.password, region: input.region },
+        input.namespace
+      );
+    }),
+
+  // ─── P3: Cloud IAM Enumeration ──────────────────────────────────────────
+  enumerateCloudIam: protectedProcedure
+    .input(z.object({
+      provider: z.enum(["aws", "azure", "gcp"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { enumerateCloudIam } = await import("../lib/aws-cicd-connector");
+      return enumerateCloudIam(input.provider);
     }),
 });

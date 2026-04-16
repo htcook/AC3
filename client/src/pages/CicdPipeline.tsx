@@ -110,6 +110,8 @@ function CreatePipelineForm({ setOpen }: { setOpen: (v: boolean) => void }) {
   const [triggerOn, setTriggerOn] = useState<string>("push");
   const [targetUrl, setTargetUrl] = useState("");
   const [failThreshold, setFailThreshold] = useState("7.0");
+  const [allowedDomains, setAllowedDomains] = useState("");
+  const [scanTypes, setScanTypes] = useState<string[]>(["nuclei", "config"]);
 
   const createPipeline = trpc.cicdPipeline.createPipeline.useMutation({
     onSuccess: () => {
@@ -130,14 +132,16 @@ function CreatePipelineForm({ setOpen }: { setOpen: (v: boolean) => void }) {
       triggerOn: triggerOn as any,
       failThreshold: parseFloat(failThreshold) || 7.0,
       targetUrl: targetUrl || undefined,
-    });
+      allowedDomains: allowedDomains ? allowedDomains.split(",").map(d => d.trim()).filter(Boolean) : undefined,
+      scanTypes: scanTypes.length > 0 ? scanTypes : undefined,
+    } as any);
   };
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4 py-4">
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="pl-name" className="text-right text-xs">Name</Label>
-        <Input id="pl-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="Production Security Gate" />
+        <Input id="pl-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="Production Security Gate" autoComplete="off" />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label className="text-right text-xs">Provider</Label>
@@ -172,6 +176,23 @@ function CreatePipelineForm({ setOpen }: { setOpen: (v: boolean) => void }) {
       <div className="grid grid-cols-4 items-center gap-4">
         <Label className="text-right text-xs">CVSS Gate</Label>
         <Input type="number" step="0.1" min="0" max="10" value={failThreshold} onChange={(e) => setFailThreshold(e.target.value)} className="col-span-3" />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label className="text-right text-xs">Allowed Domains</Label>
+        <Input value={allowedDomains} onChange={(e) => setAllowedDomains(e.target.value)} className="col-span-3" placeholder="*.example.com, staging.app.io" />
+      </div>
+      <div className="grid grid-cols-4 items-start gap-4">
+        <Label className="text-right text-xs pt-2">Scan Types</Label>
+        <div className="col-span-3 flex flex-wrap gap-1.5">
+          {["nuclei", "zap", "burp", "config", "cspm", "container", "iac", "secrets"].map(st => (
+            <Badge
+              key={st}
+              variant={scanTypes.includes(st) ? "default" : "outline"}
+              className="cursor-pointer text-[10px]"
+              onClick={() => setScanTypes(prev => prev.includes(st) ? prev.filter(s => s !== st) : [...prev, st])}
+            >{st}</Badge>
+          ))}
+        </div>
       </div>
       <DialogFooter>
         <Button type="submit" disabled={createPipeline.isPending}>
@@ -234,6 +255,31 @@ function ScanResultsPanel({ run }: { run: any }) {
           <span className={`font-mono font-bold ${results.maxCvss >= 7 ? "text-red-400" : results.maxCvss >= 4 ? "text-amber-400" : "text-emerald-400"}`}>
             {results.maxCvss.toFixed(1)}
           </span>
+        </div>
+      )}
+
+      {/* Baseline Comparison */}
+      {results?.baselineCompared && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-rose-950/20 border border-rose-900/30 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-rose-400">{results.newFindings ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-wider text-rose-400/70">New Findings</p>
+          </div>
+          <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-emerald-400">{results.fixedFindings ?? 0}</p>
+            <p className="text-[10px] uppercase tracking-wider text-emerald-400/70">Fixed Since Baseline</p>
+          </div>
+        </div>
+      )}
+
+      {/* SBOM Artifact */}
+      {results?.sbomUrl && (
+        <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-2">
+          <div>
+            <span className="text-xs text-muted-foreground">SBOM Artifact</span>
+            {results.sbomPackageCount && <span className="text-[10px] text-muted-foreground ml-2">({results.sbomPackageCount} packages)</span>}
+          </div>
+          <a href={results.sbomUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:underline">Download CycloneDX JSON</a>
         </div>
       )}
 
@@ -322,7 +368,7 @@ function WebhookConfigPanel({ pipelineId }: { pipelineId: number }) {
 // ─── YAML Snippet Panel ──────────────────────────────────────────────────────
 
 function YamlSnippetPanel({ pipelineId }: { pipelineId: number }) {
-  const [provider, setProvider] = useState<"github_actions" | "gitlab_ci" | "codepipeline">("github_actions");
+  const [provider, setProvider] = useState<"github_actions" | "gitlab_ci" | "codepipeline" | "jenkins" | "azure_devops">("github_actions");
 
   const snippetQuery = trpc.cicdPipeline.generateYamlSnippet.useQuery(
     { pipelineId, provider },
@@ -331,11 +377,13 @@ function YamlSnippetPanel({ pipelineId }: { pipelineId: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {([
           { id: "github_actions" as const, label: "GitHub Actions", icon: <Github className="h-3.5 w-3.5" /> },
           { id: "gitlab_ci" as const, label: "GitLab CI", icon: <Gitlab className="h-3.5 w-3.5" /> },
           { id: "codepipeline" as const, label: "CodePipeline", icon: <Cloud className="h-3.5 w-3.5" /> },
+          { id: "jenkins" as const, label: "Jenkins", icon: <Code2 className="h-3.5 w-3.5" /> },
+          { id: "azure_devops" as const, label: "Azure DevOps", icon: <Cloud className="h-3.5 w-3.5" /> },
         ]).map((p) => (
           <Button
             key={p.id}
@@ -655,7 +703,8 @@ export default function CicdPipelinePage() {
                               { id: "config", label: "Config Audit", desc: "HTTP security header analysis, TLS certificate validation, cookie security flags, and server version disclosure checks.", color: "text-cyan-400" },
                               { id: "cspm", label: "CSPM (Cloud Posture)", desc: "Cloud Security Posture Management. CIS Benchmark checks for AWS/Azure/GCP covering IAM, networking, storage, compute, and logging.", color: "text-blue-400" },
                               { id: "container", label: "Container Scan", desc: "Trivy-based container image vulnerability scanning. Detects CVEs in OS packages and application dependencies within Docker images.", color: "text-purple-400" },
-                              { id: "iac", label: "IaC Analysis", desc: "Infrastructure-as-Code scanning via Checkov and tfsec. Analyzes Terraform, CloudFormation, Kubernetes manifests, and Dockerfiles for misconfigurations.", color: "text-emerald-400" },
+                              { id: "iac", label: "IaC Analysis", desc: "Infrastructure-as-Code scanning via Checkov and tfsec. Analyzes Terraform, CloudFormation, Kubernetes manifests, and Dockerfiles for misconfigurations. Supports incremental mode (changed files only).", color: "text-emerald-400" },
+                              { id: "secrets", label: "Secret Scanning", desc: "Regex-based secret detection across source code. Catches AWS keys, GitHub tokens, Slack webhooks, private keys, database URIs, and 20+ other credential patterns.", color: "text-rose-400" },
                             ].map(s => (
                               <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/30">
                                 <Badge variant="outline" className={`shrink-0 mt-0.5 text-[10px] font-mono ${s.color}`}>{s.id}</Badge>
@@ -668,7 +717,28 @@ export default function CicdPipelinePage() {
                           </div>
                           <div className="mt-4 p-3 rounded-lg border border-dashed border-border/50 bg-muted/20">
                             <p className="text-xs font-medium mb-1">Webhook Payload Example</p>
-                            <pre className="text-[10px] text-muted-foreground font-mono whitespace-pre overflow-x-auto">{`{\n  "event": "deployment",\n  "target_url": "https://staging.app.com",\n  "scan_types": ["nuclei", "config", "container"],\n  "container_image": "myapp:latest",\n  "iac_repo_url": "https://github.com/org/infra",\n  "cloud_provider": "aws"\n}`}</pre>
+                            <pre className="text-[10px] text-muted-foreground font-mono whitespace-pre overflow-x-auto">{`{\n  "event": "deployment",\n  "target_url": "https://staging.app.com",\n  "scan_types": ["nuclei", "config", "container", "secrets"],\n  "container_image": "myapp:latest",\n  "iac_repo_url": "https://github.com/org/infra",\n  "cloud_provider": "aws",\n  "generate_sbom": true,\n  "incremental_only": false\n}`}</pre>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-medium">Additional Capabilities</p>
+                            <div className="grid gap-2">
+                              <div className="flex items-start gap-3 p-2.5 rounded-lg border border-border/50 bg-muted/20">
+                                <Badge variant="outline" className="shrink-0 mt-0.5 text-[10px] font-mono text-sky-400">P0</Badge>
+                                <div><p className="text-xs font-medium">Pre-flight Health Check</p><p className="text-[10px] text-muted-foreground">Verifies scan server is reachable before dispatching. Returns "error" immediately if infrastructure is down.</p></div>
+                              </div>
+                              <div className="flex items-start gap-3 p-2.5 rounded-lg border border-border/50 bg-muted/20">
+                                <Badge variant="outline" className="shrink-0 mt-0.5 text-[10px] font-mono text-sky-400">P0</Badge>
+                                <div><p className="text-xs font-medium">Target URL Allowlist</p><p className="text-[10px] text-muted-foreground">Restricts which domains each pipeline can scan. Prevents abuse if a webhook secret is compromised. Configure via pipeline settings.</p></div>
+                              </div>
+                              <div className="flex items-start gap-3 p-2.5 rounded-lg border border-border/50 bg-muted/20">
+                                <Badge variant="outline" className="shrink-0 mt-0.5 text-[10px] font-mono text-indigo-400">P1</Badge>
+                                <div><p className="text-xs font-medium">Baseline Comparison</p><p className="text-[10px] text-muted-foreground">Compares findings against a saved baseline to surface only new/worsened vulnerabilities and track fixed issues.</p></div>
+                              </div>
+                              <div className="flex items-start gap-3 p-2.5 rounded-lg border border-border/50 bg-muted/20">
+                                <Badge variant="outline" className="shrink-0 mt-0.5 text-[10px] font-mono text-violet-400">P2</Badge>
+                                <div><p className="text-xs font-medium">SBOM Generation</p><p className="text-[10px] text-muted-foreground">Generates a Software Bill of Materials (CycloneDX JSON) during container scans. Stored as a downloadable artifact.</p></div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </TabsContent>
