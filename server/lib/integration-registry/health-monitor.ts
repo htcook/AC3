@@ -58,7 +58,7 @@ export interface HealthAlert {
 /**
  * Map internal HealthStatus values to DB enum values.
  * Code uses: healthy, degraded, down, auth_expired, rate_limited, unknown
- * DB expects: healthy, degraded, unreachable, auth_failed, rate_limited, timeout, error
+ * integration_health_checks.status: healthy, degraded, unreachable, auth_failed, rate_limited, timeout, error
  */
 function mapStatusToDb(status: HealthStatus): string {
   switch (status) {
@@ -66,6 +66,21 @@ function mapStatusToDb(status: HealthStatus): string {
     case "auth_expired":  return "auth_failed";
     case "unknown":       return "error";
     default:              return status; // healthy, degraded, rate_limited pass through
+  }
+}
+
+/**
+ * Map internal HealthStatus to the narrower customer_integrations.last_health_status enum.
+ * customer_integrations.last_health_status: healthy, degraded, unreachable, auth_failed, unknown
+ * (does NOT include rate_limited, timeout, or error)
+ */
+function mapStatusToIntegrationDb(status: HealthStatus): string {
+  switch (status) {
+    case "down":          return "unreachable";
+    case "auth_expired":  return "auth_failed";
+    case "rate_limited":  return "degraded";   // closest match in narrower enum
+    case "unknown":       return "unknown";     // keep as unknown (not 'error')
+    default:              return status;         // healthy, degraded pass through
   }
 }
 
@@ -113,9 +128,9 @@ export async function runHealthCheckForIntegration(integrationId: string): Promi
       checkedAt: result.checkedAt,
     });
 
-    // Update the integration's health status
+    // Update the integration's health status (use narrower enum mapping)
     await updateCustomerIntegration(integrationId, {
-      lastHealthStatus: result.status as any,
+      lastHealthStatus: mapStatusToIntegrationDb(result.status) as any,
       lastHealthCheck: result.checkedAt,
     });
   } catch (err: any) {

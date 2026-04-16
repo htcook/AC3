@@ -3207,6 +3207,38 @@ export async function saveEngagementResult(input: EngagementResultInput): Promis
  * Save individual findings from an engagement to the engagement_findings table.
  * Accepts an array of findings and inserts them in batch.
  */
+/**
+ * Auto-classify OWASP Top 10 (2021) category from finding title/description.
+ * Returns the OWASP category string or undefined if no match.
+ */
+function autoClassifyOwasp(title: string, description?: string): string | undefined {
+  const text = `${title} ${description || ''}`.toLowerCase();
+  // A01:2021 – Broken Access Control
+  if (/\b(idor|broken access|insecure direct|privilege escalat|path traversal|directory traversal|unauthorized access|access control|forced browsing|cors misconfigur)/.test(text)) return 'A01:2021-Broken Access Control';
+  // A02:2021 – Cryptographic Failures
+  if (/\b(ssl|tls|weak cipher|cleartext|unencrypted|certificate|crypto|hsts|mixed content|http without)/.test(text)) return 'A02:2021-Cryptographic Failures';
+  // A03:2021 – Injection
+  if (/\b(sql.?inject|xss|cross.?site.?script|command.?inject|os.?command|code.?inject|ldap.?inject|xpath|ssti|template.?inject|crlf.?inject|header.?inject|log4j|log4shell|jndi)/.test(text)) return 'A03:2021-Injection';
+  // A04:2021 – Insecure Design
+  if (/\b(insecure design|\bbusiness logic\b|race condition|mass assignment)/.test(text)) return 'A04:2021-Insecure Design';
+  // A05:2021 – Security Misconfiguration
+  if (/\b(misconfig|default credential|default password|exposed.{0,25}(config|env|debug|admin|panel|backup|git|svn|ds_store)|directory listing|stack trace|verbose error|server.?header|x-powered|phpinfo|\.env\b|\.git\b|web\.config|crossdomain\.xml|security\.txt|robots\.txt.*disallow)/.test(text)) return 'A05:2021-Security Misconfiguration';
+  // A06:2021 – Vulnerable and Outdated Components
+  if (/\b(outdated|vulnerable component|known vulnerabilit|cve-\d|end.?of.?life|eol|unsupported version|deprecated|version.?disclosure)/.test(text)) return 'A06:2021-Vulnerable and Outdated Components';
+  // A07:2021 – Identification and Authentication Failures
+  if (/\b(brute.?force|weak password|credential.?stuff|session.?fixation|session.?hijack|authentication bypass|auth bypass|missing.?auth|broken.?auth|jwt|token.?leak|password.?reset)/.test(text)) return 'A07:2021-Identification and Authentication Failures';
+  // A08:2021 – Software and Data Integrity Failures
+  if (/\b(deserializ|insecure deserializ|ci.?cd|pipeline|integrity|unsigned|unverified update|supply chain)/.test(text)) return 'A08:2021-Software and Data Integrity Failures';
+  // A09:2021 – Security Logging and Monitoring Failures
+  if (/\b(logging|monitoring|audit|insufficient log|missing log)/.test(text)) return 'A09:2021-Security Logging and Monitoring Failures';
+  // A10:2021 – Server-Side Request Forgery
+  if (/\b(ssrf|server.?side request forgery)/.test(text)) return 'A10:2021-Server-Side Request Forgery';
+  // Broader fallback patterns
+  if (/\b(information.?disclos|sensitive.?data|data.?expos|data.?leak|pii)/.test(text)) return 'A02:2021-Cryptographic Failures';
+  if (/\b(open.?redirect|url.?redirect)/.test(text)) return 'A01:2021-Broken Access Control';
+  return undefined;
+}
+
 export async function saveEngagementFindings(findings: EngagementFindingInput[]): Promise<number> {
   if (findings.length === 0) return 0;
   const db = await getDbRequired();
@@ -3220,8 +3252,11 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
   const dedupMap = new Map<string, EngagementFindingInput>();
   const TIER_RANK: Record<string, number> = { 'confirmed': 4, 'corroborated': 3, 'single-source': 2, 'unverified': 1 };
   for (const f of findings) {
-    // Normalize title: strip leading [tool] prefixes and collapse whitespace
-    const normTitle = (f.title || '').replace(/^\[\w+\]\s*/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    // Normalize title: strip leading [Tool Name] prefixes, @ URL suffixes, and collapse whitespace
+    const normTitle = (f.title || '')
+      .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')   // strip [Nuclei], [ZAP Active], etc.
+      .replace(/\s*@\s*https?:\/\/\S+/g, '')       // strip @ http://... URL suffixes
+      .replace(/\s+/g, ' ').trim().toLowerCase();
     const key = `${f.engagementId}|${normTitle}|${(f.severity || '').toLowerCase()}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
     const existing = dedupMap.get(key);
     if (!existing) {
@@ -3241,9 +3276,38 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
     console.log(`[saveEngagementFindings] Deduplicated ${dedupedCount} findings (${findings.length} → ${dedupedFindings.length})`);
   }
 
+  // Cross-call dedup: check existing DB findings to prevent duplicates across separate calls
+  const engIds = [...new Set(dedupedFindings.map(f => f.engagementId))];
+  const existingTitleKeys = new Set<string>();
+  for (const eid of engIds) {
+    try {
+      const existing = await db.select({ title: engagementFindings.title, severity: engagementFindings.severity, hostname: engagementFindings.hostname, port: engagementFindings.port })
+        .from(engagementFindings)
+        .where(eq(engagementFindings.engagementId, eid));
+      for (const e of existing) {
+        const normExisting = (e.title || '')
+          .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')
+          .replace(/\s*@\s*https?:\/\/\S+/g, '')
+          .replace(/\s+/g, ' ').trim().toLowerCase();
+        existingTitleKeys.add(`${eid}|${normExisting}|${(e.severity || '').toLowerCase()}|${(e.hostname || '').toLowerCase()}|${e.port || 0}`);
+      }
+    } catch { /* non-fatal */ }
+  }
+  const newFindings = dedupedFindings.filter(f => {
+    const normTitle = (f.title || '')
+      .replace(/^\[\w+(?:\s+\w+)*\]\s*/g, '')
+      .replace(/\s*@\s*https?:\/\/\S+/g, '')
+      .replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = `${f.engagementId}|${normTitle}|${(f.severity || '').toLowerCase()}|${(f.hostname || '').toLowerCase()}|${f.port || 0}`;
+    return !existingTitleKeys.has(key);
+  });
+  if (newFindings.length < dedupedFindings.length) {
+    console.log(`[saveEngagementFindings] Cross-call dedup: ${dedupedFindings.length - newFindings.length} already in DB, inserting ${newFindings.length} new`);
+  }
+
   // Insert in batches of 50 to avoid query size limits
-  for (let i = 0; i < dedupedFindings.length; i += 50) {
-    const batch = dedupedFindings.slice(i, i + 50);
+  for (let i = 0; i < newFindings.length; i += 50) {
+    const batch = newFindings.slice(i, i + 50);
     await db.insert(engagementFindings).values(
       batch.map(f => ({
         engagementId: f.engagementId,
@@ -3264,14 +3328,14 @@ export async function saveEngagementFindings(findings: EngagementFindingInput[])
         exploitAttempted: f.exploitAttempted ? 1 : 0,
         exploitSucceeded: f.exploitSucceeded ? 1 : 0,
         exploitTechnique: f.exploitTechnique,
-        owaspCategory: f.owaspCategory,
+        owaspCategory: f.owaspCategory || autoClassifyOwasp(f.title || '', f.description) || null,
         mitreTechnique: f.mitreTechnique,
         createdAt: now,
       }))
     );
     inserted += batch.length;
   }
-  return inserted;
+  return inserted; // returns count of newly inserted (excludes cross-call dupes)
 }
 
 /**

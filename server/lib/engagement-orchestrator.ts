@@ -3089,6 +3089,7 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
 
 type ParsedFinding = {
   severity: string; title: string; cve?: string; description?: string; cvss?: number; cwe?: string;
+  endpoint?: string; matched_at?: string;
   evidence?: {
     request?: { method?: string; url?: string; headers?: Record<string, string>; body?: string };
     response?: { statusCode?: number; headers?: Record<string, string>; body?: string };
@@ -3166,6 +3167,8 @@ function parseToolOutput(
               description: obj.info.description || undefined,
               cvss: obj.info.classification?.['cvss-score'] || obj.info.classification?.['cvss_score'] || undefined,
               cwe: obj.info.classification?.cwe?.[0] || undefined,
+              endpoint: matchedAt || undefined,
+              matched_at: matchedAt || undefined,
               evidence: Object.keys(evidence).length > 0 ? evidence : undefined,
             });
           }
