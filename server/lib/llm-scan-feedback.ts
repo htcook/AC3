@@ -80,6 +80,10 @@ export interface FeedbackLoopConfig {
   maxTotalScans?: number;
   /** Maximum scans per iteration (default: 4) */
   maxScansPerIteration?: number;
+  /** Minimum iterations before convergence check kicks in (default: 0) */
+  minIterations?: number;
+  /** Number of stale iterations before forcing convergence (default: 2) */
+  staleThreshold?: number;
   /** Engagement ID for audit trail */
   engagementId?: number;
   /** Callback for progress updates */
@@ -585,6 +589,8 @@ export async function runFeedbackLoop(
     maxIterations = 5,
     maxTotalScans = 12,
     maxScansPerIteration = 4,
+    minIterations = 0,
+    staleThreshold = 2,
     engagementId,
     onProgress,
   } = config;
@@ -603,7 +609,7 @@ export async function runFeedbackLoop(
   // Track findings count per iteration for convergence detection
   let previousFindingsCount = allFindings.length;
   let staleIterations = 0;
-  const STALE_THRESHOLD = 2; // Force satisfaction after 2 iterations with no new findings
+  const STALE_THRESHOLD = staleThreshold; // Force satisfaction after N iterations with no new findings
 
   for (let i = 0; i < maxIterations; i++) {
     state.iteration = i;
@@ -614,7 +620,8 @@ export async function runFeedbackLoop(
     );
 
     // Convergence check: if findings have plateaued for STALE_THRESHOLD iterations, stop
-    if (staleIterations >= STALE_THRESHOLD) {
+    // But respect minIterations — don't converge before we've done the minimum
+    if (staleIterations >= STALE_THRESHOLD && i >= minIterations) {
       console.log(`[ScanFeedback] Convergence detected: no new findings for ${staleIterations} iterations, forcing satisfaction`);
       state.satisfied = true;
       state.finalAnalysis = `Feedback loop converged after ${i} iterations — no new findings discovered in last ${staleIterations} iterations. ${state.totalScansExecuted} total scans executed.`;

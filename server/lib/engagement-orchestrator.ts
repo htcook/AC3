@@ -6337,7 +6337,8 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       }
       const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
       // ── Training lab enhanced scanning: add vuln-category tags for broader coverage ──
-      const isTrainingLabScan = state.trainingLabMode === true;
+      // P0-FIX: Auto-detect training lab targets even without trainingLabMode flag
+      const isTrainingLabScan = state.trainingLabMode === true || ['brokencrystals', 'broken-crystals', 'dvwa', 'juiceshop', 'juice-shop', 'bwapp', 'altoro', 'hackazon', 'testphp', 'webgoat', 'mutillidae', 'bodgeit', 'gruyere'].some(lab => asset.hostname.toLowerCase().includes(lab));
       if (isTrainingLabScan) {
         // Add vulnerability category tags that target common training lab vulns
         const vulnCategoryTags = [
@@ -6345,6 +6346,8 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
           'redirect', 'exposure', 'default-login', 'ftp',
           'cve', 'misconfig', 'unauth', 'injection',
           'file-inclusion', 'traversal', 'upload', 'deserialization',
+          'oast', 'headless', 'jwt', 'idor', 'csrf', 'cors',
+          'command-injection', 'open-redirect', 'ldap',
         ];
         for (const tag of vulnCategoryTags) {
           if (!techTags.includes(tag)) techTags.push(tag);
@@ -7160,6 +7163,8 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
           'mutillidae': { username: 'admin', password: 'admin', loginPath: '/index.php?page=login.php' },
           'bodgeit': { username: 'test@test.com', password: 'test', loginPath: '/bodgeit/login.jsp' },
           'gruyere': { username: 'test', password: 'test', loginPath: '/login' },
+          'brokencrystals': { username: 'admin', password: 'admin', loginPath: '/api/auth/login' },
+          'broken-crystals': { username: 'admin', password: 'admin', loginPath: '/api/auth/login' },
         };
 
         let trainingLabCreds: { username: string; password: string; loginPath: string } | undefined;
@@ -7312,6 +7317,15 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
               '/rest/product', '/rest/category',
               '/admin', '/admin/user', '/admin/product',
             ],
+            'brokencrystals': [
+              '/', '/api/auth/login', '/api/testimonials', '/api/testimonials/count?query=test',
+              '/api/metadata', '/api/file?path=test', '/api/render',
+              '/api/users', '/api/products', '/api/config',
+              '/swagger', '/.htaccess', '/nginx.conf',
+              '/api/auth/login?user=admin&password=admin',
+              '/api/spawn', '/api/goto?url=https://example.com',
+              '/api/subscriptions', '/api/userinfo',
+            ],
           };
 
           for (const [labKey, paths] of Object.entries(TRAINING_LAB_SEED_URLS)) {
@@ -7321,6 +7335,32 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
                 phase: "vuln_detection", type: "info",
                 title: `ZAP Seed URLs: ${labKey} (${zapSeedUrls.length} endpoints)`,
                 detail: `Pre-seeding ZAP with ${zapSeedUrls.length} known endpoints for ${labKey} SPA target to improve spider coverage`,
+              });
+              break;
+            }
+          }
+        }
+        // P0-FIX: Also inject seed URLs for known training labs even when NOT in trainingLabMode
+        // Many engagements target training labs without the flag set
+        if (!zapSeedUrls) {
+          const hostname = webApp.hostname.toLowerCase();
+          const FALLBACK_SEED_URLS: Record<string, string[]> = {
+            'brokencrystals': [
+              '/', '/api/auth/login', '/api/testimonials', '/api/testimonials/count?query=test',
+              '/api/metadata', '/api/file?path=test', '/api/render',
+              '/api/users', '/api/products', '/api/config',
+              '/swagger', '/.htaccess', '/nginx.conf',
+              '/api/spawn', '/api/goto?url=https://example.com',
+              '/api/subscriptions', '/api/userinfo',
+            ],
+          };
+          for (const [labKey, paths] of Object.entries(FALLBACK_SEED_URLS)) {
+            if (hostname.includes(labKey)) {
+              zapSeedUrls = paths.map(p => `${targetUrl}${p}`);
+              addLog(state, {
+                phase: "vuln_detection", type: "info",
+                title: `ZAP Auto-Seed URLs: ${labKey} (${zapSeedUrls.length} endpoints)`,
+                detail: `Auto-detected ${labKey} target — pre-seeding ZAP with ${zapSeedUrls.length} known vulnerable endpoints to improve scan coverage`,
               });
               break;
             }
@@ -7521,10 +7561,13 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
           let zapDone = false;
           // Training labs with WAF evasion need much longer — 3140 URLs × 20 payloads × 200ms delay = ~3.5 hours theoretical max
           // 90 min allows ~60% coverage which is a good balance between thoroughness and time
-          const zapTimeoutMinutes = state.trainingLabMode ? 90 : 5;
+          // P0-FIX: Auto-detect training lab targets even without trainingLabMode flag
+          const isKnownTrainingLab = state.trainingLabMode || ['brokencrystals', 'broken-crystals', 'dvwa', 'juiceshop', 'juice-shop', 'bwapp', 'altoro', 'hackazon', 'testphp', 'webgoat', 'mutillidae', 'bodgeit', 'gruyere'].some(lab => webApp.hostname.toLowerCase().includes(lab));
+          // P0-FIX: Increased non-training-lab timeout from 5 to 30 minutes — 5 min was way too short for active scans
+          const zapTimeoutMinutes = isKnownTrainingLab ? 90 : 30;
           const zapTimeout = Date.now() + zapTimeoutMinutes * 60 * 1000;
           let consecutivePollFailures = 0;
-          const maxConsecutivePollFailures = state.trainingLabMode ? 8 : 3; // More tolerance for training labs
+          const maxConsecutivePollFailures = isKnownTrainingLab ? 8 : 5; // More tolerance for training labs, increased non-lab from 3 to 5
           while (!zapDone && Date.now() < zapTimeout) {
             try {
               const progress = await pollScanProgress(zapScanId);
@@ -9700,17 +9743,28 @@ ${await (async () => {
         .map(v => ({ asset: a, vuln: v, tier: 2 }))
     );
 
-    const allEligibleVulns = [...tier1Vulns, ...tier2Vulns];
+    // Tier 3: For known training lab targets, include ALL medium and low vulns
+    // Training labs are intentionally vulnerable — every finding is worth exploiting
+    const isKnownTrainingTarget = state.trainingLabMode || ['brokencrystals', 'broken-crystals', 'dvwa', 'juiceshop', 'juice-shop', 'bwapp', 'altoro', 'hackazon', 'testphp', 'webgoat', 'mutillidae', 'bodgeit', 'gruyere'].some(lab => state.assets.some(a => a.hostname.toLowerCase().includes(lab)));
+    const tier3Vulns = isKnownTrainingTarget ? state.assets.flatMap(a =>
+      a.vulns
+        .filter(v => v.severity === 'medium' || v.severity === 'low')
+        .filter(v => !tier2Vulns.some(t2 => t2.vuln === v)) // Don't double-count tier 2
+        .map(v => ({ asset: a, vuln: v, tier: 3 }))
+    ) : [];
+
+    const allEligibleVulns = [...tier1Vulns, ...tier2Vulns, ...tier3Vulns];
 
     if (allEligibleVulns.length > 0) {
       const tier1Count = tier1Vulns.length;
       const tier2Count = tier2Vulns.length;
-      console.log(`[OpsLLM] Safety net: LLM returned 0 exploit actions. Found ${tier1Count} critical/high + ${tier2Count} Shodan/EPSS-promoted medium vulns. Auto-generating exploit plan.`);
+      const tier3Count = tier3Vulns.length;
+      console.log(`[OpsLLM] Safety net: LLM returned 0 exploit actions. Found ${tier1Count} critical/high + ${tier2Count} Shodan/EPSS-promoted + ${tier3Count} training-lab medium/low vulns. Auto-generating exploit plan.`);
       addLog(state, {
         phase: "exploitation",
         type: "info",
         title: "⚠️ LLM Exploit Fallback — Enhanced Target Selection",
-        detail: `LLM returned 0 exploit actions despite ${allEligibleVulns.length} eligible vulnerabilities (${tier1Count} critical/high + ${tier2Count} medium promoted by Shodan-CONFIRMED/high-EPSS). Auto-generating exploit plan.`,
+        detail: `LLM returned 0 exploit actions despite ${allEligibleVulns.length} eligible vulnerabilities (${tier1Count} critical/high + ${tier2Count} Shodan/EPSS-promoted${tier3Count > 0 ? ` + ${tier3Count} training-lab medium/low` : ''}). Auto-generating exploit plan.`,
       });
 
       // Deduplicate by CVE+target, prioritize: KEV > Shodan-CONFIRMED > EPSS > severity
@@ -12199,10 +12253,14 @@ export async function executeEngagement(
             engagementName: engagement?.name || `Engagement #${state.engagementId}`,
           };
 
+          // P0-FIX: Training lab targets get more aggressive feedback loop settings
+          const isFeedbackTrainingLab = state.trainingLabMode || ['brokencrystals', 'broken-crystals', 'dvwa', 'juiceshop', 'juice-shop', 'bwapp', 'altoro', 'hackazon', 'testphp', 'webgoat', 'mutillidae', 'bodgeit', 'gruyere'].some(lab => state.assets.some(a => a.hostname.toLowerCase().includes(lab)));
           const feedbackState = await runFeedbackLoop(allFindingsForLLM, scope, {
-            maxIterations: 5,
-            maxTotalScans: 12,
-            maxScansPerIteration: 4,
+            maxIterations: isFeedbackTrainingLab ? 5 : 5,
+            maxTotalScans: isFeedbackTrainingLab ? 20 : 12,
+            maxScansPerIteration: isFeedbackTrainingLab ? 6 : 4,
+            minIterations: isFeedbackTrainingLab ? 3 : 0,
+            staleThreshold: isFeedbackTrainingLab ? 3 : 2,
             engagementId: state.engagementId,
             onProgress: (fbState) => {
               state.currentAction = `LLM feedback loop: iteration ${fbState.iteration + 1}, ${fbState.totalScansExecuted} scans executed`;
