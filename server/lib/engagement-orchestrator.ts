@@ -7329,23 +7329,36 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
 
         // Start ZAP scan with WAF-aware settings
         let zapScanResult: any;
-        try {
-          zapScanResult = await startScan({
-            targetUrl,
-            scanType: "full",
-            scanMode: "active",
-            userId: operatorCtx.id,
-            scanName: `EngOps-${state.engagementId}-${webApp.hostname}-run${Date.now()}`,
-            llmConfig: llmConfig,
-            discoveredTechnologies: techHints,
-            trainingLabMode: state.trainingLabMode || false,
-            seedUrls: zapSeedUrls,
-          });
-        } catch (zapStartErr: any) {
-          // ZAP server may not be reachable — log and continue
-          addLog(state, { phase: "vuln_detection", type: "error", title: `ZAP Start Error: ${targetUrl}`, detail: zapStartErr.message });
-          continue;
+        const ZAP_RETRY_DELAYS = [0, 15000, 30000]; // immediate, 15s, 30s
+        let zapStarted = false;
+        for (let attempt = 0; attempt < ZAP_RETRY_DELAYS.length; attempt++) {
+          if (attempt > 0) {
+            const delaySec = ZAP_RETRY_DELAYS[attempt] / 1000;
+            addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Retry ${attempt}/${ZAP_RETRY_DELAYS.length - 1}: ${targetUrl}`, detail: `Waiting ${delaySec}s before retry...` });
+            await new Promise(r => setTimeout(r, ZAP_RETRY_DELAYS[attempt]));
+          }
+          try {
+            zapScanResult = await startScan({
+              targetUrl,
+              scanType: "full",
+              scanMode: "active",
+              userId: operatorCtx.id,
+              scanName: `EngOps-${state.engagementId}-${webApp.hostname}-run${Date.now()}`,
+              llmConfig: llmConfig,
+              discoveredTechnologies: techHints,
+              trainingLabMode: state.trainingLabMode || false,
+              seedUrls: zapSeedUrls,
+            });
+            zapStarted = true;
+            if (attempt > 0) {
+              addLog(state, { phase: "vuln_detection", type: "info", title: `ZAP Connected on retry ${attempt}`, detail: `Successfully started scan after ${attempt} retries` });
+            }
+            break;
+          } catch (zapStartErr: any) {
+            addLog(state, { phase: "vuln_detection", type: attempt < ZAP_RETRY_DELAYS.length - 1 ? "warning" : "error", title: `ZAP Start Error${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}: ${targetUrl}`, detail: zapStartErr.message });
+          }
         }
+        if (!zapStarted) continue;
 
         // Configure ZAP authentication with confirmed credentials AFTER scan context is created
         if (hasConfirmedCreds && zapScanResult?.scanId) {
