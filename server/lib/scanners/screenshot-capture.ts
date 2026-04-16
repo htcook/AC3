@@ -14,6 +14,7 @@
  */
 
 import { executeRawCommand } from "../scan-server-executor";
+import { storagePut } from "../../storage";
 
 export interface ScreenshotRequest {
   url: string;
@@ -239,9 +240,10 @@ chmod +x ${scriptPath}`,
     }
 
     // Execute the screenshot script
+    // NODE_PATH is set in the scan-service exec env; use bash -c to ensure proper shell handling
     const timeoutSec = Math.ceil(((req.timeout || 15000) + 10000) / 1000);
     const execResult = await executeRawCommand(
-      `cd /tmp && NODE_PATH=/usr/lib/node_modules node ${scriptPath} 2>&1`,
+      `bash -c 'cd /tmp && NODE_PATH=/usr/lib/node_modules node ${scriptPath} 2>&1'`,
       timeoutSec
     );
 
@@ -253,6 +255,22 @@ chmod +x ${scriptPath}`,
     if (metadataMatch) {
       try {
         const metadata = JSON.parse(metadataMatch[1]);
+        if (metadata.success && metadata.screenshotPath) {
+          // Upload the screenshot from scan server to S3
+          try {
+            const s3Url = await uploadScreenshotToS3(
+              metadata.screenshotPath,
+              req.engagementId,
+              req.findingTitle
+            );
+            if (s3Url) {
+              metadata.screenshotPath = s3Url;
+            }
+          } catch (uploadErr: any) {
+            console.warn(`[ScreenshotCapture] S3 upload failed for ${req.findingTitle}:`, uploadErr.message);
+            // Keep the local path as fallback
+          }
+        }
         return {
           ...metadata,
           capturedAt: metadata.capturedAt || Date.now(),
@@ -269,16 +287,23 @@ chmod +x ${scriptPath}`,
     );
 
     if (checkResult.stdout?.includes('.png')) {
+      const localPath = checkResult.stdout.trim().split(/\s+/).pop() || '';
+      // Try to upload to S3
+      let finalPath = localPath;
+      try {
+        const s3Url = await uploadScreenshotToS3(localPath, req.engagementId, req.findingTitle);
+        if (s3Url) finalPath = s3Url;
+      } catch { /* keep local path */ }
       return {
         success: true,
-        screenshotPath: checkResult.stdout.trim().split(/\s+/).pop(),
+        screenshotPath: finalPath,
         capturedAt: Date.now(),
       };
     }
 
     return {
       success: false,
-      error: `Screenshot capture failed: ${execResult.stderr || 'Unknown error'}`,
+      error: `Screenshot capture failed: ${execResult.stderr || execResult.stdout || 'Unknown error'}`,
       capturedAt: Date.now(),
     };
   } catch (err: any) {
@@ -380,4 +405,54 @@ export function selectFindingsForScreenshot(
   });
 
   return webFindings.slice(0, maxScreenshots);
+}
+
+/**
+ * Upload a screenshot from the scan server to S3.
+ * Reads the file via base64 over SSH, then uploads to S3.
+ */
+async function uploadScreenshotToS3(
+  remotePath: string,
+  engagementId: number,
+  findingTitle: string
+): Promise<string | null> {
+  // Read the screenshot as base64 from the scan server
+  const readResult = await executeRawCommand(
+    `bash -c 'base64 -w0 ${remotePath} 2>/dev/null'`,
+    10
+  );
+
+  if (readResult.exitCode !== 0 || !readResult.stdout?.trim()) {
+    console.warn(`[ScreenshotCapture] Failed to read screenshot from scan server: ${readResult.stderr}`);
+    return null;
+  }
+
+  const base64Data = readResult.stdout.trim();
+  const buffer = Buffer.from(base64Data, 'base64');
+
+  if (buffer.length < 100) {
+    console.warn(`[ScreenshotCapture] Screenshot too small (${buffer.length} bytes), skipping upload`);
+    return null;
+  }
+
+  // Generate a safe filename
+  const safeTitle = findingTitle
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 60);
+  const timestamp = Date.now();
+  const fileKey = `evidence/engagement-${engagementId}/${safeTitle}-${timestamp}.png`;
+
+  try {
+    const { url } = await storagePut(fileKey, buffer, 'image/png');
+    console.log(`[ScreenshotCapture] Uploaded screenshot to S3: ${url} (${buffer.length} bytes)`);
+
+    // Cleanup the remote file
+    await executeRawCommand(`rm -f ${remotePath}`, 5).catch(() => {});
+
+    return url;
+  } catch (err: any) {
+    console.warn(`[ScreenshotCapture] S3 upload failed: ${err.message}`);
+    return null;
+  }
 }

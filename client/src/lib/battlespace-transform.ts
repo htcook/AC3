@@ -145,6 +145,7 @@ export function transformEngagementGraph(graphData: any): BattlespaceGraphData {
       defenses: n.defenses || [],
       discoveredAt: (n as any).discoveredAt || undefined,
       affectedTechnology: n.details?.technology || n.details?.service || undefined,
+      discoveredBy: (n as any).source || n.details?.source || undefined,
     };
     nodes.push(bNode);
 

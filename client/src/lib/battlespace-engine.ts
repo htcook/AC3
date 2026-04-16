@@ -1989,6 +1989,32 @@ export class BattlespaceEngine {
         ctx.fillText(inferTag, n.x, inferY + 1);
       }
 
+      // Scanner attribution badge (top-right corner of vuln nodes)
+      if ((n.type === "vulnerability" || n.type === "hypothesis") && n.discoveredBy && n.discoveredBy !== 'hypothesized') {
+        const scannerColors: Record<string, { bg: string; fg: string; label: string }> = {
+          burp: { bg: 'rgba(255,107,0,0.2)', fg: '#FF6B00', label: 'BURP' },
+          zap: { bg: 'rgba(59,130,246,0.2)', fg: '#3B82F6', label: 'ZAP' },
+          nuclei: { bg: 'rgba(16,185,129,0.2)', fg: '#10B981', label: 'NUC' },
+          nikto: { bg: 'rgba(245,158,11,0.2)', fg: '#F59E0B', label: 'NKT' },
+          nmap: { bg: 'rgba(139,92,246,0.2)', fg: '#8B5CF6', label: 'NMAP' },
+          httpx: { bg: 'rgba(6,182,212,0.2)', fg: '#06B6D4', label: 'HTTPX' },
+        };
+        const sc = scannerColors[n.discoveredBy] || { bg: 'rgba(107,114,128,0.2)', fg: '#6B7280', label: n.discoveredBy.slice(0, 4).toUpperCase() };
+        ctx.font = "bold 6px 'JetBrains Mono', monospace";
+        const scW = ctx.measureText(sc.label).width;
+        const scX = n.x + r - 2;
+        const scY = n.y - r - 4;
+        ctx.fillStyle = sc.bg;
+        ctx.fillRect(scX - scW / 2 - 3, scY - 4, scW + 6, 10);
+        ctx.strokeStyle = sc.fg;
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(scX - scW / 2 - 3, scY - 4, scW + 6, 10);
+        ctx.fillStyle = sc.fg;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(sc.label, scX, scY + 1);
+      }
+
       // Affected technology badge below label (vulnerability nodes only)
       if (n.type === "vulnerability" && n.affectedTechnology) {
         const techKey = n.affectedTechnology.toLowerCase();

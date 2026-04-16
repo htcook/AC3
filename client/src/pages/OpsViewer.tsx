@@ -167,6 +167,26 @@ function NodeDetailPanel({
           </div>
         </div>
 
+        {/* Scanner Attribution */}
+        {node.discoveredBy && node.discoveredBy !== 'hypothesized' && (
+          <div className="bg-[#111820] p-2 border border-[#1A2332]">
+            <div className="text-[9px] uppercase tracking-widest text-gray-500 mb-1">DISCOVERED BY</div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold border ${
+                node.discoveredBy === 'burp' ? 'bg-[#1A0A20] border-[#FF6B00] text-orange-400' :
+                node.discoveredBy === 'zap' ? 'bg-[#0A1A28] border-[#3B82F6] text-blue-400' :
+                node.discoveredBy === 'nuclei' ? 'bg-[#0A1A0A] border-[#10B981] text-emerald-400' :
+                node.discoveredBy === 'nikto' ? 'bg-[#1A1A00] border-[#F59E0B] text-amber-400' :
+                node.discoveredBy === 'nmap' ? 'bg-[#1A0A1A] border-[#8B5CF6] text-purple-400' :
+                'bg-[#111820] border-[#2D4A6F] text-gray-300'
+              }`}>{node.discoveredBy}</span>
+              {node.discoveredBy === 'burp' && <span className="text-[9px] text-orange-400/60">Burp Suite Pro</span>}
+              {node.discoveredBy === 'zap' && <span className="text-[9px] text-blue-400/60">OWASP ZAP</span>}
+              {node.discoveredBy === 'nuclei' && <span className="text-[9px] text-emerald-400/60">ProjectDiscovery</span>}
+            </div>
+          </div>
+        )}
+
         {/* Weakness Level Bar */}
         {node.weaknessLevel != null && (
           <div>

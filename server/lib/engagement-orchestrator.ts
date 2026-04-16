@@ -5973,6 +5973,46 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
           broadcastOpsUpdate(state.engagementId, { type: 'stats_update', stats: state.stats });
         }
       }
+
+      // ─── Persist Burp findings to engagement_findings DB table ───
+      // This ensures Burp findings appear in the attack graph even after server restart
+      if (normalizedFindings && normalizedFindings.length > 0) {
+        try {
+          const { saveEngagementFindings } = await import('../db');
+          const burpDbFindings = normalizedFindings
+            .filter(f => f.severityRating !== 'none')
+            .map(f => {
+              const findingHost = f.assetIdentifier?.replace(/^https?:\/\//, '').replace(/[:\/].*$/, '') || '';
+              const matchingAsset = state.assets.find(a =>
+                a.hostname === findingHost ||
+                a.ip === findingHost ||
+                (a.hostname && findingHost.includes(a.hostname)) ||
+                (findingHost && a.hostname?.includes(findingHost))
+              );
+              return {
+                engagementId: burpConfig.engagementId,
+                title: `[Burp] ${f.title}`,
+                severity: f.severityRating === 'none' ? 'low' : f.severityRating,
+                description: f.metadata?.path ? `Burp Suite confirmed at ${f.metadata.path}` : `Burp Suite confirmed: ${f.title}`,
+                hostname: matchingAsset?.hostname || findingHost,
+                source: 'burp',
+                tool: 'burp',
+                cwe: f.cweId || undefined,
+                corroborationTier: 'confirmed' as const,
+                endpoint: f.metadata?.path,
+              };
+            });
+          if (burpDbFindings.length > 0) {
+            const saved = await saveEngagementFindings(burpDbFindings);
+            console.log(`[EngagementOps] Persisted ${saved} Burp findings to engagement_findings DB for eng#${state.engagementId}`);
+          }
+        } catch (dbErr: any) {
+          console.warn(`[EngagementOps] Failed to persist Burp findings to DB: ${dbErr.message}`);
+        }
+      }
+
+      // Persist ops_state after Burp findings injection
+      persistOpsStateDebounced(state.engagementId, 500);
     });
   } catch (cbErr: any) {
     console.warn(`[EngagementOps] Failed to register Burp completion callback: ${cbErr.message}`);

@@ -112,6 +112,8 @@ export interface BattlespaceNode {
   // Vulnerability→Technology linkage
   affectedTechnology?: string;   // Technology this finding targets (parsed from title)
   isCompromised?: boolean;       // True if host is compromised
+  // Scanner attribution
+  discoveredBy?: string;          // Scanner/tool that found this (burp, zap, nuclei, nikto, etc.)
 }
 
 // ── Edge Data ───────────────────────────────────────────────────────

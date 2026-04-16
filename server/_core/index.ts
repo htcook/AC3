@@ -753,6 +753,14 @@ async function startServer() {
     console.warn("[Webhooks] Failed to initialize:", err.message);
   }
 
+  // ─── CI/CD Webhook Receiver (public, unauthenticated) ────────────────
+  try {
+    const { registerCicdWebhookRoutes } = await import("../lib/cicd-webhook-routes");
+    registerCicdWebhookRoutes(app);
+  } catch (err: any) {
+    console.warn("[CICD-Webhooks] Failed to initialize:", err.message);
+  }
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 
