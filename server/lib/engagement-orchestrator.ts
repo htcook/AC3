@@ -13804,6 +13804,20 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     // Final checkpoint
     await phaseCheckpoint('completed');
 
+    // ═══ MARK ENGAGEMENT AS COMPLETED IN DB ═══
+    // Update the engagements table to reflect completion and disable auto-resume
+    try {
+      const { updateEngagement } = await import('../db');
+      await updateEngagement(engagementId, {
+        status: 'completed' as any,
+        endDate: new Date(state.completedAt || Date.now()).toISOString().replace('T', ' ').replace('Z', ''),
+        autoResumeOnRestart: 0,
+      });
+      console.log(`[Engagement] Marked #${engagementId} as completed in DB`);
+    } catch (statusErr: any) {
+      console.error(`[Engagement] Failed to mark #${engagementId} as completed:`, statusErr.message);
+    }
+
     // ═══ ENGAGEMENT RESULT PERSISTENCE ═══
     // Save structured results and findings to engagement_results / engagement_findings tables
     try {
@@ -13999,6 +14013,27 @@ Respond in JSON: { "templateCategory": string, "pretext": string, "domainStrateg
     addLog(state, { phase: "error", type: "error", title: "Pipeline Error", detail: e.message });
     // Save error state so it can be inspected and potentially resumed
     await persistOpsStateNow(engagementId);
+    // Update engagement DB record to reflect error state
+    // Note: engagements table has no 'error' status enum, use 'paused' to indicate failure
+    // and store error details in notes field
+    try {
+      const { updateEngagement } = await import('../db');
+      const existingEng = await (await import('../db')).getEngagementById(engagementId);
+      const existingNotes = existingEng?.notes || '';
+      const errorNote = JSON.stringify({
+        ...(existingNotes ? JSON.parse(existingNotes) : {}),
+        pipelineError: e.message?.slice(0, 2000),
+        errorPhase: state.phase || 'unknown',
+        errorAt: new Date().toISOString(),
+      });
+      await updateEngagement(engagementId, {
+        status: 'paused' as any,
+        notes: errorNote,
+      });
+      console.log(`[Engagement] Marked #${engagementId} as paused (error) in DB`);
+    } catch (statusErr: any) {
+      console.error(`[Engagement] Failed to mark #${engagementId} as error:`, statusErr.message);
+    }
     // Free knowledge module memory on error too
     try { clearKnowledgeCache(); } catch { /* best effort */ }
 

@@ -64,6 +64,11 @@ export function registerCicdWebhookRoutes(app: Express) {
       const commitSha = body.commit_sha || body.after || body.head_commit?.id || "";
       const branch = body.branch || body.ref?.replace("refs/heads/", "") || "";
       const repository = body.repository?.full_name || body.repository || "";
+      const containerImage = body.container_image || body.image || "";
+      const iacRepoUrl = body.iac_repo_url || body.repository?.clone_url || "";
+      const cloudProvider = body.cloud_provider || "aws";
+      // Allow webhook payload to specify scan types; default to nuclei + config
+      const requestedScanTypes = Array.isArray(body.scan_types) ? body.scan_types : ["nuclei", "config"];
 
       console.log(`[CICD-WEBHOOK] Event: ${event}, Target: ${targetUrl}, Commit: ${commitSha?.substring(0, 7)}`);
 
@@ -87,12 +92,15 @@ export function registerCicdWebhookRoutes(app: Express) {
 
             const scanResult = await executeCicdScan({
               targetUrl,
-              scanTypes: ["nuclei"], // Default to nuclei for webhook-triggered scans
+              scanTypes: requestedScanTypes as any,
               pipelineId,
               runId,
               commitSha,
               branch,
               failThreshold: pipeline.cicdFailThreshold ?? 7.0,
+              containerImage: containerImage || undefined,
+              iacRepoUrl: iacRepoUrl || undefined,
+              cloudProvider: cloudProvider as any,
             });
 
             await db.update(cicdRuns).set({

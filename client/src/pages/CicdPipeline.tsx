@@ -426,7 +426,7 @@ export default function CicdPipelinePage() {
                 CI/CD Security Pipeline
               </h1>
               <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                Integrate automated security scanning into your CI/CD workflows. Receive webhooks from GitHub Actions, GitLab CI, or AWS CodePipeline to trigger ZAP, Burp, and Nuclei scans with pass/fail gates.
+                Integrate automated security scanning into your CI/CD workflows. Trigger DAST (ZAP, Burp, Nuclei), configuration audits, CSPM cloud posture checks, container image scans, and IaC analysis with pass/fail gates.
               </p>
             </div>
             <Dialog open={isCreateOpen} onOpenChange={setCreateOpen}>
@@ -559,6 +559,7 @@ export default function CicdPipelinePage() {
                         <TabsTrigger value="webhook" className="text-xs gap-1.5"><Webhook className="h-3.5 w-3.5" /> Webhook</TabsTrigger>
                         <TabsTrigger value="yaml" className="text-xs gap-1.5"><FileCode className="h-3.5 w-3.5" /> YAML Snippets</TabsTrigger>
                         <TabsTrigger value="results" className="text-xs gap-1.5"><Shield className="h-3.5 w-3.5" /> Results</TabsTrigger>
+                        <TabsTrigger value="scan-types" className="text-xs gap-1.5"><Settings className="h-3.5 w-3.5" /> Scan Types</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -640,6 +641,36 @@ export default function CicdPipelinePage() {
                             Select a run from the Runs tab to view detailed results.
                           </div>
                         )}
+                      </TabsContent>
+
+                      {/* Scan Types Tab */}
+                      <TabsContent value="scan-types" className="mt-0">
+                        <div className="space-y-3">
+                          <p className="text-xs text-muted-foreground">Available scan types that can be triggered via the webhook <code className="bg-muted px-1 py-0.5 rounded">scan_types</code> payload field or the <code className="bg-muted px-1 py-0.5 rounded">triggerRun</code> mutation.</p>
+                          <div className="grid gap-2">
+                            {[
+                              { id: "nuclei", label: "Nuclei (DAST)", desc: "Template-based vulnerability scanner. Detects CVEs, misconfigurations, exposed panels, and default credentials against live targets.", color: "text-red-400" },
+                              { id: "zap", label: "ZAP (DAST)", desc: "OWASP ZAP active scanner with spider. Crawls the target and tests for XSS, SQLi, CSRF, and other OWASP Top 10 vulnerabilities.", color: "text-orange-400" },
+                              { id: "burp", label: "Burp Suite (DAST)", desc: "Burp Suite Professional active scan. Enterprise-grade web application security testing with crawl-and-audit.", color: "text-amber-400" },
+                              { id: "config", label: "Config Audit", desc: "HTTP security header analysis, TLS certificate validation, cookie security flags, and server version disclosure checks.", color: "text-cyan-400" },
+                              { id: "cspm", label: "CSPM (Cloud Posture)", desc: "Cloud Security Posture Management. CIS Benchmark checks for AWS/Azure/GCP covering IAM, networking, storage, compute, and logging.", color: "text-blue-400" },
+                              { id: "container", label: "Container Scan", desc: "Trivy-based container image vulnerability scanning. Detects CVEs in OS packages and application dependencies within Docker images.", color: "text-purple-400" },
+                              { id: "iac", label: "IaC Analysis", desc: "Infrastructure-as-Code scanning via Checkov and tfsec. Analyzes Terraform, CloudFormation, Kubernetes manifests, and Dockerfiles for misconfigurations.", color: "text-emerald-400" },
+                            ].map(s => (
+                              <div key={s.id} className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/30">
+                                <Badge variant="outline" className={`shrink-0 mt-0.5 text-[10px] font-mono ${s.color}`}>{s.id}</Badge>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium">{s.label}</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{s.desc}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-4 p-3 rounded-lg border border-dashed border-border/50 bg-muted/20">
+                            <p className="text-xs font-medium mb-1">Webhook Payload Example</p>
+                            <pre className="text-[10px] text-muted-foreground font-mono whitespace-pre overflow-x-auto">{`{\n  "event": "deployment",\n  "target_url": "https://staging.app.com",\n  "scan_types": ["nuclei", "config", "container"],\n  "container_image": "myapp:latest",\n  "iac_repo_url": "https://github.com/org/infra",\n  "cloud_provider": "aws"\n}`}</pre>
+                          </div>
+                        </div>
                       </TabsContent>
                     </Tabs>
                   </CardContent>

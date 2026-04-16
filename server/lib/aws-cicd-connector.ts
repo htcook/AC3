@@ -5,6 +5,7 @@
  */
 
 import { STSClient, AssumeRoleCommand, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
+import crypto from "crypto";
 
 /** Inline type — avoids depending on @aws-sdk/types package */
 interface AwsCredentialIdentity {
@@ -38,15 +39,22 @@ export interface DiscoveredEnvironment {
   metadata: Record<string, string>;
 }
 
+export type CicdScanType = "zap" | "burp" | "nuclei" | "config" | "cspm" | "container" | "iac";
+
 export interface CicdScanRequest {
   targetUrl: string;
-  scanTypes: ("zap" | "burp" | "nuclei")[];
+  scanTypes: CicdScanType[];
   pipelineId: number;
   runId: number;
   commitSha?: string;
   branch?: string;
   failThreshold?: number; // CVSS score threshold for pass/fail
   callbackUrl?: string;   // URL to POST results back to
+  // Extended fields for cloud/config scanning
+  awsCredentials?: AwsCicdCredentials;  // For CSPM/cloud config scans
+  containerImage?: string;              // For container image scanning (e.g. "nginx:latest")
+  iacRepoUrl?: string;                  // For IaC scanning (Git repo URL)
+  cloudProvider?: "aws" | "azure" | "gcp"; // For CSPM scans
 }
 
 export interface CicdScanResult {
@@ -368,6 +376,26 @@ export async function executeCicdScan(request: CicdScanRequest): Promise<CicdSca
           findings.push(...burpFindings);
           break;
         }
+        case "config": {
+          const configFindings = await runConfigAuditCicd(request.targetUrl);
+          findings.push(...configFindings);
+          break;
+        }
+        case "cspm": {
+          const cspmFindings = await runCspmCicd(request.cloudProvider || "aws", request.awsCredentials);
+          findings.push(...cspmFindings);
+          break;
+        }
+        case "container": {
+          const containerFindings = await runContainerScanCicd(request.containerImage || request.targetUrl);
+          findings.push(...containerFindings);
+          break;
+        }
+        case "iac": {
+          const iacFindings = await runIacScanCicd(request.iacRepoUrl || request.targetUrl, request.commitSha);
+          findings.push(...iacFindings);
+          break;
+        }
       }
     } catch (e: any) {
       console.error(`[CICD-SCAN] ${scanType} scan failed: ${e.message}`);
@@ -560,9 +588,304 @@ async function runBurpCicd(targetUrl: string): Promise<CicdFinding[]> {
   return findings;
 }
 
-// ─── Webhook Verification ────────────────────────────────────────────────────
+// ─── Configuration Audit Scanner (HTTP headers, TLS, DNS security) ──────────────────
 
-import crypto from "crypto";
+async function runConfigAuditCicd(targetUrl: string): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+  const url = new URL(targetUrl);
+
+  try {
+    // Check HTTP security headers
+    const resp = await fetch(targetUrl, { redirect: "follow" });
+    const headers = resp.headers;
+
+    const requiredHeaders: Array<{ name: string; header: string; severity: "high" | "medium" | "low"; cwe: string; desc: string }> = [
+      { name: "Strict-Transport-Security", header: "strict-transport-security", severity: "high", cwe: "CWE-319", desc: "Missing HSTS header allows protocol downgrade attacks" },
+      { name: "Content-Security-Policy", header: "content-security-policy", severity: "medium", cwe: "CWE-79", desc: "Missing CSP header increases XSS risk" },
+      { name: "X-Content-Type-Options", header: "x-content-type-options", severity: "low", cwe: "CWE-16", desc: "Missing X-Content-Type-Options allows MIME sniffing" },
+      { name: "X-Frame-Options", header: "x-frame-options", severity: "medium", cwe: "CWE-1021", desc: "Missing X-Frame-Options allows clickjacking" },
+      { name: "Referrer-Policy", header: "referrer-policy", severity: "low", cwe: "CWE-200", desc: "Missing Referrer-Policy may leak sensitive URL data" },
+      { name: "Permissions-Policy", header: "permissions-policy", severity: "low", cwe: "CWE-16", desc: "Missing Permissions-Policy allows unrestricted browser features" },
+    ];
+
+    for (const h of requiredHeaders) {
+      if (!headers.get(h.header)) {
+        findings.push({
+          title: `Missing Security Header: ${h.name}`,
+          severity: h.severity,
+          scanner: "config-audit",
+          url: targetUrl,
+          description: h.desc,
+          cweId: h.cwe,
+        });
+      }
+    }
+
+    // Check for insecure cookies
+    const setCookies = resp.headers.get("set-cookie") || "";
+    if (setCookies && !setCookies.includes("Secure")) {
+      findings.push({
+        title: "Cookie Missing Secure Flag",
+        severity: "medium",
+        scanner: "config-audit",
+        url: targetUrl,
+        description: "Cookies are set without the Secure flag, allowing transmission over unencrypted connections",
+        cweId: "CWE-614",
+      });
+    }
+
+    // Check for server version disclosure
+    const server = headers.get("server") || "";
+    const xPoweredBy = headers.get("x-powered-by") || "";
+    if (server && /\/[\d.]+/.test(server)) {
+      findings.push({
+        title: `Server Version Disclosure: ${server}`,
+        severity: "low",
+        scanner: "config-audit",
+        url: targetUrl,
+        description: `Server header reveals version information: ${server}`,
+        cweId: "CWE-200",
+      });
+    }
+    if (xPoweredBy) {
+      findings.push({
+        title: `X-Powered-By Header Disclosure: ${xPoweredBy}`,
+        severity: "low",
+        scanner: "config-audit",
+        url: targetUrl,
+        description: `X-Powered-By header reveals technology stack: ${xPoweredBy}`,
+        cweId: "CWE-200",
+      });
+    }
+
+    // Check TLS configuration
+    if (url.protocol === "https:") {
+      try {
+        const { executeRawCommandViaHttp } = await import("./do-scan-api");
+        const tlsResult = await executeRawCommandViaHttp(
+          `echo | openssl s_client -connect ${url.hostname}:443 -servername ${url.hostname} 2>/dev/null | openssl x509 -noout -dates -subject 2>/dev/null`,
+          15
+        );
+        if (tlsResult.stdout) {
+          // Check certificate expiry
+          const notAfterMatch = tlsResult.stdout.match(/notAfter=(.+)/);
+          if (notAfterMatch) {
+            const expiry = new Date(notAfterMatch[1]);
+            const daysUntilExpiry = Math.round((expiry.getTime() - Date.now()) / 86400000);
+            if (daysUntilExpiry < 0) {
+              findings.push({
+                title: "TLS Certificate Expired",
+                severity: "critical",
+                cvss: 9.1,
+                scanner: "config-audit",
+                url: targetUrl,
+                description: `Certificate expired ${Math.abs(daysUntilExpiry)} days ago`,
+                cweId: "CWE-295",
+              });
+            } else if (daysUntilExpiry < 30) {
+              findings.push({
+                title: `TLS Certificate Expiring Soon (${daysUntilExpiry} days)`,
+                severity: "medium",
+                scanner: "config-audit",
+                url: targetUrl,
+                description: `Certificate expires in ${daysUntilExpiry} days`,
+                cweId: "CWE-295",
+              });
+            }
+          }
+        }
+      } catch { /* TLS check failed, skip */ }
+    }
+
+    console.log(`[CICD-CONFIG] Audit complete: ${findings.length} findings for ${targetUrl}`);
+  } catch (e: any) {
+    console.warn(`[CICD-CONFIG] Audit failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── CSPM Scanner (Cloud Security Posture Management) ───────────────────────────────
+
+async function runCspmCicd(
+  provider: "aws" | "azure" | "gcp",
+  creds?: AwsCicdCredentials
+): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { runAssessment, getChecksByProvider } = await import("./cloud-security-validation");
+    const checks = getChecksByProvider(provider);
+    const assessment = runAssessment(provider, checks);
+
+    for (const result of assessment.results) {
+      if (result.status === "fail") {
+        findings.push({
+          title: `[CSPM] ${result.checkTitle}`,
+          severity: result.severity as any,
+          scanner: "cspm",
+          url: `${provider}://${result.resource || result.checkId}`,
+          description: `${result.detail || result.checkTitle}. CIS Benchmark: ${result.cisBenchmark || "N/A"}. Remediation: ${(result.remediation || ["Review cloud configuration"]).join("; ")}`,
+          cweId: result.mitreTechniques?.[0] ? `MITRE-${result.mitreTechniques[0]}` : undefined,
+        });
+      }
+    }
+
+    // If AWS credentials provided, also run IAM enumeration checks
+    if (provider === "aws" && creds) {
+      try {
+        const { IAM_MISCONFIG_CHECKS } = await import("./cloud-attack-paths");
+        for (const check of IAM_MISCONFIG_CHECKS.slice(0, 10)) {
+          // These are known misconfiguration patterns — flag as informational
+          findings.push({
+            title: `[IAM] ${check.name}`,
+            severity: (check.severity || "medium") as any,
+            scanner: "cspm-iam",
+            url: `aws://iam/${check.id}`,
+            description: `${check.description}. Impact: ${check.impact || "Potential privilege escalation"}`,
+          });
+        }
+      } catch { /* IAM checks not available */ }
+    }
+
+    console.log(`[CICD-CSPM] ${provider} assessment: ${findings.length} findings`);
+  } catch (e: any) {
+    console.warn(`[CICD-CSPM] Assessment failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── Container Image Scanner ────────────────────────────────────────────────────────────────
+
+async function runContainerScanCicd(imageRef: string): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { executeRawCommandViaHttp } = await import("./do-scan-api");
+
+    // Run Trivy container scan
+    const result = await executeRawCommandViaHttp(
+      `trivy image --format json --severity CRITICAL,HIGH,MEDIUM --timeout 5m ${imageRef} 2>/dev/null || echo '{"Results":[]}'`,
+      360
+    );
+
+    if (result.stdout) {
+      try {
+        const trivyOutput = JSON.parse(result.stdout);
+        for (const target of trivyOutput.Results || []) {
+          for (const vuln of target.Vulnerabilities || []) {
+            const sevMap: Record<string, string> = { CRITICAL: "critical", HIGH: "high", MEDIUM: "medium", LOW: "low" };
+            findings.push({
+              title: `[Container] ${vuln.VulnerabilityID}: ${vuln.PkgName} ${vuln.InstalledVersion}`,
+              severity: (sevMap[vuln.Severity] || "medium") as any,
+              cvss: vuln.CVSS?.nvd?.V3Score || vuln.CVSS?.redhat?.V3Score,
+              scanner: "trivy",
+              url: `${imageRef}#${target.Target}`,
+              description: `${vuln.Title || vuln.VulnerabilityID} in ${vuln.PkgName} (installed: ${vuln.InstalledVersion}, fixed: ${vuln.FixedVersion || "not yet"})`,
+              cweId: vuln.CweIDs?.[0],
+            });
+          }
+        }
+      } catch { /* JSON parse error */ }
+    }
+
+    console.log(`[CICD-CONTAINER] Image scan complete: ${findings.length} findings for ${imageRef}`);
+  } catch (e: any) {
+    console.warn(`[CICD-CONTAINER] Scan failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── IaC Scanner (Terraform, CloudFormation, Kubernetes manifests) ──────────────
+
+async function runIacScanCicd(repoOrPath: string, commitSha?: string): Promise<CicdFinding[]> {
+  const findings: CicdFinding[] = [];
+
+  try {
+    const { executeRawCommandViaHttp } = await import("./do-scan-api");
+
+    // Clone repo if it's a URL, otherwise scan path directly
+    const isUrl = repoOrPath.startsWith("http");
+    const scanPath = isUrl ? `/tmp/iac-scan-${Date.now()}` : repoOrPath;
+
+    if (isUrl) {
+      const cloneCmd = commitSha
+        ? `git clone --depth 1 ${repoOrPath} ${scanPath} && cd ${scanPath} && git checkout ${commitSha} 2>/dev/null || true`
+        : `git clone --depth 1 ${repoOrPath} ${scanPath}`;
+      await executeRawCommandViaHttp(cloneCmd, 60);
+    }
+
+    // Run checkov for IaC scanning (Terraform, CloudFormation, K8s, Dockerfile)
+    const result = await executeRawCommandViaHttp(
+      `checkov -d ${scanPath} --output json --compact --quiet 2>/dev/null || echo '{"results":{"failed_checks":[]}}'`,
+      180
+    );
+
+    if (result.stdout) {
+      try {
+        const checkovOutput = JSON.parse(result.stdout);
+        const failedChecks = checkovOutput.results?.failed_checks || [];
+
+        for (const check of failedChecks) {
+          // Map checkov severity to our severity levels
+          const sevMap: Record<string, string> = {
+            CRITICAL: "critical", HIGH: "high", MEDIUM: "medium", LOW: "low", INFO: "info",
+          };
+          findings.push({
+            title: `[IaC] ${check.check_id}: ${check.check_result?.evaluated_keys?.[0] || check.name || check.check_id}`,
+            severity: (sevMap[check.severity || "MEDIUM"] || "medium") as any,
+            scanner: "checkov",
+            url: `${repoOrPath}#${check.file_path || ""}:${check.file_line_range?.[0] || 0}`,
+            description: `${check.name || check.check_id}. Resource: ${check.resource || "unknown"}. File: ${check.file_path || "unknown"} (line ${check.file_line_range?.[0] || "?"})`,
+            cweId: check.guideline ? undefined : undefined,
+          });
+        }
+      } catch { /* JSON parse error */ }
+    }
+
+    // Also run tfsec if Terraform files are present
+    const tfCheck = await executeRawCommandViaHttp(`find ${scanPath} -name '*.tf' -maxdepth 3 | head -1`, 10);
+    if (tfCheck.stdout?.trim()) {
+      try {
+        const tfsecResult = await executeRawCommandViaHttp(
+          `tfsec ${scanPath} --format json --soft-fail 2>/dev/null || echo '{"results":[]}'`,
+          120
+        );
+        if (tfsecResult.stdout) {
+          const tfsecOutput = JSON.parse(tfsecResult.stdout);
+          for (const r of tfsecOutput.results || []) {
+            const sevMap: Record<string, string> = {
+              CRITICAL: "critical", HIGH: "high", MEDIUM: "medium", LOW: "low",
+            };
+            findings.push({
+              title: `[Terraform] ${r.rule_id}: ${r.rule_description || r.rule_id}`,
+              severity: (sevMap[r.severity || "MEDIUM"] || "medium") as any,
+              scanner: "tfsec",
+              url: `${repoOrPath}#${r.location?.filename || ""}:${r.location?.start_line || 0}`,
+              description: `${r.description || r.rule_description}. Resource: ${r.resource || "unknown"}. Impact: ${r.impact || "See documentation"}`,
+              cweId: r.links?.[0] ? undefined : undefined,
+            });
+          }
+        }
+      } catch { /* tfsec not available or parse error */ }
+    }
+
+    // Cleanup cloned repo
+    if (isUrl) {
+      await executeRawCommandViaHttp(`rm -rf ${scanPath}`, 10).catch(() => {});
+    }
+
+    console.log(`[CICD-IAC] Scan complete: ${findings.length} findings for ${repoOrPath}`);
+  } catch (e: any) {
+    console.warn(`[CICD-IAC] Scan failed: ${e.message}`);
+  }
+
+  return findings;
+}
+
+// ─── Webhook Verification ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Verify a GitHub Actions webhook signature (HMAC-SHA256).

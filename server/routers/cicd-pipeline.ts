@@ -68,7 +68,7 @@ export const cicdPipelineRouter = router({
       triggerOn: z.enum(["push", "pull_request", "release", "manual", "schedule"]).optional(),
       failThreshold: z.number().optional(),
       targetUrl: z.string().optional(),
-      scanTypes: z.array(z.enum(["zap", "burp", "nuclei"])).optional(),
+      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac"])).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { getDb } = await import("../db");
@@ -155,7 +155,10 @@ export const cicdPipelineRouter = router({
       commitSha: z.string().optional(),
       branch: z.string().optional(),
       targetUrl: z.string().optional(),
-      scanTypes: z.array(z.enum(["zap", "burp", "nuclei"])).optional(),
+      scanTypes: z.array(z.enum(["zap", "burp", "nuclei", "config", "cspm", "container", "iac"])).optional(),
+      containerImage: z.string().optional(),
+      iacRepoUrl: z.string().optional(),
+      cloudProvider: z.enum(["aws", "azure", "gcp"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
@@ -189,6 +192,9 @@ export const cicdPipelineRouter = router({
               runId,
               commitSha: input.commitSha,
               branch: input.branch,
+              containerImage: input.containerImage,
+              iacRepoUrl: input.iacRepoUrl,
+              cloudProvider: input.cloudProvider,
             });
 
             // Update run with results
