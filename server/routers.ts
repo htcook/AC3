@@ -46,6 +46,7 @@ import { edrValidationRouter } from "./routers/edr-validation";
 import { complianceMapperRouter } from "./routers/compliance-mapper";
 import { apiSecurityRouter } from "./routers/api-security";
 import { cloudCredentialsRouter } from "./routers/cloud-credentials";
+import { cloudSetupWizardRouter } from "./routers/cloud-setup-wizard";
 import { adDomainConnectorRouter } from "./routers/ad-domain-connector";
 import { credentialAlertsRouter } from "./routers/credential-alerts";
 import { adAttackPathGraphRouter } from "./routers/ad-attack-path-graph";
@@ -335,6 +336,7 @@ export const appRouter = router({
   complianceMapper: complianceMapperRouter,
   apiSecurity: apiSecurityRouter,
   cloudCredentials: cloudCredentialsRouter,
+  cloudSetupWizard: cloudSetupWizardRouter,
   adDomainConnector: adDomainConnectorRouter,
   credentialAlerts: credentialAlertsRouter,
   adAttackPathGraph: adAttackPathGraphRouter,

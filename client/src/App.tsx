@@ -148,6 +148,7 @@ const EDRValidation = lazyWithRetry(() => import("./pages/EDRValidation"));
 const ComplianceMapper = lazyWithRetry(() => import("./pages/ComplianceMapper"));
 const APISecurityTesting = lazyWithRetry(() => import("./pages/APISecurityTesting"));
 const CloudCredentials = lazyWithRetry(() => import("./pages/CloudCredentials"));
+const CloudSetupWizard = lazyWithRetry(() => import("./pages/CloudSetupWizard"));
 const ADDomainConnector = lazyWithRetry(() => import("./pages/ADDomainConnector"));
 const CredentialAlerts = lazyWithRetry(() => import("./pages/CredentialAlerts"));
 const ADAttackPathGraph = lazyWithRetry(() => import("./pages/ADAttackPathGraph"));
@@ -786,6 +787,9 @@ function Router() {
         </Route>
         <Route path="/cloud-credentials">
           <ProtectedRoute component={CredentialCenterHub} />
+        </Route>
+        <Route path="/cloud-setup-wizard">
+          <ProtectedRoute component={CloudSetupWizard} />
         </Route>
         <Route path="/ad-domain-connector">
           <ProtectedRoute component={ADDomainConnector} />

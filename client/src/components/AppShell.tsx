@@ -466,6 +466,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/compliance-dashboard", icon: ShieldCheck, label: "COMPLIANCE" },
           { href: "/scan-webhooks", icon: Webhook, label: "SCAN WEBHOOKS" },
           { href: "/cicd-pipeline", icon: GitBranch, label: "CI/CD PIPELINE" },
+          { href: "/cloud-setup-wizard", icon: Cloud, label: "CLOUD SETUP WIZARD" },
           { href: "/ics-ot-security", icon: Cpu, label: "ICS/OT SECURITY" },
           { href: "/unified-pipeline", icon: Workflow, label: "UNIFIED PIPELINE" },
           { href: "/infra-wiki", icon: BookOpen, label: "INFRA WIKI" },
