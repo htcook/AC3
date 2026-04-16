@@ -954,6 +954,8 @@ export function transformDIScan(
 
 // ── Helper Functions ────────────────────────────────────────────────
 function mapNodeType(type: string, category: string, layer: string): BattlespaceNodeType {
+  if (type === "target") return "host";
+  if (type === "technique") return "service";
   if (type === "hypothesis") return "hypothesis";
   if (type === "credential") return "credential";
   if (type === "pivot") return "pivot_point";
