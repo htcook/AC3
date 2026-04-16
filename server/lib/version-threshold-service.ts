@@ -655,7 +655,7 @@ export function getThresholdStats(): ThresholdStats {
 
 async function persistThresholds(): Promise<void> {
   try {
-    const db = getDb();
+    const db = await getDb();
     const entries = Array.from(dynamicThresholds.values());
     const payload = JSON.stringify(entries);
 
@@ -668,7 +668,7 @@ async function persistThresholds(): Promise<void> {
   } catch (err: any) {
     // Table might not exist yet — create it
     try {
-      const db = getDb();
+      const db = await getDb();
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS system_settings (
           setting_key VARCHAR(255) PRIMARY KEY,
@@ -692,7 +692,7 @@ async function persistThresholds(): Promise<void> {
 
 async function loadPersistedThresholds(): Promise<number> {
   try {
-    const db = getDb();
+    const db = await getDb();
     const rows = await db.execute(sql`
       SELECT setting_value FROM system_settings WHERE setting_key = 'version_thresholds'
     `);

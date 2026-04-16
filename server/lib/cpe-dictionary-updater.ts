@@ -450,9 +450,26 @@ async function loadPersistedDictionary(): Promise<void> {
     }
     console.log(`[CPEUpdater] Loaded ${loaded} persisted dictionary extensions from database`);
   } catch (err: any) {
-    // Table doesn't exist yet — that's fine, first run
-    if (!err.message?.includes("doesn't exist")) {
+    // Table doesn't exist yet — that's fine, first run.
+    // Drizzle wraps MySQL errors so the message may be "Failed query: ..." rather than
+    // the raw "Table ... doesn't exist", so we also check for common table-missing indicators.
+    const msg = (err.message || '') + (err.sqlMessage || '') + (err.cause?.message || '');
+    const isTableMissing = msg.includes("doesn't exist") || msg.includes('ER_NO_SUCH_TABLE') || msg.includes('1146');
+    if (!isTableMissing) {
       console.warn(`[CPEUpdater] Failed to load persisted dictionary: ${err.message}`);
+    } else {
+      // Silently create the table for next time
+      try {
+        const db2 = await getDb();
+        await db2.execute(sql`
+          CREATE TABLE IF NOT EXISTS system_settings (
+            setting_key VARCHAR(255) PRIMARY KEY,
+            setting_value LONGTEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        console.log(`[CPEUpdater] Created system_settings table (first run)`);
+      } catch { /* ignore — will be created on first persist */ }
     }
   }
 }
