@@ -62,6 +62,12 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Link2,
+  Unlink,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Zap,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import {
@@ -73,6 +79,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  ReferenceLine,
 } from "recharts";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -566,9 +577,52 @@ function ThreatIntelPanel({
     { enabled: !!pipelineId }
   );
 
+  // Threat Trend Sparklines
+  const trendQuery = trpc.cicdPipeline.getThreatTrendData.useQuery(
+    { pipelineId, days: 30 },
+    { enabled: !!pipelineId && !selectedRun }
+  );
+
+  // Gate Escalation Config
+  const gateConfigQuery = trpc.cicdPipeline.getGateEscalationConfig.useQuery(
+    { pipelineId },
+    { enabled: !!pipelineId }
+  );
+  const [gateConfig, setGateConfig] = useState<{
+    escalateOnRansomware: boolean;
+    escalateOnApt: boolean;
+    escalateOnActorCount: number;
+    escalateOnExposureScore: number;
+  } | null>(null);
+
+  // Sync gate config from query
+  React.useEffect(() => {
+    if (gateConfigQuery.data && !gateConfig) {
+      setGateConfig(gateConfigQuery.data);
+    }
+  }, [gateConfigQuery.data]);
+
+  const updateGateConfig = trpc.cicdPipeline.updateGateEscalationConfig.useMutation({
+    onSuccess: () => {
+      utils.cicdPipeline.getGateEscalationConfig.invalidate();
+      toast.success("Gate escalation config updated");
+    },
+    onError: (e: any) => toast.error(`Failed: ${e.message}`),
+  });
+
+  // Engagement Auto-Import
+  const [importEngagementId, setImportEngagementId] = useState("");
+  const autoImport = trpc.cicdPipeline.autoImportToEngagement.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(data.message || `Imported ${data.imported} findings`);
+    },
+    onError: (e: any) => toast.error(`Import failed: ${e.message}`),
+  });
+
   const tc = threatCtxQuery.data;
   const summary = summaryQuery.data;
   const templates = templatesQuery.data;
+  const trend = trendQuery.data;
 
   return (
     <div className="space-y-5">
@@ -814,6 +868,107 @@ function ThreatIntelPanel({
                 </div>
               </div>
 
+              {/* Threat Trend Sparklines */}
+              {trend && trend.trendPoints.length >= 2 && (
+                <div>
+                  <p className="text-xs font-medium mb-3 flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 text-cyan-400" />
+                    Threat Trends (Last 30 Days — {trend.totalRuns} runs)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Actor Exposure Score Trend */}
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-red-400/70 mb-2">Actor Exposure Score</p>
+                      <ResponsiveContainer width="100%" height={80}>
+                        <AreaChart data={trend.trendPoints}>
+                          <defs>
+                            <linearGradient id="exposureGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f87171" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="actorExposureScore" stroke="#f87171" fill="url(#exposureGrad)" strokeWidth={1.5} dot={false} />
+                          <ReferenceLine y={60} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.4} />
+                          <Tooltip
+                            contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }}
+                            labelFormatter={(_, payload) => {
+                              const p = payload?.[0]?.payload;
+                              return p ? `Run #${p.runId} — ${new Date(p.date).toLocaleDateString()}` : '';
+                            }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                        <span>Latest: <span className={`font-bold ${(trend.trendPoints[trend.trendPoints.length - 1]?.actorExposureScore || 0) >= 60 ? 'text-red-400' : 'text-emerald-400'}`}>{trend.trendPoints[trend.trendPoints.length - 1]?.actorExposureScore || 0}</span></span>
+                        <span className="opacity-50">Threshold: 60</span>
+                      </div>
+                    </div>
+
+                    {/* Kill Chain Coverage Trend */}
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-cyan-400/70 mb-2">Kill Chain Coverage %</p>
+                      <ResponsiveContainer width="100%" height={80}>
+                        <AreaChart data={trend.trendPoints}>
+                          <defs>
+                            <linearGradient id="kcGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="killChainCoverage" stroke="#22d3ee" fill="url(#kcGrad)" strokeWidth={1.5} dot={false} />
+                          <Tooltip
+                            contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }}
+                            labelFormatter={(_, payload) => {
+                              const p = payload?.[0]?.payload;
+                              return p ? `Run #${p.runId} — ${new Date(p.date).toLocaleDateString()}` : '';
+                            }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                      <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
+                        <span>Latest: <span className="font-bold text-cyan-400">{trend.trendPoints[trend.trendPoints.length - 1]?.killChainCoverage || 0}%</span></span>
+                        <span className="opacity-50">{trend.totalRuns} data points</span>
+                      </div>
+                    </div>
+
+                    {/* Unique Actors Trend */}
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-violet-400/70 mb-2">Unique Actors Matched</p>
+                      <ResponsiveContainer width="100%" height={80}>
+                        <LineChart data={trend.trendPoints}>
+                          <Line type="monotone" dataKey="uniqueActors" stroke="#a78bfa" strokeWidth={1.5} dot={{ r: 2, fill: '#a78bfa' }} />
+                          <Tooltip
+                            contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }}
+                            labelFormatter={(_, payload) => {
+                              const p = payload?.[0]?.payload;
+                              return p ? `Run #${p.runId} — ${new Date(p.date).toLocaleDateString()}` : '';
+                            }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Ransomware + APT Risk Trend */}
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-3">
+                      <p className="text-[10px] uppercase tracking-wider text-rose-400/70 mb-2">Risk Flags per Run</p>
+                      <ResponsiveContainer width="100%" height={80}>
+                        <BarChart data={trend.trendPoints} barGap={0} barCategoryGap="20%">
+                          <Bar dataKey="ransomwareRisk" fill="#fb7185" radius={[2, 2, 0, 0]} name="Ransomware" />
+                          <Bar dataKey="aptRisk" fill="#a78bfa" radius={[2, 2, 0, 0]} name="APT" />
+                          <Tooltip
+                            contentStyle={{ background: '#1a1a2e', border: '1px solid #333', borderRadius: '8px', fontSize: '10px' }}
+                            labelFormatter={(_, payload) => {
+                              const p = payload?.[0]?.payload;
+                              return p ? `Run #${p.runId} — ${new Date(p.date).toLocaleDateString()}` : '';
+                            }}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Top Actors Across Runs */}
               {summary.topActors?.length > 0 && (
                 <div>
@@ -903,6 +1058,133 @@ function ThreatIntelPanel({
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Gate Escalation Configuration */}
+      <div className="border-t border-border/30 pt-4">
+        <p className="text-xs font-medium mb-3 flex items-center gap-1.5">
+          <Zap className="h-3.5 w-3.5 text-amber-400" />
+          Auto-Gate Escalation Rules
+        </p>
+        <p className="text-[10px] text-muted-foreground mb-3">
+          Automatically fail pipelines that pass CVSS threshold but have findings linked to active threat groups.
+        </p>
+        {gateConfig && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-muted/10 cursor-pointer hover:bg-muted/20 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={gateConfig.escalateOnRansomware}
+                  onChange={(e) => setGateConfig({ ...gateConfig, escalateOnRansomware: e.target.checked })}
+                  className="rounded border-rose-500 text-rose-500 focus:ring-rose-500"
+                />
+                <div>
+                  <p className="text-[11px] font-medium text-rose-400">Ransomware Risk</p>
+                  <p className="text-[9px] text-muted-foreground">Fail if findings linked to ransomware groups</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-2 p-2.5 rounded-lg border border-border/50 bg-muted/10 cursor-pointer hover:bg-muted/20 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={gateConfig.escalateOnApt}
+                  onChange={(e) => setGateConfig({ ...gateConfig, escalateOnApt: e.target.checked })}
+                  className="rounded border-violet-500 text-violet-500 focus:ring-violet-500"
+                />
+                <div>
+                  <p className="text-[11px] font-medium text-violet-400">APT Risk</p>
+                  <p className="text-[9px] text-muted-foreground">Fail if findings linked to APT groups</p>
+                </div>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-2.5 rounded-lg border border-border/50 bg-muted/10">
+                <Label className="text-[10px] text-muted-foreground">Actor Count Threshold</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={gateConfig.escalateOnActorCount}
+                  onChange={(e) => setGateConfig({ ...gateConfig, escalateOnActorCount: parseInt(e.target.value) || 0 })}
+                  className="h-7 text-xs mt-1"
+                />
+                <p className="text-[9px] text-muted-foreground mt-1">Fail if N+ actors matched (0 = disabled)</p>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border/50 bg-muted/10">
+                <Label className="text-[10px] text-muted-foreground">Exposure Score Threshold</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={gateConfig.escalateOnExposureScore}
+                  onChange={(e) => setGateConfig({ ...gateConfig, escalateOnExposureScore: parseInt(e.target.value) || 0 })}
+                  className="h-7 text-xs mt-1"
+                />
+                <p className="text-[9px] text-muted-foreground mt-1">Fail if score >= N (0 = disabled)</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8 w-full border-amber-500/30 text-amber-400 hover:bg-amber-950/20"
+              disabled={updateGateConfig.isPending}
+              onClick={() => updateGateConfig.mutate({
+                pipelineId,
+                ...gateConfig,
+              })}
+            >
+              {updateGateConfig.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1" />}
+              Save Escalation Rules
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Engagement Auto-Import */}
+      {selectedRun && (
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+            <Download className="h-3.5 w-3.5 text-blue-400" />
+            Import Findings to Engagement
+          </p>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Push threat-enriched findings from this run into an engagement report. Includes actor attribution, severity boosts, and kill chain context.
+          </p>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Label className="text-[10px] text-muted-foreground mb-1 block">Engagement ID</Label>
+              <Input
+                type="number"
+                placeholder="Enter engagement ID..."
+                value={importEngagementId}
+                onChange={(e) => setImportEngagementId(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8 border-blue-500/30 text-blue-400 hover:bg-blue-950/20"
+              disabled={!importEngagementId || autoImport.isPending}
+              onClick={() => autoImport.mutate({
+                runId: selectedRun.id,
+                engagementId: parseInt(importEngagementId),
+              })}
+            >
+              {autoImport.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Download className="h-3 w-3 mr-1" />}
+              Import
+            </Button>
+          </div>
+          {autoImport.data && (
+            <Alert className="mt-2 border-emerald-900/30 bg-emerald-950/20">
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <AlertTitle className="text-emerald-400 text-xs">Import Complete</AlertTitle>
+              <AlertDescription className="text-[10px] text-emerald-400/70">
+                {autoImport.data.message}
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       )}

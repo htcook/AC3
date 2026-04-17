@@ -250,9 +250,55 @@ export const cicdPipelineRouter = router({
               incrementalOnly: input.incrementalOnly,
             });
 
+            // ═══ Auto-Gate Escalation: override pass→fail based on threat intel ═══
+            let finalStatus = scanResult.status;
+            let gateEscalationReason = "";
+            if (scanResult.status === "passed" && scanResult.threatContext?.summary) {
+              try {
+                // Load escalation config from pipeline's sector_context JSON
+                const scRows = await db.execute(sql.raw(
+                  `SELECT cicd_sector_context FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+                ));
+                const scRow = ((scRows as any).rows || scRows)?.[0] as any;
+                const scParsed = scRow?.cicd_sector_context
+                  ? (typeof scRow.cicd_sector_context === 'string' ? tryParseJson(scRow.cicd_sector_context) : scRow.cicd_sector_context)
+                  : null;
+                const ge = scParsed?.gateEscalation || {
+                  escalateOnRansomware: true,
+                  escalateOnApt: true,
+                  escalateOnActorCount: 3,
+                  escalateOnExposureScore: 60,
+                };
+
+                const tc = scanResult.threatContext.summary;
+                const reasons: string[] = [];
+
+                if (ge.escalateOnRansomware && tc.ransomwareRiskFindings > 0) {
+                  reasons.push(`${tc.ransomwareRiskFindings} finding(s) linked to ransomware groups`);
+                }
+                if (ge.escalateOnApt && tc.aptRiskFindings > 0) {
+                  reasons.push(`${tc.aptRiskFindings} finding(s) linked to APT groups`);
+                }
+                if (ge.escalateOnActorCount > 0 && tc.uniqueActorsMatched >= ge.escalateOnActorCount) {
+                  reasons.push(`${tc.uniqueActorsMatched} threat actors matched (threshold: ${ge.escalateOnActorCount})`);
+                }
+                if (ge.escalateOnExposureScore > 0 && tc.actorExposureScore >= ge.escalateOnExposureScore) {
+                  reasons.push(`Actor exposure score ${tc.actorExposureScore} (threshold: ${ge.escalateOnExposureScore})`);
+                }
+
+                if (reasons.length > 0) {
+                  finalStatus = "failed";
+                  gateEscalationReason = `Auto-gate escalation: ${reasons.join("; ")}`;
+                  console.log(`[CICD] Gate escalation for run ${runId}: ${gateEscalationReason}`);
+                }
+              } catch (geErr: any) {
+                console.warn(`[CICD] Gate escalation check failed (non-blocking): ${geErr.message}`);
+              }
+            }
+
             // Update run with results
             await db.update(cicdRuns).set({
-              cicdRunStatus: scanResult.status === "passed" ? "passed" : scanResult.status === "error" ? "error" : "failed",
+              cicdRunStatus: finalStatus === "passed" ? "passed" : finalStatus === "error" ? "error" : "failed",
               cicdTotalTests: scanResult.totalFindings,
               cicdPassedTests: scanResult.mediumCount + scanResult.lowCount,
               cicdFailedTests: scanResult.criticalCount + scanResult.highCount,
@@ -295,10 +341,60 @@ export const cicdPipelineRouter = router({
               `UPDATE cicd_pipelines SET cicd_last_baseline_id = ${runId} WHERE id = ${input.pipelineId}`
             ));
 
-            console.log(`[CICD] Run ${runId} completed: ${scanResult.status}`);
+            console.log(`[CICD] Run ${runId} completed: ${finalStatus}${gateEscalationReason ? ` (ESCALATED)` : ``}`);
+
+            // ═══ Engagement Auto-Import: push findings to linked engagement ═══
+            const linkedEngagementId = (pipeline as any).cicdEngagementId;
+            if (linkedEngagementId && scanResult.findings?.length > 0) {
+              try {
+                const { engagementFindings } = await import("../../drizzle/schema");
+                const { correlateCicdFindings } = await import("../lib/cicd-threat-correlator");
+                const enrichedCtx = scanResult.threatContext || await correlateCicdFindings(scanResult.findings).catch(() => null);
+                const enrichedMap = new Map<string, any>();
+                if (enrichedCtx?.enrichedFindings) {
+                  for (const ef of enrichedCtx.enrichedFindings) enrichedMap.set(ef.title, ef);
+                }
+
+                const now = Date.now();
+                let autoImported = 0;
+                for (const finding of scanResult.findings.slice(0, 100)) {
+                  const enriched = enrichedMap.get(finding.title);
+                  const severity = enriched?.severity || finding.severity || 'medium';
+                  const descParts = [finding.description || ''];
+                  if (enriched?.attributedGroups?.length > 0) {
+                    descParts.push(`\n--- THREAT INTEL (auto-imported from CI/CD run #${runId}) ---`);
+                    descParts.push(`Groups: ${enriched.attributedGroups.map((g: any) => g.groupName).join(', ')}`);
+                    if (enriched.severityBoosted) descParts.push(`Boosted: ${enriched.originalSeverity} → ${enriched.severity}`);
+                    if (enriched.riskTags?.length) descParts.push(`Risk: ${enriched.riskTags.join(', ')}`);
+                  }
+                  const cveMatch = (finding.title + ' ' + (finding.description || '')).match(/CVE-\d{4}-\d{4,}/i);
+                  try {
+                    await db.insert(engagementFindings).values({
+                      engagementId: linkedEngagementId,
+                      title: finding.title?.substring(0, 512) || 'CI/CD Finding',
+                      severity: severity as any,
+                      cve: cveMatch ? cveMatch[0].toUpperCase().substring(0, 64) : null,
+                      cwe: finding.cweId?.substring(0, 128) || null,
+                      description: descParts.join('\n'),
+                      endpoint: finding.url?.substring(0, 65535) || null,
+                      source: `cicd-auto-run-${runId}`,
+                      tool: finding.scanner?.substring(0, 128) || 'cicd-pipeline',
+                      corroborationTier: 'unverified',
+                      owaspCategory: null,
+                      mitreTechnique: enriched?.killChainPhases?.[0] || null,
+                      createdAt: now,
+                    } as any);
+                    autoImported++;
+                  } catch { /* skip duplicates */ }
+                }
+                console.log(`[CICD] Auto-imported ${autoImported} findings from run ${runId} to engagement ${linkedEngagementId}`);
+              } catch (aiErr: any) {
+                console.warn(`[CICD] Engagement auto-import failed (non-blocking): ${aiErr.message}`);
+              }
+            }
 
             // P2: Threat-enriched gate failure notifications
-            if (scanResult.status === "failed" || scanResult.status === "error") {
+            if (finalStatus === "failed" || finalStatus === "error") {
               try {
                 const { notifyOwner } = await import("../_core/notification");
                 const pipelineName = pipeline.cicdName || `Pipeline #${input.pipelineId}`;
@@ -324,10 +420,11 @@ export const cicdPipelineRouter = router({
                 }
 
                 await notifyOwner({
-                  title: `\u26a0\ufe0f CI/CD Gate ${scanResult.status === "error" ? "Error" : "Failed"}: ${pipelineName}`,
+                  title: `\u26a0\ufe0f CI/CD Gate ${finalStatus === "error" ? "Error" : "Failed"}${gateEscalationReason ? " (THREAT ESCALATED)" : ""}: ${pipelineName}`,
                   content: [
                     `Pipeline: ${pipelineName} (Run #${runId})`,
-                    `Status: ${scanResult.status.toUpperCase()}`,
+                    `Status: ${finalStatus.toUpperCase()}${gateEscalationReason ? " \u2014 THREAT-ESCALATED" : ""}`,
+                    gateEscalationReason ? `\n\u26a0\ufe0f ${gateEscalationReason}` : null,
                     `Target: ${input.targetUrl}`,
                     input.branch ? `Branch: ${input.branch}` : null,
                     input.commitSha ? `Commit: ${input.commitSha.substring(0, 7)}` : null,
@@ -887,6 +984,217 @@ export const cicdPipelineRouter = router({
         topActors,
         killChainSummary,
       };
+    }),
+
+  // ═══ Threat Trend Sparklines (30-day time series) ═══════════════════════
+  getThreatTrendData: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      days: z.number().min(7).max(90).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const days = input.days || 30;
+
+      const rows = await db.execute(sql.raw(
+        `SELECT id, cicd_threat_context, cicd_run_created_at, cicd_run_status
+         FROM cicd_runs
+         WHERE cicd_run_pipeline_id = ${input.pipelineId}
+         AND cicd_run_created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+         ORDER BY id ASC
+         LIMIT 100`
+      ));
+      const data = ((rows as any).rows || rows || []) as any[];
+
+      // Build time-series data points
+      const trendPoints: Array<{
+        runId: number;
+        date: string;
+        status: string;
+        actorExposureScore: number;
+        killChainCoverage: number;
+        uniqueActors: number;
+        severityBoosted: number;
+        ransomwareRisk: number;
+        aptRisk: number;
+      }> = [];
+
+      for (const row of data) {
+        const tc = typeof row.cicd_threat_context === 'string'
+          ? tryParseJson(row.cicd_threat_context)
+          : row.cicd_threat_context;
+
+        trendPoints.push({
+          runId: row.id,
+          date: row.cicd_run_created_at || new Date().toISOString(),
+          status: row.cicd_run_status || 'unknown',
+          actorExposureScore: tc?.summary?.actorExposureScore || 0,
+          killChainCoverage: tc?.summary?.killChainCoverage || 0,
+          uniqueActors: tc?.summary?.uniqueActorsMatched || 0,
+          severityBoosted: tc?.summary?.severityBoostedCount || 0,
+          ransomwareRisk: tc?.summary?.ransomwareRiskFindings || 0,
+          aptRisk: tc?.summary?.aptRiskFindings || 0,
+        });
+      }
+
+      return { trendPoints, totalRuns: data.length };
+    }),
+
+  // ═══ Auto-Gate Escalation Config ═══════════════════════════════════════════
+  updateGateEscalationConfig: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      escalateOnRansomware: z.boolean(),
+      escalateOnApt: z.boolean(),
+      escalateOnActorCount: z.number().min(0).max(50).optional(),
+      escalateOnExposureScore: z.number().min(0).max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const config = JSON.stringify({
+        escalateOnRansomware: input.escalateOnRansomware,
+        escalateOnApt: input.escalateOnApt,
+        escalateOnActorCount: input.escalateOnActorCount || 0,
+        escalateOnExposureScore: input.escalateOnExposureScore || 0,
+      });
+
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET cicd_sector_context = JSON_SET(COALESCE(cicd_sector_context, '{}'), '$.gateEscalation', CAST('${config.replace(/'/g, "''")}' AS JSON)) WHERE id = ${input.pipelineId}`
+      ));
+      return { success: true };
+    }),
+
+  getGateEscalationConfig: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const rows = await db.execute(sql.raw(
+        `SELECT cicd_sector_context FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+      ));
+      const row = ((rows as any).rows || rows)?.[0] as any;
+      if (!row?.cicd_sector_context) {
+        return { escalateOnRansomware: true, escalateOnApt: true, escalateOnActorCount: 3, escalateOnExposureScore: 60 };
+      }
+      const parsed = typeof row.cicd_sector_context === 'string' ? tryParseJson(row.cicd_sector_context) : row.cicd_sector_context;
+      const ge = parsed?.gateEscalation;
+      return {
+        escalateOnRansomware: ge?.escalateOnRansomware ?? true,
+        escalateOnApt: ge?.escalateOnApt ?? true,
+        escalateOnActorCount: ge?.escalateOnActorCount ?? 3,
+        escalateOnExposureScore: ge?.escalateOnExposureScore ?? 60,
+      };
+    }),
+
+  // ═══ Engagement Auto-Import ════════════════════════════════════════════════
+  autoImportToEngagement: protectedProcedure
+    .input(z.object({
+      runId: z.number(),
+      engagementId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdRuns, engagementFindings } = await import("../../drizzle/schema");
+      const { sql, eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Get the run and its threat context
+      const runRows = await db.select().from(cicdRuns).where(eq(cicdRuns.id, input.runId));
+      if (!runRows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      const run = runRows[0];
+      const report = run.cicdReportUrl ? tryParseJson(run.cicdReportUrl as string) : null;
+      if (!report?.findings?.length) {
+        return { imported: 0, message: "No findings to import" };
+      }
+
+      // Get threat context for enrichment
+      const tcRows = await db.execute(sql.raw(
+        `SELECT cicd_threat_context FROM cicd_runs WHERE id = ${input.runId}`
+      ));
+      const tcRow = ((tcRows as any).rows || tcRows)?.[0] as any;
+      const threatContext = tcRow?.cicd_threat_context
+        ? (typeof tcRow.cicd_threat_context === 'string' ? tryParseJson(tcRow.cicd_threat_context) : tcRow.cicd_threat_context)
+        : null;
+
+      // Build enriched findings map for quick lookup
+      const enrichedMap = new Map<string, any>();
+      if (threatContext?.enrichedFindings) {
+        for (const ef of threatContext.enrichedFindings) {
+          enrichedMap.set(ef.title, ef);
+        }
+      }
+
+      // Insert findings into engagement_findings
+      const now = Date.now();
+      let imported = 0;
+
+      for (const finding of report.findings) {
+        const enriched = enrichedMap.get(finding.title);
+        const severity = enriched?.severity || finding.severity || 'medium';
+        const riskTags = enriched?.riskTags || [];
+        const attributedGroups = enriched?.attributedGroups || [];
+
+        // Build description with threat intel context
+        const descParts = [finding.description || ''];
+        if (attributedGroups.length > 0) {
+          descParts.push(`\n\n--- THREAT INTELLIGENCE ---`);
+          descParts.push(`Attributed Groups: ${attributedGroups.map((g: any) => `${g.groupName} (${g.groupType}, ${g.threatLevel})`).join(', ')}`);
+          if (enriched?.severityBoosted) {
+            descParts.push(`Severity Boosted: ${enriched.originalSeverity} → ${enriched.severity} (${enriched.boostReason})`);
+          }
+          if (riskTags.length > 0) {
+            descParts.push(`Risk Tags: ${riskTags.join(', ')}`);
+          }
+          if (enriched?.killChainPhases?.length > 0) {
+            descParts.push(`Kill Chain Phases: ${enriched.killChainPhases.join(', ')}`);
+          }
+        }
+
+        // Extract CVE from title/description
+        const cveMatch = (finding.title + ' ' + (finding.description || '')).match(/CVE-\d{4}-\d{4,}/i);
+        const cve = cveMatch ? cveMatch[0].toUpperCase() : null;
+
+        try {
+          await db.insert(engagementFindings).values({
+            engagementId: input.engagementId,
+            title: finding.title?.substring(0, 512) || 'CI/CD Finding',
+            severity: severity as any,
+            cve: cve?.substring(0, 64) || null,
+            cwe: finding.cweId?.substring(0, 128) || null,
+            description: descParts.join('\n'),
+            endpoint: finding.url?.substring(0, 65535) || null,
+            source: `cicd-run-${input.runId}`,
+            tool: finding.scanner?.substring(0, 128) || 'cicd-pipeline',
+            corroborationTier: 'unverified',
+            owaspCategory: null,
+            mitreTechnique: enriched?.killChainPhases?.[0] || null,
+            createdAt: now,
+          } as any);
+          imported++;
+        } catch (insertErr: any) {
+          console.warn(`[CICD] Failed to import finding "${finding.title}": ${insertErr.message}`);
+        }
+      }
+
+      // Also store the engagementId on the run for tracking
+      await db.execute(sql.raw(
+        `UPDATE cicd_runs SET cicd_run_engagement_id = ${input.engagementId} WHERE id = ${input.runId}`
+      ));
+
+      console.log(`[CICD] Auto-imported ${imported}/${report.findings.length} findings from run ${input.runId} to engagement ${input.engagementId}`);
+      return { imported, total: report.findings.length, message: `Imported ${imported} findings with threat intelligence context` };
     }),
 
   getQuickThreatScore: protectedProcedure
