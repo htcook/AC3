@@ -2099,6 +2099,539 @@ function WebhookTemplatePanel({ pipelineId }: { pipelineId: number }) {
   );
 }
 
+// ─── SBOM Panel ─────────────────────────────────────────────────────────────────
+
+function SbomPanel({ pipelineId }: { pipelineId: number | null }) {
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [sbomData, setSbomData] = useState<any>(null);
+  const runs = trpc.cicdPipeline.listRuns.useQuery(
+    { pipelineId: pipelineId! },
+    { enabled: !!pipelineId }
+  );
+  const generateSbom = trpc.cicdPipeline.generateSbom.useMutation({
+    onSuccess: (data) => { setSbomData(data); toast.success("SBOM generated successfully"); },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (!pipelineId) return <div className="p-6 text-center text-muted-foreground">Select a pipeline to generate SBOM</div>;
+
+  const handleDownload = () => {
+    if (!sbomData) return;
+    const blob = new Blob([JSON.stringify(sbomData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sbom-run-${selectedRunId}-cyclonedx.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Software Bill of Materials</h3>
+          <p className="text-sm text-muted-foreground">Generate CycloneDX SBOM from scan findings</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={selectedRunId?.toString() || ""} onValueChange={(v) => setSelectedRunId(Number(v))}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Select a run" /></SelectTrigger>
+            <SelectContent>
+              {(runs.data || []).slice(0, 20).map((r: any) => (
+                <SelectItem key={r.id} value={r.id.toString()}>Run #{r.id} — {r.status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={() => selectedRunId && generateSbom.mutate({ runId: selectedRunId })} disabled={!selectedRunId || generateSbom.isPending}>
+            {generateSbom.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCode className="h-4 w-4 mr-1" />}
+            Generate
+          </Button>
+        </div>
+      </div>
+
+      {sbomData && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-3">
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">{sbomData.components?.length || 0}</div>
+              <div className="text-xs text-muted-foreground">Components</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold">{sbomData.vulnerabilities?.length || 0}</div>
+              <div className="text-xs text-muted-foreground">Vulnerabilities</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-500">{sbomData.specVersion || "1.5"}</div>
+              <div className="text-xs text-muted-foreground">CycloneDX Version</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <Button size="sm" variant="outline" onClick={handleDownload}>
+                <Download className="h-4 w-4 mr-1" /> Download JSON
+              </Button>
+            </CardContent></Card>
+          </div>
+
+          {sbomData.components?.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Components</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>PURL</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sbomData.components.slice(0, 50).map((c: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs">{c.name}</TableCell>
+                        <TableCell><Badge variant="outline">{c.version || "—"}</Badge></TableCell>
+                        <TableCell className="text-xs">{c.type}</TableCell>
+                        <TableCell className="font-mono text-xs truncate max-w-[200px]">{c.purl || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {sbomData.vulnerabilities?.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Vulnerabilities</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Affected</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sbomData.vulnerabilities.slice(0, 50).map((v: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs">{v.id}</TableCell>
+                        <TableCell>
+                          <Badge variant={v.ratings?.[0]?.severity === "critical" ? "destructive" : v.ratings?.[0]?.severity === "high" ? "destructive" : "secondary"}>
+                            {v.ratings?.[0]?.severity || "unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs max-w-[300px] truncate">{v.description || "—"}</TableCell>
+                        <TableCell className="text-xs">{v.affects?.map((a: any) => a.ref).join(", ") || "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RBAC Panel ─────────────────────────────────────────────────────────────────
+
+function RbacPanel({ pipelineId }: { pipelineId: number | null }) {
+  const [grantUserId, setGrantUserId] = useState<string>("");
+  const [grantRole, setGrantRole] = useState<string>("viewer");
+  const utils = trpc.useUtils();
+
+  const access = trpc.cicdPipeline.getPipelineAccess.useQuery(
+    { pipelineId: pipelineId! },
+    { enabled: !!pipelineId }
+  );
+  const permissions = trpc.cicdPipeline.getMyPermissions.useQuery(
+    { pipelineId: pipelineId! },
+    { enabled: !!pipelineId }
+  );
+  const teamMembers = trpc.cicdPipeline.listTeamMembers.useQuery();
+
+  const grantAccess = trpc.cicdPipeline.grantAccess.useMutation({
+    onSuccess: () => {
+      toast.success("Access granted");
+      utils.cicdPipeline.getPipelineAccess.invalidate();
+      setGrantUserId("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const revokeAccess = trpc.cicdPipeline.revokeAccess.useMutation({
+    onSuccess: () => {
+      toast.success("Access revoked");
+      utils.cicdPipeline.getPipelineAccess.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (!pipelineId) return <div className="p-6 text-center text-muted-foreground">Select a pipeline to manage access</div>;
+
+  const canManage = permissions.data?.canManageAccess || false;
+  const roleColors: Record<string, string> = {
+    owner: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    editor: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    viewer: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  };
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Pipeline Access Control</h3>
+          <p className="text-sm text-muted-foreground">
+            Your role: <Badge className={roleColors[permissions.data?.role || "none"] || ""} variant="outline">{permissions.data?.role || "loading..."}</Badge>
+          </p>
+        </div>
+      </div>
+
+      {/* Current Access Summary */}
+      {access.data && (
+        <div className="grid grid-cols-4 gap-3">
+          <Card><CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold">{access.data.totalMembers}</div>
+            <div className="text-xs text-muted-foreground">Total Members</div>
+          </CardContent></Card>
+          <Card><CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-amber-500">{access.data.owners}</div>
+            <div className="text-xs text-muted-foreground">Owners</div>
+          </CardContent></Card>
+          <Card><CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-500">{access.data.editors}</div>
+            <div className="text-xs text-muted-foreground">Editors</div>
+          </CardContent></Card>
+          <Card><CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-slate-400">{access.data.viewers}</div>
+            <div className="text-xs text-muted-foreground">Viewers</div>
+          </CardContent></Card>
+        </div>
+      )}
+
+      {/* Grant Access Form */}
+      {canManage && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Grant Access</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Select value={grantUserId} onValueChange={setGrantUserId}>
+                <SelectTrigger className="w-64"><SelectValue placeholder="Select team member" /></SelectTrigger>
+                <SelectContent>
+                  {(teamMembers.data || []).map((m: any) => (
+                    <SelectItem key={m.id} value={m.id.toString()}>{m.name} ({m.email || m.role})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={grantRole} onValueChange={setGrantRole}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner</SelectItem>
+                  <SelectItem value="editor">Editor</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={() => grantUserId && grantAccess.mutate({ pipelineId: pipelineId!, userId: Number(grantUserId), role: grantRole as any })} disabled={!grantUserId || grantAccess.isPending}>
+                {grantAccess.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Grant"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Members Table */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Members</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Granted By</TableHead>
+                <TableHead>Granted At</TableHead>
+                {canManage && <TableHead className="w-20">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(access.data?.members || []).map((m: any) => (
+                <TableRow key={m.userId}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm">{m.userName}</span>
+                      {m.userEmail && <span className="text-xs text-muted-foreground">{m.userEmail}</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell><Badge className={roleColors[m.role] || ""} variant="outline">{m.role}</Badge></TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{m.grantedBy}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{m.grantedAt ? new Date(m.grantedAt).toLocaleDateString() : "—"}</TableCell>
+                  {canManage && (
+                    <TableCell>
+                      <Button size="sm" variant="ghost" className="h-7 text-red-400 hover:text-red-300" onClick={() => revokeAccess.mutate({ pipelineId: pipelineId!, userId: m.userId })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+              {(!access.data?.members || access.data.members.length === 0) && (
+                <TableRow><TableCell colSpan={canManage ? 5 : 4} className="text-center text-muted-foreground py-8">No explicit access grants. Pipeline creator and admins have automatic access.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Permissions Reference */}
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Permission Matrix</CardTitle></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Permission</TableHead>
+                <TableHead className="text-center">Owner</TableHead>
+                <TableHead className="text-center">Editor</TableHead>
+                <TableHead className="text-center">Viewer</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[
+                ["View pipeline & runs", true, true, true],
+                ["Edit pipeline config", true, true, false],
+                ["Trigger scans", true, true, false],
+                ["Pin baseline", true, true, false],
+                ["Configure schedule", true, true, false],
+                ["Export SBOM", true, true, true],
+                ["View compliance", true, true, true],
+                ["Delete pipeline", true, false, false],
+                ["Manage access", true, false, false],
+              ].map(([perm, owner, editor, viewer], i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-sm">{perm as string}</TableCell>
+                  <TableCell className="text-center">{owner ? <Check className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-center">{editor ? <Check className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-center">{viewer ? <Check className="h-4 w-4 text-green-500 mx-auto" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Compliance Panel ───────────────────────────────────────────────────────────
+
+function CompliancePanel({ pipelineId }: { pipelineId: number | null }) {
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const [selectedFramework, setSelectedFramework] = useState<string>("soc2");
+
+  const runs = trpc.cicdPipeline.listRuns.useQuery(
+    { pipelineId: pipelineId! },
+    { enabled: !!pipelineId }
+  );
+  const frameworks = trpc.cicdPipeline.getAvailableFrameworks.useQuery();
+  const report = trpc.cicdPipeline.getComplianceReport.useQuery(
+    { framework: selectedFramework as any, runId: selectedRunId! },
+    { enabled: !!selectedRunId && !!selectedFramework }
+  );
+  const crossFramework = trpc.cicdPipeline.getCrossFrameworkSummary.useQuery(
+    { runId: selectedRunId! },
+    { enabled: !!selectedRunId }
+  );
+
+  if (!pipelineId) return <div className="p-6 text-center text-muted-foreground">Select a pipeline to view compliance</div>;
+
+  const statusColors: Record<string, string> = {
+    pass: "bg-green-500/10 text-green-500 border-green-500/20",
+    fail: "bg-red-500/10 text-red-400 border-red-500/20",
+    partial: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    not_tested: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  };
+  const riskColors: Record<string, string> = {
+    critical: "text-red-400",
+    high: "text-orange-400",
+    medium: "text-amber-400",
+    low: "text-green-400",
+  };
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Compliance Mapping</h3>
+          <p className="text-sm text-muted-foreground">Map findings to SOC 2, PCI-DSS, and NIST 800-53 controls</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={selectedRunId?.toString() || ""} onValueChange={(v) => setSelectedRunId(Number(v))}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Select a run" /></SelectTrigger>
+            <SelectContent>
+              {(runs.data || []).slice(0, 20).map((r: any) => (
+                <SelectItem key={r.id} value={r.id.toString()}>Run #{r.id} — {r.status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedFramework} onValueChange={setSelectedFramework}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(frameworks.data || []).map((f: any) => (
+                <SelectItem key={f.id} value={f.id}>{f.name} ({f.controlCount})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Cross-Framework Summary */}
+      {crossFramework.data && selectedRunId && (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Cross-Framework Overview</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              {crossFramework.data.frameworks.map((f: any) => (
+                <div key={f.framework} className="border rounded-lg p-3 cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setSelectedFramework(f.framework)}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium">{f.name}</span>
+                    <Badge className={riskColors[f.riskLevel]} variant="outline">{f.riskLevel}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div className={`h-2 rounded-full ${f.score >= 80 ? "bg-green-500" : f.score >= 60 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${f.score}%` }} />
+                    </div>
+                    <span className="text-sm font-bold">{f.score}%</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">{f.failed} failed / {f.total} controls</div>
+                </div>
+              ))}
+            </div>
+            {crossFramework.data.sharedGaps.length > 0 && (
+              <div className="mt-3">
+                <h4 className="text-xs font-medium text-muted-foreground mb-2">Cross-Framework Gaps</h4>
+                <div className="space-y-1">
+                  {crossFramework.data.sharedGaps.slice(0, 5).map((g: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs border rounded px-2 py-1">
+                      <span className="font-mono">{g.findingName}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="destructive" className="text-[10px]">{g.severity}</Badge>
+                        <span className="text-muted-foreground">{g.affectedFrameworks.length} frameworks</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Framework Report */}
+      {report.data && (
+        <>
+          {/* Summary */}
+          <div className="grid grid-cols-5 gap-3">
+            <Card><CardContent className="p-4 text-center">
+              <div className={`text-2xl font-bold ${report.data.summary.complianceScore >= 80 ? "text-green-500" : report.data.summary.complianceScore >= 60 ? "text-amber-500" : "text-red-400"}`}>
+                {report.data.summary.complianceScore}%
+              </div>
+              <div className="text-xs text-muted-foreground">Compliance Score</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-500">{report.data.summary.passed}</div>
+              <div className="text-xs text-muted-foreground">Passed</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-red-400">{report.data.summary.failed}</div>
+              <div className="text-xs text-muted-foreground">Failed</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-amber-500">{report.data.summary.partial}</div>
+              <div className="text-xs text-muted-foreground">Partial</div>
+            </CardContent></Card>
+            <Card><CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-slate-400">{report.data.summary.notTested}</div>
+              <div className="text-xs text-muted-foreground">Not Tested</div>
+            </CardContent></Card>
+          </div>
+
+          {/* Categories */}
+          {report.data.categories.map((cat: any) => (
+            <Card key={cat.name}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">{cat.name}</CardTitle>
+                  <Badge variant="outline">{cat.categoryScore}% compliant</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-24">Control</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead className="w-20">Status</TableHead>
+                      <TableHead className="w-20">Severity</TableHead>
+                      <TableHead>Findings</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cat.controls.map((ctrl: any) => (
+                      <TableRow key={ctrl.control.id}>
+                        <TableCell className="font-mono text-xs font-medium">{ctrl.control.id}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{ctrl.control.title}</div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[300px]">{ctrl.evidence}</div>
+                        </TableCell>
+                        <TableCell><Badge className={statusColors[ctrl.status]} variant="outline">{ctrl.status.replace("_", " ")}</Badge></TableCell>
+                        <TableCell><Badge variant={ctrl.control.severity === "critical" ? "destructive" : "secondary"} className="text-[10px]">{ctrl.control.severity}</Badge></TableCell>
+                        <TableCell className="text-xs">
+                          {ctrl.matchedFindings.length > 0 ? (
+                            <span className="text-red-400">{ctrl.matchedFindings.length} finding(s)</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Recommendations */}
+          {report.data.recommendations.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Recommendations</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {report.data.recommendations.map((rec: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <span>{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {!selectedRunId && (
+        <div className="text-center py-12 text-muted-foreground">
+          <ShieldCheck className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>Select a scan run to generate compliance reports</p>
+          <p className="text-xs mt-1">Findings will be mapped to {frameworks.data?.length || 3} compliance frameworks</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────────
 
 export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen] = useState(false);
@@ -2335,6 +2868,9 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                         <TabsTrigger value="deliveries" className="text-xs gap-1.5"><Webhook className="h-3.5 w-3.5" /> Deliveries</TabsTrigger>
                         <TabsTrigger value="conflicts" className="text-xs gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Conflicts</TabsTrigger>
                         <TabsTrigger value="webhook-templates" className="text-xs gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Templates</TabsTrigger>
+                         <TabsTrigger value="sbom" className="text-xs gap-1.5"><FileCode className="h-3.5 w-3.5" /> SBOM</TabsTrigger>
+                         <TabsTrigger value="rbac" className="text-xs gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Access</TabsTrigger>
+                         <TabsTrigger value="compliance" className="text-xs gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Compliance</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -2523,6 +3059,21 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                       {/* Webhook Templates Tab */}
                       <TabsContent value="webhook-templates" className="mt-0">
                         <WebhookTemplatePanel pipelineId={selectedPipelineId!} />
+                      </TabsContent>
+
+                      {/* SBOM Tab */}
+                      <TabsContent value="sbom" className="mt-0">
+                        <SbomPanel pipelineId={selectedPipeline} />
+                      </TabsContent>
+
+                      {/* RBAC Tab */}
+                      <TabsContent value="rbac" className="mt-0">
+                        <RbacPanel pipelineId={selectedPipeline} />
+                      </TabsContent>
+
+                      {/* Compliance Tab */}
+                      <TabsContent value="compliance" className="mt-0">
+                        <CompliancePanel pipelineId={selectedPipeline} />
                       </TabsContent>
                     </Tabs>
                   </CardContent>

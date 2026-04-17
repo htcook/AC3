@@ -1800,4 +1800,239 @@ export const cicdPipelineRouter = router({
       const { suggestNonConflictingSchedule } = await import("../lib/cicd-schedule-conflict");
       return suggestNonConflictingSchedule(pipelines, input.frequency);
     }),
+
+  // ─── SBOM Generation ────────────────────────────────────────────────────
+
+  generateSbom: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Get run data
+      const runRows = await db.execute(sql.raw(
+        `SELECT r.*, p.cicd_name FROM cicd_runs r JOIN cicd_pipelines p ON r.cicd_run_pipeline_id = p.id WHERE r.id = ${input.runId}`
+      ));
+      const run = ((runRows as any).rows || runRows)?.[0];
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      // Parse findings from report
+      let findings: any[] = [];
+      try {
+        const reportUrl = run.cicd_report_url;
+        if (reportUrl) {
+          const parsed = JSON.parse(reportUrl);
+          findings = parsed.findings || parsed.results || (Array.isArray(parsed) ? parsed : []);
+        }
+      } catch { findings = []; }
+
+      const { generateSbom } = await import("../lib/cicd-sbom-generator");
+      return generateSbom({
+        pipelineId: Number(run.cicd_run_pipeline_id),
+        pipelineName: run.cicd_name || `Pipeline #${run.cicd_run_pipeline_id}`,
+        runId: input.runId,
+        targetUrl: run.cicd_webhook_url,
+        branch: run.cicd_branch,
+        commitSha: run.cicd_commit_sha,
+        findings,
+        scanStarted: run.cicd_started_at,
+        scanCompleted: run.cicd_completed_at,
+      });
+    }),
+
+  // ─── Pipeline RBAC ──────────────────────────────────────────────────────
+
+  getPipelineAccess: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const rows = await db.execute(sql.raw(
+        `SELECT a.*, u.name as user_name, u.email as user_email, g.name as granted_by_name
+         FROM cicd_pipeline_access a
+         LEFT JOIN users u ON a.user_id = u.id
+         LEFT JOIN users g ON a.granted_by = g.id
+         WHERE a.pipeline_id = ${input.pipelineId}`
+      ));
+      const records = ((rows as any).rows || rows) as any[];
+
+      const { buildAccessSummary } = await import("../lib/cicd-pipeline-rbac");
+      return buildAccessSummary(input.pipelineId, records.map(r => ({
+        pipelineId: Number(r.pipeline_id),
+        userId: Number(r.user_id),
+        role: r.role as any,
+        grantedBy: Number(r.granted_by),
+        grantedAt: r.granted_at || new Date().toISOString(),
+        userName: r.user_name,
+        userEmail: r.user_email,
+        grantedByName: r.granted_by_name,
+      })));
+    }),
+
+  getMyPermissions: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Get pipeline creator
+      const pipeRows = await db.execute(sql.raw(
+        `SELECT cicd_created_by FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+      ));
+      const pipeline = ((pipeRows as any).rows || pipeRows)?.[0];
+      if (!pipeline) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline not found" });
+
+      // Get user's explicit access
+      const accessRows = await db.execute(sql.raw(
+        `SELECT * FROM cicd_pipeline_access WHERE pipeline_id = ${input.pipelineId} AND user_id = ${ctx.user.id}`
+      ));
+      const access = ((accessRows as any).rows || accessRows)?.[0];
+
+      const { resolvePermissions } = await import("../lib/cicd-pipeline-rbac");
+      return resolvePermissions({
+        userRole: ctx.user.role || "user",
+        userId: ctx.user.id,
+        pipelineCreatedBy: pipeline.cicd_created_by,
+        userOpenId: ctx.user.openId,
+        pipelineAccess: access ? {
+          pipelineId: input.pipelineId,
+          userId: ctx.user.id,
+          role: access.role as any,
+          grantedBy: Number(access.granted_by),
+          grantedAt: access.granted_at || new Date().toISOString(),
+        } : null,
+      });
+    }),
+
+  grantAccess: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      userId: z.number(),
+      role: z.enum(["owner", "editor", "viewer"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      await db.execute(sql.raw(
+        `INSERT INTO cicd_pipeline_access (pipeline_id, user_id, role, granted_by, granted_at)
+         VALUES (${input.pipelineId}, ${input.userId}, '${input.role}', ${ctx.user.id}, NOW())
+         ON DUPLICATE KEY UPDATE role = '${input.role}', granted_by = ${ctx.user.id}, granted_at = NOW()`
+      ));
+      return { success: true };
+    }),
+
+  revokeAccess: protectedProcedure
+    .input(z.object({ pipelineId: z.number(), userId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      await db.execute(sql.raw(
+        `DELETE FROM cicd_pipeline_access WHERE pipeline_id = ${input.pipelineId} AND user_id = ${input.userId}`
+      ));
+      return { success: true };
+    }),
+
+  listTeamMembers: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { sql } = await import("drizzle-orm");
+
+    const rows = await db.execute(sql.raw(
+      `SELECT id, name, email, role, avatar_url FROM users WHERE status = 'active' ORDER BY name`
+    ));
+    return ((rows as any).rows || rows) as Array<{ id: number; name: string; email: string; role: string; avatar_url: string | null }>;
+  }),
+
+  // ─── Compliance Mapping ─────────────────────────────────────────────────
+
+  getComplianceReport: protectedProcedure
+    .input(z.object({
+      framework: z.enum(["soc2", "pci_dss", "nist_800_53"]),
+      runId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const runRows = await db.execute(sql.raw(
+        `SELECT r.*, p.cicd_name FROM cicd_runs r JOIN cicd_pipelines p ON r.cicd_run_pipeline_id = p.id WHERE r.id = ${input.runId}`
+      ));
+      const run = ((runRows as any).rows || runRows)?.[0];
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      let findings: any[] = [];
+      try {
+        const reportUrl = run.cicd_report_url;
+        if (reportUrl) {
+          const parsed = JSON.parse(reportUrl);
+          findings = parsed.findings || parsed.results || (Array.isArray(parsed) ? parsed : []);
+        }
+      } catch { findings = []; }
+
+      const { generateComplianceReport } = await import("../lib/cicd-compliance-mapper");
+      return generateComplianceReport({
+        framework: input.framework,
+        pipelineId: Number(run.cicd_run_pipeline_id),
+        pipelineName: run.cicd_name || `Pipeline #${run.cicd_run_pipeline_id}`,
+        runId: input.runId,
+        findings,
+      });
+    }),
+
+  getCrossFrameworkSummary: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const runRows = await db.execute(sql.raw(
+        `SELECT r.*, p.cicd_name FROM cicd_runs r JOIN cicd_pipelines p ON r.cicd_run_pipeline_id = p.id WHERE r.id = ${input.runId}`
+      ));
+      const run = ((runRows as any).rows || runRows)?.[0];
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      let findings: any[] = [];
+      try {
+        const reportUrl = run.cicd_report_url;
+        if (reportUrl) {
+          const parsed = JSON.parse(reportUrl);
+          findings = parsed.findings || parsed.results || (Array.isArray(parsed) ? parsed : []);
+        }
+      } catch { findings = []; }
+
+      const { generateComplianceReport, generateCrossFrameworkSummary } = await import("../lib/cicd-compliance-mapper");
+      const reports = ["soc2", "pci_dss", "nist_800_53"].map(fw =>
+        generateComplianceReport({
+          framework: fw as any,
+          pipelineId: Number(run.cicd_run_pipeline_id),
+          pipelineName: run.cicd_name || `Pipeline #${run.cicd_run_pipeline_id}`,
+          runId: input.runId,
+          findings,
+        })
+      );
+      return generateCrossFrameworkSummary(reports);
+    }),
+
+  getAvailableFrameworks: protectedProcedure.query(async () => {
+    const { getAvailableFrameworks } = await import("../lib/cicd-compliance-mapper");
+    return getAvailableFrameworks();
+  }),
 });
