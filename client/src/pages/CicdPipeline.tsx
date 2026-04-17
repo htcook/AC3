@@ -1131,7 +1131,7 @@ function ThreatIntelPanel({
                   onChange={(e) => setGateConfig({ ...gateConfig, escalateOnExposureScore: parseInt(e.target.value) || 0 })}
                   className="h-7 text-xs mt-1"
                 />
-                <p className="text-[9px] text-muted-foreground mt-1">Fail if score >= N (0 = disabled)</p>
+                <p className="text-[9px] text-muted-foreground mt-1">Fail if score {"\u2265"} N (0 = disabled)</p>
               </div>
             </div>
             <Button
@@ -2420,7 +2420,108 @@ function RbacPanel({ pipelineId }: { pipelineId: number | null }) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Bulk Import Section */}
+      {canManage && (
+        <BulkRbacImportSection pipelineId={pipelineId} onImported={() => access.refetch()} />
+      )}
     </div>
+  );
+}
+
+function BulkRbacImportSection({ pipelineId, onImported }: { pipelineId: number; onImported: () => void }) {
+  const [csvText, setCsvText] = useState("");
+  const [preview, setPreview] = useState<any>(null);
+
+  const parseCsv = trpc.cicdPipeline.parseBulkAccessCsv.useMutation({
+    onSuccess: (data) => setPreview(data),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const bulkImport = trpc.cicdPipeline.bulkImportAccess.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Imported ${data.created} new, updated ${data.updated}, ${data.errors} errors`);
+      setCsvText("");
+      setPreview(null);
+      onImported();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handlePreview = () => {
+    if (!csvText.trim()) { toast.error("Paste CSV data first"); return; }
+    parseCsv.mutate({ csvText });
+  };
+
+  const handleImport = () => {
+    if (!preview) return;
+    const validGrants = preview.grants
+      .filter((g: any) => g.valid)
+      .map((g: any) => ({ userId: g.userId, userName: g.userName, role: g.role }));
+    if (validGrants.length === 0) { toast.error("No valid grants to import"); return; }
+    bulkImport.mutate({ pipelineId, grants: validGrants });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">Bulk Import Access (CSV)</CardTitle>
+        <CardDescription className="text-xs">Paste CSV data to grant access to multiple users at once. Format: userId,userName,role</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <textarea
+          className="w-full h-24 bg-muted/30 border border-border rounded-md p-2 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+          placeholder={"user_id,user_name,role\nuser123,Alice,editor\nuser456,Bob,viewer"}
+          value={csvText}
+          onChange={(e) => { setCsvText(e.target.value); setPreview(null); }}
+        />
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" className="text-xs h-8" onClick={handlePreview} disabled={parseCsv.isPending}>
+            {parseCsv.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Eye className="h-3 w-3 mr-1" /> Preview</>}
+          </Button>
+          {preview && preview.valid > 0 && (
+            <Button size="sm" className="text-xs h-8 bg-blue-600 hover:bg-blue-700" onClick={handleImport} disabled={bulkImport.isPending}>
+              {bulkImport.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <>Import {preview.valid} Grants</>}
+            </Button>
+          )}
+        </div>
+
+        {preview && (
+          <div className="space-y-2">
+            <div className="flex gap-3 text-xs">
+              <Badge className="bg-emerald-500/20 text-emerald-400">Valid: {preview.valid}</Badge>
+              {preview.invalid > 0 && <Badge className="bg-red-500/20 text-red-400">Invalid: {preview.invalid}</Badge>}
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">User ID</TableHead>
+                  <TableHead className="text-xs">Name</TableHead>
+                  <TableHead className="text-xs">Role</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {preview.grants.map((g: any, i: number) => (
+                  <TableRow key={i} className={g.valid ? "" : "opacity-50"}>
+                    <TableCell className="text-xs font-mono">{g.userId || "-"}</TableCell>
+                    <TableCell className="text-xs">{g.userName || "-"}</TableCell>
+                    <TableCell className="text-xs">{g.role || "-"}</TableCell>
+                    <TableCell className="text-xs">
+                      {g.valid ? (
+                        <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">Valid</Badge>
+                      ) : (
+                        <Badge className="bg-red-500/20 text-red-400 text-[10px]">{g.error}</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -2631,6 +2732,358 @@ function CompliancePanel({ pipelineId }: { pipelineId: number | null }) {
     </div>
   );
 }
+
+// ─── SBOM Diff Panel ────────────────────────────────────────────────────────────
+
+function SbomDiffPanel({ pipelineId, runs }: { pipelineId: number | null; runs: any[] }) {
+  const [baselineRunId, setBaselineRunId] = useState<number | null>(null);
+  const [currentRunId, setCurrentRunId] = useState<number | null>(null);
+
+  const diffQuery = trpc.cicdPipeline.compareSboms.useQuery(
+    { baselineRunId: baselineRunId!, currentRunId: currentRunId!, pipelineId: pipelineId! },
+    { enabled: !!baselineRunId && !!currentRunId && !!pipelineId && baselineRunId !== currentRunId }
+  );
+
+  if (!pipelineId) return <div className="text-center text-muted-foreground p-8">Select a pipeline to compare SBOMs</div>;
+
+  const sortedRuns = [...runs].sort((a: any, b: any) => b.id - a.id);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-xs">Baseline Run</Label>
+          <Select value={baselineRunId?.toString() || ""} onValueChange={v => setBaselineRunId(Number(v))}>
+            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select baseline run" /></SelectTrigger>
+            <SelectContent>
+              {sortedRuns.map((r: any) => (
+                <SelectItem key={r.id} value={r.id.toString()}>Run #{r.id} — {r.branch || "main"} ({r.status})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Current Run</Label>
+          <Select value={currentRunId?.toString() || ""} onValueChange={v => setCurrentRunId(Number(v))}>
+            <SelectTrigger className="h-8 text-xs mt-1"><SelectValue placeholder="Select current run" /></SelectTrigger>
+            <SelectContent>
+              {sortedRuns.map((r: any) => (
+                <SelectItem key={r.id} value={r.id.toString()}>Run #{r.id} — {r.branch || "main"} ({r.status})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {baselineRunId && currentRunId && baselineRunId === currentRunId && (
+        <Alert><AlertCircle className="h-4 w-4" /><AlertTitle>Same Run Selected</AlertTitle><AlertDescription>Select two different runs to compare SBOMs.</AlertDescription></Alert>
+      )}
+
+      {diffQuery.isLoading && <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+
+      {diffQuery.data && (
+        <div className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-4 gap-3">
+            <Card className="border-emerald-500/20 bg-emerald-950/10">
+              <CardContent className="p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-400">{diffQuery.data.diff.removed.length}</p>
+                <p className="text-[10px] text-muted-foreground">Components Removed</p>
+              </CardContent>
+            </Card>
+            <Card className="border-red-500/20 bg-red-950/10">
+              <CardContent className="p-3 text-center">
+                <p className="text-2xl font-bold text-red-400">{diffQuery.data.diff.added.length}</p>
+                <p className="text-[10px] text-muted-foreground">Components Added</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-500/20 bg-amber-950/10">
+              <CardContent className="p-3 text-center">
+                <p className="text-2xl font-bold text-amber-400">{diffQuery.data.diff.modified.length}</p>
+                <p className="text-[10px] text-muted-foreground">Components Modified</p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-500/20 bg-blue-950/10">
+              <CardContent className="p-3 text-center">
+                <p className="text-2xl font-bold text-blue-400">{diffQuery.data.diff.unchanged.length}</p>
+                <p className="text-[10px] text-muted-foreground">Unchanged</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Vulnerability Delta */}
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">Vulnerability Delta</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <p className="text-muted-foreground mb-1">Baseline (Run #{diffQuery.data.baselineRun.id})</p>
+                  <p>Total Vulns: <span className="font-mono font-bold">{diffQuery.data.baselineStats.totalVulnerabilities}</span></p>
+                  <p>Critical: <span className="text-red-400 font-bold">{diffQuery.data.baselineStats.criticalVulnerabilities}</span></p>
+                  <p>Components: <span className="font-mono">{diffQuery.data.baselineStats.totalComponents}</span></p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">Current (Run #{diffQuery.data.currentRun.id})</p>
+                  <p>Total Vulns: <span className="font-mono font-bold">{diffQuery.data.currentStats.totalVulnerabilities}</span></p>
+                  <p>Critical: <span className="text-red-400 font-bold">{diffQuery.data.currentStats.criticalVulnerabilities}</span></p>
+                  <p>Components: <span className="font-mono">{diffQuery.data.currentStats.totalComponents}</span></p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Added Components */}
+          {diffQuery.data.diff.added.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-red-400">New Components ({diffQuery.data.diff.added.length})</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow><TableHead className="text-xs">Name</TableHead><TableHead className="text-xs">Version</TableHead><TableHead className="text-xs">Type</TableHead><TableHead className="text-xs">Vulns</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {diffQuery.data.diff.added.slice(0, 20).map((c: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs font-mono">{c.name}</TableCell>
+                        <TableCell className="text-xs">{c.version || "-"}</TableCell>
+                        <TableCell className="text-xs">{c.type || "library"}</TableCell>
+                        <TableCell className="text-xs">{c.vulnerabilities?.length || 0}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Removed Components */}
+          {diffQuery.data.diff.removed.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-emerald-400">Removed Components ({diffQuery.data.diff.removed.length})</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow><TableHead className="text-xs">Name</TableHead><TableHead className="text-xs">Version</TableHead><TableHead className="text-xs">Type</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {diffQuery.data.diff.removed.slice(0, 20).map((c: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs font-mono">{c.name}</TableCell>
+                        <TableCell className="text-xs">{c.version || "-"}</TableCell>
+                        <TableCell className="text-xs">{c.type || "library"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Modified Components */}
+          {diffQuery.data.diff.modified.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-amber-400">Modified Components ({diffQuery.data.diff.modified.length})</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader><TableRow><TableHead className="text-xs">Name</TableHead><TableHead className="text-xs">Old Ver</TableHead><TableHead className="text-xs">New Ver</TableHead><TableHead className="text-xs">Changes</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {diffQuery.data.diff.modified.slice(0, 20).map((c: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs font-mono">{c.name}</TableCell>
+                        <TableCell className="text-xs">{c.oldVersion || "-"}</TableCell>
+                        <TableCell className="text-xs">{c.newVersion || "-"}</TableCell>
+                        <TableCell className="text-xs">{c.changes?.join(", ") || "version"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!diffQuery.data && !diffQuery.isLoading && baselineRunId && currentRunId && baselineRunId !== currentRunId && (
+        <div className="text-center text-muted-foreground p-8 text-sm">No SBOM data available for the selected runs</div>
+      )}
+    </div>
+  );
+}
+
+// ─── Compliance Trend Panel ─────────────────────────────────────────────────────
+
+const FRAMEWORK_COLORS: Record<string, string> = {
+  soc2: "#3b82f6",
+  pci_dss: "#f59e0b",
+  nist_800_53: "#10b981",
+};
+
+const FRAMEWORK_LABELS: Record<string, string> = {
+  soc2: "SOC 2",
+  pci_dss: "PCI DSS",
+  nist_800_53: "NIST 800-53",
+};
+
+function ComplianceTrendPanel({ pipelineId }: { pipelineId: number | null }) {
+  const [selectedFramework, setSelectedFramework] = useState<string>("all");
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+
+  const trendQuery = trpc.cicdPipeline.getComplianceTrend.useQuery(
+    { pipelineId: pipelineId!, framework: selectedFramework as any, limit: 30 },
+    { enabled: !!pipelineId }
+  );
+
+  const storeScoresMut = trpc.cicdPipeline.storeComplianceScores.useMutation({
+    onSuccess: () => { toast.success("Compliance scores stored"); trendQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (!pipelineId) return <div className="text-center text-muted-foreground p-8">Select a pipeline to view compliance trends</div>;
+
+  // Build chart data from trend query
+  const chartData: any[] = [];
+  if (trendQuery.data?.byFramework) {
+    const allPoints: Map<number, any> = new Map();
+    for (const [fw, points] of Object.entries(trendQuery.data.byFramework)) {
+      for (const p of points as any[]) {
+        if (!allPoints.has(p.runId)) allPoints.set(p.runId, { runId: p.runId, createdAt: p.createdAt });
+        allPoints.get(p.runId)![fw] = p.score;
+      }
+    }
+    chartData.push(...Array.from(allPoints.values()).sort((a, b) => a.runId - b.runId));
+  }
+
+  const trends = trendQuery.data?.trends || {};
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Select value={selectedFramework} onValueChange={setSelectedFramework}>
+            <SelectTrigger className="h-8 text-xs w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Frameworks</SelectItem>
+              <SelectItem value="soc2">SOC 2</SelectItem>
+              <SelectItem value="pci_dss">PCI DSS</SelectItem>
+              <SelectItem value="nist_800_53">NIST 800-53</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm" variant="outline" className="text-xs h-8"
+            onClick={() => trendQuery.refetch()}
+          >
+            <RefreshCw className="h-3 w-3 mr-1" /> Refresh
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            type="number" placeholder="Run ID" className="h-8 w-24 text-xs"
+            onChange={(e) => setSelectedRunId(e.target.value ? Number(e.target.value) : null)}
+          />
+          <Button
+            size="sm" variant="outline" className="text-xs h-8 border-blue-500/30 text-blue-400"
+            disabled={!selectedRunId || storeScoresMut.isPending}
+            onClick={() => selectedRunId && storeScoresMut.mutate({ runId: selectedRunId, pipelineId: pipelineId! })}
+          >
+            {storeScoresMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <><PlusCircle className="h-3 w-3 mr-1" /> Store Scores</>}
+          </Button>
+        </div>
+      </div>
+
+      {/* Trend Direction Cards */}
+      {Object.keys(trends).length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {Object.entries(trends).map(([fw, t]: [string, any]) => (
+            <Card key={fw} className={`border-${t.direction === "up" ? "emerald" : t.direction === "down" ? "red" : "blue"}-500/20`}>
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">{FRAMEWORK_LABELS[fw] || fw}</p>
+                    <p className="text-xl font-bold" style={{ color: FRAMEWORK_COLORS[fw] }}>{t.latest.toFixed(1)}%</p>
+                  </div>
+                  <div className="text-right">
+                    {t.direction === "up" ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]"><TrendingUp className="h-3 w-3 mr-1" />+{t.delta.toFixed(1)}%</Badge>
+                    ) : t.direction === "down" ? (
+                      <Badge className="bg-red-500/20 text-red-400 text-[10px]"><TrendingDown className="h-3 w-3 mr-1" />{t.delta.toFixed(1)}%</Badge>
+                    ) : (
+                      <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">Stable</Badge>
+                    )}
+                    <p className="text-[9px] text-muted-foreground mt-1">prev: {t.previous.toFixed(1)}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Trend Chart */}
+      {chartData.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Compliance Score Trend</CardTitle></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis dataKey="runId" tick={{ fontSize: 10 }} label={{ value: "Run ID", position: "insideBottom", offset: -5, fontSize: 10 }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} label={{ value: "Score %", angle: -90, position: "insideLeft", fontSize: 10 }} />
+                <Tooltip contentStyle={{ backgroundColor: "#1a1a2e", border: "1px solid #333", fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="5 5" label={{ value: "Min Threshold", fontSize: 9, fill: "#ef4444" }} />
+                {(selectedFramework === "all" ? ["soc2", "pci_dss", "nist_800_53"] : [selectedFramework]).map(fw => (
+                  <Line
+                    key={fw}
+                    type="monotone"
+                    dataKey={fw}
+                    name={FRAMEWORK_LABELS[fw] || fw}
+                    stroke={FRAMEWORK_COLORS[fw]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="text-center text-muted-foreground p-8 text-sm">
+          <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>No compliance trend data yet</p>
+          <p className="text-xs mt-1">Enter a Run ID above and click "Store Scores" to start tracking</p>
+        </div>
+      )}
+
+      {/* Category Breakdown */}
+      {trendQuery.data?.byFramework && Object.entries(trendQuery.data.byFramework).map(([fw, points]: [string, any]) => {
+        const latest = points[0];
+        if (!latest?.categoryScores) return null;
+        return (
+          <Card key={fw}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm">{FRAMEWORK_LABELS[fw] || fw} — Category Breakdown (Latest)</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {(latest.categoryScores as any[]).map((cat: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-xs w-40 truncate">{cat.name}</span>
+                    <div className="flex-1 bg-muted rounded-full h-2">
+                      <div
+                        className="h-2 rounded-full transition-all"
+                        style={{ width: `${cat.score}%`, backgroundColor: FRAMEWORK_COLORS[fw] }}
+                      />
+                    </div>
+                    <span className="text-xs font-mono w-12 text-right">{cat.score.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Bulk RBAC Import (integrated into RbacPanel via CSV) ───────────────────────
+// Note: Bulk import functionality is added as a section within the existing RbacPanel
 
 // ─── Main Component ──────────────────────────────────────────────────────────────
 
@@ -2869,8 +3322,10 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                         <TabsTrigger value="conflicts" className="text-xs gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Conflicts</TabsTrigger>
                         <TabsTrigger value="webhook-templates" className="text-xs gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Templates</TabsTrigger>
                          <TabsTrigger value="sbom" className="text-xs gap-1.5"><FileCode className="h-3.5 w-3.5" /> SBOM</TabsTrigger>
+                         <TabsTrigger value="sbom-diff" className="text-xs gap-1.5"><GitBranch className="h-3.5 w-3.5" /> SBOM Diff</TabsTrigger>
                          <TabsTrigger value="rbac" className="text-xs gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Access</TabsTrigger>
                          <TabsTrigger value="compliance" className="text-xs gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Compliance</TabsTrigger>
+                         <TabsTrigger value="compliance-trends" className="text-xs gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Trends</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -3074,6 +3529,16 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                       {/* Compliance Tab */}
                       <TabsContent value="compliance" className="mt-0">
                         <CompliancePanel pipelineId={selectedPipeline} />
+                      </TabsContent>
+
+                      {/* SBOM Diff Tab */}
+                      <TabsContent value="sbom-diff" className="mt-0">
+                        <SbomDiffPanel pipelineId={selectedPipeline} runs={runsQuery.data || []} />
+                      </TabsContent>
+
+                      {/* Compliance Trends Tab */}
+                      <TabsContent value="compliance-trends" className="mt-0">
+                        <ComplianceTrendPanel pipelineId={selectedPipeline} />
                       </TabsContent>
                     </Tabs>
                   </CardContent>

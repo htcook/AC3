@@ -2035,4 +2035,284 @@ export const cicdPipelineRouter = router({
     const { getAvailableFrameworks } = await import("../lib/cicd-compliance-mapper");
     return getAvailableFrameworks();
   }),
+
+  // ─── Compliance Trend Tracking ──────────────────────────────────────────
+
+  /** Store compliance scores for a run (called after compliance report generation) */
+  storeComplianceScores: protectedProcedure
+    .input(z.object({ runId: z.number(), pipelineId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Get run data
+      const runRows = await db.execute(sql.raw(
+        `SELECT r.*, p.cicd_name FROM cicd_runs r JOIN cicd_pipelines p ON r.cicd_run_pipeline_id = p.id WHERE r.id = ${input.runId}`
+      ));
+      const run = ((runRows as any).rows || runRows)?.[0];
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+
+      let findings: any[] = [];
+      try {
+        const reportUrl = run.cicd_report_url;
+        if (reportUrl) {
+          const parsed = JSON.parse(reportUrl);
+          findings = parsed.findings || parsed.results || (Array.isArray(parsed) ? parsed : []);
+        }
+      } catch { findings = []; }
+
+      const { generateComplianceReport } = await import("../lib/cicd-compliance-mapper");
+      const frameworks = ["soc2", "pci_dss", "nist_800_53"] as const;
+      const results: any[] = [];
+
+      for (const fw of frameworks) {
+        const report = generateComplianceReport({
+          framework: fw,
+          pipelineId: input.pipelineId,
+          pipelineName: run.cicd_name || `Pipeline #${input.pipelineId}`,
+          runId: input.runId,
+          findings,
+        });
+
+        const categoryScores = JSON.stringify(
+          report.categories.map(c => ({ name: c.name, score: c.categoryScore }))
+        );
+
+        await db.execute(sql.raw(
+          `INSERT INTO cicd_compliance_scores (pipeline_id, run_id, framework, compliance_score, total_controls, passed, failed, partial_count, not_tested, risk_level, category_scores)
+           VALUES (${input.pipelineId}, ${input.runId}, '${fw}', ${report.summary.complianceScore}, ${report.summary.totalControls}, ${report.summary.passed}, ${report.summary.failed}, ${report.summary.partial}, ${report.summary.notTested}, '${report.summary.riskLevel}', '${categoryScores.replace(/'/g, "''")}')`
+        ));
+
+        results.push({
+          framework: fw,
+          score: report.summary.complianceScore,
+          riskLevel: report.summary.riskLevel,
+        });
+      }
+
+      return { stored: results.length, results };
+    }),
+
+  /** Get compliance trend data for a pipeline across all runs */
+  getComplianceTrend: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      framework: z.enum(["soc2", "pci_dss", "nist_800_53", "all"]).default("all"),
+      limit: z.number().min(1).max(100).default(30),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const fwFilter = input.framework !== "all" ? `AND framework = '${input.framework}'` : "";
+      const rows = await db.execute(sql.raw(
+        `SELECT * FROM cicd_compliance_scores WHERE pipeline_id = ${input.pipelineId} ${fwFilter} ORDER BY created_at DESC LIMIT ${input.limit}`
+      ));
+      const data = ((rows as any).rows || rows) || [];
+
+      // Group by framework for trend lines
+      const byFramework: Record<string, any[]> = {};
+      for (const row of data as any[]) {
+        const fw = row.framework;
+        if (!byFramework[fw]) byFramework[fw] = [];
+        byFramework[fw].push({
+          runId: row.run_id,
+          score: Number(row.compliance_score),
+          passed: row.passed,
+          failed: row.failed,
+          partial: row.partial_count,
+          notTested: row.not_tested,
+          totalControls: row.total_controls,
+          riskLevel: row.risk_level,
+          categoryScores: typeof row.category_scores === 'string' ? JSON.parse(row.category_scores) : row.category_scores,
+          createdAt: row.created_at,
+        });
+      }
+
+      // Compute trend direction for each framework
+      const trends: Record<string, { direction: "up" | "down" | "stable"; delta: number; latest: number; previous: number }> = {};
+      for (const [fw, points] of Object.entries(byFramework)) {
+        if (points.length >= 2) {
+          const latest = points[0].score;
+          const previous = points[1].score;
+          const delta = latest - previous;
+          trends[fw] = {
+            direction: delta > 1 ? "up" : delta < -1 ? "down" : "stable",
+            delta: Math.round(delta * 100) / 100,
+            latest,
+            previous,
+          };
+        } else if (points.length === 1) {
+          trends[fw] = { direction: "stable", delta: 0, latest: points[0].score, previous: points[0].score };
+        }
+      }
+
+      return { byFramework, trends, totalDataPoints: (data as any[]).length };
+    }),
+
+  // ─── SBOM Diff Between Runs ─────────────────────────────────────────────
+
+  /** Compare SBOMs between two runs */
+  compareSboms: protectedProcedure
+    .input(z.object({ baselineRunId: z.number(), currentRunId: z.number(), pipelineId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Fetch both runs
+      const [baseRows, currRows, pipeRows] = await Promise.all([
+        db.execute(sql.raw(`SELECT * FROM cicd_runs WHERE id = ${input.baselineRunId}`)),
+        db.execute(sql.raw(`SELECT * FROM cicd_runs WHERE id = ${input.currentRunId}`)),
+        db.execute(sql.raw(`SELECT * FROM cicd_pipelines WHERE id = ${input.pipelineId}`)),
+      ]);
+      const baseRun = ((baseRows as any).rows || baseRows)?.[0];
+      const currRun = ((currRows as any).rows || currRows)?.[0];
+      const pipeline = ((pipeRows as any).rows || pipeRows)?.[0];
+      if (!baseRun || !currRun) throw new TRPCError({ code: "NOT_FOUND", message: "One or both runs not found" });
+
+      const parseFindingsFromRun = (run: any): any[] => {
+        try {
+          const reportUrl = run.cicd_report_url;
+          if (reportUrl) {
+            const parsed = JSON.parse(reportUrl);
+            return parsed.findings || parsed.results || (Array.isArray(parsed) ? parsed : []);
+          }
+        } catch {}
+        return [];
+      };
+
+      const { generateSbom, compareSboms: compareSbomsFunc } = await import("../lib/cicd-sbom-generator");
+      const pName = pipeline?.cicd_name || `Pipeline #${input.pipelineId}`;
+
+      const { sbom: baselineSbom, stats: baselineStats } = generateSbom({
+        pipelineId: input.pipelineId,
+        pipelineName: pName,
+        runId: input.baselineRunId,
+        targetUrl: baseRun.cicd_target_url || undefined,
+        branch: baseRun.cicd_branch || undefined,
+        commitSha: baseRun.cicd_commit_sha || undefined,
+        findings: parseFindingsFromRun(baseRun),
+      });
+
+      const { sbom: currentSbom, stats: currentStats } = generateSbom({
+        pipelineId: input.pipelineId,
+        pipelineName: pName,
+        runId: input.currentRunId,
+        targetUrl: currRun.cicd_target_url || undefined,
+        branch: currRun.cicd_branch || undefined,
+        commitSha: currRun.cicd_commit_sha || undefined,
+        findings: parseFindingsFromRun(currRun),
+      });
+
+      const diff = compareSbomsFunc(baselineSbom, currentSbom);
+
+      return {
+        diff,
+        baselineStats,
+        currentStats,
+        baselineRun: { id: input.baselineRunId, branch: baseRun.cicd_branch, commitSha: baseRun.cicd_commit_sha, createdAt: baseRun.cicd_run_created_at },
+        currentRun: { id: input.currentRunId, branch: currRun.cicd_branch, commitSha: currRun.cicd_commit_sha, createdAt: currRun.cicd_run_created_at },
+      };
+    }),
+
+  // ─── Bulk RBAC Import ───────────────────────────────────────────────────
+
+  /** Import pipeline access grants from CSV-style data */
+  bulkImportAccess: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      grants: z.array(z.object({
+        userId: z.string(),
+        userName: z.string().optional(),
+        role: z.enum(["owner", "editor", "viewer"]),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const results: Array<{ userId: string; userName: string; role: string; status: "created" | "updated" | "error"; error?: string }> = [];
+
+      for (const grant of input.grants) {
+        try {
+          // Check if access already exists
+          const existingRows = await db.execute(sql.raw(
+            `SELECT * FROM cicd_pipeline_access WHERE pipeline_id = ${input.pipelineId} AND user_id = '${grant.userId.replace(/'/g, "''")}'`
+          ));
+          const existing = ((existingRows as any).rows || existingRows)?.[0];
+
+          if (existing) {
+            // Update existing role
+            await db.execute(sql.raw(
+              `UPDATE cicd_pipeline_access SET role = '${grant.role}', granted_by = '${(ctx.user?.id || "system").toString().replace(/'/g, "''")}' WHERE pipeline_id = ${input.pipelineId} AND user_id = '${grant.userId.replace(/'/g, "''")}'`
+            ));
+            results.push({ userId: grant.userId, userName: grant.userName || grant.userId, role: grant.role, status: "updated" });
+          } else {
+            // Create new grant
+            await db.execute(sql.raw(
+              `INSERT INTO cicd_pipeline_access (pipeline_id, user_id, user_name, role, granted_by) VALUES (${input.pipelineId}, '${grant.userId.replace(/'/g, "''")}', '${(grant.userName || grant.userId).replace(/'/g, "''")}', '${grant.role}', '${(ctx.user?.id || "system").toString().replace(/'/g, "''")}')`
+            ));
+            results.push({ userId: grant.userId, userName: grant.userName || grant.userId, role: grant.role, status: "created" });
+          }
+        } catch (e: any) {
+          results.push({ userId: grant.userId, userName: grant.userName || grant.userId, role: grant.role, status: "error", error: e.message });
+        }
+      }
+
+      return {
+        total: results.length,
+        created: results.filter(r => r.status === "created").length,
+        updated: results.filter(r => r.status === "updated").length,
+        errors: results.filter(r => r.status === "error").length,
+        results,
+      };
+    }),
+
+  /** Parse CSV text into grant objects for preview before import */
+  parseBulkAccessCsv: protectedProcedure
+    .input(z.object({ csvText: z.string() }))
+    .mutation(async ({ input }) => {
+      const lines = input.csvText.trim().split("\n").filter(l => l.trim());
+      const grants: Array<{ userId: string; userName: string; role: string; valid: boolean; error?: string }> = [];
+      const validRoles = ["owner", "editor", "viewer"];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        // Skip header row
+        if (i === 0 && (line.toLowerCase().includes("user_id") || line.toLowerCase().includes("userid") || line.toLowerCase().includes("email"))) continue;
+
+        const parts = line.split(",").map(p => p.trim().replace(/^"|"$/g, ""));
+        if (parts.length < 2) {
+          grants.push({ userId: parts[0] || "", userName: "", role: "", valid: false, error: "Insufficient columns (need at least userId,role)" });
+          continue;
+        }
+
+        const userId = parts[0];
+        const role = parts.length >= 3 ? parts[2].toLowerCase() : parts[1].toLowerCase();
+        const userName = parts.length >= 3 ? parts[1] : userId;
+
+        if (!userId) {
+          grants.push({ userId: "", userName, role, valid: false, error: "Missing userId" });
+        } else if (!validRoles.includes(role)) {
+          grants.push({ userId, userName, role, valid: false, error: `Invalid role '${role}'. Must be owner, editor, or viewer` });
+        } else {
+          grants.push({ userId, userName, role, valid: true });
+        }
+      }
+
+      return {
+        total: grants.length,
+        valid: grants.filter(g => g.valid).length,
+        invalid: grants.filter(g => !g.valid).length,
+        grants,
+      };
+    }),
 });
