@@ -30,6 +30,8 @@ function mapPipeline(row: any) {
     scheduleTargetUrl: row.cicdScheduleTargetUrl || null,
     scheduleLastRun: row.cicdScheduleLastRun || null,
     scheduleNextRun: row.cicdScheduleNextRun || null,
+    // Baseline pinning
+    baselineRunId: row.cicdBaselineRunId || null,
   };
 }
 
@@ -1578,5 +1580,224 @@ export const cicdPipelineRouter = router({
       const { manualRetry } = await import("../lib/cicd-webhook-delivery");
       const success = await manualRetry(input.deliveryId);
       return { success };
+    }),
+
+  // ─── Baseline Pinning ─────────────────────────────────────────────────────
+  pinBaseline: protectedProcedure
+    .input(z.object({ pipelineId: z.number(), runId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Verify the run exists and belongs to this pipeline
+      const runRows = await db.execute(sql.raw(
+        `SELECT id, cicd_run_pipeline_id FROM cicd_runs WHERE id = ${input.runId}`
+      ));
+      const run = ((runRows as any).rows || runRows)?.[0] as any;
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+      if (Number(run.cicd_run_pipeline_id) !== input.pipelineId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Run does not belong to this pipeline" });
+      }
+
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET baseline_run_id = ${input.runId} WHERE id = ${input.pipelineId}`
+      ));
+      console.log(`[CICD] Baseline pinned: pipeline ${input.pipelineId} → run ${input.runId}`);
+      return { success: true, baselineRunId: input.runId };
+    }),
+
+  unpinBaseline: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET baseline_run_id = NULL WHERE id = ${input.pipelineId}`
+      ));
+      return { success: true };
+    }),
+
+  getBaselineDiff: protectedProcedure
+    .input(z.object({ pipelineId: z.number(), runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Get the pinned baseline run ID
+      const pRows = await db.execute(sql.raw(
+        `SELECT baseline_run_id FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+      ));
+      const pipeline = ((pRows as any).rows || pRows)?.[0] as any;
+      const baselineRunId = pipeline?.baseline_run_id;
+      if (!baselineRunId) return { hasBaseline: false, diff: null };
+      if (Number(baselineRunId) === input.runId) return { hasBaseline: true, isBaseline: true, diff: null };
+
+      // Fetch both runs
+      const [baselineRows, currentRows] = await Promise.all([
+        db.execute(sql.raw(`SELECT * FROM cicd_runs WHERE id = ${baselineRunId}`)),
+        db.execute(sql.raw(`SELECT * FROM cicd_runs WHERE id = ${input.runId}`)),
+      ]);
+      const baselineRun = ((baselineRows as any).rows || baselineRows)?.[0] as any;
+      const currentRun = ((currentRows as any).rows || currentRows)?.[0] as any;
+      if (!baselineRun || !currentRun) return { hasBaseline: true, diff: null };
+
+      const parseFindingsFromReport = (reportUrl: string | null) => {
+        if (!reportUrl) return [];
+        try {
+          const parsed = JSON.parse(reportUrl);
+          return parsed.findings || [];
+        } catch { return []; }
+      };
+
+      const { compareRuns } = await import("../lib/cicd-scan-diff");
+      const diff = compareRuns(
+        {
+          id: Number(baselineRun.id),
+          status: baselineRun.cicd_run_status || "unknown",
+          branch: baselineRun.cicd_branch || undefined,
+          completedAt: baselineRun.cicd_completed_at || undefined,
+          findings: parseFindingsFromReport(baselineRun.cicd_report_url),
+        },
+        {
+          id: Number(currentRun.id),
+          status: currentRun.cicd_run_status || "unknown",
+          branch: currentRun.cicd_branch || undefined,
+          completedAt: currentRun.cicd_completed_at || undefined,
+          findings: parseFindingsFromReport(currentRun.cicd_report_url),
+        }
+      );
+
+      return { hasBaseline: true, isBaseline: false, baselineRunId: Number(baselineRunId), diff };
+    }),
+
+  // ─── Webhook Templates ────────────────────────────────────────────────────
+  getWebhookFormats: protectedProcedure.query(async () => {
+    const { getWebhookFormatOptions } = await import("../lib/cicd-webhook-templates");
+    return getWebhookFormatOptions();
+  }),
+
+  previewWebhookPayload: protectedProcedure
+    .input(z.object({
+      format: z.enum(["raw", "slack", "teams"]),
+      pipelineId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { formatWebhookPayload } = await import("../lib/cicd-webhook-templates");
+      const sampleData = {
+        pipelineId: input.pipelineId || 1,
+        pipelineName: "Production Security Scan",
+        runId: 42,
+        status: "failed" as const,
+        targetUrl: "https://app.example.com",
+        branch: "main",
+        commitSha: "abc1234def5678",
+        criticalCount: 2,
+        highCount: 5,
+        mediumCount: 8,
+        lowCount: 3,
+        maxCvss: 9.8,
+        failThreshold: 7.0,
+        duration: "3m 42s",
+        newFindings: 3,
+        fixedFindings: 1,
+        gateEscalationReason: "2 findings linked to ransomware groups",
+        threatContext: {
+          uniqueActorsMatched: 4,
+          actorExposureScore: 72,
+          ransomwareRiskFindings: 2,
+          aptRiskFindings: 3,
+          killChainCoverage: 45,
+          topActors: [
+            { name: "APT28", type: "APT", findingCount: 3 },
+            { name: "LockBit", type: "Ransomware", findingCount: 2 },
+            { name: "Lazarus Group", type: "APT", findingCount: 1 },
+          ],
+        },
+        dashboardUrl: "https://dashboard.example.com/cicd/runs/42",
+      };
+      return {
+        format: input.format,
+        payload: formatWebhookPayload(sampleData, input.format),
+      };
+    }),
+
+  setWebhookFormat: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      format: z.enum(["raw", "slack", "teams"]),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      // Store webhook format in sector_context JSON (reuse existing JSON column)
+      const rows = await db.execute(sql.raw(
+        `SELECT cicd_sector_context FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+      ));
+      const row = ((rows as any).rows || rows)?.[0] as any;
+      let config: any = {};
+      if (row?.cicd_sector_context) {
+        try { config = typeof row.cicd_sector_context === 'string' ? JSON.parse(row.cicd_sector_context) : row.cicd_sector_context; } catch {}
+      }
+      config.webhookFormat = input.format;
+      await db.execute(sql.raw(
+        `UPDATE cicd_pipelines SET cicd_sector_context = '${JSON.stringify(config).replace(/'/g, "''")}' WHERE id = ${input.pipelineId}`
+      ));
+      return { success: true };
+    }),
+
+  // ─── Schedule Conflict Detection ──────────────────────────────────────────
+  detectScheduleConflicts: protectedProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { cicdPipelines } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const { sql } = await import("drizzle-orm");
+
+    const rows = await db.execute(sql.raw(
+      `SELECT id, cicd_name, cicd_schedule_cron, cicd_schedule_enabled, cicd_webhook_url FROM cicd_pipelines WHERE cicd_schedule_enabled = 1`
+    ));
+    const pipelines = (((rows as any).rows || rows) as any[]).map((r: any) => ({
+      id: Number(r.id),
+      name: r.cicd_name || `Pipeline #${r.id}`,
+      cronExpression: r.cicd_schedule_cron || "",
+      enabled: !!r.cicd_schedule_enabled,
+      targetUrl: r.cicd_webhook_url || undefined,
+    }));
+
+    const { detectConflicts } = await import("../lib/cicd-schedule-conflict");
+    return detectConflicts(pipelines);
+  }),
+
+  suggestSchedule: protectedProcedure
+    .input(z.object({
+      frequency: z.enum(["hourly", "every_6h", "every_12h", "daily", "weekly"]),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { sql } = await import("drizzle-orm");
+
+      const rows = await db.execute(sql.raw(
+        `SELECT id, cicd_name, cicd_schedule_cron, cicd_schedule_enabled FROM cicd_pipelines WHERE cicd_schedule_enabled = 1`
+      ));
+      const pipelines = (((rows as any).rows || rows) as any[]).map((r: any) => ({
+        id: Number(r.id),
+        name: r.cicd_name || `Pipeline #${r.id}`,
+        cronExpression: r.cicd_schedule_cron || "",
+        enabled: !!r.cicd_schedule_enabled,
+      }));
+
+      const { suggestNonConflictingSchedule } = await import("../lib/cicd-schedule-conflict");
+      return suggestNonConflictingSchedule(pipelines, input.frequency);
     }),
 });

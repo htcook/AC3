@@ -1481,6 +1481,8 @@ export const cicdPipelines = mysqlTable("cicd_pipelines", {
 	cicdScheduleTargetUrl: varchar("cicd_schedule_target_url", { length: 512 }),
 	cicdScheduleLastRun: timestamp("cicd_schedule_last_run", { mode: 'string' }),
 	cicdScheduleNextRun: timestamp("cicd_schedule_next_run", { mode: 'string' }),
+	// Baseline pinning: golden baseline run for auto-diff
+	cicdBaselineRunId: int("cicd_baseline_run_id"),
 });
 
 export const cicdRuns = mysqlTable("cicd_runs", {

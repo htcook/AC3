@@ -68,6 +68,10 @@ import {
   TrendingUp,
   TrendingDown,
   Zap,
+  Pin,
+  PinOff,
+  AlertTriangle,
+  MessageSquare,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import {
@@ -1868,6 +1872,233 @@ function WebhookDeliveryPanel({ pipelineId }: { pipelineId: any }) {
   );
 }
 
+// ─── Schedule Conflict Panel ────────────────────────────────────────────────────
+
+function ScheduleConflictPanel() {
+  const conflictsQuery = trpc.cicdPipeline.detectScheduleConflicts.useQuery();
+  const [suggestFreq, setSuggestFreq] = useState<string>("daily");
+  const suggestQuery = trpc.cicdPipeline.suggestSchedule.useQuery(
+    { frequency: suggestFreq as any },
+    { enabled: !!suggestFreq }
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            Schedule Conflict Detection
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Detects overlapping cron schedules that could cause concurrent scan resource contention.</p>
+        </div>
+      </div>
+
+      {conflictsQuery.isLoading ? (
+        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : conflictsQuery.data ? (
+        <>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="bg-muted/20 border-muted/30">
+              <CardContent className="p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Scheduled Pipelines</p>
+                <p className="text-xl font-bold mt-0.5">{conflictsQuery.data.totalScheduled}</p>
+              </CardContent>
+            </Card>
+            <Card className={`border-muted/30 ${conflictsQuery.data.conflicts.length > 0 ? "bg-amber-500/10 border-amber-500/30" : "bg-emerald-500/10 border-emerald-500/30"}`}>
+              <CardContent className="p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Conflicts Found</p>
+                <p className={`text-xl font-bold mt-0.5 ${conflictsQuery.data.conflicts.length > 0 ? "text-amber-400" : "text-emerald-400"}`}>
+                  {conflictsQuery.data.conflicts.length}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-muted/20 border-muted/30">
+              <CardContent className="p-3">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Max Concurrent</p>
+                <p className="text-xl font-bold mt-0.5">{conflictsQuery.data.maxConcurrent}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Conflicts List */}
+          {conflictsQuery.data.conflicts.length > 0 ? (
+            <div className="space-y-2">
+              {conflictsQuery.data.conflicts.map((c: any, i: number) => (
+                <Alert key={i} variant="destructive" className="bg-amber-500/5 border-amber-500/30 text-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <AlertTitle className="text-xs font-semibold">Overlap: {c.severity} risk</AlertTitle>
+                  <AlertDescription className="text-[11px] mt-1">
+                    <span className="font-medium">{c.pipeline1Name}</span> ({c.pipeline1Cron}) overlaps with{" "}
+                    <span className="font-medium">{c.pipeline2Name}</span> ({c.pipeline2Cron})
+                    {c.overlapMinutes && <span className="text-muted-foreground"> — {c.overlapMinutes} min window</span>}
+                    {c.recommendation && <p className="mt-1 text-muted-foreground italic">{c.recommendation}</p>}
+                  </AlertDescription>
+                </Alert>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No schedule conflicts detected.</p>
+              <p className="text-xs mt-1">All scheduled pipelines have non-overlapping execution windows.</p>
+            </div>
+          )}
+
+          {/* Schedule Suggestion */}
+          <Card className="bg-muted/20 border-muted/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs">Schedule Suggestion</CardTitle>
+              <CardDescription className="text-[10px]">Get a non-conflicting cron schedule for a new pipeline.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Select value={suggestFreq} onValueChange={setSuggestFreq}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hourly">Hourly</SelectItem>
+                  <SelectItem value="every_6h">Every 6 Hours</SelectItem>
+                  <SelectItem value="every_12h">Every 12 Hours</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+              {suggestQuery.data && (
+                <div className="p-3 rounded-lg border border-border/50 bg-background">
+                  <p className="text-xs font-medium">Suggested Cron</p>
+                  <code className="text-sm font-mono text-cyan-400 block mt-1">{suggestQuery.data.cronExpression}</code>
+                  <p className="text-[10px] text-muted-foreground mt-1">{suggestQuery.data.description}</p>
+                  {suggestQuery.data.conflictFree !== undefined && (
+                    <Badge variant="outline" className={`mt-2 text-[10px] ${suggestQuery.data.conflictFree ? "text-emerald-400 border-emerald-400/30" : "text-amber-400 border-amber-400/30"}`}>
+                      {suggestQuery.data.conflictFree ? "Conflict-free" : "May have minor overlap"}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Webhook Template Panel ─────────────────────────────────────────────────────
+
+function WebhookTemplatePanel({ pipelineId }: { pipelineId: number }) {
+  const [selectedFormat, setSelectedFormat] = useState<string>("raw");
+  const formatsQuery = trpc.cicdPipeline.getWebhookFormats.useQuery();
+  const previewQuery = trpc.cicdPipeline.previewWebhookPayload.useQuery(
+    { format: selectedFormat as any, pipelineId },
+    { enabled: !!selectedFormat }
+  );
+  const setFormat = trpc.cicdPipeline.setWebhookFormat.useMutation({
+    onSuccess: () => toast.success(`Webhook format set to ${selectedFormat}.`),
+    onError: (error: any) => toast.error(`Failed: ${error.message}`),
+  });
+  const utils = trpc.useUtils();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-blue-400" />
+          Webhook Payload Templates
+        </h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Choose a pre-built payload format for Slack, Microsoft Teams, or raw JSON.</p>
+      </div>
+
+      {/* Format Selector */}
+      <div className="grid grid-cols-3 gap-3">
+        {(formatsQuery.data || [
+          { id: "raw", label: "Raw JSON", description: "Standard JSON payload", icon: "{ }" },
+          { id: "slack", label: "Slack", description: "Rich Slack Block Kit cards", icon: "#" },
+          { id: "teams", label: "MS Teams", description: "Adaptive Card format", icon: "T" },
+        ]).map((fmt: any) => (
+          <Card
+            key={fmt.id}
+            className={`cursor-pointer transition-all hover:border-blue-400/50 ${
+              selectedFormat === fmt.id ? "border-blue-400 bg-blue-400/5" : "bg-muted/20 border-muted/30"
+            }`}
+            onClick={() => setSelectedFormat(fmt.id)}
+          >
+            <CardContent className="p-3 text-center">
+              <p className="text-lg font-mono font-bold mb-1">{fmt.icon}</p>
+              <p className="text-xs font-medium">{fmt.label}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{fmt.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Preview */}
+      {previewQuery.data && (
+        <Card className="bg-muted/20 border-muted/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-xs">Payload Preview ({previewQuery.data.format})</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(previewQuery.data.payload, null, 2));
+                  toast.success("Payload copied to clipboard.");
+                }}
+              >
+                <Copy className="h-3 w-3" /> Copy
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-[10px] font-mono text-muted-foreground bg-background p-3 rounded-lg border border-border/50 overflow-x-auto max-h-[400px] overflow-y-auto whitespace-pre">
+              {JSON.stringify(previewQuery.data.payload, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Apply Button */}
+      <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20">
+        <div>
+          <p className="text-xs font-medium">Apply to Pipeline</p>
+          <p className="text-[10px] text-muted-foreground">All webhook deliveries for this pipeline will use the selected format.</p>
+        </div>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          disabled={setFormat.isPending}
+          onClick={() => setFormat.mutate({ pipelineId, format: selectedFormat as any })}
+        >
+          {setFormat.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Apply {selectedFormat === "slack" ? "Slack" : selectedFormat === "teams" ? "Teams" : "Raw"} Format
+        </Button>
+      </div>
+
+      {/* Format Details */}
+      <div className="space-y-2">
+        <p className="text-xs font-medium">Format Details</p>
+        <div className="grid gap-2">
+          <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
+            <p className="text-xs font-medium text-blue-400">Slack Block Kit</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Rich cards with header, status badge, finding counts by severity, threat actor context, gate escalation alerts, and direct dashboard links. Supports color-coded attachments for pass/fail status.</p>
+          </div>
+          <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
+            <p className="text-xs font-medium text-purple-400">Microsoft Teams Adaptive Cards</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Adaptive Card v1.4 with column layouts, fact sets for scan metrics, threat actor tables, severity-colored containers, and action buttons linking to the dashboard.</p>
+          </div>
+          <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
+            <p className="text-xs font-medium text-emerald-400">Raw JSON</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Standard JSON payload with all scan data, findings, threat context, and metadata. Ideal for custom integrations, SIEM ingestion, or programmatic processing.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────────
 
 export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen] = useState(false);
@@ -1906,6 +2137,22 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
       toast.success("Pipeline run triggered.");
     },
     onError: (error: any) => toast.error(`Trigger failed: ${error.message}`),
+  });
+
+  const pinBaseline = trpc.cicdPipeline.pinBaseline.useMutation({
+    onSuccess: () => {
+      utils.cicdPipeline.listPipelines.invalidate();
+      toast.success("Baseline pinned. Future scans will auto-diff against this run.");
+    },
+    onError: (error: any) => toast.error(`Pin failed: ${error.message}`),
+  });
+
+  const unpinBaseline = trpc.cicdPipeline.unpinBaseline.useMutation({
+    onSuccess: () => {
+      utils.cicdPipeline.listPipelines.invalidate();
+      toast.success("Baseline unpinned.");
+    },
+    onError: (error: any) => toast.error(`Unpin failed: ${error.message}`),
   });
 
   const stats = useMemo(() => statsQuery.data, [statsQuery.data]);
@@ -2051,8 +2298,24 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                           {providerIcons[selectedPipeline?.provider || "custom"]}
                           {selectedPipeline?.name || "Pipeline"}
                         </CardTitle>
-                        <CardDescription className="text-xs">
-                          CVSS Fail Threshold: {selectedPipeline?.failThreshold ?? 7.0}
+                        <CardDescription className="text-xs flex items-center gap-3">
+                          <span>CVSS Fail Threshold: {selectedPipeline?.failThreshold ?? 7.0}</span>
+                          {selectedPipeline?.baselineRunId && (
+                            <span className="flex items-center gap-1.5">
+                              <Badge variant="outline" className="text-[10px] gap-1 text-amber-400 border-amber-400/30">
+                                <Pin className="h-2.5 w-2.5" /> Baseline: Run #{selectedPipeline.baselineRunId}
+                              </Badge>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                title="Unpin baseline"
+                                onClick={() => unpinBaseline.mutate({ pipelineId: selectedPipelineId! })}
+                              >
+                                <PinOff className="h-3 w-3" />
+                              </Button>
+                            </span>
+                          )}
                         </CardDescription>
                       </div>
                     </div>
@@ -2070,6 +2333,8 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                         <TabsTrigger value="diff" className="text-xs gap-1.5"><GitBranch className="h-3.5 w-3.5" /> Diff</TabsTrigger>
                         <TabsTrigger value="schedule-history" className="text-xs gap-1.5"><Calendar className="h-3.5 w-3.5" /> Schedule Log</TabsTrigger>
                         <TabsTrigger value="deliveries" className="text-xs gap-1.5"><Webhook className="h-3.5 w-3.5" /> Deliveries</TabsTrigger>
+                        <TabsTrigger value="conflicts" className="text-xs gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Conflicts</TabsTrigger>
+                        <TabsTrigger value="webhook-templates" className="text-xs gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Templates</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -2092,16 +2357,18 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                                 <TableHead className="text-xs">Commit</TableHead>
                                 <TableHead className="text-xs">Findings</TableHead>
                                 <TableHead className="text-xs">CVSS</TableHead>
+                                <TableHead className="text-xs">Baseline</TableHead>
                                 <TableHead className="text-xs text-right">Completed</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {runsQuery.data.map((run: any) => {
                                 const sc = statusConfig[run.status] || statusConfig.pending;
+                                const isPinnedBaseline = selectedPipeline?.baselineRunId === run.id;
                                 return (
                                   <TableRow
                                     key={run.id}
-                                    className={`cursor-pointer ${selectedRunId === run.id ? "bg-muted/40" : ""}`}
+                                    className={`cursor-pointer ${selectedRunId === run.id ? "bg-muted/40" : ""} ${isPinnedBaseline ? "border-l-2 border-amber-400" : ""}`}
                                     onClick={() => { setSelectedRunId(run.id); setActiveTab("results"); }}
                                   >
                                     <TableCell>
@@ -2119,6 +2386,26 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                                           {run.riskScore.toFixed(1)}
                                         </span>
                                       ) : "\u2014"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {isPinnedBaseline ? (
+                                        <Badge variant="outline" className="text-[10px] gap-1 text-amber-400 border-amber-400/30">
+                                          <Pin className="h-2.5 w-2.5" /> Pinned
+                                        </Badge>
+                                      ) : run.status === "passed" || run.status === "failed" ? (
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6 text-muted-foreground hover:text-amber-400"
+                                          title="Pin as golden baseline"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            pinBaseline.mutate({ pipelineId: selectedPipelineId!, runId: run.id });
+                                          }}
+                                        >
+                                          <Pin className="h-3 w-3" />
+                                        </Button>
+                                      ) : null}
                                     </TableCell>
                                     <TableCell className="text-right text-xs text-muted-foreground">
                                       {run.completedAt ? new Date(run.completedAt).toLocaleString() : "\u2014"}
@@ -2226,6 +2513,16 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                       {/* Webhook Deliveries Tab */}
                       <TabsContent value="deliveries" className="mt-0">
                         <WebhookDeliveryPanel pipelineId={selectedPipeline} />
+                      </TabsContent>
+
+                      {/* Schedule Conflicts Tab */}
+                      <TabsContent value="conflicts" className="mt-0">
+                        <ScheduleConflictPanel />
+                      </TabsContent>
+
+                      {/* Webhook Templates Tab */}
+                      <TabsContent value="webhook-templates" className="mt-0">
+                        <WebhookTemplatePanel pipelineId={selectedPipelineId!} />
                       </TabsContent>
                     </Tabs>
                   </CardContent>
