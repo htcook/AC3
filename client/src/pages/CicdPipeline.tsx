@@ -85,6 +85,8 @@ import {
   Area,
   ReferenceLine,
 } from "recharts";
+import { Link, useLocation } from "wouter";
+import { Clock, FileText, ExternalLink, Calendar } from "lucide-react";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -726,7 +728,10 @@ function ThreatIntelPanel({
                       {tc.actorExposure.slice(0, 15).map((actor: any) => (
                         <TableRow key={actor.groupId} className="hover:bg-muted/20">
                           <TableCell className="text-xs font-medium">
-                            {actor.groupName}
+                            <Link href={`/threat-group/${encodeURIComponent(actor.groupId || actor.groupName)}`} className="hover:underline hover:text-violet-400 transition-colors cursor-pointer inline-flex items-center gap-1">
+                              {actor.groupName}
+                              <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                            </Link>
                             {actor.active && <Badge variant="outline" className="ml-1.5 text-[8px] border-emerald-500 text-emerald-400">ACTIVE</Badge>}
                           </TableCell>
                           <TableCell>
@@ -1143,6 +1148,23 @@ function ThreatIntelPanel({
       </div>
 
       {/* Engagement Auto-Import */}
+      {/* Scheduled Scans Configuration */}
+      <ScheduleConfigPanel pipelineId={pipelineId} />
+
+      {/* PDF Threat Report Export */}
+      {selectedRun && (
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5 text-cyan-400" />
+            Export Threat Assessment Report
+          </p>
+          <p className="text-[10px] text-muted-foreground mb-3">
+            Generate a formatted PDF threat assessment report for this CI/CD run, including actor exposure, severity boosts, and kill chain analysis.
+          </p>
+          <ThreatReportExportButton runId={selectedRun.id} />
+        </div>
+      )}
+
       {selectedRun && (
         <div className="border-t border-border/30 pt-4">
           <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
@@ -1189,6 +1211,195 @@ function ThreatIntelPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Schedule Config Panel ──────────────────────────────────────────────────────
+
+function ScheduleConfigPanel({ pipelineId }: { pipelineId: number }) {
+  const utils = trpc.useUtils();
+  const scheduleQuery = trpc.cicdPipeline.getScheduleConfig.useQuery(
+    { pipelineId },
+    { enabled: !!pipelineId }
+  );
+
+  const [cronExpr, setCronExpr] = useState("");
+  const [targetUrl, setTargetUrl] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  React.useEffect(() => {
+    if (scheduleQuery.data && !initialized) {
+      setCronExpr(scheduleQuery.data.cronExpression || "");
+      setTargetUrl(scheduleQuery.data.targetUrl || "");
+      setEnabled(scheduleQuery.data.enabled);
+      setInitialized(true);
+    }
+  }, [scheduleQuery.data, initialized]);
+
+  const updateSchedule = trpc.cicdPipeline.updateSchedule.useMutation({
+    onSuccess: (data: any) => {
+      utils.cicdPipeline.getScheduleConfig.invalidate();
+      utils.cicdPipeline.listPipelines.invalidate();
+      toast.success(data.cronDescription
+        ? `Schedule updated: ${data.cronDescription}`
+        : "Schedule updated"
+      );
+    },
+    onError: (e: any) => toast.error(`Failed: ${e.message}`),
+  });
+
+  const presets = scheduleQuery.data?.presets || [];
+
+  return (
+    <div className="border-t border-border/30 pt-4">
+      <p className="text-xs font-medium mb-3 flex items-center gap-1.5">
+        <Clock className="h-3.5 w-3.5 text-cyan-400" />
+        Scheduled Scans
+      </p>
+      <p className="text-[10px] text-muted-foreground mb-3">
+        Configure cron-based recurring scans. The scheduler checks every 60 seconds for due pipelines.
+      </p>
+
+      {/* Enable/Disable Toggle */}
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            enabled ? 'bg-cyan-600' : 'bg-muted'
+          }`}
+          onClick={() => setEnabled(!enabled)}
+        >
+          <span
+            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+              enabled ? 'translate-x-4.5' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+        <span className="text-xs text-muted-foreground">{enabled ? "Enabled" : "Disabled"}</span>
+      </div>
+
+      {/* Preset Selector */}
+      <div className="mb-3">
+        <Label className="text-[10px] text-muted-foreground mb-1 block">Schedule Preset</Label>
+        <Select value={cronExpr} onValueChange={(val) => setCronExpr(val)}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Choose a preset or enter custom..." />
+          </SelectTrigger>
+          <SelectContent>
+            {presets.map((p: any) => (
+              <SelectItem key={p.cron} value={p.cron} className="text-xs">
+                {p.label} <span className="text-muted-foreground ml-1">({p.cron})</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Custom Cron Input */}
+      <div className="mb-3">
+        <Label className="text-[10px] text-muted-foreground mb-1 block">Cron Expression (5-field: min hour dom mon dow)</Label>
+        <Input
+          placeholder="0 */6 * * *"
+          value={cronExpr}
+          onChange={(e) => setCronExpr(e.target.value)}
+          className="h-8 text-xs font-mono"
+        />
+        {scheduleQuery.data?.cronDescription && (
+          <p className="text-[9px] text-cyan-400/70 mt-1">{scheduleQuery.data.cronDescription}</p>
+        )}
+      </div>
+
+      {/* Target URL */}
+      <div className="mb-3">
+        <Label className="text-[10px] text-muted-foreground mb-1 block">Target URL</Label>
+        <Input
+          placeholder="https://example.com"
+          value={targetUrl}
+          onChange={(e) => setTargetUrl(e.target.value)}
+          className="h-8 text-xs"
+        />
+      </div>
+
+      {/* Status Info */}
+      {scheduleQuery.data?.lastRun && (
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-3">
+          <span>Last: {new Date(scheduleQuery.data.lastRun).toLocaleString()}</span>
+          {scheduleQuery.data.nextRun && (
+            <span>Next: <span className="text-cyan-400">{new Date(scheduleQuery.data.nextRun).toLocaleString()}</span></span>
+          )}
+        </div>
+      )}
+
+      {/* Save Button */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-xs h-8 w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-950/20"
+        disabled={!cronExpr || !targetUrl || updateSchedule.isPending}
+        onClick={() => updateSchedule.mutate({
+          pipelineId,
+          cronExpression: cronExpr,
+          enabled,
+          targetUrl,
+        })}
+      >
+        {updateSchedule.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Calendar className="h-3 w-3 mr-1" />}
+        Save Schedule
+      </Button>
+    </div>
+  );
+}
+
+// ─── Threat Report Export Button ────────────────────────────────────────────────
+
+function ThreatReportExportButton({ runId }: { runId: number }) {
+  const reportQuery = trpc.cicdPipeline.generateThreatReport.useQuery(
+    { runId },
+    { enabled: false } // Manual fetch only
+  );
+  const [loading, setLoading] = useState(false);
+
+  const handleExport = async () => {
+    setLoading(true);
+    try {
+      const result = await reportQuery.refetch();
+      if (result.data?.html) {
+        // Open in new window for print-to-PDF
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(result.data.html);
+          win.document.close();
+          toast.success(`Threat report generated for Run #${runId}. Use browser Print (Ctrl+P) to save as PDF.`);
+        } else {
+          // Fallback: download as HTML
+          const blob = new Blob([result.data.html], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `threat-report-run-${runId}.html`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast.success(`Report downloaded as HTML. Open and print to PDF.`);
+        }
+      }
+    } catch (err: any) {
+      toast.error(`Failed to generate report: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="text-xs h-8 border-cyan-500/30 text-cyan-400 hover:bg-cyan-950/20"
+      disabled={loading}
+      onClick={handleExport}
+    >
+      {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileText className="h-3 w-3 mr-1" />}
+      Download Threat Report
+    </Button>
   );
 }
 
@@ -1335,7 +1546,10 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                         <div className="shrink-0">{providerIcons[p.provider] || <Settings className="h-4 w-4" />}</div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{p.name}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{p.provider?.replace("_", " ")} &middot; {p.triggerOn?.replace("_", " ")}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">
+                            {p.provider?.replace("_", " ")} &middot; {p.triggerOn?.replace("_", " ")}
+                            {p.scheduleEnabled && <span className="ml-1 text-cyan-400"><Clock className="h-2.5 w-2.5 inline" /> {p.scheduleCron}</span>}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <Badge variant={p.isActive ? "default" : "outline"} className="text-[10px]">

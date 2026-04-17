@@ -1475,6 +1475,12 @@ export const cicdPipelines = mysqlTable("cicd_pipelines", {
 	// Bridge columns: link CI/CD pipeline to engagement + threat context
 	cicdEngagementId: int("cicd_engagement_id"),
 	cicdSectorContext: varchar("cicd_sector_context", { length: 128 }),
+	// Scheduled scan columns
+	cicdScheduleCron: varchar("cicd_schedule_cron", { length: 128 }),
+	cicdScheduleEnabled: tinyint("cicd_schedule_enabled").default(0),
+	cicdScheduleTargetUrl: varchar("cicd_schedule_target_url", { length: 512 }),
+	cicdScheduleLastRun: timestamp("cicd_schedule_last_run", { mode: 'string' }),
+	cicdScheduleNextRun: timestamp("cicd_schedule_next_run", { mode: 'string' }),
 });
 
 export const cicdRuns = mysqlTable("cicd_runs", {

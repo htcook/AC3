@@ -24,6 +24,12 @@ function mapPipeline(row: any) {
     // Bridge fields
     engagementId: row.cicdEngagementId || null,
     sectorContext: row.cicdSectorContext || null,
+    // Schedule fields
+    scheduleCron: row.cicdScheduleCron || null,
+    scheduleEnabled: !!row.cicdScheduleEnabled,
+    scheduleTargetUrl: row.cicdScheduleTargetUrl || null,
+    scheduleLastRun: row.cicdScheduleLastRun || null,
+    scheduleNextRun: row.cicdScheduleNextRun || null,
   };
 }
 
@@ -1215,5 +1221,153 @@ export const cicdPipelineRouter = router({
 
       const { quickThreatScore } = await import("../lib/cicd-threat-correlator");
       return quickThreatScore(report.findings);
+    }),
+
+  // ─── Scheduled Scans ──────────────────────────────────────────────────────
+
+  getScheduleConfig: protectedProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const rows = await db.execute(sql.raw(
+        `SELECT cicd_schedule_cron, cicd_schedule_enabled, cicd_schedule_target_url, cicd_schedule_last_run, cicd_schedule_next_run FROM cicd_pipelines WHERE id = ${input.pipelineId}`
+      ));
+      const row = ((rows as any).rows || rows)?.[0] as any;
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Pipeline not found" });
+
+      const { describeCron, CRON_PRESETS } = await import("../lib/cicd-cron-scheduler");
+      const cronDescription = row.cicd_schedule_cron ? describeCron(row.cicd_schedule_cron) : null;
+
+      return {
+        cronExpression: row.cicd_schedule_cron || null,
+        cronDescription,
+        enabled: !!row.cicd_schedule_enabled,
+        targetUrl: row.cicd_schedule_target_url || null,
+        lastRun: row.cicd_schedule_last_run || null,
+        nextRun: row.cicd_schedule_next_run || null,
+        presets: CRON_PRESETS,
+      };
+    }),
+
+  updateSchedule: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number(),
+      cronExpression: z.string().optional(),
+      enabled: z.boolean().optional(),
+      targetUrl: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Validate cron expression if provided
+      if (input.cronExpression) {
+        const { parseCronExpression } = await import("../lib/cicd-cron-scheduler");
+        const parsed = parseCronExpression(input.cronExpression);
+        if (!parsed) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid cron expression. Use 5-field format: minute hour day-of-month month day-of-week" });
+        }
+      }
+
+      const updates: string[] = [];
+      if (input.cronExpression !== undefined) {
+        updates.push(`cicd_schedule_cron = '${input.cronExpression.replace(/'/g, "''")}' `);
+      }
+      if (input.enabled !== undefined) {
+        updates.push(`cicd_schedule_enabled = ${input.enabled ? 1 : 0}`);
+      }
+      if (input.targetUrl !== undefined) {
+        updates.push(`cicd_schedule_target_url = '${input.targetUrl.replace(/'/g, "''")}' `);
+      }
+
+      // Calculate next run time
+      if (input.cronExpression && input.enabled !== false) {
+        const { getNextRunTime } = await import("../lib/cicd-cron-scheduler");
+        const nextRun = getNextRunTime(new Date(), input.cronExpression);
+        if (nextRun) {
+          updates.push(`cicd_schedule_next_run = '${nextRun.toISOString().slice(0, 19).replace("T", " ")}'`);
+        }
+      }
+
+      if (input.enabled === false) {
+        updates.push(`cicd_schedule_next_run = NULL`);
+      }
+
+      if (updates.length > 0) {
+        await db.execute(sql.raw(
+          `UPDATE cicd_pipelines SET ${updates.join(", ")} WHERE id = ${input.pipelineId}`
+        ));
+      }
+
+      // Also update the trigger type to 'schedule' if enabling
+      if (input.enabled) {
+        const { cicdPipelines } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(cicdPipelines).set({ cicdTrigger: "schedule" }).where(eq(cicdPipelines.id, input.pipelineId));
+      }
+
+      const { describeCron } = await import("../lib/cicd-cron-scheduler");
+      return {
+        success: true,
+        cronDescription: input.cronExpression ? describeCron(input.cronExpression) : null,
+      };
+    }),
+
+  // ─── PDF Threat Report ────────────────────────────────────────────────────
+
+  generateThreatReport: protectedProcedure
+    .input(z.object({ runId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdRuns, cicdPipelines } = await import("../../drizzle/schema");
+      const { eq, sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Get run data
+      const runRows = await db.select().from(cicdRuns).where(eq(cicdRuns.id, input.runId));
+      if (!runRows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+      const run = runRows[0];
+
+      // Get pipeline data
+      const pipelineRows = await db.select().from(cicdPipelines).where(eq(cicdPipelines.id, run.cicdRunPipelineId));
+      const pipeline = pipelineRows[0];
+
+      // Get threat context
+      const tcRows = await db.execute(sql.raw(
+        `SELECT cicd_threat_context FROM cicd_runs WHERE id = ${input.runId}`
+      ));
+      const tcRow = ((tcRows as any).rows || tcRows)?.[0] as any;
+      const threatContext = tcRow?.cicd_threat_context
+        ? (typeof tcRow.cicd_threat_context === 'string' ? tryParseJson(tcRow.cicd_threat_context) : tcRow.cicd_threat_context)
+        : null;
+
+      // Parse scan results
+      const scanResults = run.cicdReportUrl ? tryParseJson(run.cicdReportUrl as string) : null;
+      if (!scanResults) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No scan results found for this run" });
+      }
+
+      const { generateThreatReportHtml } = await import("../lib/cicd-threat-report");
+      const html = generateThreatReportHtml({
+        pipelineName: pipeline?.cicdName || `Pipeline #${run.cicdRunPipelineId}`,
+        runId: input.runId,
+        branch: run.cicdBranch || undefined,
+        commitSha: run.cicdCommitSha || undefined,
+        status: run.cicdRunStatus,
+        startedAt: run.cicdStartedAt || undefined,
+        completedAt: run.cicdCompletedAt || undefined,
+        scanResults,
+        threatContext,
+        sectorContext: (pipeline as any)?.cicdSectorContext || undefined,
+      });
+
+      return { html, runId: input.runId, pipelineName: pipeline?.cicdName || "Unknown" };
     }),
 });

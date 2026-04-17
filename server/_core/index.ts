@@ -1003,6 +1003,13 @@ async function startServer() {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
+      // Initialize CI/CD Cron Scheduler (60s interval, checks for due scheduled scans)
+      import("../lib/cicd-cron-scheduler").then(({ startCronScheduler }) => {
+        startCronScheduler();
+      }).catch((err) => {
+        console.warn("[CICDCron] Failed to initialize CI/CD cron scheduler:", err);
+      });
+
       // Initialize Auto-Generation Pipeline Scheduler (daily at 02:00 UTC)
       import("../lib/auto-generation-scheduler").then(({ initAutoGenerationSchedule }) => {
         initAutoGenerationSchedule();
