@@ -190,6 +190,13 @@
       "when": 1776385841467,
       "tag": "0026_reflective_zodiak",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1776387121947,
+      "tag": "0027_volatile_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }

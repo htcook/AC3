@@ -1503,6 +1503,26 @@ export const cicdRuns = mysqlTable("cicd_runs", {
 	cicdThreatContext: json("cicd_threat_context"),
 });
 
+export const cicdWebhookDeliveries = mysqlTable("cicd_webhook_deliveries", {
+	id: int().autoincrement().notNull(),
+	pipelineId: int("pipeline_id").notNull(),
+	runId: int("run_id"),
+	eventType: varchar("event_type", { length: 128 }).notNull(),
+	payloadSummary: text("payload_summary"),
+	responseStatus: int("response_status"),
+	responseBody: text("response_body"),
+	deliveryStatus: mysqlEnum("delivery_status", ['pending','delivered','failed','retrying']).default('pending').notNull(),
+	attemptCount: int("attempt_count").default(0).notNull(),
+	maxRetries: int("max_retries").default(3).notNull(),
+	nextRetryAt: timestamp("next_retry_at", { mode: 'string' }),
+	lastAttemptAt: timestamp("last_attempt_at", { mode: 'string' }),
+	deliveredAt: timestamp("delivered_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	webhookUrl: varchar("webhook_url", { length: 512 }),
+	errorMessage: text("error_message"),
+	durationMs: int("duration_ms"),
+});
+
 export const cloudAttackPaths = mysqlTable("cloud_attack_paths", {
 	id: int().autoincrement().notNull(),
 	providerId: int("provider_id").notNull(),

@@ -1370,4 +1370,213 @@ export const cicdPipelineRouter = router({
 
       return { html, runId: input.runId, pipelineName: pipeline?.cicdName || "Unknown" };
     }),
+
+  // ─── Scan Comparison Diff ─────────────────────────────────────────────────
+
+  compareRuns: protectedProcedure
+    .input(z.object({ runIdA: z.number(), runIdB: z.number() }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { cicdRuns } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [rowsA] = await db.select().from(cicdRuns).where(eq(cicdRuns.id, input.runIdA)).limit(1);
+      const [rowsB] = await db.select().from(cicdRuns).where(eq(cicdRuns.id, input.runIdB)).limit(1);
+      if (!rowsA || !rowsB) throw new TRPCError({ code: "NOT_FOUND", message: "One or both runs not found" });
+
+      const parseFindings = (row: any) => {
+        const report = row.cicdReportUrl ? tryParseJson(row.cicdReportUrl) : null;
+        return (report?.findings || []).map((f: any) => ({
+          title: f.title || f.name || "",
+          severity: f.severity || "info",
+          url: f.url || f.matched_at || "",
+          scanner: f.scanner || f.template_id || "",
+          cvss: f.cvss || 0,
+          cweId: f.cweId || f.cwe_id || "",
+          description: f.description || "",
+        }));
+      };
+
+      const { compareRuns } = await import("../lib/cicd-scan-diff");
+      return compareRuns(
+        { id: rowsA.id, status: rowsA.cicdRunStatus, branch: rowsA.cicdBranch || undefined, completedAt: rowsA.cicdCompletedAt || undefined, findings: parseFindings(rowsA) },
+        { id: rowsB.id, status: rowsB.cicdRunStatus, branch: rowsB.cicdBranch || undefined, completedAt: rowsB.cicdCompletedAt || undefined, findings: parseFindings(rowsB) }
+      );
+    }),
+
+  // ─── Schedule History Log ────────────────────────────────────────────────
+
+  getScheduleHistory: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number().optional(),
+      limit: z.number().min(1).max(200).default(50),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const whereClause = input.pipelineId
+        ? `AND r.cicd_run_pipeline_id = ${input.pipelineId}`
+        : "";
+
+      const rows = await db.execute(sql.raw(
+        `SELECT r.id, r.cicd_run_pipeline_id as pipelineId, r.cicd_run_status as status,
+                r.cicd_total_tests as totalTests, r.cicd_passed_tests as passedTests,
+                r.cicd_failed_tests as failedTests, r.cicd_risk_score as riskScore,
+                r.cicd_started_at as startedAt, r.cicd_completed_at as completedAt,
+                r.cicd_run_created_at as createdAt, r.cicd_branch as branch,
+                p.cicd_name as pipelineName, p.cicd_schedule_cron as scheduleCron
+         FROM cicd_runs r
+         JOIN cicd_pipelines p ON r.cicd_run_pipeline_id = p.id
+         WHERE r.cicd_branch = 'scheduled' ${whereClause}
+         ORDER BY r.cicd_run_created_at DESC
+         LIMIT ${input.limit} OFFSET ${input.offset}`
+      ));
+
+      const countRows = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM cicd_runs r
+         WHERE r.cicd_branch = 'scheduled' ${whereClause}`
+      ));
+
+      const records = ((rows as any).rows || rows) as any[];
+      const total = ((countRows as any).rows || countRows)?.[0]?.total || 0;
+
+      // Calculate stats
+      const statsRows = await db.execute(sql.raw(
+        `SELECT
+           COUNT(*) as totalRuns,
+           SUM(CASE WHEN cicd_run_status = 'passed' THEN 1 ELSE 0 END) as passedRuns,
+           SUM(CASE WHEN cicd_run_status = 'failed' THEN 1 ELSE 0 END) as failedRuns,
+           SUM(CASE WHEN cicd_run_status = 'error' THEN 1 ELSE 0 END) as errorRuns,
+           AVG(TIMESTAMPDIFF(SECOND, cicd_started_at, cicd_completed_at)) as avgDurationSec
+         FROM cicd_runs
+         WHERE cicd_branch = 'scheduled' ${whereClause}`
+      ));
+      const stats = ((statsRows as any).rows || statsRows)?.[0] || {};
+
+      return {
+        records: records.map((r: any) => ({
+          id: r.id,
+          pipelineId: r.pipelineId,
+          pipelineName: r.pipelineName,
+          status: r.status,
+          totalTests: r.totalTests || 0,
+          passedTests: r.passedTests || 0,
+          failedTests: r.failedTests || 0,
+          riskScore: r.riskScore,
+          startedAt: r.startedAt,
+          completedAt: r.completedAt,
+          createdAt: r.createdAt,
+          branch: r.branch,
+          scheduleCron: r.scheduleCron,
+          durationSec: r.startedAt && r.completedAt
+            ? Math.round((new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()) / 1000)
+            : null,
+        })),
+        total: Number(total),
+        stats: {
+          totalRuns: Number(stats.totalRuns || 0),
+          passedRuns: Number(stats.passedRuns || 0),
+          failedRuns: Number(stats.failedRuns || 0),
+          errorRuns: Number(stats.errorRuns || 0),
+          passRate: stats.totalRuns > 0 ? Math.round((Number(stats.passedRuns || 0) / Number(stats.totalRuns)) * 100) : 0,
+          avgDurationSec: Math.round(Number(stats.avgDurationSec || 0)),
+        },
+      };
+    }),
+
+  // ─── Webhook Delivery Log ────────────────────────────────────────────────
+
+  getWebhookDeliveries: protectedProcedure
+    .input(z.object({
+      pipelineId: z.number().optional(),
+      status: z.enum(["pending", "delivered", "failed", "retrying"]).optional(),
+      limit: z.number().min(1).max(100).default(20),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const conditions: string[] = ["1=1"];
+      if (input.pipelineId) conditions.push(`d.pipeline_id = ${input.pipelineId}`);
+      if (input.status) conditions.push(`d.delivery_status = '${input.status}'`);
+      const where = conditions.join(" AND ");
+
+      const rows = await db.execute(sql.raw(
+        `SELECT d.*, p.cicd_name as pipeline_name
+         FROM cicd_webhook_deliveries d
+         LEFT JOIN cicd_pipelines p ON d.pipeline_id = p.id
+         WHERE ${where}
+         ORDER BY d.created_at DESC
+         LIMIT ${input.limit} OFFSET ${input.offset}`
+      ));
+
+      const countRows = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM cicd_webhook_deliveries d WHERE ${where}`
+      ));
+
+      const records = ((rows as any).rows || rows) as any[];
+      const total = ((countRows as any).rows || countRows)?.[0]?.total || 0;
+
+      // Stats
+      const statsRows = await db.execute(sql.raw(
+        `SELECT
+           COUNT(*) as total,
+           SUM(CASE WHEN delivery_status = 'delivered' THEN 1 ELSE 0 END) as delivered,
+           SUM(CASE WHEN delivery_status = 'failed' THEN 1 ELSE 0 END) as failed,
+           SUM(CASE WHEN delivery_status = 'retrying' THEN 1 ELSE 0 END) as retrying,
+           SUM(CASE WHEN delivery_status = 'pending' THEN 1 ELSE 0 END) as pending,
+           AVG(duration_ms) as avgDurationMs
+         FROM cicd_webhook_deliveries`
+      ));
+      const stats = ((statsRows as any).rows || statsRows)?.[0] || {};
+
+      return {
+        records: records.map((r: any) => ({
+          id: r.id,
+          pipelineId: r.pipeline_id,
+          pipelineName: r.pipeline_name || `Pipeline #${r.pipeline_id}`,
+          runId: r.run_id,
+          eventType: r.event_type,
+          webhookUrl: r.webhook_url,
+          deliveryStatus: r.delivery_status,
+          responseStatus: r.response_status,
+          responseBody: r.response_body?.substring(0, 500) || null,
+          attemptCount: r.attempt_count,
+          maxRetries: r.max_retries,
+          nextRetryAt: r.next_retry_at,
+          lastAttemptAt: r.last_attempt_at,
+          deliveredAt: r.delivered_at,
+          createdAt: r.created_at,
+          errorMessage: r.error_message,
+          durationMs: r.duration_ms,
+        })),
+        total: Number(total),
+        stats: {
+          total: Number(stats.total || 0),
+          delivered: Number(stats.delivered || 0),
+          failed: Number(stats.failed || 0),
+          retrying: Number(stats.retrying || 0),
+          pending: Number(stats.pending || 0),
+          deliveryRate: stats.total > 0 ? Math.round((Number(stats.delivered || 0) / Number(stats.total)) * 100) : 0,
+          avgDurationMs: Math.round(Number(stats.avgDurationMs || 0)),
+        },
+      };
+    }),
+
+  retryWebhookDelivery: protectedProcedure
+    .input(z.object({ deliveryId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { manualRetry } = await import("../lib/cicd-webhook-delivery");
+      const success = await manualRetry(input.deliveryId);
+      return { success };
+    }),
 });

@@ -1403,6 +1403,471 @@ function ThreatReportExportButton({ runId }: { runId: number }) {
   );
 }
 
+// ─── Scan Diff Panel ────────────────────────────────────────────────────────────
+
+function ScanDiffPanel({ pipelineId, runs }: { pipelineId: any; runs: any[] }) {
+  const [runIdA, setRunIdA] = useState<number | null>(null);
+  const [runIdB, setRunIdB] = useState<number | null>(null);
+
+  const diffQuery = trpc.cicdPipeline.compareRuns.useQuery(
+    { runIdA: runIdA!, runIdB: runIdB! },
+    { enabled: !!runIdA && !!runIdB && runIdA !== runIdB }
+  );
+
+  const completedRuns = useMemo(() => (runs || []).filter((r: any) => r.status === 'passed' || r.status === 'failed'), [runs]);
+
+  const sevColor = (s: string) => {
+    switch (s?.toLowerCase()) {
+      case 'critical': return 'text-red-400';
+      case 'high': return 'text-orange-400';
+      case 'medium': return 'text-amber-400';
+      case 'low': return 'text-blue-400';
+      default: return 'text-muted-foreground';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <Label className="text-xs text-muted-foreground mb-1 block">Run A (Baseline)</Label>
+          <Select value={runIdA ? String(runIdA) : ""} onValueChange={(v) => setRunIdA(Number(v))}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select baseline run" /></SelectTrigger>
+            <SelectContent>
+              {completedRuns.map((r: any) => (
+                <SelectItem key={r.id} value={String(r.id)}>Run #{r.id} — {r.status} ({r.branch || 'N/A'})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex-1">
+          <Label className="text-xs text-muted-foreground mb-1 block">Run B (Current)</Label>
+          <Select value={runIdB ? String(runIdB) : ""} onValueChange={(v) => setRunIdB(Number(v))}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select current run" /></SelectTrigger>
+            <SelectContent>
+              {completedRuns.map((r: any) => (
+                <SelectItem key={r.id} value={String(r.id)}>Run #{r.id} — {r.status} ({r.branch || 'N/A'})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {runIdA && runIdB && runIdA === runIdB && (
+        <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Please select two different runs to compare.</AlertDescription></Alert>
+      )}
+
+      {diffQuery.isLoading && <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+
+      {diffQuery.data && (
+        <div className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="bg-emerald-950/20 border-emerald-500/20">
+              <CardContent className="p-3 text-center">
+                <div className="text-xl font-bold text-emerald-400">{diffQuery.data.summary.fixedCount}</div>
+                <div className="text-[10px] text-emerald-400/70 uppercase tracking-wider">Fixed</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-red-950/20 border-red-500/20">
+              <CardContent className="p-3 text-center">
+                <div className="text-xl font-bold text-red-400">{diffQuery.data.summary.newCount}</div>
+                <div className="text-[10px] text-red-400/70 uppercase tracking-wider">New</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-950/20 border-amber-500/20">
+              <CardContent className="p-3 text-center">
+                <div className="text-xl font-bold text-amber-400">{diffQuery.data.summary.changedCount}</div>
+                <div className="text-[10px] text-amber-400/70 uppercase tracking-wider">Changed</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-zinc-800/50 border-border/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-xl font-bold text-muted-foreground">{diffQuery.data.summary.unchangedCount}</div>
+                <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Unchanged</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Risk Delta */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Risk Delta:</span>
+            <span className={diffQuery.data.summary.riskDelta > 0 ? 'text-red-400 font-semibold' : diffQuery.data.summary.riskDelta < 0 ? 'text-emerald-400 font-semibold' : 'text-muted-foreground'}>
+              {diffQuery.data.summary.riskDelta > 0 ? '+' : ''}{diffQuery.data.summary.riskDelta}
+              {diffQuery.data.summary.riskDelta > 0 ? ' ▲ Worse' : diffQuery.data.summary.riskDelta < 0 ? ' ▼ Better' : ' — No change'}
+            </span>
+            <span className="text-muted-foreground ml-4">Severity Δ:</span>
+            {(['critical', 'high', 'medium', 'low'] as const).map(s => {
+              const d = diffQuery.data!.summary.severityDelta[s];
+              return d !== 0 ? <Badge key={s} variant="outline" className={`text-[10px] ${sevColor(s)}`}>{s}: {d > 0 ? '+' : ''}{d}</Badge> : null;
+            })}
+          </div>
+
+          {/* New Findings */}
+          {diffQuery.data.newFindings.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> New Findings ({diffQuery.data.newFindings.length})</h4>
+              <Table>
+                <TableHeader><TableRow><TableHead className="text-[10px]">Finding</TableHead><TableHead className="text-[10px] w-20">Severity</TableHead><TableHead className="text-[10px] w-16">CVSS</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {diffQuery.data.newFindings.slice(0, 30).map((f: any, i: number) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{f.title}</TableCell>
+                      <TableCell><Badge variant="outline" className={`text-[10px] ${sevColor(f.severity)}`}>{f.severity}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{f.cvss || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Fixed Findings */}
+          {diffQuery.data.fixedFindings.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Fixed Findings ({diffQuery.data.fixedFindings.length})</h4>
+              <Table>
+                <TableHeader><TableRow><TableHead className="text-[10px]">Finding</TableHead><TableHead className="text-[10px] w-20">Severity</TableHead><TableHead className="text-[10px] w-16">CVSS</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {diffQuery.data.fixedFindings.slice(0, 30).map((f: any, i: number) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs line-through text-muted-foreground">{f.title}</TableCell>
+                      <TableCell><Badge variant="outline" className={`text-[10px] ${sevColor(f.severity)}`}>{f.severity}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{f.cvss || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {/* Changed Severity */}
+          {diffQuery.data.changedSeverity.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Changed Severity ({diffQuery.data.changedSeverity.length})</h4>
+              <Table>
+                <TableHeader><TableRow><TableHead className="text-[10px]">Finding</TableHead><TableHead className="text-[10px] w-24">Old → New</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {diffQuery.data.changedSeverity.slice(0, 20).map((c: any, i: number) => (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs">{c.finding.title}</TableCell>
+                      <TableCell className="text-xs"><span className={sevColor(c.oldSeverity)}>{c.oldSeverity}</span> → <span className={sevColor(c.newSeverity)}>{c.newSeverity}</span></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {diffQuery.data.summary.newCount === 0 && diffQuery.data.summary.fixedCount === 0 && diffQuery.data.summary.changedCount === 0 && (
+            <div className="text-center text-muted-foreground py-8 text-sm">
+              <ShieldCheck className="h-8 w-8 mx-auto mb-2 text-emerald-400/50" />
+              No changes between these two runs.
+            </div>
+          )}
+        </div>
+      )}
+
+      {!runIdA || !runIdB ? (
+        <div className="text-center text-muted-foreground py-10 text-sm">
+          <GitBranch className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          Select two completed runs above to compare findings.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Schedule History Panel ─────────────────────────────────────────────────────
+
+function ScheduleHistoryPanel({ pipelineId }: { pipelineId: any }) {
+  const [page, setPage] = useState(0);
+  const historyQuery = trpc.cicdPipeline.getScheduleHistory.useQuery(
+    { pipelineId: pipelineId?.id || undefined, limit: 20, offset: page * 20 },
+    { refetchInterval: 30000 }
+  );
+
+  const data = historyQuery.data;
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      {data?.stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <Card className="bg-zinc-800/50 border-border/50">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold">{data.stats.totalRuns}</div>
+              <div className="text-[10px] text-muted-foreground uppercase">Total Scheduled</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-950/20 border-emerald-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-emerald-400">{data.stats.passedRuns}</div>
+              <div className="text-[10px] text-emerald-400/70 uppercase">Passed</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-red-950/20 border-red-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-red-400">{data.stats.failedRuns}</div>
+              <div className="text-[10px] text-red-400/70 uppercase">Failed</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-cyan-950/20 border-cyan-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-cyan-400">{data.stats.passRate}%</div>
+              <div className="text-[10px] text-cyan-400/70 uppercase">Pass Rate</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-violet-950/20 border-violet-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-violet-400">{data.stats.avgDurationSec}s</div>
+              <div className="text-[10px] text-violet-400/70 uppercase">Avg Duration</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {historyQuery.isLoading && <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+
+      {data?.records?.length === 0 && (
+        <div className="text-center text-muted-foreground py-10 text-sm">
+          <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          No scheduled scan runs yet. Configure a schedule on a pipeline to start.
+        </div>
+      )}
+
+      {data?.records && data.records.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-[10px]">Run</TableHead>
+              <TableHead className="text-[10px]">Pipeline</TableHead>
+              <TableHead className="text-[10px]">Status</TableHead>
+              <TableHead className="text-[10px]">Findings</TableHead>
+              <TableHead className="text-[10px]">Risk</TableHead>
+              <TableHead className="text-[10px]">Duration</TableHead>
+              <TableHead className="text-[10px]">Triggered</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.records.map((r: any) => (
+              <TableRow key={r.id}>
+                <TableCell className="text-xs font-mono">#{r.id}</TableCell>
+                <TableCell className="text-xs">{r.pipelineName}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={`text-[10px] ${
+                    r.status === 'passed' ? 'text-emerald-400 border-emerald-500/30' :
+                    r.status === 'failed' ? 'text-red-400 border-red-500/30' :
+                    r.status === 'error' ? 'text-red-600 border-red-700/30' :
+                    'text-amber-400 border-amber-500/30'
+                  }`}>{r.status}</Badge>
+                </TableCell>
+                <TableCell className="text-xs">
+                  <span className="text-red-400">{r.failedTests}</span> / <span className="text-muted-foreground">{r.totalTests}</span>
+                </TableCell>
+                <TableCell className="text-xs">{r.riskScore ? r.riskScore.toFixed(1) : '-'}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{r.durationSec ? `${r.durationSec}s` : '-'}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Pagination */}
+      {data && data.total > 20 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Showing {page * 20 + 1}-{Math.min((page + 1) * 20, data.total)} of {data.total}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={(page + 1) * 20 >= data.total} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Webhook Delivery Panel ─────────────────────────────────────────────────────
+
+function WebhookDeliveryPanel({ pipelineId }: { pipelineId: any }) {
+  const [page, setPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  const deliveriesQuery = trpc.cicdPipeline.getWebhookDeliveries.useQuery(
+    {
+      pipelineId: pipelineId?.id || undefined,
+      status: statusFilter ? statusFilter as any : undefined,
+      limit: 20,
+      offset: page * 20,
+    },
+    { refetchInterval: 15000 }
+  );
+
+  const retryMutation = trpc.cicdPipeline.retryWebhookDelivery.useMutation({
+    onSuccess: (data) => {
+      if (data.success) toast.success("Webhook redelivered successfully.");
+      else toast.error("Retry failed. Check delivery log.");
+      deliveriesQuery.refetch();
+    },
+    onError: (err) => toast.error(`Retry failed: ${err.message}`),
+  });
+
+  const data = deliveriesQuery.data;
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case 'delivered': return <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">Delivered</Badge>;
+      case 'failed': return <Badge variant="outline" className="text-[10px] text-red-400 border-red-500/30">Failed</Badge>;
+      case 'retrying': return <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30">Retrying</Badge>;
+      case 'pending': return <Badge variant="outline" className="text-[10px] text-blue-400 border-blue-500/30">Pending</Badge>;
+      default: return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      {data?.stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <Card className="bg-zinc-800/50 border-border/50">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold">{data.stats.total}</div>
+              <div className="text-[10px] text-muted-foreground uppercase">Total</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-emerald-950/20 border-emerald-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-emerald-400">{data.stats.delivered}</div>
+              <div className="text-[10px] text-emerald-400/70 uppercase">Delivered</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-red-950/20 border-red-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-red-400">{data.stats.failed}</div>
+              <div className="text-[10px] text-red-400/70 uppercase">Failed</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-amber-950/20 border-amber-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-amber-400">{data.stats.retrying}</div>
+              <div className="text-[10px] text-amber-400/70 uppercase">Retrying</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-cyan-950/20 border-cyan-500/20">
+            <CardContent className="p-3 text-center">
+              <div className="text-lg font-bold text-cyan-400">{data.stats.deliveryRate}%</div>
+              <div className="text-[10px] text-cyan-400/70 uppercase">Success Rate</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="flex items-center gap-3">
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v === "all" ? "" : v); setPage(0); }}>
+          <SelectTrigger className="h-8 text-xs w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="delivered">Delivered</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="retrying">Retrying</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => deliveriesQuery.refetch()}>
+          <RefreshCw className="h-3 w-3 mr-1" /> Refresh
+        </Button>
+      </div>
+
+      {deliveriesQuery.isLoading && <div className="flex justify-center p-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
+
+      {data?.records?.length === 0 && (
+        <div className="text-center text-muted-foreground py-10 text-sm">
+          <Webhook className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          No webhook deliveries recorded yet.
+        </div>
+      )}
+
+      {data?.records && data.records.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-[10px]">ID</TableHead>
+              <TableHead className="text-[10px]">Pipeline</TableHead>
+              <TableHead className="text-[10px]">Event</TableHead>
+              <TableHead className="text-[10px]">Status</TableHead>
+              <TableHead className="text-[10px]">HTTP</TableHead>
+              <TableHead className="text-[10px]">Attempts</TableHead>
+              <TableHead className="text-[10px]">Duration</TableHead>
+              <TableHead className="text-[10px]">Time</TableHead>
+              <TableHead className="text-[10px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.records.map((d: any) => (
+              <TableRow key={d.id}>
+                <TableCell className="text-xs font-mono">#{d.id}</TableCell>
+                <TableCell className="text-xs">{d.pipelineName}</TableCell>
+                <TableCell className="text-xs font-mono">{d.eventType}</TableCell>
+                <TableCell>{statusBadge(d.deliveryStatus)}</TableCell>
+                <TableCell className="text-xs">
+                  {d.responseStatus ? (
+                    <span className={d.responseStatus < 300 ? 'text-emerald-400' : 'text-red-400'}>{d.responseStatus}</span>
+                  ) : '-'}
+                </TableCell>
+                <TableCell className="text-xs">{d.attemptCount}/{d.maxRetries}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{d.durationMs ? `${d.durationMs}ms` : '-'}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{d.createdAt ? new Date(d.createdAt).toLocaleString() : '-'}</TableCell>
+                <TableCell>
+                  {(d.deliveryStatus === 'failed' || d.deliveryStatus === 'retrying') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2"
+                      disabled={retryMutation.isPending}
+                      onClick={() => retryMutation.mutate({ deliveryId: d.id })}
+                    >
+                      <RefreshCw className="h-2.5 w-2.5 mr-1" /> Retry
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Error details */}
+      {data?.records?.some((d: any) => d.errorMessage) && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-muted-foreground">Recent Errors</h4>
+          {data.records.filter((d: any) => d.errorMessage).slice(0, 5).map((d: any) => (
+            <Alert key={d.id} variant="destructive" className="py-2">
+              <AlertCircle className="h-3 w-3" />
+              <AlertDescription className="text-[10px]">
+                <span className="font-mono">#{d.id}</span> — {d.errorMessage}
+                {d.nextRetryAt && <span className="text-muted-foreground ml-2">Next retry: {new Date(d.nextRetryAt).toLocaleString()}</span>}
+              </AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {data && data.total > 20 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Showing {page * 20 + 1}-{Math.min((page + 1) * 20, data.total)} of {data.total}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={(page + 1) * 20 >= data.total} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────────
 
 export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen] = useState(false);
@@ -1602,6 +2067,9 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                         <TabsTrigger value="results" className="text-xs gap-1.5"><Shield className="h-3.5 w-3.5" /> Results</TabsTrigger>
                         <TabsTrigger value="scan-types" className="text-xs gap-1.5"><Settings className="h-3.5 w-3.5" /> Scan Types</TabsTrigger>
                         <TabsTrigger value="threat-intel" className="text-xs gap-1.5"><ShieldAlert className="h-3.5 w-3.5" /> Threat Intel</TabsTrigger>
+                        <TabsTrigger value="diff" className="text-xs gap-1.5"><GitBranch className="h-3.5 w-3.5" /> Diff</TabsTrigger>
+                        <TabsTrigger value="schedule-history" className="text-xs gap-1.5"><Calendar className="h-3.5 w-3.5" /> Schedule Log</TabsTrigger>
+                        <TabsTrigger value="deliveries" className="text-xs gap-1.5"><Webhook className="h-3.5 w-3.5" /> Deliveries</TabsTrigger>
                       </TabsList>
 
                       {/* Runs Tab */}
@@ -1744,6 +2212,20 @@ export default function CicdPipelinePage() { const [isCreateOpen, setCreateOpen]
                             </div>
                           </div>
                         </div>
+                      </TabsContent>
+                      {/* Scan Diff Tab */}
+                      <TabsContent value="diff" className="mt-0">
+                        <ScanDiffPanel pipelineId={selectedPipeline} runs={runsQuery.data || []} />
+                      </TabsContent>
+
+                      {/* Schedule History Tab */}
+                      <TabsContent value="schedule-history" className="mt-0">
+                        <ScheduleHistoryPanel pipelineId={selectedPipeline} />
+                      </TabsContent>
+
+                      {/* Webhook Deliveries Tab */}
+                      <TabsContent value="deliveries" className="mt-0">
+                        <WebhookDeliveryPanel pipelineId={selectedPipeline} />
                       </TabsContent>
                     </Tabs>
                   </CardContent>
