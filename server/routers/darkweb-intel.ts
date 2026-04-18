@@ -28,7 +28,7 @@ import {
   accessBrokerListings,
   infoOpsCampaigns as infoOpsCampaignsTable,
 } from "../../drizzle/schema";
-import { desc, eq, sql, and } from "drizzle-orm";
+import { desc, eq, sql, and, count, gte } from "drizzle-orm";
 import {
   initFeedRegistry,
   runDarkwebFeedSync,
@@ -1437,4 +1437,112 @@ export const darkwebIntelRouter = router({
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
       .slice(0, 20);
   }),
+
+  /** Broker listing timeline data for charts: activity trends, price patterns, agency targeting. */
+  brokerTimeline: protectedProcedure
+    .input(z.object({
+      days: z.number().min(7).max(365).default(90),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return { activityByWeek: [], priceByType: [], sectorBreakdown: [], topBrokers: [], govTargeting: [] };
+      const days = input?.days ?? 90;
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+
+      // 1. Activity by week (listings posted per week)
+      const activityRaw = await db.select({
+        week: sql<string>`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`,
+        weekStart: sql<string>`DATE_FORMAT(DATE_SUB(${accessBrokerListings.postedAt}, INTERVAL WEEKDAY(${accessBrokerListings.postedAt}) DAY), '%Y-%m-%d')`,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+      }).from(accessBrokerListings)
+        .where(gte(accessBrokerListings.postedAt, cutoff))
+        .groupBy(sql`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`, sql`DATE_FORMAT(DATE_SUB(${accessBrokerListings.postedAt}, INTERVAL WEEKDAY(${accessBrokerListings.postedAt}) DAY), '%Y-%m-%d')`)
+        .orderBy(sql`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`);
+
+      // 2. Price distribution by listing type
+      const priceByType = await db.select({
+        listingType: accessBrokerListings.listingType,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+        minPrice: sql<number>`MIN(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+        maxPrice: sql<number>`MAX(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+      }).from(accessBrokerListings)
+        .where(gte(accessBrokerListings.postedAt, cutoff))
+        .groupBy(accessBrokerListings.listingType)
+        .orderBy(sql`COUNT(*) DESC`);
+
+      // 3. Sector breakdown
+      const sectorBreakdown = await db.select({
+        sector: accessBrokerListings.victimSector,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+      }).from(accessBrokerListings)
+        .where(gte(accessBrokerListings.postedAt, cutoff))
+        .groupBy(accessBrokerListings.victimSector)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(15);
+
+      // 4. Top brokers by volume
+      const topBrokers = await db.select({
+        brokerId: accessBrokerListings.brokerId,
+        brokerName: accessBrokerListings.brokerName,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(REPLACE(REPLACE(${accessBrokerListings.askingPrice}, '$', ''), ',', ''), '') AS DECIMAL))`,
+        reputation: accessBrokerListings.brokerReputation,
+      }).from(accessBrokerListings)
+        .where(gte(accessBrokerListings.postedAt, cutoff))
+        .groupBy(accessBrokerListings.brokerId, accessBrokerListings.brokerName, accessBrokerListings.brokerReputation)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(10);
+
+      // 5. Gov-targeting listings (country = US, sector contains gov/federal/defense/military)
+      const govTargeting = await db.select({
+        week: sql<string>`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`,
+        weekStart: sql<string>`DATE_FORMAT(DATE_SUB(${accessBrokerListings.postedAt}, INTERVAL WEEKDAY(${accessBrokerListings.postedAt}) DAY), '%Y-%m-%d')`,
+        count: count(),
+        sector: accessBrokerListings.victimSector,
+      }).from(accessBrokerListings)
+        .where(and(
+          gte(accessBrokerListings.postedAt, cutoff),
+          sql`(${accessBrokerListings.victimCountry} LIKE '%US%' OR ${accessBrokerListings.victimCountry} LIKE '%United States%')`,
+          sql`(${accessBrokerListings.victimSector} LIKE '%gov%' OR ${accessBrokerListings.victimSector} LIKE '%federal%' OR ${accessBrokerListings.victimSector} LIKE '%defense%' OR ${accessBrokerListings.victimSector} LIKE '%military%' OR ${accessBrokerListings.victimSector} LIKE '%agency%')`,
+        ))
+        .groupBy(sql`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`, sql`DATE_FORMAT(DATE_SUB(${accessBrokerListings.postedAt}, INTERVAL WEEKDAY(${accessBrokerListings.postedAt}) DAY), '%Y-%m-%d')`, accessBrokerListings.victimSector)
+        .orderBy(sql`DATE_FORMAT(${accessBrokerListings.postedAt}, '%Y-%u')`);
+
+      return {
+        activityByWeek: activityRaw.map(r => ({
+          week: r.week,
+          weekStart: r.weekStart,
+          listings: r.count,
+          avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+        })),
+        priceByType: priceByType.map(r => ({
+          type: r.listingType,
+          count: r.count,
+          avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+          minPrice: r.minPrice ? Math.round(r.minPrice) : null,
+          maxPrice: r.maxPrice ? Math.round(r.maxPrice) : null,
+        })),
+        sectorBreakdown: sectorBreakdown.filter(r => r.sector).map(r => ({
+          sector: r.sector!,
+          count: r.count,
+          avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+        })),
+        topBrokers: topBrokers.map(r => ({
+          brokerId: r.brokerId,
+          name: r.brokerName,
+          listings: r.count,
+          avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+          reputation: r.reputation,
+        })),
+        govTargeting: govTargeting.map(r => ({
+          week: r.week,
+          weekStart: r.weekStart,
+          count: r.count,
+          sector: r.sector,
+        })),
+      };
+    }),
 });

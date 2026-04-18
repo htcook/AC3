@@ -9,9 +9,13 @@ import {
   Activity, TrendingUp, Search, ExternalLink, Radio, Rss, ScanSearch,
   Database, Loader2, RefreshCw, Crosshair, FileText,
   Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp, ChevronRight,
-  ShieldAlert, Megaphone, DollarSign, Users, Network, FileJson,
+  ShieldAlert, Megaphone, DollarSign, Users, Network, FileJson, BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell, Legend,
+} from "recharts";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 // ─── Color Maps ──────────────────────────────────────────────────────────
@@ -55,7 +59,7 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
-    iabs: true, infoOps: true, govBrokers: true,
+    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true,
   });
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
@@ -102,6 +106,7 @@ export default function DarkwebIntel() {
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
+  const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: 90 });
 
   // ─── US Gov Access Broker queries ──────────────────────────────────────
   const [govSearch, setGovSearch] = useState("");
@@ -1055,6 +1060,176 @@ export default function DarkwebIntel() {
                         ))}
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Broker Timeline Analytics ─────────────────────── */}
+            <div className="bg-card border border-orange-500/20 p-4">
+              <button onClick={() => toggleSection("brokerTimeline")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-orange-400" /> BROKER TIMELINE ANALYTICS
+                  <span className="text-[10px] text-muted-foreground/60">90d</span>
+                </h3>
+                {expandedSections.brokerTimeline ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {expandedSections.brokerTimeline && (
+                <div className="mt-4 space-y-6">
+                  {timelineLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                  ) : !brokerTimeline || (brokerTimeline.activityByWeek.length === 0 && brokerTimeline.priceByType.length === 0) ? (
+                    <p className="text-xs text-muted-foreground py-4 text-center">No broker listing data available for the selected period.</p>
+                  ) : (
+                    <>
+                      {/* Activity Trend + Avg Price */}
+                      {brokerTimeline.activityByWeek.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <Activity className="w-3 h-3 text-orange-400" /> WEEKLY LISTING ACTIVITY & AVG PRICE
+                          </h4>
+                          <div className="h-48">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={brokerTimeline.activityByWeek} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="activityGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                                  </linearGradient>
+                                  <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#22d3ee" stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                                <XAxis dataKey="weekStart" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v ? v.slice(5) : ''} />
+                                <YAxis yAxisId="left" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v ? `$${(v/1000).toFixed(0)}k` : ''} />
+                                <Tooltip
+                                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 0, fontSize: 11 }}
+                                  labelStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                                  formatter={(value: any, name: string) => [
+                                    name === 'avgPrice' ? `$${(value || 0).toLocaleString()}` : value,
+                                    name === 'listings' ? 'Listings' : 'Avg Price'
+                                  ]}
+                                />
+                                <Area yAxisId="left" type="monotone" dataKey="listings" stroke="#f97316" fill="url(#activityGrad)" strokeWidth={2} dot={false} />
+                                <Area yAxisId="right" type="monotone" dataKey="avgPrice" stroke="#22d3ee" fill="url(#priceGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="flex items-center justify-center gap-4 mt-1">
+                            <span className="flex items-center gap-1 text-[9px] text-orange-400"><span className="w-3 h-0.5 bg-orange-400 inline-block" /> Listings</span>
+                            <span className="flex items-center gap-1 text-[9px] text-cyan-400"><span className="w-3 h-0.5 bg-cyan-400 inline-block border-dashed" /> Avg Price</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Price by Access Type */}
+                      {brokerTimeline.priceByType.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <DollarSign className="w-3 h-3 text-emerald-400" /> PRICE BY ACCESS TYPE
+                          </h4>
+                          <div className="h-40">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={brokerTimeline.priceByType} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                                <XAxis dataKey="type" tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v ? v.replace(/_/g, ' ').slice(0, 12) : ''} />
+                                <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                                <Tooltip
+                                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 0, fontSize: 11 }}
+                                  formatter={(value: any) => [`$${(value || 0).toLocaleString()}`, 'Avg Price']}
+                                  labelFormatter={(label) => label ? label.replace(/_/g, ' ') : ''}
+                                />
+                                <Bar dataKey="avgPrice" radius={[2, 2, 0, 0]}>
+                                  {brokerTimeline.priceByType.map((_, i) => (
+                                    <Cell key={i} fill={['#f97316','#22d3ee','#a855f7','#ef4444','#10b981','#eab308','#ec4899','#6366f1','#14b8a6','#f43f5e','#8b5cf6','#06b6d4'][i % 12]} fillOpacity={0.7} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sector Targeting Heatmap */}
+                      {brokerTimeline.sectorBreakdown.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                            <Globe2 className="w-3 h-3 text-amber-400" /> SECTOR TARGETING
+                          </h4>
+                          <div className="grid grid-cols-3 sm:grid-cols-5 gap-1">
+                            {brokerTimeline.sectorBreakdown.map((s, i) => {
+                              const maxCount = Math.max(...brokerTimeline.sectorBreakdown.map(x => x.count));
+                              const intensity = maxCount > 0 ? s.count / maxCount : 0;
+                              return (
+                                <div key={i} className="p-2 border border-border text-center relative overflow-hidden" style={{ background: `rgba(249, 115, 22, ${0.05 + intensity * 0.35})` }}>
+                                  <p className="text-[9px] font-display tracking-wider text-foreground truncate" title={s.sector}>{s.sector}</p>
+                                  <p className="text-sm font-display text-orange-400">{s.count}</p>
+                                  {s.avgPrice && <p className="text-[8px] text-muted-foreground">${s.avgPrice.toLocaleString()}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top Brokers + Gov Targeting side by side */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Top Brokers */}
+                        {brokerTimeline.topBrokers.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                              <Users className="w-3 h-3 text-purple-400" /> TOP BROKERS BY VOLUME
+                            </h4>
+                            <div className="space-y-1.5">
+                              {brokerTimeline.topBrokers.map((b, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs border border-border/50 px-2 py-1.5 bg-muted/20">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-[10px] font-display text-muted-foreground w-4">{i + 1}.</span>
+                                    <span className="truncate text-foreground">{b.name}</span>
+                                    <span className={`text-[8px] px-1 py-0.5 border ${
+                                      b.reputation === 'established' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
+                                      b.reputation === 'rising' ? 'text-amber-400 border-amber-500/30 bg-amber-500/10' :
+                                      'text-muted-foreground border-border bg-muted/30'
+                                    }`}>{b.reputation}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-[10px] text-orange-400 font-display">{b.listings}</span>
+                                    {b.avgPrice && <span className="text-[9px] text-muted-foreground">${b.avgPrice.toLocaleString()}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Gov Targeting Timeline */}
+                        {brokerTimeline.govTargeting.length > 0 && (
+                          <div>
+                            <h4 className="text-[10px] font-display tracking-wider text-red-400 mb-2 flex items-center gap-1.5">
+                              <ShieldAlert className="w-3 h-3" /> US GOV TARGETING TREND
+                            </h4>
+                            <div className="h-32">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={brokerTimeline.govTargeting} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                                  <XAxis dataKey="weekStart" tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={(v) => v ? v.slice(5) : ''} />
+                                  <YAxis tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
+                                  <Tooltip
+                                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 0, fontSize: 11 }}
+                                    labelFormatter={(label) => `Week of ${label}`}
+                                    formatter={(value: any) => [value, 'Gov Listings']}
+                                  />
+                                  <Bar dataKey="count" fill="#ef4444" fillOpacity={0.6} radius={[2, 2, 0, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
