@@ -55,7 +55,7 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
-    iabs: true, infoOps: true,
+    iabs: true, infoOps: true, govBrokers: true,
   });
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
@@ -102,6 +102,23 @@ export default function DarkwebIntel() {
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
+
+  // ─── US Gov Access Broker queries ──────────────────────────────────────
+  const [govSearch, setGovSearch] = useState("");
+  const { data: govBrokers, isLoading: govBrokersLoading } = trpc.darkwebBridge.govBrokerKnowledgeBase.useQuery(
+    govSearch ? { search: govSearch } : undefined
+  );
+  const { data: govStats } = trpc.darkwebBridge.govBrokerStats.useQuery();
+  const { data: govForumActivity } = trpc.darkwebBridge.govForumActivity.useQuery();
+  const seedGovBrokers = trpc.darkwebBridge.seedGovBrokers.useMutation({
+    onSuccess: (result) => {
+      toast.success("Gov Brokers Seeded", {
+        description: `${result.inserted} new, ${result.updated} updated (${result.total} total)`,
+      });
+      refetchIABs();
+    },
+    onError: (err) => toast.error("Seed Failed", { description: sanitizeErrorForToast(err) }),
+  });
   const { data: iosCampaigns, isLoading: iosLoading, refetch: refetchIOs } = trpc.darkwebIntel.infoOpsCampaigns.useQuery({});
   const syncDarkwebFeeds = trpc.darkwebIntel.syncDarkwebFeeds.useMutation({
     onSuccess: (result) => {
@@ -834,7 +851,216 @@ export default function DarkwebIntel() {
               )}
             </div>
 
-            {/* ─── Information Operations Campaigns ─────────────────────── */}
+             {/* ─── US Government Access Brokers ─────────────────────── */}
+            <div className="bg-card border border-red-500/30 p-4">
+              <button onClick={() => toggleSection("govBrokers")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-red-400 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-400" /> US GOVERNMENT ACCESS BROKERS
+                  <span className="text-[10px] text-red-400/60">({govBrokers?.length ?? 0})</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); seedGovBrokers.mutate(); }}
+                    disabled={seedGovBrokers.isPending}
+                    className="ml-2 p-1 hover:bg-red-500/10 rounded transition-colors"
+                    title="Seed gov broker intelligence into database"
+                  >
+                    {seedGovBrokers.isPending ? <Loader2 className="w-3 h-3 animate-spin text-red-400" /> : <Database className="w-3 h-3 text-red-400/60" />}
+                  </button>
+                </h3>
+                {expandedSections.govBrokers ? <ChevronUp className="w-4 h-4 text-red-400" /> : <ChevronDown className="w-4 h-4 text-red-400" />}
+              </button>
+              {expandedSections.govBrokers && (
+                <div className="mt-3 space-y-3">
+                  {/* Gov Stats Summary */}
+                  {govStats && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div className="bg-red-500/5 border border-red-500/20 p-2 text-center">
+                        <div className="text-lg font-mono text-red-400">{govStats.totalKnownBrokers}</div>
+                        <div className="text-[9px] text-muted-foreground">KNOWN BROKERS</div>
+                      </div>
+                      <div className="bg-red-500/5 border border-red-500/20 p-2 text-center">
+                        <div className="text-lg font-mono text-red-400">{govStats.activeBrokers}</div>
+                        <div className="text-[9px] text-muted-foreground">ACTIVE (90d)</div>
+                      </div>
+                      <div className="bg-red-500/5 border border-red-500/20 p-2 text-center">
+                        <div className="text-lg font-mono text-amber-400">{govStats.totalForumListings}</div>
+                        <div className="text-[9px] text-muted-foreground">FORUM LISTINGS</div>
+                      </div>
+                      <div className="bg-red-500/5 border border-red-500/20 p-2 text-center">
+                        <div className="text-lg font-mono text-green-400">${(govStats.avgAskingPrice / 1000).toFixed(0)}k</div>
+                        <div className="text-[9px] text-muted-foreground">AVG PRICE</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Forum Activity Heatmap */}
+                  {govForumActivity && govForumActivity.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground font-display tracking-wider">FORUM ACTIVITY</div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                        {govForumActivity.map((f: any) => (
+                          <div key={f.forum} className={`p-2 border ${
+                            f.riskLevel === "critical" ? "border-red-500/30 bg-red-500/5" :
+                            f.riskLevel === "high" ? "border-orange-500/30 bg-orange-500/5" :
+                            "border-amber-500/30 bg-amber-500/5"
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-display text-foreground">{f.forum}</span>
+                              <span className={`text-[9px] px-1 py-0.5 border ${
+                                f.riskLevel === "critical" ? "text-red-400 border-red-500/30 bg-red-500/10" :
+                                f.riskLevel === "high" ? "text-orange-400 border-orange-500/30 bg-orange-500/10" :
+                                "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                              }`}>{safeUpper(f.riskLevel)}</span>
+                            </div>
+                            <div className="text-xs font-mono text-foreground mt-1">{f.govListings} listings</div>
+                            <div className="text-[9px] text-muted-foreground">${f.avgPrice.toLocaleString()} avg</div>
+                            <div className="flex flex-wrap gap-0.5 mt-1">
+                              {f.topAccessTypes.slice(0, 3).map((t: string) => (
+                                <span key={t} className="text-[8px] px-1 py-0.5 bg-muted/50 border border-border text-muted-foreground">{t}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search gov brokers (name, agency, group...)"
+                      value={govSearch}
+                      onChange={(e) => setGovSearch(e.target.value)}
+                      className="w-full pl-7 pr-3 py-1.5 bg-muted/30 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-red-500/50"
+                    />
+                  </div>
+
+                  {/* Broker Cards */}
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {govBrokersLoading ? (
+                      <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-red-400" /></div>
+                    ) : !govBrokers || govBrokers.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-4 text-center">No gov-targeting brokers found. Try a different search or seed the knowledge base.</p>
+                    ) : (
+                      govBrokers.map((b: any) => (
+                        <div key={b.brokerId} className="border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-display text-red-400 tracking-wide">{safeUpper(b.brokerName)}</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 border ${
+                                  b.sponsorship === "state-sponsored" ? "text-red-400 border-red-500/30 bg-red-500/10" :
+                                  b.sponsorship === "hybrid" ? "text-purple-400 border-purple-500/30 bg-purple-500/10" :
+                                  "text-orange-400 border-orange-500/30 bg-orange-500/10"
+                                }`}>{safeUpper(b.sponsorship)}</span>
+                              </div>
+                              {b.aliases.length > 0 && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">AKA: {b.aliases.join(", ")}</p>
+                              )}
+                              <p className="text-[10px] text-muted-foreground">Attribution: {b.attribution}</p>
+                            </div>
+                            <div className="text-right">
+                              <div className={`text-lg font-mono ${
+                                b.riskScore >= 90 ? "text-red-400" : b.riskScore >= 75 ? "text-orange-400" : "text-amber-400"
+                              }`}>{b.riskScore}</div>
+                              <div className="text-[9px] text-muted-foreground">RISK</div>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{b.notes}</p>
+
+                          {/* Target Agencies */}
+                          <div className="space-y-1">
+                            <div className="text-[9px] text-red-400/70 font-display">TARGET AGENCIES</div>
+                            <div className="flex flex-wrap gap-1">
+                              {b.govTargeting.agencies.map((a: string) => (
+                                <span key={a} className="text-[9px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{a}</span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Access Methods */}
+                          <div className="flex flex-wrap gap-1">
+                            {b.govTargeting.accessMethods.slice(0, 3).map((m: string) => (
+                              <span key={m} className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                <Key className="w-2.5 h-2.5 inline mr-1" />{m}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Price + Forums */}
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="text-[9px] px-1.5 py-0.5 bg-green-500/10 border border-green-500/20 text-green-400">
+                              <DollarSign className="w-2.5 h-2.5 inline mr-1" />
+                              ${b.govTargeting.priceRange.min.toLocaleString()} - ${b.govTargeting.priceRange.max.toLocaleString()}
+                            </span>
+                            {b.primaryForums.map((f: string) => (
+                              <span key={f} className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                <Globe2 className="w-2.5 h-2.5 inline mr-1" />{f}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Linked Groups */}
+                          {b.linkedGroups.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-[9px] text-muted-foreground">LINKED:</span>
+                              {b.linkedGroups.map((g: string) => (
+                                <span key={g} className="text-[9px] px-1 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{g}</span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* MITRE + CISA */}
+                          <div className="flex flex-wrap gap-1">
+                            {b.mitreTechniques.slice(0, 4).map((t: string) => (
+                              <span key={t} className="text-[9px] px-1 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono">{t}</span>
+                            ))}
+                            {b.mitreTechniques.length > 4 && (
+                              <span className="text-[9px] text-muted-foreground">+{b.mitreTechniques.length - 4} more</span>
+                            )}
+                            {b.cisaAdvisories.map((a: string) => (
+                              <span key={a} className="text-[9px] px-1 py-0.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-mono">
+                                <Shield className="w-2.5 h-2.5 inline mr-1" />{a}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Target Domains */}
+                          <div className="flex flex-wrap gap-1">
+                            {b.govTargeting.domains.map((d: string) => (
+                              <span key={d} className="text-[9px] px-1 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">{d}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Top Targeted Agencies */}
+                  {govStats && govStats.topTargetedAgencies.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-muted-foreground font-display tracking-wider">TOP TARGETED AGENCIES</div>
+                      <div className="space-y-1">
+                        {govStats.topTargetedAgencies.slice(0, 8).map((a: any) => (
+                          <div key={a.agency} className="flex items-center justify-between px-2 py-1 bg-muted/20 border border-border">
+                            <span className="text-[10px] text-foreground">{a.agency}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 bg-muted/50 overflow-hidden">
+                                <div className="h-full bg-red-400" style={{ width: `${(a.count / govStats.topTargetedAgencies[0].count) * 100}%` }} />
+                              </div>
+                              <span className="text-[9px] font-mono text-muted-foreground">{a.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── Information Operations Campaigns ───────────────────── */}}
             <div className="bg-card border border-border p-4">
               <button onClick={() => toggleSection("infoOps")} className="flex items-center justify-between w-full">
                 <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">

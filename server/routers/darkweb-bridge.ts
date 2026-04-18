@@ -801,4 +801,147 @@ export const darkwebBridgeRouter = router({
       errors: ["Sync completed with local data only"],
     };
   }),
+
+  // ─── US Government Access Broker Monitoring ──────────────────────────
+
+  govBrokerKnowledgeBase: protectedProcedure
+    .input(z.object({ search: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const { getKnownGovBrokers, searchGovBrokers } = await import("../lib/gov-access-broker-monitor");
+      const q = input?.search?.trim();
+      return q ? searchGovBrokers(q) : getKnownGovBrokers();
+    }),
+
+  govBrokerStats: protectedProcedure.query(async () => {
+    const { getGovBrokerStats } = await import("../lib/gov-access-broker-monitor");
+    return getGovBrokerStats();
+  }),
+
+  govForumActivity: protectedProcedure.query(async () => {
+    const { getForumActivityPatterns } = await import("../lib/gov-access-broker-monitor");
+    return getForumActivityPatterns();
+  }),
+
+  govBrokerEnrich: protectedProcedure
+    .input(z.object({ brokerId: z.string() }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      const { enrichWithGovIntel } = await import("../lib/gov-access-broker-monitor");
+      const rows = await db.select().from(accessBrokerListings)
+        .where(eq(accessBrokerListings.brokerId, input.brokerId))
+        .limit(1);
+      if (!rows.length) return null;
+      const listing = rows[0];
+      return enrichWithGovIntel({
+        brokerId: listing.brokerId,
+        brokerName: listing.brokerName,
+        victimSector: listing.victimSector,
+        victimCountry: listing.victimCountry,
+        description: listing.iabDescription,
+        accessType: listing.accessType,
+        accessLevel: listing.accessLevel,
+        askingPrice: listing.askingPrice,
+        brokerReputation: listing.brokerReputation,
+        linkedRansomwareGroups: safeParseJson(listing.linkedRansomwareGroups),
+        forumPostUrl: listing.forumPostUrl,
+      });
+    }),
+
+  govBrokerScan: protectedProcedure.mutation(async () => {
+    const db = getDb();
+    const { enrichWithGovIntel } = await import("../lib/gov-access-broker-monitor");
+    const allListings = await db.select().from(accessBrokerListings);
+    const govListings: any[] = [];
+    for (const listing of allListings) {
+      const result = enrichWithGovIntel({
+        brokerId: listing.brokerId,
+        brokerName: listing.brokerName,
+        victimSector: listing.victimSector,
+        victimCountry: listing.victimCountry,
+        description: listing.iabDescription,
+        accessType: listing.accessType,
+        accessLevel: listing.accessLevel,
+        askingPrice: listing.askingPrice,
+        brokerReputation: listing.brokerReputation,
+        linkedRansomwareGroups: safeParseJson(listing.linkedRansomwareGroups),
+        forumPostUrl: listing.forumPostUrl,
+      });
+      if (result.isGovTarget) {
+        govListings.push({
+          ...listing,
+          govConfidence: result.govConfidence,
+          govRiskScore: result.riskScore,
+          govRiskFactors: result.riskFactors,
+          govMatchedPatterns: result.matchedPatterns,
+          knownProfile: result.knownProfile,
+        });
+      }
+    }
+    return {
+      scanned: allListings.length,
+      govTargeting: govListings.length,
+      listings: govListings.sort((a: any, b: any) => (b.govRiskScore || 0) - (a.govRiskScore || 0)),
+    };
+  }),
+
+  seedGovBrokers: protectedProcedure.mutation(async () => {
+    const db = getDb();
+    const { GOV_IAB_KNOWLEDGE_BASE } = await import("../lib/gov-access-broker-monitor");
+    let inserted = 0;
+    let updated = 0;
+    for (const profile of GOV_IAB_KNOWLEDGE_BASE) {
+      const existing = await db.select().from(accessBrokerListings)
+        .where(eq(accessBrokerListings.brokerId, profile.brokerId))
+        .limit(1);
+      if (existing.length > 0) {
+        await db.update(accessBrokerListings)
+          .set({
+            brokerName: profile.brokerName,
+            aliases: JSON.stringify(profile.aliases),
+            description: profile.notes,
+            iabDescription: profile.notes,
+            accessType: profile.accessTypes[0] || "vpn_access",
+            victimSector: profile.govTargeting.agencies[0] || "Government",
+            victimCountry: "United States",
+            askingPrice: `$${profile.govTargeting.priceRange.min.toLocaleString()} - $${profile.govTargeting.priceRange.max.toLocaleString()}`,
+            forumSource: profile.primaryForums[0] || "Unknown",
+            brokerReputation: profile.riskScore >= 90 ? "established" : profile.riskScore >= 75 ? "rising" : "new",
+            status: "active",
+            linkedRansomwareGroups: JSON.stringify(profile.linkedGroups),
+            mitreTechniques: JSON.stringify(profile.mitreTechniques),
+            iabConfidence: profile.riskScore,
+            iabDataSource: "gov-iab-knowledge-base",
+          })
+          .where(eq(accessBrokerListings.brokerId, profile.brokerId));
+        updated++;
+      } else {
+        await db.insert(accessBrokerListings).values({
+          brokerId: profile.brokerId,
+          brokerName: profile.brokerName,
+          aliases: JSON.stringify(profile.aliases),
+          listingType: profile.accessTypes[0]?.replace(/ /g, "_") as any || "vpn_access",
+          description: profile.notes,
+          iabDescription: profile.notes,
+          accessType: profile.accessTypes[0] || "vpn_access",
+          accessLevel: "domain_admin",
+          victimSector: profile.govTargeting.agencies[0] || "Government",
+          victimCountry: "United States",
+          askingPrice: `$${profile.govTargeting.priceRange.min.toLocaleString()} - $${profile.govTargeting.priceRange.max.toLocaleString()}`,
+          currency: "USD",
+          forumSource: profile.primaryForums[0] || "Unknown",
+          brokerReputation: profile.riskScore >= 90 ? "established" : profile.riskScore >= 75 ? "rising" : "new",
+          status: "active",
+          linkedRansomwareGroups: JSON.stringify(profile.linkedGroups),
+          mitreTechniques: JSON.stringify(profile.mitreTechniques),
+          iabConfidence: profile.riskScore,
+          iabDataSource: "gov-iab-knowledge-base",
+          iabFirstSeen: new Date(profile.lastActive + "-01").getTime(),
+          iabLastActive: Date.now(),
+          postedAt: Date.now(),
+        });
+        inserted++;
+      }
+    }
+    return { inserted, updated, total: GOV_IAB_KNOWLEDGE_BASE.length };
+  }),
 });
