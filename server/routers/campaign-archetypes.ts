@@ -201,7 +201,7 @@ export const campaignArchetypeRouter = router({
         actor: {
           actorId: actor.actorId,
           name: actor.name,
-          type: actor.type,
+          type: actor.actorType,
           techniques: actorTechniques,
           tools: safeParseArr(actor.tools),
           malware: safeParseArr(actor.malware),

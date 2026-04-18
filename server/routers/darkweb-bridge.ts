@@ -84,11 +84,11 @@ export const darkwebBridgeRouter = router({
         .select({
           groupName: ransomwareGroups.groupName,
           totalVictims: ransomwareGroups.totalVictims,
-          victims7d: ransomwareGroups.victims7d,
-          victims30d: ransomwareGroups.victims30d,
+          victims7d: ransomwareGroups.victims7D,
+          victims30d: ransomwareGroups.victims30D,
           activityScore: ransomwareGroups.activityScore,
           trend: ransomwareGroups.trend,
-          threatLevel: ransomwareGroups.threatLevel, // Drizzle name for "rwThreatLevel" column
+          threatLevel: ransomwareGroups.rwThreatLevel, // Drizzle name for "rwThreatLevel" column
           topSectors: ransomwareGroups.topSectors,
           topCountries: ransomwareGroups.topCountries,
         })
@@ -171,8 +171,8 @@ export const darkwebBridgeRouter = router({
         groupName: ransomwareGroups.groupName,
         activityScore: ransomwareGroups.activityScore,
         trend: ransomwareGroups.trend,
-        threatLevel: ransomwareGroups.threatLevel,
-        victims30d: ransomwareGroups.victims30d,
+        threatLevel: ransomwareGroups.rwThreatLevel,
+        victims30d: ransomwareGroups.victims30D,
       })
       .from(ransomwareGroups)
       .orderBy(desc(ransomwareGroups.activityScore))
@@ -355,7 +355,7 @@ export const darkwebBridgeRouter = router({
           associatedMalware: ransomwareGroups.associatedMalware,
           activityScore: ransomwareGroups.activityScore,
           trend: ransomwareGroups.trend,
-          threatLevel: ransomwareGroups.threatLevel,
+          threatLevel: ransomwareGroups.rwThreatLevel,
           updatedAt: ransomwareGroups.updatedAt,
         })
         .from(ransomwareGroups)
@@ -541,7 +541,7 @@ export const darkwebBridgeRouter = router({
       const limit = input?.limit ?? 50;
       const status = input?.status ?? "all";
       const conditions = status !== "all"
-        ? [eq(accessBrokerListings.status, status as any)]
+        ? [eq(accessBrokerListings.iabStatus, status as any)]
         : [];
       const rows = conditions.length > 0
         ? await db.select().from(accessBrokerListings).where(and(...conditions)).limit(limit)
@@ -697,7 +697,7 @@ export const darkwebBridgeRouter = router({
             victimCountry: accessBrokerListings.victimCountry,
             accessType: accessBrokerListings.accessType,
             askingPrice: accessBrokerListings.askingPrice,
-            status: accessBrokerListings.status,
+            status: accessBrokerListings.iabStatus,
           })
           .from(accessBrokerListings)
           .where(sql`JSON_CONTAINS(${accessBrokerListings.linkedActorIds}, JSON_QUOTE(${actor.actorId}))`)
@@ -714,7 +714,7 @@ export const darkwebBridgeRouter = router({
           actorId: actor.actorId,
           name: actor.name,
           aliases: safeParseJson(actor.aliases),
-          type: actor.type,
+          type: actor.actorType,
           origin: actor.origin,
           description: actor.description,
           motivation: actor.motivation,
@@ -733,21 +733,21 @@ export const darkwebBridgeRouter = router({
         } : null,
         relatedEvents,
         actorIocs: actorIocs.map(ioc => ({
-          type: ioc.type,
+          type: ioc.iocType,
           value: ioc.value,
           description: ioc.description,
-          firstSeen: ioc.firstSeen,
-          lastSeen: ioc.lastSeen,
-          confidence: ioc.confidence,
+          firstSeen: ioc.iocFirstSeen,
+          lastSeen: ioc.iocLastSeen,
+          confidence: ioc.iocConfidence,
           source: ioc.source,
         })),
         ransomwareProfile: ransomwareProfile ? {
           groupName: ransomwareProfile.groupName,
           activityScore: ransomwareProfile.activityScore,
           trend: ransomwareProfile.trend,
-          threatLevel: ransomwareProfile.threatLevel,
-          victims7d: ransomwareProfile.victims7d,
-          victims30d: ransomwareProfile.victims30d,
+          threatLevel: ransomwareProfile.rwThreatLevel,
+          victims7d: ransomwareProfile.victims7D,
+          victims30d: ransomwareProfile.victims30D,
           totalVictims: ransomwareProfile.totalVictims,
           topSectors: ransomwareProfile.topSectors,
           topCountries: ransomwareProfile.topCountries,

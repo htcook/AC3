@@ -376,11 +376,11 @@ export const darkwebIntelRouter = router({
         .select({
           groupName: ransomwareGroups.groupName,
           totalVictims: ransomwareGroups.totalVictims,
-          victims7d: ransomwareGroups.victims7d,
-          victims30d: ransomwareGroups.victims30d,
+          victims7d: ransomwareGroups.victims7D,
+          victims30d: ransomwareGroups.victims30D,
           activityScore: ransomwareGroups.activityScore,
           trend: ransomwareGroups.trend,
-          threatLevel: ransomwareGroups.threatLevel,
+          threatLevel: ransomwareGroups.rwThreatLevel,
           topSectors: ransomwareGroups.topSectors,
           topCountries: ransomwareGroups.topCountries,
         })
@@ -441,9 +441,9 @@ export const darkwebIntelRouter = router({
         groupName: ransomwareGroups.groupName,
         activityScore: ransomwareGroups.activityScore,
         trend: ransomwareGroups.trend,
-        threatLevel: ransomwareGroups.threatLevel,
-        victims7d: ransomwareGroups.victims7d,
-        victims30d: ransomwareGroups.victims30d,
+        threatLevel: ransomwareGroups.rwThreatLevel,
+        victims7d: ransomwareGroups.victims7D,
+        victims30d: ransomwareGroups.victims30D,
       })
       .from(ransomwareGroups)
       .orderBy(desc(ransomwareGroups.activityScore))
@@ -618,7 +618,7 @@ export const darkwebIntelRouter = router({
           associatedMalware: ransomwareGroups.associatedMalware,
           activityScore: ransomwareGroups.activityScore,
           trend: ransomwareGroups.trend,
-          threatLevel: ransomwareGroups.threatLevel,
+          threatLevel: ransomwareGroups.rwThreatLevel,
           updatedAt: ransomwareGroups.updatedAt,
         })
         .from(ransomwareGroups)
@@ -735,11 +735,11 @@ export const darkwebIntelRouter = router({
       const limit = input?.limit ?? 50;
       const status = input?.status ?? "all";
       const conditions = status !== "all"
-        ? [eq(accessBrokerListings.status, status as any)]
+        ? [eq(accessBrokerListings.iabStatus, status as any)]
         : [];
       const rows = conditions.length > 0
-        ? await db.select().from(accessBrokerListings).where(and(...conditions)).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.createdAt)).limit(limit)
-        : await db.select().from(accessBrokerListings).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.createdAt)).limit(limit);
+        ? await db.select().from(accessBrokerListings).where(and(...conditions)).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.iabCreatedAt)).limit(limit)
+        : await db.select().from(accessBrokerListings).orderBy(desc(accessBrokerListings.postedAt), desc(accessBrokerListings.iabCreatedAt)).limit(limit);
       return rows;
     }),
 
@@ -843,7 +843,7 @@ export const darkwebIntelRouter = router({
             victimCountry: accessBrokerListings.victimCountry,
             accessType: accessBrokerListings.accessType,
             askingPrice: accessBrokerListings.askingPrice,
-            status: accessBrokerListings.status,
+            status: accessBrokerListings.iabStatus,
           })
           .from(accessBrokerListings)
           .where(sql`JSON_CONTAINS(${accessBrokerListings.linkedActorIds}, JSON_QUOTE(${actor.actorId}))`)
@@ -875,7 +875,7 @@ export const darkwebIntelRouter = router({
         event: { ...event, mitreTechniques: safeParseJson(event.mitreTechniques), iocs: safeParseJson(event.iocs) },
         actor: actor ? {
           actorId: actor.actorId, name: actor.name, aliases: safeParseJson(actor.aliases),
-          type: actor.type, origin: actor.origin, description: actor.description,
+          type: actor.actorType, origin: actor.origin, description: actor.description,
           motivation: actor.motivation, firstSeen: actor.firstSeen, lastActive: actor.lastActive,
           threatLevel: actor.threatLevel, sophistication: actor.sophistication,
           targetSectors: safeParseJson(actor.targetSectors), targetRegions: safeParseJson(actor.targetRegions),
@@ -885,8 +885,8 @@ export const darkwebIntelRouter = router({
         } : null,
         relatedEvents,
         actorIocs: actorIocs.map(ioc => ({
-          type: ioc.type, value: ioc.value, description: ioc.description,
-          firstSeen: ioc.firstSeen, lastSeen: ioc.lastSeen, confidence: ioc.confidence, source: ioc.source,
+          type: ioc.iocType, value: ioc.value, description: ioc.description,
+          firstSeen: ioc.iocFirstSeen, lastSeen: ioc.iocLastSeen, confidence: ioc.iocConfidence, source: ioc.source,
         })),
         feedIocs: feedIocs.map(ioc => ({
           id: ioc.id, iocType: ioc.iocType, iocValue: ioc.iocValue,
@@ -897,8 +897,8 @@ export const darkwebIntelRouter = router({
         })),
         ransomwareProfile: ransomwareProfile ? {
           groupName: ransomwareProfile.groupName, activityScore: ransomwareProfile.activityScore,
-          trend: ransomwareProfile.trend, threatLevel: ransomwareProfile.threatLevel,
-          victims7d: ransomwareProfile.victims7d, victims30d: ransomwareProfile.victims30d,
+          trend: ransomwareProfile.trend, threatLevel: ransomwareProfile.rwThreatLevel,
+          victims7d: ransomwareProfile.victims7D, victims30d: ransomwareProfile.victims30D,
           totalVictims: ransomwareProfile.totalVictims, topSectors: ransomwareProfile.topSectors,
           topCountries: ransomwareProfile.topCountries, ransomwareFamily: ransomwareProfile.ransomwareFamily,
           extortionModel: ransomwareProfile.extortionModel,
@@ -1336,7 +1336,7 @@ export const darkwebIntelRouter = router({
         event: eventDetail,
         actor: actor ? {
           actorId: actor.actorId, name: actor.name, aliases: safeParseJson(actor.aliases),
-          type: actor.type, origin: actor.origin, description: actor.description,
+          type: actor.actorType, origin: actor.origin, description: actor.description,
           motivation: actor.motivation, firstSeen: actor.firstSeen, lastActive: actor.lastActive,
           threatLevel: actor.threatLevel, sophistication: actor.sophistication,
           targetSectors: safeParseJson(actor.targetSectors), targetRegions: safeParseJson(actor.targetRegions),
@@ -1345,13 +1345,13 @@ export const darkwebIntelRouter = router({
           confidence: actor.confidence, dataSource: actor.dataSource,
         } : null,
         actorIocs: actorIocs.map(ioc => ({
-          type: ioc.type, value: ioc.value, description: ioc.description,
-          firstSeen: ioc.firstSeen, lastSeen: ioc.lastSeen, confidence: ioc.confidence, source: ioc.source,
+          type: ioc.iocType, value: ioc.value, description: ioc.description,
+          firstSeen: ioc.iocFirstSeen, lastSeen: ioc.iocLastSeen, confidence: ioc.iocConfidence, source: ioc.source,
         })),
         ransomwareProfile: ransomwareProfile ? {
           groupName: ransomwareProfile.groupName, activityScore: ransomwareProfile.activityScore,
-          trend: ransomwareProfile.trend, threatLevel: ransomwareProfile.threatLevel,
-          victims7d: ransomwareProfile.victims7d, victims30d: ransomwareProfile.victims30d,
+          trend: ransomwareProfile.trend, threatLevel: ransomwareProfile.rwThreatLevel,
+          victims7d: ransomwareProfile.victims7D, victims30d: ransomwareProfile.victims30D,
           totalVictims: ransomwareProfile.totalVictims,
           topSectors: safeParseJson(ransomwareProfile.topSectors),
           topCountries: safeParseJson(ransomwareProfile.topCountries),

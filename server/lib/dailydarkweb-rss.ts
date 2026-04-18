@@ -346,8 +346,8 @@ export async function fetchAndIngestFeed(feedUrl: string, feedLabel: string): Pr
           if (rwGroup) {
             await db.update(ransomwareGroups).set({
               lastActive: new Date(event.pubDate).toISOString().substring(0, 7),
-              victims7d: sql`${ransomwareGroups.victims7d} + 1`,
-              victims30d: sql`${ransomwareGroups.victims30d} + 1`,
+              victims7d: sql`${ransomwareGroups.victims7D} + 1`,
+              victims30d: sql`${ransomwareGroups.victims30D} + 1`,
               totalVictims: sql`${ransomwareGroups.totalVictims} + ${event.victims.length || 1}`,
             }).where(eq(ransomwareGroups.id, rwGroup.id));
           }

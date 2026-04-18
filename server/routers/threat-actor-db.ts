@@ -58,7 +58,7 @@ export const threatActorDbRouter = router({
         const response = await invokeLLM({ _caller: "threat-actor-db", _priority: 'bulk',
           messages: [
             { role: 'system', content: `You are a cyber threat intelligence analyst. Provide enriched intelligence data for the given threat actor. Return JSON with: { "description": "detailed 3-5 paragraph history", "tools": ["tool1", "tool2"], "malware": ["malware1", "malware2"], "activityTimeline": [{ "date": "YYYY", "event": "description", "source": "source" }], "motivation": "primary motivation", "firstSeen": "YYYY", "lastActive": "YYYY" }` },
-            { role: 'user', content: `Enrich this threat actor with detailed corroborated intelligence:\n\nName: ${actor.name}\nAliases: ${JSON.stringify(actor.aliases)}\nType: ${actor.type}\nOrigin: ${actor.origin}\nCurrent description: ${actor.description?.substring(0, 500)}\n\nProvide comprehensive, factual data from CrowdStrike, Mandiant, Unit 42, MITRE ATT&CK, and other reputable sources.` }
+            { role: 'user', content: `Enrich this threat actor with detailed corroborated intelligence:\n\nName: ${actor.name}\nAliases: ${JSON.stringify(actor.aliases)}\nType: ${actor.actorType}\nOrigin: ${actor.origin}\nCurrent description: ${actor.description?.substring(0, 500)}\n\nProvide comprehensive, factual data from CrowdStrike, Mandiant, Unit 42, MITRE ATT&CK, and other reputable sources.` }
           ],
           response_format: {
             type: 'json_schema',

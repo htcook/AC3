@@ -490,7 +490,7 @@ export const ksiThreatMapRouter = router({
         return {
           actorId: actor.actorId,
           name: actor.name,
-          type: actor.type,
+          type: actor.actorType,
           origin: actor.origin,
           threatLevel: actor.threatLevel,
           sophistication: actor.sophistication,

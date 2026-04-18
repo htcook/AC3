@@ -557,14 +557,14 @@ export const ksiAutoCollectorRouter = router({
         await insertKsiEvidence(
           db, ksiId,
           `Threat Actor: ${actor.name}`,
-          `Type: ${actor.type} | Origin: ${actor.origin || "Unknown"} | Level: ${actor.threatLevel} | Techniques: ${Array.isArray(actor.techniques) ? actor.techniques.length : 0}`,
+          `Type: ${actor.actorType} | Origin: ${actor.origin || "Unknown"} | Level: ${actor.threatLevel} | Techniques: ${Array.isArray(actor.techniques) ? actor.techniques.length : 0}`,
           mapping.evidenceType,
           mapping.sourceModule,
           `threat-${actor.actorId}`,
           {
             actorId: actor.actorId,
             name: actor.name,
-            type: actor.type,
+            type: actor.actorType,
             origin: actor.origin,
             threatLevel: actor.threatLevel,
             sophistication: actor.sophistication,

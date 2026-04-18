@@ -1060,7 +1060,7 @@ export default function DarkwebIntel() {
               )}
             </div>
 
-            {/* ─── Information Operations Campaigns ───────────────────── */}}
+            {/* ─── Information Operations Campaigns ───────────────────── */}
             <div className="bg-card border border-border p-4">
               <button onClick={() => toggleSection("infoOps")} className="flex items-center justify-between w-full">
                 <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">

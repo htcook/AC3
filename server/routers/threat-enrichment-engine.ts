@@ -209,7 +209,7 @@ export const threatEnrichmentEngineRouter = router({
             name: actor.name,
             threatLevel: actor.threatLevel || "medium",
             matchedTechniques: matched,
-            type: actor.type,
+            type: actor.actorType,
           });
         }
       }
@@ -222,9 +222,9 @@ export const threatEnrichmentEngineRouter = router({
           .where(sql`${threatActorIocs.actorId} IN (${sql.raw(actorIds.map(id => `'${id}'`).join(","))})`)
           .limit(200);
         relevantIocs = iocs.map(i => ({
-          type: i.type,
+          type: i.iocType,
           value: typeof i.value === "string" ? i.value.substring(0, 100) : "",
-          confidence: i.confidence || "medium",
+          confidence: i.iocConfidence || "medium",
           actorId: i.actorId,
         }));
       }
@@ -403,7 +403,7 @@ export const threatEnrichmentEngineRouter = router({
         actor: {
           actorId: actor.actorId,
           name: actor.name,
-          type: actor.type,
+          type: actor.actorType,
           threatLevel: actor.threatLevel,
           origin: actor.origin,
           techniques: actorTechniques.length,
@@ -415,7 +415,7 @@ export const threatEnrichmentEngineRouter = router({
         iocCount: iocs.length,
         iocsByType: Object.entries(
           iocs.reduce((acc, ioc) => {
-            acc[ioc.type] = (acc[ioc.type] || 0) + 1;
+            acc[ioc.iocType] = (acc[ioc.iocType] || 0) + 1;
             return acc;
           }, {} as Record<string, number>)
         ).map(([type, cnt]) => ({ type, count: cnt })),

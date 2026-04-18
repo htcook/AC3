@@ -193,7 +193,7 @@ async function enrichFromIOCs(config: EnrichmentConfig, maxItems: number): Promi
     const unmappedIOCs = await drizzleDb
       .select({
         id: schema.threatActorIocs.id,
-        type: schema.threatActorIocs.type,
+        type: schema.threatActorIocs.iocType,
         value: schema.threatActorIocs.value,
         actorId: schema.threatActorIocs.actorId,
       })

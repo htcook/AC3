@@ -367,7 +367,7 @@ export const threatIntelRouter = router({
 
       const sortCol = opts.sortBy === "groupName" ? ransomwareGroups.groupName
         : opts.sortBy === "totalVictims" ? ransomwareGroups.totalVictims
-        : opts.sortBy === "victims30d" ? ransomwareGroups.victims30d
+        : opts.sortBy === "victims30d" ? ransomwareGroups.victims30D
         : ransomwareGroups.activityScore;
       const order = opts.sortOrder === "desc" ? desc(sortCol) : sortCol;
 

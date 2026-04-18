@@ -566,7 +566,7 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
                 if (rwGroup) {
                   await db.update(ransomwareGroups).set({
                     lastActive: pubDate.toISOString().substring(0, 7),
-                    victims30d: sql`${ransomwareGroups.victims30d} + 1`,
+                    victims30d: sql`${ransomwareGroups.victims30D} + 1`,
                     totalVictims: sql`${ransomwareGroups.totalVictims} + 1`,
                   }).where(eq(ransomwareGroups.id, rwGroup.id));
                 }
