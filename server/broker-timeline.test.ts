@@ -365,10 +365,10 @@ describe("Broker Timeline Analytics", () => {
   // ─── Seed Data Validation ──────────────────────────────────────────────
   describe("Seed Data Validation", () => {
     const BROKERS = [
-      { id: "iab-shadowbroker-01", name: "ShadowBroker_01", rep: "established" },
+      { id: "iab-intelbroker", name: "IntelBroker", rep: "established" },
       { id: "iab-pioneer-kitten", name: "Pioneer Kitten", rep: "established" },
       { id: "iab-scattered-spider", name: "Scattered Spider", rep: "established" },
-      { id: "iab-cloudpwn", name: "CloudPwn3r", rep: "new" },
+      { id: "iab-mora001", name: "Mora_001", rep: "new" },
     ];
 
     it("should have valid broker IDs with iab- prefix", () => {

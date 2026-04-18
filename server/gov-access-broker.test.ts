@@ -80,7 +80,7 @@ describe("Gov Access Broker Monitor", () => {
 
   it("should search brokers by agency target", async () => {
     const { searchGovBrokers } = await import("./lib/gov-access-broker-monitor");
-    const results = searchGovBrokers("DOD");
+    const results = searchGovBrokers("Defense Industrial Base");
     expect(results.length).toBeGreaterThanOrEqual(1);
   });
 
