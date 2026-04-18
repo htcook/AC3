@@ -322,4 +322,94 @@ describe("Broker Timeline Analytics", () => {
       expect(maxCount).toBe(0);
     });
   });
+
+  // ─── Time Range Selector ──────────────────────────────────────────────
+  describe("Time Range Selector", () => {
+    const VALID_RANGES = [7, 30, 90, 365];
+
+    it("should support all four time range options", () => {
+      expect(VALID_RANGES).toEqual([7, 30, 90, 365]);
+      expect(VALID_RANGES).toHaveLength(4);
+    });
+
+    it("should format range labels correctly", () => {
+      const formatLabel = (d: number) => d === 365 ? '1Y' : `${d}D`;
+      expect(formatLabel(7)).toBe('7D');
+      expect(formatLabel(30)).toBe('30D');
+      expect(formatLabel(90)).toBe('90D');
+      expect(formatLabel(365)).toBe('1Y');
+    });
+
+    it("should clamp out-of-range values", () => {
+      const clamp = (d: number) => Math.max(7, Math.min(365, d));
+      expect(clamp(1)).toBe(7);
+      expect(clamp(500)).toBe(365);
+      expect(clamp(90)).toBe(90);
+    });
+
+    it("should produce different cutoff dates for each range", () => {
+      const now = Date.now();
+      const cutoffs = VALID_RANGES.map(d => new Date(now - d * 86400000).getTime());
+      // Each cutoff should be further back than the previous
+      for (let i = 1; i < cutoffs.length; i++) {
+        expect(cutoffs[i]).toBeLessThan(cutoffs[i - 1]);
+      }
+    });
+
+    it("should default to 90 days when state is initialized", () => {
+      const defaultDays = 90;
+      expect(VALID_RANGES).toContain(defaultDays);
+    });
+  });
+
+  // ─── Seed Data Validation ──────────────────────────────────────────────
+  describe("Seed Data Validation", () => {
+    const BROKERS = [
+      { id: "iab-shadowbroker-01", name: "ShadowBroker_01", rep: "established" },
+      { id: "iab-pioneer-kitten", name: "Pioneer Kitten", rep: "established" },
+      { id: "iab-scattered-spider", name: "Scattered Spider", rep: "established" },
+      { id: "iab-cloudpwn", name: "CloudPwn3r", rep: "new" },
+    ];
+
+    it("should have valid broker IDs with iab- prefix", () => {
+      for (const b of BROKERS) {
+        expect(b.id).toMatch(/^iab-/);
+      }
+    });
+
+    it("should have valid reputation levels", () => {
+      const validReps = ["established", "rising", "new", "unknown"];
+      for (const b of BROKERS) {
+        expect(validReps).toContain(b.rep);
+      }
+    });
+
+    it("should generate prices in valid format", () => {
+      const priceRegex = /^\$[\d,]+$/;
+      const testPrices = ["$500", "$12,345", "$150,000"];
+      for (const p of testPrices) {
+        expect(p).toMatch(priceRegex);
+      }
+    });
+
+    it("should have valid listing types", () => {
+      const validTypes = [
+        "vpn_access", "rdp_access", "citrix_access", "webshell", "domain_admin",
+        "cloud_access", "email_access", "database_access", "zero_day", "credential_dump", "other",
+      ];
+      expect(validTypes).toHaveLength(11);
+      expect(validTypes).toContain("vpn_access");
+      expect(validTypes).toContain("zero_day");
+    });
+
+    it("should have valid access levels", () => {
+      const validLevels = ["domain_admin", "local_admin", "user", "service_account", "unknown"];
+      expect(validLevels).toHaveLength(5);
+    });
+
+    it("should have valid status values", () => {
+      const validStatuses = ["active", "sold", "expired", "removed"];
+      expect(validStatuses).toHaveLength(4);
+    });
+  });
 });

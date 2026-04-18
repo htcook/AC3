@@ -106,7 +106,8 @@ export default function DarkwebIntel() {
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
-  const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: 90 });
+  const [timelineDays, setTimelineDays] = useState(90);
+  const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
 
   // ─── US Gov Access Broker queries ──────────────────────────────────────
   const [govSearch, setGovSearch] = useState("");
@@ -1070,9 +1071,25 @@ export default function DarkwebIntel() {
               <button onClick={() => toggleSection("brokerTimeline")} className="flex items-center justify-between w-full">
                 <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-orange-400" /> BROKER TIMELINE ANALYTICS
-                  <span className="text-[10px] text-muted-foreground/60">90d</span>
                 </h3>
-                {expandedSections.brokerTimeline ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    {[7, 30, 90, 365].map(d => (
+                      <button
+                        key={d}
+                        onClick={(e) => { e.stopPropagation(); setTimelineDays(d); }}
+                        className={`px-2 py-0.5 text-[9px] font-display tracking-wider transition-colors ${
+                          timelineDays === d
+                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        } ${d !== 7 ? 'border-l border-border' : ''}`}
+                      >
+                        {d === 365 ? '1Y' : `${d}D`}
+                      </button>
+                    ))}
+                  </div>
+                  {expandedSections.brokerTimeline ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </div>
               </button>
               {expandedSections.brokerTimeline && (
                 <div className="mt-4 space-y-6">
