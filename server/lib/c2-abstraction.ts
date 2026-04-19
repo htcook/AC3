@@ -399,8 +399,8 @@ export class MetasploitAdapter implements IC2Adapter {
         const db = await getDb();
         if (db) {
           const servers = await db.select().from(metasploitServers)
-            .where(eq(metasploitServers.status, "online"))
-            .orderBy(desc(metasploitServers.createdAt))
+            .where(eq(metasploitServers.msfStatus, "online"))
+            .orderBy(desc(metasploitServers.msfCreatedAt))
             .limit(1);
           if (servers.length > 0) {
             const s = servers[0];

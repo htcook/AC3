@@ -15,12 +15,12 @@ import {
   darkwebEnrichedRecords,
   darkwebFeedRegistry,
   ransomwareAffiliates,
-  type InsertUndergroundIntelEvent,
-  type InsertNetworkEvent,
+  
+  
   type InsertIabActivity,
-  type InsertInfluenceOperation,
-  type InsertCredentialExposure,
-  type InsertRansomwareAffiliate,
+  
+  
+  
 } from "../../drizzle/schema";
 import { eq, desc, sql, like, and, or, gte, lte, inArray } from "drizzle-orm";
 
@@ -42,21 +42,21 @@ export async function getUndergroundEvents(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.category) conditions.push(eq(undergroundIntelEvents.category, opts.category as any));
-  if (opts.source) conditions.push(eq(undergroundIntelEvents.source, opts.source));
-  if (opts.severity) conditions.push(eq(undergroundIntelEvents.severity, opts.severity as any));
+  if (opts.category) conditions.push(eq(undergroundIntelEvents.uieCategory, opts.category as any));
+  if (opts.source) conditions.push(eq(undergroundIntelEvents.uieSource, opts.source));
+  if (opts.severity) conditions.push(eq(undergroundIntelEvents.uieSeverity, opts.severity as any));
   if (opts.search) conditions.push(
     or(
-      like(undergroundIntelEvents.title, `%${opts.search}%`),
-      like(undergroundIntelEvents.description, `%${opts.search}%`),
-      like(undergroundIntelEvents.actorName, `%${opts.search}%`),
+      like(undergroundIntelEvents.uieTitle, `%${opts.search}%`),
+      like(undergroundIntelEvents.uieDescription, `%${opts.search}%`),
+      like(undergroundIntelEvents.uieActorName, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const events = await db.select().from(undergroundIntelEvents)
     .where(where)
-    .orderBy(desc(undergroundIntelEvents.createdAt))
+    .orderBy(desc(undergroundIntelEvents.uieCreatedAt))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -111,20 +111,20 @@ export async function getNetworkEvents(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.eventType) conditions.push(eq(networkEvents.eventType, opts.eventType as any));
-  if (opts.source) conditions.push(eq(networkEvents.source, opts.source));
+  if (opts.eventType) conditions.push(eq(networkEvents.neEventType, opts.eventType as any));
+  if (opts.source) conditions.push(eq(networkEvents.neSource, opts.source));
   if (opts.search) conditions.push(
     or(
-      like(networkEvents.ipAddress, `%${opts.search}%`),
-      like(networkEvents.hostname, `%${opts.search}%`),
-      like(networkEvents.malwareFamily, `%${opts.search}%`),
+      like(networkEvents.neIpAddress, `%${opts.search}%`),
+      like(networkEvents.neHostname, `%${opts.search}%`),
+      like(networkEvents.neMalwareFamily, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const events = await db.select().from(networkEvents)
     .where(where)
-    .orderBy(desc(networkEvents.createdAt))
+    .orderBy(desc(networkEvents.neCreatedAt))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -159,19 +159,19 @@ export async function getIabActivities(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.status) conditions.push(eq(iabActivity.status, opts.status as any));
-  if (opts.listingType) conditions.push(eq(iabActivity.listingType, opts.listingType as any));
+  if (opts.status) conditions.push(eq(iabActivity.iabStatus, opts.status as any));
+  if (opts.listingType) conditions.push(eq(iabActivity.iabListingType, opts.listingType as any));
   if (opts.search) conditions.push(
     or(
-      like(iabActivity.brokerName, `%${opts.search}%`),
-      like(iabActivity.description, `%${opts.search}%`),
+      like(iabActivity.iabBrokerName, `%${opts.search}%`),
+      like(iabActivity.iabDescription, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const activities = await db.select().from(iabActivity)
     .where(where)
-    .orderBy(desc(iabActivity.createdAt))
+    .orderBy(desc(iabActivity.iabCreatedAt))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -191,18 +191,18 @@ export async function getCredentialExposures(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.severity) conditions.push(eq(credentialExposures.severity, opts.severity as any));
+  if (opts.severity) conditions.push(eq(credentialExposures.ceSeverity, opts.severity as any));
   if (opts.search) conditions.push(
     or(
-      like(credentialExposures.breachName, `%${opts.search}%`),
-      like(credentialExposures.domain, `%${opts.search}%`),
+      like(credentialExposures.ceBreachName, `%${opts.search}%`),
+      like(credentialExposures.ceDomain, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const exposures = await db.select().from(credentialExposures)
     .where(where)
-    .orderBy(desc(credentialExposures.createdAt))
+    .orderBy(desc(credentialExposures.ceCreatedAt))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -234,18 +234,18 @@ export async function getInfluenceOperations(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.status) conditions.push(eq(influenceOperations.status, opts.status as any));
+  if (opts.status) conditions.push(eq(influenceOperations.ioStatus, opts.status as any));
   if (opts.search) conditions.push(
     or(
-      like(influenceOperations.operationName, `%${opts.search}%`),
-      like(influenceOperations.attributedTo, `%${opts.search}%`),
+      like(influenceOperations.ioOperationName, `%${opts.search}%`),
+      like(influenceOperations.ioAttributedTo, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const ops = await db.select().from(influenceOperations)
     .where(where)
-    .orderBy(desc(influenceOperations.createdAt))
+    .orderBy(desc(influenceOperations.ioCreatedAt))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -264,12 +264,12 @@ export async function getEnrichedRecords(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.minRiskScore) conditions.push(gte(darkwebEnrichedRecords.riskScore, opts.minRiskScore));
+  if (opts.minRiskScore) conditions.push(gte(darkwebEnrichedRecords.derRiskScore, opts.minRiskScore));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const records = await db.select().from(darkwebEnrichedRecords)
     .where(where)
-    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -286,18 +286,18 @@ export async function getRansomwareAffiliates(opts: {
 }) {
   const db = await requireDb();
   const conditions: any[] = [];
-  if (opts.status) conditions.push(eq(ransomwareAffiliates.status, opts.status as any));
+  if (opts.status) conditions.push(eq(ransomwareAffiliates.raStatus, opts.status as any));
   if (opts.search) conditions.push(
     or(
-      like(ransomwareAffiliates.affiliateName, `%${opts.search}%`),
-      like(ransomwareAffiliates.primaryGroup, `%${opts.search}%`),
+      like(ransomwareAffiliates.raAffiliateName, `%${opts.search}%`),
+      like(ransomwareAffiliates.raPrimaryGroup, `%${opts.search}%`),
     )
   );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const affiliates = await db.select().from(ransomwareAffiliates)
     .where(where)
-    .orderBy(desc(ransomwareAffiliates.activityScore))
+    .orderBy(desc(ransomwareAffiliates.raActivityScore))
     .limit(opts.limit || 50)
     .offset(opts.offset || 0);
 
@@ -311,14 +311,14 @@ export async function getRansomwareAffiliates(opts: {
 
 export async function getFeedRegistry() {
   const db = await requireDb();
-  return db.select().from(darkwebFeedRegistry).orderBy(darkwebFeedRegistry.feedName);
+  return db.select().from(darkwebFeedRegistry).orderBy(darkwebFeedRegistry.dfrFeedName);
 }
 
 export async function toggleFeed(feedName: string, enabled: boolean) {
   const db = await requireDb();
   await db.update(darkwebFeedRegistry)
     .set({ enabled })
-    .where(eq(darkwebFeedRegistry.feedName, feedName));
+    .where(eq(darkwebFeedRegistry.dfrFeedName, feedName));
 }
 
 // ─── Dashboard Stats ─────────────────────────────────────────────────────

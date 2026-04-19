@@ -11,7 +11,7 @@ import { getDb } from "../db";
 import {
   undergroundIntelEvents,
   darkwebEnrichedRecords,
-  type InsertDarkwebEnrichedRecord,
+  
 } from "../../drizzle/schema";
 import { eq, and, isNull, desc, sql } from "drizzle-orm";
 
@@ -40,7 +40,7 @@ interface EnrichmentOutput {
 /**
  * Enrich a single underground intel event using LLM analysis.
  */
-export async function enrichEvent(eventId: number): Promise<InsertDarkwebEnrichedRecord | null> {
+export async function enrichEvent(eventId: number): Promise<typeof darkwebEnrichedRecords.$inferInsert | null> {
   const db = await requireDb();
   const [event] = await db.select().from(undergroundIntelEvents).where(eq(undergroundIntelEvents.id, eventId)).limit(1);
   if (!event) return null;
@@ -56,7 +56,7 @@ export async function enrichEvent(eventId: number): Promise<InsertDarkwebEnriche
         },
         {
           role: "user",
-          content: `Analyze this darkweb intelligence event:\n\nCategory: ${event.category}\nSource: ${event.source}\nTitle: ${event.title}\nDescription: ${event.description || "N/A"}\nActor: ${event.actorName || "Unknown"}\nVictim: ${event.victimName || "N/A"}\nSector: ${event.victimSector || "N/A"}\nCountry: ${event.victimCountry || "N/A"}\nIOC Type: ${event.iocType || "N/A"}\nIOC Value: ${event.iocValue || "N/A"}\nSeverity: ${event.severity}\nTags: ${JSON.stringify(event.tags || [])}`,
+          content: `Analyze this darkweb intelligence event:\n\nCategory: ${event.uieCategory}\nSource: ${event.uieSource}\nTitle: ${event.uieTitle}\nDescription: ${event.uieDescription || "N/A"}\nActor: ${event.uieActorName || "Unknown"}\nVictim: ${event.uieVictimName || "N/A"}\nSector: ${event.uieVictimSector || "N/A"}\nCountry: ${event.uieVictimCountry || "N/A"}\nIOC Type: ${event.uieIocType || "N/A"}\nIOC Value: ${event.uieIocValue || "N/A"}\nSeverity: ${event.uieSeverity}\nTags: ${JSON.stringify(event.uieTags || [])}`,
         },
       ],
       response_format: {
@@ -97,25 +97,25 @@ export async function enrichEvent(eventId: number): Promise<InsertDarkwebEnriche
     const enrichment: EnrichmentOutput = JSON.parse(content);
     const processingTimeMs = Date.now() - startTime;
 
-    const record: InsertDarkwebEnrichedRecord = {
-      sourceEventId: eventId,
-      sourceTable: "underground_intel_events",
-      summary: enrichment.summary,
-      threatAssessment: enrichment.threatAssessment,
-      riskScore: Math.min(100, Math.max(0, enrichment.riskScore)),
-      impactAnalysis: enrichment.impactAnalysis,
-      recommendedActions: enrichment.recommendedActions,
-      relatedActors: enrichment.relatedActors,
-      relatedCampaigns: [],
-      relatedCves: enrichment.relatedCves,
-      relatedIocs: [],
-      mitreTactics: enrichment.mitreTactics,
-      mitreTechniques: enrichment.mitreTechniques,
-      affectedSectors: enrichment.affectedSectors,
-      affectedCountries: enrichment.affectedCountries,
-      enrichmentModel: "platform-llm",
-      enrichmentVersion: "1.0",
-      processingTimeMs,
+    const record: typeof darkwebEnrichedRecords.$inferInsert = {
+      derSourceEventId: eventId,
+      derSourceTable: "underground_intel_events",
+      derSummary: enrichment.summary,
+      derThreatAssessment: enrichment.threatAssessment,
+      derRiskScore: Math.min(100, Math.max(0, enrichment.riskScore)),
+      derImpactAnalysis: enrichment.impactAnalysis,
+      derRecommendedActions: enrichment.recommendedActions,
+      derRelatedActors: enrichment.relatedActors,
+      derRelatedCampaigns: [],
+      derRelatedCves: enrichment.relatedCves,
+      derRelatedIocs: [],
+      derMitreTactics: enrichment.mitreTactics,
+      derMitreTechniques: enrichment.mitreTechniques,
+      derAffectedSectors: enrichment.affectedSectors,
+      derAffectedCountries: enrichment.affectedCountries,
+      derEnrichmentModel: "platform-llm",
+      derEnrichmentVersion: "1.0",
+      derProcessingTimeMs: processingTimeMs,
     };
 
     // Insert enriched record
@@ -123,7 +123,7 @@ export async function enrichEvent(eventId: number): Promise<InsertDarkwebEnriche
 
     // Mark source event as enriched
     await db.update(undergroundIntelEvents)
-      .set({ enriched: true, enrichmentData: enrichment })
+      .set({ uieEnriched: true, uieEnrichmentData: enrichment })
       .where(eq(undergroundIntelEvents.id, eventId));
 
     return record;
@@ -144,8 +144,8 @@ export async function enrichBatch(limit = 10): Promise<{
   const db = await requireDb();
   const unenriched = await db.select({ id: undergroundIntelEvents.id })
     .from(undergroundIntelEvents)
-    .where(eq(undergroundIntelEvents.enriched, false))
-    .orderBy(desc(undergroundIntelEvents.createdAt))
+    .where(eq(undergroundIntelEvents.uieEnriched, false))
+    .orderBy(desc(undergroundIntelEvents.uieCreatedAt))
     .limit(limit);
 
   let enriched = 0;

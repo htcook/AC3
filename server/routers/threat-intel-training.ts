@@ -111,7 +111,7 @@ export const threatIntelTrainingRouter = router({
       const db = await requireDb();
       const conditions = [];
       if (input.source) conditions.push(eq(incidentReports.source, input.source));
-      if (input.status) conditions.push(eq(incidentReports.status, input.status as any));
+      if (input.status) conditions.push(eq(incidentReports.irStatus, input.status as any));
       if (input.incidentType) conditions.push(eq(incidentReports.incidentType, input.incidentType));
       if (input.search) conditions.push(like(incidentReports.title, `%${input.search}%`));
 
@@ -129,13 +129,13 @@ export const threatIntelTrainingRouter = router({
         url: incidentReports.url,
         publishedAt: incidentReports.publishedAt,
         incidentType: incidentReports.incidentType,
-        severity: incidentReports.severity,
-        status: incidentReports.status,
-        createdAt: incidentReports.createdAt,
+        severity: incidentReports.irSeverity,
+        status: incidentReports.irStatus,
+        createdAt: incidentReports.irCreatedAt,
       })
         .from(incidentReports)
         .where(where)
-        .orderBy(desc(incidentReports.createdAt))
+        .orderBy(desc(incidentReports.irCreatedAt))
         .limit(input.limit)
         .offset(input.offset);
 
@@ -197,8 +197,8 @@ export const threatIntelTrainingRouter = router({
       const db = await requireDb();
       const conditions = [];
       if (input.attackType) conditions.push(eq(attackSequenceTemplates.attackType, input.attackType));
-      if (input.complexity) conditions.push(eq(attackSequenceTemplates.complexity, input.complexity as any));
-      if (input.status) conditions.push(eq(attackSequenceTemplates.status, input.status as any));
+      if (input.complexity) conditions.push(eq(attackSequenceTemplates.astComplexity, input.complexity as any));
+      if (input.status) conditions.push(eq(attackSequenceTemplates.astStatus, input.status as any));
       if (input.search) conditions.push(like(attackSequenceTemplates.name, `%${input.search}%`));
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -210,7 +210,7 @@ export const threatIntelTrainingRouter = router({
       const templates = await db.select()
         .from(attackSequenceTemplates)
         .where(where)
-        .orderBy(desc(attackSequenceTemplates.createdAt))
+        .orderBy(desc(attackSequenceTemplates.astCreatedAt))
         .limit(input.limit)
         .offset(input.offset);
 
@@ -255,7 +255,7 @@ export const threatIntelTrainingRouter = router({
     .query(async ({ input }) => {
       const db = await requireDb();
       const conditions = [];
-      if (input.source) conditions.push(eq(exploitIntelligence.source, input.source));
+      if (input.source) conditions.push(eq(exploitIntelligence.eiSource, input.source));
       if (input.weaponized !== undefined) conditions.push(eq(exploitIntelligence.weaponized, input.weaponized));
       if (input.cisaKev !== undefined) conditions.push(eq(exploitIntelligence.cisaKev, input.cisaKev));
       if (input.search) conditions.push(like(exploitIntelligence.cveId, `%${input.search}%`));
@@ -269,7 +269,7 @@ export const threatIntelTrainingRouter = router({
       const exploits = await db.select()
         .from(exploitIntelligence)
         .where(where)
-        .orderBy(desc(exploitIntelligence.createdAt))
+        .orderBy(desc(exploitIntelligence.eiCreatedAt))
         .limit(input.limit)
         .offset(input.offset);
 
@@ -312,7 +312,7 @@ export const threatIntelTrainingRouter = router({
         source: incidentReports.source,
         url: incidentReports.url,
         incidentType: incidentReports.incidentType,
-        severity: incidentReports.severity,
+        severity: incidentReports.irSeverity,
         publishedAt: incidentReports.publishedAt,
         ttpsExtracted: incidentReports.ttpsExtracted,
         attackSequence: incidentReports.attackSequence,
@@ -322,7 +322,7 @@ export const threatIntelTrainingRouter = router({
       })
         .from(incidentReports)
         .where(or(...techConditions))
-        .orderBy(desc(incidentReports.createdAt))
+        .orderBy(desc(incidentReports.irCreatedAt))
         .limit(input.limit * 3); // Fetch more to rank
 
       // Rank by number of matching techniques
@@ -356,14 +356,14 @@ export const threatIntelTrainingRouter = router({
       const techConditions = input.techniques.map(t =>
         or(
           like(sql`CAST(${attackSequenceTemplates.phases} AS CHAR)`, `%${t}%`),
-          like(sql`CAST(${attackSequenceTemplates.calderaAbilities} AS CHAR)`, `%${t}%`)
+          like(sql`CAST(${attackSequenceTemplates.astCalderaAbilities} AS CHAR)`, `%${t}%`)
         )
       );
 
       const templates = await db.select()
         .from(attackSequenceTemplates)
         .where(or(...techConditions))
-        .orderBy(desc(attackSequenceTemplates.createdAt))
+        .orderBy(desc(attackSequenceTemplates.astCreatedAt))
         .limit(input.limit);
 
       return templates;

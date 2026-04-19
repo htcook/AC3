@@ -24,8 +24,8 @@ import { getDb } from "../db";
 import {
   incidentReports,
   exploitIntelligence,
-  type InsertIncidentReport,
-  type InsertExploitIntelligence,
+  
+  
 } from "../../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -163,7 +163,7 @@ export async function ingestDfirReport(): Promise<IngestResult> {
       else if (lowerContent.includes("phishing")) incidentType = "phishing";
       else if (lowerContent.includes("supply chain")) incidentType = "supply_chain";
 
-      const record: InsertIncidentReport = {
+      const record: typeof incidentReports.$inferInsert = {
         sourceId,
         source: "dfir_report",
         title: item.title,
@@ -217,7 +217,7 @@ export async function ingestCisaAdvisories(): Promise<IngestResult> {
       else if (lowerTitle.includes("apt") || lowerTitle.includes("nation-state")) incidentType = "apt";
       else if (lowerTitle.includes("ics") || lowerTitle.includes("scada")) incidentType = "ics_ot";
 
-      const record: InsertIncidentReport = {
+      const record: typeof incidentReports.$inferInsert = {
         sourceId,
         source: "cisa_advisory",
         title: item.title,
@@ -271,7 +271,7 @@ export async function ingestUnit42(): Promise<IngestResult> {
       else if (lower.includes("apt")) incidentType = "apt";
       else if (lower.includes("malware")) incidentType = "malware";
 
-      const record: InsertIncidentReport = {
+      const record: typeof incidentReports.$inferInsert = {
         sourceId,
         source: "unit42",
         title: item.title,
@@ -332,7 +332,7 @@ async function ingestNewsFeed(
       else if (lower.includes("vulnerability") || lower.includes("cve-")) incidentType = "vulnerability";
       else if (lower.includes("malware")) incidentType = "malware";
 
-      const record: InsertIncidentReport = {
+      const record: typeof incidentReports.$inferInsert = {
         sourceId,
         source: sourceName,
         title: item.title,
@@ -421,7 +421,7 @@ export async function ingestMispCircl(): Promise<IngestResult> {
           })
           .filter(Boolean);
 
-        const record: InsertIncidentReport = {
+        const record: typeof incidentReports.$inferInsert = {
           sourceId,
           source: "misp_circl",
           title: event.info || manifest[eventId]?.info || `MISP Event ${eventId}`,
@@ -518,7 +518,7 @@ export async function ingestMetasploitCves(): Promise<IngestResult> {
         exploitType = "auxiliary";
       }
 
-      const record: InsertExploitIntelligence = {
+      const record: typeof exploitIntelligence.$inferInsert = {
         cveId,
         exploitType,
         metasploitModule: modulePath,
@@ -556,12 +556,12 @@ export async function ingestCisaKevExploits(): Promise<IngestResult> {
         .from(exploitIntelligence)
         .where(and(
           eq(exploitIntelligence.cveId, cveId),
-          eq(exploitIntelligence.source, "cisa_kev")
+          eq(exploitIntelligence.eiSource, "cisa_kev")
         ))
         .limit(1);
       if (existing.length > 0) continue;
 
-      const record: InsertExploitIntelligence = {
+      const record: typeof exploitIntelligence.$inferInsert = {
         cveId,
         exploitType: "known_exploited",
         targetProduct: `${vuln.vendorProject || ""} ${vuln.product || ""}`.trim() || undefined,
@@ -619,7 +619,7 @@ export async function ingestDigitalSideMisp(): Promise<IngestResult> {
           context: a.comment || "",
         }));
 
-        const record: InsertIncidentReport = {
+        const record: typeof incidentReports.$inferInsert = {
           sourceId,
           source: "digitalside_misp",
           title: event.info || `DigitalSide Event ${eventId}`,
@@ -733,9 +733,9 @@ export async function getIngestStats(): Promise<{
   }).from(incidentReports).groupBy(incidentReports.source);
 
   const byStatus = await db.select({
-    status: incidentReports.status,
+    status: incidentReports.irStatus,
     count: sql<number>`COUNT(*)`,
-  }).from(incidentReports).groupBy(incidentReports.status);
+  }).from(incidentReports).groupBy(incidentReports.irStatus);
 
   const byType = await db.select({
     type: incidentReports.incidentType,
@@ -745,7 +745,7 @@ export async function getIngestStats(): Promise<{
   const [totalExploits] = await db.select({ count: sql<number>`COUNT(*)` }).from(exploitIntelligence);
   const [weaponized] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(exploitIntelligence)
-    .where(eq(exploitIntelligence.weaponized, true));
+    .where(eq(exploitIntelligence.weaponized, 1));
 
   return {
     totalReports: totalReports?.count || 0,

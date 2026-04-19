@@ -133,11 +133,11 @@ async function checkNetworkEvents(ioc: string, iocType: string): Promise<Darkweb
   try {
     const conditions = [];
     if (iocType === "ip") {
-      conditions.push(eq(networkEvents.ipAddress, ioc));
+      conditions.push(eq(networkEvents.neIpAddress, ioc));
     } else if (iocType === "domain") {
-      conditions.push(like(networkEvents.hostname, `%${ioc}%`));
+      conditions.push(like(networkEvents.neHostname, `%${ioc}%`));
     } else if (iocType === "hash") {
-      conditions.push(like(networkEvents.description, `%${ioc}%`));
+      conditions.push(like(networkEvents.neDescription, `%${ioc}%`));
     } else {
       return [];
     }
@@ -145,20 +145,20 @@ async function checkNetworkEvents(ioc: string, iocType: string): Promise<Darkweb
     const events = await db.select()
       .from(networkEvents)
       .where(conditions[0])
-      .orderBy(desc(networkEvents.createdAt))
+      .orderBy(desc(networkEvents.neCreatedAt))
       .limit(10);
 
     return events.map((e) => ({
-      source: `network_events (${e.source || "local"})`,
+      source: `network_events (${e.neSource || "local"})`,
       matchType: "exact" as const,
-      category: e.eventType || "network",
-      severity: e.severity === "critical" ? "critical" as const :
-        e.severity === "high" ? "high" as const :
-        e.severity === "medium" ? "medium" as const : "low" as const,
-      description: `${e.eventType || "Network event"}: ${e.ipAddress || "N/A"}:${e.port || "N/A"} | ${e.malwareFamily || "Unknown"} | ${e.source}`,
-      malwareFamily: e.malwareFamily || undefined,
-      firstSeen: e.firstSeen?.toString() || undefined,
-      lastSeen: e.lastSeen?.toString() || undefined,
+      category: e.neEventType || "network",
+      severity: e.neSeverity === "critical" ? "critical" as const :
+        e.neSeverity === "high" ? "high" as const :
+        e.neSeverity === "medium" ? "medium" as const : "low" as const,
+      description: `${e.neEventType || "Network event"}: ${e.neIpAddress || "N/A"}:${e.nePort || "N/A"} | ${e.neMalwareFamily || "Unknown"} | ${e.neSource}`,
+      malwareFamily: e.neMalwareFamily || undefined,
+      firstSeen: e.neFirstSeen?.toString() || undefined,
+      lastSeen: e.neLastSeen?.toString() || undefined,
       confidence: 85,
     }));
   } catch {
@@ -176,25 +176,25 @@ async function checkUndergroundEvents(ioc: string, iocType: string): Promise<Dar
       .from(undergroundIntelEvents)
       .where(
         or(
-          like(undergroundIntelEvents.title, pattern),
-          like(undergroundIntelEvents.description, pattern),
-          like(undergroundIntelEvents.iocValue, pattern),
-          like(undergroundIntelEvents.victimName, pattern)
+          like(undergroundIntelEvents.uieTitle, pattern),
+          like(undergroundIntelEvents.uieDescription, pattern),
+          like(undergroundIntelEvents.uieIocValue, pattern),
+          like(undergroundIntelEvents.uieVictimName, pattern)
         )
       )
-      .orderBy(desc(undergroundIntelEvents.createdAt))
+      .orderBy(desc(undergroundIntelEvents.uieCreatedAt))
       .limit(10);
 
     return events.map((e) => ({
-      source: `underground_intel (${e.source || "darkweb"})`,
+      source: `underground_intel (${e.uieSource || "darkweb"})`,
       matchType: "partial" as const,
-      category: e.category || "underground",
-      severity: e.severity === "critical" ? "critical" as const :
-        e.severity === "high" ? "high" as const :
-        e.severity === "medium" ? "medium" as const : "low" as const,
-      description: `${e.category}: ${e.title} | Actor: ${e.actorName || "Unknown"} | Victim: ${e.victimName || "N/A"}`,
-      actor: e.actorName || undefined,
-      firstSeen: e.eventDate?.toString() || undefined,
+      category: e.uieCategory || "underground",
+      severity: e.uieSeverity === "critical" ? "critical" as const :
+        e.uieSeverity === "high" ? "high" as const :
+        e.uieSeverity === "medium" ? "medium" as const : "low" as const,
+      description: `${e.uieCategory}: ${e.uieTitle} | Actor: ${e.uieActorName || "Unknown"} | Victim: ${e.uieVictimName || "N/A"}`,
+      actor: e.uieActorName || undefined,
+      firstSeen: e.uieEventDate?.toString() || undefined,
       confidence: 70,
     }));
   } catch {
@@ -214,23 +214,23 @@ async function checkCredentialExposures(ioc: string, iocType: string): Promise<D
       .from(credentialExposures)
       .where(
         or(
-          like(credentialExposures.breachName, pattern),
-          like(credentialExposures.domain, pattern),
-          like(credentialExposures.description, pattern)
+          like(credentialExposures.ceBreachName, pattern),
+          like(credentialExposures.ceDomain, pattern),
+          like(credentialExposures.ceDescription, pattern)
         )
       )
-      .orderBy(desc(credentialExposures.createdAt))
+      .orderBy(desc(credentialExposures.ceCreatedAt))
       .limit(10);
 
     return exposures.map((e) => ({
-      source: `credential_exposures (${e.source || "breach"})`,
+      source: `credential_exposures (${e.ceSource || "breach"})`,
       matchType: "related" as const,
       category: "credential",
-      severity: e.severity === "critical" ? "critical" as const :
-        e.severity === "high" ? "high" as const : "medium" as const,
-      description: `Breach: ${e.breachName} | ${e.totalRecords || 0} records | Domain: ${e.domain || "unknown"} | Actor: ${e.actorName || "Unknown"}`,
-      actor: e.actorName || undefined,
-      firstSeen: e.breachDate?.toISOString() || undefined,
+      severity: e.ceSeverity === "critical" ? "critical" as const :
+        e.ceSeverity === "high" ? "high" as const : "medium" as const,
+      description: `Breach: ${e.ceBreachName} | ${e.ceTotalRecords || 0} records | Domain: ${e.ceDomain || "unknown"} | Actor: ${e.ceActorName || "Unknown"}`,
+      actor: e.ceActorName || undefined,
+      firstSeen: e.ceBreachDate || undefined,
       confidence: 75,
     }));
   } catch {
@@ -250,12 +250,12 @@ async function checkIabActivity(ioc: string, iocType: string): Promise<DarkwebHi
       .from(iabActivity)
       .where(
         or(
-          like(iabActivity.victimName, pattern),
-          like(iabActivity.description, pattern),
-          like(iabActivity.brokerName, pattern)
+          like(iabActivity.iabVictimName, pattern),
+          like(iabActivity.iabDescription, pattern),
+          like(iabActivity.iabBrokerName, pattern)
         )
       )
-      .orderBy(desc(iabActivity.createdAt))
+      .orderBy(desc(iabActivity.iabCreatedAt))
       .limit(5);
 
     return listings.map((l) => ({
@@ -263,9 +263,9 @@ async function checkIabActivity(ioc: string, iocType: string): Promise<DarkwebHi
       matchType: "related" as const,
       category: "iab",
       severity: "critical" as const,
-      description: `IAB Listing: ${l.brokerName} (${l.listingType || "access"}) | Price: ${l.askingPrice || "N/A"} | Victim: ${l.victimName || "Unknown"} | Sector: ${l.victimSector || "N/A"}`,
-      actor: l.brokerName || undefined,
-      firstSeen: l.firstSeen?.toISOString() || undefined,
+      description: `IAB Listing: ${l.iabBrokerName} (${l.iabListingType || "access"}) | Price: ${l.iabAskingPrice || "N/A"} | Victim: ${l.iabVictimName || "Unknown"} | Sector: ${l.iabVictimSector || "N/A"}`,
+      actor: l.iabBrokerName || undefined,
+      firstSeen: l.iabFirstSeen || undefined,
       confidence: 80,
     }));
   } catch {
@@ -283,23 +283,23 @@ async function checkEnrichedRecords(ioc: string, iocType: string): Promise<Darkw
       .from(darkwebEnrichedRecords)
       .where(
         or(
-          like(darkwebEnrichedRecords.summary, pattern),
-          like(darkwebEnrichedRecords.threatAssessment, pattern),
-          like(darkwebEnrichedRecords.relatedIocs, pattern)
+          like(darkwebEnrichedRecords.derSummary, pattern),
+          like(darkwebEnrichedRecords.derThreatAssessment, pattern),
+          like(darkwebEnrichedRecords.derRelatedIocs, pattern)
         )
       )
-      .orderBy(desc(darkwebEnrichedRecords.riskScore))
+      .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
       .limit(5);
 
     return records.map((r) => ({
       source: "darkweb_enriched",
       matchType: "related" as const,
       category: "enriched_intel",
-      severity: (r.riskScore || 0) >= 80 ? "critical" as const :
-        (r.riskScore || 0) >= 60 ? "high" as const :
-        (r.riskScore || 0) >= 40 ? "medium" as const : "low" as const,
-      description: `Enriched Intel: ${r.summary?.substring(0, 200) || "N/A"} | Risk: ${r.riskScore}/100`,
-      confidence: r.riskScore || 50,
+      severity: (r.derRiskScore || 0) >= 80 ? "critical" as const :
+        (r.derRiskScore || 0) >= 60 ? "high" as const :
+        (r.derRiskScore || 0) >= 40 ? "medium" as const : "low" as const,
+      description: `Enriched Intel: ${r.derSummary?.substring(0, 200) || "N/A"} | Risk: ${r.derRiskScore}/100`,
+      confidence: r.derRiskScore || 50,
     }));
   } catch {
     return [];

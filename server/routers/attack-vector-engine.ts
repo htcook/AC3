@@ -377,7 +377,7 @@ export const attackVectorEngineRouter = router({
       }
 
       // 2. Dark Web Records → Attack Vectors
-      const darkwebRows = await db.select().from(darkwebEnrichedRecords).orderBy(desc(darkwebEnrichedRecords.createdAt)).limit(100);
+      const darkwebRows = await db.select().from(darkwebEnrichedRecords).orderBy(desc(darkwebEnrichedRecords.derCreatedAt)).limit(100);
       for (const record of darkwebRows) {
         const enrichment = record.enrichment as any;
         const riskLevel = enrichment?.riskLevel || "medium";
@@ -385,8 +385,8 @@ export const attackVectorEngineRouter = router({
         vectors.push({
           id: generateId(),
           engagementId: input.engagementId || null,
-          name: `Dark Web: ${record.title || "Intelligence Record"}`,
-          description: `Dark web intelligence: ${record.summary || "Potential threat indicator from dark web monitoring"}`,
+          name: `Dark Web: ${record.derSummary || "Intelligence Record"}`,
+          description: `Dark web intelligence: ${record.derSummary || "Potential threat indicator from dark web monitoring"}`,
           vectorType: "credential_compromise",
           killChainPhase: "credential_access",
           mitreTechniqueIds: ["T1078", "T1552", "T1589"],
@@ -395,27 +395,27 @@ export const attackVectorEngineRouter = router({
           overallRiskScore: baseScore,
           confidence: riskLevel === "critical" ? "high" : "medium",
           status: "identified",
-          targetAsset: record.title,
+          targetAsset: record.derSummary,
           sourceModules: ["dark-web-intel"],
-          evidenceSummary: `Source: Dark Web | Type: ${record.feedId || "unknown"} | Risk: ${riskLevel}`,
+          evidenceSummary: `Source: Dark Web | Type: ${record.derSourceTable || "unknown"} | Risk: ${riskLevel}`,
           createdBy: String(ctx.user.id),
           createdAt: now,
           updatedAt: now,
-          _evidence: { sourceType: "darkweb_record" as const, sourceId: String(record.id), sourceTitle: record.title },
+          _evidence: { sourceType: "darkweb_record" as const, sourceId: String(record.id), sourceTitle: record.derSummary },
         });
       }
 
       // 3. Vulnerability Scan Findings → Attack Vectors
-      const vulnRows = await db.select().from(vulnScanFindings).orderBy(desc(vulnScanFindings.createdAt)).limit(200);
+      const vulnRows = await db.select().from(vulnScanFindings).orderBy(desc(vulnScanFindings.vsfCreatedAt)).limit(200);
       for (const vuln of vulnRows) {
-        const cvss = vuln.cvssScore ? Number(vuln.cvssScore) : 5.0;
+        const cvss = vuln.vsfCvssScore ? Number(vuln.vsfCvssScore) : 5.0;
         if (cvss < 4.0) continue; // Skip low-severity vulns
-        const techniques = vuln.cveId ? ["T1190", "T1210"] : ["T1190"];
+        const techniques = vuln.vsfCveId ? ["T1190", "T1210"] : ["T1190"];
         vectors.push({
           id: generateId(),
           engagementId: input.engagementId || null,
-          name: `Vuln: ${vuln.cveId || vuln.title || "Vulnerability"}`,
-          description: vuln.description || `Vulnerability with CVSS ${cvss}`,
+          name: `Vuln: ${vuln.vsfCveId || vuln.vsfTitle || "Vulnerability"}`,
+          description: vuln.vsfDescription || `Vulnerability with CVSS ${cvss}`,
           vectorType: "network_exploitation",
           killChainPhase: "initial_access",
           mitreTechniqueIds: techniques,
@@ -425,14 +425,14 @@ export const attackVectorEngineRouter = router({
           overallRiskScore: cvss,
           confidence: cvss >= 9.0 ? "high" : cvss >= 7.0 ? "medium" : "low",
           status: "identified",
-          targetAsset: vuln.host || vuln.title,
-          targetService: vuln.port ? `${vuln.port}` : undefined,
+          targetAsset: vuln.vsfHostIp || vuln.vsfTitle,
+          targetService: vuln.vsfPort ? `${vuln.vsfPort}` : undefined,
           sourceModules: ["vuln-scanner"],
-          evidenceSummary: `CVE: ${vuln.cveId || "N/A"} | CVSS: ${cvss} | Host: ${vuln.host || "N/A"}`,
+          evidenceSummary: `CVE: ${vuln.vsfCveId || "N/A"} | CVSS: ${cvss} | Host: ${vuln.vsfHostIp || "N/A"}`,
           createdBy: String(ctx.user.id),
           createdAt: now,
           updatedAt: now,
-          _evidence: { sourceType: "vuln_scan" as const, sourceId: String(vuln.id), sourceTitle: vuln.cveId || vuln.title },
+          _evidence: { sourceType: "vuln_scan" as const, sourceId: String(vuln.id), sourceTitle: vuln.vsfCveId || vuln.vsfTitle },
         });
       }
 
@@ -658,21 +658,21 @@ export const attackVectorEngineRouter = router({
       const conditions = techniques.map(t => like(exploitScripts.mitreAttackId, `%${t}%`));
       const scripts = await db.select({
         id: exploitScripts.id,
-        title: exploitScripts.title,
-        sourceType: exploitScripts.sourceType,
-        sourceId: exploitScripts.sourceId,
-        cveId: exploitScripts.cveId,
-        platform: exploitScripts.platform,
-        exploitType: exploitScripts.exploitType,
-        reliability: exploitScripts.reliability,
-        verified: exploitScripts.verified,
+        title: exploitScripts.esTitle,
+        sourceType: exploitScripts.esSourceType,
+        sourceId: exploitScripts.esSourceId,
+        cveId: exploitScripts.esCveId,
+        platform: exploitScripts.esPlatform,
+        exploitType: exploitScripts.esExploitType,
+        reliability: exploitScripts.esReliability,
+        verified: exploitScripts.esVerified,
         mitreAttackId: exploitScripts.mitreAttackId,
-        calderaAbilityGenerated: exploitScripts.calderaAbilityGenerated,
-        successRate: exploitScripts.successRate,
-        timesDeployed: exploitScripts.timesDeployed,
+        calderaAbilityGenerated: exploitScripts.esCalderaGenerated,
+        successRate: exploitScripts.esSuccessRate,
+        timesDeployed: exploitScripts.esTimesDeployed,
       }).from(exploitScripts)
         .where(or(...conditions))
-        .orderBy(desc(exploitScripts.successRate))
+        .orderBy(desc(exploitScripts.esSuccessRate))
         .limit(20);
 
       return scripts;

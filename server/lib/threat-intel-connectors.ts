@@ -355,12 +355,12 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
             description: desc || null,
             activityScore: isActive ? 60 : 20,
             trend: isActive ? "active" : "dormant",
-            threatLevel: "high",
+            rwThreatLevel: "high",
             knownInfrastructure: JSON.stringify(onionSites),
             associatedMalware: JSON.stringify(g.tools || []),
             extortionModel: "double",
-            dataSource: "ransomware.live",
-            confidence: 85,
+            rwDataSource: "ransomware.live",
+            rwConfidence: 85,
           });
         } else {
           await db.update(ransomwareGroups).set({
@@ -404,7 +404,7 @@ export async function ingestRansomwareLive(): Promise<IngestionResult> {
               tgeSource: "ransomware.live",
               tgeSourceUrl: v.post_url || null,
               tgeConfidence: 90,
-              eventDate: v.discovered ? new Date(v.discovered) : new Date(),
+              eventDate: v.discovered ? new Date(v.discovered).toISOString() : new Date().toISOString(),
             });
             r.eventsIngested++;
           } catch (_) { /* skip */ }

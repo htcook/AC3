@@ -141,7 +141,7 @@ export const stixExportRouter = router({
         conditions.push(eq(iocFeeds.feedSource, input.feedSource));
       }
       if (input.severity !== "all") {
-        conditions.push(eq(iocFeeds.severity, input.severity as any));
+        conditions.push(eq(iocFeeds.feedSeverity, input.severity as any));
       }
       if (input.search) {
         conditions.push(

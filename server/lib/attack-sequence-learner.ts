@@ -21,9 +21,9 @@ import {
   threatActors,
   ttpKnowledge,
   darkwebEnrichedRecords,
-  type InsertAttackSequenceTemplate,
-  type InsertExploitIntelligence,
-  type InsertTtpKnowledge,
+  
+  
+  
 } from "../../drizzle/schema";
 import { eq, and, sql, isNull, inArray, desc, gt, isNotNull } from "drizzle-orm";
 
@@ -294,7 +294,7 @@ ${truncatedContent}`,
 
 // ─── Phase 2: Generate Attack Sequence Templates ────────────────────────
 
-export async function generateAttackTemplate(reportId: number): Promise<InsertAttackSequenceTemplate | null> {
+export async function generateAttackTemplate(reportId: number): Promise<typeof attackSequenceTemplates.$inferInsert | null> {
   const db = await requireDb();
   const [report] = await db.select().from(incidentReports).where(eq(incidentReports.id, reportId)).limit(1);
   if (!report || !report.attackSequence) return null;
@@ -366,7 +366,7 @@ Emulation Guidance: ${report.emulationGuidance || "N/A"}`,
     const profile = JSON.parse(content);
 
     const actors = (report.actorsIdentified as any[]) || [];
-    const template: InsertAttackSequenceTemplate = {
+    const template: typeof attackSequenceTemplates.$inferInsert = {
       templateId: generateTemplateId(),
       name: `${report.title} — Emulation Template`,
       description: report.attackNarrative || report.summary || undefined,
@@ -390,7 +390,7 @@ Emulation Guidance: ${report.emulationGuidance || "N/A"}`,
 
     // Mark report as enriched
     await db.update(incidentReports)
-      .set({ status: "enriched" })
+      .set({ irStatus: "enriched" })
       .where(eq(incidentReports.id, reportId));
 
     return template;
@@ -417,7 +417,7 @@ export async function enrichExploitsFromReport(reportId: number): Promise<number
       .from(exploitIntelligence)
       .where(and(
         eq(exploitIntelligence.cveId, exploit.cve),
-        eq(exploitIntelligence.source, "incident_report")
+        eq(exploitIntelligence.eiSource, "incident_report")
       ))
       .limit(1);
 
@@ -431,7 +431,7 @@ export async function enrichExploitsFromReport(reportId: number): Promise<number
         .where(eq(exploitIntelligence.id, existing[0]!.id));
     } else {
       const actors = (report.actorsIdentified as any[]) || [];
-      const record: InsertExploitIntelligence = {
+      const record: typeof exploitIntelligence.$inferInsert = {
         cveId: exploit.cve,
         exploitType: exploit.exploitType || undefined,
         targetProduct: exploit.targetProduct || undefined,
@@ -587,7 +587,7 @@ export async function processReport(reportId: number): Promise<ProcessingResult>
 
       // Mark as training-ready
       await db.update(incidentReports)
-        .set({ status: "training_ready" })
+        .set({ irStatus: "training_ready" })
         .where(eq(incidentReports.id, reportId));
     }
   } catch (e: any) {
@@ -652,9 +652,9 @@ export async function getLearnerStats(): Promise<{
 
   const [reportCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(incidentReports);
   const statusCounts = await db.select({
-    status: incidentReports.status,
+    status: incidentReports.irStatus,
     count: sql<number>`COUNT(*)`,
-  }).from(incidentReports).groupBy(incidentReports.status);
+  }).from(incidentReports).groupBy(incidentReports.irStatus);
 
   const [templateCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(attackSequenceTemplates);
   const typeCounts = await db.select({
@@ -890,23 +890,23 @@ export async function learnFromDarkweb(options?: {
     .from(darkwebEnrichedRecords)
     .where(
       and(
-        isNotNull(darkwebEnrichedRecords.mitreTechniques),
-        gt(darkwebEnrichedRecords.riskScore, minScore),
-        gt(darkwebEnrichedRecords.createdAt, cutoff),
+        isNotNull(darkwebEnrichedRecords.derMitreTechniques),
+        gt(darkwebEnrichedRecords.derRiskScore, minScore),
+        gt(darkwebEnrichedRecords.derCreatedAt, cutoff),
       )
     )
-    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
     .limit(options?.limit ?? 200);
 
   for (const record of records) {
     try {
-      const techniques = (record.mitreTechniques as string[]) || [];
-      const tactics = (record.mitreTactics as string[]) || [];
-      const relatedActors = (record.relatedActors as string[]) || [];
-      const relatedCves = (record.relatedCves as string[]) || [];
-      const relatedIocs = (record.relatedIocs as any[]) || [];
-      const affectedSectors = (record.affectedSectors as string[]) || [];
-      const affectedCountries = (record.affectedCountries as string[]) || [];
+      const techniques = (record.derMitreTechniques as string[]) || [];
+      const tactics = (record.derMitreTactics as string[]) || [];
+      const relatedActors = (record.derRelatedActors as string[]) || [];
+      const relatedCves = (record.derRelatedCves as string[]) || [];
+      const relatedIocs = (record.derRelatedIocs as any[]) || [];
+      const affectedSectors = (record.derAffectedSectors as string[]) || [];
+      const affectedCountries = (record.derAffectedCountries as string[]) || [];
 
       for (const techId of techniques) {
         if (!techId || !techId.startsWith("T")) continue;
@@ -920,13 +920,13 @@ export async function learnFromDarkweb(options?: {
         // Build darkweb-sourced environmental context
         const darkwebContext = {
           source: "darkweb",
-          riskScore: record.riskScore,
-          threatAssessment: record.threatAssessment?.substring(0, 500),
+          riskScore: record.derRiskScore,
+          threatAssessment: record.derThreatAssessment?.substring(0, 500),
           relatedActors,
           relatedCves,
           affectedSectors,
           affectedCountries,
-          observedAt: record.createdAt?.toISOString(),
+          observedAt: record.derCreatedAt?.toISOString(),
         };
 
         // Build expected telemetry from darkweb IOCs
@@ -934,8 +934,8 @@ export async function learnFromDarkweb(options?: {
           darkwebIocs: relatedIocs.slice(0, 20),
           darkwebCves: relatedCves,
           darkwebValidated: true,
-          darkwebRiskScore: record.riskScore,
-          darkwebObservedAt: record.createdAt?.toISOString(),
+          darkwebRiskScore: record.derRiskScore,
+          darkwebObservedAt: record.derCreatedAt?.toISOString(),
         };
 
         if (existing.length > 0) {
@@ -949,14 +949,14 @@ export async function learnFromDarkweb(options?: {
             ...existingEnv,
             darkwebSources: darkwebSources.slice(-10),
             darkwebValidated: true,
-            lastDarkwebSighting: record.createdAt?.toISOString(),
-            targetedSectors: [...new Set([...(existingEnv.targetedSectors || []), ...affectedSectors])],
-            targetedRegions: [...new Set([...(existingEnv.targetedRegions || []), ...affectedCountries])],
+            lastDarkwebSighting: record.derCreatedAt?.toISOString(),
+            targetedSectors: [...new Set([...(existingEnv.targetedSectors || []), ...derAffectedSectors])],
+            targetedRegions: [...new Set([...(existingEnv.targetedRegions || []), ...derAffectedCountries])],
           };
 
           // Merge IOCs into expected telemetry
           const existingIocs = (existingTelemetry.darkwebIocs as any[]) || [];
-          const allIocs = [...existingIocs, ...relatedIocs];
+          const allIocs = [...existingIocs, ...derRelatedIocs];
           // Deduplicate IOCs by value
           const uniqueIocs = Array.from(
             new Map(allIocs.map((ioc: any) => [ioc.value || JSON.stringify(ioc), ioc])).values()
@@ -965,10 +965,10 @@ export async function learnFromDarkweb(options?: {
           const mergedTelemetry = {
             ...existingTelemetry,
             darkwebIocs: uniqueIocs,
-            darkwebCves: [...new Set([...(existingTelemetry.darkwebCves || []), ...relatedCves])],
+            darkwebCves: [...new Set([...(existingTelemetry.darkwebCves || []), ...derRelatedCves])],
             darkwebValidated: true,
-            darkwebRiskScore: Math.max(existingTelemetry.darkwebRiskScore || 0, record.riskScore || 0),
-            lastDarkwebObserved: record.createdAt?.toISOString(),
+            darkwebRiskScore: Math.max(existingTelemetry.darkwebRiskScore || 0, record.derRiskScore || 0),
+            lastDarkwebObserved: record.derCreatedAt?.toISOString(),
           };
 
           // Boost confidence for darkweb-validated techniques
@@ -1012,19 +1012,19 @@ export async function learnFromDarkweb(options?: {
             prerequisiteTechniques: [],
             followUpTechniques: [],
             defensiveGaps: [],
-            redTeamValue: Math.round((record.riskScore || 50) / 10),
-            blueTeamPriority: Math.round((record.riskScore || 50) / 10),
-            purpleTeamNotes: `Sourced from darkweb intelligence (risk score: ${record.riskScore})`,
+            redTeamValue: Math.round((record.derRiskScore || 50) / 10),
+            blueTeamPriority: Math.round((record.derRiskScore || 50) / 10),
+            purpleTeamNotes: `Sourced from darkweb intelligence (risk score: ${record.derRiskScore})`,
             environmentalConstraints: {
               darkwebSources: [darkwebContext],
               darkwebValidated: true,
-              lastDarkwebSighting: record.createdAt?.toISOString(),
+              lastDarkwebSighting: record.derCreatedAt?.toISOString(),
               targetedSectors: affectedSectors,
               targetedRegions: affectedCountries,
             },
             expectedTelemetry: darkwebTelemetry,
             dataSource: "darkweb",
-            confidence: Math.min(record.riskScore || 40, 60), // Cap at 60 since darkweb-only lacks verification
+            confidence: Math.min(record.derRiskScore || 40, 60), // Cap at 60 since darkweb-only lacks verification
             lastEnriched: new Date(),
           } as any);
           result.knowledgeUpdated++;
@@ -1087,12 +1087,12 @@ async function bidirectionalEnrich(extracted: ExtractedAttackSequence): Promise<
   // 2. Pull matching darkweb records that reference these techniques
   const matchingDarkweb = await db.select()
     .from(darkwebEnrichedRecords)
-    .where(isNotNull(darkwebEnrichedRecords.mitreTechniques))
-    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .where(isNotNull(darkwebEnrichedRecords.derMitreTechniques))
+    .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
     .limit(100);
 
   const overlappingDarkweb = matchingDarkweb.filter(record => {
-    const techs = (record.mitreTechniques as string[]) || [];
+    const techs = (record.derMitreTechniques as string[]) || [];
     return techs.some(t => techniqueIds.has(t));
   });
 
@@ -1141,21 +1141,21 @@ async function bidirectionalEnrich(extracted: ExtractedAttackSequence): Promise<
 
     // Enrich from darkweb records
     const darkwebForTech = overlappingDarkweb.filter(r =>
-      ((r.mitreTechniques as string[]) || []).includes(techId)
+      ((r.derMitreTechniques as string[]) || []).includes(techId)
     );
 
     if (darkwebForTech.length > 0) {
       envUpdates.darkwebValidated = true;
-      envUpdates.lastDarkwebSighting = darkwebForTech[0].createdAt?.toISOString();
+      envUpdates.lastDarkwebSighting = darkwebForTech[0].derCreatedAt?.toISOString();
 
-      const darkwebIocs = darkwebForTech.flatMap(r => (r.relatedIocs as any[]) || []);
+      const darkwebIocs = darkwebForTech.flatMap(r => (r.derRelatedIocs as any[]) || []);
       const existingIocs = (telemetryUpdates.darkwebIocs as any[]) || [];
       const allIocs = [...existingIocs, ...darkwebIocs];
       telemetryUpdates.darkwebIocs = Array.from(
         new Map(allIocs.map((ioc: any) => [ioc.value || JSON.stringify(ioc), ioc])).values()
       ).slice(0, 50);
 
-      const darkwebCves = darkwebForTech.flatMap(r => (r.relatedCves as string[]) || []);
+      const darkwebCves = darkwebForTech.flatMap(r => (r.derRelatedCves as string[]) || []);
       telemetryUpdates.darkwebCves = [...new Set([...(telemetryUpdates.darkwebCves || []), ...darkwebCves])];
       telemetryUpdates.darkwebValidated = true;
 

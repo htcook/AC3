@@ -60,12 +60,12 @@ export const threatIntelRouter = router({
 
       const conditions: any[] = [];
       if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.actorType, opts.type));
-      if (opts.threatLevel && opts.threatLevel !== "all") conditions.push(eq(threatActors.threatLevel, opts.threatLevel));
+      if (opts.rwThreatLevel && opts.rwThreatLevel !== "all") conditions.push(eq(threatActors.rwThreatLevel, opts.rwThreatLevel));
       if (opts.search) conditions.push(sql`(${threatActors.name} LIKE ${'%' + opts.search + '%'} OR ${threatActors.actorId} LIKE ${'%' + opts.search + '%'})`);
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const sortCol = opts.sortBy === "threatLevel" ? threatActors.threatLevel
+      const sortCol = opts.sortBy === "threatLevel" ? threatActors.rwThreatLevel
         : opts.sortBy === "lastActive" ? threatActors.lastActive
         : opts.sortBy === "confidence" ? threatActors.confidence
         : threatActors.name;
@@ -328,7 +328,7 @@ export const threatIntelRouter = router({
       surgingGroups: surgingGroups.map(g => ({
         name: g.groupName,
         activityScore: g.activityScore,
-        victims30d: g.victims30d,
+        victims30d: g.victims30D,
       })),
       topGroups: groups
         .sort((a, b) => (b.activityScore || 0) - (a.activityScore || 0))
@@ -337,7 +337,7 @@ export const threatIntelRouter = router({
           name: g.groupName,
           activityScore: g.activityScore,
           trend: g.trend,
-          threatLevel: g.threatLevel,
+          threatLevel: g.rwThreatLevel,
           totalVictims: g.totalVictims,
           extortionModel: g.extortionModel,
         })),
@@ -406,7 +406,7 @@ export const threatIntelRouter = router({
       // Get recent victim events
       const { ransomwareEvents } = await import("../../drizzle/schema");
       const events = await db.select().from(ransomwareEvents)
-        .where(eq(ransomwareEvents.groupName, input.groupName))
+        .where(eq(ransomwareEvents.reGroupName, input.groupName))
         .orderBy(desc(ransomwareEvents.publishedAt))
         .limit(50);
 
@@ -511,9 +511,9 @@ export const threatIntelRouter = router({
         if (a.lastActive) score += 5;
 
         // Threat level & sophistication
-        if (a.threatLevel === 'critical') score += 10;
-        else if (a.threatLevel === 'high') score += 7;
-        else if (a.threatLevel === 'medium') score += 3;
+        if (a.rwThreatLevel === 'critical') score += 10;
+        else if (a.rwThreatLevel === 'high') score += 7;
+        else if (a.rwThreatLevel === 'medium') score += 3;
         if (a.sophistication === 'nation-state') score += 8;
         else if (a.sophistication === 'advanced') score += 5;
 

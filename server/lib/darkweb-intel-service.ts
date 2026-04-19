@@ -16,7 +16,7 @@ import {
   credentialExposures,
   networkEvents,
   darkwebEnrichedRecords,
-  type InsertRansomwareAffiliate,
+  
 } from "../../drizzle/schema";
 import { eq, desc, sql, and, gte, like, or } from "drizzle-orm";
 
@@ -37,7 +37,7 @@ export async function syncRansomwareActors(): Promise<{ synced: number; updated:
 
   // Get distinct actor names from ransomware events
   const actors = await db.select({
-    actorName: undergroundIntelEvents.actorName,
+    actorName: undergroundIntelEvents.uieActorName,
     victimCount: sql<number>`COUNT(*)`,
     sectors: sql<string>`CONCAT('["', GROUP_CONCAT(DISTINCT uie_victim_sector SEPARATOR '","'), '"]')`,
     countries: sql<string>`CONCAT('["', GROUP_CONCAT(DISTINCT uie_victim_country SEPARATOR '","'), '"]')`,
@@ -47,11 +47,11 @@ export async function syncRansomwareActors(): Promise<{ synced: number; updated:
     .from(undergroundIntelEvents)
     .where(
       and(
-        eq(undergroundIntelEvents.category, "ransomware"),
+        eq(undergroundIntelEvents.uieCategory, "ransomware"),
         sql`uie_actor_name IS NOT NULL AND uie_actor_name != ''`
       )
     )
-    .groupBy(undergroundIntelEvents.actorName);
+    .groupBy(undergroundIntelEvents.uieActorName);
 
   let synced = 0;
   let updated = 0;
@@ -65,13 +65,13 @@ export async function syncRansomwareActors(): Promise<{ synced: number; updated:
     // Check if affiliate already exists
     const [existing] = await db.select()
       .from(ransomwareAffiliates)
-      .where(eq(ransomwareAffiliates.affiliateName, actor.actorName))
+      .where(eq(ransomwareAffiliates.raAffiliateName, actor.actorName))
       .limit(1);
 
     if (existing) {
       await db.update(ransomwareAffiliates)
         .set({
-          totalVictims: actor.victimCount,
+          raTotalVictims: actor.victimCount,
           topSectors: sectors.slice(0, 10),
           topCountries: countries.slice(0, 10),
           lastActive: actor.lastActive || undefined,
@@ -85,7 +85,7 @@ export async function syncRansomwareActors(): Promise<{ synced: number; updated:
         affiliateId: `rw-${actor.actorName.toLowerCase().replace(/\s+/g, "-")}`,
         affiliateName: actor.actorName,
         primaryGroup: actor.actorName,
-        totalVictims: actor.victimCount,
+        raTotalVictims: actor.victimCount,
         topSectors: sectors.slice(0, 10),
         topCountries: countries.slice(0, 10),
         firstSeen: actor.firstSeen || undefined,
@@ -141,18 +141,18 @@ export async function getSectorThreatProfiles(): Promise<SectorThreatProfile[]> 
 
   // Ransomware victims by sector
   const sectorVictims = await db.select({
-    sector: undergroundIntelEvents.victimSector,
+    sector: undergroundIntelEvents.uieVictimSector,
     count: sql<number>`COUNT(*)`,
     groups: sql<string>`CONCAT('["', GROUP_CONCAT(DISTINCT uie_actor_name SEPARATOR '","'), '"]')`,
   })
     .from(undergroundIntelEvents)
     .where(
       and(
-        eq(undergroundIntelEvents.category, "ransomware"),
+        eq(undergroundIntelEvents.uieCategory, "ransomware"),
         sql`uie_victim_sector IS NOT NULL AND uie_victim_sector != ''`
       )
     )
-    .groupBy(undergroundIntelEvents.victimSector)
+    .groupBy(undergroundIntelEvents.uieVictimSector)
     .orderBy(sql`COUNT(*) DESC`)
     .limit(20);
 
@@ -199,7 +199,7 @@ export async function getDarkwebTrends(days = 30): Promise<DarkwebTrend[]> {
     total: sql<number>`COUNT(*)`,
   })
     .from(undergroundIntelEvents)
-    .where(gte(undergroundIntelEvents.createdAt, cutoff))
+    .where(gte(undergroundIntelEvents.uieCreatedAt, cutoff))
     .groupBy(sql`DATE(uie_created_at)`)
     .orderBy(sql`DATE(uie_created_at)`);
 
@@ -209,7 +209,7 @@ export async function getDarkwebTrends(days = 30): Promise<DarkwebTrend[]> {
     count: sql<number>`COUNT(*)`,
   })
     .from(networkEvents)
-    .where(gte(networkEvents.createdAt, cutoff))
+    .where(gte(networkEvents.neCreatedAt, cutoff))
     .groupBy(sql`DATE(ne_created_at)`);
 
   const netMap = new Map(netTrends.map((t) => [t.date, t.count]));
@@ -246,15 +246,15 @@ export async function correlateActor(actorName: string): Promise<ThreatCorrelati
 
   const [rwEvents] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(undergroundIntelEvents)
-    .where(like(undergroundIntelEvents.actorName, pattern));
+    .where(like(undergroundIntelEvents.uieActorName, pattern));
 
   const [netEvents] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(networkEvents)
-    .where(like(networkEvents.malwareFamily, pattern));
+    .where(like(networkEvents.neMalwareFamily, pattern));
 
   const [credEvents] = await db.select({ count: sql<number>`COUNT(*)` })
     .from(credentialExposures)
-    .where(like(credentialExposures.actorName, pattern));
+    .where(like(credentialExposures.ceActorName, pattern));
 
   const [enriched] = await db.select({
     count: sql<number>`COUNT(*)`,
@@ -265,7 +265,7 @@ export async function correlateActor(actorName: string): Promise<ThreatCorrelati
   const [lastEvent] = await db.select({
     lastSeen: sql<string>`MAX(uie_event_date)`,
   }).from(undergroundIntelEvents)
-    .where(like(undergroundIntelEvents.actorName, pattern));
+    .where(like(undergroundIntelEvents.uieActorName, pattern));
 
   return {
     actor: actorName,
@@ -286,10 +286,10 @@ export async function getHighPriorityEvents(limit = 20) {
     .from(undergroundIntelEvents)
     .where(
       or(
-        eq(undergroundIntelEvents.severity, "critical"),
-        eq(undergroundIntelEvents.severity, "high"),
+        eq(undergroundIntelEvents.uieSeverity, "critical"),
+        eq(undergroundIntelEvents.uieSeverity, "high"),
       )
     )
-    .orderBy(desc(undergroundIntelEvents.createdAt))
+    .orderBy(desc(undergroundIntelEvents.uieCreatedAt))
     .limit(limit);
 }

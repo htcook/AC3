@@ -411,18 +411,18 @@ export const darkwebIntelRouter = router({
       const db = await getDb();
       if (!db) return { data: [], source: "local_database", fetchedAt: new Date().toISOString() };
       const conditions: any[] = [];
-      if (input?.type) conditions.push(eq(iocFeeds.iocType, input.type));
+      if (input?.type) conditions.push(eq(iocFeeds.feedIocType, input.type));
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const entries = await db.select().from(iocFeeds).where(where).orderBy(desc(iocFeeds.fetchedAt), desc(iocFeeds.id)).limit(input?.limit || 100);
       const data = entries.map((e) => ({
-        iocType: e.iocType || "cve",
-        type: e.iocType || "cve",
+        iocType: e.feedIocType || "cve",
+        type: e.feedIocType || "cve",
         value: e.iocValue,
         ioc: e.iocValue,
         malwareFamily: e.vendorProduct || null,
-        confidence: e.severity === "critical" ? 95 : e.severity === "high" ? 80 : 60,
+        confidence: e.feedSeverity === "critical" ? 95 : e.feedSeverity === "high" ? 80 : 60,
         firstSeen: e.dateAdded || e.fetchedAt?.toISOString(),
-        tags: e.tags || [],
+        tags: e.feedTags || [],
         title: e.title,
         description: e.description,
         source: e.feedSource,
@@ -757,7 +757,7 @@ export const darkwebIntelRouter = router({
       const status = input?.status ?? "all";
       const sponsorState = input?.sponsorState;
       const conditions: any[] = [];
-      if (status !== "all") conditions.push(eq(infoOpsCampaignsTable.status, status as any));
+      if (status !== "all") conditions.push(eq(infoOpsCampaignsTable.ioStatus, status as any));
       if (sponsorState) conditions.push(eq(infoOpsCampaignsTable.sponsorState, sponsorState));
       const rows = conditions.length > 0
         ? await db.select().from(infoOpsCampaignsTable).where(and(...conditions)).limit(limit)
@@ -795,7 +795,7 @@ export const darkwebIntelRouter = router({
           confidence: threatGroupEvents.tgeConfidence,
           eventDate: threatGroupEvents.eventDate,
           discoveredAt: threatGroupEvents.discoveredAt,
-          createdAt: threatGroupEvents.createdAt,
+          createdAt: threatGroupEvents.tgeCreatedAt,
         })
         .from(threatGroupEvents)
         .where(eq(threatGroupEvents.id, input.eventId))
@@ -855,17 +855,17 @@ export const darkwebIntelRouter = router({
         try {
           feedIocs = await db.select({
             id: iocFeeds.id,
-            iocType: iocFeeds.iocType,
+            iocType: iocFeeds.feedIocType,
             iocValue: iocFeeds.iocValue,
             feedSource: iocFeeds.feedSource,
             feedType: iocFeeds.feedType,
-            severity: iocFeeds.severity,
+            severity: iocFeeds.feedSeverity,
             title: iocFeeds.title,
             vendorProduct: iocFeeds.vendorProduct,
-            tags: iocFeeds.tags,
+            tags: iocFeeds.feedTags,
             dateAdded: iocFeeds.dateAdded,
           }).from(iocFeeds)
-            .where(sql`CAST(${iocFeeds.tags} AS CHAR) LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.vendorProduct} LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.title} LIKE ${'%' + actor.name + '%'}`)
+            .where(sql`CAST(${iocFeeds.feedTags} AS CHAR) LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.vendorProduct} LIKE ${'%' + actor.name + '%'} OR ${iocFeeds.title} LIKE ${'%' + actor.name + '%'}`)
             .limit(50);
         } catch {
           feedIocs = [];
@@ -929,7 +929,7 @@ export const darkwebIntelRouter = router({
             type: asset.type,
             hits: rows.map(r => ({
               feedSource: r.feedSource,
-              severity: r.severity,
+              severity: r.feedSeverity,
               title: r.title,
               cveId: r.cveId,
               knownRansomware: r.knownRansomware,
@@ -1118,35 +1118,35 @@ export const darkwebIntelRouter = router({
     const rwMapped = rwEvents.map((r: any) => ({
       id: r.id,
       type: "ransomware" as const,
-      groupName: r.groupName || "Unknown",
+      groupName: r.reGroupName || "Unknown",
       victimName: r.victimName || "Unknown",
-      country: r.country,
-      sector: r.sector,
-      description: r.description,
+      country: r.reCountry,
+      sector: r.reSector,
+      description: r.reDescription,
       publishedAt: r.publishedAt ? new Date(r.publishedAt).toISOString() : new Date().toISOString(),
-      source: r.source || "ransomware_feed",
-      sourceUrl: r.sourceUrl || null,
+      source: r.reSource || "ransomware_feed",
+      sourceUrl: null,
       verified: r.verified ?? false,
       severity: "high",
     }));
 
     // 2. Underground intel events (data_leak, ransomware, credential types)
     const uieEvents = await db.select().from(undergroundIntelEvents)
-      .where(sql`${undergroundIntelEvents.eventType} IN ('data_leak', 'ransomware', 'credential', 'exploit_kit')`)
-      .orderBy(desc(undergroundIntelEvents.detectedAt)).limit(500);
+      .where(sql`${undergroundIntelEvents.uieCategory} IN ('data_leak', 'ransomware', 'credential', 'exploit_kit')`)
+      .orderBy(desc(undergroundIntelEvents.uieEventDate)).limit(500);
     const uieMapped = uieEvents.map((u: any) => ({
       id: u.id + 100000, // offset to avoid ID collision
-      type: (u.eventType === "ransomware" ? "ransomware" : u.eventType === "credential" ? "unauthorized_access" : "data_leak") as any,
-      groupName: u.actorName || u.source || "Unknown",
-      victimName: u.title || "Unknown",
-      country: u.targetCountry,
-      sector: u.targetSector,
-      description: u.description,
-      publishedAt: u.detectedAt ? new Date(u.detectedAt).toISOString() : new Date().toISOString(),
-      source: u.source || "underground_intel",
-      sourceUrl: u.sourceUrl || null,
-      verified: u.verified ?? false,
-      severity: u.severity,
+      type: (u.uieCategory === "ransomware" ? "ransomware" : u.uieCategory === "credential" ? "unauthorized_access" : "data_leak") as any,
+      groupName: u.uieActorName || u.uieSource || "Unknown",
+      victimName: u.uieTitle || "Unknown",
+      country: u.uieVictimCountry,
+      sector: u.uieVictimSector,
+      description: u.uieDescription,
+      publishedAt: u.uieEventDate ? new Date(u.uieEventDate).toISOString() : new Date().toISOString(),
+      source: u.uieSource || "underground_intel",
+      sourceUrl: u.uieSourceUrl || null,
+      verified: false,
+      severity: u.uieSeverity,
     }));
 
     // 3. Incident reports
@@ -1154,16 +1154,16 @@ export const darkwebIntelRouter = router({
     const irMapped = irEvents.map((ir: any) => ({
       id: ir.id + 200000, // offset to avoid ID collision
       type: "incident" as const,
-      groupName: ir.attributedActor || "Unknown",
+      groupName: "Unknown",
       victimName: ir.title || "Unknown",
-      country: ir.targetCountry,
-      sector: ir.targetSector,
-      description: ir.summary || ir.description,
+      country: null,
+      sector: null,
+      description: ir.summary || ir.fullContent?.slice(0, 500),
       publishedAt: ir.publishedAt ? new Date(ir.publishedAt).toISOString() : new Date().toISOString(),
       source: ir.source || "incident_report",
-      sourceUrl: ir.sourceUrl || null,
-      verified: ir.extractionStatus === "completed",
-      severity: ir.severity,
+      sourceUrl: ir.url || null,
+      verified: ir.irStatus === "completed",
+      severity: ir.irSeverity,
     }));
 
     // Combine and sort by date descending
@@ -1234,26 +1234,26 @@ export const darkwebIntelRouter = router({
         const rows = await db.select().from(undergroundIntelEvents).where(eq(undergroundIntelEvents.id, realId)).limit(1);
         if (rows[0]) {
           const u = rows[0] as any;
-          groupName = u.actorName || u.source || "Unknown";
+          groupName = u.uieActorName || u.uieSource || "Unknown";
           eventDetail = {
             id: input.eventId,
-            type: u.category === "ransomware" ? "ransomware" : u.category === "credential" ? "unauthorized_access" : "data_leak",
-            title: u.title,
-            description: u.description,
-            publishedAt: u.eventDate || u.ingestedAt,
-            source: u.source,
-            sourceUrl: u.sourceUrl,
-            severity: u.severity,
-            actorName: u.actorName,
-            actorAliases: safeParseJson(u.actorAliases),
-            victimName: u.victimName,
-            victimSector: u.victimSector,
-            victimCountry: u.victimCountry,
-            mitreTechniques: safeParseJson(u.mitreTechniques),
-            iocType: u.iocType,
-            iocValue: u.iocValue,
-            tags: safeParseJson(u.tags),
-            enrichmentData: u.enrichmentData ? safeParseJson(u.enrichmentData) : null,
+            type: u.uieCategory === "ransomware" ? "ransomware" : u.uieCategory === "credential" ? "unauthorized_access" : "data_leak",
+            title: u.uieTitle,
+            description: u.uieDescription,
+            publishedAt: u.uieEventDate || u.uieIngestedAt,
+            source: u.uieSource,
+            sourceUrl: u.uieSourceUrl,
+            severity: u.uieSeverity,
+            actorName: u.uieActorName,
+            actorAliases: safeParseJson(u.uieActorAliases),
+            victimName: u.uieVictimName,
+            victimSector: u.uieVictimSector,
+            victimCountry: u.uieVictimCountry,
+            mitreTechniques: safeParseJson(u.uieMitreTechniques),
+            iocType: u.uieIocType,
+            iocValue: u.uieIocValue,
+            tags: safeParseJson(u.uieTags),
+            enrichmentData: u.uieEnrichmentData ? safeParseJson(u.uieEnrichmentData) : null,
           };
         }
       } else {
@@ -1380,7 +1380,7 @@ export const darkwebIntelRouter = router({
     // Get most recent 10 ransomware events
     const rwEvents = await db.select({
       id: ransomwareEvents.id,
-      groupName: ransomwareEvents.groupName,
+      groupName: ransomwareEvents.reGroupName,
       victimName: ransomwareEvents.victimName,
       publishedAt: ransomwareEvents.publishedAt,
     }).from(ransomwareEvents).orderBy(desc(ransomwareEvents.publishedAt)).limit(10);
@@ -1397,14 +1397,14 @@ export const darkwebIntelRouter = router({
     // Get most recent 10 underground intel events (data leaks, ransomware, credentials)
     const uieEvents = await db.select({
       id: undergroundIntelEvents.id,
-      category: undergroundIntelEvents.category,
-      title: undergroundIntelEvents.title,
-      severity: undergroundIntelEvents.severity,
-      actorName: undergroundIntelEvents.actorName,
-      eventDate: undergroundIntelEvents.eventDate,
+      category: undergroundIntelEvents.uieCategory,
+      title: undergroundIntelEvents.uieTitle,
+      severity: undergroundIntelEvents.uieSeverity,
+      actorName: undergroundIntelEvents.uieActorName,
+      eventDate: undergroundIntelEvents.uieEventDate,
     }).from(undergroundIntelEvents)
-      .where(sql`${undergroundIntelEvents.category} IN ('data_leak', 'ransomware', 'credential', 'exploit')`)
-      .orderBy(desc(undergroundIntelEvents.eventDate)).limit(10);
+      .where(sql`${undergroundIntelEvents.uieCategory} IN ('data_leak', 'ransomware', 'credential', 'exploit')`)
+      .orderBy(desc(undergroundIntelEvents.uieEventDate)).limit(10);
 
     const uieMapped = uieEvents.map((u: any) => ({
       id: u.id + 100000,
@@ -1419,7 +1419,7 @@ export const darkwebIntelRouter = router({
     const irEvents = await db.select({
       id: incidentReports.id,
       title: incidentReports.title,
-      severity: incidentReports.severity,
+      severity: incidentReports.irSeverity,
       publishedAt: incidentReports.publishedAt,
       source: incidentReports.source,
     }).from(incidentReports).orderBy(desc(incidentReports.publishedAt)).limit(5);

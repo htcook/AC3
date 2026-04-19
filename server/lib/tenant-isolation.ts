@@ -50,18 +50,18 @@ export async function resolveUserTenant(
   // Get all tenant memberships for this user
   const memberships = await db
     .select({
-      tenantId: tenantMemberships.tenantId,
-      tenantRole: tenantMemberships.role,
-      tenantName: tenants.name,
-      tenantPlan: tenants.plan,
-      isActive: tenants.isActive,
+      tenantId: tenantMemberships.tmTenantId,
+      tenantRole: tenantMemberships.tmRole,
+      tenantName: tenants.tenantName,
+      tenantPlan: tenants.tenantPlan,
+      isActive: tenants.tenantIsActive,
     })
     .from(tenantMemberships)
-    .innerJoin(tenants, eq(tenantMemberships.tenantId, tenants.id))
+    .innerJoin(tenants, eq(tenantMemberships.tmTenantId, tenants.id))
     .where(
       and(
-        eq(tenantMemberships.userId, userId),
-        eq(tenants.isActive, true)
+        eq(tenantMemberships.tmUserId, userId),
+        eq(tenants.tenantIsActive, 1)
       )
     );
 
@@ -112,19 +112,19 @@ export async function autoProvisionTenant(
   const slug = `tenant-${userId}-${Date.now()}`;
 
   const [result] = await db.insert(tenants).values({
-    name: tenantName,
-    slug,
-    isActive: true,
-    maxUsers: 50,
-    plan: "free",
+    tenantName: tenantName,
+    tenantSlug: slug,
+    tenantIsActive: 1,
+    tenantMaxUsers: 50,
+    tenantPlan: "free",
   });
 
   const tenantId = result.insertId;
 
   await db.insert(tenantMemberships).values({
-    tenantId,
-    userId,
-    role: "owner",
+    tmTenantId: tenantId,
+    tmUserId: userId,
+    tmRole: "owner",
   });
 
   return {
@@ -293,7 +293,7 @@ export async function getTenantStats(tenantId: number) {
   const [memberCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(tenantMemberships)
-    .where(eq(tenantMemberships.tenantId, tenantId));
+    .where(eq(tenantMemberships.tmTenantId, tenantId));
 
   // Count engagements if the table has tenantId
   let engagementCount = 0;
@@ -301,7 +301,7 @@ export async function getTenantStats(tenantId: number) {
     const [engCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(engagements)
-      .where(eq(engagements.tenantId, tenantId));
+      .where(eq(engagements.engTenantId, tenantId));
     engagementCount = engCount?.count ?? 0;
   } catch {
     // tenantId column may not exist yet during migration

@@ -427,7 +427,7 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
         tgeActorId: evt.actorId, eventType: evt.eventType, tgeTitle: evt.title, tgeDescription: evt.description,
         tgeSeverity: evt.severity, tgeVictimName: evt.victimName, tgeVictimSector: evt.victimSector,
         tgeVictimCountry: evt.victimCountry, tgeMitreTechniques: evt.mitreTechniques, tgeIocs: evt.iocs,
-        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate),
+        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate).toISOString(),
       });
       eventsInserted++;
     }
@@ -437,14 +437,14 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
   if (!existingRw) {
     await db.insert(ransomwareGroups).values({
       groupName: "FULCRUMSEC", aliases: ["The Threat Thespians", "FulcrumSec"],
-      ransomwareFamily: "Data Extortion", extortionModel: "double_extortion",
-      totalVictims: 4, victims7d: 1, victims30d: 1, activityScore: 72, trend: "rising",
-      threatLevel: "high", topSectors: ["Legal", "Technology", "Electronics", "FinTech", "Military/Industrial"],
+      ransomwareFamily: "Data Extortion", extortionModel: "double",
+      totalVictims: 4, victims7D: 1, victims30D: 1, activityScore: 72, trend: "active",
+      rwThreatLevel: "high", topSectors: ["Legal", "Technology", "Electronics", "FinTech", "Military/Industrial"],
       topCountries: ["US", "AU", "UK"],
       associatedMalware: ["React2Shell exploit"],
       knownInfrastructure: ["fulcrumsec.net (clearnet)", "gsgot6tua7ffammwdv6vpxkog32b4z7qivtqkxz55afq2hkt2o24w5yd.onion (TOR DLS)", "t.me/fulcrumsec (Telegram)"],
-      calderaActorId: "fulcrumsec", dataSource: "dailydarkweb_osint", confidence: 85,
-      firstSeen: "2025-09", lastActive: "2026-03",
+      calderaActorId: "fulcrumsec", rwDataSource: "dailydarkweb_osint", rwConfidence: 85,
+      rwFirstSeen: "2025-09", rwLastActive: "2026-03",
     });
   }
 
@@ -452,17 +452,17 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
   for (const evt of FULCRUMSEC_EVENTS) {
     if (evt.eventType === "attack" && evt.victimName) {
       const [existingRe] = await db.select().from(ransomwareEvents)
-        .where(sql`${ransomwareEvents.groupName} = 'FULCRUMSEC' AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
+        .where(sql`${ransomwareEvents.reGroupName} = 'FULCRUMSEC' AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
       if (!existingRe) {
         await db.insert(ransomwareEvents).values({
-          groupName: "FULCRUMSEC",
+          reGroupName: "FULCRUMSEC",
           victimName: evt.victimName,
-          country: evt.victimCountry,
-          sector: evt.victimSector,
-          description: evt.description,
-          publishedAt: new Date(evt.eventDate),
-          source: "dailydarkweb_osint",
-          verified: true,
+          reCountry: evt.victimCountry,
+          reSector: evt.victimSector,
+          reDescription: evt.description,
+          publishedAt: new Date(evt.eventDate).toISOString(),
+          reSource: "dailydarkweb_osint",
+          verified: 1,
         });
         breachEventsInserted++;
       }
@@ -507,7 +507,7 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
         tgeActorId: evt.actorId, eventType: evt.eventType, tgeTitle: evt.title, tgeDescription: evt.description,
         tgeSeverity: evt.severity, tgeVictimName: evt.victimName, tgeVictimSector: evt.victimSector,
         tgeVictimCountry: evt.victimCountry, tgeMitreTechniques: evt.mitreTechniques, tgeIocs: evt.iocs,
-        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate),
+        tgeSource: evt.source, tgeSourceUrl: evt.sourceUrl, tgeConfidence: evt.confidence, eventDate: new Date(evt.eventDate).toISOString(),
       });
       eventsInserted++;
     }
@@ -518,17 +518,17 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
     if (evt.eventType === "attack" && evt.victimName) {
       const actorName = DAILYDARKWEB_ACTORS.find(a => a.actorId === evt.actorId)?.name || evt.actorId;
       const [existingRe] = await db.select().from(ransomwareEvents)
-        .where(sql`${ransomwareEvents.groupName} = ${actorName} AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
+        .where(sql`${ransomwareEvents.reGroupName} = ${actorName} AND ${ransomwareEvents.victimName} = ${evt.victimName}`).limit(1);
       if (!existingRe) {
         await db.insert(ransomwareEvents).values({
-          groupName: actorName,
+          reGroupName: actorName,
           victimName: evt.victimName,
-          country: evt.victimCountry,
-          sector: evt.victimSector,
-          description: evt.description,
-          publishedAt: new Date(evt.eventDate),
-          source: "dailydarkweb_osint",
-          verified: true,
+          reCountry: evt.victimCountry,
+          reSector: evt.victimSector,
+          reDescription: evt.description,
+          publishedAt: new Date(evt.eventDate).toISOString(),
+          reSource: "dailydarkweb_osint",
+          verified: 1,
         });
         breachEventsInserted++;
       }

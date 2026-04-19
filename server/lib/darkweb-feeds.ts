@@ -671,7 +671,7 @@ export async function syncAccessBrokers(): Promise<{ inserted: number; updated: 
         brokerId: iab.brokerId,
         brokerName: iab.brokerName,
         aliases: iab.aliases,
-        description: iab.description,
+        iabDescription: iab.description,
         listingType: iab.listingType,
         accessType: iab.accessType,
         forumSource: iab.forumSource,
@@ -680,13 +680,13 @@ export async function syncAccessBrokers(): Promise<{ inserted: number; updated: 
         linkedRansomwareGroups: iab.linkedRansomwareGroups,
         mitreTechniques: iab.mitreTechniques,
         accessLevel: iab.accessLevel,
-        status: iab.status,
-        firstSeen: iab.firstSeen,
-        lastActive: iab.lastActive,
+        iabStatus: iab.status,
+        iabFirstSeen: iab.firstSeen,
+        iabLastActive: iab.lastActive,
         victimSector: iab.victimSector,
         victimCountry: iab.victimCountry,
-        confidence: iab.confidence,
-        dataSource: "osint_curated",
+        iabConfidence: iab.confidence,
+        iabDataSource: "osint_curated",
       });
       inserted++;
     } else {
@@ -695,14 +695,14 @@ export async function syncAccessBrokers(): Promise<{ inserted: number; updated: 
         .set({
           brokerName: iab.brokerName,
           aliases: iab.aliases,
-          description: iab.description,
+          iabDescription: iab.description,
           listingType: iab.listingType,
           accessType: iab.accessType,
           linkedRansomwareGroups: iab.linkedRansomwareGroups,
           mitreTechniques: iab.mitreTechniques,
-          status: iab.status,
-          lastActive: iab.lastActive,
-          confidence: iab.confidence,
+          iabStatus: iab.status,
+          iabLastActive: iab.lastActive,
+          iabConfidence: iab.confidence,
         })
         .where(eq(accessBrokerListings.brokerId, iab.brokerId));
       updated++;
@@ -757,49 +757,49 @@ export async function syncInfoOpsCampaigns(): Promise<{ inserted: number; update
     const existing = await db
       .select()
       .from(infoOpsCampaigns)
-      .where(eq(infoOpsCampaigns.campaignId, io.campaignId))
+      .where(eq(infoOpsCampaigns.ioCampaignId, io.campaignId))
       .limit(1);
 
     if (existing.length === 0) {
       await db.insert(infoOpsCampaigns).values({
-        campaignId: io.campaignId,
-        campaignName: io.campaignName,
-        aliases: io.aliases,
+        ioCampaignId: io.campaignId,
+        ioCampaignName: io.campaignName,
+        ioAliases: io.aliases,
         attributedTo: io.attributedTo,
         sponsorState: io.sponsorState,
         operatorGroup: io.operatorGroup,
         operationType: io.operationType,
-        status: io.status,
-        targetCountries: io.targetCountries,
+        ioStatus: io.status,
+        ioTargetCountries: io.targetCountries,
         targetAudiences: io.targetAudiences,
-        targetPlatforms: io.targetPlatforms,
+        ioTargetPlatforms: io.targetPlatforms,
         targetNarratives: io.targetNarratives,
-        techniques: io.techniques,
+        ioTechniques: io.techniques,
         cyberComponent: io.cyberComponent,
         linkedCyberOps: io.linkedCyberOps,
         primarySource: io.primarySource,
-        startDate: io.startDate,
-        endDate: io.endDate,
+        ioStartDate: io.startDate,
+        ioEndDate: io.endDate,
         discoveredDate: io.discoveredDate,
-        threatLevel: io.threatLevel,
-        confidence: io.confidence,
-        description: io.description,
-        dataSource: "osint_curated",
+        ioThreatLevel: io.threatLevel,
+        ioConfidence: io.confidence,
+        ioDescription: io.description,
+        ioDataSource: "osint_curated",
       });
       inserted++;
     } else {
       await db
         .update(infoOpsCampaigns)
         .set({
-          campaignName: io.campaignName,
-          aliases: io.aliases,
-          status: io.status,
+          ioCampaignName: io.campaignName,
+          ioAliases: io.aliases,
+          ioStatus: io.status,
           targetNarratives: io.targetNarratives,
-          techniques: io.techniques,
-          confidence: io.confidence,
-          description: io.description,
+          ioTechniques: io.techniques,
+          ioConfidence: io.confidence,
+          ioDescription: io.description,
         })
-        .where(eq(infoOpsCampaigns.campaignId, io.campaignId));
+        .where(eq(infoOpsCampaigns.ioCampaignId, io.campaignId));
       updated++;
     }
   }

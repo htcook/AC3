@@ -128,27 +128,24 @@ export const darkwebBridgeRouter = router({
 
       const conditions: any[] = [];
       if (input?.type) {
-        conditions.push(eq(iocFeeds.iocType, input.type));
+          conditions.push(eq(iocFeeds.feedIocType, input.type));
       }
-
       const where = conditions.length > 0 ? and(...conditions) : undefined;
-
       const entries = await db
         .select()
         .from(iocFeeds)
         .where(where)
         .orderBy(desc(iocFeeds.id))
         .limit(input?.limit || 100);
-
       const data = entries.map((e) => ({
-        iocType: e.iocType || "cve",
-        type: e.iocType || "cve",
+        iocType: e.feedIocType || "cve",
+        type: e.feedIocType || "cve",
         value: e.iocValue,
         ioc: e.iocValue,
         malwareFamily: e.vendorProduct || null,
-        confidence: e.severity === "critical" ? 95 : e.severity === "high" ? 80 : 60,
+        confidence: e.feedSeverity === "critical" ? 95 : e.feedSeverity === "high" ? 80 : 60,
         firstSeen: e.dateAdded || e.fetchedAt?.toISOString(),
-        tags: e.tags || [],
+        tags: e.feedTags || [],
         title: e.title,
         description: e.description,
         source: e.feedSource,
@@ -579,7 +576,7 @@ export const darkwebBridgeRouter = router({
       const status = input?.status ?? "all";
       const sponsorState = input?.sponsorState;
       const conditions: any[] = [];
-      if (status !== "all") conditions.push(eq(infoOpsCampaigns.status, status as any));
+      if (status !== "all") conditions.push(eq(infoOpsCampaigns.ioStatus, status as any));
       if (sponsorState) conditions.push(eq(infoOpsCampaigns.sponsorState, sponsorState));
       const rows = conditions.length > 0
         ? await db.select().from(infoOpsCampaigns).where(and(...conditions)).limit(limit)
@@ -596,7 +593,7 @@ export const darkwebBridgeRouter = router({
       const db = await getDb();
       if (!db) return null;
       const rows = await db.select().from(infoOpsCampaigns)
-        .where(eq(infoOpsCampaigns.campaignId, input.campaignId))
+        .where(eq(infoOpsCampaigns.ioCampaignId, input.campaignId))
         .limit(1);
       return rows[0] || null;
     }),
@@ -630,7 +627,7 @@ export const darkwebBridgeRouter = router({
           confidence: threatGroupEvents.tgeConfidence,
           eventDate: threatGroupEvents.eventDate,
           discoveredAt: threatGroupEvents.discoveredAt,
-          createdAt: threatGroupEvents.createdAt,
+          createdAt: threatGroupEvents.tgeCreatedAt,
         })
         .from(threatGroupEvents)
         .where(eq(threatGroupEvents.id, input.eventId))

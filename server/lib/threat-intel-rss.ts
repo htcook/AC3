@@ -507,7 +507,7 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
 
             await db.insert(threatGroupEvents).values({
               tgeActorId: resolvedActorId,
-              eventType: classifyForUnderground(item, feed) === "ransomware" ? "ransomware_claim" : "attack",
+              eventType: classifyForUnderground(item, feed) === "ransomware" ? "attack" : "attack",
               tgeTitle: item.title.substring(0, 500),
               tgeDescription: cleanDesc.substring(0, 2000),
               tgeSeverity: severity,
@@ -524,7 +524,7 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
             // Update actor lastActive
             if (existingActor && !updatedActors.has(resolvedActorId)) {
               await db.update(threatActors).set({
-                lastActive: pubDate.toISOString().substring(0, 7),
+                rwLastActive: pubDate.toISOString().substring(0, 7),
               }).where(eq(threatActors.actorId, resolvedActorId));
               updatedActors.add(resolvedActorId);
               result.actorsUpdated++;
@@ -541,19 +541,18 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
       if (feed.targets.includes("ransomware_events") && classifyForUnderground(item, feed) === "ransomware") {
         try {
           const [existing] = await db.select({ id: ransomwareEvents.id }).from(ransomwareEvents)
-            .where(sql`${ransomwareEvents.sourceUrl} = ${item.link}`)
+            .where(sql`${ransomwareEvents.victimUrl} = ${item.link}`)
             .limit(1);
 
           if (!existing) {
             await db.insert(ransomwareEvents).values({
-              groupName: actorName || "Unknown",
+              reGroupName: actorName || "Unknown",
               victimName: item.title.substring(0, 500),
-              victimSector: null,
-              victimCountry: null,
-              claimDate: pubDate,
-              sourceUrl: item.link,
-              source: feed.name,
-              status: "claimed",
+              reCountry: null,
+              reSector: null,
+              publishedAt: pubDate.toISOString(),
+              victimUrl: item.link,
+              reSource: feed.name,
             });
             result.ransomwareEventsIngested++;
 
@@ -565,8 +564,8 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
                   .limit(1);
                 if (rwGroup) {
                   await db.update(ransomwareGroups).set({
-                    lastActive: pubDate.toISOString().substring(0, 7),
-                    victims30d: sql`${ransomwareGroups.victims30D} + 1`,
+                    rwLastActive: pubDate.toISOString().substring(0, 7),
+                    victims30D: sql`${ransomwareGroups.victims30D} + 1`,
                     totalVictims: sql`${ransomwareGroups.totalVictims} + 1`,
                   }).where(eq(ransomwareGroups.id, rwGroup.id));
                 }
@@ -584,21 +583,21 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
       if (feed.targets.includes("underground_intel")) {
         try {
           const [existing] = await db.select({ id: undergroundIntelEvents.id }).from(undergroundIntelEvents)
-            .where(sql`${undergroundIntelEvents.sourceUrl} = ${item.link} AND ${undergroundIntelEvents.source} = ${feed.id}`)
+            .where(sql`${undergroundIntelEvents.uieSourceUrl} = ${item.link} AND ${undergroundIntelEvents.uieSource} = ${feed.id}`)
             .limit(1);
 
           if (!existing) {
             const uieCategory = classifyForUnderground(item, feed);
             await db.insert(undergroundIntelEvents).values({
-              category: uieCategory,
-              source: feed.id,
-              title: item.title.substring(0, 500),
-              summary: cleanDesc.substring(0, 2000),
-              actorName: actorName || null,
-              severity,
-              sourceUrl: item.link,
-              discoveredAt: pubDate,
-              rawData: {
+              uieCategory: uieCategory as any,
+              uieSource: feed.id,
+              uieTitle: item.title.substring(0, 500),
+              uieDescription: cleanDesc.substring(0, 2000),
+              uieActorName: actorName || null,
+              uieSeverity: severity as any,
+              uieSourceUrl: item.link,
+              uieEventDate: pubDate.toISOString(),
+              uieRawData: {
                 feedName: feed.name,
                 feedTier: feed.tier,
                 categories: item.categories,
@@ -630,12 +629,12 @@ export async function fetchAndIngestFeed(feed: FeedSource): Promise<FeedSyncResu
               url: item.link,
               publishedAt: item.pubDate || pubDate.toISOString(),
               summary: cleanDesc.substring(0, 3000),
-              threatActors: actorName ? [actorName] : [],
-              cves,
+              actorsIdentified: actorName ? [actorName] : [],
+              cvesMentioned: cves,
               incidentType: classifyIncidentType(item),
-              severity,
-              status: "raw",
-              rawContent: (item.contentEncoded || item.description || "").substring(0, 10000),
+              irSeverity: severity as any,
+              irStatus: "raw" as any,
+              fullContent: (item.contentEncoded || item.description || "").substring(0, 10000),
             });
             result.incidentReportsIngested++;
           } else {
@@ -669,28 +668,28 @@ async function updateFeedRegistry(
   try {
     const db = await requireDb();
     const [existing] = await db.select().from(darkwebFeedRegistry)
-      .where(eq(darkwebFeedRegistry.feedName, feed.id))
+      .where(eq(darkwebFeedRegistry.dfrFeedName, feed.id))
       .limit(1);
 
     if (existing) {
       await db.update(darkwebFeedRegistry).set({
-        status,
-        lastFetchAt: new Date(),
-        lastError: errorMsg,
-        ...(itemCount !== undefined ? { itemsLastFetch: itemCount } : {}),
+        dfrStatus: status as any,
+        dfrLastSyncAt: new Date().toISOString(),
+        dfrLastError: errorMsg,
+        ...(itemCount !== undefined ? { dfrTotalRecordsFetched: itemCount } : {}),
       }).where(eq(darkwebFeedRegistry.id, existing.id));
     } else {
       await db.insert(darkwebFeedRegistry).values({
-        feedName: feed.id,
-        feedUrl: feed.url,
-        feedType: feed.category === "ransomware" ? "ransomware" :
+        dfrFeedName: feed.id,
+        dfrFeedUrl: feed.url,
+        dfrFeedType: feed.category === "ransomware" ? "ransomware" :
                   feed.category === "breach" ? "credential" :
                   feed.category === "zero_day" ? "vulnerability" : "other",
-        provider: feed.name,
-        status: status as any,
-        lastFetchAt: new Date(),
-        lastError: errorMsg,
-        itemsLastFetch: itemCount ?? 0,
+        dfrProvider: feed.name,
+        dfrStatus: status as any,
+        dfrLastSyncAt: new Date().toISOString(),
+        dfrLastError: errorMsg,
+        dfrTotalRecordsFetched: itemCount ?? 0,
       });
     }
   } catch { /* non-critical */ }

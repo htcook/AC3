@@ -833,19 +833,19 @@ async function resolveDarkwebEnrichment(
 
   // Query darkweb enriched records related to our actors
   const conditions = actorNames.slice(0, 10).map(name =>
-    sql`JSON_SEARCH(${darkwebEnrichedRecords.relatedActors}, 'one', ${`%${name}%`}) IS NOT NULL`
+    sql`JSON_SEARCH(${darkwebEnrichedRecords.derRelatedActors}, 'one', ${`%${name}%`}) IS NOT NULL`
   );
 
   if (conditions.length > 0) {
     const records = await db.select().from(darkwebEnrichedRecords)
       .where(or(...conditions))
-      .orderBy(desc(darkwebEnrichedRecords.riskScore))
+      .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
       .limit(50);
 
     for (const record of records) {
-      const relatedActors = (record.relatedActors as string[]) || [];
-      const relatedIocs = (record.relatedIocs as any[]) || [];
-      const mitreTechniques = (record.mitreTechniques as string[]) || [];
+      const relatedActors = (record.derRelatedActors as string[]) || [];
+      const relatedIocs = (record.derRelatedIocs as any[]) || [];
+      const mitreTechniques = (record.derMitreTechniques as string[]) || [];
 
       // Extract IOCs
       for (const ioc of relatedIocs.slice(0, 10)) {
@@ -854,18 +854,18 @@ async function resolveDarkwebEnrichment(
           value: ioc.value || "",
           actorAttribution: relatedActors,
           source: "darkweb",
-          severity: record.riskScore && record.riskScore > 70 ? "high" : "medium",
-          firstSeen: record.createdAt?.toISOString() || "unknown",
-          lastSeen: record.createdAt?.toISOString() || "unknown",
-          context: (record.threatAssessment || "").slice(0, 300),
+          severity: record.derRiskScore && record.derRiskScore > 70 ? "high" : "medium",
+          firstSeen: record.derCreatedAt?.toISOString() || "unknown",
+          lastSeen: record.derCreatedAt?.toISOString() || "unknown",
+          context: (record.derThreatAssessment || "").slice(0, 300),
         });
       }
 
       // Extract tools mentioned in threat assessment
-      if (record.threatAssessment) {
+      if (record.derThreatAssessment) {
         const toolPatterns = /(?:using|via|through|with)\s+([A-Z][a-zA-Z0-9_-]+(?:\s+[A-Z][a-zA-Z0-9_-]+)?)/g;
         let match;
-        while ((match = toolPatterns.exec(record.threatAssessment)) !== null) {
+        while ((match = toolPatterns.exec(record.derThreatAssessment)) !== null) {
           const toolName = match[1]!.trim();
           if (toolName.length > 2 && toolName.length < 40) {
             tools.push({
@@ -873,7 +873,7 @@ async function resolveDarkwebEnrichment(
               type: "darkweb_observed",
               usedBy: relatedActors,
               techniques: mitreTechniques.slice(0, 5),
-              description: `Observed in darkweb intelligence: ${(record.threatAssessment || "").slice(0, 100)}`,
+              description: `Observed in darkweb intelligence: ${(record.derThreatAssessment || "").slice(0, 100)}`,
               source: "darkweb-enrichment",
             });
           }
@@ -1068,16 +1068,16 @@ async function learnNewTTPs(actorNames: string[], ctx: EngagementContext): Promi
   const darkwebRecords = await db.select().from(darkwebEnrichedRecords)
     .where(
       and(
-        isNotNull(darkwebEnrichedRecords.mitreTechniques),
-        gt(darkwebEnrichedRecords.riskScore, 50)
+        isNotNull(darkwebEnrichedRecords.derMitreTechniques),
+        gt(darkwebEnrichedRecords.derRiskScore, 50)
       )
     )
-    .orderBy(desc(darkwebEnrichedRecords.riskScore))
+    .orderBy(desc(darkwebEnrichedRecords.derRiskScore))
     .limit(100);
 
   for (const record of darkwebRecords) {
-    const techniques = (record.mitreTechniques as string[]) || [];
-    const relatedActors = (record.relatedActors as string[]) || [];
+    const techniques = (record.derMitreTechniques as string[]) || [];
+    const relatedActors = (record.derRelatedActors as string[]) || [];
 
     for (const techId of techniques) {
       if (!techId || knownSet.has(techId)) continue;
@@ -1089,15 +1089,15 @@ async function learnNewTTPs(actorNames: string[], ctx: EngagementContext): Promi
         tempId,
         closestMitreId: techId.startsWith("T") ? techId : null,
         name: `Darkweb-observed technique ${techId}`,
-        tactic: (record.mitreTactics as string[])?.[0] || "unknown",
+        tactic: (record.derMitreTactics as string[])?.[0] || "unknown",
         discoverySource: "darkweb",
-        evidence: `Darkweb intelligence (risk score: ${record.riskScore}): ${(record.threatAssessment || "").slice(0, 200)}`,
+        evidence: `Darkweb intelligence (risk score: ${record.derRiskScore}): ${(record.derThreatAssessment || "").slice(0, 200)}`,
         observedActors: relatedActors,
         associatedTools: [],
         analysis: "",
         reviewed: false,
-        noveltyConfidence: record.riskScore ? Math.min(80, record.riskScore) : 40,
-        discoveredAt: record.createdAt?.toISOString() || new Date().toISOString(),
+        noveltyConfidence: record.derRiskScore ? Math.min(80, record.derRiskScore) : 40,
+        discoveredAt: record.derCreatedAt?.toISOString() || new Date().toISOString(),
       });
     }
   }
