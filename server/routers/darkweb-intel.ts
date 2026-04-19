@@ -1545,4 +1545,156 @@ export const darkwebIntelRouter = router({
         })),
       };
     }),
+
+  /**
+   * Admin-only: run pending DB migrations for tables that may be missing on production.
+   * Creates info_ops_campaigns, influence_operations, darkweb_feed_registry, iab_activity
+   * if they don't already exist.
+   */
+  runMigrations: protectedProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    const migrations = [
+      {
+        name: 'info_ops_campaigns',
+        sql: `CREATE TABLE IF NOT EXISTS \`info_ops_campaigns\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`ioCampaignId\` varchar(128) NOT NULL,
+  \`ioCampaignName\` varchar(255) NOT NULL,
+  \`ioAliases\` json DEFAULT NULL,
+  \`attributedTo\` varchar(255) DEFAULT NULL,
+  \`sponsorState\` varchar(128) DEFAULT NULL,
+  \`operatorGroup\` varchar(255) DEFAULT NULL,
+  \`ioLinkedActorIds\` json DEFAULT NULL,
+  \`operationType\` enum('disinformation','influence','hack_and_leak','astroturfing','election_interference','propaganda','cyber_espionage_io','economic_coercion','diplomatic_pressure','other') NOT NULL DEFAULT 'other',
+  \`ioStatus\` enum('active','disrupted','dormant','attributed','ongoing') DEFAULT 'active',
+  \`ioTargetCountries\` json DEFAULT NULL,
+  \`targetAudiences\` json DEFAULT NULL,
+  \`ioTargetPlatforms\` json DEFAULT NULL,
+  \`targetNarratives\` json DEFAULT NULL,
+  \`estimatedReach\` varchar(128) DEFAULT NULL,
+  \`accountsIdentified\` int DEFAULT '0',
+  \`contentPiecesIdentified\` int DEFAULT '0',
+  \`platformActionsTaken\` json DEFAULT NULL,
+  \`ioTechniques\` json DEFAULT NULL,
+  \`cyberComponent\` tinyint(1) DEFAULT '0',
+  \`linkedCyberOps\` json DEFAULT NULL,
+  \`ioMitreTechniques\` json DEFAULT NULL,
+  \`primarySource\` varchar(255) DEFAULT NULL,
+  \`sourceUrls\` json DEFAULT NULL,
+  \`reportTitle\` varchar(512) DEFAULT NULL,
+  \`ioStartDate\` varchar(32) DEFAULT NULL,
+  \`ioEndDate\` varchar(32) DEFAULT NULL,
+  \`discoveredDate\` varchar(32) DEFAULT NULL,
+  \`ioThreatLevel\` enum('critical','high','medium','low') DEFAULT 'medium',
+  \`ioConfidence\` int DEFAULT '75',
+  \`ioDescription\` text DEFAULT NULL,
+  \`ioDataSource\` varchar(128) DEFAULT NULL,
+  \`ioLastEnriched\` timestamp NULL DEFAULT NULL,
+  \`ioCreatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  \`ioUpdatedAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`info_ops_campaigns_ioCampaignId_unique\` (\`ioCampaignId\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+      },
+      {
+        name: 'influence_operations',
+        sql: `CREATE TABLE IF NOT EXISTS \`influence_operations\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`io_operation_name\` varchar(512) NOT NULL,
+  \`io_attributed_to\` varchar(255) DEFAULT NULL,
+  \`io_nation_state\` varchar(128) DEFAULT NULL,
+  \`io_description\` text DEFAULT NULL,
+  \`io_target_countries\` json DEFAULT NULL,
+  \`io_target_sectors\` json DEFAULT NULL,
+  \`io_target_narratives\` json DEFAULT NULL,
+  \`io_platforms\` json DEFAULT NULL,
+  \`io_techniques\` json DEFAULT NULL,
+  \`io_mitre_techniques\` json DEFAULT NULL,
+  \`io_accounts_identified\` int DEFAULT '0',
+  \`io_content_pieces\` int DEFAULT '0',
+  \`io_source\` varchar(255) DEFAULT NULL,
+  \`io_source_url\` varchar(1024) DEFAULT NULL,
+  \`io_report_date\` timestamp NULL DEFAULT NULL,
+  \`io_status\` enum('active','disrupted','dormant','attributed') DEFAULT 'active',
+  \`io_confidence\` int DEFAULT '75',
+  \`io_tags\` json DEFAULT NULL,
+  \`io_raw_data\` json DEFAULT NULL,
+  \`io_created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  \`io_updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+      },
+      {
+        name: 'darkweb_feed_registry',
+        sql: `CREATE TABLE IF NOT EXISTS \`darkweb_feed_registry\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`dfr_feed_name\` varchar(255) NOT NULL,
+  \`dfr_feed_url\` varchar(1024) NOT NULL,
+  \`dfr_feed_type\` enum('ioc','malware','ransomware','credential','phishing','botnet','c2','blocklist','vulnerability','influence','other') NOT NULL,
+  \`dfr_provider\` varchar(255) DEFAULT NULL,
+  \`dfr_description\` text DEFAULT NULL,
+  \`dfr_requires_auth\` tinyint(1) DEFAULT '0',
+  \`dfr_auth_type\` enum('none','api_key','bearer','basic','custom') DEFAULT 'none',
+  \`dfr_auth_env_var\` varchar(128) DEFAULT NULL,
+  \`dfr_sync_interval\` varchar(32) DEFAULT 'daily',
+  \`dfr_last_sync_at\` timestamp NULL DEFAULT NULL,
+  \`dfr_next_sync_at\` timestamp NULL DEFAULT NULL,
+  \`dfr_status\` enum('active','degraded','down','disabled','pending') DEFAULT 'pending',
+  \`dfr_last_error\` text DEFAULT NULL,
+  \`dfr_consecutive_failures\` int DEFAULT '0',
+  \`dfr_total_syncs\` int DEFAULT '0',
+  \`dfr_total_records_fetched\` int DEFAULT '0',
+  \`dfr_avg_response_time_ms\` int DEFAULT NULL,
+  \`dfr_is_built_in\` tinyint(1) DEFAULT '1',
+  \`dfr_enabled\` tinyint(1) DEFAULT '1',
+  \`dfr_config\` json DEFAULT NULL,
+  \`dfr_created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  \`dfr_updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`),
+  UNIQUE KEY \`dfr_feed_name\` (\`dfr_feed_name\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+      },
+      {
+        name: 'iab_activity',
+        sql: `CREATE TABLE IF NOT EXISTS \`iab_activity\` (
+  \`id\` int NOT NULL AUTO_INCREMENT,
+  \`iab_broker_id\` varchar(128) NOT NULL,
+  \`iab_broker_name\` varchar(255) NOT NULL,
+  \`iab_listing_type\` enum('vpn_access','rdp_access','citrix_access','webshell','domain_admin','cloud_access','email_access','database_access','zero_day','exploit_kit','credential_dump','other') NOT NULL,
+  \`iab_access_type\` varchar(255) DEFAULT NULL,
+  \`iab_description\` text DEFAULT NULL,
+  \`iab_victim_name\` varchar(512) DEFAULT NULL,
+  \`iab_victim_sector\` varchar(128) DEFAULT NULL,
+  \`iab_victim_country\` varchar(128) DEFAULT NULL,
+  \`iab_victim_revenue\` varchar(64) DEFAULT NULL,
+  \`iab_asking_price\` varchar(64) DEFAULT NULL,
+  \`iab_currency\` varchar(16) DEFAULT 'USD',
+  \`iab_forum_source\` varchar(255) DEFAULT NULL,
+  \`iab_linked_rw_groups\` json DEFAULT NULL,
+  \`iab_mitre_techniques\` json DEFAULT NULL,
+  \`iab_status\` enum('active','sold','expired','removed','law_enforcement') DEFAULT 'active',
+  \`iab_confidence\` int DEFAULT '75',
+  \`iab_first_seen\` timestamp NULL DEFAULT NULL,
+  \`iab_last_active\` timestamp NULL DEFAULT NULL,
+  \`iab_tags\` json DEFAULT NULL,
+  \`iab_raw_data\` json DEFAULT NULL,
+  \`iab_created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  \`iab_updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (\`id\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+      }
+    ];
+
+    const results: { table: string; status: string }[] = [];
+    for (const m of migrations) {
+      try {
+        await db.execute(sql.raw(m.sql));
+        results.push({ table: m.name, status: 'created_or_exists' });
+      } catch (e: any) {
+        results.push({ table: m.name, status: `error: ${e.message}` });
+      }
+    }
+    return { results, timestamp: new Date().toISOString() };
+  }),
 });
