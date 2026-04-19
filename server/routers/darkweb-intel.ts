@@ -1697,4 +1697,118 @@ export const darkwebIntelRouter = router({
     }
     return { results, timestamp: new Date().toISOString() };
   }),
+
+  describeTable: protectedProcedure
+    .input(z.object({ table: z.string() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error('Database not available');
+      const rows = await db.execute(sql.raw(`DESCRIBE \`${input.table}\``));
+      return { table: input.table, columns: rows[0] };
+    }),
+
+  renameColumns: protectedProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+
+    // Map of table -> old column name -> new column name
+    const renames: Record<string, Record<string, { newName: string; colDef: string }>> = {
+      network_events: {
+        event_type: { newName: 'ne_event_type', colDef: "enum('c2_server','botnet_controller','malicious_ip','tor_exit_node','proxy_node','vpn_endpoint','dns_sinkhole','fast_flux','ssl_blacklist','spam_source','scanner','other') NOT NULL" },
+        source: { newName: 'ne_source', colDef: 'varchar(128) NOT NULL' },
+        ip_address: { newName: 'ne_ip_address', colDef: 'varchar(45) DEFAULT NULL' },
+        port: { newName: 'ne_port', colDef: 'int DEFAULT NULL' },
+        hostname: { newName: 'ne_hostname', colDef: 'varchar(512) DEFAULT NULL' },
+        protocol: { newName: 'ne_protocol', colDef: 'varchar(32) DEFAULT NULL' },
+        malware_family: { newName: 'ne_malware_family', colDef: 'varchar(255) DEFAULT NULL' },
+        description: { newName: 'ne_description', colDef: 'text DEFAULT NULL' },
+        severity: { newName: 'ne_severity', colDef: "enum('critical','high','medium','low','info') DEFAULT 'medium'" },
+        confidence: { newName: 'ne_confidence', colDef: 'int DEFAULT 75' },
+        country: { newName: 'ne_country', colDef: 'varchar(128) DEFAULT NULL' },
+        asn: { newName: 'ne_asn', colDef: 'varchar(64) DEFAULT NULL' },
+        asn_org: { newName: 'ne_asn_org', colDef: 'varchar(255) DEFAULT NULL' },
+        status: { newName: 'ne_status', colDef: "enum('active','inactive','sinkholed','takedown') DEFAULT 'active'" },
+        first_seen: { newName: 'ne_first_seen', colDef: 'timestamp NULL DEFAULT NULL' },
+        last_seen: { newName: 'ne_last_seen', colDef: 'timestamp NULL DEFAULT NULL' },
+        tags: { newName: 'ne_tags', colDef: 'json DEFAULT NULL' },
+        raw_data: { newName: 'ne_raw_data', colDef: 'json DEFAULT NULL' },
+        created_at: { newName: 'ne_created_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+        updated_at: { newName: 'ne_updated_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+      },
+      underground_intel_events: {
+        category: { newName: 'uie_category', colDef: "enum('forum_post','marketplace_listing','paste_site','ransomware_claim','data_leak','zero_day_sale','exploit_kit','credential_dump','access_sale','other') NOT NULL" },
+        source: { newName: 'uie_source', colDef: 'varchar(255) NOT NULL' },
+        source_url: { newName: 'uie_source_url', colDef: 'varchar(1024) DEFAULT NULL' },
+        title: { newName: 'uie_title', colDef: 'varchar(512) NOT NULL' },
+        description: { newName: 'uie_description', colDef: 'text DEFAULT NULL' },
+        severity: { newName: 'uie_severity', colDef: "enum('critical','high','medium','low','info') DEFAULT 'medium'" },
+        confidence: { newName: 'uie_confidence', colDef: 'int DEFAULT 75' },
+        ioc_type: { newName: 'uie_ioc_type', colDef: 'varchar(64) DEFAULT NULL' },
+        ioc_value: { newName: 'uie_ioc_value', colDef: 'varchar(1024) DEFAULT NULL' },
+        actor_handle: { newName: 'uie_actor_handle', colDef: 'varchar(255) DEFAULT NULL' },
+        actor_reputation: { newName: 'uie_actor_reputation', colDef: 'varchar(64) DEFAULT NULL' },
+        price: { newName: 'uie_price', colDef: 'varchar(64) DEFAULT NULL' },
+        currency: { newName: 'uie_currency', colDef: "varchar(16) DEFAULT 'USD'" },
+        target_org: { newName: 'uie_target_org', colDef: 'varchar(255) DEFAULT NULL' },
+        target_sector: { newName: 'uie_target_sector', colDef: 'varchar(128) DEFAULT NULL' },
+        target_country: { newName: 'uie_target_country', colDef: 'varchar(128) DEFAULT NULL' },
+        tags: { newName: 'uie_tags', colDef: 'json DEFAULT NULL' },
+        raw_data: { newName: 'uie_raw_data', colDef: 'json DEFAULT NULL' },
+        created_at: { newName: 'uie_created_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+        updated_at: { newName: 'uie_updated_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+      },
+      credential_exposures: {
+        source: { newName: 'ce_source', colDef: 'varchar(255) NOT NULL' },
+        breach_name: { newName: 'ce_breach_name', colDef: 'varchar(255) DEFAULT NULL' },
+        breach_date: { newName: 'ce_breach_date', colDef: 'varchar(32) DEFAULT NULL' },
+        domain: { newName: 'ce_domain', colDef: 'varchar(255) DEFAULT NULL' },
+        email_count: { newName: 'ce_email_count', colDef: 'int DEFAULT 0' },
+        total_records: { newName: 'ce_total_records', colDef: 'int DEFAULT 0' },
+        data_classes: { newName: 'ce_data_classes', colDef: 'json DEFAULT NULL' },
+        actor_name: { newName: 'ce_actor_name', colDef: 'varchar(255) DEFAULT NULL' },
+        severity: { newName: 'ce_severity', colDef: "enum('critical','high','medium','low','info') DEFAULT 'medium'" },
+        confidence: { newName: 'ce_confidence', colDef: 'int DEFAULT 75' },
+        affected_orgs: { newName: 'ce_affected_orgs', colDef: 'json DEFAULT NULL' },
+        affected_sectors: { newName: 'ce_affected_sectors', colDef: 'json DEFAULT NULL' },
+        affected_countries: { newName: 'ce_affected_countries', colDef: 'json DEFAULT NULL' },
+        password_hashes_leaked: { newName: 'ce_password_hashes_leaked', colDef: 'tinyint(1) DEFAULT 0' },
+        plaintext_passwords: { newName: 'ce_plaintext_passwords', colDef: 'tinyint(1) DEFAULT 0' },
+        pii_exposed: { newName: 'ce_pii_exposed', colDef: 'tinyint(1) DEFAULT 0' },
+        financial_data_exposed: { newName: 'ce_financial_data_exposed', colDef: 'tinyint(1) DEFAULT 0' },
+        tags: { newName: 'ce_tags', colDef: 'json DEFAULT NULL' },
+        raw_data: { newName: 'ce_raw_data', colDef: 'json DEFAULT NULL' },
+        created_at: { newName: 'ce_created_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+        updated_at: { newName: 'ce_updated_at', colDef: 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
+      },
+    };
+
+    const results: { table: string; column: string; status: string }[] = [];
+
+    for (const [tableName, columns] of Object.entries(renames)) {
+      // First check if the table exists and get current columns
+      try {
+        const descRows = await db.execute(sql.raw(`DESCRIBE \`${tableName}\``));
+        const existingCols = new Set((descRows[0] as any[]).map((r: any) => r.Field));
+
+        for (const [oldName, { newName, colDef }] of Object.entries(columns)) {
+          if (existingCols.has(oldName) && !existingCols.has(newName)) {
+            try {
+              await db.execute(sql.raw(`ALTER TABLE \`${tableName}\` CHANGE COLUMN \`${oldName}\` \`${newName}\` ${colDef}`));
+              results.push({ table: tableName, column: `${oldName} -> ${newName}`, status: 'renamed' });
+            } catch (e: any) {
+              results.push({ table: tableName, column: `${oldName} -> ${newName}`, status: `error: ${e.message}` });
+            }
+          } else if (existingCols.has(newName)) {
+            results.push({ table: tableName, column: newName, status: 'already_correct' });
+          } else {
+            results.push({ table: tableName, column: oldName, status: 'not_found' });
+          }
+        }
+      } catch (e: any) {
+        results.push({ table: tableName, column: '*', status: `table_error: ${e.message}` });
+      }
+    }
+
+    return { results, timestamp: new Date().toISOString() };
+  }),
 });
