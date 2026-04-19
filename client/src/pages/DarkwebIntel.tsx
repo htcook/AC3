@@ -14,7 +14,8 @@ import {
 import { toast } from "sonner";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell, Legend,
+  Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie,
+  LineChart, Line, ComposedChart,
 } from "recharts";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
@@ -59,7 +60,7 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
-    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true,
+    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true, iabTrends: true,
   });
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
@@ -109,6 +110,8 @@ export default function DarkwebIntel() {
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
   const [timelineDays, setTimelineDays] = useState(90);
   const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
+  const [trendDays, setTrendDays] = useState(365);
+  const { data: iabTrends, isLoading: trendsLoading } = trpc.darkwebIntel.iabTrends.useQuery({ days: trendDays });
 
   // ─── US Gov Access Broker queries ──────────────────────────────────────
   const [govSearch, setGovSearch] = useState("");
@@ -1398,6 +1401,253 @@ export default function DarkwebIntel() {
                           </div>
                         )}
                       </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── IAB Trend Analytics ──────────────────────────────── */}
+            <div className="bg-card border border-border p-4">
+              <button onClick={() => toggleSection("iabTrends")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" /> IAB TREND ANALYTICS
+                </h3>
+                <div className="flex items-center gap-2">
+                  {[90, 180, 365, 730].map(d => (
+                    <button key={d} onClick={(e) => { e.stopPropagation(); setTrendDays(d); }}
+                      className={`text-[10px] px-1.5 py-0.5 border transition-colors ${
+                        trendDays === d
+                          ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
+                          : 'border-border text-muted-foreground hover:text-foreground'
+                      }`}>{d <= 365 ? `${d}D` : `${d/365}Y`}</button>
+                  ))}
+                  {expandedSections.iabTrends ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </div>
+              </button>
+              {expandedSections.iabTrends && (
+                <div className="mt-3 space-y-4">
+                  {trendsLoading ? (
+                    <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                  ) : !iabTrends ? (
+                    <p className="text-xs text-muted-foreground py-4 text-center">No trend data available.</p>
+                  ) : (
+                    <>
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                        <div className="border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Listings</p>
+                          <p className="text-lg font-display text-emerald-400">{iabTrends.summary.totalListings}</p>
+                        </div>
+                        <div className="border border-blue-500/20 bg-blue-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Active Brokers</p>
+                          <p className="text-lg font-display text-blue-400">{iabTrends.summary.activeBrokers}</p>
+                        </div>
+                        <div className="border border-amber-500/20 bg-amber-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Price</p>
+                          <p className="text-lg font-display text-amber-400">${iabTrends.summary.avgPrice > 0 ? iabTrends.summary.avgPrice.toLocaleString() : 'N/A'}</p>
+                        </div>
+                        <div className="border border-red-500/20 bg-red-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gov Listings</p>
+                          <p className="text-lg font-display text-red-400">{iabTrends.summary.govListings}</p>
+                        </div>
+                        <div className="border border-purple-500/20 bg-purple-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Top Sector</p>
+                          <p className="text-sm font-display text-purple-400 truncate">{iabTrends.summary.topSector}</p>
+                        </div>
+                        <div className="border border-cyan-500/20 bg-cyan-500/5 p-2.5 text-center">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Top Access</p>
+                          <p className="text-sm font-display text-cyan-400 truncate">{iabTrends.summary.topAccessType}</p>
+                        </div>
+                      </div>
+
+                      {/* Monthly Volume + Cumulative */}
+                      {iabTrends.monthlyVolume.length > 0 && (
+                        <div className="border border-border p-3">
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                            <BarChart3 className="w-3 h-3" /> MONTHLY LISTING VOLUME
+                          </h4>
+                          <div className="h-48">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={iabTrends.monthlyVolume} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
+                                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#888' }} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#888' }} />
+                                <Tooltip
+                                  contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }}
+                                  formatter={(value: any, name: string) => [
+                                    name === 'cumulative' ? value : value,
+                                    name === 'listings' ? 'New Listings' : name === 'cumulative' ? 'Cumulative' : name === 'avgPrice' ? 'Avg Price ($)' : name
+                                  ]}
+                                />
+                                <Bar yAxisId="left" dataKey="listings" fill="#10b981" fillOpacity={0.7} radius={[2, 2, 0, 0]} name="listings" />
+                                <Line yAxisId="right" type="monotone" dataKey="cumulative" stroke="#f59e0b" strokeWidth={2} dot={false} name="cumulative" />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Access Type Distribution + Price by Type */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {iabTrends.accessTypeDistribution.length > 0 && (
+                          <div className="border border-border p-3">
+                            <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                              <Key className="w-3 h-3" /> ACCESS TYPE DISTRIBUTION
+                            </h4>
+                            <div className="h-48">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={iabTrends.accessTypeDistribution}
+                                    dataKey="count"
+                                    nameKey="label"
+                                    cx="50%" cy="50%"
+                                    outerRadius={65}
+                                    innerRadius={30}
+                                    strokeWidth={1}
+                                    stroke="#1a1a2e"
+                                    label={({ label, percent }) => `${label} ${(percent * 100).toFixed(0)}%`}
+                                    labelLine={{ stroke: '#666', strokeWidth: 0.5 }}
+                                  >
+                                    {iabTrends.accessTypeDistribution.map((_: any, i: number) => (
+                                      <Cell key={i} fill={[
+                                        '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6',
+                                        '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1',
+                                      ][i % 10]} fillOpacity={0.8} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Price Evolution */}
+                        {iabTrends.priceEvolution.length > 0 && (
+                          <div className="border border-border p-3">
+                            <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" /> PRICE EVOLUTION
+                            </h4>
+                            <div className="h-48">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={iabTrends.priceEvolution} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
+                                  <YAxis tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                                  <Tooltip
+                                    contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }}
+                                    formatter={(value: any, name: string) => [`$${Number(value).toLocaleString()}`, name === 'avg' ? 'Average' : name === 'max' ? 'Maximum' : 'Minimum']}
+                                  />
+                                  <Area type="monotone" dataKey="max" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={1} />
+                                  <Area type="monotone" dataKey="avg" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={2} />
+                                  <Area type="monotone" dataKey="min" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={1} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Gov Targeting Trend */}
+                      {iabTrends.govTargetingTrend.length > 0 && (
+                        <div className="border border-red-500/20 p-3">
+                          <h4 className="text-[10px] font-display tracking-wider text-red-400/80 mb-2 flex items-center gap-1">
+                            <ShieldAlert className="w-3 h-3" /> GOVERNMENT TARGETING TREND
+                          </h4>
+                          <div className="h-36">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={iabTrends.govTargetingTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
+                                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                <Tooltip
+                                  contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }}
+                                  formatter={(value: any, name: string) => [
+                                    name === 'avgPrice' ? `$${Number(value).toLocaleString()}` : value,
+                                    name === 'listings' ? 'Gov Listings' : 'Avg Price'
+                                  ]}
+                                />
+                                <Bar dataKey="listings" fill="#ef4444" fillOpacity={0.6} radius={[2, 2, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top Brokers Ranked Table */}
+                      {iabTrends.topBrokersRanked.length > 0 && (
+                        <div className="border border-border p-3">
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                            <Users className="w-3 h-3" /> TOP BROKERS RANKED
+                          </h4>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-border text-muted-foreground">
+                                  <th className="text-left py-1.5 px-2">#</th>
+                                  <th className="text-left py-1.5 px-2">Broker</th>
+                                  <th className="text-right py-1.5 px-2">Listings</th>
+                                  <th className="text-right py-1.5 px-2">Avg Price</th>
+                                  <th className="text-left py-1.5 px-2">Top Sector</th>
+                                  <th className="text-left py-1.5 px-2">Top Type</th>
+                                  <th className="text-left py-1.5 px-2">Rep</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {iabTrends.topBrokersRanked.map((b: any, i: number) => (
+                                  <tr key={b.brokerId} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                                    <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
+                                    <td className="py-1.5 px-2 font-medium text-orange-400">{b.name}</td>
+                                    <td className="py-1.5 px-2 text-right font-mono">{b.listings}</td>
+                                    <td className="py-1.5 px-2 text-right font-mono text-amber-400">
+                                      {b.avgPrice ? `$${b.avgPrice.toLocaleString()}` : 'N/A'}
+                                    </td>
+                                    <td className="py-1.5 px-2 text-muted-foreground truncate max-w-[120px]">{b.topSector || 'N/A'}</td>
+                                    <td className="py-1.5 px-2 text-muted-foreground">{b.topType || 'N/A'}</td>
+                                    <td className="py-1.5 px-2">
+                                      <span className={`text-[10px] px-1 py-0.5 border ${
+                                        b.reputation === 'established' ? 'text-red-400 border-red-500/30 bg-red-500/10'
+                                        : b.reputation === 'rising' ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
+                                        : b.reputation === 'new' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10'
+                                        : 'text-muted-foreground border-border'
+                                      }`}>{b.reputation || 'unknown'}</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sector Shifts Stacked Bar */}
+                      {iabTrends.sectorShifts.length > 0 && iabTrends.topSectors && iabTrends.topSectors.length > 0 && (
+                        <div className="border border-border p-3">
+                          <h4 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                            <Globe2 className="w-3 h-3" /> SECTOR TARGETING SHIFTS
+                          </h4>
+                          <div className="h-48">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={iabTrends.sectorShifts} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
+                                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }} />
+                                <Legend wrapperStyle={{ fontSize: 10 }} />
+                                {(iabTrends.topSectors as string[]).map((sector: string, i: number) => (
+                                  <Bar key={sector} dataKey={sector} stackId="sectors" fill={[
+                                    '#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6',
+                                    '#06b6d4', '#ec4899', '#f97316',
+                                  ][i % 8]} fillOpacity={0.7} />
+                                ))}
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

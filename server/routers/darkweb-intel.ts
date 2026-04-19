@@ -1547,6 +1547,162 @@ export const darkwebIntelRouter = router({
     }),
 
   /**
+   * IAB Trend Analytics — monthly volume, sector shifts, access type distribution,
+   * price evolution, top brokers, and gov-targeting trends.
+   * Combines data from access_broker_listings (primary) and iab_activity (if populated).
+   */
+  iabTrends: protectedProcedure
+    .input(z.object({
+      days: z.number().min(30).max(730).default(365),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return {
+        monthlyVolume: [], sectorShifts: [], accessTypeDistribution: [],
+        priceEvolution: [], topBrokersRanked: [], govTargetingTrend: [],
+        summary: { totalListings: 0, activeBrokers: 0, avgPrice: 0, govListings: 0, topSector: '', topAccessType: '' },
+      };
+      const days = input?.days ?? 365;
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+
+      // 1. Monthly volume — listings posted per month with running total
+      // Use raw SQL to avoid TiDB ONLY_FULL_GROUP_BY mismatch between SELECT and GROUP BY
+      const monthlyRaw = await db.execute(
+        sql`SELECT DATE_FORMAT(postedAt, '%Y-%m') as month, COUNT(*) as count, AVG(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as avgPrice FROM access_broker_listings WHERE postedAt >= ${cutoff} AND postedAt IS NOT NULL GROUP BY DATE_FORMAT(postedAt, '%Y-%m') ORDER BY month`
+      ).then(r => (r as any)[0] as Array<{month: string; count: number; avgPrice: number | null}>);
+
+      let runningTotal = 0;
+      const monthlyVolume = monthlyRaw.map(r => {
+        runningTotal += r.count;
+        return {
+          month: r.month,
+          listings: r.count,
+          cumulative: runningTotal,
+          avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+        };
+      });
+
+      // 2. Sector shifts — monthly breakdown by sector (top 8 sectors)
+      const sectorMonthly = await db.execute(
+        sql`SELECT DATE_FORMAT(postedAt, '%Y-%m') as month, victimSector as sector, COUNT(*) as count FROM access_broker_listings WHERE postedAt >= ${cutoff} AND postedAt IS NOT NULL AND victimSector IS NOT NULL GROUP BY DATE_FORMAT(postedAt, '%Y-%m'), victimSector ORDER BY month`
+      ).then(r => (r as any)[0] as Array<{month: string; sector: string; count: number}>);
+
+      // Normalize multi-sector entries and aggregate
+      const sectorCounts: Record<string, number> = {};
+      const sectorMonthMap: Record<string, Record<string, number>> = {};
+      for (const row of sectorMonthly) {
+        const sectors = (row.sector || '').split(',').map(s => s.trim()).filter(Boolean);
+        for (const s of sectors) {
+          const normalized = s.charAt(0).toUpperCase() + s.slice(1);
+          sectorCounts[normalized] = (sectorCounts[normalized] || 0) + row.count;
+          if (!sectorMonthMap[row.month]) sectorMonthMap[row.month] = {};
+          sectorMonthMap[row.month][normalized] = (sectorMonthMap[row.month][normalized] || 0) + row.count;
+        }
+      }
+      const topSectors = Object.entries(sectorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([s]) => s);
+
+      const sectorShifts = Object.entries(sectorMonthMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, sectors]) => ({
+          month,
+          ...Object.fromEntries(topSectors.map(s => [s, sectors[s] || 0])),
+        }));
+
+      // 3. Access type distribution — pie chart data
+      const accessTypes = await db.select({
+        type: accessBrokerListings.listingType,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(${accessBrokerListings.askingPrice}, '0') AS DECIMAL))`,
+      }).from(accessBrokerListings)
+        .groupBy(accessBrokerListings.listingType)
+        .orderBy(sql`COUNT(*) DESC`);
+
+      const TYPE_LABELS: Record<string, string> = {
+        vpn_access: 'VPN Access', rdp_access: 'RDP Access', citrix_access: 'Citrix',
+        webshell: 'Web Shell', domain_admin: 'Domain Admin', cloud_access: 'Cloud Access',
+        email_access: 'Email Access', database_access: 'Database', zero_day: 'Zero-Day',
+        exploit_kit: 'Exploit Kit', credential_dump: 'Credential Dump', other: 'Other',
+      };
+      const accessTypeDistribution = accessTypes.map(r => ({
+        type: r.type,
+        label: TYPE_LABELS[r.type || ''] || r.type || 'Unknown',
+        count: r.count,
+        avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+      }));
+
+      // 4. Price evolution — monthly median/avg/max prices
+      const priceMonthly = await db.execute(
+        sql`SELECT DATE_FORMAT(postedAt, '%Y-%m') as month, AVG(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as avgPrice, MAX(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as maxPrice, MIN(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as minPrice, COUNT(*) as count FROM access_broker_listings WHERE postedAt >= ${cutoff} AND postedAt IS NOT NULL AND askingPrice IS NOT NULL AND askingPrice != '0' GROUP BY DATE_FORMAT(postedAt, '%Y-%m') ORDER BY month`
+      ).then(r => (r as any)[0] as Array<{month: string; avgPrice: number | null; maxPrice: number | null; minPrice: number | null; count: number}>);
+
+      const priceEvolution = priceMonthly.map(r => ({
+        month: r.month,
+        avg: r.avgPrice ? Math.round(r.avgPrice) : null,
+        max: r.maxPrice ? Math.round(r.maxPrice) : null,
+        min: r.minPrice ? Math.round(r.minPrice) : null,
+        listings: r.count,
+      }));
+
+      // 5. Top brokers ranked — by listing count with price and sector info
+      const topBrokersRaw = await db.select({
+        brokerId: accessBrokerListings.brokerId,
+        brokerName: accessBrokerListings.brokerName,
+        count: count(),
+        avgPrice: sql<number>`AVG(CAST(NULLIF(${accessBrokerListings.askingPrice}, '0') AS DECIMAL))`,
+        reputation: accessBrokerListings.brokerReputation,
+        topSector: sql<string>`(SELECT victimSector FROM access_broker_listings abl2 WHERE abl2.brokerId = access_broker_listings.brokerId GROUP BY victimSector ORDER BY COUNT(*) DESC LIMIT 1)`,
+        topType: sql<string>`(SELECT listingType FROM access_broker_listings abl3 WHERE abl3.brokerId = access_broker_listings.brokerId GROUP BY listingType ORDER BY COUNT(*) DESC LIMIT 1)`,
+      }).from(accessBrokerListings)
+        .groupBy(accessBrokerListings.brokerId, accessBrokerListings.brokerName, accessBrokerListings.brokerReputation)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(15);
+
+      const topBrokersRanked = topBrokersRaw.map(r => ({
+        brokerId: r.brokerId,
+        name: r.brokerName,
+        listings: r.count,
+        avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+        reputation: r.reputation,
+        topSector: r.topSector,
+        topType: TYPE_LABELS[r.topType || ''] || r.topType,
+      }));
+
+      // 6. Gov-targeting trend — monthly gov-related listings
+      const govMonthly = await db.execute(
+        sql`SELECT DATE_FORMAT(postedAt, '%Y-%m') as month, COUNT(*) as count, AVG(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as avgPrice FROM access_broker_listings WHERE postedAt >= ${cutoff} AND postedAt IS NOT NULL AND (victimSector LIKE '%gov%' OR victimSector LIKE '%Government%' OR victimSector LIKE '%federal%' OR victimSector LIKE '%defense%' OR victimSector LIKE '%military%' OR victimSector LIKE '%Defense%' OR victimSector LIKE '%Military%') GROUP BY DATE_FORMAT(postedAt, '%Y-%m') ORDER BY month`
+      ).then(r => (r as any)[0] as Array<{month: string; count: number; avgPrice: number | null}>);
+
+      const govTargetingTrend = govMonthly.map(r => ({
+        month: r.month,
+        listings: r.count,
+        avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
+      }));
+
+      // Summary stats
+      const totalListings = monthlyVolume.reduce((sum, m) => sum + m.listings, 0) || accessTypes.reduce((sum, t) => sum + t.count, 0);
+      const activeBrokers = topBrokersRanked.length;
+      const allPrices = accessTypes.filter(t => t.avgPrice != null && !isNaN(Number(t.avgPrice))).map(t => Number(t.avgPrice));
+      const avgPrice = allPrices.length > 0 ? Math.round(allPrices.reduce((a, b) => a + b, 0) / allPrices.length) : 0;
+      const govListings = govTargetingTrend.reduce((sum, g) => sum + g.listings, 0);
+      const topSector = topSectors[0] || 'Unknown';
+      const topAccessType = accessTypeDistribution[0]?.label || 'Unknown';
+
+      return {
+        monthlyVolume,
+        sectorShifts,
+        accessTypeDistribution,
+        priceEvolution,
+        topBrokersRanked,
+        govTargetingTrend,
+        summary: { totalListings, activeBrokers, avgPrice, govListings, topSector, topAccessType },
+        topSectors,
+      };
+    }),
+
+  /**
    * Admin-only: run pending DB migrations for tables that may be missing on production.
    * Creates info_ops_campaigns, influence_operations, darkweb_feed_registry, iab_activity
    * if they don't already exist.
