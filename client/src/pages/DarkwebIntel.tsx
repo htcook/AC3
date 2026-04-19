@@ -64,6 +64,7 @@ export default function DarkwebIntel() {
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [expandedIAB, setExpandedIAB] = useState<number | null>(null);
 
   // Victim event filter state
   const [victimSearch, setVictimSearch] = useState("");
@@ -789,20 +790,36 @@ export default function DarkwebIntel() {
                   ) : !accessBrokers || accessBrokers.length === 0 ? (
                     <p className="text-xs text-muted-foreground py-4 text-center">No access brokers loaded. Click sync to populate.</p>
                   ) : (
-                    accessBrokers.map((iab: any) => (
-                      <div key={iab.id} className="border border-orange-500/20 bg-orange-500/5 p-3 space-y-2">
+                    accessBrokers.map((iab: any) => {
+                      const isExpanded = expandedIAB === iab.id;
+                      const status = iab.iabStatus || iab.status || "unknown";
+                      const confidence = iab.iabConfidence ?? iab.confidence;
+                      const description = iab.iabDescription || iab.description || "";
+                      const firstSeen = iab.iabFirstSeen || iab.firstSeen;
+                      const lastActive = iab.iabLastActive || iab.lastActive;
+                      const dataSource = iab.iabDataSource || iab.dataSource;
+                      return (
+                      <div key={iab.id}
+                        className={`border bg-orange-500/5 p-3 space-y-2 cursor-pointer transition-all hover:bg-orange-500/10 ${
+                          isExpanded ? "border-orange-500/50 ring-1 ring-orange-500/20" : "border-orange-500/20"
+                        }`}
+                        onClick={() => setExpandedIAB(isExpanded ? null : iab.id)}
+                      >
                         <div className="flex items-start justify-between">
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
+                              <ChevronRight className={`w-3 h-3 text-orange-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                               <span className="text-sm font-display text-orange-400 tracking-wide">{safeUpper(iab.brokerName)}</span>
                               <span className={`text-[9px] px-1.5 py-0.5 border ${
-                                iab.status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10"
-                                : iab.status === "law_enforcement" ? "text-blue-400 border-blue-500/30 bg-blue-500/10"
+                                status === "active" ? "text-green-400 border-green-500/30 bg-green-500/10"
+                                : status === "law_enforcement" ? "text-blue-400 border-blue-500/30 bg-blue-500/10"
+                                : status === "sold" ? "text-purple-400 border-purple-500/30 bg-purple-500/10"
+                                : status === "removed" ? "text-red-400 border-red-500/30 bg-red-500/10"
                                 : "text-muted-foreground border-border bg-muted/30"
-                              }`}>{safeUpper(iab.status?.replace(/_/g, " ") || "UNKNOWN")}</span>
+                              }`}>{safeUpper(status.replace(/_/g, " "))}</span>
                             </div>
                             {iab.aliases && (iab.aliases as string[]).length > 0 && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">AKA: {(iab.aliases as string[]).join(", ")}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">AKA: {(iab.aliases as string[]).join(", ")}</p>
                             )}
                           </div>
                           <span className={`text-[9px] px-1.5 py-0.5 border ${
@@ -811,47 +828,182 @@ export default function DarkwebIntel() {
                             : "text-muted-foreground border-border"
                           }`}>{safeUpper(iab.brokerReputation || "UNKNOWN")}</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{iab.description}</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                            <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
-                          </span>
-                          {iab.forumSource && (
+
+                        {/* Collapsed: show tags only */}
+                        {!isExpanded && (
+                          <div className="flex flex-wrap gap-1.5 ml-5">
                             <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                              <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                              <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
                             </span>
-                          )}
-                          {iab.victimSector && (
-                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                              <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
-                            </span>
-                          )}
-                          {iab.confidence != null && (
-                            <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                              CONF: {iab.confidence}%
-                            </span>
-                          )}
-                        </div>
-                        {iab.linkedRansomwareGroups && (iab.linkedRansomwareGroups as string[]).length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            <span className="text-[9px] text-muted-foreground">LINKED:</span>
-                            {(iab.linkedRansomwareGroups as string[]).map((g: string) => (
-                              <span key={g} className="text-[9px] px-1 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{g}</span>
-                            ))}
+                            {iab.forumSource && (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                              </span>
+                            )}
+                            {iab.victimSector && (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
+                              </span>
+                            )}
                           </div>
                         )}
-                        {iab.mitreTechniques && (iab.mitreTechniques as string[]).length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {(iab.mitreTechniques as string[]).slice(0, 5).map((t: string) => (
-                              <span key={t} className="text-[9px] px-1 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono">{t}</span>
-                            ))}
-                            {(iab.mitreTechniques as string[]).length > 5 && (
-                              <span className="text-[9px] text-muted-foreground">+{(iab.mitreTechniques as string[]).length - 5} more</span>
+
+                        {/* Expanded: full detail panel */}
+                        {isExpanded && (
+                          <div className="ml-5 space-y-3 border-t border-orange-500/10 pt-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                            {/* Description */}
+                            {description && (
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">{description}</p>
+                            )}
+
+                            {/* Key Details Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">ACCESS TYPE</div>
+                                <div className="text-[11px] text-foreground font-mono">{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">ACCESS LEVEL</div>
+                                <div className="text-[11px] text-foreground font-mono">{iab.accessLevel?.replace(/_/g, " ") || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">CONFIDENCE</div>
+                                <div className="text-[11px] text-foreground font-mono">{confidence != null ? `${confidence}%` : "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">ASKING PRICE</div>
+                                <div className="text-[11px] text-foreground font-mono">{iab.askingPrice ? `$${iab.askingPrice}` : "—"}</div>
+                              </div>
+                            </div>
+
+                            {/* Victim Info */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">VICTIM SECTOR</div>
+                                <div className="text-[11px] text-foreground">{iab.victimSector || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">VICTIM COUNTRY</div>
+                                <div className="text-[11px] text-foreground">{iab.victimCountry || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">FORUM SOURCE</div>
+                                <div className="text-[11px] text-foreground">{iab.forumSource || "—"}</div>
+                              </div>
+                            </div>
+
+                            {/* Timeline */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">FIRST SEEN</div>
+                                <div className="text-[11px] text-foreground font-mono">{firstSeen || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">LAST ACTIVE</div>
+                                <div className="text-[11px] text-foreground font-mono">{lastActive || "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">TOTAL LISTINGS</div>
+                                <div className="text-[11px] text-foreground font-mono">{iab.totalListings ?? "—"}</div>
+                              </div>
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">SUCCESSFUL SALES</div>
+                                <div className="text-[11px] text-foreground font-mono">{iab.successfulSales ?? "—"}</div>
+                              </div>
+                            </div>
+
+                            {/* Data Source */}
+                            {dataSource && (
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">INTELLIGENCE SOURCE</div>
+                                <div className="text-[11px] text-foreground">{dataSource}</div>
+                              </div>
+                            )}
+
+                            {/* Persistence Mechanism */}
+                            {iab.persistenceMechanism && (
+                              <div className="bg-muted/30 border border-border p-2">
+                                <div className="text-[9px] text-muted-foreground">PERSISTENCE MECHANISM</div>
+                                <div className="text-[11px] text-foreground">{iab.persistenceMechanism}</div>
+                              </div>
+                            )}
+
+                            {/* Tags Row */}
+                            <div className="flex flex-wrap gap-1.5">
+                              <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
+                              </span>
+                              {iab.forumSource && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                  <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                                </span>
+                              )}
+                              {iab.victimSector && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                  <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
+                                </span>
+                              )}
+                              {confidence != null && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                  CONF: {confidence}%
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Linked Ransomware Groups */}
+                            {iab.linkedRansomwareGroups && (iab.linkedRansomwareGroups as string[]).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                <span className="text-[9px] text-muted-foreground">LINKED RANSOMWARE:</span>
+                                {(iab.linkedRansomwareGroups as string[]).map((g: string) => (
+                                  <span key={g} className="text-[9px] px-1 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{g}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Active Forums */}
+                            {iab.activeForums && (iab.activeForums as string[]).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                <span className="text-[9px] text-muted-foreground">ACTIVE FORUMS:</span>
+                                {(iab.activeForums as string[]).map((f: string) => (
+                                  <span key={f} className="text-[9px] px-1 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400">{f}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Linked Actor IDs */}
+                            {iab.linkedActorIds && (iab.linkedActorIds as string[]).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                <span className="text-[9px] text-muted-foreground">LINKED ACTORS:</span>
+                                {(iab.linkedActorIds as string[]).map((a: string) => (
+                                  <span key={a} className="text-[9px] px-1 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400">{a}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* MITRE Techniques */}
+                            {iab.mitreTechniques && (iab.mitreTechniques as string[]).length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-[9px] text-muted-foreground">MITRE ATT&CK:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {(iab.mitreTechniques as string[]).map((t: string) => (
+                                    <span key={t} className="text-[9px] px-1 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono">{t}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Forum Post URL */}
+                            {iab.forumPostUrl && (
+                              <a href={iab.forumPostUrl} target="_blank" rel="noopener noreferrer"
+                                className="text-[10px] text-orange-400 hover:text-orange-300 flex items-center gap-1">
+                                <ExternalLink className="w-3 h-3" /> View Forum Post
+                              </a>
                             )}
                           </div>
                         )}
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               )}

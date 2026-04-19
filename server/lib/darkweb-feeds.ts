@@ -851,7 +851,13 @@ export async function syncAllDarkwebFeeds(): Promise<{
   dailyDarkWeb?: { fulcrumsec: { actor: boolean; iocs: number; events: number }; actors: { actors: number; events: number } };
 }> {
   const accessBrokers = await syncAccessBrokers();
-  const infoOps = await syncInfoOpsCampaigns();
+  let infoOps: { inserted: number; updated: number; total: number };
+  try {
+    infoOps = await syncInfoOpsCampaigns();
+  } catch (err: any) {
+    console.warn("[FeedSync] Info Ops sync skipped (table may not exist):", err?.message?.slice(0, 120));
+    infoOps = { inserted: 0, updated: 0, total: 0 };
+  }
   let dailyDarkWeb;
   try {
     const { syncDailyDarkWebFeed } = await import("./dailydarkweb-feed");
