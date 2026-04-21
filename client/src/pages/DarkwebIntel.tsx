@@ -60,12 +60,13 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
-    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true, iabTrends: true,
+    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true, iabTrends: true, iabControls: false,
   });
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [expandedIAB, setExpandedIAB] = useState<number | null>(null);
+  const [spikeResults, setSpikeResults] = useState<any>(null);
 
   // Victim event filter state
   const [victimSearch, setVictimSearch] = useState("");
@@ -207,9 +208,123 @@ export default function DarkwebIntel() {
   const bridgeVictimCount = recentVictimEvents?.data?.length ?? 0;
   const bridgeIOCCount = threatFoxIOCs?.data?.length ?? 0;
   const bridgeAlertCount = escalationAlerts?.data?.length ?? 0;
+  // ─── IAB Ingestion Button Component ──────────────────────────────────
+  function IABIngestButton({ label, source }: { label: string; source?: string }) {
+    const ingestFull = trpc.darkwebIntel.iabIngest.useMutation({
+      onSuccess: (data: any) => {
+        toast.success(`Ingestion complete: ${data.totalInserted} new listings from ${data.results?.length || 0} sources`);
+      },
+      onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
+    });
+    const ingestSource = trpc.darkwebIntel.iabIngestSource.useMutation({
+      onSuccess: (data: any) => {
+        toast.success(`${data.source}: ${data.inserted} inserted, ${data.skipped} skipped (${data.durationMs}ms)`);
+      },
+      onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
+    });
+    const isLoading = ingestFull.isPending || ingestSource.isPending;
+    const handleClick = () => {
+      if (source) {
+        ingestSource.mutate({ source: source as any });
+      } else {
+        ingestFull.mutate();
+      }
+    };
+    return (
+      <button
+        onClick={handleClick}
+        disabled={isLoading}
+        className={`text-[10px] px-2 py-1 border transition-colors flex items-center gap-1 ${
+          !source
+            ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
+            : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+        } disabled:opacity-50`}
+      >
+        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+        {label}
+      </button>
+    );
+  }
+
+  // ─── IAB Spike Check Button Component ───────────────────────────────
+  function IABSpikeCheckButton() {
+    const spikeCheck = trpc.darkwebIntel.iabSpikeCheck.useMutation({
+      onSuccess: (data: any) => {
+        if (data.alerts.length === 0) {
+          toast.success('No IAB spikes detected. All metrics within normal thresholds.');
+        } else {
+          const critical = data.alerts.filter((a: any) => a.severity === 'critical').length;
+          const high = data.alerts.filter((a: any) => a.severity === 'high').length;
+          toast.warning(
+            `${data.alerts.length} alerts detected: ${critical} critical, ${high} high. ${data.notificationsSent} notifications sent.`
+          );
+        }
+        setSpikeResults(data);
+      },
+      onError: (err: any) => toast.error(sanitizeErrorForToast(err)),
+    });
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => spikeCheck.mutate({})}
+          disabled={spikeCheck.isPending}
+          className="text-[10px] px-2 py-1 border border-orange-500/50 text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors flex items-center gap-1 disabled:opacity-50"
+        >
+          {spikeCheck.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
+          Run Spike Detection
+        </button>
+        {spikeResults && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="border border-border p-2 text-center">
+                <p className="text-[10px] text-muted-foreground">Total Alerts</p>
+                <p className={`text-sm font-display ${spikeResults.alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {spikeResults.alerts.length}
+                </p>
+              </div>
+              <div className="border border-border p-2 text-center">
+                <p className="text-[10px] text-muted-foreground">Critical</p>
+                <p className="text-sm font-display text-red-400">
+                  {spikeResults.alerts.filter((a: any) => a.severity === 'critical').length}
+                </p>
+              </div>
+              <div className="border border-border p-2 text-center">
+                <p className="text-[10px] text-muted-foreground">Notifications Sent</p>
+                <p className="text-sm font-display text-blue-400">{spikeResults.notificationsSent}</p>
+              </div>
+              <div className="border border-border p-2 text-center">
+                <p className="text-[10px] text-muted-foreground">Checked At</p>
+                <p className="text-[10px] font-display text-muted-foreground">
+                  {new Date(spikeResults.checkedAt).toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+            {spikeResults.alerts.length > 0 && (
+              <div className="space-y-1">
+                {spikeResults.alerts.map((alert: any, i: number) => (
+                  <div key={i} className={`border p-2 text-[10px] ${
+                    alert.severity === 'critical' ? 'border-red-500/50 bg-red-500/5 text-red-400' :
+                    alert.severity === 'high' ? 'border-orange-500/50 bg-orange-500/5 text-orange-400' :
+                    alert.severity === 'medium' ? 'border-amber-500/50 bg-amber-500/5 text-amber-400' :
+                    'border-border text-muted-foreground'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="uppercase font-display tracking-wider">[{alert.severity}]</span>
+                      <span className="font-medium">{alert.title}</span>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{alert.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <AppShell activePath="/darkweb-intel">
+    <AppShell> activePath="/darkweb-intel">
       <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1650,6 +1765,44 @@ export default function DarkwebIntel() {
                       )}
                     </>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* ─── IAB Ingestion & Alerting Controls ─────────────────── */}
+            <div className="bg-card border border-border p-4">
+              <button onClick={() => toggleSection("iabControls")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-orange-400" /> IAB INGESTION & SPIKE ALERTING
+                </h3>
+                {expandedSections.iabControls ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {expandedSections.iabControls && (
+                <div className="mt-3 space-y-4">
+                  {/* Ingestion Pipeline */}
+                  <div className="border border-border p-3 space-y-3">
+                    <h4 className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Database className="w-3 h-3" /> DATA INGESTION PIPELINE
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground">Pull fresh IAB data from ransomware.live, CISA KEV, RansomLook markets, and LLM enrichment.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <IABIngestButton label="Run Full Pipeline" source={undefined} />
+                      <IABIngestButton label="Ransomware Groups" source="ransomware_live_groups" />
+                      <IABIngestButton label="Victim Attribution" source="victim_attribution" />
+                      <IABIngestButton label="CISA KEV" source="cisa_kev" />
+                      <IABIngestButton label="RansomLook Markets" source="ransomlook_markets" />
+                      <IABIngestButton label="LLM Enrichment" source="llm_enrichment" />
+                    </div>
+                  </div>
+
+                  {/* Spike Alerting */}
+                  <div className="border border-border p-3 space-y-3">
+                    <h4 className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> SPIKE DETECTION & ALERTING
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground">Check for anomalous spikes in IAB activity. Critical/high alerts are sent as notifications.</p>
+                    <IABSpikeCheckButton />
+                  </div>
                 </div>
               )}
             </div>

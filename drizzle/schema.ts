@@ -7906,3 +7906,6 @@ index("cicd_sbom_pipeline_idx").on(table.pipelineId),
 ]);
 export type InsertCicdSbomArtifact = typeof cicdSbomArtifacts.$inferInsert;
 export type SelectCicdSbomArtifact = typeof cicdSbomArtifacts.$inferSelect;
+
+export type InsertAccessBrokerListing = typeof accessBrokerListings.$inferInsert;
+export type SelectAccessBrokerListing = typeof accessBrokerListings.$inferSelect;

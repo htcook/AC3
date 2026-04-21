@@ -1703,6 +1703,55 @@ export const darkwebIntelRouter = router({
     }),
 
   /**
+   * IAB Spike Alerting — run spike detection checks and send notifications.
+   */
+  iabSpikeCheck: protectedProcedure
+    .input(z.object({
+      monthlyVolumeThreshold: z.number().optional(),
+      govTargetingThreshold: z.number().optional(),
+      highValuePriceThreshold: z.number().optional(),
+      newBrokerDailyThreshold: z.number().optional(),
+      volumeSpikePercent: z.number().optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { runIABSpikeCheck } = await import("../lib/iab-spike-alerting");
+      return runIABSpikeCheck(input || undefined);
+    }),
+
+  /**
+   * IAB Alert Thresholds — get current default thresholds.
+   */
+  iabAlertThresholds: protectedProcedure.query(async () => {
+    const { getDefaultThresholds } = await import("../lib/iab-spike-alerting");
+    return getDefaultThresholds();
+  }),
+
+  /**
+   * IAB Ingestion Pipeline — run automated ingestion from multiple threat intel sources.
+   * Sources: ransomware.live groups, victim attribution, CISA KEV, RansomLook markets, LLM enrichment.
+   */
+  iabIngest: protectedProcedure.mutation(async () => {
+    const { runIABIngestionPipeline } = await import("../lib/iab-ingestion-service");
+    return runIABIngestionPipeline();
+  }),
+
+  /**
+   * IAB Ingestion — run a specific source only.
+   */
+  iabIngestSource: protectedProcedure
+    .input(z.object({ source: z.enum(["ransomware_live_groups", "victim_attribution", "cisa_kev", "ransomlook_markets", "llm_enrichment"]) }))
+    .mutation(async ({ input }) => {
+      const svc = await import("../lib/iab-ingestion-service");
+      switch (input.source) {
+        case "ransomware_live_groups": return svc.ingestRansomwareLiveGroups();
+        case "victim_attribution": return svc.ingestVictimIABAttribution();
+        case "cisa_kev": return svc.ingestCISAKEVExploits();
+        case "ransomlook_markets": return svc.ingestRansomLookMarkets();
+        case "llm_enrichment": return svc.enrichWithLLM([]);
+      }
+    }),
+
+  /**
    * Admin-only: run pending DB migrations for tables that may be missing on production.
    * Creates info_ops_campaigns, influence_operations, darkweb_feed_registry, iab_activity
    * if they don't already exist.

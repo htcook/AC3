@@ -207,26 +207,35 @@ export async function fetchMalwareBazaar(): Promise<FeedResult> {
 export async function fetchSSLBlacklist(): Promise<FeedResult> {
   const start = Date.now();
   try {
-    const res = await safeFetch("https://sslbl.abuse.ch/blacklist/sslblacklist.json");
+    // SSLBL JSON endpoint was deprecated 2025-01-03; use CSV fallback
+    const res = await safeFetch("https://sslbl.abuse.ch/blacklist/sslipblacklist.csv");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as any[];
+    const text = await res.text();
+    // Check if the feed is deprecated (no data lines)
+    const lines = text.split("\n").filter(l => l.trim() && !l.startsWith("#"));
+    if (lines.length === 0) {
+      await updateFeedStatus("abusech_sslbl", "inactive", 0, "Feed deprecated by abuse.ch (2025-01-03)");
+      return { feed: "ssl_blacklist", fetched: 0, error: "Feed deprecated by abuse.ch", durationMs: Date.now() - start };
+    }
     const db = await requireDb();
-    const entries = (data || []).slice(0, 300);
-    const batch: InsertNetworkEvent[] = entries.map((e: any) => ({
-      neEventType: "ssl_blacklist" as const,
-      neSource: "sslbl_abusech",
-      neIpAddress: e.dst_ip,
-      nePort: e.dst_port,
-      neHostname: e.listing_reason,
-      neMalwareFamily: e.listing_reason || "unknown",
-      neDescription: `SSL Blacklist: ${e.listing_reason || "malicious cert"} at ${e.dst_ip}:${e.dst_port} | SHA1: ${e.sha1}`,
-      neSeverity: "high" as const,
-      neConfidence: 85,
-      neStatus: "active" as const,
-      neFirstSeen: e.listing_date ? new Date(e.listing_date) : undefined,
-      neTags: ["ssl", "malicious_cert", e.listing_reason].filter(Boolean),
-      neRawData: e,
-    }));
+    const batch: InsertNetworkEvent[] = [];
+    for (const line of lines.slice(0, 300)) {
+      const [firstSeen, dstIp, dstPort] = line.split(",").map(s => s.trim());
+      if (!dstIp || !/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(dstIp)) continue;
+      batch.push({
+        neEventType: "ssl_blacklist" as const,
+        neSource: "sslbl_abusech",
+        neIpAddress: dstIp,
+        nePort: dstPort ? parseInt(dstPort, 10) : undefined,
+        neDescription: `SSL Blacklist C2: ${dstIp}:${dstPort || '?'}`,
+        neSeverity: "high" as const,
+        neConfidence: 85,
+        neStatus: "active" as const,
+        neFirstSeen: firstSeen ? new Date(firstSeen) : undefined,
+        neTags: ["ssl", "c2", "botnet"],
+        neRawData: { firstSeen, dstIp, dstPort },
+      });
+    }
     if (batch.length > 0) {
       for (let i = 0; i < batch.length; i += 50) {
         await db.insert(networkEvents).values(batch.slice(i, i + 50));
@@ -245,8 +254,8 @@ export async function fetchSSLBlacklist(): Promise<FeedResult> {
 export async function fetchRansomwareLiveVictims(): Promise<FeedResult> {
   const start = Date.now();
   try {
-    // Use the v2 free API (no auth, rate limited)
-    const res = await safeFetch("https://api.ransomware.live/v2/victims", {}, 60000);
+    // v2 endpoint redirects to docs; use v1/recentvictims which returns JSON directly
+    const res = await safeFetch("https://api.ransomware.live/v1/recentvictims", {}, 60000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const victims = (await res.json()) as any[];
     const db = await requireDb();
@@ -256,12 +265,12 @@ export async function fetchRansomwareLiveVictims(): Promise<FeedResult> {
       uieCategory: "ransomware" as const,
       uieSource: "ransomware_live",
       uieSourceUrl: v.post_url || v.website,
-      uieTitle: `${v.group_name || "Unknown"} → ${v.victim || "Unknown victim"}`,
-      uieDescription: `Ransomware victim: ${v.victim} | Group: ${v.group_name} | Country: ${v.country || "unknown"} | Sector: ${v.activity || "unknown"} | Published: ${v.published}`,
+      uieTitle: `${v.group_name || "Unknown"} → ${v.post_title || v.victim || "Unknown victim"}`,
+      uieDescription: `Ransomware victim: ${v.post_title || v.victim || 'unknown'} | Group: ${v.group_name} | Country: ${v.country || "unknown"} | Sector: ${v.activity || "unknown"} | Published: ${v.published}`,
       uieSeverity: "critical" as const,
       uieConfidence: 85,
       uieActorName: v.group_name,
-      uieVictimName: v.victim,
+      uieVictimName: v.post_title || v.victim,
       uieVictimSector: v.activity,
       uieVictimCountry: v.country,
       uieTags: [v.group_name, "ransomware", "leak_site", v.activity].filter(Boolean),
@@ -457,10 +466,16 @@ export async function fetchTorExitNodes(): Promise<FeedResult> {
 export async function fetchBlocklistDe(): Promise<FeedResult> {
   const start = Date.now();
   try {
-    const res = await safeFetch("https://api.blocklist.de/getlast.php?time=86400");
+    // Use the all.txt endpoint which is always available (getlast.php requires recent timestamps)
+    const res = await safeFetch("https://lists.blocklist.de/lists/all.txt");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    const ips = text.split("\n").filter((l) => l.trim() && !l.startsWith("#")).slice(0, 300);
+    // Validate that each line is actually an IP address (IPv4 or IPv6)
+    const IP_REGEX = /^(?:\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[0-9a-fA-F:]+)$/;
+    const ips = text.split("\n")
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith("#") && !l.startsWith("<") && IP_REGEX.test(l))
+      .slice(0, 300);
     const db = await requireDb();
     const batch: InsertNetworkEvent[] = ips.map((ip) => ({
       neEventType: "malicious_ip" as const,
