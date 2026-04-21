@@ -324,7 +324,7 @@ export default function DarkwebIntel() {
   }
 
   return (
-    <AppShell> activePath="/darkweb-intel">
+    <AppShell activePath="/darkweb-intel">
       <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
