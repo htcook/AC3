@@ -1803,14 +1803,18 @@ export default function DarkwebIntel() {
                     <h4 className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-1">
                       <Database className="w-3 h-3" /> DATA INGESTION PIPELINE
                     </h4>
-                    <p className="text-[10px] text-muted-foreground">Pull fresh IAB data from ransomware.live, CISA KEV, RansomLook markets, and LLM enrichment.</p>
+                    <p className="text-[10px] text-muted-foreground">Pull fresh IAB data from ransomware.live, CISA KEV, RansomLook, and Shodan ICS/Gov exposure monitoring.</p>
                     <div className="flex flex-wrap gap-2">
                       <IABIngestButton label="Run Full Pipeline" source={undefined} />
                       <IABIngestButton label="Ransomware Groups" source="ransomware_live_groups" />
                       <IABIngestButton label="Victim Attribution" source="victim_attribution" />
                       <IABIngestButton label="CISA KEV" source="cisa_kev" />
                       <IABIngestButton label="RansomLook Markets" source="ransomlook_markets" />
-                      {/* LLM Enrichment DISABLED — all data must be traceable for LE referral */}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <IABIngestButton label="Shodan: All" source="shodan_all" />
+                      <IABIngestButton label="Shodan: ICS/SCADA" source="shodan_ics" />
+                      <IABIngestButton label="Shodan: Gov/Defense" source="shodan_gov_defense" />
                     </div>
                   </div>
 

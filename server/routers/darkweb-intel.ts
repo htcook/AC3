@@ -1740,14 +1740,18 @@ export const darkwebIntelRouter = router({
    * IAB Ingestion — run a specific source only.
    */
   iabIngestSource: protectedProcedure
-    .input(z.object({ source: z.enum(["ransomware_live_groups", "victim_attribution", "cisa_kev", "ransomlook_markets"]) }))
+    .input(z.object({ source: z.enum(["ransomware_live_groups", "victim_attribution", "cisa_kev", "ransomlook_markets", "shodan_ics", "shodan_gov_defense", "shodan_all"]) }))
     .mutation(async ({ input }) => {
       const svc = await import("../lib/iab-ingestion-service");
+      const shodan = await import("../lib/shodan-ics-ingestion");
       switch (input.source) {
         case "ransomware_live_groups": return svc.ingestRansomwareLiveGroups();
         case "victim_attribution": return svc.ingestVictimIABAttribution();
         case "cisa_kev": return svc.ingestCISAKEVExploits();
         case "ransomlook_markets": return svc.ingestRansomLookMarkets();
+        case "shodan_ics": return shodan.ingestShodanICSExposure();
+        case "shodan_gov_defense": return shodan.ingestShodanGovDefenseExposure();
+        case "shodan_all": return shodan.runShodanIngestion();
       }
     }),
 

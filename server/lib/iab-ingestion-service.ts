@@ -21,6 +21,7 @@ import {
   type InsertAccessBrokerListing,
 } from "../../drizzle/schema";
 import { sql, eq } from "drizzle-orm";
+import { runShodanIngestion } from "./shodan-ics-ingestion";
 // LLM enrichment DISABLED — all data must be traceable for LE referral
 // import { invokeLLM } from "../_core/llm";
 
@@ -464,7 +465,32 @@ export async function runIABIngestionPipeline(): Promise<IABIngestionSummary> {
     }
   }
 
-  // Phase 2: LLM enrichment DISABLED — all data must be traceable for LE referral
+  // Phase 2: Shodan ICS/SCADA and Gov/Defense exposure monitoring
+  // Runs sequentially due to Shodan rate limits (1 req/sec)
+  try {
+    const shodanResults = await runShodanIngestion();
+    for (const sr of shodanResults) {
+      results.push({
+        source: sr.source,
+        fetched: sr.fetched,
+        inserted: sr.inserted,
+        skipped: sr.skipped,
+        error: sr.error,
+        durationMs: sr.durationMs,
+      });
+    }
+  } catch (err: any) {
+    results.push({
+      source: 'shodan_combined',
+      fetched: 0,
+      inserted: 0,
+      skipped: 0,
+      error: err.message,
+      durationMs: 0,
+    });
+  }
+
+  // Phase 3: LLM enrichment DISABLED — all data must be traceable for LE referral
   // No AI-generated or simulated data is permitted in this pipeline.
 
   const completedAt = new Date();
