@@ -28,6 +28,7 @@ import {
 
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
 type SortBy = "name" | "threatLevel" | "lastActive" | "confidence";
+type LastActiveFilter = "all" | "30d" | "90d" | "6m" | "1y" | "stale";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Shield; color: string; bg: string; label: string }> = {
   apt: { icon: Shield, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "APT / Nation-State" },
@@ -59,6 +60,7 @@ export default function ThreatCatalog() {
   const [page, setPage] = useState(1);
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
+  const [lastActiveFilter, setLastActiveFilter] = useState<LastActiveFilter>("all");
 
   const { data: stats } = trpc.threatIntel.stats.useQuery();
   const { data: listData, isLoading, refetch } = trpc.threatIntel.list.useQuery({
@@ -104,9 +106,68 @@ export default function ThreatCatalog() {
     }
   };
 
-  const actors = listData?.actors ?? [];
+  const allActors = listData?.actors ?? [];
   const total = listData?.total ?? 0;
+
+  // Client-side lastActive recency filter
+  const actors = useMemo(() => {
+    if (lastActiveFilter === "all") return allActors;
+    const now = new Date();
+    return allActors.filter((actor: any) => {
+      if (!actor.lastActive) return lastActiveFilter === "stale";
+      // Normalize lastActive to a comparable date
+      const la = String(actor.lastActive).trim();
+      let actorDate: Date | null = null;
+      // Handle YYYY-MM format
+      if (/^\d{4}-\d{2}$/.test(la)) {
+        actorDate = new Date(la + "-15"); // mid-month
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(la)) {
+        actorDate = new Date(la);
+      } else {
+        actorDate = new Date(la);
+      }
+      if (isNaN(actorDate.getTime())) return lastActiveFilter === "stale";
+      const diffMs = now.getTime() - actorDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      switch (lastActiveFilter) {
+        case "30d": return diffDays <= 30;
+        case "90d": return diffDays <= 90;
+        case "6m": return diffDays <= 183;
+        case "1y": return diffDays <= 365;
+        case "stale": return diffDays > 365 || !actor.lastActive;
+        default: return true;
+      }
+    });
+  }, [allActors, lastActiveFilter]);
+
   const totalPages = Math.ceil(total / 60);
+
+  /** Format lastActive for display with recency color */
+  function formatLastActive(la: string | null | undefined): { text: string; colorClass: string; isRecent: boolean } {
+    if (!la) return { text: "UNKNOWN", colorClass: "text-gray-500", isRecent: false };
+    const s = String(la).trim();
+    let d: Date | null = null;
+    let displayText = s;
+    if (/^\d{4}-\d{2}$/.test(s)) {
+      d = new Date(s + "-15");
+      displayText = s;
+    } else if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      d = new Date(s);
+      displayText = s.substring(0, 10);
+    } else {
+      d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        displayText = d.toISOString().substring(0, 7); // YYYY-MM
+      }
+    }
+    if (!d || isNaN(d.getTime())) return { text: s.substring(0, 10), colorClass: "text-gray-500", isRecent: false };
+    const diffDays = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays <= 30) return { text: displayText, colorClass: "text-green-400", isRecent: true };
+    if (diffDays <= 90) return { text: displayText, colorClass: "text-emerald-400", isRecent: false };
+    if (diffDays <= 183) return { text: displayText, colorClass: "text-yellow-400", isRecent: false };
+    if (diffDays <= 365) return { text: displayText, colorClass: "text-orange-400", isRecent: false };
+    return { text: displayText, colorClass: "text-red-400", isRecent: false };
+  }
 
   return (
     <AppShell activePath="/threat-catalog">
@@ -218,6 +279,18 @@ export default function ThreatCatalog() {
               </button>
             ))}
           </div>
+          <select
+            value={lastActiveFilter}
+            onChange={(e) => { setLastActiveFilter(e.target.value as LastActiveFilter); setPage(1); }}
+            className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
+          >
+            <option value="all">Activity: All</option>
+            <option value="30d">Active (30d)</option>
+            <option value="90d">Active (90d)</option>
+            <option value="6m">Active (6mo)</option>
+            <option value="1y">Active (1yr)</option>
+            <option value="stale">Stale (&gt;1yr / Unknown)</option>
+          </select>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
@@ -368,12 +441,18 @@ export default function ThreatCatalog() {
                             {sectors.length} sectors
                           </span>
                         )}
-                        {actor.lastActive && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {actor.lastActive}
-                          </span>
-                        )}
+                        {(() => {
+                          const la = formatLastActive(actor.lastActive);
+                          return (
+                            <span className={`flex items-center gap-1 ${la.colorClass}`}>
+                              <Clock className="w-3 h-3" />
+                              {la.text}
+                              {la.isRecent && (
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" title="Active in last 30 days" />
+                              )}
+                            </span>
+                          );
+                        })()}
                         {actor.dataSource && (
                           <span className="flex items-center gap-1 ml-auto">
                             <Radio className="w-3 h-3" />
