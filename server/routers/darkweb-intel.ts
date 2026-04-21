@@ -2127,4 +2127,14 @@ export const darkwebIntelRouter = router({
 
     return { results, timestamp: new Date().toISOString() };
   }),
+
+  /**
+   * Manually trigger the lastActive updater.
+   * Updates threat_actors.lastActive from threat_group_events,
+   * underground_intel_events, and ransomware.live API.
+   */
+  lastActiveUpdate: protectedProcedure.mutation(async () => {
+    const { runLastActiveUpdate } = await import("../lib/last-active-updater");
+    return runLastActiveUpdate("manual");
+  }),
 });

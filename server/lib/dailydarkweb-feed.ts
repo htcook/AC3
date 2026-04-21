@@ -398,9 +398,11 @@ export async function syncFulcrumsec(): Promise<{ actor: boolean; iocs: number; 
       activityTimeline: FULCRUMSEC_ACTOR.activityTimeline, dataSource: "dailydarkweb_osint", confidence: FULCRUMSEC_ACTOR.confidence,
     });
   } else {
+    // NOTE: Do NOT overwrite lastActive here — it is now managed by the
+    // lastActive updater service which derives dates from real event data.
     await db.update(threatActors).set({
       aliases: FULCRUMSEC_ACTOR.aliases, description: FULCRUMSEC_ACTOR.description,
-      lastActive: FULCRUMSEC_ACTOR.lastActive, targetSectors: FULCRUMSEC_ACTOR.targetSectors,
+      targetSectors: FULCRUMSEC_ACTOR.targetSectors,
       targetRegions: FULCRUMSEC_ACTOR.targetRegions, techniques: FULCRUMSEC_ACTOR.techniques,
       tools: FULCRUMSEC_ACTOR.tools, activityTimeline: FULCRUMSEC_ACTOR.activityTimeline,
       confidence: FULCRUMSEC_ACTOR.confidence,
@@ -493,8 +495,10 @@ export async function syncDailyDarkWebActors(): Promise<{ actors: number; events
       });
       actorsInserted++;
     } else {
+      // NOTE: Do NOT overwrite lastActive here — it is now managed by the
+      // lastActive updater service which derives dates from real event data.
       await db.update(threatActors).set({
-        lastActive: actor.lastActive, activityTimeline: actor.activityTimeline, description: actor.description,
+        activityTimeline: actor.activityTimeline, description: actor.description,
       }).where(eq(threatActors.actorId, actor.actorId));
     }
   }

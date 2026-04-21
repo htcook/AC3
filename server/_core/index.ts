@@ -1003,6 +1003,14 @@ async function startServer() {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
+      // Initialize lastActive Updater scheduler (daily at 08:15 UTC, before IAB ingestion)
+      import("../lib/last-active-scheduler").then(({ initLastActiveScheduler }) => {
+        initLastActiveScheduler();
+        console.log("[LastActiveScheduler] Threat actor lastActive updater scheduler initialized");
+      }).catch((err) => {
+        console.warn("[LastActiveScheduler] Failed to initialize lastActive updater scheduler:", err);
+      });
+
       // Initialize IAB Ingestion & Spike Detection scheduler (daily at 08:45 + 09:15 UTC)
       import("../lib/iab-ingestion-scheduler").then(({ initIABIngestionScheduler }) => {
         initIABIngestionScheduler();
