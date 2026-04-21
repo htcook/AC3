@@ -1003,6 +1003,13 @@ async function startServer() {
         console.warn("[DarkwebScheduler] Failed to initialize darkweb feed scheduler:", err);
       });
 
+      // Initialize IAB Ingestion & Spike Detection scheduler (daily at 08:45 + 09:15 UTC)
+      import("../lib/iab-ingestion-scheduler").then(({ initIABIngestionScheduler }) => {
+        initIABIngestionScheduler();
+      }).catch((err) => {
+        console.warn("[IABScheduler] Failed to initialize IAB ingestion scheduler:", err);
+      });
+
       // Initialize CI/CD Cron Scheduler (60s interval, checks for due scheduled scans)
       import("../lib/cicd-cron-scheduler").then(({ startCronScheduler }) => {
         startCronScheduler();

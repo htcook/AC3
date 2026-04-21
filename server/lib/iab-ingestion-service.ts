@@ -129,25 +129,40 @@ async function ingestRansomwareLiveGroups(): Promise<IABIngestionResult> {
       else if (desc.includes('credential')) listingType = 'credential_dump';
       else if (desc.includes('exploit') || desc.includes('zero-day')) listingType = 'zero_day';
 
-      // Extract locations as victim countries
+      // Extract locations as victim countries (locations are objects with fqdn/title/type)
       const locations = group.locations || [];
       const country = Array.isArray(locations) && locations.length > 0
-        ? locations.slice(0, 3).join(', ')
+        ? locations.slice(0, 3).map((loc: any) => {
+            if (typeof loc === 'string') return loc;
+            return loc.title || loc.slug || loc.fqdn || 'unknown';
+          }).join(', ').slice(0, 128)
         : undefined;
 
       const tools = (group.tools || []).map((t: any) => typeof t === 'string' ? t : t.name || '').filter(Boolean);
+
+      // Safely extract accessType as a string (group.type can be an object like {raas: true})
+      let accessType = 'unknown';
+      if (typeof group.type === 'string') {
+        accessType = group.type.slice(0, 128);
+      } else if (group.type && typeof group.type === 'object') {
+        // Extract keys that are true, e.g. {raas: true} → "raas"
+        const types = Object.entries(group.type)
+          .filter(([_, v]) => v === true)
+          .map(([k]) => k);
+        accessType = types.length > 0 ? types.join(', ').slice(0, 128) : 'unknown';
+      }
 
       const listing: InsertAccessBrokerListing = {
         brokerId,
         brokerName: group.name,
         aliases: group.altname ? [group.altname] : [],
         listingType,
-        accessType: group.type || 'unknown',
+        accessType,
         victimCountry: country,
         forumSource: "ransomware.live",
         brokerReputation: (group._victim_count || 0) > 50 ? 'established' : (group._victim_count || 0) > 10 ? 'rising' : 'new',
         totalListings: group._victim_count || 0,
-        linkedRansomwareGroups: group.lineage ? [group.lineage] : [],
+        linkedRansomwareGroups: group.lineage ? [typeof group.lineage === 'string' ? group.lineage : JSON.stringify(group.lineage)] : [],
         mitreTechniques: tools.length > 0 ? tools : undefined,
         iabStatus: 'active',
         iabFirstSeen: group.date || undefined,
