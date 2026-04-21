@@ -74,6 +74,7 @@ import {
   correlateActor,
   getHighPriorityEvents,
 } from "../lib/darkweb-intel-service";
+import { classifyAllListings, classifyListing } from "../lib/iab-priority-classifier";
 
 // ─── Router ─────────────────────────────────────────────────────────────
 
@@ -1739,7 +1740,7 @@ export const darkwebIntelRouter = router({
    * IAB Ingestion — run a specific source only.
    */
   iabIngestSource: protectedProcedure
-    .input(z.object({ source: z.enum(["ransomware_live_groups", "victim_attribution", "cisa_kev", "ransomlook_markets", "llm_enrichment"]) }))
+    .input(z.object({ source: z.enum(["ransomware_live_groups", "victim_attribution", "cisa_kev", "ransomlook_markets"]) }))
     .mutation(async ({ input }) => {
       const svc = await import("../lib/iab-ingestion-service");
       switch (input.source) {
@@ -1747,7 +1748,6 @@ export const darkwebIntelRouter = router({
         case "victim_attribution": return svc.ingestVictimIABAttribution();
         case "cisa_kev": return svc.ingestCISAKEVExploits();
         case "ransomlook_markets": return svc.ingestRansomLookMarkets();
-        case "llm_enrichment": return svc.enrichWithLLM([]);
       }
     }),
 
@@ -1756,6 +1756,113 @@ export const darkwebIntelRouter = router({
    * Creates info_ops_campaigns, influence_operations, darkweb_feed_registry, iab_activity
    * if they don't already exist.
    */
+  /**
+   * Classify all IAB listings with priority tags (US Gov, ICS/SCADA, Defense Contractor).
+   * Uses keyword-based detection on real data only — no LLM fabrication.
+   */
+  iabClassifyAll: protectedProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new Error('Database not available');
+    return classifyAllListings(db);
+  }),
+
+  /**
+   * Get IAB listings filtered by priority level or category.
+   */
+  iabPriorityListings: protectedProcedure
+    .input(z.object({
+      priorityLevel: z.enum(['critical', 'high', 'medium', 'low', 'all']).default('all'),
+      category: z.enum(['us_gov', 'ics_scada', 'defense_contractor', 'critical_infrastructure', 'general', 'all']).default('all'),
+      limit: z.number().min(1).max(500).default(100),
+      offset: z.number().min(0).default(0),
+    }))
+    .query(async ({ input }) => {
+      const mysql2 = await import('mysql2/promise');
+      const conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+      try {
+        let whereClause = 'WHERE 1=1';
+        const params: any[] = [];
+
+        if (input.priorityLevel !== 'all') {
+          whereClause += ' AND priority_level = ?';
+          params.push(input.priorityLevel);
+        }
+
+        if (input.category !== 'all') {
+          whereClause += ' AND JSON_CONTAINS(priority_tags, ?, \"$.categories\")';
+          params.push(JSON.stringify(input.category));
+        }
+
+        const [countRows] = await conn.execute(
+          `SELECT COUNT(*) as total FROM access_broker_listings ${whereClause}`,
+          params
+        );
+        const total = (countRows as any[])[0]?.total || 0;
+
+        const [rows] = await conn.execute(
+          `SELECT * FROM access_broker_listings ${whereClause} ORDER BY priority_score DESC, postedAt DESC LIMIT ${Number(input.limit)} OFFSET ${Number(input.offset)}`
+          , params
+        );
+
+        return {
+          listings: rows as any[],
+          total,
+          offset: input.offset,
+          limit: input.limit,
+        };
+      } finally {
+        await conn.end();
+      }
+    }),
+
+  /**
+   * Get priority distribution summary for the IAB dashboard.
+   */
+  iabPrioritySummary: protectedProcedure.query(async () => {
+    const mysql2 = await import('mysql2/promise');
+    const conn = await mysql2.createConnection(process.env.DATABASE_URL!);
+    try {
+      const [levelRows] = await conn.execute(
+        `SELECT priority_level, COUNT(*) as count, AVG(priority_score) as avg_score
+         FROM access_broker_listings
+         GROUP BY priority_level
+         ORDER BY FIELD(priority_level, 'critical', 'high', 'medium', 'low')`
+      );
+
+      const [allRows] = await conn.execute(
+        `SELECT priority_tags FROM access_broker_listings WHERE priority_tags IS NOT NULL`
+      );
+
+      const categoryCounts: Record<string, number> = {};
+      for (const row of allRows as any[]) {
+        try {
+          const tags = typeof row.priority_tags === 'string' ? JSON.parse(row.priority_tags) : row.priority_tags;
+          for (const cat of tags?.categories || []) {
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+          }
+        } catch { /* skip malformed */ }
+      }
+
+      const [criticalRows] = await conn.execute(
+        `SELECT id, brokerName, victimSector, victimCountry, accessType,
+                priority_level, priority_score, priority_tags, iabDataSource, postedAt
+         FROM access_broker_listings
+         WHERE priority_level IN ('critical', 'high')
+         ORDER BY priority_score DESC, postedAt DESC
+         LIMIT 20`
+      );
+
+      return {
+        byLevel: levelRows as any[],
+        byCategory: categoryCounts,
+        topCritical: criticalRows as any[],
+        totalClassified: (allRows as any[]).length,
+      };
+    } finally {
+      await conn.end();
+    }
+  }),
+
   runMigrations: protectedProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) throw new Error('Database not available');

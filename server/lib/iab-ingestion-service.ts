@@ -7,9 +7,12 @@
  *   1. ransomware.live — Groups with IAB connections, victim data with sector/country
  *   2. RansomLook — Darkweb market monitoring, 563+ groups, 144 markets
  *   3. CISA KEV — Known exploited vulnerabilities commonly used by IABs
- *   4. LLM Enrichment — Analyzes raw threat data to extract IAB-specific intelligence
  *
  * All feeds are clearnet — no Tor router required.
+ *
+ * NOTE: LLM enrichment has been DISABLED. All data must come from
+ * verifiable, traceable sources for law enforcement referral purposes.
+ * No AI-generated or simulated data is permitted in this pipeline.
  */
 
 import { getDb } from "../db";
@@ -18,7 +21,8 @@ import {
   type InsertAccessBrokerListing,
 } from "../../drizzle/schema";
 import { sql, eq } from "drizzle-orm";
-import { invokeLLM } from "../_core/llm";
+// LLM enrichment DISABLED — all data must be traceable for LE referral
+// import { invokeLLM } from "../_core/llm";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -414,125 +418,19 @@ async function ingestRansomLookMarkets(): Promise<IABIngestionResult> {
   }
 }
 
-// ─── Source 5: LLM-Enriched IAB Intelligence ────────────────────────────
+// ─── LLM Enrichment: PERMANENTLY DISABLED ──────────────────────────────
+// All data in this pipeline must come from verifiable, traceable sources
+// for law enforcement referral purposes. LLM-generated data is not permitted.
 
-async function enrichWithLLM(rawListings: any[]): Promise<IABIngestionResult> {
-  const start = Date.now();
-  const source = "llm_enrichment";
-  try {
-    if (rawListings.length === 0) {
-      return { source, fetched: 0, inserted: 0, skipped: 0, durationMs: Date.now() - start };
-    }
-
-    const db = await getDb();
-
-    // Get existing listings that lack enrichment
-    const unenriched = await db.select()
-      .from(accessBrokerListings)
-      .where(sql`${accessBrokerListings.iabConfidence} < 60 AND ${accessBrokerListings.victimSector} IS NULL`)
-      .limit(20);
-
-    if (unenriched.length === 0) {
-      return { source, fetched: 0, inserted: 0, skipped: 0, durationMs: Date.now() - start };
-    }
-
-    let enriched = 0;
-
-    // Batch process with LLM for sector/country/price enrichment
-    const batchSize = 5;
-    for (let i = 0; i < unenriched.length; i += batchSize) {
-      const batch = unenriched.slice(i, i + batchSize);
-      const prompt = `Analyze these Initial Access Broker (IAB) listings and enrich them with likely victim sector, country targeting, and estimated price range. Return JSON array.
-
-Listings:
-${batch.map((l, idx) => `${idx + 1}. Broker: ${l.brokerName}, Type: ${l.listingType}, Description: ${(l.iabDescription || '').slice(0, 200)}`).join('\n')}
-
-For each listing, return:
-- index (1-based)
-- victimSector (e.g., "Healthcare", "Finance", "Government", "Technology", "Manufacturing")
-- victimCountry (likely target countries, e.g., "United States", "Europe")
-- estimatedPrice (e.g., "$500-$5000", "$10000+", "unknown")
-- confidence (0-100, how confident you are in this enrichment)
-- accessLevel (one of: domain_admin, local_admin, user, service_account, unknown)
-
-Return ONLY a JSON array, no markdown.`;
-
-      try {
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: "You are a cybersecurity threat intelligence analyst specializing in Initial Access Broker (IAB) activity on darkweb forums. Provide accurate enrichment based on known IAB patterns and TTPs." },
-            { role: "user", content: prompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "iab_enrichment",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  enrichments: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        index: { type: "integer" },
-                        victimSector: { type: "string" },
-                        victimCountry: { type: "string" },
-                        estimatedPrice: { type: "string" },
-                        confidence: { type: "integer" },
-                        accessLevel: { type: "string" },
-                      },
-                      required: ["index", "victimSector", "victimCountry", "estimatedPrice", "confidence", "accessLevel"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["enrichments"],
-                additionalProperties: false,
-              },
-            },
-          },
-        });
-
-        const content = response.choices?.[0]?.message?.content;
-        if (!content) continue;
-
-        const parsed = JSON.parse(content);
-        const enrichments = parsed.enrichments || [];
-
-        for (const e of enrichments) {
-          const listing = batch[e.index - 1];
-          if (!listing) continue;
-
-          const accessLevelMap: Record<string, string> = {
-            'domain_admin': 'domain_admin',
-            'local_admin': 'local_admin',
-            'user': 'user',
-            'service_account': 'service_account',
-          };
-
-          await db.update(accessBrokerListings)
-            .set({
-              victimSector: e.victimSector || undefined,
-              victimCountry: e.victimCountry || undefined,
-              askingPrice: e.estimatedPrice || undefined,
-              accessLevel: (accessLevelMap[e.accessLevel] || 'unknown') as any,
-              iabConfidence: Math.min(e.confidence || 60, 85), // Cap at 85 for LLM-enriched
-            })
-            .where(eq(accessBrokerListings.id, listing.id));
-
-          enriched++;
-        }
-      } catch (llmErr: any) {
-        console.error(`[IAB-Ingestion] LLM enrichment batch failed:`, llmErr.message);
-      }
-    }
-
-    return { source, fetched: unenriched.length, inserted: 0, skipped: 0, durationMs: Date.now() - start };
-  } catch (err: any) {
-    return { source, fetched: 0, inserted: 0, skipped: 0, error: err.message, durationMs: Date.now() - start };
-  }
+async function enrichWithLLM(_rawListings: any[]): Promise<IABIngestionResult> {
+  console.warn("[IAB-Ingestion] LLM enrichment is DISABLED — all data must be traceable for LE referral. Skipping.");
+  return {
+    source: 'llm_enrichment',
+    fetched: 0,
+    inserted: 0,
+    skipped: 0,
+    durationMs: 0,
+  };
 }
 
 // ─── Main Ingestion Pipeline ────────────────────────────────────────────
@@ -566,20 +464,8 @@ export async function runIABIngestionPipeline(): Promise<IABIngestionSummary> {
     }
   }
 
-  // Phase 2: LLM enrichment on newly ingested data
-  try {
-    const enrichResult = await enrichWithLLM([]);
-    results.push(enrichResult);
-  } catch (err: any) {
-    results.push({
-      source: 'llm_enrichment',
-      fetched: 0,
-      inserted: 0,
-      skipped: 0,
-      error: err.message,
-      durationMs: 0,
-    });
-  }
+  // Phase 2: LLM enrichment DISABLED — all data must be traceable for LE referral
+  // No AI-generated or simulated data is permitted in this pipeline.
 
   const completedAt = new Date();
   const totalInserted = results.reduce((sum, r) => sum + r.inserted, 0);

@@ -60,13 +60,15 @@ export default function DarkwebIntel() {
   const [limit, setLimit] = useState(100);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     alerts: true, iocs: true, kev: true, otx: false, malware: false, keywords: false,
-    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true, iabTrends: true, iabControls: false,
+    iabs: true, infoOps: true, govBrokers: true, brokerTimeline: true, iabTrends: true, iabControls: false, iabPriority: true,
   });
 
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [expandedIAB, setExpandedIAB] = useState<number | null>(null);
   const [spikeResults, setSpikeResults] = useState<any>(null);
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'us_gov' | 'ics_scada' | 'defense_contractor' | 'critical_infrastructure' | 'general'>('all');
 
   // Victim event filter state
   const [victimSearch, setVictimSearch] = useState("");
@@ -113,6 +115,23 @@ export default function DarkwebIntel() {
   const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
   const [trendDays, setTrendDays] = useState(365);
   const { data: iabTrends, isLoading: trendsLoading } = trpc.darkwebIntel.iabTrends.useQuery({ days: trendDays });
+
+  // ─── Priority Intelligence queries ─────────────────────────────────────────
+  const { data: prioritySummary, isLoading: priorityLoading, refetch: refetchPriority } = trpc.darkwebIntel.iabPrioritySummary.useQuery();
+  const priorityListingsInput = useMemo(() => ({
+    priorityLevel: priorityFilter as any,
+    category: categoryFilter as any,
+    limit: 50,
+    offset: 0,
+  }), [priorityFilter, categoryFilter]);
+  const { data: priorityListings, isLoading: priorityListingsLoading } = trpc.darkwebIntel.iabPriorityListings.useQuery(priorityListingsInput);
+  const classifyAll = trpc.darkwebIntel.iabClassifyAll.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Classified ${data.total} listings: ${data.critical} critical, ${data.high} high, ${data.medium} medium, ${data.low} low`);
+      refetchPriority();
+    },
+    onError: (err) => toast.error('Classification failed: ' + sanitizeErrorForToast(err)),
+  });
 
   // ─── US Gov Access Broker queries ──────────────────────────────────────
   const [govSearch, setGovSearch] = useState("");
@@ -1791,7 +1810,7 @@ export default function DarkwebIntel() {
                       <IABIngestButton label="Victim Attribution" source="victim_attribution" />
                       <IABIngestButton label="CISA KEV" source="cisa_kev" />
                       <IABIngestButton label="RansomLook Markets" source="ransomlook_markets" />
-                      <IABIngestButton label="LLM Enrichment" source="llm_enrichment" />
+                      {/* LLM Enrichment DISABLED — all data must be traceable for LE referral */}
                     </div>
                   </div>
 
@@ -1803,6 +1822,187 @@ export default function DarkwebIntel() {
                     <p className="text-[10px] text-muted-foreground">Check for anomalous spikes in IAB activity. Critical/high alerts are sent as notifications.</p>
                     <IABSpikeCheckButton />
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* ─── Priority Intelligence ─────────────────────────── */}
+            <div className="bg-card border border-border p-4">
+              <button onClick={() => toggleSection("iabPriority")} className="flex items-center justify-between w-full">
+                <h3 className="text-xs font-display tracking-wider text-muted-foreground flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-500" /> PRIORITY INTELLIGENCE — US GOV / ICS-SCADA / DEFENSE
+                  <span className="text-[10px] text-muted-foreground/60">
+                    ({prioritySummary?.topCritical?.length ?? 0} critical+high)
+                  </span>
+                </h3>
+                {expandedSections.iabPriority ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {expandedSections.iabPriority && (
+                <div className="mt-3 space-y-4">
+                  {/* Classify + Summary Row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => classifyAll.mutate()}
+                      disabled={classifyAll.isPending}
+                      className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {classifyAll.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Crosshair className="w-3 h-3" />}
+                      Run Classification
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">Keyword-based detection on verified data only — no LLM fabrication</span>
+                  </div>
+
+                  {/* Priority Level Cards */}
+                  {prioritySummary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {(prioritySummary.byLevel as any[])?.map((level: any) => (
+                        <div
+                          key={level.priority_level}
+                          onClick={() => setPriorityFilter(level.priority_level)}
+                          className={`p-3 rounded border cursor-pointer transition-all ${
+                            priorityFilter === level.priority_level
+                              ? 'ring-2 ring-offset-1 ring-offset-background'
+                              : 'hover:bg-muted/50'
+                          } ${
+                            level.priority_level === 'critical' ? 'border-red-500/50 bg-red-500/10 ring-red-500' :
+                            level.priority_level === 'high' ? 'border-orange-500/50 bg-orange-500/10 ring-orange-500' :
+                            level.priority_level === 'medium' ? 'border-amber-500/50 bg-amber-500/10 ring-amber-500' :
+                            'border-blue-500/50 bg-blue-500/10 ring-blue-500'
+                          }`}
+                        >
+                          <div className="text-lg font-bold">{Number(level.count)}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{level.priority_level}</div>
+                          <div className="text-[9px] text-muted-foreground/60">avg score: {Math.round(Number(level.avg_score) || 0)}</div>
+                        </div>
+                      ))}
+                      {priorityFilter !== 'all' && (
+                        <div
+                          onClick={() => setPriorityFilter('all')}
+                          className="p-3 rounded border border-dashed border-muted-foreground/30 cursor-pointer hover:bg-muted/50 flex items-center justify-center"
+                        >
+                          <span className="text-xs text-muted-foreground">Show All</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Category Filter Buttons */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { key: 'all', label: 'All Categories', icon: '📊' },
+                      { key: 'us_gov', label: 'US Government', icon: '🏛️' },
+                      { key: 'ics_scada', label: 'ICS/SCADA', icon: '⚡' },
+                      { key: 'defense_contractor', label: 'Defense Contractor', icon: '🛡️' },
+                      { key: 'critical_infrastructure', label: 'Critical Infrastructure', icon: '🏗️' },
+                    ].map(cat => (
+                      <button
+                        key={cat.key}
+                        onClick={() => setCategoryFilter(cat.key as any)}
+                        className={`px-2.5 py-1 text-[11px] rounded border transition-all ${
+                          categoryFilter === cat.key
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted/60'
+                        }`}
+                      >
+                        {cat.icon} {cat.label}
+                        {cat.key !== 'all' && prioritySummary?.byCategory?.[cat.key] ? ` (${prioritySummary.byCategory[cat.key]})` : ''}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Priority Listings Table */}
+                  {priorityListingsLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs py-4">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading priority listings...
+                    </div>
+                  ) : priorityListings && priorityListings.listings.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border text-muted-foreground">
+                            <th className="text-left py-2 px-2 w-16">Priority</th>
+                            <th className="text-left py-2 px-2 w-12">Score</th>
+                            <th className="text-left py-2 px-2">Broker</th>
+                            <th className="text-left py-2 px-2">Victim / Target</th>
+                            <th className="text-left py-2 px-2">Sector</th>
+                            <th className="text-left py-2 px-2">Access Type</th>
+                            <th className="text-left py-2 px-2">Tags</th>
+                            <th className="text-left py-2 px-2">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {priorityListings.listings.map((listing: any) => {
+                            let tags: any = {};
+                            try { tags = typeof listing.priority_tags === 'string' ? JSON.parse(listing.priority_tags) : listing.priority_tags || {}; } catch {}
+                            return (
+                              <tr key={listing.id} className="border-b border-border/50 hover:bg-muted/30">
+                                <td className="py-2 px-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    listing.priority_level === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                    listing.priority_level === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                                    listing.priority_level === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                    'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                  }`}>
+                                    {listing.priority_level}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-2 font-mono text-muted-foreground">{listing.priority_score}</td>
+                                <td className="py-2 px-2 font-medium text-foreground">{listing.brokerName || 'Unknown'}</td>
+                                <td className="py-2 px-2 text-foreground/80">{listing.victimCountry || '—'}</td>
+                                <td className="py-2 px-2 text-muted-foreground">{listing.victimSector || '—'}</td>
+                                <td className="py-2 px-2">
+                                  <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{listing.accessType || '—'}</span>
+                                </td>
+                                <td className="py-2 px-2">
+                                  <div className="flex gap-1 flex-wrap">
+                                    {(tags.tags || []).map((t: string, i: number) => (
+                                      <span key={i} className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                                        t === 'US Government' ? 'bg-red-500/20 text-red-300' :
+                                        t === 'ICS/SCADA' ? 'bg-yellow-500/20 text-yellow-300' :
+                                        t === 'Defense Contractor' ? 'bg-orange-500/20 text-orange-300' :
+                                        'bg-blue-500/20 text-blue-300'
+                                      }`}>{t}</span>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="py-2 px-2 text-[10px] text-muted-foreground/60">{listing.iabDataSource || '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div className="text-[10px] text-muted-foreground/60 mt-2">
+                        Showing {priorityListings.listings.length} of {priorityListings.total} listings
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground py-4 text-center">
+                      No listings found. Click "Run Classification" to classify all IAB listings.
+                    </div>
+                  )}
+
+                  {/* Matched Keywords for top critical */}
+                  {prioritySummary?.topCritical && prioritySummary.topCritical.length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                        <Key className="w-3 h-3" /> Matched Keywords (Top Critical Listings)
+                      </h4>
+                      <div className="flex gap-1 flex-wrap">
+                        {(() => {
+                          const allKw = new Set<string>();
+                          prioritySummary.topCritical.forEach((l: any) => {
+                            try {
+                              const tags = typeof l.priority_tags === 'string' ? JSON.parse(l.priority_tags) : l.priority_tags;
+                              (tags?.matchedKeywords || []).forEach((k: string) => allKw.add(k));
+                            } catch {}
+                          });
+                          return [...allKw].sort().map(kw => (
+                            <span key={kw} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 text-[9px] border border-red-500/20">{kw}</span>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
