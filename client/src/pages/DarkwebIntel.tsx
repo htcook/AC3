@@ -10,6 +10,7 @@ import {
   Database, Loader2, RefreshCw, Crosshair, FileText,
   Zap, Bug, Key, Tag, Wifi, WifiOff, ChevronDown, ChevronUp, ChevronRight,
   ShieldAlert, Megaphone, DollarSign, Users, Network, FileJson, BarChart3,
+  Gavel, ShieldBan,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -44,6 +45,23 @@ const ACTOR_TYPE_COLORS: Record<string, string> = {
   access_broker: "text-orange-400",
   influence_ops: "text-pink-400",
 };
+
+// ─── Seized Forum Registry ──────────────────────────────────────────────
+const SEIZED_FORUMS: Record<string, { date: string; agency: string; note: string }> = {
+  RAMP: { date: "Jan 28, 2026", agency: "FBI / DOJ", note: "Tor + clearnet domains seized" },
+  breachforums: { date: "May 15, 2024", agency: "FBI / DOJ", note: "Domain seized, admin arrested" },
+};
+
+function isSeizedForum(forumSource: string | null | undefined): boolean {
+  if (!forumSource) return false;
+  return Object.keys(SEIZED_FORUMS).some(f => forumSource.toLowerCase() === f.toLowerCase());
+}
+
+function getSeizureInfo(forumSource: string | null | undefined) {
+  if (!forumSource) return null;
+  const key = Object.keys(SEIZED_FORUMS).find(f => forumSource.toLowerCase() === f.toLowerCase());
+  return key ? SEIZED_FORUMS[key] : null;
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/10 border-red-500/30",
@@ -113,7 +131,7 @@ export default function DarkwebIntel() {
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
   const [timelineDays, setTimelineDays] = useState(1825);
   const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
-  const [trendDays, setTrendDays] = useState(365);
+  const [trendDays, setTrendDays] = useState(1825);
   const { data: iabTrends, isLoading: trendsLoading } = trpc.darkwebIntel.iabTrends.useQuery({ days: trendDays });
   const [selectedTrendSectors, setSelectedTrendSectors] = useState<string[]>(['Government']);
 
@@ -938,8 +956,10 @@ export default function DarkwebIntel() {
                       const dataSource = iab.iabDataSource || iab.dataSource;
                       return (
                       <div key={iab.id}
-                        className={`border bg-orange-500/5 p-3 space-y-2 cursor-pointer transition-all hover:bg-orange-500/10 ${
-                          isExpanded ? "border-orange-500/50 ring-1 ring-orange-500/20" : "border-orange-500/20"
+                        className={`border p-3 space-y-2 cursor-pointer transition-all ${
+                          isSeizedForum(iab.forumSource)
+                            ? `bg-red-900/10 hover:bg-red-900/15 border-l-2 border-l-red-500 ${isExpanded ? 'border-red-500/50 ring-1 ring-red-500/20' : 'border-red-500/30'}`
+                            : `bg-orange-500/5 hover:bg-orange-500/10 ${isExpanded ? 'border-orange-500/50 ring-1 ring-orange-500/20' : 'border-orange-500/20'}`
                         }`}
                         onClick={() => setExpandedIAB(isExpanded ? null : iab.id)}
                       >
@@ -974,9 +994,15 @@ export default function DarkwebIntel() {
                               <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "\u2014"}
                             </span>
                             {iab.forumSource && (
-                              <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                                <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
-                              </span>
+                              isSeizedForum(iab.forumSource) ? (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-red-900/40 border border-red-500/50 text-red-300 font-semibold">
+                                  <Gavel className="w-2.5 h-2.5 inline mr-1" />SEIZED: {iab.forumSource}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                  <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                                </span>
+                              )
                             )}
                             {iab.victimSector && (() => {
                               const sectors = String(iab.victimSector).split(/,\s*/).filter(Boolean);
@@ -1042,11 +1068,31 @@ export default function DarkwebIntel() {
                                 <div className="text-[9px] text-muted-foreground">VICTIM COUNTRY</div>
                                 <div className="text-[11px] text-foreground">{iab.victimCountry || "—"}</div>
                               </div>
-                              <div className="bg-muted/30 border border-border p-2">
+                              <div className={`border p-2 ${isSeizedForum(iab.forumSource) ? 'bg-red-900/20 border-red-500/40' : 'bg-muted/30 border-border'}`}>
                                 <div className="text-[9px] text-muted-foreground">FORUM SOURCE</div>
-                                <div className="text-[11px] text-foreground">{iab.forumSource || "—"}</div>
+                                <div className={`text-[11px] ${isSeizedForum(iab.forumSource) ? 'text-red-300 font-semibold' : 'text-foreground'}`}>
+                                  {isSeizedForum(iab.forumSource) && <Gavel className="w-3 h-3 inline mr-1" />}
+                                  {iab.forumSource || "—"}
+                                </div>
                               </div>
                             </div>
+
+                            {/* Seizure Banner */}
+                            {(() => {
+                              const seizure = getSeizureInfo(iab.forumSource);
+                              if (!seizure) return null;
+                              return (
+                                <div className="flex items-start gap-2.5 bg-red-900/30 border border-red-500/40 p-2.5">
+                                  <ShieldBan className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                                  <div>
+                                    <div className="text-[10px] font-display tracking-wider text-red-300 uppercase">Forum Seized by {seizure.agency}</div>
+                                    <div className="text-[10px] text-red-200/70 mt-0.5">
+                                      {iab.forumSource} was seized on {seizure.date}. {seizure.note}. This listing reflects <strong>historical activity</strong> prior to the takedown.
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {/* Timeline */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -1090,9 +1136,15 @@ export default function DarkwebIntel() {
                                 <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
                               </span>
                               {iab.forumSource && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                                  <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
-                                </span>
+                                isSeizedForum(iab.forumSource) ? (
+                                  <span className="text-[9px] px-1.5 py-0.5 bg-red-900/40 border border-red-500/50 text-red-300 font-semibold">
+                                    <Gavel className="w-2.5 h-2.5 inline mr-1" />SEIZED: {iab.forumSource}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                    <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
+                                  </span>
+                                )
                               )}
                               {iab.victimSector && (() => {
                                 const sectors = String(iab.victimSector).split(/,\s*/).filter(Boolean);
@@ -1570,13 +1622,13 @@ export default function DarkwebIntel() {
                   <TrendingUp className="w-4 h-4 text-emerald-400" /> IAB TREND ANALYTICS
                 </h3>
                 <div className="flex items-center gap-2">
-                  {[90, 180, 365, 730].map(d => (
+                  {[{d: 180, label: '180D'}, {d: 365, label: '1Y'}, {d: 1095, label: '3Y'}, {d: 1825, label: '5Y'}].map(({d, label}) => (
                     <button key={d} onClick={(e) => { e.stopPropagation(); setTrendDays(d); }}
                       className={`text-[10px] px-1.5 py-0.5 border transition-colors ${
                         trendDays === d
                           ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
                           : 'border-border text-muted-foreground hover:text-foreground'
-                      }`}>{d <= 365 ? `${d}D` : `${d/365}Y`}</button>
+                      }`}>{label}</button>
                   ))}
                   {expandedSections.iabTrends ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                 </div>
@@ -2066,7 +2118,18 @@ export default function DarkwebIntel() {
                                     ))}
                                   </div>
                                 </td>
-                                <td className="py-2 px-2 text-[10px] text-muted-foreground/60 align-top">{listing.iabDataSource || '\u2014'}</td>
+                                <td className="py-2 px-2 align-top">
+                                  {isSeizedForum(listing.forumSource) ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-[9px] px-1 py-0.5 bg-red-900/40 border border-red-500/50 text-red-300 font-semibold inline-flex items-center gap-0.5 w-fit">
+                                        <Gavel className="w-2.5 h-2.5" />SEIZED
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground/60">{listing.iabDataSource || '\u2014'}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground/60">{listing.iabDataSource || '\u2014'}</span>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })}

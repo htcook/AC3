@@ -1554,7 +1554,7 @@ export const darkwebIntelRouter = router({
    */
   iabTrends: protectedProcedure
     .input(z.object({
-      days: z.number().min(30).max(730).default(365),
+      days: z.number().min(30).max(1825).default(1825),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();
@@ -1566,7 +1566,7 @@ export const darkwebIntelRouter = router({
         summary: { totalListings: 0, activeBrokers: 0, avgPrice: 0, govListings: 0, topSector: '', topAccessType: '' },
         topSectors: [] as string[],
       };
-      const days = input?.days ?? 365;
+      const days = input?.days ?? 1825;
       const cutoff = new Date(Date.now() - days * 86400000).toISOString();
 
       // 1. Monthly volume — listings posted per month with running total
