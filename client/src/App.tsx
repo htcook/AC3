@@ -103,6 +103,7 @@ const DarkwebIntel = lazyWithRetry(() => import("./pages/DarkwebIntel"));
 const BreachEvents = lazyWithRetry(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazyWithRetry(() => import("./pages/ThreatIntelHub"));
 const ThreatGroupBrowser = lazyWithRetry(() => import("./pages/ThreatGroupBrowser"));
+const ConflictTheater = lazyWithRetry(() => import("./pages/ConflictTheater"));
 const TrainingLab = lazyWithRetry(() => import("./pages/TrainingLab"));
 const CampaignArchetypes = lazyWithRetry(() => import("./pages/CampaignArchetypes"));
 const ExploitArsenal = lazyWithRetry(() => import("./pages/ExploitArsenal"));
@@ -619,6 +620,9 @@ function Router() {
         </Route>
         <Route path="/threat-group-browser">
           <ProtectedRoute component={ThreatGroupBrowser} />
+        </Route>
+        <Route path="/conflict-theater">
+          <ProtectedRoute component={ConflictTheater} />
         </Route>
         <Route path="/threat-catalog">
           <ProtectedRoute component={ThreatCatalog} />

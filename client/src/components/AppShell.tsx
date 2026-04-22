@@ -362,6 +362,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/threat-enrichment", icon: Brain, label: "THREAT ENRICHMENT" },
           { href: "/context-engine", icon: Cpu, label: "CONTEXT ENGINE" },
           { href: "/threat-group-browser", icon: Swords, label: "THREAT GROUPS" },
+          { href: "/conflict-theater", icon: Swords, label: "CONFLICT THEATER" },
           { href: "/ransomware-groups", icon: AlertTriangle, label: "RANSOMWARE GROUPS" },
           { href: "/nvd-cve-matcher", icon: Bug, label: "NVD CVE MATCHER" },
           { href: "/kev-catalog", icon: AlertTriangle, label: "KEV CATALOG" },

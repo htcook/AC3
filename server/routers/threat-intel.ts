@@ -49,6 +49,7 @@ export const threatIntelRouter = router({
       pageSize: z.number().default(50),
       type: z.enum(["apt", "cybercrime", "ransomware", "hacktivist", "access_broker", "influence_ops", "unknown", "all"]).default("all"),
       threatLevel: z.enum(["critical", "high", "medium", "low", "all"]).default("all"),
+      conflict: z.string().optional(),
       search: z.string().optional(),
       sortBy: z.enum(["name", "threatLevel", "lastActive", "confidence"]).default("name"),
       sortOrder: z.enum(["asc", "desc"]).default("asc"),
@@ -62,6 +63,7 @@ export const threatIntelRouter = router({
       if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.actorType, opts.type));
       if (opts.rwThreatLevel && opts.rwThreatLevel !== "all") conditions.push(eq(threatActors.rwThreatLevel, opts.rwThreatLevel));
       if (opts.search) conditions.push(sql`(${threatActors.name} LIKE ${'%' + opts.search + '%'} OR ${threatActors.actorId} LIKE ${'%' + opts.search + '%'})`);
+      if (opts.conflict && opts.conflict !== 'all') conditions.push(sql`${threatActors.conflicts} LIKE ${'%' + opts.conflict + '%'}`);
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 

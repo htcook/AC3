@@ -24,11 +24,37 @@ import {
   Zap,
   Key,
   Megaphone,
+  Swords,
 } from "lucide-react";
 
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
 type SortBy = "name" | "threatLevel" | "lastActive" | "confidence";
 type LastActiveFilter = "all" | "30d" | "90d" | "6m" | "1y" | "stale";
+
+const CONFLICT_OPTIONS = [
+  { id: "all", label: "All Conflicts", color: "" },
+  { id: "russia-ukraine", label: "Russia-Ukraine", color: "text-blue-400 bg-blue-500/10 border-blue-500/30" },
+  { id: "israel-hamas-iran", label: "Israel-Hamas/Iran", color: "text-amber-400 bg-amber-500/10 border-amber-500/30" },
+  { id: "china-taiwan", label: "China-Taiwan", color: "text-red-400 bg-red-500/10 border-red-500/30" },
+  { id: "north-korea", label: "North Korea", color: "text-purple-400 bg-purple-500/10 border-purple-500/30" },
+  { id: "iran-us-gulf", label: "Iran-US/Gulf", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
+] as const;
+
+const CONFLICT_COLOR_MAP: Record<string, string> = {
+  "russia-ukraine": "text-blue-400 bg-blue-500/10 border-blue-500/20",
+  "israel-hamas-iran": "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  "china-taiwan": "text-red-400 bg-red-500/10 border-red-500/20",
+  "north-korea": "text-purple-400 bg-purple-500/10 border-purple-500/20",
+  "iran-us-gulf": "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+};
+
+const CONFLICT_LABEL_MAP: Record<string, string> = {
+  "russia-ukraine": "RU-UA",
+  "israel-hamas-iran": "IL-Hamas/IR",
+  "china-taiwan": "CN-TW",
+  "north-korea": "DPRK",
+  "iran-us-gulf": "IR-US/Gulf",
+};
 
 const TYPE_CONFIG: Record<string, { icon: typeof Shield; color: string; bg: string; label: string }> = {
   apt: { icon: Shield, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20", label: "APT / Nation-State" },
@@ -61,11 +87,13 @@ export default function ThreatCatalog() {
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
   const [lastActiveFilter, setLastActiveFilter] = useState<LastActiveFilter>("all");
+  const [conflictFilter, setConflictFilter] = useState("all");
 
   const { data: stats } = trpc.threatIntel.stats.useQuery();
   const { data: listData, isLoading, refetch } = trpc.threatIntel.list.useQuery({
     type: typeFilter,
     search: search || undefined,
+    conflict: conflictFilter !== "all" ? conflictFilter : undefined,
     page,
     pageSize: 60,
     sortBy,
@@ -280,6 +308,15 @@ export default function ThreatCatalog() {
             ))}
           </div>
           <select
+            value={conflictFilter}
+            onChange={(e) => { setConflictFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
+          >
+            {CONFLICT_OPTIONS.map(c => (
+              <option key={c.id} value={c.id}>{c.id === "all" ? "Conflict: All" : c.label}</option>
+            ))}
+          </select>
+          <select
             value={lastActiveFilter}
             onChange={(e) => { setLastActiveFilter(e.target.value as LastActiveFilter); setPage(1); }}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
@@ -405,6 +442,21 @@ export default function ThreatCatalog() {
                           </span>
                         )}
                       </div>
+
+                      {/* Conflict Tags */}
+                      {actor.conflicts && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {(actor.conflicts as string).split(',').filter(Boolean).map((c: string) => (
+                            <span
+                              key={c}
+                              className={`text-[10px] px-1.5 py-0.5 border flex items-center gap-1 ${CONFLICT_COLOR_MAP[c] || 'text-gray-400 bg-gray-500/10 border-gray-500/20'}`}
+                            >
+                              <Swords className="w-2.5 h-2.5" />
+                              {CONFLICT_LABEL_MAP[c] || c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Description */}
                       {actor.description && (
