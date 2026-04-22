@@ -2,8 +2,8 @@ import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 import AppShell from "@/components/AppShell";
 import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
-import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { useState, useMemo, useCallback } from "react";
+import { Link, useSearch, useLocation } from "wouter";
 import { toast } from "sonner";
 import {
   Database,
@@ -80,17 +80,76 @@ const THREAT_LEVEL_COLORS: Record<string, string> = {
   low: "text-green-400 bg-green-500/10 border-green-500/30",
 };
 
+/** Parse URL search params into filter state */
+function parseFiltersFromURL(searchString: string) {
+  const p = new URLSearchParams(searchString);
+  return {
+    search: p.get("q") || "",
+    type: (p.get("type") || "all") as GroupType,
+    sortBy: (p.get("sort") || "lastActive") as SortBy,
+    page: parseInt(p.get("page") || "1", 10) || 1,
+    lastActive: (p.get("activity") || "all") as LastActiveFilter,
+    threatLevel: (p.get("threat") || "all") as ThreatLevelFilter,
+    conflict: p.get("conflict") || "all",
+    statCard: p.get("card") || null,
+    updatedLast24h: p.get("last24h") === "1",
+  };
+}
+
+/** Build URL search string from filter state (omits defaults) */
+function buildFilterURL(filters: {
+  search?: string; type?: string; sortBy?: string; page?: number;
+  lastActive?: string; threatLevel?: string; conflict?: string;
+  statCard?: string | null; updatedLast24h?: boolean;
+}): string {
+  const p = new URLSearchParams();
+  if (filters.search) p.set("q", filters.search);
+  if (filters.type && filters.type !== "all") p.set("type", filters.type);
+  if (filters.sortBy && filters.sortBy !== "lastActive") p.set("sort", filters.sortBy);
+  if (filters.page && filters.page > 1) p.set("page", String(filters.page));
+  if (filters.lastActive && filters.lastActive !== "all") p.set("activity", filters.lastActive);
+  if (filters.threatLevel && filters.threatLevel !== "all") p.set("threat", filters.threatLevel);
+  if (filters.conflict && filters.conflict !== "all") p.set("conflict", filters.conflict);
+  if (filters.statCard) p.set("card", filters.statCard);
+  if (filters.updatedLast24h) p.set("last24h", "1");
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
 export default function ThreatCatalog() {
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<GroupType>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("lastActive");
-  const [page, setPage] = useState(1);
+  const searchString = useSearch();
+  const [, navigate] = useLocation();
+  const urlFilters = useMemo(() => parseFiltersFromURL(searchString), [searchString]);
+
+  // Derive state from URL
+  const search = urlFilters.search;
+  const typeFilter = urlFilters.type;
+  const sortBy = urlFilters.sortBy;
+  const page = urlFilters.page;
+  const lastActiveFilter = urlFilters.lastActive;
+  const threatLevelFilter = urlFilters.threatLevel;
+  const conflictFilter = urlFilters.conflict;
+  const activeStatCard = urlFilters.statCard;
+  const updatedLast24h = urlFilters.updatedLast24h;
+
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
-  const [lastActiveFilter, setLastActiveFilter] = useState<LastActiveFilter>("all");
-  const [threatLevelFilter, setThreatLevelFilter] = useState<ThreatLevelFilter>("all");
-  const [conflictFilter, setConflictFilter] = useState("all");
-  const [activeStatCard, setActiveStatCard] = useState<string | null>(null);
+
+  /** Update URL params — merges new values with current state */
+  const updateFilters = useCallback((updates: Record<string, any>) => {
+    const merged = {
+      search: updates.search !== undefined ? updates.search : urlFilters.search,
+      type: updates.type !== undefined ? updates.type : urlFilters.type,
+      sortBy: updates.sortBy !== undefined ? updates.sortBy : urlFilters.sortBy,
+      page: updates.page !== undefined ? updates.page : urlFilters.page,
+      lastActive: updates.lastActive !== undefined ? updates.lastActive : urlFilters.lastActive,
+      threatLevel: updates.threatLevel !== undefined ? updates.threatLevel : urlFilters.threatLevel,
+      conflict: updates.conflict !== undefined ? updates.conflict : urlFilters.conflict,
+      statCard: updates.statCard !== undefined ? updates.statCard : urlFilters.statCard,
+      updatedLast24h: updates.updatedLast24h !== undefined ? updates.updatedLast24h : urlFilters.updatedLast24h,
+    };
+    navigate("/threat-catalog" + buildFilterURL(merged), { replace: true });
+  }, [urlFilters, navigate]);
 
   const { data: stats } = trpc.threatIntel.stats.useQuery();
   const { data: listData, isLoading, refetch } = trpc.threatIntel.list.useQuery({
@@ -98,6 +157,7 @@ export default function ThreatCatalog() {
     search: search || undefined,
     conflict: conflictFilter !== "all" ? conflictFilter : undefined,
     threatLevel: threatLevelFilter !== "all" ? threatLevelFilter : undefined,
+    updatedLast24h: updatedLast24h || undefined,
     page,
     pageSize: 60,
     sortBy,
@@ -106,52 +166,26 @@ export default function ThreatCatalog() {
 
   /** Handle stat card click — sets appropriate filters */
   const handleStatCardClick = (label: string) => {
+    const clearAll = { type: "all", threatLevel: "all", lastActive: "all", updatedLast24h: false, page: 1, statCard: null as string | null };
     // If clicking the already-active card, clear it
     if (activeStatCard === label) {
-      setActiveStatCard(null);
-      setTypeFilter("all");
-      setThreatLevelFilter("all");
-      setLastActiveFilter("all");
-      setPage(1);
+      updateFilters(clearAll);
       return;
     }
-    setPage(1);
-    // Reset all filters first
-    setTypeFilter("all");
-    setThreatLevelFilter("all");
-    setLastActiveFilter("all");
     if (label === "TOTAL ACTORS") {
-      // Clear all filters and deselect any active card
-      setActiveStatCard(null);
+      updateFilters(clearAll);
       return;
     }
-    setActiveStatCard(label);
+    const base = { ...clearAll, statCard: label };
     switch (label) {
-      case "APT / NATION-STATE":
-        setTypeFilter("apt");
-        break;
-      case "RANSOMWARE":
-        setTypeFilter("ransomware");
-        break;
-      case "CYBERCRIME":
-        setTypeFilter("cybercrime");
-        break;
-      case "HACKTIVIST":
-        setTypeFilter("hacktivist");
-        break;
-      case "ACCESS BROKERS":
-        setTypeFilter("access_broker");
-        break;
-      case "INFLUENCE OPS":
-        setTypeFilter("influence_ops");
-        break;
-      case "CRITICAL THREAT":
-        setThreatLevelFilter("critical");
-        break;
-      case "LAST 24H UPDATES":
-        setLastActiveFilter("30d");
-        setSortBy("lastActive");
-        break;
+      case "APT / NATION-STATE": updateFilters({ ...base, type: "apt" }); break;
+      case "RANSOMWARE": updateFilters({ ...base, type: "ransomware" }); break;
+      case "CYBERCRIME": updateFilters({ ...base, type: "cybercrime" }); break;
+      case "HACKTIVIST": updateFilters({ ...base, type: "hacktivist" }); break;
+      case "ACCESS BROKERS": updateFilters({ ...base, type: "access_broker" }); break;
+      case "INFLUENCE OPS": updateFilters({ ...base, type: "influence_ops" }); break;
+      case "CRITICAL THREAT": updateFilters({ ...base, threatLevel: "critical" }); break;
+      case "LAST 24H UPDATES": updateFilters({ ...base, updatedLast24h: true, sortBy: "lastActive" }); break;
     }
   };
 
@@ -323,7 +357,7 @@ export default function ThreatCatalog() {
             { label: "ACCESS BROKERS", value: stats?.byType?.access_broker ?? 0, icon: Key, color: "text-orange-400" },
             { label: "INFLUENCE OPS", value: stats?.byType?.influence_ops ?? 0, icon: Megaphone, color: "text-pink-400" },
             { label: "CRITICAL THREAT", value: stats?.byThreatLevel?.critical ?? 0, icon: Target, color: "text-red-500" },
-            { label: "LAST 24H UPDATES", value: stats?.recentUpdates ?? 0, icon: Clock, color: "text-green-400" },
+            { label: "LAST 24H UPDATES", value: stats?.recentlyUpdatedActors ?? 0, icon: Clock, color: "text-green-400" },
           ].map((stat) => {
             const isActive = activeStatCard === stat.label;
             return (
@@ -358,7 +392,7 @@ export default function ThreatCatalog() {
             <input
               type="text"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); setActiveStatCard(null); }}
+              onChange={(e) => updateFilters({ search: e.target.value, page: 1, statCard: null, updatedLast24h: false })}
               placeholder="Search threat groups by name, alias, or ID..."
               className="w-full pl-10 pr-4 py-2.5 bg-card border border-border text-sm focus:outline-none focus:border-primary/50 transition-colors"
             />
@@ -367,7 +401,7 @@ export default function ThreatCatalog() {
             {(["all", "apt", "ransomware", "cybercrime", "hacktivist", "access_broker", "influence_ops"] as GroupType[]).map((type) => (
               <button
                 key={type}
-                onClick={() => { setTypeFilter(type); setPage(1); setActiveStatCard(null); }}
+                onClick={() => updateFilters({ type, page: 1, statCard: null, updatedLast24h: false })}
                 className={`px-3 py-2 text-xs font-display tracking-wider border transition-colors ${
                   typeFilter === type
                     ? "bg-primary/20 border-primary/50 text-primary"
@@ -380,7 +414,7 @@ export default function ThreatCatalog() {
           </div>
           <select
             value={conflictFilter}
-            onChange={(e) => { setConflictFilter(e.target.value); setPage(1); setActiveStatCard(null); }}
+            onChange={(e) => updateFilters({ conflict: e.target.value, page: 1, statCard: null, updatedLast24h: false })}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
           >
             {CONFLICT_OPTIONS.map(c => (
@@ -389,7 +423,7 @@ export default function ThreatCatalog() {
           </select>
           <select
             value={lastActiveFilter}
-            onChange={(e) => { setLastActiveFilter(e.target.value as LastActiveFilter); setPage(1); setActiveStatCard(null); }}
+            onChange={(e) => updateFilters({ lastActive: e.target.value, page: 1, statCard: null, updatedLast24h: false })}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
           >
             <option value="all">Activity: All</option>
@@ -401,7 +435,7 @@ export default function ThreatCatalog() {
           </select>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            onChange={(e) => updateFilters({ sortBy: e.target.value })}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
           >
             <option value="name">Sort: Name</option>
@@ -449,14 +483,14 @@ export default function ThreatCatalog() {
               {totalPages > 1 && (
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
+                    onClick={() => updateFilters({ page: Math.max(1, page - 1) })}
                     disabled={page <= 1}
                     className="px-3 py-1 text-xs bg-card border border-border disabled:opacity-30 hover:bg-accent/10 transition-colors"
                   >
                     PREV
                   </button>
                   <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
+                    onClick={() => updateFilters({ page: Math.min(totalPages, page + 1) })}
                     disabled={page >= totalPages}
                     className="px-3 py-1 text-xs bg-card border border-border disabled:opacity-30 hover:bg-accent/10 transition-colors"
                   >
@@ -592,7 +626,7 @@ export default function ThreatCatalog() {
             {totalPages > 1 && (
               <div className="flex justify-center gap-2 pt-4">
                 <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
+                  onClick={() => updateFilters({ page: Math.max(1, page - 1) })}
                   disabled={page <= 1}
                   className="px-4 py-2 text-xs bg-card border border-border disabled:opacity-30 hover:bg-accent/10 transition-colors font-display tracking-wider"
                 >
@@ -602,7 +636,7 @@ export default function ThreatCatalog() {
                   {page} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  onClick={() => updateFilters({ page: Math.min(totalPages, page + 1) })}
                   disabled={page >= totalPages}
                   className="px-4 py-2 text-xs bg-card border border-border disabled:opacity-30 hover:bg-accent/10 transition-colors font-display tracking-wider"
                 >

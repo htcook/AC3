@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { safeUpper } from "@/lib/utils-safe";
 import { useParams, Link } from "wouter";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowLeft,
   Shield,
@@ -60,7 +60,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   zero_day: "text-red-500 bg-red-500/15",
 };
 
-type TabId = "overview" | "techniques" | "events" | "iocs" | "caldera";
+type TabId = "overview" | "techniques" | "events" | "iocs" | "caldera" | "sources";
 
 export default function ThreatActorCatalogDetail() {
   const { id } = useParams<{ id: string }>();
@@ -191,6 +191,7 @@ export default function ThreatActorCatalogDetail() {
     { id: "events", label: "EVENTS", count: events.length },
     { id: "iocs", label: "IOCs", count: iocs.length },
     ...(actor.calderaProfile ? [{ id: "caldera" as TabId, label: "EMULATION" }] : []),
+    { id: "sources" as TabId, label: "SOURCES & ENRICHMENT" },
   ];
 
   return (
@@ -600,7 +601,267 @@ export default function ThreatActorCatalogDetail() {
             )}
           </div>
         )}
+        {/* Sources & Enrichment Tab */}
+        {activeTab === "sources" && (
+          <CatalogSourcesPanel actor={actor} actorId={id || ""} onEnrichComplete={refetch} />
+        )}
       </div>
     </AppShell>
+  );
+}
+
+// ─── Catalog Sources & Enrichment Panel ──────────────────────────────────
+
+function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
+  actor: any;
+  actorId: string;
+  onEnrichComplete: () => void;
+}) {
+  const [enrichResult, setEnrichResult] = useState<any>(null);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const enrichMutation = trpc.threatIntel.enrichActor.useMutation({
+    onSuccess: (result) => {
+      setEnrichResult(result);
+      setIsEnriching(false);
+      toast.success(`Enrichment complete: ${result.fieldsUpdated?.length || 0} fields updated, ${result.fieldsDiscovered?.length || 0} new fields discovered`);
+      onEnrichComplete();
+    },
+    onError: (err) => {
+      setIsEnriching(false);
+      toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+
+  const handleEnrich = () => {
+    setIsEnriching(true);
+    enrichMutation.mutate({ actorId, actorType: actor.actorType || "apt" });
+  };
+
+  // Parse existing enrichment sources
+  const existingSources = useMemo(() => {
+    if (!actor.enrichmentSources) return [];
+    try {
+      const parsed = typeof actor.enrichmentSources === "string" ? JSON.parse(actor.enrichmentSources) : actor.enrichmentSources;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }, [actor.enrichmentSources]);
+
+  // Gap analysis
+  const gapAnalysis = useMemo(() => {
+    const gaps: Array<{ field: string; status: "missing" | "weak" | "good"; detail: string }> = [];
+    const check = (label: string, value: any) => {
+      if (!value || (Array.isArray(value) && value.length === 0) || value === "unknown" || value === "Unknown") {
+        gaps.push({ field: label, status: "missing", detail: "No data" });
+      } else if (Array.isArray(value) && value.length < 3) {
+        gaps.push({ field: label, status: "weak", detail: `${value.length} item(s)` });
+      } else {
+        gaps.push({ field: label, status: "good", detail: Array.isArray(value) ? `${value.length} items` : "Present" });
+      }
+    };
+    check("Description", actor.description);
+    check("Motivation", actor.motivation);
+    check("Origin", actor.origin);
+    check("Aliases", Array.isArray(actor.aliases) ? actor.aliases : []);
+    check("Target Sectors", Array.isArray(actor.targetSectors) ? actor.targetSectors : []);
+    check("Target Regions", Array.isArray(actor.targetRegions) ? actor.targetRegions : []);
+    check("Techniques", Array.isArray(actor.techniques) ? actor.techniques : []);
+    check("Tools", Array.isArray(actor.tools) ? actor.tools : []);
+    check("Malware", Array.isArray(actor.malware) ? actor.malware : []);
+    check("IOCs", Array.isArray(actor.iocs) ? actor.iocs : []);
+    check("Events", Array.isArray(actor.events) ? actor.events : []);
+    return gaps;
+  }, [actor]);
+
+  const missingCount = gapAnalysis.filter(g => g.status === "missing").length;
+  const weakCount = gapAnalysis.filter(g => g.status === "weak").length;
+  const goodCount = gapAnalysis.filter(g => g.status === "good").length;
+  const completeness = gapAnalysis.length > 0 ? Math.round((goodCount / gapAnalysis.length) * 100) : 0;
+
+  const allSources = enrichResult?.sources || existingSources;
+  const sourcesByField = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const s of allSources) {
+      if (!map[s.field]) map[s.field] = [];
+      map[s.field].push(s);
+    }
+    return map;
+  }, [allSources]);
+
+  const sourceTypeColors: Record<string, string> = {
+    osint: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    darkweb: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+    government: "text-green-400 bg-green-500/10 border-green-500/30",
+    vendor_report: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+    academic: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+    internal_db: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+    llm_knowledge: "text-gray-400 bg-gray-500/10 border-gray-500/30",
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Enrichment Action Bar */}
+      <div className="bg-card border border-primary/20 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-display tracking-wider flex items-center gap-2">
+              <Brain className="w-4 h-4 text-amber-400" />
+              KEYWORD-DRIVEN LLM ENRICHMENT
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Research {actor.name} using targeted keywords across OSINT, darkweb, and government sources.
+            </p>
+          </div>
+          <button
+            onClick={handleEnrich}
+            disabled={isEnriching}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-display tracking-wider transition-colors disabled:opacity-50"
+          >
+            {isEnriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+            {isEnriching ? "ENRICHING..." : "RUN ENRICHMENT"}
+          </button>
+        </div>
+        {isEnriching && (
+          <div className="mt-3">
+            <div className="h-1 bg-muted overflow-hidden"><div className="h-full bg-primary/50 animate-pulse w-full" /></div>
+            <p className="text-[10px] text-muted-foreground mt-1 animate-pulse">
+              Gathering context, building keyword sets, querying LLM for OSINT research...
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Data Quality & Gap Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-card border border-border p-4">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">DATA COMPLETENESS</h3>
+          <div className="text-3xl font-display text-center mb-2" style={{ color: completeness >= 70 ? '#4ade80' : completeness >= 40 ? '#facc15' : '#f87171' }}>
+            {completeness}%
+          </div>
+          <div className="h-2 bg-muted overflow-hidden mb-2">
+            <div className="h-full bg-primary transition-all" style={{ width: `${completeness}%` }} />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span className="text-green-400">{goodCount} complete</span>
+            <span className="text-yellow-400">{weakCount} weak</span>
+            <span className="text-red-400">{missingCount} missing</span>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-card border border-border p-4">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">GAP ANALYSIS</h3>
+          <div className="grid grid-cols-2 gap-1">
+            {gapAnalysis.map((gap) => (
+              <div key={gap.field} className="flex items-center gap-2 text-xs py-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  gap.status === "good" ? "bg-green-400" : gap.status === "weak" ? "bg-yellow-400" : "bg-red-400"
+                }`} />
+                <span className={gap.status === "missing" ? "text-red-300" : gap.status === "weak" ? "text-yellow-300" : "text-muted-foreground"}>
+                  {gap.field}
+                </span>
+                <span className="text-muted-foreground/60 ml-auto text-[10px]">{gap.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Enrichment Results */}
+      {enrichResult && (
+        <div className="bg-card border border-amber-500/20 p-4 space-y-3">
+          <h3 className="text-[10px] font-display tracking-wider text-muted-foreground flex items-center gap-2">
+            <Brain className="w-3 h-3 text-amber-400" /> ENRICHMENT RESULTS
+          </h3>
+          <p className="text-xs text-muted-foreground">{enrichResult.summary}</p>
+          <div className="flex gap-4 text-[10px]">
+            <span className="text-green-400">{enrichResult.fieldsUpdated?.length || 0} updated</span>
+            <span className="text-blue-400">{enrichResult.fieldsDiscovered?.length || 0} discovered</span>
+            <span className="text-amber-400">Quality: {enrichResult.dataQualityScore}/100</span>
+          </div>
+          {enrichResult.keywordsUsed && (
+            <div>
+              <span className="text-[10px] text-muted-foreground">Keywords: </span>
+              {[...(enrichResult.keywordsUsed.primary || []), ...(enrichResult.keywordsUsed.secondary || [])].map((kw: string, i: number) => (
+                <span key={i} className="text-[10px] px-1.5 py-0.5 bg-primary/10 border border-primary/20 text-primary mr-1 mb-1 inline-block">{kw}</span>
+              ))}
+            </div>
+          )}
+          {enrichResult.enrichedData && (
+            <div className="bg-muted/20 p-3 text-[10px] font-mono max-h-48 overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-muted-foreground">{JSON.stringify(enrichResult.enrichedData, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Source Attribution */}
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+          <Database className="w-3 h-3" /> SOURCE ATTRIBUTION
+          {allSources.length > 0 && <span className="text-primary">({allSources.length})</span>}
+        </h3>
+        {allSources.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Database className="w-6 h-6 mx-auto mb-2 opacity-30" />
+            <p className="text-xs">No source attribution data yet.</p>
+            <p className="text-[10px] mt-1">Run enrichment to discover intelligence sources.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(sourcesByField).map(([field, sources]) => (
+              <div key={field} className="border border-border/50 p-3">
+                <h5 className="text-[10px] font-display tracking-wider text-muted-foreground mb-2">{field.toUpperCase()}</h5>
+                <div className="space-y-1">
+                  {sources.map((src: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs bg-muted/20 p-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 border shrink-0 ${sourceTypeColors[src.sourceType] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
+                        {(src.sourceType || "unknown").replace("_", " ").toUpperCase()}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-foreground truncate">{src.value}</p>
+                        <p className="text-muted-foreground text-[10px]">
+                          {src.source}
+                          {src.sourceUrl && (
+                            <a href={src.sourceUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-400 hover:text-blue-300">
+                              <ExternalLink className="w-2.5 h-2.5 inline" />
+                            </a>
+                          )}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-mono ${(src.confidence || 0) >= 80 ? "text-green-400" : (src.confidence || 0) >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                        {src.confidence || 0}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Data Provenance */}
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3">DATA PROVENANCE</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Primary Source</span>
+            <p className="font-medium">{actor.dataSource || "Unknown"}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Actor ID</span>
+            <p className="font-mono text-[10px]">{actorId}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Created</span>
+            <p>{actor.createdAt ? new Date(actor.createdAt).toLocaleDateString() : "—"}</p>
+          </div>
+          <div className="bg-muted/20 p-2">
+            <span className="text-[10px] text-muted-foreground">Last Updated</span>
+            <p>{actor.updatedAt ? new Date(actor.updatedAt).toLocaleDateString() : "—"}</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

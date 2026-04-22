@@ -840,6 +840,11 @@ export async function getCatalogStats() {
     .from(threatIntelUpdates)
     .where(sql`${threatIntelUpdates.tiuStartedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
 
+  // Count actors whose record was updated in the last 24 hours
+  const recentlyUpdatedActors = await db.select({ count: sql<number>`count(*)` })
+    .from(threatActors)
+    .where(sql`${threatActors.updatedAt} > DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+
   const lastSync = await db.select({ completedAt: threatIntelUpdates.tiuCompletedAt })
     .from(threatIntelUpdates)
     .where(eq(threatIntelUpdates.tiuStatus, "completed"))
@@ -853,6 +858,7 @@ export async function getCatalogStats() {
     byNation,
     byThreatLevel,
     recentUpdates: recentUpdates[0]?.count || 0,
+    recentlyUpdatedActors: recentlyUpdatedActors[0]?.count || 0,
     lastSync: lastSync[0]?.completedAt || null,
   };
 }

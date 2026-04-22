@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import AppShell from "@/components/AppShell";
@@ -40,6 +40,10 @@ import {
   Brain,
   TrendingUp,
   Eye,
+  Database,
+  Search,
+  ExternalLink,
+  Info,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -368,6 +372,9 @@ export default function ThreatActorDetail() {
             </TabsTrigger>
             <TabsTrigger value="learning-profile">
               <Brain className="w-4 h-4 mr-1" /> Learning Profile
+            </TabsTrigger>
+            <TabsTrigger value="sources">
+              <Database className="w-4 h-4 mr-1" /> Sources & Enrichment
             </TabsTrigger>
           </TabsList>
 
@@ -723,6 +730,16 @@ export default function ThreatActorDetail() {
           {/* Learning Profile Tab */}
           <TabsContent value="learning-profile" className="space-y-4">
             <LearningProfilePanel actorId={actorId} actorName={actor.name} techniques={techniques} />
+          </TabsContent>
+
+          {/* Sources & Enrichment Tab */}
+          <TabsContent value="sources" className="space-y-4">
+            <SourcesEnrichmentPanel
+              actorId={actorId}
+              actorName={actor.name}
+              actor={actor}
+              onEnrichComplete={refetch}
+            />
           </TabsContent>
         </Tabs>
       </div>
@@ -1406,6 +1423,378 @@ function LearningProfilePanel({ actorId, actorName, techniques }: {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+
+// ─── Sources & Enrichment Panel Component ──────────────────────────────────
+
+interface SourceAttribution {
+  field: string;
+  value: string;
+  source: string;
+  sourceType: string;
+  sourceUrl?: string;
+  confidence: number;
+  retrievedAt: string;
+}
+
+function SourcesEnrichmentPanel({ actorId, actorName, actor, onEnrichComplete }: {
+  actorId: string;
+  actorName: string;
+  actor: any;
+  onEnrichComplete: () => void;
+}) {
+  const [enrichResult, setEnrichResult] = useState<any>(null);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const enrichMutation = trpc.threatIntel.enrichActor.useMutation({
+    onSuccess: (result) => {
+      setEnrichResult(result);
+      setIsEnriching(false);
+      toast.success(`Enrichment complete: ${result.fieldsUpdated?.length || 0} fields updated, ${result.fieldsDiscovered?.length || 0} new fields discovered`);
+      onEnrichComplete();
+    },
+    onError: (err) => {
+      setIsEnriching(false);
+      toast.error(`Enrichment failed: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+
+  const handleEnrich = () => {
+    setIsEnriching(true);
+    enrichMutation.mutate({ actorId, actorType: actor.actorType || "apt" });
+  };
+
+  // Parse existing enrichment sources from actor data
+  const existingSources: SourceAttribution[] = useMemo(() => {
+    if (!actor.enrichmentSources) return [];
+    try {
+      const parsed = typeof actor.enrichmentSources === "string"
+        ? JSON.parse(actor.enrichmentSources)
+        : actor.enrichmentSources;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }, [actor.enrichmentSources]);
+
+  // Gap analysis — identify missing or weak fields
+  const gapAnalysis = useMemo(() => {
+    const gaps: Array<{ field: string; status: "missing" | "weak" | "good"; detail: string }> = [];
+
+    const checkField = (field: string, label: string, value: any) => {
+      if (!value || (Array.isArray(value) && value.length === 0) || value === "unknown" || value === "Unknown") {
+        gaps.push({ field: label, status: "missing", detail: "No data available" });
+      } else if (Array.isArray(value) && value.length < 3) {
+        gaps.push({ field: label, status: "weak", detail: `Only ${value.length} item(s) — may be incomplete` });
+      } else {
+        gaps.push({ field: label, status: "good", detail: Array.isArray(value) ? `${value.length} items` : "Present" });
+      }
+    };
+
+    checkField("description", "Description", actor.description);
+    checkField("motivation", "Motivation", actor.motivation);
+    checkField("origin", "Origin / Attribution", actor.origin);
+    checkField("firstSeen", "First Seen", actor.firstSeen);
+    checkField("lastActive", "Last Active", actor.lastActive);
+    checkField("aliases", "Aliases", Array.isArray(actor.aliases) ? actor.aliases : []);
+    checkField("targetSectors", "Target Sectors", Array.isArray(actor.targetSectors) ? actor.targetSectors : []);
+    checkField("targetRegions", "Target Regions", Array.isArray(actor.targetRegions) ? actor.targetRegions : []);
+    checkField("techniques", "MITRE Techniques", Array.isArray(actor.techniques) ? actor.techniques : []);
+    checkField("tools", "Tools", Array.isArray(actor.tools) ? actor.tools : []);
+    checkField("malware", "Malware", Array.isArray(actor.malware) ? actor.malware : []);
+    checkField("activityTimeline", "Activity Timeline", Array.isArray(actor.activityTimeline) ? actor.activityTimeline : []);
+    checkField("conflicts", "Conflict Tags", actor.conflicts);
+
+    return gaps;
+  }, [actor]);
+
+  const missingCount = gapAnalysis.filter(g => g.status === "missing").length;
+  const weakCount = gapAnalysis.filter(g => g.status === "weak").length;
+  const goodCount = gapAnalysis.filter(g => g.status === "good").length;
+  const completeness = Math.round((goodCount / gapAnalysis.length) * 100);
+
+  const sourceTypeColors: Record<string, string> = {
+    osint: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    darkweb: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+    government: "text-green-400 bg-green-500/10 border-green-500/30",
+    vendor_report: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+    academic: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
+    internal_db: "text-yellow-400 bg-yellow-500/10 border-yellow-500/30",
+    llm_knowledge: "text-gray-400 bg-gray-500/10 border-gray-500/30",
+  };
+
+  // Combine existing + newly discovered sources
+  const allSources = enrichResult?.sources || existingSources;
+  const sourcesByField = useMemo(() => {
+    const map: Record<string, SourceAttribution[]> = {};
+    for (const s of allSources) {
+      if (!map[s.field]) map[s.field] = [];
+      map[s.field].push(s);
+    }
+    return map;
+  }, [allSources]);
+
+  return (
+    <div className="space-y-4">
+      {/* Enrichment Action Bar */}
+      <Card className="bg-card/50 border-primary/20">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-display tracking-wider flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                KEYWORD-DRIVEN LLM ENRICHMENT
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Research {actorName} using targeted keywords across OSINT, darkweb, and government sources with full source attribution.
+              </p>
+            </div>
+            <Button
+              onClick={handleEnrich}
+              disabled={isEnriching}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isEnriching ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enriching...</>
+              ) : (
+                <><Search className="w-4 h-4 mr-2" /> Run Enrichment</>
+              )}
+            </Button>
+          </div>
+          {isEnriching && (
+            <div className="mt-3">
+              <Progress value={undefined} className="h-1" />
+              <p className="text-xs text-muted-foreground mt-1 animate-pulse">
+                Gathering context from local databases, building keyword sets, querying LLM for OSINT research...
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Data Quality & Gap Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="bg-card/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-blue-400" /> Data Completeness
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-center mb-2" style={{ color: completeness >= 70 ? '#4ade80' : completeness >= 40 ? '#facc15' : '#f87171' }}>
+              {completeness}%
+            </div>
+            <Progress value={completeness} className="h-2 mb-3" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span className="text-green-400">{goodCount} complete</span>
+              <span className="text-yellow-400">{weakCount} weak</span>
+              <span className="text-red-400">{missingCount} missing</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 bg-card/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400" /> Gap Analysis
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-1">
+              {gapAnalysis.map((gap) => (
+                <div key={gap.field} className="flex items-center gap-2 text-xs py-1">
+                  {gap.status === "good" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  ) : gap.status === "weak" ? (
+                    <AlertCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  )}
+                  <span className={gap.status === "missing" ? "text-red-300" : gap.status === "weak" ? "text-yellow-300" : "text-muted-foreground"}>
+                    {gap.field}
+                  </span>
+                  <span className="text-muted-foreground/60 ml-auto truncate max-w-[120px]">{gap.detail}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Enrichment Results (if available) */}
+      {enrichResult && (
+        <Card className="bg-card/50 border-amber-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" /> Enrichment Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Summary */}
+            <div className="bg-muted/30 p-3 rounded text-sm">
+              <p className="text-muted-foreground">{enrichResult.summary}</p>
+              <div className="flex gap-4 mt-2 text-xs">
+                <span className="text-green-400">{enrichResult.fieldsUpdated?.length || 0} fields updated</span>
+                <span className="text-blue-400">{enrichResult.fieldsDiscovered?.length || 0} new fields discovered</span>
+                <span className="text-amber-400">Quality: {enrichResult.dataQualityScore}/100</span>
+              </div>
+            </div>
+
+            {/* Keywords Used */}
+            {enrichResult.keywordsUsed && (
+              <div>
+                <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2">KEYWORDS USED</h4>
+                <div className="flex flex-wrap gap-1">
+                  {enrichResult.keywordsUsed.primary?.map((kw: string, i: number) => (
+                    <Badge key={`p-${i}`} variant="outline" className="text-xs border-red-500/30 text-red-400">{kw}</Badge>
+                  ))}
+                  {enrichResult.keywordsUsed.secondary?.map((kw: string, i: number) => (
+                    <Badge key={`s-${i}`} variant="outline" className="text-xs border-blue-500/30 text-blue-400">{kw}</Badge>
+                  ))}
+                  {enrichResult.keywordsUsed.contextual?.map((kw: string, i: number) => (
+                    <Badge key={`c-${i}`} variant="outline" className="text-xs border-green-500/30 text-green-400">{kw}</Badge>
+                  ))}
+                  {enrichResult.keywordsUsed.darkweb?.map((kw: string, i: number) => (
+                    <Badge key={`d-${i}`} variant="outline" className="text-xs border-purple-500/30 text-purple-400">{kw}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fields Updated / Discovered */}
+            {(enrichResult.fieldsUpdated?.length > 0 || enrichResult.fieldsDiscovered?.length > 0) && (
+              <div className="grid grid-cols-2 gap-4">
+                {enrichResult.fieldsUpdated?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2">FIELDS UPDATED</h4>
+                    <div className="space-y-1">
+                      {enrichResult.fieldsUpdated.map((f: string) => (
+                        <div key={f} className="flex items-center gap-2 text-xs">
+                          <RefreshCw className="w-3 h-3 text-green-400" />
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {enrichResult.fieldsDiscovered?.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2">NEW FIELDS DISCOVERED</h4>
+                    <div className="space-y-1">
+                      {enrichResult.fieldsDiscovered.map((f: string) => (
+                        <div key={f} className="flex items-center gap-2 text-xs">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Enriched Data Preview */}
+            {enrichResult.enrichedData && (
+              <div>
+                <h4 className="text-xs font-display tracking-wider text-muted-foreground mb-2">ENRICHED DATA PREVIEW</h4>
+                <div className="bg-muted/20 p-3 rounded text-xs font-mono max-h-60 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-muted-foreground">
+                    {JSON.stringify(enrichResult.enrichedData, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Source Attribution Table */}
+      <Card className="bg-card/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Database className="w-4 h-4 text-blue-400" />
+            Source Attribution
+            {allSources.length > 0 && (
+              <Badge variant="outline" className="ml-2 text-xs">{allSources.length} sources</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {allSources.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Database className="w-8 h-8 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No source attribution data yet.</p>
+              <p className="text-xs mt-1">Run enrichment to discover intelligence sources for this actor.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(sourcesByField).map(([field, sources]) => (
+                <div key={field} className="border border-border/50 rounded p-3">
+                  <h5 className="text-xs font-display tracking-wider text-muted-foreground mb-2 uppercase">{field}</h5>
+                  <div className="space-y-2">
+                    {sources.map((src, i) => (
+                      <div key={i} className="flex items-start gap-3 text-xs bg-muted/20 p-2 rounded">
+                        <Badge variant="outline" className={`text-[10px] shrink-0 ${sourceTypeColors[src.sourceType] || "text-gray-400 bg-gray-500/10 border-gray-500/30"}`}>
+                          {src.sourceType?.replace("_", " ").toUpperCase() || "UNKNOWN"}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-foreground truncate">{src.value}</p>
+                          <p className="text-muted-foreground mt-0.5">
+                            {src.source}
+                            {src.sourceUrl && (
+                              <a href={src.sourceUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-400 hover:text-blue-300 inline-flex items-center">
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className={`font-mono ${src.confidence >= 80 ? "text-green-400" : src.confidence >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                            {src.confidence}%
+                          </div>
+                          <div className="text-muted-foreground/60 text-[10px]">
+                            {src.retrievedAt ? new Date(src.retrievedAt).toLocaleDateString() : "—"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Data Source Provenance */}
+      <Card className="bg-card/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Info className="w-4 h-4 text-cyan-400" /> Data Provenance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="bg-muted/20 p-3 rounded">
+              <div className="text-muted-foreground mb-1">Primary Source</div>
+              <div className="font-medium">{actor.dataSource || "Unknown"}</div>
+            </div>
+            <div className="bg-muted/20 p-3 rounded">
+              <div className="text-muted-foreground mb-1">STIX ID</div>
+              <div className="font-mono text-[10px] truncate">{actor.stixId || "—"}</div>
+            </div>
+            <div className="bg-muted/20 p-3 rounded">
+              <div className="text-muted-foreground mb-1">Created</div>
+              <div>{actor.createdAt ? new Date(actor.createdAt).toLocaleDateString() : "—"}</div>
+            </div>
+            <div className="bg-muted/20 p-3 rounded">
+              <div className="text-muted-foreground mb-1">Last Updated</div>
+              <div>{actor.updatedAt ? new Date(actor.updatedAt).toLocaleDateString() : "—"}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
