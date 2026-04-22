@@ -1442,7 +1442,7 @@ export const darkwebIntelRouter = router({
   /** Broker listing timeline data for charts: activity trends, price patterns, agency targeting. */
   brokerTimeline: protectedProcedure
     .input(z.object({
-      days: z.number().min(7).max(365).default(90),
+      days: z.number().min(7).max(3650).default(90),
     }).optional())
     .query(async ({ input }) => {
       const db = await getDb();

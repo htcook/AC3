@@ -111,7 +111,7 @@ export default function DarkwebIntel() {
 
   // ─── Access Broker & Info Ops queries ──────────────────────────────────
   const { data: accessBrokers, isLoading: iabsLoading, refetch: refetchIABs } = trpc.darkwebIntel.accessBrokers.useQuery({});
-  const [timelineDays, setTimelineDays] = useState(90);
+  const [timelineDays, setTimelineDays] = useState(1825);
   const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
   const [trendDays, setTrendDays] = useState(365);
   const { data: iabTrends, isLoading: trendsLoading } = trpc.darkwebIntel.iabTrends.useQuery({ days: trendDays });
@@ -1385,7 +1385,7 @@ export default function DarkwebIntel() {
                 </h3>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                    {[7, 30, 90, 365].map(d => (
+                    {[7, 30, 90, 365, 1825].map((d, idx) => (
                       <button
                         key={d}
                         onClick={(e) => { e.stopPropagation(); setTimelineDays(d); }}
@@ -1393,9 +1393,9 @@ export default function DarkwebIntel() {
                           timelineDays === d
                             ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
                             : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        } ${d !== 7 ? 'border-l border-border' : ''}`}
+                        } ${idx !== 0 ? 'border-l border-border' : ''}`}
                       >
-                        {d === 365 ? '1Y' : `${d}D`}
+                        {d === 365 ? '1Y' : d === 1825 ? 'ALL' : `${d}D`}
                       </button>
                     ))}
                   </div>
@@ -1590,29 +1590,29 @@ export default function DarkwebIntel() {
                   ) : (
                     <>
                       {/* Summary Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                        <div className="border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Listings</p>
+                      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+                        <div className="border border-emerald-500/20 bg-emerald-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Total Listings</p>
                           <p className="text-lg font-display text-emerald-400">{iabTrends.summary.totalListings}</p>
                         </div>
-                        <div className="border border-blue-500/20 bg-blue-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Active Brokers</p>
+                        <div className="border border-blue-500/20 bg-blue-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Active Brokers</p>
                           <p className="text-lg font-display text-blue-400">{iabTrends.summary.activeBrokers}</p>
                         </div>
-                        <div className="border border-amber-500/20 bg-amber-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Price</p>
+                        <div className="border border-amber-500/20 bg-amber-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Avg Price</p>
                           <p className="text-lg font-display text-amber-400">${iabTrends.summary.avgPrice > 0 ? iabTrends.summary.avgPrice.toLocaleString() : 'N/A'}</p>
                         </div>
-                        <div className="border border-red-500/20 bg-red-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Gov Listings</p>
+                        <div className="border border-red-500/20 bg-red-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Gov Listings</p>
                           <p className="text-lg font-display text-red-400">{iabTrends.summary.govListings}</p>
                         </div>
-                        <div className="border border-purple-500/20 bg-purple-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Top Sector</p>
+                        <div className="border border-purple-500/20 bg-purple-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Top Sector</p>
                           <p className="text-sm font-display text-purple-400 truncate">{iabTrends.summary.topSector}</p>
                         </div>
-                        <div className="border border-cyan-500/20 bg-cyan-500/5 p-2.5 text-center">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Top Access</p>
+                        <div className="border border-cyan-500/20 bg-cyan-500/5 p-2 text-center">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider whitespace-nowrap">Top Access</p>
                           <p className="text-sm font-display text-cyan-400 truncate">{iabTrends.summary.topAccessType}</p>
                         </div>
                       </div>
