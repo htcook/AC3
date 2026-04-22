@@ -9,7 +9,7 @@ import {
   Search, Scan, Brain, AlertTriangle, Crosshair, Bug, ShieldAlert,
   Rocket, Building2, ArrowRight, Layers, BarChart3, Play, Pause,
   CheckCircle2, XCircle, Loader2, Plus, History, Radar, Flame, Radio,
-  Briefcase, ShieldCheck, Shuffle
+  Briefcase, ShieldCheck, Shuffle, Grid3X3
 } from "lucide-react";
 import ZeroDayFeed from "@/components/ZeroDayFeed";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -20,6 +20,7 @@ import AppShell from "@/components/AppShell";
 import { useDashboardEvents } from "@/hooks/useWebSocket";
 import { DashboardWidgetProvider, useDashboardWidgets } from "@/contexts/DashboardWidgetConfig";
 import { Settings2 } from "lucide-react";
+import TechniqueHeatmapWidget from "@/components/TechniqueHeatmapWidget";
 
 import { sanitizeErrorForToast } from "@/lib/error-sanitizer";
 const DEFAULT_SERVER = {
@@ -1298,6 +1299,24 @@ function DashboardInner() {
         >
           <SectionErrorBoundary sectionName="Vulnerability Feed">
             <ZeroDayFeed />
+          </SectionErrorBoundary>
+        </CollapsibleSection>
+        </>)}
+
+        {isVisible('technique-heatmap') && (
+        <>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* TECHNIQUE HEATMAP — MITRE ATT&CK technique usage across actors */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <CollapsibleSection
+          title="TECHNIQUE HEATMAP"
+          expanded={expandedSections.techniqueHeatmap ?? true}
+          onToggle={() => toggleSection('techniqueHeatmap')}
+          icon={<Grid3X3 className="w-4 h-4 text-cyan-400" />}
+          badge={<span className="text-xs text-muted-foreground">MITRE ATT&CK technique frequency across all threat actors</span>}
+        >
+          <SectionErrorBoundary sectionName="Technique Heatmap">
+            <TechniqueHeatmapWidget />
           </SectionErrorBoundary>
         </CollapsibleSection>
         </>)}

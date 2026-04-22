@@ -1,14 +1,19 @@
 /**
  * Catalog Enrichment Scheduler — Daily automated enrichment of threat actors
+ * + Auto-Discovery — Discovers new threat actors using LLM with rotating strategies
  * 
- * Runs daily at 03:00 UTC to auto-enrich the lowest-completeness actors.
- * Uses the keyword-enrichment pipeline with hallucination guardrails.
- * Records all runs in enrichment_history for audit trail.
+ * Runs daily at 03:00 UTC to:
+ * 1. Auto-enrich the lowest-completeness actors (keyword enrichment + guardrails)
+ * 2. Run LLM discovery with a rotating strategy to find new threat actors
+ * 
+ * All runs are recorded in enrichment_history for audit trail.
+ * Discovered actors go to a pending review queue (enrichment_history with type='discovery').
  * 
  * Configuration:
  * - BATCH_SIZE: Number of actors to enrich per run (default: 10)
  * - COMPLETENESS_THRESHOLD: Only enrich actors below this % (default: 60)
  * - CRON_HOUR_UTC: Hour to run (default: 3 = 03:00 UTC)
+ * - discoveryEnabled: Whether auto-discovery runs after enrichment (default: true)
  */
 
 import { getDb } from "../db";
@@ -28,6 +33,8 @@ export interface CatalogEnrichmentConfig {
   cronMinuteUtc: number;
   /** Whether the scheduler is enabled */
   enabled: boolean;
+  /** Whether auto-discovery runs after enrichment */
+  discoveryEnabled: boolean;
 }
 
 const DEFAULT_CONFIG: CatalogEnrichmentConfig = {
@@ -36,7 +43,34 @@ const DEFAULT_CONFIG: CatalogEnrichmentConfig = {
   cronHourUtc: 3,
   cronMinuteUtc: 0,
   enabled: true,
+  discoveryEnabled: true,
 };
+
+// ─── Discovery Strategy Rotation ──────────────────────────────────────
+
+const DISCOVERY_STRATEGIES = [
+  "related_actors",
+  "sector_gaps",
+  "recent_campaigns",
+  "emerging_threats",
+  "geographic_coverage",
+] as const;
+
+let _discoveryStrategyIndex = 0;
+
+export function getNextDiscoveryStrategy(): typeof DISCOVERY_STRATEGIES[number] {
+  const strategy = DISCOVERY_STRATEGIES[_discoveryStrategyIndex % DISCOVERY_STRATEGIES.length];
+  _discoveryStrategyIndex++;
+  return strategy;
+}
+
+export function getCurrentDiscoveryStrategyIndex(): number {
+  return _discoveryStrategyIndex;
+}
+
+export function resetDiscoveryStrategyIndex(): void {
+  _discoveryStrategyIndex = 0;
+}
 
 // ─── State ────────────────────────────────────────────────────────────
 
@@ -48,6 +82,10 @@ let _lastRunResult: CatalogEnrichmentRunResult | null = null;
 let _lastError: string | null = null;
 let _totalRunsCompleted = 0;
 let _totalActorsEnriched = 0;
+let _lastDiscoveryResult: DiscoveryRunResult | null = null;
+let _totalDiscoveryRuns = 0;
+let _totalActorsDiscovered = 0;
+let _pendingDiscoveries = 0;
 
 export interface CatalogEnrichmentRunResult {
   startedAt: string;
@@ -69,6 +107,16 @@ export interface CatalogEnrichmentRunResult {
     qualityAfter: number;
     error?: string;
   }>;
+  discovery?: DiscoveryRunResult;
+}
+
+export interface DiscoveryRunResult {
+  strategy: string;
+  actorsDiscovered: number;
+  actorsAlreadyKnown: number;
+  pendingReview: number;
+  timestamp: string;
+  error?: string;
 }
 
 // ─── Completeness Calculator ──────────────────────────────────────────
@@ -81,11 +129,11 @@ function computeCompleteness(actor: any): number {
     { name: "motivation", weight: 10 },
     { name: "firstSeen", weight: 5 },
     { name: "aliases", weight: 10 },
-    { name: "mitreTechniques", weight: 15 },
+    { name: "techniques", weight: 15 },
     { name: "tools", weight: 10 },
     { name: "targetSectors", weight: 10 },
     { name: "targetRegions", weight: 10 },
-    { name: "notableAttacks", weight: 5 },
+    // notableAttacks not on threat_actors table
   ];
   let score = 0;
   for (const f of fields) {
@@ -138,11 +186,11 @@ export async function runCatalogEnrichment(
         motivation: schema.threatActors.motivation,
         firstSeen: schema.threatActors.firstSeen,
         aliases: schema.threatActors.aliases,
-        mitreTechniques: schema.threatActors.mitreTechniques,
+        techniques: schema.threatActors.techniques,
         tools: schema.threatActors.tools,
         targetSectors: schema.threatActors.targetSectors,
         targetRegions: schema.threatActors.targetRegions,
-        notableAttacks: schema.threatActors.notableAttacks,
+        // notableAttacks not on threat_actors table
       })
       .from(schema.threatActors)
       .limit(batchSize * 3); // Fetch extra to filter by completeness
@@ -155,96 +203,81 @@ export async function runCatalogEnrichment(
       .slice(0, batchSize);
 
     if (incompleteActors.length === 0) {
-      console.log("[CatalogEnrichScheduler] No actors below threshold — skipping");
-      const result: CatalogEnrichmentRunResult = {
-        startedAt: new Date(startTime).toISOString(),
-        completedAt: new Date().toISOString(),
-        durationMs: Date.now() - startTime,
-        actorsProcessed: 0,
-        actorsSucceeded: 0,
-        actorsFailed: 0,
-        totalFieldsUpdated: 0,
-        totalFieldsDiscovered: 0,
-        triggeredBy,
-        results: [],
-      };
-      _lastRunResult = result;
-      _lastRunAt = new Date();
-      return result;
-    }
+      console.log("[CatalogEnrichScheduler] No actors below threshold — skipping enrichment");
+    } else {
+      console.log(
+        `[CatalogEnrichScheduler] Found ${incompleteActors.length} actors below ${threshold}% completeness`
+      );
 
-    console.log(
-      `[CatalogEnrichScheduler] Found ${incompleteActors.length} actors below ${threshold}% completeness`
-    );
+      // Process each actor
+      for (const actor of incompleteActors) {
+        const actorStartTime = Date.now();
+        try {
+          const enrichResult = await enrichActorWithKeywords(actor.actorId);
+          const qualityAfter = enrichResult.dataQualityScore || actor.completeness;
 
-    // Process each actor
-    for (const actor of incompleteActors) {
-      const actorStartTime = Date.now();
-      try {
-        const enrichResult = await enrichActorWithKeywords(actor.actorId);
-        const qualityAfter = enrichResult.dataQualityScore || actor.completeness;
-
-        // Record in enrichment_history
-        await db.insert(schema.enrichmentHistory).values({
-          actorId: actor.actorId,
-          actorName: actor.name || actor.actorId,
-          triggeredBy: triggeredBy === "scheduled" ? "scheduled" : "bulk",
-          fieldsUpdated: JSON.stringify(enrichResult.fieldsUpdated || []),
-          fieldsDiscovered: JSON.stringify(enrichResult.fieldsDiscovered || []),
-          sourcesUsed: JSON.stringify(
-            (enrichResult.sources || []).map((s: any) => ({
-              source: s.source,
-              sourceType: s.sourceType,
-            }))
-          ),
-          keywordsUsed: JSON.stringify(enrichResult.keywordsUsed || {}),
-          dataQualityBefore: actor.completeness,
-          dataQualityAfter: qualityAfter,
-          summary: enrichResult.summary || "",
-          status: "success",
-          durationMs: Date.now() - actorStartTime,
-        });
-
-        results.push({
-          actorId: actor.actorId,
-          actorName: actor.name || actor.actorId,
-          status: "success",
-          fieldsUpdated: enrichResult.fieldsUpdated?.length || 0,
-          fieldsDiscovered: enrichResult.fieldsDiscovered?.length || 0,
-          qualityBefore: actor.completeness,
-          qualityAfter,
-        });
-
-        console.log(
-          `[CatalogEnrichScheduler] ✓ ${actor.name}: ${actor.completeness}% → ${qualityAfter}%`
-        );
-      } catch (err: any) {
-        await db
-          .insert(schema.enrichmentHistory)
-          .values({
+          // Record in enrichment_history
+          await db.insert(schema.enrichmentHistory).values({
             actorId: actor.actorId,
             actorName: actor.name || actor.actorId,
             triggeredBy: triggeredBy === "scheduled" ? "scheduled" : "bulk",
-            status: "failed",
-            errorMessage: err?.message || "Unknown error",
+            fieldsUpdated: JSON.stringify(enrichResult.fieldsUpdated || []),
+            fieldsDiscovered: JSON.stringify(enrichResult.fieldsDiscovered || []),
+            sourcesUsed: JSON.stringify(
+              (enrichResult.sources || []).map((s: any) => ({
+                source: s.source,
+                sourceType: s.sourceType,
+              }))
+            ),
+            keywordsUsed: JSON.stringify(enrichResult.keywordsUsed || {}),
+            dataQualityBefore: actor.completeness,
+            dataQualityAfter: qualityAfter,
+            summary: enrichResult.summary || "",
+            status: "success",
             durationMs: Date.now() - actorStartTime,
-          })
-          .catch(() => {});
+          });
 
-        results.push({
-          actorId: actor.actorId,
-          actorName: actor.name || actor.actorId,
-          status: "failed",
-          fieldsUpdated: 0,
-          fieldsDiscovered: 0,
-          qualityBefore: actor.completeness,
-          qualityAfter: actor.completeness,
-          error: err?.message || "Unknown error",
-        });
+          results.push({
+            actorId: actor.actorId,
+            actorName: actor.name || actor.actorId,
+            status: "success",
+            fieldsUpdated: enrichResult.fieldsUpdated?.length || 0,
+            fieldsDiscovered: enrichResult.fieldsDiscovered?.length || 0,
+            qualityBefore: actor.completeness,
+            qualityAfter,
+          });
 
-        console.error(
-          `[CatalogEnrichScheduler] ✗ ${actor.name}: ${err?.message}`
-        );
+          console.log(
+            `[CatalogEnrichScheduler] ✓ ${actor.name}: ${actor.completeness}% → ${qualityAfter}%`
+          );
+        } catch (err: any) {
+          await db
+            .insert(schema.enrichmentHistory)
+            .values({
+              actorId: actor.actorId,
+              actorName: actor.name || actor.actorId,
+              triggeredBy: triggeredBy === "scheduled" ? "scheduled" : "bulk",
+              status: "failed",
+              errorMessage: err?.message || "Unknown error",
+              durationMs: Date.now() - actorStartTime,
+            })
+            .catch(() => {});
+
+          results.push({
+            actorId: actor.actorId,
+            actorName: actor.name || actor.actorId,
+            status: "failed",
+            fieldsUpdated: 0,
+            fieldsDiscovered: 0,
+            qualityBefore: actor.completeness,
+            qualityAfter: actor.completeness,
+            error: err?.message || "Unknown error",
+          });
+
+          console.error(
+            `[CatalogEnrichScheduler] ✗ ${actor.name}: ${err?.message}`
+          );
+        }
       }
     }
 
@@ -254,6 +287,13 @@ export async function runCatalogEnrichment(
 
     _totalRunsCompleted++;
     _totalActorsEnriched += succeeded;
+
+    // ─── Auto-Discovery Phase ──────────────────────────────────────
+    let discoveryResult: DiscoveryRunResult | undefined;
+
+    if (_config.discoveryEnabled && triggeredBy === "scheduled") {
+      discoveryResult = await runAutoDiscovery();
+    }
 
     const runResult: CatalogEnrichmentRunResult = {
       startedAt: new Date(startTime).toISOString(),
@@ -266,6 +306,7 @@ export async function runCatalogEnrichment(
       totalFieldsDiscovered,
       triggeredBy,
       results,
+      discovery: discoveryResult,
     };
 
     _lastRunResult = runResult;
@@ -275,7 +316,8 @@ export async function runCatalogEnrichment(
     console.log(
       `[CatalogEnrichScheduler] Run complete: ${succeeded}/${results.length} succeeded, ` +
       `${totalFieldsUpdated} fields updated, ${totalFieldsDiscovered} fields discovered ` +
-      `(${((Date.now() - startTime) / 1000).toFixed(1)}s)`
+      `(${((Date.now() - startTime) / 1000).toFixed(1)}s)` +
+      (discoveryResult ? `, discovery: ${discoveryResult.actorsDiscovered} new actors found` : "")
     );
 
     return runResult;
@@ -286,6 +328,88 @@ export async function runCatalogEnrichment(
     throw err;
   } finally {
     _running = false;
+  }
+}
+
+// ─── Auto-Discovery ──────────────────────────────────────────────────
+
+export async function runAutoDiscovery(): Promise<DiscoveryRunResult> {
+  const strategy = getNextDiscoveryStrategy();
+  console.log(`[CatalogEnrichScheduler] Running auto-discovery with strategy: ${strategy}`);
+
+  try {
+    const { discoverNewActors } = await import("./threat-actor-discovery");
+    const result = await discoverNewActors(strategy as any);
+
+    const discovered = result.discoveredActors || [];
+    const alreadyKnown = result.alreadyKnown || [];
+
+    // Store discovered actors in enrichment_history as pending discoveries
+    if (discovered.length > 0) {
+      const db = await getDb();
+      for (const actor of discovered) {
+        try {
+          await db.insert(schema.enrichmentHistory).values({
+            actorId: `discovery-${actor.suggestedId || actor.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+            actorName: actor.name,
+            triggeredBy: "scheduled",
+            status: "pending_review",
+            summary: `[AUTO-DISCOVERY] Strategy: ${strategy}. ${actor.discoveryReason || 'Discovered via automated scan'}`,
+            fieldsDiscovered: JSON.stringify(["name", "description", "actorType", "origin", "techniques", "tools", "targetSectors"]),
+            sourcesUsed: JSON.stringify(
+              (actor.sources || []).slice(0, 5).map((s: any) => ({
+                source: s.sourceName,
+                sourceType: s.sourceType,
+              }))
+            ),
+            dataQualityBefore: 0,
+            dataQualityAfter: actor.confidenceScore || 0,
+            durationMs: 0,
+            // Store the full actor data in keywordsUsed field (JSON) for retrieval
+            keywordsUsed: JSON.stringify({
+              _discoveryData: actor,
+              _strategy: strategy,
+              _timestamp: new Date().toISOString(),
+            }),
+          });
+        } catch (err: any) {
+          console.warn(`[CatalogEnrichScheduler] Failed to store discovery for ${actor.name}:`, err?.message);
+        }
+      }
+
+      _pendingDiscoveries += discovered.length;
+    }
+
+    _totalDiscoveryRuns++;
+    _totalActorsDiscovered += discovered.length;
+
+    const discoveryResult: DiscoveryRunResult = {
+      strategy,
+      actorsDiscovered: discovered.length,
+      actorsAlreadyKnown: alreadyKnown.length,
+      pendingReview: discovered.length,
+      timestamp: new Date().toISOString(),
+    };
+
+    _lastDiscoveryResult = discoveryResult;
+
+    console.log(
+      `[CatalogEnrichScheduler] Discovery complete: ${discovered.length} new, ${alreadyKnown.length} already known, strategy=${strategy}`
+    );
+
+    return discoveryResult;
+  } catch (err: any) {
+    console.error(`[CatalogEnrichScheduler] Auto-discovery failed (strategy=${strategy}):`, err?.message);
+    const errorResult: DiscoveryRunResult = {
+      strategy,
+      actorsDiscovered: 0,
+      actorsAlreadyKnown: 0,
+      pendingReview: 0,
+      timestamp: new Date().toISOString(),
+      error: err?.message || "Unknown error",
+    };
+    _lastDiscoveryResult = errorResult;
+    return errorResult;
   }
 }
 
@@ -342,7 +466,8 @@ export function startCatalogEnrichmentScheduler(
 
   console.log(
     `[CatalogEnrichScheduler] Starting scheduler: daily at ${String(_config.cronHourUtc).padStart(2, "0")}:${String(_config.cronMinuteUtc).padStart(2, "0")} UTC, ` +
-    `batch=${_config.batchSize}, threshold=${_config.completenessThreshold}%`
+    `batch=${_config.batchSize}, threshold=${_config.completenessThreshold}%, ` +
+    `discovery=${_config.discoveryEnabled ? "enabled" : "disabled"}`
   );
 
   scheduleNextRun();
@@ -373,6 +498,15 @@ export function getCatalogEnrichmentStatus() {
     stats: {
       totalRunsCompleted: _totalRunsCompleted,
       totalActorsEnriched: _totalActorsEnriched,
+    },
+    discovery: {
+      enabled: _config.discoveryEnabled,
+      lastResult: _lastDiscoveryResult,
+      totalRuns: _totalDiscoveryRuns,
+      totalDiscovered: _totalActorsDiscovered,
+      pendingReview: _pendingDiscoveries,
+      currentStrategyIndex: _discoveryStrategyIndex,
+      nextStrategy: DISCOVERY_STRATEGIES[_discoveryStrategyIndex % DISCOVERY_STRATEGIES.length],
     },
   };
 }

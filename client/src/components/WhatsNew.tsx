@@ -14,7 +14,7 @@ import {
 // Update this array with each platform release. The component will show
 // the pop-up whenever WHATS_NEW_VERSION changes.
 
-export const WHATS_NEW_VERSION = "2026.03.01-v4";
+export const WHATS_NEW_VERSION = "2026.04.22-v5";
 
 interface ReleaseEntry {
   icon: React.ElementType;
@@ -26,6 +26,22 @@ interface ReleaseEntry {
 }
 
 export const RELEASE_ENTRIES: ReleaseEntry[] = [
+  {
+    icon: BarChart3,
+    iconColor: "text-cyan-400",
+    tag: "NEW",
+    tagColor: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    title: "MITRE ATT&CK Technique Heatmap Widget",
+    description: "New dashboard widget aggregates technique usage across all threat actors, grouped by MITRE ATT&CK tactic columns. Click any cell to see which actors use that technique, with direct links to ATT&CK documentation.",
+  },
+  {
+    icon: Sparkles,
+    iconColor: "text-purple-400",
+    tag: "NEW",
+    tagColor: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    title: "Auto-Discovery Scheduling",
+    description: "The daily enrichment scheduler now includes automated threat actor discovery using rotating LLM strategies (related actors, sector gaps, recent campaigns, emerging threats, geographic coverage). Discovered actors go to a pending review queue.",
+  },
   {
     icon: Users,
     iconColor: "text-blue-400",

@@ -1154,6 +1154,65 @@ export default function ThreatCatalog() {
                     </div>
                   </div>
 
+                  {/* Auto-Discovery Status */}
+                  {schedulerStatus.data.discovery && (
+                    <div className="p-4 bg-background border border-purple-500/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-display tracking-wider text-purple-400">AUTO-DISCOVERY</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 ${schedulerStatus.data.discovery.enabled ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}`}>
+                          {schedulerStatus.data.discovery.enabled ? 'ENABLED' : 'DISABLED'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Automatically discovers new threat actors using LLM with rotating strategies after each enrichment run.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Next Strategy:</span>
+                          <span className="ml-2 text-purple-300">{schedulerStatus.data.discovery.nextStrategy?.replace(/_/g, ' ')}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Total Discovered:</span>
+                          <span className="ml-2 text-foreground">{schedulerStatus.data.discovery.totalDiscovered ?? 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Pending Review:</span>
+                          <span className="ml-2 text-amber-400 font-bold">{schedulerStatus.data.discovery.pendingReview ?? 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Total Runs:</span>
+                          <span className="ml-2 text-foreground">{schedulerStatus.data.discovery.totalRuns ?? 0}</span>
+                        </div>
+                      </div>
+                      {(schedulerStatus.data.discovery.pendingReview ?? 0) > 0 && (
+                        <a
+                          href="/threat-actor-discovery"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 text-purple-400 text-xs font-display tracking-wider hover:bg-purple-500/30 transition-colors"
+                        >
+                          REVIEW DISCOVERIES →
+                        </a>
+                      )}
+                      {schedulerStatus.data.discovery.lastResult && (
+                        <div className="text-[10px] text-muted-foreground border-t border-border/50 pt-2 mt-2">
+                          Last discovery: {schedulerStatus.data.discovery.lastResult.strategy?.replace(/_/g, ' ')} — {schedulerStatus.data.discovery.lastResult.actorsDiscovered} found, {schedulerStatus.data.discovery.lastResult.actorsAlreadyKnown} already known
+                          {schedulerStatus.data.discovery.lastResult.error && (
+                            <span className="text-red-400 ml-2">Error: {schedulerStatus.data.discovery.lastResult.error}</span>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => schedulerConfigMut.mutate({ discoveryEnabled: !schedulerStatus.data?.discovery?.enabled })}
+                        className={`flex items-center gap-2 px-3 py-1.5 border text-xs font-display tracking-wider transition-colors ${
+                          schedulerStatus.data.discovery.enabled
+                            ? 'bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30'
+                            : 'bg-purple-500/20 border-purple-500/30 text-purple-400 hover:bg-purple-500/30'
+                        }`}
+                      >
+                        {schedulerStatus.data.discovery.enabled ? 'DISABLE DISCOVERY' : 'ENABLE DISCOVERY'}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Recent Runs */}
                   {schedulerStatus.data.recentRuns && schedulerStatus.data.recentRuns.length > 0 && (
                     <div className="space-y-2">

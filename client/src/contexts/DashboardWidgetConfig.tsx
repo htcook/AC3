@@ -20,6 +20,7 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: 'threat-awareness', label: 'Threat Awareness', icon: 'ShieldAlert', visible: true, pinned: false, order: 7 },
   { id: 'vuln-feed', label: '0-Day Vulnerability Feed', icon: 'Flame', visible: true, pinned: false, order: 8 },
   { id: 'more-tools', label: 'More Tools', icon: 'Grid3X3', visible: true, pinned: false, order: 9 },
+  { id: 'technique-heatmap', label: 'Technique Heatmap', icon: 'Grid3X3', visible: true, pinned: false, order: 10 },
 ];
 
 const STORAGE_KEY = 'ac3-dashboard-widgets';

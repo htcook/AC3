@@ -864,6 +864,7 @@ export const threatIntelRouter = router({
       cronHourUtc: z.number().min(0).max(23).optional(),
       cronMinuteUtc: z.number().min(0).max(59).optional(),
       enabled: z.boolean().optional(),
+      discoveryEnabled: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const { updateCatalogEnrichmentConfig } = await import("../lib/catalog-enrichment-scheduler");
@@ -1131,6 +1132,114 @@ export const threatIntelRouter = router({
         results,
       };
     }),
+
+  // ─── Technique Heatmap ─────────────────────────────────────────────────
+  techniqueHeatmap: protectedProcedure.query(async () => {
+    const db = await requireDb();
+
+    // MITRE ATT&CK Tactic mapping
+    const TACTIC_MAP: Record<string, { id: string; name: string; order: number }> = {
+      'reconnaissance': { id: 'TA0043', name: 'Reconnaissance', order: 0 },
+      'resource-development': { id: 'TA0042', name: 'Resource Development', order: 1 },
+      'initial-access': { id: 'TA0001', name: 'Initial Access', order: 2 },
+      'execution': { id: 'TA0002', name: 'Execution', order: 3 },
+      'persistence': { id: 'TA0003', name: 'Persistence', order: 4 },
+      'privilege-escalation': { id: 'TA0004', name: 'Privilege Escalation', order: 5 },
+      'defense-evasion': { id: 'TA0005', name: 'Defense Evasion', order: 6 },
+      'credential-access': { id: 'TA0006', name: 'Credential Access', order: 7 },
+      'discovery': { id: 'TA0007', name: 'Discovery', order: 8 },
+      'lateral-movement': { id: 'TA0008', name: 'Lateral Movement', order: 9 },
+      'collection': { id: 'TA0009', name: 'Collection', order: 10 },
+      'command-and-control': { id: 'TA0011', name: 'Command and Control', order: 11 },
+      'exfiltration': { id: 'TA0010', name: 'Exfiltration', order: 12 },
+      'impact': { id: 'TA0040', name: 'Impact', order: 13 },
+    };
+
+    // Fetch all actors with techniques
+    const actors = await db.select({
+      actorId: threatActors.actorId,
+      name: threatActors.name,
+      techniques: threatActors.techniques,
+    }).from(threatActors);
+
+    // Aggregate technique usage
+    const techniqueAgg: Record<string, {
+      id: string;
+      name: string;
+      tactic: string;
+      count: number;
+      actors: string[];
+    }> = {};
+
+    let totalActorsWithTechniques = 0;
+
+    for (const actor of actors) {
+      const techniques = safeParseArr(actor.techniques);
+      if (techniques.length === 0) continue;
+      totalActorsWithTechniques++;
+
+      for (const tech of techniques) {
+        if (!tech.id) continue;
+        const key = tech.id;
+        if (!techniqueAgg[key]) {
+          techniqueAgg[key] = {
+            id: tech.id,
+            name: tech.name || tech.id,
+            tactic: (tech.tactic || 'unknown').toLowerCase().replace(/\s+/g, '-'),
+            count: 0,
+            actors: [],
+          };
+        }
+        techniqueAgg[key].count++;
+        if (techniqueAgg[key].actors.length < 20) {
+          techniqueAgg[key].actors.push(actor.name);
+        }
+      }
+    }
+
+    // Group by tactic
+    const tacticGroups: Record<string, typeof techniqueAgg[string][]> = {};
+    for (const tech of Object.values(techniqueAgg)) {
+      const tacticKey = tech.tactic;
+      if (!tacticGroups[tacticKey]) tacticGroups[tacticKey] = [];
+      tacticGroups[tacticKey].push(tech);
+    }
+
+    // Sort techniques within each tactic by count descending
+    for (const key of Object.keys(tacticGroups)) {
+      tacticGroups[key].sort((a, b) => b.count - a.count);
+    }
+
+    // Build ordered result
+    const result = Object.entries(TACTIC_MAP)
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([key, meta]) => ({
+        tacticId: meta.id,
+        tacticKey: key,
+        tacticName: meta.name,
+        order: meta.order,
+        techniques: (tacticGroups[key] || []).map(t => ({
+          id: t.id,
+          name: t.name,
+          count: t.count,
+          actors: t.actors,
+        })),
+        totalTechniques: (tacticGroups[key] || []).length,
+        totalUsage: (tacticGroups[key] || []).reduce((s, t) => s + t.count, 0),
+      }));
+
+    // Compute max count for color scaling
+    const allCounts = Object.values(techniqueAgg).map(t => t.count);
+    const maxCount = allCounts.length > 0 ? Math.max(...allCounts) : 1;
+
+    return {
+      tactics: result,
+      totalTechniques: Object.keys(techniqueAgg).length,
+      totalActorsWithTechniques,
+      totalActors: actors.length,
+      maxCount,
+    };
+  }),
 
 });
 
