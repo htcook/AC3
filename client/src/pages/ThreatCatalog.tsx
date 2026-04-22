@@ -25,6 +25,9 @@ import {
   Key,
   Megaphone,
   Swords,
+  Sparkles,
+  FileText,
+  FileDown,
 } from "lucide-react";
 
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
@@ -134,6 +137,11 @@ export default function ThreatCatalog() {
 
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingStix, setExportingStix] = useState(false);
+  const [showBulkEnrich, setShowBulkEnrich] = useState(false);
+  const [bulkEnriching, setBulkEnriching] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; results: any[] } | null>(null);
 
   /** Update URL params — merges new values with current state */
   const updateFilters = useCallback((updates: Record<string, any>) => {
@@ -221,6 +229,81 @@ export default function ThreatCatalog() {
     } else {
       syncCatalog.mutate({ sources: [source as any] });
     }
+  };
+
+  // Export queries (enabled on demand)
+  const exportCsvQuery = trpc.threatIntel.exportCsv.useQuery({
+    type: typeFilter !== 'all' ? typeFilter : 'all',
+    threatLevel: threatLevelFilter !== 'all' ? threatLevelFilter : 'all',
+    updatedLast24h: updatedLast24h || undefined,
+    conflict: conflictFilter !== 'all' ? conflictFilter : undefined,
+    search: search || undefined,
+  }, { enabled: false });
+
+  const exportStixQuery = trpc.threatIntel.exportStix.useQuery({
+    type: typeFilter !== 'all' ? typeFilter : 'all',
+    threatLevel: threatLevelFilter !== 'all' ? threatLevelFilter : 'all',
+    updatedLast24h: updatedLast24h || undefined,
+    conflict: conflictFilter !== 'all' ? conflictFilter : undefined,
+    search: search || undefined,
+  }, { enabled: false });
+
+  const incompleteQuery = trpc.threatIntel.incompleteActors.useQuery({ threshold: 60, limit: 50 }, { enabled: showBulkEnrich });
+  const bulkEnrichMutation = trpc.threatIntel.bulkEnrich.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Bulk enrichment complete: ${result.succeeded} succeeded, ${result.failed} failed`);
+      setBulkEnriching(false);
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(`Bulk enrichment failed: ${sanitizeErrorForToast(err)}`);
+      setBulkEnriching(false);
+    },
+  });
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const result = await exportCsvQuery.refetch();
+      if (result.data?.csv) {
+        const blob = new Blob([result.data.csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `threat-actors-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${result.data.count} actors to CSV`);
+      }
+    } catch (err: any) {
+      toast.error(`CSV export failed: ${sanitizeErrorForToast(err)}`);
+    }
+    setExportingCsv(false);
+  };
+
+  const handleExportStix = async () => {
+    setExportingStix(true);
+    try {
+      const result = await exportStixQuery.refetch();
+      if (result.data?.stix) {
+        const blob = new Blob([result.data.stix], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `threat-actors-stix-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exported ${result.data.actorCount} actors (${result.data.objectCount} STIX objects)`);
+      }
+    } catch (err: any) {
+      toast.error(`STIX export failed: ${sanitizeErrorForToast(err)}`);
+    }
+    setExportingStix(false);
+  };
+
+  const handleBulkEnrich = (actorIds: string[]) => {
+    setBulkEnriching(true);
+    bulkEnrichMutation.mutate({ actorIds });
   };
 
   const allActors = listData?.actors ?? [];
@@ -343,6 +426,29 @@ export default function ThreatCatalog() {
                 STIX EXPORT
               </button>
             </Link>
+            <button
+              onClick={() => handleExportCsv()}
+              disabled={exportingCsv}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-display tracking-wider hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+            >
+              {exportingCsv ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
+              EXPORT CSV
+            </button>
+            <button
+              onClick={() => handleExportStix()}
+              disabled={exportingStix}
+              className="flex items-center gap-2 px-3 py-2 bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-display tracking-wider hover:bg-teal-500/20 transition-colors disabled:opacity-50"
+            >
+              {exportingStix ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+              EXPORT STIX
+            </button>
+            <button
+              onClick={() => setShowBulkEnrich(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 border border-violet-500/20 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/20 transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              BULK ENRICH
+            </button>
           </div>
         </div>
 
@@ -647,6 +753,86 @@ export default function ThreatCatalog() {
           </>
         )}
       </div>
+
+      {/* Bulk Enrich Dialog */}
+      {showBulkEnrich && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => !bulkEnriching && setShowBulkEnrich(false)}>
+          <div className="bg-card border border-border w-full max-w-2xl max-h-[80vh] overflow-auto m-4" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-violet-400" />
+                  <h2 className="text-lg font-display tracking-wider">BULK ENRICHMENT</h2>
+                </div>
+                <button onClick={() => !bulkEnriching && setShowBulkEnrich(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Enrich actors below 60% data completeness using LLM-powered keyword search across OSINT sources.
+              </p>
+            </div>
+            <div className="p-6">
+              {incompleteQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Scanning actors...</span>
+                </div>
+              ) : incompleteQuery.data ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">
+                      <span className="text-violet-400 font-bold">{incompleteQuery.data.total}</span> actors below {incompleteQuery.data.threshold}% completeness
+                    </span>
+                    <button
+                      onClick={() => {
+                        const ids = (incompleteQuery.data?.actors || []).slice(0, 20).map((a: any) => a.actorId);
+                        if (ids.length > 0) handleBulkEnrich(ids);
+                      }}
+                      disabled={bulkEnriching || !incompleteQuery.data?.actors?.length}
+                      className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/30 transition-colors disabled:opacity-50"
+                    >
+                      {bulkEnriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      {bulkEnriching ? 'ENRICHING...' : `ENRICH TOP ${Math.min(20, incompleteQuery.data?.actors?.length || 0)}`}
+                    </button>
+                  </div>
+                  {bulkEnrichMutation.data && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/20 text-sm">
+                      <span className="text-green-400 font-bold">Complete:</span> {bulkEnrichMutation.data.succeeded} succeeded, {bulkEnrichMutation.data.failed} failed
+                    </div>
+                  )}
+                  <div className="space-y-2 max-h-[40vh] overflow-auto">
+                    {(incompleteQuery.data?.actors || []).slice(0, 30).map((actor: any) => (
+                      <div key={actor.actorId} className="flex items-center justify-between p-3 bg-background/50 border border-border/50">
+                        <div>
+                          <span className="text-sm font-medium">{actor.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{actor.actorType?.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-24 h-2 bg-background rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                actor.completeness < 30 ? 'bg-red-500' : actor.completeness < 50 ? 'bg-amber-500' : 'bg-yellow-500'
+                              }`}
+                              style={{ width: `${actor.completeness}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-10 text-right">{actor.completeness}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {(incompleteQuery.data?.actors || []).length > 30 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      ...and {(incompleteQuery.data?.total || 0) - 30} more actors below threshold
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No data available</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

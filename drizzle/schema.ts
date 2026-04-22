@@ -7867,3 +7867,27 @@ export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
 ]);
 
 export type InsertAccessBrokerListing = typeof accessBrokerListings.$inferInsert;
+
+// ─── Enrichment History ─────────────────────────────────────────────────
+export const enrichmentHistory = mysqlTable("enrichment_history", {
+	id: int().autoincrement().primaryKey(),
+	actorId: varchar("actor_id", { length: 128 }).notNull(),
+	actorName: varchar("actor_name", { length: 255 }),
+	triggeredBy: mysqlEnum("triggered_by", ['manual', 'bulk', 'scheduled']).default('manual').notNull(),
+	fieldsUpdated: json("fields_updated"),
+	fieldsDiscovered: json("fields_discovered"),
+	sourcesUsed: json("sources_used"),
+	keywordsUsed: json("keywords_used"),
+	dataQualityBefore: int("data_quality_before"),
+	dataQualityAfter: int("data_quality_after"),
+	summary: text(),
+	status: mysqlEnum(['success', 'failed', 'partial']).default('success').notNull(),
+	errorMessage: text("error_message"),
+	durationMs: int("duration_ms"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("eh_actor_id_idx").on(table.actorId),
+	index("eh_created_at_idx").on(table.createdAt),
+	index("eh_triggered_by_idx").on(table.triggeredBy),
+]);

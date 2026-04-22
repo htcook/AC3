@@ -840,6 +840,9 @@ function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
         )}
       </div>
 
+      {/* Enrichment History Timeline */}
+      <EnrichmentHistoryTimeline actorId={actorId} />
+
       {/* Data Provenance */}
       <div className="bg-card border border-border p-4">
         <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3">DATA PROVENANCE</h3>
@@ -862,6 +865,116 @@ function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Enrichment History Timeline Component */
+function EnrichmentHistoryTimeline({ actorId }: { actorId: string }) {
+  const { data, isLoading } = trpc.threatIntel.enrichmentHistoryList.useQuery({ actorId, limit: 20 });
+
+  const triggeredByColors: Record<string, string> = {
+    manual: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    bulk: "text-violet-400 bg-violet-500/10 border-violet-500/30",
+    scheduled: "text-green-400 bg-green-500/10 border-green-500/30",
+  };
+
+  const statusColors: Record<string, string> = {
+    success: "text-green-400",
+    failed: "text-red-400",
+    partial: "text-yellow-400",
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border p-4">
+        <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+          <Clock className="w-3 h-3" /> ENRICHMENT HISTORY
+        </h3>
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-xs text-muted-foreground">Loading history...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const history = data?.history || [];
+
+  return (
+    <div className="bg-card border border-border p-4">
+      <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+        <Clock className="w-3 h-3" /> ENRICHMENT HISTORY
+        {history.length > 0 && <span className="text-primary">({history.length})</span>}
+      </h3>
+      {history.length === 0 ? (
+        <div className="text-center py-6 text-muted-foreground">
+          <Clock className="w-6 h-6 mx-auto mb-2 opacity-30" />
+          <p className="text-xs">No enrichment history yet.</p>
+          <p className="text-[10px] mt-1">Run enrichment to start building a history log.</p>
+        </div>
+      ) : (
+        <div className="relative">
+          {/* Timeline line */}
+          <div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+          <div className="space-y-4">
+            {history.map((entry: any, idx: number) => (
+              <div key={entry.id || idx} className="relative pl-8">
+                {/* Timeline dot */}
+                <div className={`absolute left-[7px] top-2 w-2.5 h-2.5 rounded-full border-2 border-card ${
+                  entry.status === 'success' ? 'bg-green-400' : entry.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'
+                }`} />
+                <div className="bg-muted/20 border border-border/50 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] px-1.5 py-0.5 border ${triggeredByColors[entry.triggeredBy] || 'text-gray-400 bg-gray-500/10 border-gray-500/30'}`}>
+                        {(entry.triggeredBy || 'manual').toUpperCase()}
+                      </span>
+                      <span className={`text-[10px] font-medium ${statusColors[entry.status] || 'text-gray-400'}`}>
+                        {(entry.status || 'unknown').toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : '—'}
+                    </span>
+                  </div>
+                  {entry.summary && (
+                    <p className="text-xs text-muted-foreground mb-2">{entry.summary}</p>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-[10px]">
+                    {entry.fieldsUpdated?.length > 0 && (
+                      <span className="text-amber-400">{entry.fieldsUpdated.length} fields updated</span>
+                    )}
+                    {entry.fieldsDiscovered?.length > 0 && (
+                      <span className="text-blue-400">{entry.fieldsDiscovered.length} fields discovered</span>
+                    )}
+                    {entry.dataQualityBefore != null && entry.dataQualityAfter != null && (
+                      <span className={entry.dataQualityAfter > entry.dataQualityBefore ? 'text-green-400' : 'text-muted-foreground'}>
+                        Quality: {entry.dataQualityBefore}% → {entry.dataQualityAfter}%
+                      </span>
+                    )}
+                    {entry.durationMs != null && (
+                      <span className="text-muted-foreground">{(entry.durationMs / 1000).toFixed(1)}s</span>
+                    )}
+                  </div>
+                  {entry.sourcesUsed?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {entry.sourcesUsed.map((src: any, si: number) => (
+                        <span key={si} className="text-[9px] px-1.5 py-0.5 bg-primary/5 border border-primary/10 text-primary">
+                          {src.source || src.sourceType || 'unknown'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {entry.status === 'failed' && entry.errorMessage && (
+                    <p className="text-[10px] text-red-400 mt-1">Error: {entry.errorMessage}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
