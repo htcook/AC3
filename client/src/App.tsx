@@ -99,6 +99,7 @@ const KevDashboard = lazyWithRetry(() => import("./pages/KevDashboard"));
 const ScanComparison = lazyWithRetry(() => import("./pages/ScanComparison"));
 const ThreatCatalog = lazyWithRetry(() => import("./pages/ThreatCatalog"));
 const ThreatActorCatalogDetail = lazyWithRetry(() => import("./pages/ThreatActorCatalogDetail"));
+const ThreatActorDiscovery = lazyWithRetry(() => import("./pages/ThreatActorDiscovery"));
 const DarkwebIntel = lazyWithRetry(() => import("./pages/DarkwebIntel"));
 const BreachEvents = lazyWithRetry(() => import("./pages/BreachEvents"));
 const ThreatIntelHub = lazyWithRetry(() => import("./pages/ThreatIntelHub"));
@@ -626,6 +627,9 @@ function Router() {
         </Route>
         <Route path="/threat-catalog">
           <ProtectedRoute component={ThreatCatalog} />
+        </Route>
+        <Route path="/threat-catalog/discover">
+          <ProtectedRoute component={ThreatActorDiscovery} />
         </Route>
         <Route path="/threat-catalog/:id">
           {() => <ProtectedRoute component={ThreatActorCatalogDetail} />}

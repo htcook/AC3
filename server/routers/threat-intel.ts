@@ -1092,6 +1092,46 @@ export const threatIntelRouter = router({
       };
     }),
 
+  // ─── Threat Actor Discovery ──────────────────────────────────────────
+
+  discoverActors: protectedProcedure
+    .input(z.object({
+      strategy: z.enum(["related_actors", "sector_gaps", "recent_campaigns", "emerging_threats", "geographic_coverage"]),
+      seedActorNames: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { discoverNewActors } = await import("../lib/threat-actor-discovery");
+      return discoverNewActors(input.strategy, input.seedActorNames);
+    }),
+
+  commitDiscoveredActor: protectedProcedure
+    .input(z.object({
+      actor: z.any(),
+    }))
+    .mutation(async ({ input }) => {
+      const { commitDiscoveredActor } = await import("../lib/threat-actor-discovery");
+      return commitDiscoveredActor(input.actor);
+    }),
+
+  bulkCommitDiscoveredActors: protectedProcedure
+    .input(z.object({
+      actors: z.array(z.any()),
+    }))
+    .mutation(async ({ input }) => {
+      const { commitDiscoveredActor } = await import("../lib/threat-actor-discovery");
+      const results = [];
+      for (const actor of input.actors) {
+        const result = await commitDiscoveredActor(actor);
+        results.push(result);
+      }
+      return {
+        total: results.length,
+        succeeded: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results,
+      };
+    }),
+
 });
 
 // Helper: compute completeness percentage for an actor
