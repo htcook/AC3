@@ -61,13 +61,13 @@ export const threatIntelRouter = router({
 
       const conditions: any[] = [];
       if (opts.type && opts.type !== "all") conditions.push(eq(threatActors.actorType, opts.type));
-      if (opts.rwThreatLevel && opts.rwThreatLevel !== "all") conditions.push(eq(threatActors.rwThreatLevel, opts.rwThreatLevel));
+      if (opts.threatLevel && opts.threatLevel !== "all") conditions.push(eq(threatActors.threatLevel, opts.threatLevel));
       if (opts.search) conditions.push(sql`(${threatActors.name} LIKE ${'%' + opts.search + '%'} OR ${threatActors.actorId} LIKE ${'%' + opts.search + '%'})`);
       if (opts.conflict && opts.conflict !== 'all') conditions.push(sql`${threatActors.conflicts} LIKE ${'%' + opts.conflict + '%'}`);
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const sortCol = opts.sortBy === "threatLevel" ? threatActors.rwThreatLevel
+      const sortCol = opts.sortBy === "threatLevel" ? threatActors.threatLevel
         : opts.sortBy === "lastActive" ? threatActors.lastActive
         : opts.sortBy === "confidence" ? threatActors.confidence
         : threatActors.name;
@@ -217,10 +217,18 @@ export const threatIntelRouter = router({
   enrichActor: protectedProcedure
     .input(z.object({ actorId: z.string(), actorType: z.enum(["apt", "cybercrime", "ransomware", "hacktivist", "access_broker", "influence_ops", "unknown"]).default("apt") }))
     .mutation(async ({ input }) => {
-      const { generateGroupProfile, upsertGroupToCatalog } = await import("../lib/threat-intel-catalog");
-      const profile = await generateGroupProfile(input.actorId, input.actorType as any);
-      const actorId = await upsertGroupToCatalog(profile);
-      return { actorId, profile };
+      const { enrichActorWithKeywords } = await import("../lib/keyword-enrichment");
+      const result = await enrichActorWithKeywords(input.actorId);
+      return {
+        actorId: result.actorId,
+        keywordsUsed: result.keywordsUsed,
+        fieldsUpdated: result.fieldsUpdated,
+        fieldsDiscovered: result.fieldsDiscovered,
+        sources: result.sources,
+        enrichedData: result.enrichedData,
+        summary: result.summary,
+        dataQualityScore: result.dataQualityScore,
+      };
     }),
 
   // ─── LLM Monitoring Sweep ────────────────────────────────────────────────
@@ -513,9 +521,9 @@ export const threatIntelRouter = router({
         if (a.lastActive) score += 5;
 
         // Threat level & sophistication
-        if (a.rwThreatLevel === 'critical') score += 10;
-        else if (a.rwThreatLevel === 'high') score += 7;
-        else if (a.rwThreatLevel === 'medium') score += 3;
+        if (a.threatLevel === 'critical') score += 10;
+        else if (a.threatLevel === 'high') score += 7;
+        else if (a.threatLevel === 'medium') score += 3;
         if (a.sophistication === 'nation-state') score += 8;
         else if (a.sophistication === 'advanced') score += 5;
 

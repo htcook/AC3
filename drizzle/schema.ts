@@ -6937,8 +6937,9 @@ export const threatActors = mysqlTable("threat_actors", {
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	taTenantId: int("ta_tenant_id"),
 		logoUrl: varchar({ length: 512 }),
-		conflicts: text(),
-	},
+			conflicts: text(),
+			enrichmentSources: json("enrichment_sources"),
+		},
 (table) => [
 	index("threat_actors_actorId_unique").on(table.actorId),
 ]);

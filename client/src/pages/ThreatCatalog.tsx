@@ -30,6 +30,7 @@ import {
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
 type SortBy = "name" | "threatLevel" | "lastActive" | "confidence";
 type LastActiveFilter = "all" | "30d" | "90d" | "6m" | "1y" | "stale";
+type ThreatLevelFilter = "all" | "critical" | "high" | "medium" | "low";
 
 const CONFLICT_OPTIONS = [
   { id: "all", label: "All Conflicts", color: "" },
@@ -87,18 +88,72 @@ export default function ThreatCatalog() {
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<string | null>(null);
   const [lastActiveFilter, setLastActiveFilter] = useState<LastActiveFilter>("all");
+  const [threatLevelFilter, setThreatLevelFilter] = useState<ThreatLevelFilter>("all");
   const [conflictFilter, setConflictFilter] = useState("all");
+  const [activeStatCard, setActiveStatCard] = useState<string | null>(null);
 
   const { data: stats } = trpc.threatIntel.stats.useQuery();
   const { data: listData, isLoading, refetch } = trpc.threatIntel.list.useQuery({
     type: typeFilter,
     search: search || undefined,
     conflict: conflictFilter !== "all" ? conflictFilter : undefined,
+    threatLevel: threatLevelFilter !== "all" ? threatLevelFilter : undefined,
     page,
     pageSize: 60,
     sortBy,
     sortOrder: sortBy === "lastActive" ? "desc" : "asc",
   });
+
+  /** Handle stat card click — sets appropriate filters */
+  const handleStatCardClick = (label: string) => {
+    // If clicking the already-active card, clear it
+    if (activeStatCard === label) {
+      setActiveStatCard(null);
+      setTypeFilter("all");
+      setThreatLevelFilter("all");
+      setLastActiveFilter("all");
+      setPage(1);
+      return;
+    }
+    setPage(1);
+    // Reset all filters first
+    setTypeFilter("all");
+    setThreatLevelFilter("all");
+    setLastActiveFilter("all");
+    if (label === "TOTAL ACTORS") {
+      // Clear all filters and deselect any active card
+      setActiveStatCard(null);
+      return;
+    }
+    setActiveStatCard(label);
+    switch (label) {
+      case "APT / NATION-STATE":
+        setTypeFilter("apt");
+        break;
+      case "RANSOMWARE":
+        setTypeFilter("ransomware");
+        break;
+      case "CYBERCRIME":
+        setTypeFilter("cybercrime");
+        break;
+      case "HACKTIVIST":
+        setTypeFilter("hacktivist");
+        break;
+      case "ACCESS BROKERS":
+        setTypeFilter("access_broker");
+        break;
+      case "INFLUENCE OPS":
+        setTypeFilter("influence_ops");
+        break;
+      case "CRITICAL THREAT":
+        setThreatLevelFilter("critical");
+        break;
+      case "LAST 24H UPDATES":
+        setLastActiveFilter("30d");
+        setSortBy("lastActive");
+        break;
+    }
+  };
 
   const syncCatalog = trpc.threatIntel.syncCatalog.useMutation({
     onSuccess: (result: any) => {
@@ -269,15 +324,31 @@ export default function ThreatCatalog() {
             { label: "INFLUENCE OPS", value: stats?.byType?.influence_ops ?? 0, icon: Megaphone, color: "text-pink-400" },
             { label: "CRITICAL THREAT", value: stats?.byThreatLevel?.critical ?? 0, icon: Target, color: "text-red-500" },
             { label: "LAST 24H UPDATES", value: stats?.recentUpdates ?? 0, icon: Clock, color: "text-green-400" },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-card border border-border p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                <span className="text-[10px] text-muted-foreground tracking-wider">{stat.label}</span>
-              </div>
-              <p className={`text-xl font-display ${stat.color}`}>{stat.value}</p>
-            </div>
-          ))}
+          ].map((stat) => {
+            const isActive = activeStatCard === stat.label;
+            return (
+              <button
+                key={stat.label}
+                onClick={() => handleStatCardClick(stat.label)}
+                className={`text-left bg-card border p-3 transition-all duration-200 group cursor-pointer ${
+                  isActive
+                    ? "border-primary/60 ring-1 ring-primary/30 bg-primary/5"
+                    : "border-border hover:border-primary/30 hover:bg-card/80"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <stat.icon className={`w-4 h-4 ${stat.color} ${isActive ? "animate-pulse" : ""}`} />
+                  <span className={`text-[10px] tracking-wider transition-colors ${
+                    isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground/80"
+                  }`}>{stat.label}</span>
+                </div>
+                <p className={`text-xl font-display ${stat.color}`}>{stat.value}</p>
+                {isActive && (
+                  <div className="mt-1 text-[9px] text-primary/70 tracking-wider">FILTERED ✕</div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Filters */}
@@ -287,7 +358,7 @@ export default function ThreatCatalog() {
             <input
               type="text"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); setActiveStatCard(null); }}
               placeholder="Search threat groups by name, alias, or ID..."
               className="w-full pl-10 pr-4 py-2.5 bg-card border border-border text-sm focus:outline-none focus:border-primary/50 transition-colors"
             />
@@ -296,7 +367,7 @@ export default function ThreatCatalog() {
             {(["all", "apt", "ransomware", "cybercrime", "hacktivist", "access_broker", "influence_ops"] as GroupType[]).map((type) => (
               <button
                 key={type}
-                onClick={() => { setTypeFilter(type); setPage(1); }}
+                onClick={() => { setTypeFilter(type); setPage(1); setActiveStatCard(null); }}
                 className={`px-3 py-2 text-xs font-display tracking-wider border transition-colors ${
                   typeFilter === type
                     ? "bg-primary/20 border-primary/50 text-primary"
@@ -309,7 +380,7 @@ export default function ThreatCatalog() {
           </div>
           <select
             value={conflictFilter}
-            onChange={(e) => { setConflictFilter(e.target.value); setPage(1); }}
+            onChange={(e) => { setConflictFilter(e.target.value); setPage(1); setActiveStatCard(null); }}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
           >
             {CONFLICT_OPTIONS.map(c => (
@@ -318,7 +389,7 @@ export default function ThreatCatalog() {
           </select>
           <select
             value={lastActiveFilter}
-            onChange={(e) => { setLastActiveFilter(e.target.value as LastActiveFilter); setPage(1); }}
+            onChange={(e) => { setLastActiveFilter(e.target.value as LastActiveFilter); setPage(1); setActiveStatCard(null); }}
             className="px-3 py-2 bg-card border border-border text-sm text-muted-foreground focus:outline-none"
           >
             <option value="all">Activity: All</option>
