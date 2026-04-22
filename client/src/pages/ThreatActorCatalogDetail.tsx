@@ -638,13 +638,17 @@ function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
     enrichMutation.mutate({ actorId, actorType: actor.actorType || "apt" });
   };
 
-  // Parse existing enrichment sources
-  const existingSources = useMemo(() => {
-    if (!actor.enrichmentSources) return [];
+  // Parse existing enrichment sources (handles both old array format and new {sources, guardrailReport} format)
+  const { existingSources, guardrailReport } = useMemo(() => {
+    if (!actor.enrichmentSources) return { existingSources: [], guardrailReport: null };
     try {
       const parsed = typeof actor.enrichmentSources === "string" ? JSON.parse(actor.enrichmentSources) : actor.enrichmentSources;
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
+      if (Array.isArray(parsed)) return { existingSources: parsed, guardrailReport: null };
+      if (parsed && parsed.sources) {
+        return { existingSources: Array.isArray(parsed.sources) ? parsed.sources : [], guardrailReport: parsed.guardrailReport || null };
+      }
+      return { existingSources: [], guardrailReport: null };
+    } catch { return { existingSources: [], guardrailReport: null }; }
   }, [actor.enrichmentSources]);
 
   // Gap analysis
@@ -730,6 +734,65 @@ function CatalogSourcesPanel({ actor, actorId, onEnrichComplete }: {
           </div>
         )}
       </div>
+
+      {/* Guardrail Trust Score (if available) */}
+      {(guardrailReport || enrichResult?.guardrailReport) && (() => {
+        const gr = enrichResult?.guardrailReport || guardrailReport;
+        return (
+          <div className="bg-card border border-blue-500/20 p-4">
+            <h3 className="text-[10px] font-display tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+              <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+              HALLUCINATION GUARDRAILS
+            </h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="text-center">
+                <div className={`text-2xl font-display ${gr.overallTrustScore >= 80 ? 'text-green-400' : gr.overallTrustScore >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {gr.overallTrustScore}%
+                </div>
+                <span className="text-[10px] text-muted-foreground">Trust Score</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-green-400">{gr.accepted}</div>
+                <span className="text-[10px] text-muted-foreground">Accepted</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-yellow-400">{gr.flagged}</div>
+                <span className="text-[10px] text-muted-foreground">Flagged</span>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-display text-red-400">{gr.rejected}</div>
+                <span className="text-[10px] text-muted-foreground">Rejected</span>
+              </div>
+            </div>
+            {gr.warnings?.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {gr.warnings.map((w: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-[10px]">
+                    <span className="text-yellow-400 shrink-0">&#9888;</span>
+                    <span className="text-muted-foreground">{w}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {gr.rejectedFields?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="text-[10px] text-red-400">Rejected:</span>
+                {gr.rejectedFields.map((f: string, i: number) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400">{f}</span>
+                ))}
+              </div>
+            )}
+            {gr.flaggedFields?.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="text-[10px] text-yellow-400">Flagged:</span>
+                {gr.flaggedFields.map((f: string, i: number) => (
+                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">{f}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Data Quality & Gap Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

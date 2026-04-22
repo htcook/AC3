@@ -142,6 +142,8 @@ export default function ThreatCatalog() {
   const [showBulkEnrich, setShowBulkEnrich] = useState(false);
   const [bulkEnriching, setBulkEnriching] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; results: any[] } | null>(null);
+  const [batchSize, setBatchSize] = useState(50);
+  const BATCH_SIZE_OPTIONS = [20, 50, 100, 250, 500, 1000];
 
   /** Update URL params — merges new values with current state */
   const updateFilters = useCallback((updates: Record<string, any>) => {
@@ -248,7 +250,7 @@ export default function ThreatCatalog() {
     search: search || undefined,
   }, { enabled: false });
 
-  const incompleteQuery = trpc.threatIntel.incompleteActors.useQuery({ threshold: 60, limit: 50 }, { enabled: showBulkEnrich });
+  const incompleteQuery = trpc.threatIntel.incompleteActors.useQuery({ threshold: 60, limit: 2000 }, { enabled: showBulkEnrich });
   const bulkEnrichMutation = trpc.threatIntel.bulkEnrich.useMutation({
     onSuccess: (result) => {
       toast.success(`Bulk enrichment complete: ${result.succeeded} succeeded, ${result.failed} failed`);
@@ -301,9 +303,33 @@ export default function ThreatCatalog() {
     setExportingStix(false);
   };
 
-  const handleBulkEnrich = (actorIds: string[]) => {
+  const handleBulkEnrich = async (actorIds: string[]) => {
     setBulkEnriching(true);
-    bulkEnrichMutation.mutate({ actorIds });
+    setBulkProgress({ current: 0, total: actorIds.length, results: [] });
+    
+    // Process in server-side batches of 10 to avoid timeout
+    const CHUNK_SIZE = 10;
+    const allResults: any[] = [];
+    let succeeded = 0;
+    let failed = 0;
+    
+    for (let i = 0; i < actorIds.length; i += CHUNK_SIZE) {
+      const chunk = actorIds.slice(i, i + CHUNK_SIZE);
+      try {
+        const result = await bulkEnrichMutation.mutateAsync({ actorIds: chunk });
+        succeeded += result.succeeded;
+        failed += result.failed;
+        allResults.push(...(result.results || []));
+      } catch (err: any) {
+        failed += chunk.length;
+        allResults.push(...chunk.map(id => ({ actorId: id, status: 'failed', error: err?.message })));
+      }
+      setBulkProgress({ current: Math.min(i + CHUNK_SIZE, actorIds.length), total: actorIds.length, results: allResults });
+    }
+    
+    toast.success(`Bulk enrichment complete: ${succeeded} succeeded, ${failed} failed`);
+    setBulkEnriching(false);
+    refetch();
   };
 
   const allActors = listData?.actors ?? [];
@@ -768,6 +794,7 @@ export default function ThreatCatalog() {
               </div>
               <p className="text-sm text-muted-foreground mt-2">
                 Enrich actors below 60% data completeness using LLM-powered keyword search across OSINT sources.
+                Hallucination guardrails validate all LLM output before writing to the database.
               </p>
             </div>
             <div className="p-6">
@@ -778,51 +805,128 @@ export default function ThreatCatalog() {
                 </div>
               ) : incompleteQuery.data ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  {/* Stats + Batch Size Selector */}
+                  <div className="flex items-center justify-between flex-wrap gap-3">
                     <span className="text-sm">
                       <span className="text-violet-400 font-bold">{incompleteQuery.data.total}</span> actors below {incompleteQuery.data.threshold}% completeness
                     </span>
-                    <button
-                      onClick={() => {
-                        const ids = (incompleteQuery.data?.actors || []).slice(0, 20).map((a: any) => a.actorId);
-                        if (ids.length > 0) handleBulkEnrich(ids);
-                      }}
-                      disabled={bulkEnriching || !incompleteQuery.data?.actors?.length}
-                      className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/30 transition-colors disabled:opacity-50"
-                    >
-                      {bulkEnriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                      {bulkEnriching ? 'ENRICHING...' : `ENRICH TOP ${Math.min(20, incompleteQuery.data?.actors?.length || 0)}`}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Batch:</span>
+                        <select
+                          value={batchSize}
+                          onChange={(e) => setBatchSize(Number(e.target.value))}
+                          disabled={bulkEnriching}
+                          className="bg-background border border-border text-xs px-2 py-1 text-foreground"
+                        >
+                          {BATCH_SIZE_OPTIONS.map(size => (
+                            <option key={size} value={size}>{size}</option>
+                          ))}
+                          {incompleteQuery.data.total > 0 && (
+                            <option value={incompleteQuery.data.total}>ALL ({incompleteQuery.data.total})</option>
+                          )}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const ids = (incompleteQuery.data?.actors || []).slice(0, batchSize).map((a: any) => a.actorId);
+                          if (ids.length > 0) handleBulkEnrich(ids);
+                        }}
+                        disabled={bulkEnriching || !incompleteQuery.data?.actors?.length}
+                        className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-display tracking-wider hover:bg-violet-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {bulkEnriching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        {bulkEnriching ? 'ENRICHING...' : `ENRICH ${Math.min(batchSize, incompleteQuery.data?.actors?.length || 0)} ACTORS`}
+                      </button>
+                    </div>
                   </div>
-                  {bulkEnrichMutation.data && (
-                    <div className="p-3 bg-green-500/10 border border-green-500/20 text-sm">
-                      <span className="text-green-400 font-bold">Complete:</span> {bulkEnrichMutation.data.succeeded} succeeded, {bulkEnrichMutation.data.failed} failed
+
+                  {/* Guardrail Info Banner */}
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-xs">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                      <span className="text-blue-400 font-bold">GUARDRAILS ACTIVE</span>
+                    </div>
+                    <span className="text-muted-foreground">
+                      MITRE T-code validation &middot; Source citation verification &middot; Confidence thresholds &middot; Local DB cross-reference &middot; Suspicious source detection
+                    </span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  {bulkProgress && bulkEnriching && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Processing: {bulkProgress.current} / {bulkProgress.total}</span>
+                        <span className="text-violet-400 font-bold">{Math.round((bulkProgress.current / bulkProgress.total) * 100)}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-background rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-violet-500 transition-all duration-500"
+                          style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      {bulkProgress.results.length > 0 && (
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-green-400">{bulkProgress.results.filter((r: any) => r.status === 'success').length} succeeded</span>
+                          <span className="text-red-400">{bulkProgress.results.filter((r: any) => r.status === 'failed').length} failed</span>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <div className="space-y-2 max-h-[40vh] overflow-auto">
-                    {(incompleteQuery.data?.actors || []).slice(0, 30).map((actor: any) => (
-                      <div key={actor.actorId} className="flex items-center justify-between p-3 bg-background/50 border border-border/50">
-                        <div>
-                          <span className="text-sm font-medium">{actor.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">{actor.actorType?.toUpperCase()}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="w-24 h-2 bg-background rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all ${
-                                actor.completeness < 30 ? 'bg-red-500' : actor.completeness < 50 ? 'bg-amber-500' : 'bg-yellow-500'
-                              }`}
-                              style={{ width: `${actor.completeness}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground w-10 text-right">{actor.completeness}%</span>
-                        </div>
+
+                  {/* Completion Summary */}
+                  {bulkProgress && !bulkEnriching && bulkProgress.results.length > 0 && (
+                    <div className="p-3 bg-green-500/10 border border-green-500/20 text-sm">
+                      <span className="text-green-400 font-bold">Complete:</span>{' '}
+                      {bulkProgress.results.filter((r: any) => r.status === 'success').length} succeeded,{' '}
+                      {bulkProgress.results.filter((r: any) => r.status === 'failed').length} failed
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Total fields updated: {bulkProgress.results.reduce((sum: number, r: any) => sum + (r.fieldsUpdated || 0), 0)} &middot;
+                        Fields discovered: {bulkProgress.results.reduce((sum: number, r: any) => sum + (r.fieldsDiscovered || 0), 0)}
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  {/* Actor List */}
+                  <div className="space-y-2 max-h-[35vh] overflow-auto">
+                    {(incompleteQuery.data?.actors || []).slice(0, Math.max(50, batchSize)).map((actor: any, idx: number) => {
+                      const isInBatch = idx < batchSize;
+                      const result = bulkProgress?.results?.find((r: any) => r.actorId === actor.actorId);
+                      return (
+                        <div key={actor.actorId} className={`flex items-center justify-between p-3 border border-border/50 ${
+                          result?.status === 'success' ? 'bg-green-500/5 border-green-500/20' :
+                          result?.status === 'failed' ? 'bg-red-500/5 border-red-500/20' :
+                          isInBatch ? 'bg-background/50' : 'bg-background/20 opacity-50'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {result?.status === 'success' && <span className="text-green-400 text-xs">&#10003;</span>}
+                            {result?.status === 'failed' && <span className="text-red-400 text-xs">&#10007;</span>}
+                            <span className="text-sm font-medium">{actor.name}</span>
+                            <span className="text-xs text-muted-foreground">{actor.actorType?.toUpperCase()}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {result && (
+                              <span className="text-xs text-muted-foreground">
+                                {result.fieldsUpdated || 0}u / {result.fieldsDiscovered || 0}d
+                              </span>
+                            )}
+                            <div className="w-24 h-2 bg-background rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${
+                                  actor.completeness < 30 ? 'bg-red-500' : actor.completeness < 50 ? 'bg-amber-500' : 'bg-yellow-500'
+                                }`}
+                                style={{ width: `${actor.completeness}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground w-10 text-right">{actor.completeness}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {(incompleteQuery.data?.actors || []).length > 30 && (
+                  {(incompleteQuery.data?.total || 0) > Math.max(50, batchSize) && (
                     <p className="text-xs text-muted-foreground text-center">
-                      ...and {(incompleteQuery.data?.total || 0) - 30} more actors below threshold
+                      ...and {(incompleteQuery.data?.total || 0) - Math.max(50, batchSize)} more actors below threshold
                     </p>
                   )}
                 </div>

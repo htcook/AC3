@@ -560,12 +560,31 @@ export async function enrichActorWithKeywords(actorId: string): Promise<Enrichme
     });
   }
 
-  // 8. Determine what fields were updated vs discovered
+  // 8. HALLUCINATION GUARDRAILS — validate LLM output before writing to DB
+  const { applyGuardrails } = await import("./enrichment-guardrails");
+  const guardrailResult = applyGuardrails(parsed, sources, localContext, actor);
+  const { sanitizedData, report: guardrailReport } = guardrailResult;
+
+  // Log guardrail results for audit trail
+  console.log(`[Guardrails] ${actorId}: trust=${guardrailReport.overallTrustScore}%, accepted=${guardrailReport.accepted}, flagged=${guardrailReport.flagged}, rejected=${guardrailReport.rejected}`);
+  if (guardrailReport.warnings.length > 0) {
+    console.log(`[Guardrails] ${actorId} warnings:`, guardrailReport.warnings.join("; "));
+  }
+  if (guardrailReport.rejectedFields.length > 0) {
+    console.log(`[Guardrails] ${actorId} REJECTED fields:`, guardrailReport.rejectedFields.join(", "));
+  }
+
+  // Use sanitized data (rejected fields removed) instead of raw parsed data
+  const validated = sanitizedData;
+
+  // 8b. Determine what fields were updated vs discovered
   const fieldsUpdated: string[] = [];
   const fieldsDiscovered: string[] = [];
 
   const checkField = (field: string, newVal: any, oldVal: any) => {
     if (!newVal || (Array.isArray(newVal) && newVal.length === 0)) return;
+    // Skip fields that were rejected by guardrails
+    if (guardrailReport.rejectedFields.includes(field)) return;
     if (!oldVal || (typeof oldVal === "string" && oldVal.length < 10) || (Array.isArray(oldVal) && oldVal.length === 0)) {
       fieldsDiscovered.push(field);
     } else {
@@ -573,90 +592,104 @@ export async function enrichActorWithKeywords(actorId: string): Promise<Enrichme
     }
   };
 
-  checkField("description", parsed.description, actor.description);
-  checkField("motivation", parsed.motivation, actor.motivation);
-  checkField("origin", parsed.origin, actor.origin);
-  checkField("firstSeen", parsed.firstSeen, actor.firstSeen);
-  checkField("aliases", parsed.aliases, safeArr(actor.aliases));
-  checkField("targetSectors", parsed.targetSectors, safeArr(actor.targetSectors));
-  checkField("targetRegions", parsed.targetRegions, safeArr(actor.targetRegions));
-  checkField("techniques", parsed.techniques, safeArr(actor.techniques));
-  checkField("tools", parsed.tools, safeArr(actor.tools));
-  checkField("malware", parsed.malware, safeArr(actor.malware));
-  checkField("notableAttacks", parsed.notableAttacks, []);
-  checkField("activityTimeline", parsed.activityTimeline, safeArr(actor.activityTimeline));
-  checkField("conflicts", parsed.conflicts, actor.conflicts);
+  checkField("description", validated.description, actor.description);
+  checkField("motivation", validated.motivation, actor.motivation);
+  checkField("origin", validated.origin, actor.origin);
+  checkField("firstSeen", validated.firstSeen, actor.firstSeen);
+  checkField("aliases", validated.aliases, safeArr(actor.aliases));
+  checkField("targetSectors", validated.targetSectors, safeArr(actor.targetSectors));
+  checkField("targetRegions", validated.targetRegions, safeArr(actor.targetRegions));
+  checkField("techniques", validated.techniques, safeArr(actor.techniques));
+  checkField("tools", validated.tools, safeArr(actor.tools));
+  checkField("malware", validated.malware, safeArr(actor.malware));
+  checkField("notableAttacks", validated.notableAttacks, []);
+  checkField("activityTimeline", validated.activityTimeline, safeArr(actor.activityTimeline));
+  checkField("conflicts", validated.conflicts, actor.conflicts);
 
-  // 9. Apply updates to database
+  // 9. Apply updates to database (using guardrail-validated data)
   const updates: Record<string, any> = {};
 
-  if (parsed.description && parsed.description.length > 50) updates.description = parsed.description;
-  if (parsed.motivation && parsed.motivation !== "unknown") updates.motivation = parsed.motivation;
-  if (parsed.origin && parsed.origin !== "Unknown") updates.origin = parsed.origin;
-  if (parsed.firstSeen) updates.firstSeen = parsed.firstSeen;
-  if (parsed.threatLevel) updates.threatLevel = parsed.threatLevel;
-  if (parsed.sophistication) updates.sophistication = parsed.sophistication;
+  if (validated.description && validated.description.length > 50) updates.description = validated.description;
+  if (validated.motivation && validated.motivation !== "unknown") updates.motivation = validated.motivation;
+  if (validated.origin && validated.origin !== "Unknown") updates.origin = validated.origin;
+  if (validated.firstSeen) updates.firstSeen = validated.firstSeen;
+  if (validated.threatLevel) updates.threatLevel = validated.threatLevel;
+  if (validated.sophistication) updates.sophistication = validated.sophistication;
 
-  // Merge arrays (don't overwrite, extend)
-  if (parsed.aliases?.length > 0) {
+  // Merge arrays (don't overwrite, extend) — using guardrail-validated data
+  if (validated.aliases?.length > 0) {
     const existing = safeArr(actor.aliases);
-    const merged = [...new Set([...existing, ...parsed.aliases])];
+    const merged = [...new Set([...existing, ...validated.aliases])];
     updates.aliases = JSON.stringify(merged);
   }
-  if (parsed.targetSectors?.length > 0) {
+  if (validated.targetSectors?.length > 0) {
     const existing = safeArr(actor.targetSectors);
-    const merged = [...new Set([...existing, ...parsed.targetSectors])];
+    const merged = [...new Set([...existing, ...validated.targetSectors])];
     updates.targetSectors = JSON.stringify(merged);
   }
-  if (parsed.targetRegions?.length > 0) {
+  if (validated.targetRegions?.length > 0) {
     const existing = safeArr(actor.targetRegions);
-    const merged = [...new Set([...existing, ...parsed.targetRegions])];
+    const merged = [...new Set([...existing, ...validated.targetRegions])];
     updates.targetRegions = JSON.stringify(merged);
   }
-  if (parsed.techniques?.length > 0) {
+  if (validated.techniques?.length > 0) {
     const existing = safeArr(actor.techniques);
     const existingIds = new Set(existing.map((t: any) => t.id));
-    const newTechs = parsed.techniques.filter((t: any) => !existingIds.has(t.id));
+    const newTechs = validated.techniques.filter((t: any) => !existingIds.has(t.id));
     if (newTechs.length > 0) {
       updates.techniques = JSON.stringify([...existing, ...newTechs]);
     }
   }
-  if (parsed.tools?.length > 0) {
+  if (validated.tools?.length > 0) {
     const existing = safeArr(actor.tools);
-    const merged = [...new Set([...existing, ...parsed.tools])];
+    const merged = [...new Set([...existing, ...validated.tools])];
     updates.tools = JSON.stringify(merged);
   }
-  if (parsed.malware?.length > 0) {
+  if (validated.malware?.length > 0) {
     const existing = safeArr(actor.malware);
-    const merged = [...new Set([...existing, ...parsed.malware])];
+    const merged = [...new Set([...existing, ...validated.malware])];
     updates.malware = JSON.stringify(merged);
   }
-  if (parsed.activityTimeline?.length > 0) {
+  if (validated.activityTimeline?.length > 0) {
     const existing = safeArr(actor.activityTimeline);
     // Deduplicate by date+event
     const existingKeys = new Set(existing.map((e: any) => `${e.date}|${e.event}`));
-    const newEntries = parsed.activityTimeline.filter((e: any) => !existingKeys.has(`${e.date}|${e.event}`));
+    const newEntries = validated.activityTimeline.filter((e: any) => !existingKeys.has(`${e.date}|${e.event}`));
     if (newEntries.length > 0) {
       updates.activityTimeline = JSON.stringify([...existing, ...newEntries]);
     }
   }
-  if (parsed.conflicts?.length > 0) {
+  if (validated.conflicts?.length > 0) {
     const existingConflicts = actor.conflicts ? actor.conflicts.split(",").map((c: string) => c.trim()) : [];
-    const merged = [...new Set([...existingConflicts, ...parsed.conflicts])].filter(Boolean);
+    const merged = [...new Set([...existingConflicts, ...validated.conflicts])].filter(Boolean);
     updates.conflicts = merged.join(", ");
   }
 
   // Update lastActive only if newer
-  if (parsed.lastActive) {
-    if (!actor.lastActive || parsed.lastActive > actor.lastActive) {
-      updates.lastActive = parsed.lastActive;
+  if (validated.lastActive) {
+    if (!actor.lastActive || validated.lastActive > actor.lastActive) {
+      updates.lastActive = validated.lastActive;
     }
   }
 
-  // Store enrichment sources
-  updates.enrichmentSources = JSON.stringify(sources);
+  // Store enrichment sources + guardrail report
+  updates.enrichmentSources = JSON.stringify({
+    sources,
+    guardrailReport: {
+      overallTrustScore: guardrailReport.overallTrustScore,
+      accepted: guardrailReport.accepted,
+      flagged: guardrailReport.flagged,
+      rejected: guardrailReport.rejected,
+      warnings: guardrailReport.warnings,
+      rejectedFields: guardrailReport.rejectedFields,
+      flaggedFields: guardrailReport.flaggedFields,
+      verdicts: guardrailReport.verdicts,
+    },
+  });
   updates.dataSource = "keyword_enriched";
-  updates.confidence = Math.min(95, Math.max(parsed.dataQualityScore || 70, actor.confidence || 0));
+  // Adjust confidence based on guardrail trust score
+  const guardrailAdjustedQuality = Math.round((parsed.dataQualityScore || 70) * (guardrailReport.overallTrustScore / 100));
+  updates.confidence = Math.min(95, Math.max(guardrailAdjustedQuality, actor.confidence || 0));
 
   if (Object.keys(updates).length > 0) {
     await db.update(threatActors).set(updates).where(eq(threatActors.actorId, actorId));
@@ -669,27 +702,28 @@ export async function enrichActorWithKeywords(actorId: string): Promise<Enrichme
     fieldsDiscovered,
     sources,
     enrichedData: {
-      description: parsed.description,
-      motivation: parsed.motivation,
-      origin: parsed.origin,
-      firstSeen: parsed.firstSeen,
-      lastActive: parsed.lastActive,
-      aliases: parsed.aliases,
-      targetSectors: parsed.targetSectors,
-      targetRegions: parsed.targetRegions,
-      techniques: parsed.techniques,
-      tools: parsed.tools,
-      malware: parsed.malware,
-      notableAttacks: parsed.notableAttacks,
-      activityTimeline: parsed.activityTimeline,
-      conflicts: parsed.conflicts,
-      threatLevel: parsed.threatLevel,
-      sophistication: parsed.sophistication,
-      activityScore: parsed.activityScore,
-      trend: parsed.trend,
+      description: validated.description,
+      motivation: validated.motivation,
+      origin: validated.origin,
+      firstSeen: validated.firstSeen,
+      lastActive: validated.lastActive,
+      aliases: validated.aliases,
+      targetSectors: validated.targetSectors,
+      targetRegions: validated.targetRegions,
+      techniques: validated.techniques,
+      tools: validated.tools,
+      malware: validated.malware,
+      notableAttacks: validated.notableAttacks,
+      activityTimeline: validated.activityTimeline,
+      conflicts: validated.conflicts,
+      threatLevel: validated.threatLevel,
+      sophistication: validated.sophistication,
+      activityScore: validated.activityScore,
+      trend: validated.trend,
+      guardrailReport: guardrailReport,
     },
     summary: parsed.summary || `Enriched ${fieldsDiscovered.length} new fields and updated ${fieldsUpdated.length} existing fields`,
-    dataQualityScore: parsed.dataQualityScore || 0,
+    dataQualityScore: guardrailAdjustedQuality,
   };
 }
 

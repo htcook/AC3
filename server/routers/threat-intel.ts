@@ -596,11 +596,11 @@ export const threatIntelRouter = router({
 
   // ─── Incomplete Actors (below completeness threshold) ──────────────────
   incompleteActors: protectedProcedure
-    .input(z.object({ threshold: z.number().min(0).max(100).default(60), limit: z.number().default(50) }).optional())
+    .input(z.object({ threshold: z.number().min(0).max(100).default(60), limit: z.number().default(2000) }).optional())
     .query(async ({ input }) => {
       const db = await requireDb();
       const threshold = input?.threshold ?? 60;
-      const limit = input?.limit ?? 50;
+      const limit = input?.limit ?? 2000;
       const actors = await db.select().from(threatActors);
       const scored = actors.map(a => {
         const fields = [
@@ -629,7 +629,7 @@ export const threatIntelRouter = router({
   // ─── Bulk Enrich ──────────────────────────────────────────────────────
   bulkEnrich: protectedProcedure
     .input(z.object({
-      actorIds: z.array(z.string()).min(1).max(50),
+      actorIds: z.array(z.string()).min(1).max(2000),
     }))
     .mutation(async ({ input }) => {
       const db = await requireDb();
