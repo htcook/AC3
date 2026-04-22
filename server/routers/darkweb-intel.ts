@@ -1561,7 +1561,10 @@ export const darkwebIntelRouter = router({
       if (!db) return {
         monthlyVolume: [], sectorShifts: [], accessTypeDistribution: [],
         priceEvolution: [], topBrokersRanked: [], govTargetingTrend: [],
+        sectorTrendData: {} as Record<string, Array<{month: string; listings: number}>>,
+        allSectorsList: [] as string[],
         summary: { totalListings: 0, activeBrokers: 0, avgPrice: 0, govListings: 0, topSector: '', topAccessType: '' },
+        topSectors: [] as string[],
       };
       const days = input?.days ?? 365;
       const cutoff = new Date(Date.now() - days * 86400000).toISOString();
@@ -1647,19 +1650,33 @@ export const darkwebIntelRouter = router({
         listings: r.count,
       }));
 
-      // 5. Top brokers ranked — by listing count with price and sector info
+      // 5. Top brokers ranked — by listing count with price, ALL sectors, and type info
       const topBrokersRaw = await db.select({
         brokerId: accessBrokerListings.brokerId,
         brokerName: accessBrokerListings.brokerName,
         count: count(),
         avgPrice: sql<number>`AVG(CAST(NULLIF(${accessBrokerListings.askingPrice}, '0') AS DECIMAL))`,
         reputation: accessBrokerListings.brokerReputation,
-        topSector: sql<string>`(SELECT victimSector FROM access_broker_listings abl2 WHERE abl2.brokerId = access_broker_listings.brokerId GROUP BY victimSector ORDER BY COUNT(*) DESC LIMIT 1)`,
         topType: sql<string>`(SELECT listingType FROM access_broker_listings abl3 WHERE abl3.brokerId = access_broker_listings.brokerId GROUP BY listingType ORDER BY COUNT(*) DESC LIMIT 1)`,
       }).from(accessBrokerListings)
         .groupBy(accessBrokerListings.brokerId, accessBrokerListings.brokerName, accessBrokerListings.brokerReputation)
         .orderBy(sql`COUNT(*) DESC`)
         .limit(15);
+
+      // Gather all sectors per broker
+      const brokerSectorsRaw = await db.execute(
+        sql`SELECT brokerId, GROUP_CONCAT(DISTINCT victimSector SEPARATOR '|||') as allSectors FROM access_broker_listings WHERE brokerId IN (${sql.join(topBrokersRaw.map(b => sql`${b.brokerId}`), sql`,`)}) AND victimSector IS NOT NULL GROUP BY brokerId`
+      ).then(r => (r as any)[0] as Array<{brokerId: string; allSectors: string}>);
+      const brokerSectorMap: Record<string, string[]> = {};
+      for (const row of brokerSectorsRaw) {
+        const sectors = new Set<string>();
+        for (const chunk of (row.allSectors || '').split('|||')) {
+          for (const s of chunk.split(',').map(x => x.trim()).filter(Boolean)) {
+            sectors.add(s);
+          }
+        }
+        brokerSectorMap[row.brokerId] = Array.from(sectors);
+      }
 
       const topBrokersRanked = topBrokersRaw.map(r => ({
         brokerId: r.brokerId,
@@ -1667,11 +1684,18 @@ export const darkwebIntelRouter = router({
         listings: r.count,
         avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
         reputation: r.reputation,
-        topSector: r.topSector,
+        sectors: brokerSectorMap[r.brokerId] || [],
+        topSector: (brokerSectorMap[r.brokerId] || [])[0] || null,
         topType: TYPE_LABELS[r.topType || ''] || r.topType,
       }));
 
-      // 6. Gov-targeting trend — monthly gov-related listings
+      // 6. Sector-targeting trend — monthly listings per sector (all sectors, not just gov)
+      // Build per-sector monthly data from the already-computed sectorMonthMap
+      const allSectorsList = Object.entries(sectorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([s]) => s);
+
+      // Still compute gov trend for backward compat
       const govMonthly = await db.execute(
         sql`SELECT DATE_FORMAT(postedAt, '%Y-%m') as month, COUNT(*) as count, AVG(CAST(NULLIF(askingPrice, '0') AS DECIMAL)) as avgPrice FROM access_broker_listings WHERE postedAt >= ${cutoff} AND postedAt IS NOT NULL AND (victimSector LIKE '%gov%' OR victimSector LIKE '%Government%' OR victimSector LIKE '%federal%' OR victimSector LIKE '%defense%' OR victimSector LIKE '%military%' OR victimSector LIKE '%Defense%' OR victimSector LIKE '%Military%') GROUP BY DATE_FORMAT(postedAt, '%Y-%m') ORDER BY month`
       ).then(r => (r as any)[0] as Array<{month: string; count: number; avgPrice: number | null}>);
@@ -1681,6 +1705,18 @@ export const darkwebIntelRouter = router({
         listings: r.count,
         avgPrice: r.avgPrice ? Math.round(r.avgPrice) : null,
       }));
+
+      // Build per-sector monthly trend data for the selectable sector chart
+      const sectorTrendData: Record<string, Array<{month: string; listings: number}>> = {};
+      for (const sector of allSectorsList) {
+        sectorTrendData[sector] = Object.entries(sectorMonthMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, sectors]) => ({
+            month,
+            listings: sectors[sector] || 0,
+          }))
+          .filter(d => d.listings > 0 || true); // keep all months for chart continuity
+      }
 
       // Summary stats
       const totalListings = monthlyVolume.reduce((sum, m) => sum + m.listings, 0) || accessTypes.reduce((sum, t) => sum + t.count, 0);
@@ -1698,6 +1734,8 @@ export const darkwebIntelRouter = router({
         priceEvolution,
         topBrokersRanked,
         govTargetingTrend,
+        sectorTrendData,
+        allSectorsList,
         summary: { totalListings, activeBrokers, avgPrice, govListings, topSector, topAccessType },
         topSectors,
       };

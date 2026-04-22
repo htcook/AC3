@@ -242,15 +242,22 @@ export default function BreachEventDetailModal({
                           <p className="text-white">{event.victimName || "—"}</p>
                         </div>
                       )}
-                      {(event.victimSector || event.sector) && (
-                        <div>
-                          <span className="text-muted-foreground text-xs">Sector</span>
-                          <p className="text-white flex items-center gap-1">
-                            <Building2 className="h-3 w-3 text-muted-foreground" />
-                            {event.victimSector || event.sector}
-                          </p>
-                        </div>
-                      )}
+                      {(event.victimSector || event.sector) && (() => {
+                        const sectorStr = String(event.victimSector || event.sector);
+                        const sectors = sectorStr.split(/,\s*/).filter(Boolean);
+                        return (
+                          <div>
+                            <span className="text-muted-foreground text-xs">Sector{sectors.length > 1 ? "s" : ""}</span>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {sectors.map((s: string, i: number) => (
+                                <span key={i} className="text-xs px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300 flex items-center gap-1">
+                                  {i === 0 && <Building2 className="h-3 w-3" />}{s.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {(event.victimCountry || event.country) && (
                         <div>
                           <span className="text-muted-foreground text-xs">Country</span>
@@ -580,11 +587,14 @@ export default function BreachEventDetailModal({
                                 <Target className="h-2.5 w-2.5" /> {re.victimName}
                               </span>
                             )}
-                            {re.victimSector && (
-                              <span className="flex items-center gap-1">
-                                <Building2 className="h-2.5 w-2.5" /> {re.victimSector}
-                              </span>
-                            )}
+                            {re.victimSector && (() => {
+                              const sectors = String(re.victimSector).split(/,\s*/).filter(Boolean);
+                              return sectors.map((s: string, i: number) => (
+                                <span key={i} className="flex items-center gap-1">
+                                  {i === 0 && <Building2 className="h-2.5 w-2.5" />}{s.trim()}
+                                </span>
+                              ));
+                            })()}
                             {re.victimCountry && (
                               <span className="flex items-center gap-1">
                                 <Globe className="h-2.5 w-2.5" /> {re.victimCountry}

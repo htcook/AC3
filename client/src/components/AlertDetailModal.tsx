@@ -181,8 +181,12 @@ export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertD
                       )}
                       {event.victimSector && (
                         <div>
-                          <div className="text-[9px] text-muted-foreground tracking-wider mb-0.5">SECTOR</div>
-                          <div className="text-sm">{event.victimSector}</div>
+                          <div className="text-[9px] text-muted-foreground tracking-wider mb-0.5">SECTOR{String(event.victimSector).includes(",") ? "S" : ""}</div>
+                          <div className="flex flex-wrap gap-1">
+                            {String(event.victimSector).split(/,\s*/).filter(Boolean).map((s: string, i: number) => (
+                              <span key={i} className="text-xs px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300">{s.trim()}</span>
+                            ))}
+                          </div>
                         </div>
                       )}
                       {event.victimCountry && (
@@ -355,7 +359,13 @@ export default function AlertDetailModal({ open, onOpenChange, eventId }: AlertD
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            {listing.victimSector && <span className="text-muted-foreground">{listing.victimSector}</span>}
+                            {listing.victimSector && (
+                              <div className="flex flex-wrap gap-0.5">
+                                {String(listing.victimSector).split(/,\s*/).filter(Boolean).map((s: string, i: number) => (
+                                  <span key={i} className="text-[9px] px-1 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300">{s.trim()}</span>
+                                ))}
+                              </div>
+                            )}
                             {listing.askingPrice && (
                               <span className="text-green-400 font-mono">${listing.askingPrice}</span>
                             )}

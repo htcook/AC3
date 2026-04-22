@@ -115,6 +115,7 @@ export default function DarkwebIntel() {
   const { data: brokerTimeline, isLoading: timelineLoading } = trpc.darkwebIntel.brokerTimeline.useQuery({ days: timelineDays });
   const [trendDays, setTrendDays] = useState(365);
   const { data: iabTrends, isLoading: trendsLoading } = trpc.darkwebIntel.iabTrends.useQuery({ days: trendDays });
+  const [selectedTrendSectors, setSelectedTrendSectors] = useState<string[]>(['Government']);
 
   // ─── Priority Intelligence queries ─────────────────────────────────────────
   const { data: prioritySummary, isLoading: priorityLoading, refetch: refetchPriority } = trpc.darkwebIntel.iabPrioritySummary.useQuery();
@@ -970,16 +971,24 @@ export default function DarkwebIntel() {
                         {!isExpanded && (
                           <div className="flex flex-wrap gap-1.5 ml-5">
                             <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                              <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "—"}
+                              <Key className="w-2.5 h-2.5 inline mr-1" />{iab.accessType || iab.listingType?.replace(/_/g, " ") || "\u2014"}
                             </span>
                             {iab.forumSource && (
                               <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
                                 <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
                               </span>
                             )}
-                            {iab.victimSector && (
+                            {iab.victimSector && (() => {
+                              const sectors = String(iab.victimSector).split(/,\s*/).filter(Boolean);
+                              return sectors.map((sector: string, idx: number) => (
+                                <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                  {idx === 0 && <Crosshair className="w-2.5 h-2.5 inline mr-1" />}{sector.trim()}
+                                </span>
+                              ));
+                            })()}
+                            {(firstSeen || lastActive) && (
                               <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                                <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
+                                <Clock className="w-2.5 h-2.5 inline mr-1" />{firstSeen || "?"} \u2192 {lastActive || "present"}
                               </span>
                             )}
                           </div>
@@ -1016,8 +1025,18 @@ export default function DarkwebIntel() {
                             {/* Victim Info */}
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                               <div className="bg-muted/30 border border-border p-2">
-                                <div className="text-[9px] text-muted-foreground">VICTIM SECTOR</div>
-                                <div className="text-[11px] text-foreground">{iab.victimSector || "—"}</div>
+                                <div className="text-[9px] text-muted-foreground">VICTIM SECTOR{iab.victimSector && String(iab.victimSector).includes(",") ? "S" : ""}</div>
+                                {iab.victimSector ? (
+                                  <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {String(iab.victimSector).split(/,\s*/).filter(Boolean).map((sector: string, idx: number) => (
+                                      <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300">
+                                        {sector.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-foreground">\u2014</div>
+                                )}
                               </div>
                               <div className="bg-muted/30 border border-border p-2">
                                 <div className="text-[9px] text-muted-foreground">VICTIM COUNTRY</div>
@@ -1075,11 +1094,14 @@ export default function DarkwebIntel() {
                                   <Globe2 className="w-2.5 h-2.5 inline mr-1" />{iab.forumSource}
                                 </span>
                               )}
-                              {iab.victimSector && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
-                                  <Crosshair className="w-2.5 h-2.5 inline mr-1" />{iab.victimSector}
-                                </span>
-                              )}
+                              {iab.victimSector && (() => {
+                                const sectors = String(iab.victimSector).split(/,\s*/).filter(Boolean);
+                                return sectors.map((sector: string, idx: number) => (
+                                  <span key={idx} className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
+                                    {idx === 0 && <Crosshair className="w-2.5 h-2.5 inline mr-1" />}{sector.trim()}
+                                  </span>
+                                ));
+                              })()}
                               {confidence != null && (
                                 <span className="text-[9px] px-1.5 py-0.5 bg-muted/50 border border-border text-muted-foreground">
                                   CONF: {confidence}%
@@ -1685,29 +1707,86 @@ export default function DarkwebIntel() {
                         )}
                       </div>
 
-                      {/* Gov Targeting Trend */}
-                      {iabTrends.govTargetingTrend.length > 0 && (
-                        <div className="border border-red-500/20 p-3">
-                          <h4 className="text-[10px] font-display tracking-wider text-red-400/80 mb-2 flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3" /> GOVERNMENT TARGETING TREND
+                      {/* Sector Targeting Trend — selectable sectors */}
+                      {iabTrends.allSectorsList && iabTrends.allSectorsList.length > 0 && (
+                        <div className="border border-orange-500/20 p-3">
+                          <h4 className="text-[10px] font-display tracking-wider text-orange-400/80 mb-2 flex items-center gap-1">
+                            <Crosshair className="w-3 h-3" /> SECTOR TARGETING TREND
                           </h4>
-                          <div className="h-36">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={iabTrends.govTargetingTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
-                                <YAxis tick={{ fontSize: 10, fill: '#888' }} />
-                                <Tooltip
-                                  contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }}
-                                  formatter={(value: any, name: string) => [
-                                    name === 'avgPrice' ? `$${Number(value).toLocaleString()}` : value,
-                                    name === 'listings' ? 'Gov Listings' : 'Avg Price'
-                                  ]}
-                                />
-                                <Bar dataKey="listings" fill="#ef4444" fillOpacity={0.6} radius={[2, 2, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
+                          {/* Selectable sector pills */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {iabTrends.allSectorsList.map((sector: string, i: number) => {
+                              const isSelected = selectedTrendSectors.includes(sector);
+                              const colors = [
+                                'border-red-500/40 bg-red-500/20 text-red-300',
+                                'border-blue-500/40 bg-blue-500/20 text-blue-300',
+                                'border-amber-500/40 bg-amber-500/20 text-amber-300',
+                                'border-emerald-500/40 bg-emerald-500/20 text-emerald-300',
+                                'border-purple-500/40 bg-purple-500/20 text-purple-300',
+                                'border-cyan-500/40 bg-cyan-500/20 text-cyan-300',
+                                'border-pink-500/40 bg-pink-500/20 text-pink-300',
+                                'border-orange-500/40 bg-orange-500/20 text-orange-300',
+                              ];
+                              return (
+                                <button
+                                  key={sector}
+                                  onClick={() => {
+                                    setSelectedTrendSectors(prev =>
+                                      prev.includes(sector)
+                                        ? prev.filter(s => s !== sector)
+                                        : [...prev, sector]
+                                    );
+                                  }}
+                                  className={`text-[9px] px-1.5 py-0.5 border transition-all cursor-pointer ${
+                                    isSelected
+                                      ? colors[i % colors.length]
+                                      : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                                  }`}
+                                >
+                                  {sector}
+                                </button>
+                              );
+                            })}
                           </div>
+                          {/* Chart for selected sectors */}
+                          {selectedTrendSectors.length > 0 && iabTrends.sectorTrendData && (() => {
+                            // Merge selected sector data into unified chart data
+                            const months = new Set<string>();
+                            for (const sector of selectedTrendSectors) {
+                              const data = (iabTrends.sectorTrendData as Record<string, Array<{month: string; listings: number}>>)[sector];
+                              if (data) data.forEach(d => months.add(d.month));
+                            }
+                            const sortedMonths = Array.from(months).sort();
+                            const chartData = sortedMonths.map(month => {
+                              const point: Record<string, any> = { month };
+                              for (const sector of selectedTrendSectors) {
+                                const data = (iabTrends.sectorTrendData as Record<string, Array<{month: string; listings: number}>>)[sector];
+                                const found = data?.find(d => d.month === month);
+                                point[sector] = found?.listings || 0;
+                              }
+                              return point;
+                            });
+                            const sectorColors = ['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
+                            return (
+                              <div className="h-40">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#888' }} />
+                                    <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+                                    <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid #333', fontSize: 11 }} />
+                                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                                    {selectedTrendSectors.map((sector, idx) => (
+                                      <Bar key={sector} dataKey={sector} fill={sectorColors[iabTrends.allSectorsList.indexOf(sector) % sectorColors.length]} fillOpacity={0.7} radius={[2, 2, 0, 0]} />
+                                    ))}
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                            );
+                          })()}
+                          {selectedTrendSectors.length === 0 && (
+                            <p className="text-[10px] text-muted-foreground text-center py-4">Select one or more sectors above to view targeting trends</p>
+                          )}
                         </div>
                       )}
 
@@ -1725,7 +1804,7 @@ export default function DarkwebIntel() {
                                   <th className="text-left py-1.5 px-2">Broker</th>
                                   <th className="text-right py-1.5 px-2">Listings</th>
                                   <th className="text-right py-1.5 px-2">Avg Price</th>
-                                  <th className="text-left py-1.5 px-2">Top Sector</th>
+                                  <th className="text-left py-1.5 px-2">Sectors</th>
                                   <th className="text-left py-1.5 px-2">Top Type</th>
                                   <th className="text-left py-1.5 px-2">Rep</th>
                                 </tr>
@@ -1739,7 +1818,17 @@ export default function DarkwebIntel() {
                                     <td className="py-1.5 px-2 text-right font-mono text-amber-400">
                                       {b.avgPrice ? `$${b.avgPrice.toLocaleString()}` : 'N/A'}
                                     </td>
-                                    <td className="py-1.5 px-2 text-muted-foreground truncate max-w-[120px]">{b.topSector || 'N/A'}</td>
+                                    <td className="py-1.5 px-2">
+                                      {b.sectors && (b.sectors as string[]).length > 0 ? (
+                                        <div className="flex flex-wrap gap-0.5 max-w-[200px]">
+                                          {(b.sectors as string[]).map((s: string, si: number) => (
+                                            <span key={si} className="text-[8px] px-1 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300 whitespace-nowrap">{s}</span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span className="text-muted-foreground">{b.topSector || 'N/A'}</span>
+                                      )}
+                                    </td>
                                     <td className="py-1.5 px-2 text-muted-foreground">{b.topType || 'N/A'}</td>
                                     <td className="py-1.5 px-2">
                                       <span className={`text-[10px] px-1 py-0.5 border ${
@@ -1920,18 +2009,18 @@ export default function DarkwebIntel() {
                       <Loader2 className="w-4 h-4 animate-spin" /> Loading priority listings...
                     </div>
                   ) : priorityListings && priorityListings.listings.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                    <div className="overflow-x-auto -mx-3 px-3">
+                      <table className="text-xs" style={{ minWidth: '900px', width: '100%' }}>
                         <thead>
                           <tr className="border-b border-border text-muted-foreground">
-                            <th className="text-left py-2 px-2 w-16">Priority</th>
-                            <th className="text-left py-2 px-2 w-12">Score</th>
-                            <th className="text-left py-2 px-2">Broker</th>
-                            <th className="text-left py-2 px-2">Victim / Target</th>
-                            <th className="text-left py-2 px-2">Sector</th>
-                            <th className="text-left py-2 px-2">Access Type</th>
-                            <th className="text-left py-2 px-2">Tags</th>
-                            <th className="text-left py-2 px-2">Source</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '80px' }}>Priority</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '50px' }}>Score</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '130px' }}>Broker</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '100px' }}>Victim / Target</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '180px' }}>Sector</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '110px' }}>Access Type</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '160px' }}>Tags</th>
+                            <th className="text-left py-2 px-2 whitespace-nowrap" style={{ width: '120px' }}>Source</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1940,8 +2029,8 @@ export default function DarkwebIntel() {
                             try { tags = typeof listing.priority_tags === 'string' ? JSON.parse(listing.priority_tags) : listing.priority_tags || {}; } catch {}
                             return (
                               <tr key={listing.id} className="border-b border-border/50 hover:bg-muted/30">
-                                <td className="py-2 px-2">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                <td className="py-2 px-2 align-top">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase whitespace-nowrap ${
                                     listing.priority_level === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
                                     listing.priority_level === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
                                     listing.priority_level === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
@@ -1950,17 +2039,25 @@ export default function DarkwebIntel() {
                                     {listing.priority_level}
                                   </span>
                                 </td>
-                                <td className="py-2 px-2 font-mono text-muted-foreground">{listing.priority_score}</td>
-                                <td className="py-2 px-2 font-medium text-foreground">{listing.brokerName || 'Unknown'}</td>
-                                <td className="py-2 px-2 text-foreground/80">{listing.victimCountry || '—'}</td>
-                                <td className="py-2 px-2 text-muted-foreground">{listing.victimSector || '—'}</td>
-                                <td className="py-2 px-2">
-                                  <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{listing.accessType || '—'}</span>
+                                <td className="py-2 px-2 font-mono text-muted-foreground align-top">{listing.priority_score}</td>
+                                <td className="py-2 px-2 font-medium text-foreground align-top">{listing.brokerName || 'Unknown'}</td>
+                                <td className="py-2 px-2 text-foreground/80 align-top">{listing.victimCountry || '\u2014'}</td>
+                                <td className="py-2 px-2 text-muted-foreground align-top">
+                                  {listing.victimSector ? (
+                                    <div className="flex flex-wrap gap-0.5">
+                                      {String(listing.victimSector).split(/,\s*/).filter(Boolean).map((s: string, i: number) => (
+                                        <span key={i} className="text-[9px] px-1 py-0.5 bg-orange-500/10 border border-orange-500/20 text-orange-300 whitespace-nowrap">{s.trim()}</span>
+                                      ))}
+                                    </div>
+                                  ) : '\u2014'}
                                 </td>
-                                <td className="py-2 px-2">
+                                <td className="py-2 px-2 align-top">
+                                  <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] whitespace-nowrap">{listing.accessType || '\u2014'}</span>
+                                </td>
+                                <td className="py-2 px-2 align-top">
                                   <div className="flex gap-1 flex-wrap">
                                     {(tags.tags || []).map((t: string, i: number) => (
-                                      <span key={i} className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                                      <span key={i} className={`px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap ${
                                         t === 'US Government' ? 'bg-red-500/20 text-red-300' :
                                         t === 'ICS/SCADA' ? 'bg-yellow-500/20 text-yellow-300' :
                                         t === 'Defense Contractor' ? 'bg-orange-500/20 text-orange-300' :
@@ -1969,7 +2066,7 @@ export default function DarkwebIntel() {
                                     ))}
                                   </div>
                                 </td>
-                                <td className="py-2 px-2 text-[10px] text-muted-foreground/60">{listing.iabDataSource || '—'}</td>
+                                <td className="py-2 px-2 text-[10px] text-muted-foreground/60 align-top">{listing.iabDataSource || '\u2014'}</td>
                               </tr>
                             );
                           })}
