@@ -1048,6 +1048,14 @@ async function startServer() {
         console.warn("[BountyIntel] Failed to initialize bounty intel scheduler:", err);
       });
 
+      // Initialize Catalog Enrichment Scheduler (daily at 03:00 UTC, 10 lowest-completeness actors)
+      import("../lib/catalog-enrichment-scheduler").then(({ startCatalogEnrichmentScheduler }) => {
+        startCatalogEnrichmentScheduler();
+        console.log("[CatalogEnrichScheduler] Daily threat actor enrichment scheduler initialized");
+      }).catch((err) => {
+        console.warn("[CatalogEnrichScheduler] Failed to initialize catalog enrichment scheduler:", err);
+      });
+
       // Initialize CISA KEV Catalog Refresh (daily at 03:00 UTC)
       import("../lib/kev-refresh-scheduler").then(({ initKEVRefreshScheduler }) => {
         initKEVRefreshScheduler();

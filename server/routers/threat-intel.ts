@@ -834,6 +834,264 @@ export const threatIntelRouter = router({
       return { stix: JSON.stringify(bundle, null, 2), actorCount: actors.length, objectCount: stixObjects.length };
     }),
 
+  // ─── Catalog Enrichment Scheduler ─────────────────────────────────
+  catalogEnrichmentStatus: protectedProcedure
+    .query(async () => {
+      const { getCatalogEnrichmentStatus } = await import("../lib/catalog-enrichment-scheduler");
+      return getCatalogEnrichmentStatus();
+    }),
+
+  catalogEnrichmentTrigger: protectedProcedure
+    .input(z.object({
+      batchSize: z.number().min(1).max(100).optional(),
+      completenessThreshold: z.number().min(0).max(100).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { runCatalogEnrichment, isEnrichmentSchedulerRunning } = await import("../lib/catalog-enrichment-scheduler");
+      if (isEnrichmentSchedulerRunning()) {
+        throw new TRPCError({ code: "CONFLICT", message: "Enrichment is already running" });
+      }
+      // Run in background, return immediately
+      const promise = runCatalogEnrichment("manual", input?.batchSize, input?.completenessThreshold);
+      promise.catch(() => {}); // prevent unhandled rejection
+      return { started: true, message: "Enrichment started in background" };
+    }),
+
+  catalogEnrichmentConfig: protectedProcedure
+    .input(z.object({
+      batchSize: z.number().min(1).max(100).optional(),
+      completenessThreshold: z.number().min(0).max(100).optional(),
+      cronHourUtc: z.number().min(0).max(23).optional(),
+      cronMinuteUtc: z.number().min(0).max(59).optional(),
+      enabled: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { updateCatalogEnrichmentConfig } = await import("../lib/catalog-enrichment-scheduler");
+      return updateCatalogEnrichmentConfig(input);
+    }),
+
+  // ─── Guardrail Threshold Tuning ──────────────────────────────────────
+  guardrailConfig: protectedProcedure
+    .query(async () => {
+      const { GUARDRAIL_CONFIG } = await import("../lib/enrichment-guardrails");
+      return {
+        confidenceAcceptThreshold: GUARDRAIL_CONFIG.CONFIDENCE_ACCEPT_THRESHOLD,
+        confidenceRejectThreshold: GUARDRAIL_CONFIG.CONFIDENCE_REJECT_THRESHOLD,
+        llmOnlyMinConfidence: GUARDRAIL_CONFIG.LLM_ONLY_MIN_CONFIDENCE,
+        maxAliases: GUARDRAIL_CONFIG.MAX_ALIASES,
+        maxTechniques: GUARDRAIL_CONFIG.MAX_TECHNIQUES,
+        maxTools: GUARDRAIL_CONFIG.MAX_TOOLS,
+        maxNotableAttacks: GUARDRAIL_CONFIG.MAX_NOTABLE_ATTACKS,
+        maxTimelineEntries: GUARDRAIL_CONFIG.MAX_TIMELINE_ENTRIES,
+        minDescriptionLength: GUARDRAIL_CONFIG.MIN_DESCRIPTION_LENGTH,
+        mitreValidation: true,
+        sourceCitationCheck: true,
+        localDbCrossRef: true,
+        suspiciousSourceDetection: true,
+      };
+    }),
+
+  guardrailConfigUpdate: protectedProcedure
+    .input(z.object({
+      confidenceAcceptThreshold: z.number().min(0).max(100).optional(),
+      confidenceRejectThreshold: z.number().min(0).max(100).optional(),
+      llmOnlyMinConfidence: z.number().min(0).max(100).optional(),
+      maxAliases: z.number().min(1).max(200).optional(),
+      maxTechniques: z.number().min(1).max(200).optional(),
+      maxTools: z.number().min(1).max(200).optional(),
+      maxNotableAttacks: z.number().min(1).max(200).optional(),
+      maxTimelineEntries: z.number().min(1).max(500).optional(),
+      minDescriptionLength: z.number().min(0).max(500).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const guardrails = await import("../lib/enrichment-guardrails");
+      const config = guardrails.GUARDRAIL_CONFIG;
+      if (input.confidenceAcceptThreshold !== undefined) config.CONFIDENCE_ACCEPT_THRESHOLD = input.confidenceAcceptThreshold;
+      if (input.confidenceRejectThreshold !== undefined) config.CONFIDENCE_REJECT_THRESHOLD = input.confidenceRejectThreshold;
+      if (input.llmOnlyMinConfidence !== undefined) config.LLM_ONLY_MIN_CONFIDENCE = input.llmOnlyMinConfidence;
+      if (input.maxAliases !== undefined) config.MAX_ALIASES = input.maxAliases;
+      if (input.maxTechniques !== undefined) config.MAX_TECHNIQUES = input.maxTechniques;
+      if (input.maxTools !== undefined) config.MAX_TOOLS = input.maxTools;
+      if (input.maxNotableAttacks !== undefined) config.MAX_NOTABLE_ATTACKS = input.maxNotableAttacks;
+      if (input.maxTimelineEntries !== undefined) config.MAX_TIMELINE_ENTRIES = input.maxTimelineEntries;
+      if (input.minDescriptionLength !== undefined) config.MIN_DESCRIPTION_LENGTH = input.minDescriptionLength;
+      return {
+        confidenceAcceptThreshold: config.CONFIDENCE_ACCEPT_THRESHOLD,
+        confidenceRejectThreshold: config.CONFIDENCE_REJECT_THRESHOLD,
+        llmOnlyMinConfidence: config.LLM_ONLY_MIN_CONFIDENCE,
+        maxAliases: config.MAX_ALIASES,
+        maxTechniques: config.MAX_TECHNIQUES,
+        maxTools: config.MAX_TOOLS,
+        maxNotableAttacks: config.MAX_NOTABLE_ATTACKS,
+        maxTimelineEntries: config.MAX_TIMELINE_ENTRIES,
+        minDescriptionLength: config.MIN_DESCRIPTION_LENGTH,
+      };
+    }),
+
+  // ─── MITRE ATT&CK Navigator Layer Export ─────────────────────────────
+  navigatorLayer: protectedProcedure
+    .input(z.object({
+      actorId: z.string().optional(),
+      // If no actorId, use filters to generate multi-actor layer
+      type: z.string().optional(),
+      threatLevel: z.string().optional(),
+      conflict: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      let actors: any[] = [];
+
+      if (input.actorId) {
+        // Single actor
+        actors = await db.select().from(threatActors).where(eq(threatActors.actorId, input.actorId)).limit(1);
+      } else {
+        // Multi-actor based on filters
+        const conditions: any[] = [];
+        if (input.type) conditions.push(eq(threatActors.actorType, input.type));
+        if (input.threatLevel) conditions.push(eq(threatActors.threatLevel, input.threatLevel));
+        if (input.conflict) conditions.push(sql`JSON_SEARCH(${threatActors.conflicts}, 'one', ${input.conflict}) IS NOT NULL`);
+        const query = conditions.length > 0
+          ? db.select().from(threatActors).where(and(...conditions)).limit(500)
+          : db.select().from(threatActors).limit(500);
+        actors = await query;
+      }
+
+      // Build technique frequency map
+      const techniqueMap = new Map<string, { count: number; actors: string[]; name?: string }>();
+
+      for (const actor of actors) {
+        let techniques: any[] = [];
+        try {
+          if (typeof actor.mitreTechniques === "string") techniques = JSON.parse(actor.mitreTechniques);
+          else if (Array.isArray(actor.mitreTechniques)) techniques = actor.mitreTechniques;
+        } catch {}
+
+        // Also check techniques field
+        if (techniques.length === 0) {
+          try {
+            const t = (actor as any).techniques;
+            if (typeof t === "string") techniques = JSON.parse(t);
+            else if (Array.isArray(t)) techniques = t;
+          } catch {}
+        }
+
+        for (const tech of techniques) {
+          const id = typeof tech === "string" ? tech : tech?.id || tech?.techniqueId || tech?.technique_id;
+          const name = typeof tech === "string" ? undefined : tech?.name || tech?.technique_name;
+          if (!id || typeof id !== "string") continue;
+          // Normalize: ensure T prefix
+          const normalizedId = id.match(/^T\d{4}/) ? id : null;
+          if (!normalizedId) continue;
+
+          const existing = techniqueMap.get(normalizedId);
+          if (existing) {
+            existing.count++;
+            if (!existing.actors.includes(actor.name || actor.actorId)) {
+              existing.actors.push(actor.name || actor.actorId);
+            }
+            if (name && !existing.name) existing.name = name;
+          } else {
+            techniqueMap.set(normalizedId, {
+              count: 1,
+              actors: [actor.name || actor.actorId],
+              name,
+            });
+          }
+        }
+      }
+
+      // Determine max count for color scaling
+      const maxCount = Math.max(1, ...Array.from(techniqueMap.values()).map((t) => t.count));
+
+      // Build Navigator layer JSON
+      const techniques = Array.from(techniqueMap.entries()).map(([techId, data]) => {
+        // Split technique and subtechnique
+        const parts = techId.split(".");
+        const tactic = parts[0];
+        const subtechnique = parts.length > 1 ? techId : undefined;
+
+        // Color intensity based on frequency (1=light, max=dark red)
+        const intensity = data.count / maxCount;
+        const r = Math.round(255);
+        const g = Math.round(255 * (1 - intensity * 0.8));
+        const b = Math.round(255 * (1 - intensity * 0.9));
+        const color = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+
+        return {
+          techniqueID: techId,
+          tactic: undefined as string | undefined, // Navigator auto-maps
+          color,
+          comment: `Used by ${data.count} actor(s): ${data.actors.slice(0, 10).join(", ")}${data.actors.length > 10 ? ` (+${data.actors.length - 10} more)` : ""}`,
+          score: data.count,
+          enabled: true,
+          metadata: [],
+          links: [],
+          showSubtechniques: parts.length === 1,
+        };
+      });
+
+      const layerName = input.actorId
+        ? `ATT&CK Coverage: ${actors[0]?.name || input.actorId}`
+        : `ATT&CK Coverage: ${actors.length} Threat Actors${input.type ? ` (${input.type})` : ""}${input.threatLevel ? ` [${input.threatLevel}]` : ""}`;
+
+      const layer = {
+        name: layerName,
+        versions: {
+          attack: "15",
+          navigator: "5.0.1",
+          layer: "4.5",
+        },
+        domain: "enterprise-attack",
+        description: `Generated by AC3 Threat Intelligence Platform on ${new Date().toISOString().split("T")[0]}. ` +
+          `Covers ${actors.length} threat actor(s) with ${techniques.length} unique techniques mapped.`,
+        filters: {
+          platforms: [
+            "Linux", "macOS", "Windows", "Network", "PRE",
+            "Containers", "Office 365", "SaaS", "Google Workspace",
+            "IaaS", "Azure AD",
+          ],
+        },
+        sorting: 3, // Sort by score descending
+        layout: {
+          layout: "side",
+          aggregateFunction: "average",
+          showID: true,
+          showName: true,
+          showAggregateScores: true,
+          countUnscored: false,
+        },
+        hideDisabled: false,
+        techniques,
+        gradient: {
+          colors: ["#ffffff", "#ff6666", "#cc0000"],
+          minValue: 0,
+          maxValue: maxCount,
+        },
+        legendItems: [
+          { label: "1 actor", color: "#ffcccc" },
+          { label: `${Math.ceil(maxCount / 2)} actors`, color: "#ff6666" },
+          { label: `${maxCount} actors`, color: "#cc0000" },
+        ],
+        metadata: [
+          { name: "generated_by", value: "AC3 Threat Intelligence Platform" },
+          { name: "generated_at", value: new Date().toISOString() },
+          { name: "actor_count", value: String(actors.length) },
+          { name: "technique_count", value: String(techniques.length) },
+        ],
+        showTacticRowBackground: true,
+        tacticRowBackground: "#1a1a2e",
+        selectTechniquesAcrossTactics: true,
+        selectSubtechniquesWithParent: false,
+      };
+
+      return {
+        layer: JSON.stringify(layer, null, 2),
+        actorCount: actors.length,
+        techniqueCount: techniques.length,
+        layerName,
+      };
+    }),
+
 });
 
 // Helper: compute completeness percentage for an actor

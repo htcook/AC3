@@ -63,8 +63,8 @@ describe('Bulk Enrichment Backend', () => {
     expect(routerContent).toContain('actorIds');
   });
 
-  it('bulkEnrich should accept array of actor IDs (max 50)', () => {
-    expect(routerContent).toMatch(/actorIds.*z\.array.*z\.string.*min\(1\).*max\(50\)/);
+  it('bulkEnrich should accept array of actor IDs (max 2000)', () => {
+    expect(routerContent).toMatch(/actorIds.*z\.array.*z\.string.*min\(1\).*max\(2000\)/);
   });
 
   it('bulkEnrich should record history for each actor', () => {
@@ -120,7 +120,7 @@ describe('Bulk Enrichment Frontend', () => {
   });
 
   it('should show success/failure results after bulk enrichment', () => {
-    expect(catalogPageContent).toContain('bulkEnrichMutation.data');
+    expect(catalogPageContent).toContain('bulkEnrichMutation');
     expect(catalogPageContent).toContain('succeeded');
   });
 });

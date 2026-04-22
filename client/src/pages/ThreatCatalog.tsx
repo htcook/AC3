@@ -28,6 +28,13 @@ import {
   Sparkles,
   FileText,
   FileDown,
+  Settings2,
+  Calendar,
+  Map,
+  ShieldCheck,
+  Play,
+  Pause,
+  Save,
 } from "lucide-react";
 
 type GroupType = "all" | "apt" | "ransomware" | "cybercrime" | "hacktivist" | "access_broker" | "influence_ops" | "unknown";
@@ -144,6 +151,12 @@ export default function ThreatCatalog() {
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; results: any[] } | null>(null);
   const [batchSize, setBatchSize] = useState(50);
   const BATCH_SIZE_OPTIONS = [20, 50, 100, 250, 500, 1000];
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [showGuardrails, setShowGuardrails] = useState(false);
+  const [showNavigator, setShowNavigator] = useState(false);
+  const [exportingNavigator, setExportingNavigator] = useState(false);
+  const [guardrailDraft, setGuardrailDraft] = useState<Record<string, number>>({});
+  const [schedulerDraft, setSchedulerDraft] = useState<Record<string, any>>({});
 
   /** Update URL params — merges new values with current state */
   const updateFilters = useCallback((updates: Record<string, any>) => {
@@ -251,6 +264,27 @@ export default function ThreatCatalog() {
   }, { enabled: false });
 
   const incompleteQuery = trpc.threatIntel.incompleteActors.useQuery({ threshold: 60, limit: 2000 }, { enabled: showBulkEnrich });
+
+  // Scheduler, Guardrails, Navigator queries
+  const schedulerStatus = trpc.threatIntel.catalogEnrichmentStatus.useQuery(undefined, { enabled: showScheduler, refetchInterval: showScheduler ? 5000 : false });
+  const schedulerTrigger = trpc.threatIntel.catalogEnrichmentTrigger.useMutation({
+    onSuccess: () => { toast.success('Manual enrichment started'); schedulerStatus.refetch(); },
+    onError: (err: any) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
+  });
+  const schedulerConfigMut = trpc.threatIntel.catalogEnrichmentConfig.useMutation({
+    onSuccess: (data) => { toast.success('Scheduler config updated'); schedulerStatus.refetch(); setSchedulerDraft({}); },
+    onError: (err: any) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
+  });
+  const guardrailConfig = trpc.threatIntel.guardrailConfig.useQuery(undefined, { enabled: showGuardrails });
+  const guardrailConfigMut = trpc.threatIntel.guardrailConfigUpdate.useMutation({
+    onSuccess: () => { toast.success('Guardrail thresholds updated'); guardrailConfig.refetch(); setGuardrailDraft({}); },
+    onError: (err: any) => toast.error(`Failed: ${sanitizeErrorForToast(err)}`),
+  });
+  const navigatorQuery = trpc.threatIntel.navigatorLayer.useQuery({
+    type: typeFilter !== 'all' ? typeFilter : undefined,
+    threatLevel: threatLevelFilter !== 'all' ? threatLevelFilter : undefined,
+    conflict: conflictFilter !== 'all' ? conflictFilter : undefined,
+  }, { enabled: false });
   const bulkEnrichMutation = trpc.threatIntel.bulkEnrich.useMutation({
     onSuccess: (result) => {
       toast.success(`Bulk enrichment complete: ${result.succeeded} succeeded, ${result.failed} failed`);
@@ -330,6 +364,26 @@ export default function ThreatCatalog() {
     toast.success(`Bulk enrichment complete: ${succeeded} succeeded, ${failed} failed`);
     setBulkEnriching(false);
     refetch();
+  };
+
+  const handleExportNavigator = async () => {
+    setExportingNavigator(true);
+    try {
+      const result = await navigatorQuery.refetch();
+      if (result.data?.layer) {
+        const blob = new Blob([result.data.layer], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attack-navigator-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Navigator layer exported: ${result.data.actorCount} actors, ${result.data.techniqueCount} techniques`);
+      }
+    } catch (err: any) {
+      toast.error(`Navigator export failed: ${sanitizeErrorForToast(err)}`);
+    }
+    setExportingNavigator(false);
   };
 
   const allActors = listData?.actors ?? [];
@@ -474,6 +528,28 @@ export default function ThreatCatalog() {
             >
               <Sparkles className="w-3 h-3" />
               BULK ENRICH
+            </button>
+            <button
+              onClick={() => handleExportNavigator()}
+              disabled={exportingNavigator}
+              className="flex items-center gap-2 px-3 py-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-display tracking-wider hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+            >
+              {exportingNavigator ? <Loader2 className="w-3 h-3 animate-spin" /> : <Map className="w-3 h-3" />}
+              ATT&CK NAV
+            </button>
+            <button
+              onClick={() => setShowScheduler(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-display tracking-wider hover:bg-indigo-500/20 transition-colors"
+            >
+              <Calendar className="w-3 h-3" />
+              SCHEDULER
+            </button>
+            <button
+              onClick={() => setShowGuardrails(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-display tracking-wider hover:bg-amber-500/20 transition-colors"
+            >
+              <ShieldCheck className="w-3 h-3" />
+              GUARDRAILS
             </button>
           </div>
         </div>
@@ -932,6 +1008,255 @@ export default function ThreatCatalog() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-8">No data available</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduler Dialog */}
+      {showScheduler && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowScheduler(false)}>
+          <div className="bg-card border border-border w-full max-w-lg max-h-[80vh] overflow-auto m-4" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-indigo-400" />
+                  <h2 className="text-lg font-display tracking-wider">ENRICHMENT SCHEDULER</h2>
+                </div>
+                <button onClick={() => setShowScheduler(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Automated daily enrichment of low-completeness actors with hallucination guardrails.
+              </p>
+            </div>
+            <div className="p-6 space-y-5">
+              {schedulerStatus.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : schedulerStatus.data ? (
+                <>
+                  {/* Status Card */}
+                  <div className="p-4 bg-background border border-border space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-display tracking-wider text-muted-foreground">STATUS</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 ${schedulerStatus.data.enabled ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                        {schedulerStatus.data.enabled ? 'ACTIVE' : 'DISABLED'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Schedule:</span>
+                        <span className="ml-2 text-foreground">Daily @ {String(schedulerStatus.data.config?.cronHourUtc ?? 3).padStart(2, '0')}:00 UTC</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Batch Size:</span>
+                        <span className="ml-2 text-foreground">{schedulerStatus.data.config?.batchSize ?? 10} actors</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Threshold:</span>
+                        <span className="ml-2 text-foreground">&lt; {schedulerStatus.data.config?.completenessThreshold ?? 60}% completeness</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Total Runs:</span>
+                        <span className="ml-2 text-foreground">{schedulerStatus.data.totalRuns ?? 0}</span>
+                      </div>
+                    </div>
+                    {schedulerStatus.data.lastRun && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Last Run:</span>
+                        <span className="ml-2 text-foreground">{new Date(schedulerStatus.data.lastRun.startedAt).toLocaleString()}</span>
+                        <span className="ml-2">
+                          <span className="text-green-400">{schedulerStatus.data.lastRun.succeeded}&#10003;</span>
+                          {schedulerStatus.data.lastRun.failed > 0 && <span className="ml-1 text-red-400">{schedulerStatus.data.lastRun.failed}&#10007;</span>}
+                        </span>
+                      </div>
+                    )}
+                    {schedulerStatus.data.nextRunAt && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Next Run:</span>
+                        <span className="ml-2 text-foreground">{new Date(schedulerStatus.data.nextRunAt).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Config Controls */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-display tracking-wider text-muted-foreground">CONFIGURATION</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Hour (UTC)</label>
+                        <input
+                          type="number"
+                          min={0} max={23}
+                          defaultValue={schedulerStatus.data.config?.cronHourUtc ?? 3}
+                          onChange={e => setSchedulerDraft(d => ({ ...d, cronHourUtc: Number(e.target.value) }))}
+                          className="w-full bg-background border border-border text-xs px-2 py-1.5 text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Batch Size</label>
+                        <input
+                          type="number"
+                          min={1} max={100}
+                          defaultValue={schedulerStatus.data.config?.batchSize ?? 10}
+                          onChange={e => setSchedulerDraft(d => ({ ...d, batchSize: Number(e.target.value) }))}
+                          className="w-full bg-background border border-border text-xs px-2 py-1.5 text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground block mb-1">Threshold %</label>
+                        <input
+                          type="number"
+                          min={10} max={100}
+                          defaultValue={schedulerStatus.data.config?.completenessThreshold ?? 60}
+                          onChange={e => setSchedulerDraft(d => ({ ...d, completenessThreshold: Number(e.target.value) }))}
+                          className="w-full bg-background border border-border text-xs px-2 py-1.5 text-foreground"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => schedulerConfigMut.mutate(schedulerDraft)}
+                        disabled={Object.keys(schedulerDraft).length === 0}
+                        className="flex items-center gap-2 px-3 py-2 bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 text-xs font-display tracking-wider hover:bg-indigo-500/30 transition-colors disabled:opacity-50"
+                      >
+                        <Save className="w-3 h-3" />
+                        SAVE CONFIG
+                      </button>
+                      <button
+                        onClick={() => schedulerConfigMut.mutate({ enabled: !schedulerStatus.data?.enabled })}
+                        className={`flex items-center gap-2 px-3 py-2 border text-xs font-display tracking-wider transition-colors ${
+                          schedulerStatus.data?.enabled
+                            ? 'bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30'
+                            : 'bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30'
+                        }`}
+                      >
+                        {schedulerStatus.data?.enabled ? <><Pause className="w-3 h-3" /> DISABLE</> : <><Play className="w-3 h-3" /> ENABLE</>}
+                      </button>
+                      <button
+                        onClick={() => schedulerTrigger.mutate()}
+                        disabled={schedulerTrigger.isPending}
+                        className="flex items-center gap-2 px-3 py-2 bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-xs font-display tracking-wider hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {schedulerTrigger.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                        RUN NOW
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recent Runs */}
+                  {schedulerStatus.data.recentRuns && schedulerStatus.data.recentRuns.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-display tracking-wider text-muted-foreground">RECENT RUNS</h3>
+                      <div className="space-y-1">
+                        {schedulerStatus.data.recentRuns.slice(0, 5).map((run: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between p-2 bg-background/50 border border-border/50 text-xs">
+                            <span className="text-muted-foreground">{new Date(run.startedAt).toLocaleString()}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-green-400">{run.succeeded}&#10003;</span>
+                              {run.failed > 0 && <span className="text-red-400">{run.failed}&#10007;</span>}
+                              <span className="text-muted-foreground">{run.trigger}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No scheduler data available</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guardrails Dialog */}
+      {showGuardrails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowGuardrails(false)}>
+          <div className="bg-card border border-border w-full max-w-lg max-h-[80vh] overflow-auto m-4" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  <h2 className="text-lg font-display tracking-wider">GUARDRAIL THRESHOLDS</h2>
+                </div>
+                <button onClick={() => setShowGuardrails(false)} className="text-muted-foreground hover:text-foreground text-xl">&times;</button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Tune confidence thresholds that control when LLM-enriched fields are accepted, flagged, or rejected.
+              </p>
+            </div>
+            <div className="p-6 space-y-5">
+              {guardrailConfig.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : guardrailConfig.data ? (
+                <>
+                  {/* Threshold Sliders */}
+                  {[
+                    { key: 'confidenceAcceptThreshold', label: 'ACCEPT THRESHOLD', desc: 'Fields above this confidence are accepted (green)', color: 'text-green-400', min: 30, max: 100 },
+                    { key: 'confidenceRejectThreshold', label: 'REJECT THRESHOLD', desc: 'Fields below this confidence are rejected (red)', color: 'text-red-400', min: 0, max: 60 },
+                    { key: 'llmOnlyMinConfidence', label: 'LLM-ONLY MINIMUM', desc: 'Minimum confidence for fields sourced only from LLM knowledge', color: 'text-amber-400', min: 30, max: 100 },
+                  ].map(({ key, label, desc, color, min, max }) => {
+                    const current = guardrailDraft[key] ?? (guardrailConfig.data as any)?.[key] ?? 50;
+                    return (
+                      <div key={key} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-display tracking-wider ${color}`}>{label}</span>
+                          <span className="text-sm font-bold text-foreground">{current}%</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                        <input
+                          type="range"
+                          min={min} max={max}
+                          value={current}
+                          onChange={e => setGuardrailDraft(d => ({ ...d, [key]: Number(e.target.value) }))}
+                          className="w-full h-1.5 bg-background rounded-full appearance-none cursor-pointer accent-primary"
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                          <span>{min}%</span>
+                          <span>{max}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Validation Toggles */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-display tracking-wider text-muted-foreground">ACTIVE VALIDATIONS</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'MITRE T-Code Validation', active: guardrailConfig.data.mitreValidation },
+                        { label: 'Source Citation Check', active: guardrailConfig.data.sourceCitationCheck },
+                        { label: 'Local DB Cross-Reference', active: guardrailConfig.data.localDbCrossRef },
+                        { label: 'Suspicious Source Detection', active: guardrailConfig.data.suspiciousSourceDetection },
+                      ].map(({ label, active }) => (
+                        <div key={label} className={`flex items-center gap-2 p-2 border text-xs ${
+                          active ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-border bg-background/50 text-muted-foreground'
+                        }`}>
+                          <span className={active ? 'text-green-400' : 'text-muted-foreground'}>{active ? '●' : '○'}</span>
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <button
+                    onClick={() => guardrailConfigMut.mutate(guardrailDraft)}
+                    disabled={Object.keys(guardrailDraft).length === 0 || guardrailConfigMut.isPending}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-display tracking-wider hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                  >
+                    {guardrailConfigMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    SAVE THRESHOLDS
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No guardrail data available</p>
               )}
             </div>
           </div>
