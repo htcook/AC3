@@ -169,6 +169,212 @@ function inferReplacementType(caller: string): string {
   return "Deterministic Logic";
 }
 
+// ─── Graduation Score Drift Detection ────────────────────────────────────────
+
+/**
+ * Drift Detection for Graduation Scores
+ *
+ * Detects two adversarial patterns in graduation telemetry:
+ *
+ * 1. Adversarial Target Responses: A compromised or adversarial target
+ *    environment feeds scan results that look like success but are actually
+ *    the target gaming the LLM's success criteria. Detected by comparing
+ *    success rates across different target environments — a caller that
+ *    succeeds 100% against one target but 60% against others is suspicious.
+ *
+ * 2. Slow-Drift Poisoning: An attacker gradually inflates success rates
+ *    across many engagements to push an exploit-category caller toward
+ *    graduation. Detected by computing a rolling z-score on weekly success
+ *    rates — a sustained upward drift beyond 2 standard deviations triggers
+ *    an alert.
+ *
+ * Both detections operate on server-side telemetry data and cannot be
+ * influenced by client-submitted inputs.
+ */
+
+interface DriftAlert {
+  caller: string;
+  alertType: 'adversarial_target_success' | 'slow_drift_poisoning' | 'sudden_spike';
+  severity: 'warning' | 'critical';
+  description: string;
+  evidence: {
+    metric: string;
+    currentValue: number;
+    baselineValue: number;
+    threshold: number;
+    windowDays: number;
+  };
+  detectedAt: number;
+}
+
+/**
+ * Detect adversarial target responses by comparing per-target success rates.
+ * A caller with anomalously high success against specific targets (vs its
+ * baseline across all targets) may indicate the target is gaming the results.
+ *
+ * Detection criteria:
+ *   - Caller has ≥50 calls across ≥3 distinct targets
+ *   - Per-target success rate exceeds overall average by >15 percentage points
+ *   - The anomalous target accounts for >20% of total calls
+ */
+function detectAdversarialTargetSuccess(
+  callerStats: Array<{ target: string; calls: number; successes: number }>,
+  caller: string
+): DriftAlert | null {
+  const totalCalls = callerStats.reduce((s, t) => s + t.calls, 0);
+  const totalSuccesses = callerStats.reduce((s, t) => s + t.successes, 0);
+  const overallRate = totalCalls > 0 ? (totalSuccesses / totalCalls) * 100 : 0;
+  const distinctTargets = callerStats.length;
+
+  if (totalCalls < 50 || distinctTargets < 3) return null;
+
+  for (const target of callerStats) {
+    const targetRate = target.calls > 0 ? (target.successes / target.calls) * 100 : 0;
+    const callShare = target.calls / totalCalls;
+    const deviation = targetRate - overallRate;
+
+    if (deviation > 15 && callShare > 0.2 && target.calls >= 10) {
+      return {
+        caller,
+        alertType: 'adversarial_target_success',
+        severity: deviation > 25 ? 'critical' : 'warning',
+        description:
+          `Caller "${caller}" shows ${targetRate.toFixed(1)}% success rate against target ` +
+          `"${target.target}" vs ${overallRate.toFixed(1)}% overall (${deviation.toFixed(1)}pp deviation). ` +
+          `This target accounts for ${(callShare * 100).toFixed(0)}% of calls. ` +
+          `Possible adversarial target response gaming.`,
+        evidence: {
+          metric: 'per_target_success_rate_deviation',
+          currentValue: targetRate,
+          baselineValue: overallRate,
+          threshold: 15,
+          windowDays: 30,
+        },
+        detectedAt: Date.now(),
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Detect slow-drift poisoning by computing rolling z-scores on weekly
+ * success rates. A sustained upward drift (z-score > 2.0 for ≥3 consecutive
+ * weeks) triggers an alert.
+ *
+ * Detection criteria:
+ *   - ≥6 weeks of data with ≥10 calls per week
+ *   - Rolling z-score of weekly success rate exceeds 2.0
+ *   - Drift is sustained for ≥3 consecutive weeks
+ *   - For exploit-category callers, threshold is lowered to z-score > 1.5
+ */
+function detectSlowDriftPoisoning(
+  weeklyRates: Array<{ week: string; successRate: number; calls: number }>,
+  caller: string
+): DriftAlert | null {
+  // Need at least 6 weeks of meaningful data
+  const validWeeks = weeklyRates.filter(w => w.calls >= 10);
+  if (validWeeks.length < 6) return null;
+
+  // Compute mean and stddev of success rates
+  const rates = validWeeks.map(w => w.successRate);
+  const mean = rates.reduce((s, r) => s + r, 0) / rates.length;
+  const variance = rates.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / rates.length;
+  const stddev = Math.sqrt(variance);
+
+  if (stddev < 0.5) return null; // Too little variation to detect drift
+
+  // Use lower threshold for exploit-category callers
+  const zThreshold = EXPLOIT_CATEGORY_CALLERS.has(caller) ? 1.5 : 2.0;
+  const consecutiveThreshold = 3;
+
+  // Check last N weeks for sustained upward drift
+  let consecutiveHigh = 0;
+  let peakZScore = 0;
+  for (let i = Math.max(0, validWeeks.length - 8); i < validWeeks.length; i++) {
+    const zScore = (validWeeks[i].successRate - mean) / stddev;
+    if (zScore > zThreshold) {
+      consecutiveHigh++;
+      peakZScore = Math.max(peakZScore, zScore);
+    } else {
+      consecutiveHigh = 0;
+    }
+  }
+
+  if (consecutiveHigh >= consecutiveThreshold) {
+    const recentRate = validWeeks[validWeeks.length - 1].successRate;
+    return {
+      caller,
+      alertType: 'slow_drift_poisoning',
+      severity: peakZScore > 3.0 ? 'critical' : 'warning',
+      description:
+        `Caller "${caller}" shows sustained upward drift in success rate: ` +
+        `${consecutiveHigh} consecutive weeks above z-score ${zThreshold.toFixed(1)} ` +
+        `(peak z=${peakZScore.toFixed(2)}). Current rate: ${recentRate.toFixed(1)}%, ` +
+        `historical mean: ${mean.toFixed(1)}%. Possible slow-drift poisoning.`,
+      evidence: {
+        metric: 'weekly_success_rate_zscore',
+        currentValue: peakZScore,
+        baselineValue: mean,
+        threshold: zThreshold,
+        windowDays: validWeeks.length * 7,
+      },
+      detectedAt: Date.now(),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Detect sudden success rate spikes that could indicate telemetry manipulation.
+ * A week-over-week increase of >20 percentage points is flagged.
+ */
+function detectSuddenSpike(
+  weeklyRates: Array<{ week: string; successRate: number; calls: number }>,
+  caller: string
+): DriftAlert | null {
+  const validWeeks = weeklyRates.filter(w => w.calls >= 10);
+  if (validWeeks.length < 2) return null;
+
+  const current = validWeeks[validWeeks.length - 1];
+  const previous = validWeeks[validWeeks.length - 2];
+  const spike = current.successRate - previous.successRate;
+
+  if (spike > 20) {
+    return {
+      caller,
+      alertType: 'sudden_spike',
+      severity: spike > 35 ? 'critical' : 'warning',
+      description:
+        `Caller "${caller}" success rate jumped ${spike.toFixed(1)}pp in one week ` +
+        `(${previous.successRate.toFixed(1)}% → ${current.successRate.toFixed(1)}%). ` +
+        `Possible telemetry manipulation or environmental change.`,
+      evidence: {
+        metric: 'week_over_week_success_rate_change',
+        currentValue: current.successRate,
+        baselineValue: previous.successRate,
+        threshold: 20,
+        windowDays: 14,
+      },
+      detectedAt: Date.now(),
+    };
+  }
+  return null;
+}
+
+// Export for testing
+export {
+  detectAdversarialTargetSuccess,
+  detectSlowDriftPoisoning,
+  detectSuddenSpike,
+  EXPLOIT_CATEGORY_CALLERS,
+  EXPLOIT_GRADUATION_THRESHOLDS,
+  GRADUATION_THRESHOLDS,
+  computeTier,
+  type DriftAlert,
+};
+
 export const graduationEngineRouter = router({
   /**
    * Get all LLM callers with graduation readiness analysis

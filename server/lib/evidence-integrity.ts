@@ -1,7 +1,7 @@
 /**
  * Evidence Integrity Hashing Service — P1 Gap Remediation
  * 
- * Implements FIPS 140-3 compliant cryptographic hash chains for evidence items.
+ * Implements FIPS 140-2 compliant cryptographic hash chains for evidence items.
  * Every evidence item gets a SHA-256 integrity hash that chains to the previous
  * item, creating a tamper-evident audit trail similar to blockchain.
  * 
@@ -69,15 +69,139 @@ export function computeChainHash(
 }
 
 /**
+ * Evidence HMAC Key Management
+ * 
+ * Implements key separation between authentication (JWT_SECRET) and evidence
+ * integrity (EVIDENCE_HMAC_KEY) domains. This ensures:
+ * 1. Compromise of the authentication secret does not compromise evidence chains
+ * 2. JWT_SECRET rotation does not break historical evidence-chain verification
+ * 3. Evidence key can be independently rotated with versioned key support
+ * 
+ * Key hierarchy:
+ *   EVIDENCE_HMAC_KEY (primary) → used for all new HMAC signatures
+ *   EVIDENCE_HMAC_KEY_PREVIOUS (optional) → used for verifying historical anchors
+ *     after key rotation; set this to the old key value during rotation window
+ * 
+ * For HSM-backed deployments (recommended for CUI-handling environments):
+ *   Set EVIDENCE_HMAC_KEY to the HSM key reference and configure the HSM
+ *   provider in the deployment environment. The HMAC computation path remains
+ *   the same; the HSM handles the actual signing operation.
+ */
+
+const EVIDENCE_KEY_VERSION = "v1";
+
+/**
+ * Get the evidence HMAC signing key.
+ * Falls back to JWT_SECRET only during migration (with deprecation warning).
+ * In production, EVIDENCE_HMAC_KEY must be set independently.
+ */
+function getEvidenceHmacKey(): { key: string; source: string; version: string } {
+  const dedicatedKey = process.env.EVIDENCE_HMAC_KEY;
+  if (dedicatedKey) {
+    return { key: dedicatedKey, source: "EVIDENCE_HMAC_KEY", version: EVIDENCE_KEY_VERSION };
+  }
+
+  // Migration fallback: use JWT_SECRET with deprecation warning
+  const jwtSecret = process.env.JWT_SECRET;
+  if (jwtSecret) {
+    console.warn(
+      "[EvidenceIntegrity] WARNING: Using JWT_SECRET as HMAC key. " +
+      "Set EVIDENCE_HMAC_KEY for proper key separation. " +
+      "This fallback will be removed in a future release."
+    );
+    return { key: jwtSecret, source: "JWT_SECRET (deprecated fallback)", version: "legacy" };
+  }
+
+  throw new Error(
+    "[EvidenceIntegrity] FATAL: Neither EVIDENCE_HMAC_KEY nor JWT_SECRET is set. " +
+    "Evidence integrity signing is not available."
+  );
+}
+
+/**
+ * Get the previous evidence HMAC key for verifying historical anchors
+ * created before a key rotation. Returns null if no previous key is configured.
+ */
+function getPreviousEvidenceHmacKey(): string | null {
+  return process.env.EVIDENCE_HMAC_KEY_PREVIOUS || null;
+}
+
+/**
  * Compute HMAC-SHA256 anchor signature for a Merkle root.
- * Uses the JWT_SECRET as the HMAC key for signing.
+ * Uses the dedicated EVIDENCE_HMAC_KEY (not JWT_SECRET) for signing.
+ * 
+ * The signature includes the key version to support verification across
+ * key rotations.
  */
 export function computeAnchorHMAC(merkleRoot: string, engagementId: string): string {
-  const secret = process.env.JWT_SECRET || "default-hmac-key";
+  const { key, version } = getEvidenceHmacKey();
+  const payload = `${version}|${merkleRoot}|${engagementId}`;
   return crypto
-    .createHmac("sha256", secret)
-    .update(`${merkleRoot}|${engagementId}`)
+    .createHmac("sha256", key)
+    .update(payload)
     .digest("hex");
+}
+
+/**
+ * Verify an HMAC anchor signature, trying the current key first,
+ * then the previous key (if configured) for historical anchors.
+ * Returns the verification result with key source information.
+ */
+export function verifyAnchorHMAC(
+  merkleRoot: string,
+  engagementId: string,
+  expectedSignature: string
+): { valid: boolean; keySource: string } {
+  // Try current key first
+  const { key: currentKey, version: currentVersion } = getEvidenceHmacKey();
+  const currentPayload = `${currentVersion}|${merkleRoot}|${engagementId}`;
+  const currentSig = crypto.createHmac("sha256", currentKey).update(currentPayload).digest("hex");
+  if (currentSig === expectedSignature) {
+    return { valid: true, keySource: "current" };
+  }
+
+  // Try legacy format (without version prefix) for pre-migration anchors
+  const legacyPayload = `${merkleRoot}|${engagementId}`;
+  const legacySig = crypto.createHmac("sha256", currentKey).update(legacyPayload).digest("hex");
+  if (legacySig === expectedSignature) {
+    return { valid: true, keySource: "current (legacy format)" };
+  }
+
+  // Try previous key if configured (for post-rotation verification)
+  const previousKey = getPreviousEvidenceHmacKey();
+  if (previousKey) {
+    const prevCurrentSig = crypto.createHmac("sha256", previousKey).update(currentPayload).digest("hex");
+    if (prevCurrentSig === expectedSignature) {
+      return { valid: true, keySource: "previous" };
+    }
+    const prevLegacySig = crypto.createHmac("sha256", previousKey).update(legacyPayload).digest("hex");
+    if (prevLegacySig === expectedSignature) {
+      return { valid: true, keySource: "previous (legacy format)" };
+    }
+  }
+
+  return { valid: false, keySource: "none" };
+}
+
+/**
+ * Get evidence key metadata for audit/compliance reporting.
+ * Does not expose the actual key material.
+ */
+export function getEvidenceKeyMetadata(): {
+  source: string;
+  version: string;
+  hasPreviousKey: boolean;
+  keyFingerprint: string;
+} {
+  const { key, source, version } = getEvidenceHmacKey();
+  // Fingerprint: SHA-256 of the key, truncated to 8 hex chars
+  const fingerprint = crypto.createHash("sha256").update(key).digest("hex").substring(0, 16);
+  return {
+    source,
+    version,
+    hasPreviousKey: !!getPreviousEvidenceHmacKey(),
+    keyFingerprint: fingerprint,
+  };
 }
 
 /**

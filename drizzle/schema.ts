@@ -3530,6 +3530,7 @@ export const engagements = mysqlTable("engagements", {
 	roeSignerEmail: varchar("roe_signer_email", { length: 320 }),
 	roeDocumentId: int("roe_document_id"),
 	engTenantId: int("eng_tenant_id"),
+	roeCatalogConsent: tinyint("roe_catalog_consent").default(0),
 	scanMode: mysqlEnum("scan_mode", ['strict_passive','standard','active']).default('strict_passive'),
 	autoResumeOnRestart: tinyint("auto_resume_on_restart").default(0),
 	domainIntelScanId: int("domain_intel_scan_id"),
