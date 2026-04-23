@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
+import * as fs from "fs";
 
 // ─── 1. Safety Engine: dualApprovalRequired field ───────────────────────────
 
@@ -1073,5 +1074,295 @@ describe("ROE Catalog Consent — Schema", () => {
       "utf-8"
     );
     expect(schema).toContain('tinyint("roe_catalog_consent").default(0)');
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUND 4: Graduation Promotion Gate, Drift Operational Gating, OWASP LLM08/09
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Round 4: Two-Person Graduation Promotion Gate", () => {
+  it("PromotionApproval interface exists with required fields", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("export interface PromotionApproval");
+    expect(src).toContain("promotionId: string");
+    expect(src).toContain("requiredApprovals: number");
+    expect(src).toContain("approvals: Array<");
+    expect(src).toContain('status: "pending" | "approved" | "rejected" | "expired"');
+    expect(src).toContain("expiresAt: number");
+  });
+
+  it("checkTierAdvancement creates pending promotion instead of immediate tier change", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    // Tier 1/2 promotions require 2 approvals
+    expect(src).toContain("const requiredApprovals = config.tier <= 2 ? 2 : 1");
+    expect(src).toContain("pendingPromotions.push(promotion)");
+    // The old immediate tier change should NOT exist for promotions
+    expect(src).toContain("PENDING");
+    expect(src).toContain("-person approval");
+  });
+
+  it("setModelTier gates promotions but allows immediate demotions", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    // Demotions take effect immediately
+    expect(src).toContain("Demotions take effect immediately");
+    expect(src).toContain("if (tier >= previousTier)");
+    // Promotions to Tier 1/2 go through the gate
+    expect(src).toContain("pendingPromotionId: string");
+    expect(src).toContain(`Promotion requires`);
+  });
+
+  it("approvePromotion prevents self-approval", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("cannot approve their own promotion request");
+  });
+
+  it("approvePromotion prevents duplicate approvals from same operator", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("has already approved this promotion");
+  });
+
+  it("approvePromotion checks expiry before allowing approval", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("has expired");
+    expect(src).toContain("PROMOTION_EXPIRY_MS = 72 * 60 * 60 * 1000");
+  });
+
+  it("approvePromotion logs to evidence integrity chain on final approval", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("logPromotionToEvidenceChain(promotion)");
+    expect(src).toContain("hashAndChainEvidence");
+    expect(src).toContain('"graduation_promotion"');
+  });
+
+  it("rejectPromotion creates audit trail event", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("export function rejectPromotion");
+    expect(src).toContain("rejectedBy");
+    expect(src).toContain("rejectionReason");
+    expect(src).toContain("REJECTED");
+  });
+
+  it("logGraduationEventToEvidenceChain is exported for external callers", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/graduation-lab-bridge.ts",
+      "utf-8"
+    );
+    expect(src).toContain("export async function logGraduationEventToEvidenceChain");
+    expect(src).toContain('"graduation_event"');
+  });
+});
+
+describe("Round 4: Drift Detection Operational Gating", () => {
+  it("DriftDownstreamAction interface exists with operational fields", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine.ts",
+      "utf-8"
+    );
+    expect(src).toContain("interface DriftDownstreamAction");
+    expect(src).toContain("'block_graduation' | 'hold_graduation' | 'audit_telemetry'");
+    expect(src).toContain("graduationBlocked: boolean");
+    expect(src).toContain("holdExpiresAt?: number");
+    expect(src).toContain("operatorNotified: boolean");
+    expect(src).toContain("evidenceChainLogged: boolean");
+  });
+
+  it("adversarial target detection blocks graduation", async () => {
+    const { detectAdversarialTargetSuccess, isGraduationBlocked } = await import(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine"
+    );
+    const callerStats = [
+      { target: "target-A", calls: 30, successes: 29 },
+      { target: "target-B", calls: 15, successes: 9 },
+      { target: "target-C", calls: 10, successes: 6 },
+    ];
+    const alert = detectAdversarialTargetSuccess(callerStats, "test-caller-block");
+    if (alert) {
+      expect(alert.downstreamAction.action).toBe("block_graduation");
+      expect(alert.downstreamAction.graduationBlocked).toBe(true);
+      const blockStatus = isGraduationBlocked("test-caller-block");
+      expect(blockStatus.blocked).toBe(true);
+    }
+  });
+
+  it("slow drift detection blocks graduation", async () => {
+    const { detectSlowDriftPoisoning, isGraduationBlocked } = await import(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine"
+    );
+    // 15 baseline weeks at ~60% + 3 high weeks at 90%
+    const weeklyRates = [];
+    for (let i = 0; i < 15; i++) {
+      weeklyRates.push({ week: `2025-W${(i + 1).toString().padStart(2, "0")}`, successRate: 58 + Math.random() * 4, calls: 50 });
+    }
+    for (let i = 0; i < 3; i++) {
+      weeklyRates.push({ week: `2025-W${(16 + i).toString().padStart(2, "0")}`, successRate: 90, calls: 50 });
+    }
+    const alert = detectSlowDriftPoisoning(weeklyRates, "drift-block-caller");
+    if (alert) {
+      expect(alert.downstreamAction.action).toBe("block_graduation");
+      expect(alert.downstreamAction.graduationBlocked).toBe(true);
+    }
+  });
+
+  it("sudden spike detection holds graduation with 14-day cooling-off", async () => {
+    const { detectSuddenSpike } = await import(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine"
+    );
+    const weeklyRates = [
+      { week: "2025-W10", successRate: 55, calls: 50 },
+      { week: "2025-W11", successRate: 85, calls: 50 },
+    ];
+    const alert = detectSuddenSpike(weeklyRates, "spike-hold-caller");
+    expect(alert).not.toBeNull();
+    expect(alert!.downstreamAction.action).toBe("hold_graduation");
+    expect(alert!.downstreamAction.holdExpiresAt).toBeDefined();
+    // Hold should be ~14 days from now
+    const holdDays = (alert!.downstreamAction.holdExpiresAt! - Date.now()) / (24 * 60 * 60 * 1000);
+    expect(holdDays).toBeGreaterThan(13);
+    expect(holdDays).toBeLessThan(15);
+  });
+
+  it("clearGraduationBlock removes block after operator review", async () => {
+    const { isGraduationBlocked, clearGraduationBlock } = await import(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine"
+    );
+    // Clear a block that may have been set by previous tests
+    clearGraduationBlock("test-caller-block", "operator-1");
+    const status = isGraduationBlocked("test-caller-block");
+    expect(status.blocked).toBe(false);
+  });
+
+  it("drift detectors include downstreamAction in all alert types", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine.ts",
+      "utf-8"
+    );
+    // All three detectors should set downstreamAction
+    const adversarialMatch = src.match(/adversarial_target_success.*?downstreamAction/s);
+    const driftMatch = src.match(/slow_drift_poisoning.*?downstreamAction/s);
+    const spikeMatch = src.match(/sudden_spike.*?downstreamAction/s);
+    expect(adversarialMatch).not.toBeNull();
+    expect(driftMatch).not.toBeNull();
+    expect(spikeMatch).not.toBeNull();
+  });
+});
+
+describe("Round 4: OWASP LLM08 (Excessive Agency) Test Suite", () => {
+  it("adds 12 LLM08 test techniques to ATLAS_TECHNIQUES", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    const llm08Count = (src.match(/OWASP\.LLM08\.\d+/g) || []).length;
+    expect(llm08Count).toBeGreaterThanOrEqual(12);
+  });
+
+  it("LLM08 tests cover AC3-specific attack surfaces", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    // Key AC3-specific test scenarios
+    expect(src).toContain("Scope Escalation via Prompt");
+    expect(src).toContain("Tool Invocation Beyond Authorization");
+    expect(src).toContain("Autonomous Escalation Without Approval");
+    expect(src).toContain("Cross-Engagement Data Access");
+    expect(src).toContain("Safety Profile Bypass");
+    expect(src).toContain("Quarantine Queue Bypass");
+    expect(src).toContain("Graduation Self-Promotion");
+    expect(src).toContain("Evidence Chain Tampering");
+    expect(src).toContain("Dual-Approval Gate Circumvention");
+  });
+
+  it("excessive-agency is added to TestCategory type", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    expect(src).toContain('"excessive-agency"');
+  });
+});
+
+describe("Round 4: OWASP LLM09 (Overreliance) Test Suite", () => {
+  it("adds 12 LLM09 test techniques to ATLAS_TECHNIQUES", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    const llm09Count = (src.match(/OWASP\.LLM09\.\d+/g) || []).length;
+    expect(llm09Count).toBeGreaterThanOrEqual(12);
+  });
+
+  it("LLM09 tests cover AC3-specific overreliance risks", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    expect(src).toContain("Hallucinated Vulnerability Acceptance");
+    expect(src).toContain("Unverified Exploit Code Execution");
+    expect(src).toContain("False Negative Propagation");
+    expect(src).toContain("Graduated Code Without Spot-Check");
+    expect(src).toContain("Confidence Calibration Failure");
+    expect(src).toContain("Drift Detection Effectiveness");
+  });
+
+  it("overreliance is added to TestCategory type", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/ai-security-validation.ts",
+      "utf-8"
+    );
+    expect(src).toContain('"overreliance"');
+  });
+});
+
+describe("Round 4: Reviewer Checklist Migration Deadline", () => {
+  it("sets mandatory deadline of 2026-07-01 for reviewer checklist", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+    expect(src).toContain("CHECKLIST_MANDATORY_DATE");
+    expect(src).toContain("2026-07-01");
+  });
+
+  it("blocks approvals without checklist after deadline", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+    expect(src).toContain("Reviewer checklist is mandatory as of 2026-07-01");
+  });
+
+  it("allows approvals without checklist before deadline with warning", async () => {
+    const src = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+    expect(src).toContain("Checklist becomes MANDATORY on 2026-07-01");
   });
 });

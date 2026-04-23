@@ -31,6 +31,30 @@ import type { SpecialistModel, ModelBenchmark, TrainingExample } from "./llm-tra
 
 export type GraduationTier = 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Two-person sign-off gate for graduation promotion events.
+ * Both automatic tier advancement and admin overrides that promote to Tier 1 or Tier 2
+ * require two independent operators to approve before the promotion takes effect.
+ * 
+ * SECURITY RATIONALE: Graduation changes what code is trusted to run in future
+ * engagements. A single compromised operator account should not be able to
+ * promote an undertested model to full capability access.
+ */
+export interface PromotionApproval {
+  promotionId: string;
+  model: SpecialistModel;
+  fromTier: GraduationTier;
+  toTier: GraduationTier;
+  requestedAt: number;
+  requestedBy: string;
+  approvals: Array<{ operator: string; approvedAt: number; comment?: string }>;
+  requiredApprovals: number; // 2 for Tier 1/2 promotions, 1 for Tier 3/4
+  status: "pending" | "approved" | "rejected" | "expired";
+  rejectedBy?: string;
+  rejectionReason?: string;
+  expiresAt: number; // Pending promotions expire after 72 hours
+}
+
 export type LabAccessLevel = "basic" | "operational" | "advanced" | "full";
 
 export interface CallerToModelMapping {
@@ -207,6 +231,14 @@ const LAB_TIER_CONFIGS: LabTierConfig[] = [
 
 const modelStates = new Map<SpecialistModel, ModelGraduationState>();
 const graduationEvents: LabGraduationEvent[] = [];
+
+/**
+ * Pending promotion approvals — two-person gate for high-tier promotions.
+ * Promotions to Tier 1 or Tier 2 require two independent operator sign-offs.
+ * Promotions to Tier 3 or Tier 4 require one operator sign-off.
+ */
+const pendingPromotions: PromotionApproval[] = [];
+const PROMOTION_EXPIRY_MS = 72 * 60 * 60 * 1000; // 72 hours
 
 // Initialize model states
 function initializeModelState(model: SpecialistModel): ModelGraduationState {
@@ -435,7 +467,14 @@ export function recordFineTuneCompletion(params: {
 }
 
 /**
- * Check if a model should advance to a higher tier.
+ * Check if a model qualifies for tier advancement.
+ * 
+ * IMPORTANT: Promotions to Tier 1 or Tier 2 do NOT take effect immediately.
+ * Instead, they create a pending promotion request that requires two-person
+ * sign-off via approvePromotion(). This prevents a single compromised operator
+ * or a manipulated telemetry pipeline from promoting an undertested model.
+ * 
+ * Promotions to Tier 3 or Tier 4 require one operator sign-off.
  */
 function checkTierAdvancement(model: SpecialistModel): void {
   const state = modelStates.get(model);
@@ -448,11 +487,27 @@ function checkTierAdvancement(model: SpecialistModel): void {
     if (
       state.trainingExamples >= config.requiresMinExamples &&
       state.lastBenchmarkScore >= config.requiresMinBenchmarkScore &&
-      state.scenariosPassed >= Math.ceil(config.requiresMinExamples * 0.1) // 10% of examples should be from passed scenarios
+      state.scenariosPassed >= Math.ceil(config.requiresMinExamples * 0.1)
     ) {
       if (config.tier < state.currentTier) {
-        state.currentTier = config.tier;
-        state.labAccessLevel = config.accessLevel;
+        // TWO-PERSON GATE: Promotions to Tier 1 or Tier 2 require dual sign-off
+        const requiredApprovals = config.tier <= 2 ? 2 : 1;
+        
+        const promotionId = `promo-${randomUUID().slice(0, 8)}`;
+        const promotion: PromotionApproval = {
+          promotionId,
+          model,
+          fromTier: previousTier,
+          toTier: config.tier,
+          requestedAt: Date.now(),
+          requestedBy: "system:checkTierAdvancement",
+          approvals: [],
+          requiredApprovals,
+          status: "pending",
+          expiresAt: Date.now() + PROMOTION_EXPIRY_MS,
+        };
+
+        pendingPromotions.push(promotion);
 
         const event: LabGraduationEvent = {
           id: `gle-${randomUUID().slice(0, 8)}`,
@@ -461,11 +516,13 @@ function checkTierAdvancement(model: SpecialistModel): void {
           specialistModel: model,
           previousTier,
           newTier: config.tier,
-          details: `${model} advanced from Tier ${previousTier} to Tier ${config.tier}: ${config.unlockMessage}`,
+          details: `${model} qualifies for Tier ${previousTier} → Tier ${config.tier} — PENDING ${requiredApprovals}-person approval (promotion: ${promotionId})`,
         };
 
         state.events.push(event);
         graduationEvents.push(event);
+
+        console.log(`[GraduationLab] Promotion ${promotionId}: ${model} Tier ${previousTier} → ${config.tier} — requires ${requiredApprovals} approvals`);
       }
       break;
     }
@@ -475,13 +532,56 @@ function checkTierAdvancement(model: SpecialistModel): void {
 /**
  * Manually set a model's tier (admin override).
  */
-export function setModelTier(model: SpecialistModel, tier: GraduationTier): ModelGraduationState {
+/**
+ * Manually set a model's tier (admin override).
+ * 
+ * IMPORTANT: Admin overrides that promote to Tier 1 or Tier 2 also require
+ * two-person sign-off. The override creates a pending promotion request.
+ * Only demotions (higher tier number) take effect immediately.
+ */
+export function setModelTier(model: SpecialistModel, tier: GraduationTier, operatorId: string = "admin"): ModelGraduationState | { pendingPromotionId: string; message: string } {
   const state = initializeModelState(model);
   const previousTier = state.currentTier;
-  const config = getLabAccessForTier(tier);
 
-  state.currentTier = tier;
-  state.labAccessLevel = config.accessLevel;
+  // Demotions take effect immediately (no gate needed)
+  if (tier >= previousTier) {
+    const config = getLabAccessForTier(tier);
+    state.currentTier = tier;
+    state.labAccessLevel = config.accessLevel;
+
+    const event: LabGraduationEvent = {
+      id: `gle-${randomUUID().slice(0, 8)}`,
+      timestamp: Date.now(),
+      eventType: tier > previousTier ? "model_rollback" : "tier_change",
+      specialistModel: model,
+      previousTier,
+      newTier: tier,
+      details: `Admin override (${operatorId}): ${model} set to Tier ${tier} (was Tier ${previousTier})`,
+    };
+
+    state.events.push(event);
+    graduationEvents.push(event);
+    return state;
+  }
+
+  // Promotions to Tier 1 or 2 require two-person gate
+  const requiredApprovals = tier <= 2 ? 2 : 1;
+  const promotionId = `promo-${randomUUID().slice(0, 8)}`;
+
+  const promotion: PromotionApproval = {
+    promotionId,
+    model,
+    fromTier: previousTier,
+    toTier: tier,
+    requestedAt: Date.now(),
+    requestedBy: `admin:${operatorId}`,
+    approvals: [],
+    requiredApprovals,
+    status: "pending",
+    expiresAt: Date.now() + PROMOTION_EXPIRY_MS,
+  };
+
+  pendingPromotions.push(promotion);
 
   const event: LabGraduationEvent = {
     id: `gle-${randomUUID().slice(0, 8)}`,
@@ -490,13 +590,13 @@ export function setModelTier(model: SpecialistModel, tier: GraduationTier): Mode
     specialistModel: model,
     previousTier,
     newTier: tier,
-    details: `Admin override: ${model} set to Tier ${tier} (was Tier ${previousTier})`,
+    details: `Admin override (${operatorId}): ${model} Tier ${previousTier} → ${tier} — PENDING ${requiredApprovals}-person approval (promotion: ${promotionId})`,
   };
 
   state.events.push(event);
   graduationEvents.push(event);
 
-  return state;
+  return { pendingPromotionId: promotionId, message: `Promotion requires ${requiredApprovals} approvals. ID: ${promotionId}` };
 }
 
 // ─── Feedback Loop: Lab → Graduation Engine ─────────────────────────────────
@@ -691,4 +791,218 @@ export function getCallerModelMappings(): CallerToModelMapping[] {
 
 export function getLabTierConfigs(): LabTierConfig[] {
   return LAB_TIER_CONFIGS;
+}
+
+// ─── Two-Person Promotion Gate ─────────────────────────────────────────────
+
+/**
+ * Approve a pending promotion. Returns the updated promotion state.
+ * 
+ * Rules:
+ * - An operator cannot approve their own promotion request
+ * - An operator cannot approve twice on the same promotion
+ * - Once requiredApprovals are met, the promotion takes effect immediately
+ * - Expired promotions cannot be approved
+ */
+export function approvePromotion(
+  promotionId: string,
+  operatorId: string,
+  comment?: string
+): { success: boolean; promotion: PromotionApproval | null; message: string } {
+  const promotion = pendingPromotions.find(p => p.promotionId === promotionId);
+  if (!promotion) {
+    return { success: false, promotion: null, message: `Promotion ${promotionId} not found` };
+  }
+
+  // Check expiry
+  if (Date.now() > promotion.expiresAt) {
+    promotion.status = "expired";
+    return { success: false, promotion, message: `Promotion ${promotionId} has expired` };
+  }
+
+  if (promotion.status !== "pending") {
+    return { success: false, promotion, message: `Promotion ${promotionId} is already ${promotion.status}` };
+  }
+
+  // Prevent self-approval of admin-initiated promotions
+  if (promotion.requestedBy === `admin:${operatorId}`) {
+    return { success: false, promotion, message: `Operator ${operatorId} cannot approve their own promotion request` };
+  }
+
+  // Prevent duplicate approvals
+  if (promotion.approvals.some(a => a.operator === operatorId)) {
+    return { success: false, promotion, message: `Operator ${operatorId} has already approved this promotion` };
+  }
+
+  promotion.approvals.push({
+    operator: operatorId,
+    approvedAt: Date.now(),
+    comment,
+  });
+
+  // Check if we have enough approvals
+  if (promotion.approvals.length >= promotion.requiredApprovals) {
+    promotion.status = "approved";
+
+    // Execute the promotion
+    const state = initializeModelState(promotion.model);
+    const config = getLabAccessForTier(promotion.toTier);
+    state.currentTier = promotion.toTier;
+    state.labAccessLevel = config.accessLevel;
+    state.lastPromotedAt = Date.now();
+
+    const event: LabGraduationEvent = {
+      id: `gle-${randomUUID().slice(0, 8)}`,
+      timestamp: Date.now(),
+      eventType: "model_promoted",
+      specialistModel: promotion.model,
+      previousTier: promotion.fromTier,
+      newTier: promotion.toTier,
+      details: `${promotion.model} PROMOTED Tier ${promotion.fromTier} → ${promotion.toTier} — approved by: ${promotion.approvals.map(a => a.operator).join(", ")}`,
+    };
+
+    state.events.push(event);
+    graduationEvents.push(event);
+
+    // Log to evidence integrity chain (fire-and-forget)
+    logPromotionToEvidenceChain(promotion).catch(() => {});
+
+    console.log(`[GraduationLab] Promotion ${promotionId} APPROVED: ${promotion.model} → Tier ${promotion.toTier} (${promotion.approvals.length}/${promotion.requiredApprovals} approvals)`);
+
+    return { success: true, promotion, message: `Promotion approved and executed. ${promotion.model} is now Tier ${promotion.toTier}.` };
+  }
+
+  console.log(`[GraduationLab] Promotion ${promotionId}: approval ${promotion.approvals.length}/${promotion.requiredApprovals} by ${operatorId}`);
+  return { success: true, promotion, message: `Approval recorded (${promotion.approvals.length}/${promotion.requiredApprovals}). Waiting for additional approvals.` };
+}
+
+/**
+ * Reject a pending promotion.
+ */
+export function rejectPromotion(
+  promotionId: string,
+  operatorId: string,
+  reason: string
+): { success: boolean; promotion: PromotionApproval | null; message: string } {
+  const promotion = pendingPromotions.find(p => p.promotionId === promotionId);
+  if (!promotion) {
+    return { success: false, promotion: null, message: `Promotion ${promotionId} not found` };
+  }
+
+  if (promotion.status !== "pending") {
+    return { success: false, promotion, message: `Promotion ${promotionId} is already ${promotion.status}` };
+  }
+
+  promotion.status = "rejected";
+  promotion.rejectedBy = operatorId;
+  promotion.rejectionReason = reason;
+
+  const state = modelStates.get(promotion.model);
+  if (state) {
+    const event: LabGraduationEvent = {
+      id: `gle-${randomUUID().slice(0, 8)}`,
+      timestamp: Date.now(),
+      eventType: "model_rollback",
+      specialistModel: promotion.model,
+      previousTier: promotion.fromTier,
+      newTier: promotion.fromTier,
+      details: `Promotion ${promotionId} REJECTED by ${operatorId}: ${reason}`,
+    };
+    state.events.push(event);
+    graduationEvents.push(event);
+  }
+
+  console.log(`[GraduationLab] Promotion ${promotionId} REJECTED by ${operatorId}: ${reason}`);
+  return { success: true, promotion, message: `Promotion rejected.` };
+}
+
+/**
+ * Get all pending promotions, optionally filtered by status.
+ */
+export function getPendingPromotions(status?: PromotionApproval["status"]): PromotionApproval[] {
+  // Expire stale promotions first
+  const now = Date.now();
+  for (const p of pendingPromotions) {
+    if (p.status === "pending" && now > p.expiresAt) {
+      p.status = "expired";
+    }
+  }
+
+  if (status) {
+    return pendingPromotions.filter(p => p.status === status);
+  }
+  return [...pendingPromotions];
+}
+
+// ─── Evidence Chain Integration ────────────────────────────────────────────
+
+/**
+ * Log a graduation promotion event to the evidence integrity chain.
+ * This creates a tamper-evident record that auditors can verify.
+ */
+async function logPromotionToEvidenceChain(promotion: PromotionApproval): Promise<void> {
+  try {
+    const { hashAndChainEvidence } = await import("./evidence-integrity");
+
+    const evidenceContent = JSON.stringify({
+      type: "graduation_promotion",
+      promotionId: promotion.promotionId,
+      model: promotion.model,
+      fromTier: promotion.fromTier,
+      toTier: promotion.toTier,
+      requestedBy: promotion.requestedBy,
+      requestedAt: promotion.requestedAt,
+      approvals: promotion.approvals,
+      approvedAt: Date.now(),
+    });
+
+    // Use a system-level engagement ID for graduation events
+    const systemEngagementId = "system:graduation-events";
+    const evidenceId = `graduation-${promotion.promotionId}`;
+
+    await hashAndChainEvidence(
+      evidenceId,
+      systemEngagementId,
+      evidenceContent,
+      { filename: `promotion-${promotion.promotionId}.json`, mimeType: "application/json" }
+    );
+
+    console.log(`[GraduationLab] Promotion ${promotion.promotionId} logged to evidence integrity chain`);
+  } catch (err) {
+    console.error(`[GraduationLab] Failed to log promotion to evidence chain:`, err);
+  }
+}
+
+/**
+ * Log any graduation event to the evidence integrity chain.
+ * Called for tier changes, rollbacks, and other significant state changes.
+ */
+export async function logGraduationEventToEvidenceChain(event: LabGraduationEvent): Promise<void> {
+  try {
+    const { hashAndChainEvidence } = await import("./evidence-integrity");
+
+    const evidenceContent = JSON.stringify({
+      type: "graduation_event",
+      eventId: event.id,
+      eventType: event.eventType,
+      model: event.specialistModel,
+      previousTier: event.previousTier,
+      newTier: event.newTier,
+      details: event.details,
+      timestamp: event.timestamp,
+    });
+
+    const systemEngagementId = "system:graduation-events";
+    const evidenceId = `graduation-event-${event.id}`;
+
+    await hashAndChainEvidence(
+      evidenceId,
+      systemEngagementId,
+      evidenceContent,
+      { filename: `graduation-event-${event.id}.json`, mimeType: "application/json" }
+    );
+  } catch (err) {
+    // Fire-and-forget: evidence chain logging should not block graduation operations
+    console.error(`[GraduationLab] Failed to log event to evidence chain:`, err);
+  }
 }

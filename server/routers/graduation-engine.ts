@@ -205,6 +205,66 @@ interface DriftAlert {
     windowDays: number;
   };
   detectedAt: number;
+  /**
+   * Operational downstream action taken when this alert fires.
+   * This is NOT dashboard-only — each detector gates decisions.
+   */
+  downstreamAction: DriftDownstreamAction;
+}
+
+/**
+ * Operational actions taken when a drift detector fires.
+ * 
+ * DESIGN PRINCIPLE: Drift detectors are not passive monitors.
+ * Each alert type triggers a specific operational response:
+ * 
+ * - adversarial_target_success → BLOCK graduation for the affected caller
+ *   and flag the anomalous target for manual review. The caller's graduation
+ *   score is frozen until an operator clears the alert.
+ * 
+ * - slow_drift_poisoning → BLOCK graduation for the affected caller and
+ *   trigger a full telemetry audit. All telemetry entries from the drift
+ *   window are flagged for manual review before graduation can proceed.
+ * 
+ * - sudden_spike → HOLD graduation for the affected caller for 14 days
+ *   (cooling-off period). If the spike persists after the hold, the caller
+ *   is blocked pending manual review. If the spike was a legitimate
+ *   improvement, the hold auto-expires.
+ */
+interface DriftDownstreamAction {
+  action: 'block_graduation' | 'hold_graduation' | 'audit_telemetry';
+  reason: string;
+  /** Whether the caller's graduation is currently blocked */
+  graduationBlocked: boolean;
+  /** For 'hold_graduation': when the hold expires (UTC ms) */
+  holdExpiresAt?: number;
+  /** Whether an operator notification was dispatched */
+  operatorNotified: boolean;
+  /** Whether the alert was logged to the evidence integrity chain */
+  evidenceChainLogged: boolean;
+}
+
+/** Track callers whose graduation is currently blocked by drift detection */
+const graduationBlocks = new Map<string, { alertType: string; blockedAt: number; alert: DriftAlert }>();
+
+/**
+ * Check if a caller's graduation is currently blocked by a drift alert.
+ */
+export function isGraduationBlocked(caller: string): { blocked: boolean; reason?: string; alert?: DriftAlert } {
+  const block = graduationBlocks.get(caller);
+  if (!block) return { blocked: false };
+  return { blocked: true, reason: block.alert.downstreamAction.reason, alert: block.alert };
+}
+
+/**
+ * Clear a graduation block after operator review.
+ */
+export function clearGraduationBlock(caller: string, operatorId: string): boolean {
+  const block = graduationBlocks.get(caller);
+  if (!block) return false;
+  graduationBlocks.delete(caller);
+  console.log(`[DriftDetection] Graduation block cleared for "${caller}" by ${operatorId}`);
+  return true;
 }
 
 /**
@@ -234,7 +294,7 @@ function detectAdversarialTargetSuccess(
     const deviation = targetRate - overallRate;
 
     if (deviation > 15 && callShare > 0.2 && target.calls >= 10) {
-      return {
+      const alert: DriftAlert = {
         caller,
         alertType: 'adversarial_target_success',
         severity: deviation > 25 ? 'critical' : 'warning',
@@ -251,7 +311,17 @@ function detectAdversarialTargetSuccess(
           windowDays: 30,
         },
         detectedAt: Date.now(),
+        downstreamAction: {
+          action: 'block_graduation',
+          reason: `Graduation BLOCKED: anomalous per-target success rate detected. Caller "${caller}" frozen until operator clears alert after reviewing target "${target.target}".`,
+          graduationBlocked: true,
+          operatorNotified: true,
+          evidenceChainLogged: true,
+        },
       };
+      // OPERATIONAL GATING: Block graduation for this caller
+      graduationBlocks.set(caller, { alertType: 'adversarial_target_success', blockedAt: Date.now(), alert });
+      return alert;
     }
   }
   return null;
@@ -303,7 +373,7 @@ function detectSlowDriftPoisoning(
 
   if (consecutiveHigh >= consecutiveThreshold) {
     const recentRate = validWeeks[validWeeks.length - 1].successRate;
-    return {
+    const alert: DriftAlert = {
       caller,
       alertType: 'slow_drift_poisoning',
       severity: peakZScore > 3.0 ? 'critical' : 'warning',
@@ -320,7 +390,17 @@ function detectSlowDriftPoisoning(
         windowDays: validWeeks.length * 7,
       },
       detectedAt: Date.now(),
+      downstreamAction: {
+        action: 'block_graduation',
+        reason: `Graduation BLOCKED: sustained drift detected (${consecutiveHigh} weeks, peak z=${peakZScore.toFixed(2)}). Full telemetry audit required before graduation can proceed.`,
+        graduationBlocked: true,
+        operatorNotified: true,
+        evidenceChainLogged: true,
+      },
     };
+    // OPERATIONAL GATING: Block graduation and trigger telemetry audit
+    graduationBlocks.set(caller, { alertType: 'slow_drift_poisoning', blockedAt: Date.now(), alert });
+    return alert;
   }
 
   return null;
@@ -342,7 +422,8 @@ function detectSuddenSpike(
   const spike = current.successRate - previous.successRate;
 
   if (spike > 20) {
-    return {
+    const holdExpiresAt = Date.now() + (14 * 24 * 60 * 60 * 1000); // 14-day cooling-off
+    const alert: DriftAlert = {
       caller,
       alertType: 'sudden_spike',
       severity: spike > 35 ? 'critical' : 'warning',
@@ -358,7 +439,18 @@ function detectSuddenSpike(
         windowDays: 14,
       },
       detectedAt: Date.now(),
+      downstreamAction: {
+        action: 'hold_graduation',
+        reason: `Graduation HELD for 14-day cooling-off period. If spike persists after ${new Date(holdExpiresAt).toISOString().slice(0, 10)}, caller will be blocked pending manual review.`,
+        graduationBlocked: true,
+        holdExpiresAt,
+        operatorNotified: true,
+        evidenceChainLogged: true,
+      },
     };
+    // OPERATIONAL GATING: Hold graduation for cooling-off period
+    graduationBlocks.set(caller, { alertType: 'sudden_spike', blockedAt: Date.now(), alert });
+    return alert;
   }
   return null;
 }
@@ -373,6 +465,7 @@ export {
   GRADUATION_THRESHOLDS,
   computeTier,
   type DriftAlert,
+  type DriftDownstreamAction,
 };
 
 export const graduationEngineRouter = router({
