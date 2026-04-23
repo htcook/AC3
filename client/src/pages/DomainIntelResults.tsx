@@ -1496,6 +1496,57 @@ export default function DomainIntelResults() {
             </Card>
           )}
 
+          {/* Passive Recon Risk Signals */}
+          {pipeline?.passiveRecon?.riskSignals && pipeline.passiveRecon.riskSignals.length > 0 && (
+            <Card className="border-amber-500/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  OSINT Risk Signals
+                  <Badge variant="outline" className="ml-auto text-amber-400 border-amber-500/40 text-[10px]">
+                    {pipeline.passiveRecon.riskSignals.length} signal{pipeline.passiveRecon.riskSignals.length !== 1 ? 's' : ''}
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="text-xs">Passive reconnaissance risk indicators discovered across WHOIS, DNS, certificates, and OSINT sources</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {pipeline.passiveRecon.riskSignals.map((signal: any, idx: number) => {
+                    const sev = typeof signal === 'string' ? 'medium' : (signal.severity || 'medium');
+                    const text = typeof signal === 'string' ? signal : (signal.signal || signal.description || signal.title || JSON.stringify(signal));
+                    const source = typeof signal === 'string' ? null : (signal.source || signal.connector || null);
+                    const sevColors: Record<string, string> = {
+                      critical: 'border-red-500/40 bg-red-500/10 text-red-300',
+                      high: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
+                      medium: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-300',
+                      low: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+                      info: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
+                    };
+                    const colorClass = sevColors[sev] || sevColors.medium;
+                    return (
+                      <div key={idx} className={`rounded-md border px-3 py-2 ${colorClass}`}>
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-70" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium leading-snug">{text}</p>
+                            {source && <p className="text-[10px] opacity-60 mt-1">Source: {source}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {pipeline.passiveRecon.connectorResults && (
+                  <div className="mt-3 pt-3 border-t border-zinc-700/50">
+                    <p className="text-[10px] text-muted-foreground">
+                      Collected from {pipeline.passiveRecon.connectorResults.length} OSINT connector{pipeline.passiveRecon.connectorResults.length !== 1 ? 's' : ''}: {pipeline.passiveRecon.connectorResults.map((c: any) => c.connector).join(', ')}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Risk Heatmap */}
           <Card>
             <CardHeader>
