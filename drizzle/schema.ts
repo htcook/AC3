@@ -7891,3 +7891,77 @@ export const enrichmentHistory = mysqlTable("enrichment_history", {
 	index("eh_created_at_idx").on(table.createdAt),
 	index("eh_triggered_by_idx").on(table.triggeredBy),
 ]);
+
+
+export const exploitQuarantineQueue = mysqlTable("exploit_quarantine_queue", {
+	id: int().autoincrement().notNull(),
+	quarantineId: varchar("quarantine_id", { length: 128 }).notNull(),
+	exploitTitle: varchar("exploit_title", { length: 512 }).notNull(),
+	exploitDescription: text("exploit_description"),
+	exploitCode: text("exploit_code"),
+	exploitLanguage: varchar("exploit_language", { length: 64 }),
+	exploitPlatform: varchar("exploit_platform", { length: 64 }),
+	exploitService: varchar("exploit_service", { length: 128 }),
+	exploitCveIds: json("exploit_cve_ids"),
+	exploitTags: json("exploit_tags"),
+	exploitSource: varchar("exploit_source", { length: 32 }).notNull(),
+	submittedBy: varchar("submitted_by", { length: 255 }).notNull(),
+	sourcePipeline: varchar("source_pipeline", { length: 128 }).notNull(),
+	status: mysqlEnum(['pending_review', 'approved', 'rejected']).default('pending_review').notNull(),
+	engagementId: int("engagement_id"),
+	metaCveId: varchar("meta_cve_id", { length: 32 }),
+	metaSuccess: tinyint("meta_success").default(1).notNull(),
+	reviewedAt: timestamp("reviewed_at", { mode: 'string' }),
+	reviewedBy: varchar("reviewed_by", { length: 255 }),
+	reviewNotes: text("review_notes"),
+	quarantinedAt: timestamp("quarantined_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("eqq_quarantine_id_unique").on(table.quarantineId),
+	index("eqq_status_idx").on(table.status),
+	index("eqq_engagement_idx").on(table.engagementId),
+]);
+
+export const approvedExploitCatalog = mysqlTable("approved_exploit_catalog", {
+	id: int().autoincrement().notNull(),
+	catalogEntryId: varchar("catalog_entry_id", { length: 128 }).notNull(),
+	quarantineId: varchar("quarantine_id", { length: 128 }).notNull(),
+	exploitTitle: varchar("exploit_title", { length: 512 }).notNull(),
+	exploitDescription: text("exploit_description"),
+	exploitCode: text("exploit_code"),
+	exploitLanguage: varchar("exploit_language", { length: 64 }),
+	exploitPlatform: varchar("exploit_platform", { length: 64 }),
+	exploitService: varchar("exploit_service", { length: 128 }),
+	exploitCveIds: json("exploit_cve_ids"),
+	exploitTags: json("exploit_tags"),
+	exploitSource: varchar("exploit_source", { length: 32 }).default('ac3_history').notNull(),
+	reliabilityScore: int("reliability_score").default(90),
+	approvedBy: varchar("approved_by", { length: 255 }).notNull(),
+	approvalNotes: text("approval_notes"),
+	sourcePipeline: varchar("source_pipeline", { length: 128 }).notNull(),
+	originalEngagementId: int("original_engagement_id"),
+	approvedAt: timestamp("approved_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("aec_catalog_entry_id_unique").on(table.catalogEntryId),
+	index("aec_quarantine_id_idx").on(table.quarantineId),
+]);
+
+export const exploitSelectionSnapshots = mysqlTable("exploit_selection_snapshots", {
+	id: int().autoincrement().notNull(),
+	snapshotId: varchar("snapshot_id", { length: 128 }).notNull(),
+	engagementId: int("engagement_id").notNull(),
+	selectionEvent: varchar("selection_event", { length: 255 }).notNull(),
+	catalogStateHash: varchar("catalog_state_hash", { length: 128 }).notNull(),
+	catalogEntryCount: int("catalog_entry_count").notNull(),
+	selectedExploitIds: json("selected_exploit_ids"),
+	ragQueryUsed: text("rag_query_used"),
+	ragResultCount: int("rag_result_count"),
+	ragResultIds: json("rag_result_ids"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("ess_snapshot_id_unique").on(table.snapshotId),
+	index("ess_engagement_idx").on(table.engagementId),
+]);

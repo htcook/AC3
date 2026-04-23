@@ -218,6 +218,13 @@
       "when": 1776960838455,
       "tag": "0030_slippery_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1776976971458,
+      "tag": "0031_public_rhino",
+      "breakpoints": true
     }
   ]
 }

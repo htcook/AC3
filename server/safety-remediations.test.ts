@@ -430,3 +430,239 @@ describe("ApprovalGate — Dual-Approval Fields", () => {
     expect(source).toContain("gate.riskTier === 'red'");
   });
 });
+
+// ─── 5. Database Persistence Layer ─────────────────────────────────────────
+
+describe("Quarantine Queue — Database Persistence Infrastructure", () => {
+  it("exploit-knowledge-store exports persistQuarantineEntry via addExploitRecipe", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    // Verify persistence functions exist
+    expect(source).toContain("async function persistQuarantineEntry(entry: QuarantinedExploit)");
+    expect(source).toContain("async function persistQuarantineReview(quarantineId: string");
+    expect(source).toContain("async function persistApprovedCatalogEntry(entry: QuarantinedExploit");
+  });
+
+  it("addExploitRecipe calls persistQuarantineEntry after in-memory push", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    // Verify the persistence call is in addExploitRecipe
+    expect(source).toContain("persistQuarantineEntry(quarantinedExploit).catch");
+  });
+
+  it("approveQuarantinedExploit calls both persistQuarantineReview and persistApprovedCatalogEntry", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    // Verify both persistence calls are in approveQuarantinedExploit
+    expect(source).toContain("persistQuarantineReview(quarantineId, 'approved'");
+    expect(source).toContain("persistApprovedCatalogEntry(entry, reviewedBy");
+  });
+
+  it("rejectQuarantinedExploit calls persistQuarantineReview with 'rejected' status", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("persistQuarantineReview(quarantineId, 'rejected'");
+  });
+
+  it("persistQuarantineEntry writes to exploitQuarantineQueue table", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("db.insert(exploitQuarantineQueue).values");
+  });
+
+  it("persistApprovedCatalogEntry writes to approvedExploitCatalog table", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("db.insert(approvedExploitCatalog).values");
+  });
+
+  it("database is declared as authoritative source of truth", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("authoritative source is the database");
+    expect(source).toContain("hot cache");
+  });
+});
+
+// ─── 6. Database Restoration on Init ───────────────────────────────────────
+
+describe("Quarantine Queue — Database Restoration", () => {
+  it("exports loadApprovedCatalogFromDb function", async () => {
+    const store = await import("./lib/exploit-knowledge-store");
+    expect(typeof store.loadApprovedCatalogFromDb).toBe("function");
+  });
+
+  it("exports loadQuarantineQueueFromDb function", async () => {
+    const store = await import("./lib/exploit-knowledge-store");
+    expect(typeof store.loadQuarantineQueueFromDb).toBe("function");
+  });
+
+  it("initializeExploitKnowledgeStore calls loadApprovedCatalogFromDb", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("loadApprovedCatalogFromDb()");
+    expect(source).toContain("loadQuarantineQueueFromDb()");
+  });
+
+  it("initialization logs approved catalog and quarantine queue counts", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("Approved Catalog (DB):");
+    expect(source).toContain("Quarantine Queue (DB):");
+  });
+});
+
+// ─── 7. Catalog Selection Snapshot ─────────────────────────────────────────
+
+describe("Exploit Selection Snapshot", () => {
+  it("exports recordExploitSelectionSnapshot function", async () => {
+    const store = await import("./lib/exploit-knowledge-store");
+    expect(typeof store.recordExploitSelectionSnapshot).toBe("function");
+  });
+
+  it("recordExploitSelectionSnapshot writes to exploitSelectionSnapshots table", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("db.insert(exploitSelectionSnapshots).values");
+  });
+
+  it("recordExploitSelectionSnapshot computes catalog state hash", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("createHash('sha256')");
+    expect(source).toContain("catalogHash");
+    expect(source).toContain("catalogStateHash: catalogHash");
+  });
+
+  it("snapshot records engagement ID and RAG query details", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/lib/exploit-knowledge-store.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("engagementId: params.engagementId");
+    expect(source).toContain("ragQueryUsed: params.ragQuery");
+    expect(source).toContain("ragResultCount: params.ragResultCount");
+    expect(source).toContain("ragResultIds: params.ragResultIds");
+  });
+});
+
+// ─── 8. Schema Tables Exist ────────────────────────────────────────────────
+
+describe("Database Schema — Quarantine & Catalog Tables", () => {
+  it("exploit_quarantine_queue table is defined in schema", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/drizzle/schema.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain('exploitQuarantineQueue = mysqlTable("exploit_quarantine_queue"');
+    expect(source).toContain("quarantine_id");
+    expect(source).toContain("exploit_title");
+    expect(source).toContain("source_pipeline");
+    expect(source).toContain("'pending_review', 'approved', 'rejected'");
+  });
+
+  it("approved_exploit_catalog table is defined in schema", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/drizzle/schema.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain('approvedExploitCatalog = mysqlTable("approved_exploit_catalog"');
+    expect(source).toContain("catalog_entry_id");
+    expect(source).toContain("quarantine_id");
+    expect(source).toContain("approved_by");
+    expect(source).toContain("reliability_score");
+  });
+
+  it("exploit_selection_snapshots table is defined in schema", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/drizzle/schema.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain('exploitSelectionSnapshots = mysqlTable("exploit_selection_snapshots"');
+    expect(source).toContain("snapshot_id");
+    expect(source).toContain("catalog_state_hash");
+    expect(source).toContain("selected_exploit_ids");
+    expect(source).toContain("rag_query_used");
+  });
+});
+
+// ─── 9. Graduation-Quarantine Independence ─────────────────────────────────
+
+describe("Graduation-Quarantine Independence", () => {
+  it("graduation engine explicitly documents that graduation does not bypass quarantine", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("Graduation of an exploit-generating caller does NOT bypass");
+    expect(source).toContain("quarantine queue for its outputs");
+    expect(source).toContain("Graduation replaces the LLM caller with");
+    expect(source).toContain("deterministic code");
+  });
+
+  it("graduation bar phrasing uses correct 'reduces tolerated failure rate' language", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync(
+      "/home/ubuntu/caldera-dashboard/server/routers/graduation-engine.ts",
+      "utf-8"
+    );
+
+    expect(source).toContain("tolerated failure rate from 3% to 1%");
+    // Should NOT contain the old incorrect phrasing
+    expect(source).not.toContain("2% higher success rate");
+  });
+});

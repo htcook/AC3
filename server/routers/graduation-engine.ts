@@ -32,11 +32,21 @@ const GRADUATION_THRESHOLDS = {
  * Elevated graduation thresholds for exploit-category callers.
  *
  * Exploit-generating LLM callers operate in a higher-risk domain where
- * false positives (bad exploit code) can cause real damage. These callers
- * must demonstrate significantly higher reliability before graduating:
+ * false positives (bad exploit code) can cause real damage.
+ *
+ * Exploit-category callers face elevated thresholds that reduce the
+ * tolerated failure rate from 3% to 1% at Tier 1 and double the minimum
+ * call volume (1,000 vs 500) to ensure statistical significance:
  *   - Tier 1: 99% success rate (vs 97%) with 1000 calls (vs 500)
  *   - Tier 2: 95% success rate (vs 90%) with 500 calls (vs 200)
  *   - Tier 3: 90% success rate (vs 80%) with 100 calls (vs 50)
+ *
+ * IMPORTANT: Graduation of an exploit-generating caller does NOT bypass
+ * the quarantine queue for its outputs. Graduated code still produces
+ * outputs that feed the quarantine queue and require human review before
+ * entering the approved catalog. Graduation replaces the LLM caller with
+ * deterministic code; the quarantine queue gates the *outputs* of that
+ * code, not the *caller* itself.
  */
 const EXPLOIT_GRADUATION_THRESHOLDS = {
   tier1: { successRate: 99, minCalls: 1000, maxAvgLatencyMs: 5000, label: "Ready to Graduate (Exploit — Elevated Bar)" },
