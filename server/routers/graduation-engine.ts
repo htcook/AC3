@@ -28,6 +28,32 @@ const GRADUATION_THRESHOLDS = {
   tier4: { successRate: 0, minCalls: 0, maxAvgLatencyMs: Infinity, label: "Still Training" },
 };
 
+/**
+ * Elevated graduation thresholds for exploit-category callers.
+ *
+ * Exploit-generating LLM callers operate in a higher-risk domain where
+ * false positives (bad exploit code) can cause real damage. These callers
+ * must demonstrate significantly higher reliability before graduating:
+ *   - Tier 1: 99% success rate (vs 97%) with 1000 calls (vs 500)
+ *   - Tier 2: 95% success rate (vs 90%) with 500 calls (vs 200)
+ *   - Tier 3: 90% success rate (vs 80%) with 100 calls (vs 50)
+ */
+const EXPLOIT_GRADUATION_THRESHOLDS = {
+  tier1: { successRate: 99, minCalls: 1000, maxAvgLatencyMs: 5000, label: "Ready to Graduate (Exploit — Elevated Bar)" },
+  tier2: { successRate: 95, minCalls: 500, maxAvgLatencyMs: 10000, label: "Near Graduation (Exploit — Elevated Bar)" },
+  tier3: { successRate: 90, minCalls: 100, maxAvgLatencyMs: 30000, label: "Emerging Pattern (Exploit — Elevated Bar)" },
+  tier4: { successRate: 0, minCalls: 0, maxAvgLatencyMs: Infinity, label: "Still Training" },
+};
+
+/** Callers that use the elevated exploit graduation thresholds */
+const EXPLOIT_CATEGORY_CALLERS = new Set([
+  'functional-exploit-generator',
+  'exploit-recipe-engine',
+  'enhanced-exploit-orchestration',
+  'nexus-pipeline.exploit',
+  'specialist:exploit-selector',
+]);
+
 // Tasks that should always remain LLM-powered (creative/reasoning tasks)
 const KEEP_LLM_TASKS = new Set([
   "operator-cockpit.chat",
@@ -73,27 +99,33 @@ function computeTier(
   if (KEEP_LLM_TASKS.has(caller)) {
     return { tier: 5, label: "Keep LLM (Creative/Reasoning)" };
   }
+
+  // Use elevated thresholds for exploit-category callers
+  const thresholds = EXPLOIT_CATEGORY_CALLERS.has(caller)
+    ? EXPLOIT_GRADUATION_THRESHOLDS
+    : GRADUATION_THRESHOLDS;
+
   if (
-    successRate >= GRADUATION_THRESHOLDS.tier1.successRate &&
-    totalCalls >= GRADUATION_THRESHOLDS.tier1.minCalls &&
-    avgLatencyMs <= GRADUATION_THRESHOLDS.tier1.maxAvgLatencyMs
+    successRate >= thresholds.tier1.successRate &&
+    totalCalls >= thresholds.tier1.minCalls &&
+    avgLatencyMs <= thresholds.tier1.maxAvgLatencyMs
   ) {
-    return { tier: 1, label: GRADUATION_THRESHOLDS.tier1.label };
+    return { tier: 1, label: thresholds.tier1.label };
   }
   if (
-    successRate >= GRADUATION_THRESHOLDS.tier2.successRate &&
-    totalCalls >= GRADUATION_THRESHOLDS.tier2.minCalls &&
-    avgLatencyMs <= GRADUATION_THRESHOLDS.tier2.maxAvgLatencyMs
+    successRate >= thresholds.tier2.successRate &&
+    totalCalls >= thresholds.tier2.minCalls &&
+    avgLatencyMs <= thresholds.tier2.maxAvgLatencyMs
   ) {
-    return { tier: 2, label: GRADUATION_THRESHOLDS.tier2.label };
+    return { tier: 2, label: thresholds.tier2.label };
   }
   if (
-    successRate >= GRADUATION_THRESHOLDS.tier3.successRate &&
-    totalCalls >= GRADUATION_THRESHOLDS.tier3.minCalls
+    successRate >= thresholds.tier3.successRate &&
+    totalCalls >= thresholds.tier3.minCalls
   ) {
-    return { tier: 3, label: GRADUATION_THRESHOLDS.tier3.label };
+    return { tier: 3, label: thresholds.tier3.label };
   }
-  return { tier: 4, label: GRADUATION_THRESHOLDS.tier4.label };
+  return { tier: 4, label: thresholds.tier4.label };
 }
 
 function computeGraduationScore(

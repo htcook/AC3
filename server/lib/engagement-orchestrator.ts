@@ -156,6 +156,12 @@ export interface ApprovalGate {
   createdAt: number;
   resolvedAt?: number;
   resolvedBy?: string;
+  /** When true, this gate requires two independent approvers before resolving */
+  dualApprovalRequired?: boolean;
+  /** Tracks approver IDs for dual-approval gates; gate resolves when length >= requiredApprovals */
+  approvers?: string[];
+  /** Number of approvals required (1 for normal, 2 for dual-approval) */
+  requiredApprovals?: number;
 }
 
 export interface OpsLogEntry {
@@ -1583,23 +1589,39 @@ async function requestApproval(
     return true;
   }
 
+  // ── Dual-Approval Check ──
+  // When the safety profile requires dual approval (full_exploitation tier),
+  // red-tier gates need 2 independent approvers before resolving.
+  const safetyEng = getSafetyEngine(state.engagementId);
+  const isDualApproval = safetyEng.getProfile().dualApprovalRequired === true && gate.riskTier === 'red';
+  const requiredApprovals = isDualApproval ? 2 : 1;
+
   // ── Manual Approval Gate ──
   const approval: ApprovalGate = {
     id: genId(),
     status: "pending",
     createdAt: Date.now(),
     ...gate,
+    dualApprovalRequired: isDualApproval,
+    approvers: [],
+    requiredApprovals,
   };
   state.approvalGates.push(approval);
   state.isPaused = true;
-  state.currentAction = `⏸ Awaiting approval: ${gate.title}`;
+  state.currentAction = isDualApproval
+    ? `⏸ Awaiting dual approval (0/${requiredApprovals}): ${gate.title}`
+    : `⏸ Awaiting approval: ${gate.title}`;
 
   addLog(state, {
     phase: gate.phase,
     type: "approval_request",
-    title: `🔒 Approval Required: ${gate.title}`,
-    detail: gate.description,
-    data: gate.detail,
+    title: isDualApproval
+      ? `🔐 Dual Approval Required (0/${requiredApprovals}): ${gate.title}`
+      : `🔒 Approval Required: ${gate.title}`,
+    detail: isDualApproval
+      ? `${gate.description}\n\n⚠️ DUAL-APPROVAL: This red-tier action requires ${requiredApprovals} independent approvers. Each approver must be a distinct operator.`
+      : gate.description,
+    data: { ...gate.detail, dualApprovalRequired: isDualApproval, requiredApprovals },
     riskTier: gate.riskTier,
   });
 
@@ -1661,18 +1683,96 @@ async function requestApproval(
   });
 }
 
-export function resolveApproval(gateId: string, approved: boolean, resolvedBy?: string): boolean {
+export function resolveApproval(gateId: string, approved: boolean, resolvedBy?: string): boolean | 'partial' {
   const resolver = approvalResolvers.get(gateId);
   if (!resolver) return false;
-  // Find the gate and set resolvedBy
+
+  // Find the gate across all engagement states
+  let matchedGate: ApprovalGate | undefined;
+  let matchedState: EngagementOpsState | undefined;
   for (const [, state] of opsStates) {
     const gate = state.approvalGates.find(g => g.id === gateId);
     if (gate) {
-      gate.resolvedBy = resolvedBy;
+      matchedGate = gate;
+      matchedState = state;
       break;
     }
   }
-  resolver(approved);
+
+  // ── Denial always resolves immediately (any single operator can deny) ──
+  if (!approved) {
+    if (matchedGate) {
+      matchedGate.resolvedBy = resolvedBy;
+    }
+    resolver(false);
+    approvalResolvers.delete(gateId);
+    return true;
+  }
+
+  // ── Dual-Approval Enforcement ──
+  if (matchedGate?.dualApprovalRequired && (matchedGate.requiredApprovals || 2) > 1) {
+    const approvers = matchedGate.approvers || [];
+    const approverId = resolvedBy || 'unknown';
+
+    // Reject duplicate approver — same person cannot approve twice
+    if (approvers.includes(approverId)) {
+      if (matchedState) {
+        addLog(matchedState, {
+          phase: matchedGate.phase,
+          type: 'warning',
+          title: `⚠️ Duplicate Approver Rejected: ${matchedGate.title}`,
+          detail: `Operator '${approverId}' already approved this gate. Dual-approval requires ${matchedGate.requiredApprovals} distinct approvers.`,
+          riskTier: matchedGate.riskTier,
+        });
+      }
+      return 'partial'; // Signal that the approval was recorded but gate not yet resolved
+    }
+
+    approvers.push(approverId);
+    matchedGate.approvers = approvers;
+
+    if (approvers.length < (matchedGate.requiredApprovals || 2)) {
+      // Not enough approvers yet — log progress and keep gate open
+      if (matchedState) {
+        matchedState.currentAction = `⏸ Awaiting dual approval (${approvers.length}/${matchedGate.requiredApprovals}): ${matchedGate.title}`;
+        addLog(matchedState, {
+          phase: matchedGate.phase,
+          type: 'approval_response',
+          title: `🔐 Partial Approval (${approvers.length}/${matchedGate.requiredApprovals}): ${matchedGate.title}`,
+          detail: `Operator '${approverId}' approved. Waiting for ${(matchedGate.requiredApprovals || 2) - approvers.length} more independent approver(s).`,
+          riskTier: matchedGate.riskTier,
+        });
+        broadcastOpsUpdate(matchedState.engagementId, {
+          type: 'approval_partial',
+          gateId: matchedGate.id,
+          approvers: [...approvers],
+          requiredApprovals: matchedGate.requiredApprovals,
+        });
+      }
+      return 'partial';
+    }
+
+    // All required approvers present — resolve the gate
+    matchedGate.resolvedBy = approvers.join(',');
+    if (matchedState) {
+      addLog(matchedState, {
+        phase: matchedGate.phase,
+        type: 'approval_response',
+        title: `✅ Dual Approval Complete (${approvers.length}/${matchedGate.requiredApprovals}): ${matchedGate.title}`,
+        detail: `All ${matchedGate.requiredApprovals} independent approvers confirmed: [${approvers.join(', ')}]. Gate resolved.`,
+        riskTier: matchedGate.riskTier,
+      });
+    }
+    resolver(true);
+    approvalResolvers.delete(gateId);
+    return true;
+  }
+
+  // ── Standard single-approval resolution ──
+  if (matchedGate) {
+    matchedGate.resolvedBy = resolvedBy;
+  }
+  resolver(true);
   approvalResolvers.delete(gateId);
   return true;
 }
@@ -11641,6 +11741,16 @@ export async function executeEngagement(
       `Max blast radius: ${engagementSafetyLevel === 'passive_only' ? 5 : engagementSafetyLevel === 'low_impact' ? 30 : engagementSafetyLevel === 'standard' ? 60 : 100}`,
   });
   broadcastOpsUpdate(engagementId, { type: "safety_init", level: engagementSafetyLevel });
+
+  // ═══ DUAL-APPROVAL ENFORCEMENT LOG ═══
+  if (safetyEngine.getProfile().dualApprovalRequired) {
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '🔐 Dual-Approval Enforcement Active',
+      detail: `Safety profile '${safetyEngine.getProfile().label}' requires two independent approvers for red-tier gates. ` +
+        `Each exploit/C2/post-exploit approval must be confirmed by two distinct operators before execution proceeds.`,
+    });
+  }
 
   // ═══ STATS RECALCULATION ═══
   // Ensure stats reflect actual asset data (fixes vulnsFound=0 after reset/resume)

@@ -33,6 +33,8 @@ export interface SafetyProfile {
   maxScanForgeTiming: number;
   maxRpsPerHost: number;
   requirePhaseApproval: boolean;
+  /** When true, red-tier approval gates require two independent approvers */
+  dualApprovalRequired: boolean;
   blockedScanForgeFlags: string[];
   blockedNucleiTags: string[];
 }
@@ -51,6 +53,7 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
     allowLateralMovement: false, maxScanForgeTiming: 0, maxRpsPerHost: 1,
     requirePhaseApproval: false,
+    dualApprovalRequired: false,
     blockedScanForgeFlags: ["-sS", "-sT", "-sU", "-sV", "-sC", "-A", "--script", "-O", "-Pn"],
     blockedNucleiTags: ["rce", "sqli", "ssrf", "xss", "lfi", "bruteforce", "default-login", "takeover", "cve"],
   },
@@ -63,6 +66,7 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
     allowLateralMovement: false, maxScanForgeTiming: 3, maxRpsPerHost: 10,
     requirePhaseApproval: false,
+    dualApprovalRequired: false,
     blockedScanForgeFlags: ["--script=exploit", "--script=brute", "--script=dos"],
     blockedNucleiTags: ["rce", "sqli", "ssrf", "bruteforce", "default-login", "takeover-exploit", "dos"],
   },
@@ -75,6 +79,7 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowC2Deployment: false, allowExfilSimulation: false, allowDosTest: false,
     allowLateralMovement: false, maxScanForgeTiming: 4, maxRpsPerHost: 50,
     requirePhaseApproval: true,
+    dualApprovalRequired: false,
     blockedScanForgeFlags: ["--script=dos"],
     blockedNucleiTags: ["dos"],
   },
@@ -87,6 +92,7 @@ const SAFETY_PROFILES: Record<SafetyLevel, SafetyProfile> = {
     allowC2Deployment: true, allowExfilSimulation: true, allowDosTest: false,
     allowLateralMovement: true, maxScanForgeTiming: 5, maxRpsPerHost: 100,
     requirePhaseApproval: true,
+    dualApprovalRequired: true,
     blockedScanForgeFlags: [],
     blockedNucleiTags: ["dos"],
   },

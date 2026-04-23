@@ -483,7 +483,17 @@ export const engagementOpsRouter = router({
         }
 
         const resolved = resolveApproval(input.gateId, input.approved, ctx.user.name || String(ctx.user.id));
-        if (!resolved) throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found or already resolved' });
+        if (resolved === false) throw new TRPCError({ code: 'NOT_FOUND', message: 'Approval gate not found or already resolved' });
+
+        // Dual-approval partial — first approver recorded but gate still pending
+        if (resolved === 'partial') {
+          await db.logActivity({
+            userId: ctx.user.id,
+            action: 'ops_dual_approval_partial',
+            details: `Partial dual-approval for gate ${input.gateId} — awaiting additional approver(s)`,
+          });
+          return { resolved: false, partial: true, modified: false };
+        }
 
         // Persist exploit plan to history
         if (isExploitPlan && gateDetail) {
