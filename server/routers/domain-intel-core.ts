@@ -480,23 +480,51 @@ export const domainIntelRouter = router({
                 return healthObs?.evidence?.fullReport || null;
               })(),
               // Domain Registration (RDAP/WHOIS) data extracted from passive recon
+              // Falls back to Dehashed WHOIS when RDAP is unavailable
               domainRegistration: (() => {
                 if (!result.passiveRecon?.allObservations) return null;
+                // Try RDAP first (most structured)
                 const rdapObs = result.passiveRecon.allObservations.find(
                   (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
                 );
-                if (!rdapObs?.evidence) return null;
-                const ev = rdapObs.evidence as any;
-                return {
-                  registrar: ev.registrar || null,
-                  registrationDate: ev.events?.registration || null,
-                  expirationDate: ev.events?.expiration || null,
-                  lastChanged: ev.events?.last_changed || null,
-                  status: ev.status || [],
-                  nameservers: ev.nameservers || [],
-                  dnssec: ev.secureDNS?.delegationSigned || false,
-                  handle: ev.handle || ev.ldhName || null,
-                };
+                if (rdapObs?.evidence) {
+                  const ev = rdapObs.evidence as any;
+                  return {
+                    registrar: ev.registrar || null,
+                    registrationDate: ev.events?.registration || null,
+                    expirationDate: ev.events?.expiration || null,
+                    lastChanged: ev.events?.last_changed || null,
+                    status: ev.status || [],
+                    nameservers: ev.nameservers || [],
+                    dnssec: ev.secureDNS?.delegationSigned || false,
+                    handle: ev.handle || ev.ldhName || null,
+                    source: 'rdap',
+                  };
+                }
+                // Fallback: Dehashed WHOIS data
+                const dwObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'dehashed_whois' && o.tags?.includes('whois_registration')
+                );
+                if (dwObs?.evidence) {
+                  const ev = dwObs.evidence as any;
+                  return {
+                    registrar: ev.registrar || null,
+                    registrationDate: ev.creation_date || null,
+                    expirationDate: ev.expiration_date || null,
+                    lastChanged: ev.updated_date || null,
+                    status: ev.status || [],
+                    nameservers: ev.name_servers || [],
+                    dnssec: ev.dnssec === 'signedDelegation' || ev.dnssec === 'signed' || false,
+                    handle: null,
+                    registrantOrg: ev.registrant_organization || null,
+                    registrantCountry: ev.registrant_country || null,
+                    domainAgeYears: ev.domain_age_years || null,
+                    daysUntilExpiry: ev.days_until_expiry || null,
+                    riskSignals: ev.risk_signals || [],
+                    source: 'dehashed_whois',
+                  };
+                }
+                return null;
               })(),
               // SSL/TLS certificates extracted from Shodan/Censys passive recon
               sslCertificates: (() => {
@@ -1173,15 +1201,24 @@ export const domainIntelRouter = router({
                 );
                 return healthObs?.evidence?.fullReport || null;
               })(),
-              // Domain Registration (RDAP/WHOIS) data
+              // Domain Registration (RDAP/WHOIS) data — falls back to Dehashed WHOIS
               domainRegistration: (() => {
                 if (!result.passiveRecon?.allObservations) return null;
                 const rdapObs = result.passiveRecon.allObservations.find(
                   (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
                 );
-                if (!rdapObs?.evidence) return null;
-                const ev = rdapObs.evidence as any;
-                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+                if (rdapObs?.evidence) {
+                  const ev = rdapObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null, source: 'rdap' };
+                }
+                const dwObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'dehashed_whois' && o.tags?.includes('whois_registration')
+                );
+                if (dwObs?.evidence) {
+                  const ev = dwObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.creation_date || null, expirationDate: ev.expiration_date || null, lastChanged: ev.updated_date || null, status: ev.status || [], nameservers: ev.name_servers || [], dnssec: ev.dnssec === 'signedDelegation' || ev.dnssec === 'signed' || false, handle: null, registrantOrg: ev.registrant_organization || null, registrantCountry: ev.registrant_country || null, domainAgeYears: ev.domain_age_years || null, daysUntilExpiry: ev.days_until_expiry || null, riskSignals: ev.risk_signals || [], source: 'dehashed_whois' };
+                }
+                return null;
               })(),
               // SSL/TLS certificates from Shodan/Censys
               sslCertificates: (() => {
@@ -1699,15 +1736,24 @@ export const domainIntelRouter = router({
                 );
                  return healthObs?.evidence?.fullReport || null;
               })(),
-              // Domain Registration (RDAP/WHOIS) data
+              // Domain Registration (RDAP/WHOIS) data — falls back to Dehashed WHOIS
               domainRegistration: (() => {
                 if (!result.passiveRecon?.allObservations) return null;
                 const rdapObs = result.passiveRecon.allObservations.find(
                   (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
                 );
-                if (!rdapObs?.evidence) return null;
-                const ev = rdapObs.evidence as any;
-                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+                if (rdapObs?.evidence) {
+                  const ev = rdapObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null, source: 'rdap' };
+                }
+                const dwObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'dehashed_whois' && o.tags?.includes('whois_registration')
+                );
+                if (dwObs?.evidence) {
+                  const ev = dwObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.creation_date || null, expirationDate: ev.expiration_date || null, lastChanged: ev.updated_date || null, status: ev.status || [], nameservers: ev.name_servers || [], dnssec: ev.dnssec === 'signedDelegation' || ev.dnssec === 'signed' || false, handle: null, registrantOrg: ev.registrant_organization || null, registrantCountry: ev.registrant_country || null, domainAgeYears: ev.domain_age_years || null, daysUntilExpiry: ev.days_until_expiry || null, riskSignals: ev.risk_signals || [], source: 'dehashed_whois' };
+                }
+                return null;
               })(),
               // SSL/TLS certificates from Shodan/Censys
               sslCertificates: (() => {
@@ -3031,15 +3077,24 @@ export const domainIntelRouter = router({
                 );
                 return healthObs?.evidence?.fullReport || null;
               })(),
-              // Domain Registration (RDAP/WHOIS) data
+              // Domain Registration (RDAP/WHOIS) data — falls back to Dehashed WHOIS
               domainRegistration: (() => {
                 if (!result.passiveRecon?.allObservations) return null;
                 const rdapObs = result.passiveRecon.allObservations.find(
                   (o: any) => o.source === 'rdap' && o.tags?.includes('registration_data')
                 );
-                if (!rdapObs?.evidence) return null;
-                const ev = rdapObs.evidence as any;
-                return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null };
+                if (rdapObs?.evidence) {
+                  const ev = rdapObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.events?.registration || null, expirationDate: ev.events?.expiration || null, lastChanged: ev.events?.last_changed || null, status: ev.status || [], nameservers: ev.nameservers || [], dnssec: ev.secureDNS?.delegationSigned || false, handle: ev.handle || ev.ldhName || null, source: 'rdap' };
+                }
+                const dwObs = result.passiveRecon.allObservations.find(
+                  (o: any) => o.source === 'dehashed_whois' && o.tags?.includes('whois_registration')
+                );
+                if (dwObs?.evidence) {
+                  const ev = dwObs.evidence as any;
+                  return { registrar: ev.registrar || null, registrationDate: ev.creation_date || null, expirationDate: ev.expiration_date || null, lastChanged: ev.updated_date || null, status: ev.status || [], nameservers: ev.name_servers || [], dnssec: ev.dnssec === 'signedDelegation' || ev.dnssec === 'signed' || false, handle: null, registrantOrg: ev.registrant_organization || null, registrantCountry: ev.registrant_country || null, domainAgeYears: ev.domain_age_years || null, daysUntilExpiry: ev.days_until_expiry || null, riskSignals: ev.risk_signals || [], source: 'dehashed_whois' };
+                }
+                return null;
               })(),
               // SSL/TLS certificates from Shodan/Censys
               sslCertificates: (() => {

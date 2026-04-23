@@ -472,7 +472,65 @@ function AllChecksTab({ report }: { report: any }) {
   );
 }
 
-export default function DomainHealthTab({ report, activeSubTab }: { report: any; activeSubTab: string }) {
+function RegistrationTab({ registration }: { registration: any }) {
+  if (!registration) return (
+    <Card className="bg-card/50 border-border/50"><CardContent className="pt-6">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground py-8">
+        <Globe className="h-8 w-8 opacity-40" />
+        <div className="text-center"><div className="font-medium">Domain Registration Data Not Available</div><div className="text-xs mt-1">RDAP lookup did not return data. A future scan with Dehashed WHOIS fallback may populate this.</div></div>
+      </div>
+    </CardContent></Card>
+  );
+  const rows = [
+    { label: 'Registrar', value: registration.registrar },
+    { label: 'Registration Date', value: registration.registrationDate ? new Date(registration.registrationDate).toLocaleDateString() : null },
+    { label: 'Expiration Date', value: registration.expirationDate ? new Date(registration.expirationDate).toLocaleDateString() : null },
+    { label: 'Last Changed', value: registration.lastChanged ? new Date(registration.lastChanged).toLocaleDateString() : null },
+    { label: 'Domain Age', value: registration.domainAgeYears ? `${registration.domainAgeYears} years` : null },
+    { label: 'Days Until Expiry', value: registration.daysUntilExpiry != null ? String(registration.daysUntilExpiry) : null },
+    { label: 'DNSSEC', value: registration.dnssec ? 'Enabled' : 'Not Enabled' },
+    { label: 'Nameservers', value: registration.nameservers?.join(', ') },
+    { label: 'Status', value: registration.status?.join(', ') },
+    { label: 'Registrant Org', value: registration.registrantOrg },
+    { label: 'Registrant Country', value: registration.registrantCountry },
+    { label: 'Data Source', value: registration.source === 'dehashed_whois' ? 'Dehashed WHOIS' : registration.source === 'rdap' ? 'RDAP' : registration.source },
+  ].filter(r => r.value);
+  const isExpiring = registration.daysUntilExpiry != null && registration.daysUntilExpiry < 30;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">Domain registration details retrieved via {registration.source === 'dehashed_whois' ? 'Dehashed WHOIS' : 'RDAP'} lookup.</p>
+      {isExpiring && (
+        <Card className="bg-red-500/5 border-red-500/20"><CardContent className="pt-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+          <div><div className="text-sm font-semibold text-red-400">Domain Expiring Soon</div><div className="text-xs text-muted-foreground">This domain expires in {registration.daysUntilExpiry} days. Renew immediately to prevent domain hijacking.</div></div>
+        </CardContent></Card>
+      )}
+      <Card className="bg-card/50 border-border/50">
+        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4 text-blue-400" /> Registration Details</CardTitle></CardHeader>
+        <CardContent>
+          <div className="divide-y divide-border/50">
+            {rows.map((r, i) => (
+              <div key={i} className="flex justify-between py-2 text-sm">
+                <span className="text-muted-foreground">{r.label}</span>
+                <span className="font-medium text-foreground">{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      {registration.riskSignals?.length > 0 && (
+        <Card className="bg-card/50 border-border/50">
+          <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-yellow-400" /> Risk Signals ({registration.riskSignals.length})</CardTitle></CardHeader>
+          <CardContent><div className="space-y-2">{registration.riskSignals.map((s: string, i: number) => (
+            <div key={i} className="flex items-start gap-2 text-sm"><AlertTriangle className="h-3.5 w-3.5 text-yellow-400 shrink-0 mt-0.5" /><span>{s}</span></div>
+          ))}</div></CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+export default function DomainHealthTab({ report, activeSubTab, domainRegistration }: { report: any; activeSubTab: string; domainRegistration?: any }) {
   if (!report) return (
     <Card className="bg-card/50 border-border/50"><CardContent className="pt-6">
       <div className="flex flex-col items-center gap-3 text-muted-foreground py-8">
@@ -490,6 +548,7 @@ export default function DomainHealthTab({ report, activeSubTab }: { report: any;
     case "health-dns": return <DnsHealthTab report={report} />;
     case "health-connectivity": return <ConnectivityTab report={report} />;
     case "health-all": return <AllChecksTab report={report} />;
+    case "health-registration": return <RegistrationTab registration={domainRegistration} />;
     default: return <HealthOverview report={report} />;
   }
 }

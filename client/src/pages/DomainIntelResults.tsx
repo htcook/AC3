@@ -1370,6 +1370,7 @@ export default function DomainIntelResults() {
               { value: 'health-dns', label: 'DNS Health', icon: <Stethoscope className="h-3 w-3" /> },
               { value: 'health-connectivity', label: 'Connectivity', icon: <Wifi className="h-3 w-3" /> },
               { value: 'health-all', label: 'All Checks', icon: <ListChecks className="h-3 w-3" /> },
+              { value: 'health-registration', label: 'Registration', icon: <Globe className="h-3 w-3" /> },
             ],
           },
           {
@@ -6119,10 +6120,10 @@ export default function DomainIntelResults() {
         )}
 
         {/* ─── Domain Health Tabs ─── */}
-        {['health-overview', 'health-blacklist', 'health-mail', 'health-mail-security', 'health-mail-ports', 'health-dns', 'health-connectivity', 'health-all'].map(tab => (
+        {['health-overview', 'health-blacklist', 'health-mail', 'health-mail-security', 'health-mail-ports', 'health-dns', 'health-connectivity', 'health-all', 'health-registration'].map(tab => (
           <TabsContent key={tab} value={tab} className="space-y-4">
             <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
-              <DomainHealthTab report={domainHealth} activeSubTab={tab} />
+              <DomainHealthTab report={domainHealth} activeSubTab={tab} domainRegistration={pipeline?.domainRegistration} />
             </Suspense>
           </TabsContent>
         ))}

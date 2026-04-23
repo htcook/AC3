@@ -828,7 +828,7 @@ export async function exportDiReport(
   if (llmAnalysis.recommendations?.length > 0) {
     const topRec = llmAnalysis.recommendations[0];
     const recText = topRec.recommendation || topRec.title || (typeof topRec === 'string' ? topRec : '');
-    if (recText) blufParts.push(`Highest priority recommendation: ${truncate(recText, 150)}.`);
+    if (recText) blufParts.push(`Highest priority recommendation: ${recText}.`);
   }
 
   // 10. Methodology note for transparency
@@ -1010,6 +1010,90 @@ export async function exportDiReport(
       },
     });
     y = (doc as any).lastAutoTable.finalY + 5;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 2B. ENTITY PROFILE & FINANCIAL IMPACT
+  // ═══════════════════════════════════════════════════════════════════════
+  const entityProfile = scan.entityProfile || scan.pipelineOutput?.entityProfile || null;
+  const financialImpact = scan.financialImpact || scan.pipelineOutput?.financialImpact || null;
+  if (entityProfile || financialImpact) {
+    y = startSection('Organization Profile & Financial Impact', y, 80);
+    if (entityProfile) {
+      const epRows: string[][] = [];
+      if (entityProfile.orgName) epRows.push(['Organization', entityProfile.orgName]);
+      if (entityProfile.industry) epRows.push(['Industry', entityProfile.industry]);
+      if (entityProfile.estimatedRevenue) epRows.push(['Est. Annual Revenue', typeof entityProfile.estimatedRevenue === 'number' ? `$${(entityProfile.estimatedRevenue / 1_000_000).toFixed(1)}M` : String(entityProfile.estimatedRevenue)]);
+      if (entityProfile.estimatedEmployees) epRows.push(['Est. Employees', String(entityProfile.estimatedEmployees)]);
+      if (entityProfile.headquarters) epRows.push(['Headquarters', entityProfile.headquarters]);
+      if (entityProfile.isPublicCompany !== undefined) epRows.push(['Public Company', entityProfile.isPublicCompany ? 'Yes' : 'No']);
+      if (entityProfile.stockTicker) epRows.push(['Stock Ticker', entityProfile.stockTicker]);
+      if (entityProfile.foundedYear) epRows.push(['Founded', String(entityProfile.foundedYear)]);
+      if (entityProfile.keyProducts?.length > 0) epRows.push(['Key Products/Services', entityProfile.keyProducts.slice(0, 5).join(', ')]);
+      if (entityProfile.identificationMethod) epRows.push(['Identification Method', entityProfile.identificationMethod]);
+      if (entityProfile.confidence) epRows.push(['Confidence', `${entityProfile.confidence}%`]);
+      if (epRows.length > 0) {
+        autoTable!(doc, {
+          startY: y,
+          head: [['Attribute', 'Value']],
+          body: epRows,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+          bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          columnStyles: { 0: { cellWidth: 45, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+          margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+    }
+    if (financialImpact) {
+      y = checkPageBreak(y, 50);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text('Financial Impact Assessment', margin, y);
+      y += 4;
+      const tierColor = financialImpact.impactTier === 'critical' ? [220, 38, 38]
+        : financialImpact.impactTier === 'high' ? [234, 88, 12]
+        : financialImpact.impactTier === 'moderate' ? [202, 138, 4]
+        : [34, 197, 94];
+      doc.setFillColor(tierColor[0], tierColor[1], tierColor[2]);
+      doc.roundedRect(margin, y, 35, 6, 1, 1, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Impact Tier: ${(financialImpact.impactTier || 'unknown').toUpperCase()}`, margin + 2, y + 4);
+      y += 10;
+      const fmtMoney = (v: number) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `$${(v / 1_000).toFixed(0)}K` : `$${v}`;
+      const fiRows: string[][] = [];
+      if (financialImpact.totalMaxExposure) fiRows.push(['Total Maximum Exposure', fmtMoney(financialImpact.totalMaxExposure)]);
+      if (financialImpact.maxSingleIncidentLoss) fiRows.push(['Max Single Incident Loss', fmtMoney(financialImpact.maxSingleIncidentLoss)]);
+      if (financialImpact.estimatedDailyRevenueLoss) fiRows.push(['Est. Daily Revenue Loss', fmtMoney(financialImpact.estimatedDailyRevenueLoss)]);
+      if (financialImpact.regulatoryFineExposure) fiRows.push(['Regulatory Fine Exposure', fmtMoney(financialImpact.regulatoryFineExposure)]);
+      if (financialImpact.reputationalDamageEstimate) fiRows.push(['Reputational Damage Est.', fmtMoney(financialImpact.reputationalDamageEstimate)]);
+      if (fiRows.length > 0) {
+        autoTable!(doc, {
+          startY: y,
+          head: [['Metric', 'Value']],
+          body: fiRows,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
+          bodyStyles: { fontSize: 7, cellPadding: 2, textColor: [51, 65, 85] },
+          alternateRowStyles: { fillColor: [241, 245, 249] },
+          columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+          margin: { left: margin, right: margin },
+        });
+        y = (doc as any).lastAutoTable.finalY + 3;
+      }
+      if (financialImpact.rationale) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        y = writeText(financialImpact.rationale, margin, y, contentWidth, 6.5);
+        y += 5;
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -1625,7 +1709,22 @@ export async function exportDiReport(
     if (domainRegistration.status?.length > 0) {
       regRows.push(['Status Codes', domainRegistration.status.join(', ')]);
     }
-
+    // Dehashed WHOIS-specific fields
+    if (domainRegistration.registrantOrg) {
+      regRows.push(['Registrant Organization', domainRegistration.registrantOrg]);
+    }
+    if (domainRegistration.registrantCountry) {
+      regRows.push(['Registrant Country', domainRegistration.registrantCountry]);
+    }
+    if (domainRegistration.domainAgeYears) {
+      regRows.push(['Domain Age', `${domainRegistration.domainAgeYears} years`]);
+    }
+    if (domainRegistration.daysUntilExpiry) {
+      regRows.push(['Days Until Expiry (WHOIS)', String(domainRegistration.daysUntilExpiry)]);
+    }
+    if (domainRegistration.source) {
+      regRows.push(['Data Source', domainRegistration.source === 'dehashed_whois' ? 'Dehashed WHOIS' : domainRegistration.source === 'rdap' ? 'RDAP' : domainRegistration.source]);
+    }
     autoTable!(doc, {
       startY: y,
       head: [['Property', 'Value']],
@@ -4633,14 +4732,20 @@ export async function exportDiReport(
       head: [['Priority', 'Recommendation', 'Category', 'Effort']],
       body: finalRecommendations.slice(0, 20).map((r: any, i: number) => [
         `P${i + 1}`,
-        truncate(r.recommendation || r.title || r, 150),
-        humanize(truncate(r.category || 'General', 30)),
+        r.recommendation || r.description || r.title || (typeof r === 'string' ? r : ''),
+        humanize(r.category || 'General'),
         humanize(r.effort || 'N/A'),
       ]),
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold', cellPadding: 2 },
-      bodyStyles: { fontSize: 7, cellPadding: 1.5, textColor: [51, 65, 85] },
+      bodyStyles: { fontSize: 6.5, cellPadding: 2, textColor: [51, 65, 85], overflow: 'linebreak' },
       alternateRowStyles: { fillColor: [241, 245, 249] },
+      columnStyles: {
+        0: { cellWidth: 12 },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 18 },
+      },
       margin: { left: margin, right: margin },
       didParseCell: (data: any) => {
         if (data.section === 'body' && data.column.index === 0) {
@@ -4663,11 +4768,11 @@ export async function exportDiReport(
       doc.setTextColor(51, 65, 85);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Chain: ${truncate(chain.name || chain.title, 60)}`, margin, y);
+      doc.text(`Chain: ${chain.name || chain.title || 'Unnamed Chain'}`, margin, y);
       y += 4;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
-      y = writeText(truncate(chain.description || chain.narrative, 300), margin + 3, y, contentWidth - 6, 7);
+      y = writeText(chain.description || chain.narrative || '', margin + 3, y, contentWidth - 6, 7);
       y += 3;
     }
   }
