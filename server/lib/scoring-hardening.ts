@@ -474,6 +474,13 @@ export function classifyAssetDeterministic(asset: {
 
 // ─── Scoring Validation Report ───────────────────────────────────────
 
+export type DistributionResponse =
+  | "none"
+  | "review_enrichment_sources"   // >30% critical: check if correlated inputs are inflating
+  | "review_scoring_profiles"     // 0% critical+high: check if thresholds are too aggressive
+  | "review_llm_classification"   // >50% fallback: LLM classification pipeline may be degraded
+  | "manual_audit_recommended";   // Multiple flags: human review needed
+
 export interface ScoringValidationReport {
   totalAssets: number;
   scoredAssets: number;
@@ -482,6 +489,12 @@ export interface ScoringValidationReport {
   correctedInputs: number;
   riskDistribution: Record<string, number>;
   warnings: string[];
+  /** Actionable responses for each distribution anomaly detected */
+  responses: Array<{
+    flag: string;
+    response: DistributionResponse;
+    action: string;
+  }>;
 }
 
 export function generateScoringValidationReport(
@@ -495,26 +508,170 @@ export function generateScoringValidationReport(
     correctedInputs: results.filter(r => r.result.sanitizationLog.length > 0).length,
     riskDistribution: { critical: 0, high: 0, medium: 0, low: 0 },
     warnings: [],
+    responses: [],
   };
 
   for (const r of results) {
     report.riskDistribution[r.result.riskBand]++;
   }
 
-  // Check for suspicious distributions
+  // Check for suspicious distributions and generate actionable responses
   const total = results.length;
   if (total > 5) {
     const criticalPct = (report.riskDistribution.critical / total) * 100;
+    const highPct = (report.riskDistribution.high / total) * 100;
     if (criticalPct > 30) {
       report.warnings.push(`${criticalPct.toFixed(0)}% of assets scored critical — possible over-inflation`);
+      report.responses.push({
+        flag: "critical_over_30pct",
+        response: "review_enrichment_sources",
+        action: "Check correlated-input damping report for stacked enrichment. Verify FIPS 199, Criticality Tier, and CVSS Environmental are not independently pushing the same factors. Consider tightening sector preset baselines.",
+      });
     }
-    if (criticalPct === 0 && report.riskDistribution.high === 0) {
+    if (criticalPct === 0 && highPct === 0) {
       report.warnings.push("No critical or high-risk assets — possible under-scoring");
+      report.responses.push({
+        flag: "no_critical_or_high",
+        response: "review_scoring_profiles",
+        action: "Verify scoring profile thresholds are appropriate for the engagement sector. Check if confirmedVulnScore data is being ingested. Review whether 'innocent until proven guilty' is suppressing scores that should have evidence.",
+      });
     }
     if (report.fallbackAssets > total * 0.5) {
       report.warnings.push(`${report.fallbackAssets}/${total} assets used fallback scoring — LLM classification may be failing`);
+      report.responses.push({
+        flag: "high_fallback_rate",
+        response: "review_llm_classification",
+        action: "Check LLM telemetry for error rates. Verify API connectivity. Review recent LLM reliability circuit breaker state. Consider increasing LLM timeout or switching to deterministic-only mode.",
+      });
+    }
+    // Multiple flags = manual audit
+    if (report.responses.length >= 2) {
+      report.responses.push({
+        flag: "multiple_anomalies",
+        response: "manual_audit_recommended",
+        action: "Multiple distribution anomalies detected simultaneously. A manual audit of 10-20 representative assets across risk bands is recommended before finalizing engagement scoring.",
+      });
     }
   }
 
   return report;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTER-RATER RELIABILITY HARNESS
+// ═══════════════════════════════════════════════════════════════════════
+/**
+ * Inter-rater reliability testing harness for CARVER scoring.
+ *
+ * Compares two independent operator CARVER assessments of the same asset set
+ * and computes agreement metrics. This addresses Claude's Round 5 concern
+ * that CARVER subjectivity compounds through multipliers — a 2-point
+ * disagreement on Criticality can shift priority tiers.
+ *
+ * Usage: Have two operators independently score 10+ assets, then run this
+ * harness to measure agreement. Target: ≥75% exact-match, ≥90% within-1.
+ */
+export interface InterRaterAsset {
+  assetId: string;
+  assetLabel: string;
+}
+
+export interface InterRaterScoring {
+  assetId: string;
+  carver: CarverScores;
+  shock: ShockScores;
+}
+
+export interface InterRaterResult {
+  assetCount: number;
+  factorAgreement: Record<string, {
+    exactMatch: number;
+    withinOne: number;
+    maxDelta: number;
+    meanDelta: number;
+  }>;
+  overallExactMatch: number;
+  overallWithinOne: number;
+  riskBandAgreement: number;
+  flaggedFactors: string[];
+  recommendation: string;
+}
+
+export function computeInterRaterReliability(
+  raterA: InterRaterScoring[],
+  raterB: InterRaterScoring[],
+  profile: ScoringProfile
+): InterRaterResult {
+  const assetCount = raterA.length;
+  const factors: (keyof CarverScores)[] = [
+    "criticality", "accessibility", "recuperability",
+    "vulnerability", "effect", "recognizability",
+  ];
+  const shockFactors: (keyof ShockScores)[] = [
+    "scope", "handling", "operationalImpact", "cascadingEffects", "knowledge",
+  ];
+  const allFactors = [...factors.map(f => ({ name: f, type: "carver" as const })), ...shockFactors.map(f => ({ name: f, type: "shock" as const }))];
+
+  const factorAgreement: Record<string, { exactMatch: number; withinOne: number; maxDelta: number; meanDelta: number }> = {};
+  let totalExact = 0;
+  let totalWithinOne = 0;
+  let totalComparisons = 0;
+  let bandMatches = 0;
+
+  for (const { name, type } of allFactors) {
+    let exact = 0, within1 = 0, maxD = 0, sumD = 0;
+    for (let i = 0; i < assetCount; i++) {
+      const a = type === "carver" ? (raterA[i].carver as any)[name] : (raterA[i].shock as any)[name];
+      const b = type === "carver" ? (raterB[i].carver as any)[name] : (raterB[i].shock as any)[name];
+      const delta = Math.abs(a - b);
+      if (delta === 0) exact++;
+      if (delta <= 1) within1++;
+      maxD = Math.max(maxD, delta);
+      sumD += delta;
+    }
+    factorAgreement[name] = {
+      exactMatch: Math.round((exact / assetCount) * 100),
+      withinOne: Math.round((within1 / assetCount) * 100),
+      maxDelta: maxD,
+      meanDelta: Math.round((sumD / assetCount) * 100) / 100,
+    };
+    totalExact += exact;
+    totalWithinOne += within1;
+    totalComparisons += assetCount;
+  }
+
+  // Compare final risk bands
+  for (let i = 0; i < assetCount; i++) {
+    const resultA = computeHybridRisk({ carver: raterA[i].carver, shock: raterA[i].shock, cvssEstimate: 5, exposure: 0.5, confidence: 0.8 }, profile);
+    const resultB = computeHybridRisk({ carver: raterB[i].carver, shock: raterB[i].shock, cvssEstimate: 5, exposure: 0.5, confidence: 0.8 }, profile);
+    if (resultA.riskBand === resultB.riskBand) bandMatches++;
+  }
+
+  const overallExactMatch = Math.round((totalExact / totalComparisons) * 100);
+  const overallWithinOne = Math.round((totalWithinOne / totalComparisons) * 100);
+  const riskBandAgreement = Math.round((bandMatches / assetCount) * 100);
+
+  // Flag factors with poor agreement
+  const flaggedFactors = Object.entries(factorAgreement)
+    .filter(([_, v]) => v.withinOne < 75 || v.maxDelta >= 3)
+    .map(([k]) => k);
+
+  let recommendation: string;
+  if (overallWithinOne >= 90 && riskBandAgreement >= 80) {
+    recommendation = "Strong agreement. Rubrics are well-calibrated. Proceed with confidence.";
+  } else if (overallWithinOne >= 75) {
+    recommendation = `Acceptable agreement. Tighten anchored rubrics for: ${flaggedFactors.join(", ") || "none"}. Re-test after rubric update.`;
+  } else {
+    recommendation = `Weak agreement (≤${overallWithinOne}% within-1). Rubrics need significant tightening for: ${flaggedFactors.join(", ")}. Conduct calibration session before using scores in production.`;
+  }
+
+  return {
+    assetCount,
+    factorAgreement,
+    overallExactMatch,
+    overallWithinOne,
+    riskBandAgreement,
+    flaggedFactors,
+    recommendation,
+  };
 }

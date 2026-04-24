@@ -67,4 +67,26 @@
 - [x] Trace hybrid scoring integration (CARVER + CVSS + BIA)
 - [x] Research scoring data sources, enrichment pipelines, and persistence
 - [x] Write comprehensive hybrid scoring deep-dive document for Claude
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
+
+### Claude Round 5 Feedback — Hybrid Scoring Deep Dive (Apr 23)
+- [x] Add practitioner provenance (20-year CARVER background) to document
+- [x] Rewrite §16: replace patent claims with trade-secret/copyright/IP protection framing
+- [x] Address inter-rater reliability: add anchored rubrics with concrete example assets per score level
+- [x] Implement inter-rater reliability test harness (10 assets, 2 operators, agreement measurement)
+- [x] Address one-way ratchet: add correlated-input damping mechanism for Criticality
+- [x] Address double-counting: recognize when CVSS Env + FIPS 199 + Tier + Sector push same dimension
+- [x] Clarify Layer 9 LLM propagation: document whether deltas re-run pipeline or bypass it
+- [x] Name Layer 8 additive-vs-multiplicative as deliberate design choice with rationale
+- [x] Add downstream responses to distribution monitoring flags (not just observational)
+- [x] Name deterministic-baseline + bounded-LLM-delta as consistent platform philosophy
+- [x] Write vitest tests for correlated-input damping and distribution monitoring responses (17 tests passing)
+- [x] Generate v2 Hybrid Scoring Deep Dive document with all corrections (1,252 lines)
+- [x] Checkpoint and push to GitHub (Round 5)
+
+### AC3 Platform Deep Dive Document (Apr 23)
+- [x] Survey all server/lib modules and catalog capabilities
+- [x] Survey all client pages and UI features
+- [x] Survey engagement/campaign/DI features
+- [x] Write comprehensive AC3 Platform Deep Dive document (987 lines, 20 sections)
+- [x] Checkpoint and push to GitHub (Platform Deep Dive)

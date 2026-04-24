@@ -108,6 +108,87 @@ export interface ScoringInput {
   criticalityTier?: CriticalityTier;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// §1b — CORRELATED-INPUT DAMPING
+// ═══════════════════════════════════════════════════════════════════════
+/**
+ * Detects when multiple independent enrichment sources (CVSS Environmental,
+ * FIPS 199, Criticality Tier, Sector preset) all push the same CARVER
+ * dimension toward the ceiling. When ≥3 sources independently elevate
+ * the same factor, a logarithmic damping function replaces the naive
+ * max-of-all-floors approach to prevent correlated inflation.
+ *
+ * Example: A bank's core platform receives:
+ *   - CVSS CR:H → Criticality floor 8
+ *   - FIPS 199 High → Criticality floor 8
+ *   - Criticality Tier 1 → Criticality floor 9
+ *   - Banking sector preset → Criticality 8
+ * Without damping: max(8,8,9,8) = 9 (fine)
+ * With naive additive: could push to 10 (inflation)
+ * With this damping: recognizes correlation, caps effective push.
+ */
+export interface CorrelatedInputReport {
+  factor: string;
+  sourceCount: number;
+  sources: Array<{ name: string; proposedFloor: number }>;
+  rawMax: number;
+  dampedValue: number;
+  wasDamped: boolean;
+}
+
+export function detectAndDampCorrelatedInputs(
+  baseCarver: CarverScores,
+  enrichmentSources: Array<{
+    name: string;
+    carverFloors: Partial<CarverScores>;
+  }>
+): { dampedCarver: CarverScores; report: CorrelatedInputReport[] } {
+  const report: CorrelatedInputReport[] = [];
+  const dampedCarver = { ...baseCarver };
+  const factors: (keyof CarverScores)[] = [
+    "criticality", "accessibility", "recuperability",
+    "vulnerability", "effect", "recognizability",
+  ];
+  for (const factor of factors) {
+    const sources: Array<{ name: string; proposedFloor: number }> = [];
+    for (const src of enrichmentSources) {
+      const floor = src.carverFloors[factor];
+      if (floor !== undefined && floor > baseCarver[factor]) {
+        sources.push({ name: src.name, proposedFloor: floor });
+      }
+    }
+    if (sources.length === 0) {
+      report.push({
+        factor, sourceCount: 0, sources: [], rawMax: baseCarver[factor],
+        dampedValue: baseCarver[factor], wasDamped: false,
+      });
+      continue;
+    }
+    const rawMax = Math.max(baseCarver[factor], ...sources.map(s => s.proposedFloor));
+    // Damping threshold: ≥3 sources pushing the same factor
+    if (sources.length >= 3) {
+      // Logarithmic damping: effective = base + ln(1 + totalPush) * scaleFactor
+      // This acknowledges all sources but prevents linear stacking
+      const totalPush = sources.reduce((sum, s) => sum + (s.proposedFloor - baseCarver[factor]), 0);
+      const dampedPush = Math.log1p(totalPush) * 2.0; // scale factor 2.0 keeps range reasonable
+      const dampedValue = Math.min(10, Math.round((baseCarver[factor] + dampedPush) * 100) / 100);
+      dampedCarver[factor] = Math.max(dampedCarver[factor], dampedValue);
+      report.push({
+        factor, sourceCount: sources.length, sources, rawMax,
+        dampedValue, wasDamped: true,
+      });
+    } else {
+      // <3 sources: use standard max-floor behavior (no damping needed)
+      dampedCarver[factor] = rawMax;
+      report.push({
+        factor, sourceCount: sources.length, sources, rawMax,
+        dampedValue: rawMax, wasDamped: false,
+      });
+    }
+  }
+  return { dampedCarver, report };
+}
+
 export interface ScoringResult {
   carverComposite: number;
   shockComposite: number;
@@ -131,6 +212,8 @@ export interface ScoringResult {
   fips199Applied?: Fips199Category;
   /** Criticality tier applied */
   criticalityTierApplied?: CriticalityTier;
+  /** Correlated-input damping report (if enrichment sources were present) */
+  correlatedInputReport?: CorrelatedInputReport[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1148,17 +1231,18 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
   let fips199Applied: Fips199Category | undefined;
   let criticalityTierApplied: CriticalityTier | undefined;
 
+  // ── Collect enrichment sources for correlated-input damping ──
+  const enrichmentSources: Array<{ name: string; carverFloors: Partial<CarverScores> }> = [];
+
   // ── CVSS v4.0 Feed-Through ──
   if (input.cvssV4Vector) {
     cvssV4Parsed = parseCvssV4Vector(input.cvssV4Vector) ?? undefined;
     if (cvssV4Parsed) {
       const { carverAdjustments, shockAdjustments } = cvssV4ToCarverAdjustments(cvssV4Parsed);
       cvssCarverAdjustments = carverAdjustments;
-      // Apply as floors (never lower existing scores)
-      for (const [key, val] of Object.entries(carverAdjustments)) {
-        const k = key as keyof CarverScores;
-        carver[k] = Math.max(carver[k], val as number);
-      }
+      // Collect CVSS floors for correlated-input damping (applied later)
+      enrichmentSources.push({ name: "CVSS_v4_Environmental", carverFloors: carverAdjustments as Partial<CarverScores> });
+      // Apply shock adjustments directly (not subject to CARVER damping)
       for (const [key, val] of Object.entries(shockAdjustments)) {
         const k = key as keyof ShockScores;
         shock[k] = Math.max(shock[k], val as number);
@@ -1170,10 +1254,8 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
   if (input.fips199) {
     fips199Applied = input.fips199;
     const fipsResult = fips199ToCarverAdjustments(input.fips199);
-    for (const [key, val] of Object.entries(fipsResult.carverAdjustments)) {
-      const k = key as keyof CarverScores;
-      carver[k] = Math.max(carver[k], val as number);
-    }
+    // Collect FIPS floors for correlated-input damping
+    enrichmentSources.push({ name: "FIPS_199", carverFloors: fipsResult.carverAdjustments as Partial<CarverScores> });
     for (const [key, val] of Object.entries(fipsResult.shockAdjustments)) {
       const k = key as keyof ShockScores;
       shock[k] = Math.max(shock[k], val as number);
@@ -1185,10 +1267,23 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
   if (input.criticalityTier) {
     criticalityTierApplied = input.criticalityTier;
     const tierResult = applyCriticalityTierFloors(carver, shock, input.criticalityTier);
-    carver = tierResult.carver;
+    // Collect tier floors for correlated-input damping
+    const tierCarverFloors: Partial<CarverScores> = {};
+    for (const [key] of Object.entries(tierResult.carver)) {
+      const k = key as keyof CarverScores;
+      if (tierResult.carver[k] > carver[k]) {
+        tierCarverFloors[k] = tierResult.carver[k];
+      }
+    }
+    enrichmentSources.push({ name: "Criticality_Tier", carverFloors: tierCarverFloors });
+    // Apply shock floors directly
     shock = tierResult.shock;
     missionMult = Math.max(missionMult, tierResult.missionMultiplier);
   }
+
+  // ── Apply Correlated-Input Damping ──
+  const { dampedCarver, report: correlatedInputReport } = detectAndDampCorrelatedInputs(carver, enrichmentSources);
+  carver = dampedCarver;
 
   // ── Core Computation ──
   const carverComposite = computeCarverComposite(carver, profile.carverWeights);
@@ -1260,6 +1355,7 @@ export function computeHybridRisk(input: ScoringInput, profile: ScoringProfile):
     cvssCarverAdjustments,
     fips199Applied,
     criticalityTierApplied,
+    correlatedInputReport,
   };
 }
 
