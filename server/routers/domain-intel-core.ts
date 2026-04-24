@@ -672,6 +672,13 @@ export const domainIntelRouter = router({
                   console.error(`[AutoCrawl] Failed for scan ${scanId}:`, crawlErr.message);
                 }
               });
+              // ═══ JARM HISTORY — Store JARM fingerprints and detect TLS changes ═══
+              if (result.passiveRecon?.allObservations) {
+                setImmediate(async () => {
+                  const { runJarmHistoryHook } = await import('../lib/jarm-pipeline-hook');
+                  await runJarmHistoryHook(scanId, pipelineInput.primaryDomain, result.passiveRecon!.allObservations, result.assets || []);
+                });
+              }
             } else {
               // Full engagement: run threat actor matching + campaign design
               let threatActorMatches = null;
@@ -784,6 +791,13 @@ export const domainIntelRouter = router({
                   console.error(`[AutoCrawl] Failed for scan ${scanId}:`, crawlErr.message);
                 }
               });
+              // ═══ JARM HISTORY — Store JARM fingerprints and detect TLS changes ═══
+              if (result.passiveRecon?.allObservations) {
+                setImmediate(async () => {
+                  const { runJarmHistoryHook } = await import('../lib/jarm-pipeline-hook');
+                  await runJarmHistoryHook(scanId, pipelineInput.primaryDomain, result.passiveRecon!.allObservations, result.assets || []);
+                });
+              }
             }
           } catch (err: any) {
             const errMsg = err?.message || (typeof err === 'string' ? err : 'Unknown pipeline error');

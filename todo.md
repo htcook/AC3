@@ -182,3 +182,10 @@
 - [x] Confirmed deployed site needs redeployment to pick up latest code (scan 2070001/2070002 only exist on production DB)
 - [x] Expanded entity resolver third-party name filter from 18 to 65+ entries (added GitHub, GitLab, Atlassian, Salesforce, security vendors, cloud providers, HR platforms, generic page titles)
 - [x] Push fixes to GitHub
+
+### Wire JARM History into DI Scan Pipeline (Apr 24)
+- [x] Found DI scan pipeline completion hooks in domain-intel-core.ts (scan-only path line 675, full engagement path line 794)
+- [x] Created jarm-pipeline-hook.ts: extracts JARM observations via inferInfrastructure, stores via processAndStoreJarmHistory, emits system notification for critical C2 detections
+- [x] Wired into both scan-only and full engagement completion paths as fire-and-forget setImmediate hooks
+- [x] Write tests: 7 tests passing (importability, empty observations, no-JARM data, observation mapping, asset mapping, integration points)
+- [x] Push to GitHub for DigitalOcean deployment
