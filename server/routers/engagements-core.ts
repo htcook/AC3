@@ -36,6 +36,7 @@ export const engagementsRouter = router({
         gophishCampaignId: z.number().optional(),
         notes: z.string().optional(),
         roeDocumentId: z.number().optional(),
+        fedrampImpactLevel: z.enum(['none', 'low', 'moderate', 'high']).default('none'),
       }))
       .mutation(async ({ input, ctx }) => {
         // Validate: at least one target domain or IP range is required
@@ -262,6 +263,7 @@ export const engagementsRouter = router({
         gophishCampaignId: z.number().optional(),
         notes: z.string().optional(),
         roeDocumentId: z.number().nullable().optional(),
+        fedrampImpactLevel: z.enum(['none', 'low', 'moderate', 'high']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
@@ -337,6 +339,7 @@ export const engagementsRouter = router({
         targetIpRange: z.string().optional(),
         phishingDomain: z.string().optional(),
         notes: z.string().optional(),
+        fedrampImpactLevel: z.enum(['none', 'low', 'moderate', 'high']).default('none'),
       }))
       .mutation(async ({ input, ctx }) => {
         const { getTemplateById } = await import('../lib/engagement-templates');

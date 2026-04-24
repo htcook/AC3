@@ -1,0 +1,1 @@
+ALTER TABLE `engagements` ADD `fedramp_impact_level` enum('none','low','moderate','high') DEFAULT 'none';

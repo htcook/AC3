@@ -46,6 +46,14 @@ export interface RiskSignal {
   observedAt: Date;
   rationale: string;
   evidenceRefs: string[];
+  /** NIST 800-53 control references for FedRAMP-aligned reporting */
+  nistControls?: {
+    controlId: string;
+    controlName: string;
+    family: string;
+  }[];
+  /** FedRAMP remediation deadline (auto-calculated from severity) */
+  fedrampDeadline?: string;
   /** Credential-specific evidence attached to breach/credential signals */
   credentialEvidence?: {
     emails?: string[];           // Exposed email addresses (up to 10)

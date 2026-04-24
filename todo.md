@@ -236,3 +236,10 @@
 - [x] Register all Tier 2 connectors in index.ts and passive-guard.ts
 - [x] Write tests for all Tier 2 connectors (19 tests passing)
 - [x] Push to GitHub
+
+### FedRAMP Quick Wins (Apr 24)
+- [x] Add NIST 800-53 control references to existing risk signals (nistControl field on each signal)
+- [x] Add FedRAMP Impact Level field to engagement creation (Low/Moderate/High dropdown)
+- [x] Add FedRAMP remediation timelines to findings (auto-calculate 30/90/180-day deadlines)
+- [x] Add FedRAMP report template option (reformat existing report sections with SAR-aligned headings)
+- [ ] Push to GitHub

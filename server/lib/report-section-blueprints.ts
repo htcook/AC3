@@ -21,7 +21,8 @@ export type AssessmentType =
   | 'vulnerability_assessment'
   | 'phishing_campaign'
   | 'tabletop_exercise'
-  | 'hybrid';
+  | 'hybrid'
+  | 'fedramp_sar';
 
 export interface SectionBlueprint {
   id: string;
@@ -698,6 +699,109 @@ const HYBRID_BLUEPRINT: ReportBlueprint = {
   ],
 };
 
+// ─── FedRAMP SAR (Security Assessment Report) Blueprint ─────────────────────
+
+const FEDRAMP_SAR_BLUEPRINT: ReportBlueprint = {
+  assessmentType: 'fedramp_sar',
+  displayName: 'FedRAMP Security Assessment Report (SAR)',
+  description: 'FedRAMP-compliant Security Assessment Report with NIST 800-53 control mapping, PoA&M integration, and KSI alignment.',
+  audience: 'Authorizing Officials (AO), 3PAO assessors, FedRAMP PMO, CISO, compliance officers',
+  defaultFrameworks: ['FedRAMP', 'NIST SP 800-53 Rev 5', 'NIST SP 800-53A'],
+  sections: [
+    DOCUMENT_CONTROL,
+    {
+      id: 'sar_executive_summary',
+      title: 'Executive Summary',
+      required: true,
+      promptGuidance: 'Write a FedRAMP-specific executive summary for Authorizing Officials. Include the Cloud Service Offering (CSO) name, impact level (Low/Moderate/High/LI-SaaS), authorization boundary summary, overall risk posture, total findings by severity with FedRAMP remediation timelines (Critical/High: 30 days, Moderate: 90 days, Low: 180 days), and a clear recommendation on authorization readiness. Reference NIST SP 800-53 Rev 5 controls throughout.',
+      dataSources: ['findings_summary', 'risk_ratings', 'compliance_scores', 'fedramp_metadata'],
+      subsections: [
+        { id: 'cso_overview', title: 'Cloud Service Offering Overview', promptGuidance: 'CSO name, service model (IaaS/PaaS/SaaS), deployment model, cloud provider, and authorization boundary description.' },
+        { id: 'assessment_scope', title: 'Assessment Scope', promptGuidance: 'FedRAMP impact level, applicable NIST 800-53 control baselines, and testing scope.' },
+        { id: 'risk_posture', title: 'Overall Risk Posture', promptGuidance: 'Summary risk statement with finding counts by severity and remediation timeline compliance.' },
+        { id: 'authorization_recommendation', title: 'Authorization Recommendation', promptGuidance: 'Clear recommendation: Authorize, Authorize with Conditions, or Deny. Include rationale.' },
+      ],
+    },
+    SCOPE_AND_ROE,
+    {
+      id: 'fedramp_methodology',
+      title: 'Assessment Methodology',
+      required: true,
+      promptGuidance: 'Describe the FedRAMP assessment methodology per NIST SP 800-53A. Include control assessment procedures (examine, interview, test), penetration testing approach per FedRAMP Penetration Test Guidance, and automated scanning methodology.',
+      dataSources: ['methodology_standards', 'compliance_framework'],
+      subsections: [
+        { id: 'control_assessment', title: 'Control Assessment Approach', promptGuidance: 'NIST SP 800-53A assessment procedures: examine, interview, test. Map each finding to the assessment method used.' },
+        { id: 'pentest_methodology', title: 'Penetration Testing Methodology', promptGuidance: 'Per FedRAMP Penetration Test Guidance: external/internal testing, authenticated/unauthenticated, web application testing, API testing, mobile testing if applicable.' },
+        { id: 'automated_scanning', title: 'Automated Scanning', promptGuidance: 'Vulnerability scanners used, scan frequency, credential scanning, compliance scanning tools.' },
+        { id: 'tools_used', title: 'Tools and Techniques', promptGuidance: 'Catalog of assessment tools with versions, purposes, and NIST SP 800-53 control coverage.' },
+      ],
+    },
+    FINDINGS_SUMMARY,
+    {
+      id: 'nist_control_assessment',
+      title: 'NIST 800-53 Control Assessment Results',
+      required: true,
+      promptGuidance: 'Present findings organized by NIST 800-53 control family. For each affected control: state the control requirement, assessment finding, risk level, and remediation recommendation. Include control implementation status (Implemented, Partially Implemented, Planned, Not Implemented, N/A).',
+      dataSources: ['findings', 'nist_controls', 'compliance_scores'],
+      subsections: [
+        { id: 'ac_controls', title: 'Access Control (AC)', promptGuidance: 'Findings related to AC family controls.' },
+        { id: 'au_controls', title: 'Audit and Accountability (AU)', promptGuidance: 'Findings related to AU family controls.' },
+        { id: 'ca_controls', title: 'Security Assessment and Authorization (CA)', promptGuidance: 'Findings related to CA family controls including CA-8 (Penetration Testing).' },
+        { id: 'cm_controls', title: 'Configuration Management (CM)', promptGuidance: 'Findings related to CM family controls.' },
+        { id: 'ia_controls', title: 'Identification and Authentication (IA)', promptGuidance: 'Findings related to IA family controls including credential exposure.' },
+        { id: 'ra_controls', title: 'Risk Assessment (RA)', promptGuidance: 'Findings related to RA family controls including RA-5 (Vulnerability Monitoring and Scanning).' },
+        { id: 'sc_controls', title: 'System and Communications Protection (SC)', promptGuidance: 'Findings related to SC family controls.' },
+        { id: 'si_controls', title: 'System and Information Integrity (SI)', promptGuidance: 'Findings related to SI family controls.' },
+        { id: 'other_controls', title: 'Other Control Families', promptGuidance: 'Findings mapped to remaining control families (AT, CP, IR, MA, MP, PE, PL, PM, PS, SA).' },
+      ],
+    },
+    {
+      id: 'credential_exposure_assessment',
+      title: 'Credential Exposure Assessment',
+      required: false,
+      promptGuidance: 'Document credential exposure findings from OSINT reconnaissance. Include breach sources, exposed credential counts, plaintext vs hashed passwords, and mapping to IA-5 (Authenticator Management) controls. Assess impact on authorization boundary.',
+      dataSources: ['breach_data', 'credential_evidence', 'nist_controls'],
+    },
+    {
+      id: 'ksi_alignment',
+      title: 'FedRAMP 20x Key Security Indicator (KSI) Alignment',
+      required: false,
+      promptGuidance: 'Map findings to the 11 FedRAMP 20x KSI themes: Vulnerability Management, Access Control, Incident Response, Configuration Management, Data Protection, Logging & Monitoring, Network Security, Supply Chain Risk, Encryption, Contingency Planning, Security Assessment. Score each theme based on findings.',
+      dataSources: ['findings', 'ksi_scores', 'nist_controls'],
+    },
+    RISK_MATRIX,
+    {
+      id: 'poam_summary',
+      title: 'Plan of Action and Milestones (POA&M) Summary',
+      required: true,
+      promptGuidance: 'Generate a POA&M-formatted summary of all findings. Each entry must include: POA&M ID, weakness description, NIST 800-53 control, severity, remediation timeline (per FedRAMP: Critical/High 30 days, Moderate 90 days, Low 180 days), scheduled completion date, milestones, and responsible party. Flag any findings that would be operational requirements (OR) vs deviations.',
+      dataSources: ['findings', 'remediation_data', 'nist_controls'],
+      subsections: [
+        { id: 'critical_high_poam', title: 'Critical & High Findings (30-Day Remediation)', promptGuidance: 'POA&M entries for critical and high findings requiring 30-day remediation.' },
+        { id: 'moderate_poam', title: 'Moderate Findings (90-Day Remediation)', promptGuidance: 'POA&M entries for moderate findings requiring 90-day remediation.' },
+        { id: 'low_poam', title: 'Low Findings (180-Day Remediation)', promptGuidance: 'POA&M entries for low findings requiring 180-day remediation.' },
+        { id: 'operational_requirements', title: 'Operational Requirements', promptGuidance: 'Findings classified as ongoing operational requirements rather than one-time fixes.' },
+      ],
+    },
+    REMEDIATION_ROADMAP,
+    {
+      id: 'sar_appendix',
+      title: 'Appendix',
+      required: true,
+      promptGuidance: 'FedRAMP SAR appendices including testing personnel and certifications, tools catalog, evidence catalog, OSCAL-compatible control mapping, and penetration test rules of engagement.',
+      dataSources: ['artifacts', 'tool_results', 'audit_log', 'nist_controls'],
+      subsections: [
+        { id: 'testing_personnel', title: 'Appendix A: Testing Personnel & Certifications', promptGuidance: 'Assessor names, roles, certifications (OSCP, GPEN, CEH, etc.), and 3PAO affiliation if applicable.' },
+        { id: 'tools_catalog', title: 'Appendix B: Tools Catalog', promptGuidance: 'Complete list of assessment tools with versions, purposes, and license information.' },
+        { id: 'evidence_catalog', title: 'Appendix C: Evidence Catalog', promptGuidance: 'Index of all supporting artifacts with cross-references to findings and controls.' },
+        { id: 'control_mapping', title: 'Appendix D: Complete NIST 800-53 Control Mapping', promptGuidance: 'Full mapping of all findings to NIST 800-53 controls with implementation status.' },
+        { id: 'pentest_roe', title: 'Appendix E: Penetration Test Rules of Engagement', promptGuidance: 'Signed ROE document reference, scope boundaries, and emergency contacts.' },
+        { id: 'osint_attribution', title: 'Appendix F: OSINT Source Attribution', promptGuidance: 'Attribution and compliance notices for all OSINT data sources used in the assessment.' },
+      ],
+    },
+  ],
+};
+
 // ─── Blueprint Registry ─────────────────────────────────────────────────────
 
 export const REPORT_BLUEPRINTS: Record<AssessmentType, ReportBlueprint> = {
@@ -708,6 +812,7 @@ export const REPORT_BLUEPRINTS: Record<AssessmentType, ReportBlueprint> = {
   vulnerability_assessment: VULN_ASSESSMENT_BLUEPRINT,
   tabletop_exercise: TABLETOP_BLUEPRINT,
   hybrid: HYBRID_BLUEPRINT,
+  fedramp_sar: FEDRAMP_SAR_BLUEPRINT,
 };
 
 /**
@@ -728,6 +833,9 @@ export function getReportBlueprint(assessmentType: string): ReportBlueprint {
     phishing_campaign: 'phishing_campaign',
     tabletop_exercise: 'tabletop_exercise',
     hybrid: 'hybrid',
+    fedramp_sar: 'fedramp_sar',
+    fedramp: 'fedramp_sar',
+    sar: 'fedramp_sar',
   };
   const mapped = typeMap[normalized] || 'penetration_test';
   return REPORT_BLUEPRINTS[mapped];

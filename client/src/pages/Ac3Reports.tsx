@@ -305,7 +305,13 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
               <Label>Assessment Type</Label>
               <Select
                 value={form.assessmentType}
-                onValueChange={(v) => setForm(f => ({ ...f, assessmentType: v as any }))}
+                onValueChange={(v) => {
+                  const updates: any = { assessmentType: v };
+                  if (v === 'fedramp_sar') {
+                    updates.complianceFramework = 'fedramp';
+                  }
+                  setForm(f => ({ ...f, ...updates }));
+                }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -314,6 +320,7 @@ function CreateReportDialog({ open, onClose, onCreated }: { open: boolean; onClo
                   <SelectItem value="purple_team">Purple Team</SelectItem>
                   <SelectItem value="vulnerability_assessment">Vulnerability Assessment</SelectItem>
                   <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="fedramp_sar">FedRAMP SAR</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -809,6 +816,48 @@ function FindingsTab({ reportId, findings }: { reportId: string; findings: any[]
                         </div>
                       </div>
                     )}
+
+                    {/* FedRAMP Remediation Timeline */}
+                    {report?.complianceFramework && (() => {
+                      const FEDRAMP_DEADLINES: Record<string, { days: number; label: string; color: string }> = {
+                        critical: { days: 30, label: '30 days', color: 'text-red-400 bg-red-500/10 border-red-500/30' },
+                        high: { days: 30, label: '30 days', color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
+                        moderate: { days: 90, label: '90 days', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' },
+                        low: { days: 180, label: '180 days', color: 'text-green-400 bg-green-500/10 border-green-500/30' },
+                        informational: { days: 365, label: '365 days', color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
+                      };
+                      const deadline = FEDRAMP_DEADLINES[finding.severity] || FEDRAMP_DEADLINES.informational;
+                      const createdAt = finding.createdAt ? new Date(finding.createdAt) : new Date();
+                      const dueDate = new Date(createdAt);
+                      dueDate.setDate(dueDate.getDate() + deadline.days);
+                      const now = new Date();
+                      const daysRemaining = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                      const isOverdue = daysRemaining < 0;
+                      const isUrgent = daysRemaining >= 0 && daysRemaining <= 7;
+                      const frameworkLabel = report.complianceFramework === 'fedramp' ? 'FedRAMP' : 'NIST 800-53';
+                      return (
+                        <div>
+                          <Label className="text-xs text-muted-foreground">{frameworkLabel} Remediation Timeline</Label>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className={`text-xs ${deadline.color}`}>
+                              {deadline.label} SLA
+                            </Badge>
+                            <Badge variant="outline" className={`text-xs ${
+                              isOverdue ? 'text-red-400 bg-red-500/20 border-red-500/50 animate-pulse' :
+                              isUrgent ? 'text-orange-400 bg-orange-500/20 border-orange-500/50' :
+                              'text-muted-foreground'
+                            }`}>
+                              {isOverdue ? `OVERDUE by ${Math.abs(daysRemaining)}d` :
+                               isUrgent ? `${daysRemaining}d remaining ⚠` :
+                               `${daysRemaining}d remaining`}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground">
+                              Due: {dueDate.toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Evidence */}
                     {(finding.evidence as any[] || []).length > 0 && (

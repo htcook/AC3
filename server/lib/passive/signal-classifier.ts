@@ -16,6 +16,7 @@
 
 import { createHash } from "crypto";
 import type { AssetObservation, RiskSignal, SignalSeverity } from "./types";
+import { getNistControlsForSignal, calculateFedrampDeadline } from "../nist-control-mapper";
 
 interface SignalRule {
   id: string;
@@ -581,6 +582,22 @@ export function classifySignals(observations: AssetObservation[]): RiskSignal[] 
             rationale: rule.rationale(obs),
             evidenceRefs: [obs.assetId],
           };
+          // Attach NIST 800-53 control references
+          try {
+            const nistControls = getNistControlsForSignal(rule.id);
+            if (nistControls.length > 0) {
+              signal.nistControls = nistControls.map(c => ({
+                controlId: c.controlId,
+                controlName: c.controlName,
+                family: c.family,
+              }));
+            }
+            // Calculate FedRAMP remediation deadline
+            const deadline = calculateFedrampDeadline(obs.observedAt, rule.severity);
+            signal.fedrampDeadline = deadline.toISOString();
+          } catch {
+            // Non-fatal: skip NIST mapping on error
+          }
           // Attach credential evidence for breach/credential signals
           if (rule.credentialEvidence) {
             try {

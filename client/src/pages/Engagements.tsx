@@ -110,6 +110,7 @@ export default function Engagements() {
     phishingDomain: '',
     notes: '',
     roeDocumentId: undefined as number | null,
+    fedrampImpactLevel: 'none' as 'none' | 'low' | 'moderate' | 'high',
   });
 
   // RoE documents for the selector dropdown
@@ -304,6 +305,7 @@ export default function Engagements() {
       engagementType: 'red_team', status: 'planning',
       targetDomain: '', targetIpRange: '', phishingDomain: '', notes: '',
       roeDocumentId: undefined,
+      fedrampImpactLevel: 'none',
     });
     setSelectedTemplateId(null);
   }
@@ -350,6 +352,7 @@ export default function Engagements() {
       phishingDomain: engagement.phishingDomain || '',
       notes: engagement.notes || '',
       roeDocumentId: engagement.roeDocumentId || null,
+      fedrampImpactLevel: (engagement as any).fedrampImpactLevel || 'none',
     });
     setShowCreateForm(true);
   }
@@ -766,6 +769,28 @@ export default function Engagements() {
                       <span className="text-amber-500">A draft RoE will be auto-created with your target domains/IPs as in-scope items. Review it in the <a href="/roe-builder" className="text-primary hover:underline">RoE Builder</a> before activating.</span>
                     ) : (
                       <span>Link an existing Rules of Engagement document. <a href="/roe-builder" className="text-primary hover:underline">Create new RoE</a></span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground tracking-wider block mb-1 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" /> FEDRAMP IMPACT LEVEL
+                  </label>
+                  <select
+                    value={formData.fedrampImpactLevel}
+                    onChange={(e) => setFormData(p => ({ ...p, fedrampImpactLevel: e.target.value as any }))}
+                    className="w-full px-3 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary"
+                  >
+                    <option value="none">None (Not FedRAMP)</option>
+                    <option value="low">FedRAMP Low</option>
+                    <option value="moderate">FedRAMP Moderate</option>
+                    <option value="high">FedRAMP High</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {formData.fedrampImpactLevel !== 'none' ? (
+                      <span className="text-cyan-400">NIST 800-53 controls and FedRAMP remediation timelines will be applied to all findings. Report output will include SAR-compatible formatting.</span>
+                    ) : (
+                      <span>Set this if the target is a FedRAMP-authorized cloud service provider. Enables NIST control mapping and compliance-aware reporting.</span>
                     )}
                   </p>
                 </div>
