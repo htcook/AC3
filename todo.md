@@ -152,3 +152,19 @@
 - [x] Add JarmAnalysis type and JARM TLS Fingerprint Analysis section to InfrastructureMapTab UI
 - [x] Write tests: 66 tests passing (28 new JARM-specific tests across 10 test groups)
 - [x] Push to GitHub
+
+### JARM Historical Tracking (Apr 24)
+- [ ] Design jarm_scan_history and jarm_community_signatures DB tables
+- [ ] Implement DB helpers for storing/querying JARM fingerprint history per scan
+- [ ] Implement change detection: compare current scan JARM to historical records
+- [ ] Add tRPC procedures for JARM history timeline and change alerts
+- [ ] Add JARM History Timeline UI section to InfrastructureMapTab
+
+### Community JARM Signature Feed Integration (Apr 24)
+- [ ] Design jarm_community_signatures table with source/provider/hash/matchType fields
+- [ ] Implement feed fetcher: pull JARM signatures from public repositories (GitHub JARM lists, Censys)
+- [ ] Implement signature merge logic: community sigs augment hardcoded database at runtime
+- [ ] Add scheduled refresh for community feeds
+- [ ] Add feed management UI: view sources, last refresh, signature count
+- [ ] Write tests for JARM history and community feed modules
+- [ ] Push to GitHub
