@@ -18,7 +18,8 @@ import {
   Download, FlaskConical, Mail, ShieldAlert, ShieldCheck, ShieldX, CheckCircle2, XCircle, RefreshCw,
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
-  Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2
+  Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2,
+  SendHorizontal
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -317,6 +318,23 @@ export default function DomainIntelResults() {
       refetch();
     }
   }, [refreshPoll.data, refreshing]);
+
+  // Harvest credentials from breach data into engagement credential list
+  const harvestCredentialsMut = trpc.engagementOps.harvestCredentials.useMutation({
+    onSuccess: (result) => {
+      const total = (result.inserted || 0) + (result.duplicates || 0);
+      if (result.inserted > 0) {
+        toast.success(`Sent ${result.inserted} credential${result.inserted !== 1 ? 's' : ''} to credential testing${result.duplicates > 0 ? ` (${result.duplicates} already existed)` : ''}`);
+      } else if (result.duplicates > 0) {
+        toast.info(`All ${result.duplicates} credential${result.duplicates !== 1 ? 's' : ''} already in the testing queue`);
+      } else {
+        toast.info('No credentials found to harvest — breach data may not contain extractable credentials');
+      }
+    },
+    onError: (err: any) => {
+      toast.error(`Credential harvest failed: ${sanitizeErrorForToast(err)}`);
+    },
+  });
 
   const createAdversaryMutation = trpc.domainIntel.createExploitAdversary.useMutation({
     onSuccess: (result: any) => {
@@ -1649,6 +1667,31 @@ export default function DomainIntelResults() {
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] opacity-50 shrink-0">Domain:</span>
                                     <span className="text-[10px] font-mono">{credEvidence.domain}</span>
+                                  </div>
+                                )}
+                                {/* Send to Credential Testing button */}
+                                {scan.engagementId && (
+                                  <div className="mt-2 pt-1.5">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-[10px] px-2 gap-1 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        harvestCredentialsMut.mutate({
+                                          engagementId: scan.engagementId!,
+                                          domain: scan.primaryDomain,
+                                        });
+                                      }}
+                                      disabled={harvestCredentialsMut.isPending}
+                                    >
+                                      {harvestCredentialsMut.isPending ? (
+                                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                      ) : (
+                                        <SendHorizontal className="h-2.5 w-2.5" />
+                                      )}
+                                      Send to Credential Testing
+                                    </Button>
                                   </div>
                                 )}
                               </div>

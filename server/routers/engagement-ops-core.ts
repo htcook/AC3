@@ -3671,15 +3671,41 @@ Return ONLY a JSON object with vulnerabilities array.`;
         return getEngagementCredentials(input.engagementId);
       }),
 
-    /** Manually trigger credential harvesting from existing breach data */
+    /** Manually trigger credential harvesting from existing breach data + stored observations */
     harvestCredentials: protectedProcedure
       .input(z.object({
         engagementId: z.number(),
         domain: z.string().min(1),
       }))
       .mutation(async ({ input }) => {
-        const { harvestFromExistingFindings } = await import('../lib/credential-harvester');
-        return harvestFromExistingFindings(input.engagementId, input.domain);
+        const { harvestFromExistingFindings, harvestCredentialsFromObservations } = await import('../lib/credential-harvester');
+        // Harvest from credentialFindings table
+        const findingsResult = await harvestFromExistingFindings(input.engagementId, input.domain);
+        let totalInserted = findingsResult.inserted;
+        let totalDuplicates = findingsResult.duplicates;
+
+        // Also try to harvest from stored passive recon observations in the scan
+        try {
+          const { getDomainIntelScansByEngagement } = await import('../db');
+          const scans = await getDomainIntelScansByEngagement(input.engagementId);
+          for (const scan of scans) {
+            const pipeline = scan.pipelineOutput as any;
+            const storedObs = pipeline?.passiveRecon?.allObservations;
+            if (storedObs && storedObs.length > 0) {
+              const obsResult = await harvestCredentialsFromObservations(
+                input.engagementId,
+                input.domain,
+                storedObs
+              );
+              totalInserted += obsResult.inserted;
+              totalDuplicates += obsResult.duplicates;
+            }
+          }
+        } catch (obsErr: any) {
+          console.warn(`[harvestCredentials] Observation harvest failed (non-fatal): ${obsErr.message}`);
+        }
+
+        return { inserted: totalInserted, duplicates: totalDuplicates };
       }),
 
     /** Add manually entered credentials to the engagement list */

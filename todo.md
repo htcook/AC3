@@ -195,3 +195,7 @@
 - [x] Pass credentials through to credential testing when starting an engagement
 - [x] Fix Breaches tab badge count to show breach source count (not total exposure records)
 - [x] Clarify first stat card label from "Exposures" to "Breach Records" to avoid confusion with breach count
+
+### Credential Testing Button & Executive Summary Stats (Apr 24)
+- [x] Add "Send to Credential Testing" button on individual breach signal cards for manual one-click credential spray initiation
+- [x] Aggregate credential stats into executive summary (e.g., "14 credentials with plaintext passwords across 3 breach sources")

@@ -1585,7 +1585,7 @@ Return JSON: { "campaigns": [...] }`;
 export async function generateScanOnlySummary(
   analyses: AssetAnalysis[],
   org: OrgProfile,
-  opts?: { managedProviderName?: string | null }
+  opts?: { managedProviderName?: string | null; breachData?: BreachDataSummary | null; riskSignals?: any[] | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
   // ── Filter out managed provider and third-party assets ──
   const ownershipFilter = createAssetOwnershipFilter({
@@ -1708,6 +1708,28 @@ Security Findings: ${allFindings.length}
 Actively Exploited Vulnerabilities (per government alerts): ${kevFindings.length}
 ${corroborationBlock}
 ${managedProviderContext}
+${(() => {
+    const bd = opts?.breachData;
+    const sigs = opts?.riskSignals || [];
+    const credSignals = sigs.filter((s: any) => s.signalType === 'credential_exposure' || s.signalType === 'high_volume_breach');
+    if (!bd && credSignals.length === 0) return '';
+    const parts: string[] = ['CREDENTIAL & BREACH EXPOSURE:'];
+    if (bd) {
+      parts.push(`- Total breach records found: ${bd.totalExposures.toLocaleString()}`);
+      parts.push(`- Unique breach sources: ${bd.uniqueBreachSources}${bd.breachSources?.length > 0 ? ` (${bd.breachSources.slice(0, 8).join(', ')}${bd.breachSources.length > 8 ? ` +${bd.breachSources.length - 8} more` : ''})` : ''}`);
+      parts.push(`- Credentials exposed (email/password pairs): ${bd.credentialPairs}`);
+      if (bd.passwordsExposed > 0) parts.push(`- Passwords exposed (plaintext or crackable): ${bd.passwordsExposed}`);
+      if (bd.hashedPasswordsExposed > 0) parts.push(`- Hashed passwords found: ${bd.hashedPasswordsExposed}`);
+    }
+    if (credSignals.length > 0) {
+      const plaintextCount = credSignals.filter((s: any) => s.credentialEvidence?.hasPlaintextPasswords).length;
+      const hashTypes = [...new Set(credSignals.flatMap((s: any) => s.credentialEvidence?.hashTypes || []))];
+      if (plaintextCount > 0) parts.push(`- ⚠ ${plaintextCount} breach source(s) contain PLAINTEXT PASSWORDS — immediate risk for credential stuffing attacks`);
+      if (hashTypes.length > 0) parts.push(`- Hash types found: ${hashTypes.join(', ')}`);
+    }
+    parts.push('IMPORTANT: Include credential exposure findings in the executive summary. Explain in plain language that employee login credentials were found in data breaches, quantify the exposure, and recommend credential rotation and multi-factor authentication if not already in place.');
+    return parts.join('\n') + '\n';
+  })()}
 Highest-Risk Assets:
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100`).join('\n')}
 
@@ -1718,8 +1740,8 @@ Findings Requiring Further Investigation:
 ${probableFindingsList || '(none)'}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, and whether a deeper assessment is recommended. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A brief technical summary for the security team covering attack surface details and risk posture. This can use technical language. Note that this is a preliminary assessment — detailed threat actor profiling has not yet been performed.
+1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, credential exposure risks (if any breach data was found), and whether a deeper assessment is recommended. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A brief technical summary for the security team covering attack surface details, risk posture, and credential exposure statistics (if applicable). This can use technical language. Note that this is a preliminary assessment — detailed threat actor profiling has not yet been performed.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -1769,7 +1791,7 @@ export async function generateSummaries(
   campaigns: CampaignRecommendation[],
   org: OrgProfile,
   historicalContext?: string,
-  opts?: { managedProviderName?: string | null }
+  opts?: { managedProviderName?: string | null; breachData?: BreachDataSummary | null; riskSignals?: any[] | null }
 ): Promise<{ executiveSummary: string; threatModelSummary: string }> {
   // ── Filter out managed provider and third-party assets ──
   const ownershipFilter = createAssetOwnershipFilter({
@@ -1873,11 +1895,33 @@ Recommended Security Exercises: ${campaigns.length}
 Actively Exploited Vulnerabilities (per government alerts): ${kevFindings.length}
 ${corroborationBlock}
 ${managedProviderContext}
+${(() => {
+    const bd = opts?.breachData;
+    const sigs = opts?.riskSignals || [];
+    const credSignals = sigs.filter((s: any) => s.signalType === 'credential_exposure' || s.signalType === 'high_volume_breach');
+    if (!bd && credSignals.length === 0) return '';
+    const parts: string[] = ['CREDENTIAL & BREACH EXPOSURE:'];
+    if (bd) {
+      parts.push(`- Total breach records found: ${bd.totalExposures.toLocaleString()}`);
+      parts.push(`- Unique breach sources: ${bd.uniqueBreachSources}${bd.breachSources?.length > 0 ? ` (${bd.breachSources.slice(0, 8).join(', ')}${bd.breachSources.length > 8 ? ` +${bd.breachSources.length - 8} more` : ''})` : ''}`);
+      parts.push(`- Credentials exposed (email/password pairs): ${bd.credentialPairs}`);
+      if (bd.passwordsExposed > 0) parts.push(`- Passwords exposed (plaintext or crackable): ${bd.passwordsExposed}`);
+      if (bd.hashedPasswordsExposed > 0) parts.push(`- Hashed passwords found: ${bd.hashedPasswordsExposed}`);
+    }
+    if (credSignals.length > 0) {
+      const plaintextCount = credSignals.filter((s: any) => s.credentialEvidence?.hasPlaintextPasswords).length;
+      const hashTypes = [...new Set(credSignals.flatMap((s: any) => s.credentialEvidence?.hashTypes || []))];
+      if (plaintextCount > 0) parts.push(`- \u26a0 ${plaintextCount} breach source(s) contain PLAINTEXT PASSWORDS \u2014 immediate risk for credential stuffing attacks`);
+      if (hashTypes.length > 0) parts.push(`- Hash types found: ${hashTypes.join(', ')}`);
+    }
+    parts.push('IMPORTANT: Include credential exposure findings in the executive summary. Explain in plain language that employee login credentials were found in data breaches, quantify the exposure, and recommend credential rotation and multi-factor authentication if not already in place.');
+    return parts.join('\n') + '\n';
+  })()}
 Highest-Risk Assets:
 ${criticalAssets.slice(0, 5).map(a => `- ${a.asset.hostname} (${a.asset.assetType}): Risk ${a.hybridRiskScore}/100`).join("\n")}
 
 Verified Findings (confirmed through software version detection):
-${confirmedFindingsList || '(none — no vulnerabilities verified at this stage)'}
+${confirmedFindingsList || '(none \u2014 no vulnerabilities verified at this stage)'}
 
 Findings Requiring Further Investigation:
 ${probableFindingsList || '(none)'}
@@ -1887,8 +1931,8 @@ ${campaigns.map(c => `- ${c.name} [${c.type}] - Priority: ${c.priority}`).join("
 ${historicalContext ? `\n\n${historicalContext}` : ''}
 
 Provide:
-1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, what security exercises are recommended, and what actions leadership should authorize. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
-2. "threatModelSummary": A technical threat model summary for the security team covering attack surface analysis, likely threat actors for this sector, and prioritized attack paths. This can use technical language.
+1. "executiveSummary": A 2-3 paragraph summary written for a CEO or board member with NO cybersecurity background. Describe what was found in plain language: how many digital assets were discovered, what risks they pose to the business, credential exposure risks (if any breach data was found), what security exercises are recommended, and what actions leadership should authorize. Avoid technical jargon. End with a "Confidence Note" stating how many findings are verified vs. requiring further investigation. Written for AC3 by AceofCloud.
+2. "threatModelSummary": A technical threat model summary for the security team covering attack surface analysis, likely threat actors for this sector, prioritized attack paths, and credential exposure statistics (if applicable). This can use technical language.
 
 Return JSON: { "executiveSummary": "...", "threatModelSummary": "..." }`;
 
@@ -3693,7 +3737,9 @@ export async function runDomainIntelPipeline(
       })(),
       generateScanOnlySummary(analyses, org, {
         managedProviderName: emailSecurityReport?.managedProvider?.name
-          || emailSecurityReport?.mx?.provider || null
+          || emailSecurityReport?.mx?.provider || null,
+        breachData: breachData || null,
+        riskSignals: passiveRecon?.riskSignals || null,
       }),
     ]);
     if (peResult.status === 'fulfilled') {
@@ -3740,7 +3786,9 @@ export async function runDomainIntelPipeline(
     // Stage 5: Summaries depend on campaigns, so must run after
     summaries = await generateSummaries(analyses, campaigns, org, historicalContext || undefined, {
       managedProviderName: emailSecurityReport?.managedProvider?.name
-        || emailSecurityReport?.mx?.provider || null
+        || emailSecurityReport?.mx?.provider || null,
+      breachData: breachData || null,
+      riskSignals: passiveRecon?.riskSignals || null,
     });
   }
 

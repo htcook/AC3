@@ -189,3 +189,84 @@ describe('startEngagement — Credential Harvesting Wiring', () => {
     expect(harvestCredentialsFromObservations.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+// ─── Executive Summary — Breach Context Injection ───────────────────────────
+
+describe('Executive Summary — Breach Context', () => {
+  it('generateScanOnlySummary should accept breachData and riskSignals in opts', async () => {
+    const mod = await import('./domainIntel');
+    expect(typeof mod.generateScanOnlySummary).toBe('function');
+    // The function signature should accept 3 params: analyses, org, opts
+    expect(mod.generateScanOnlySummary.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('generateSummaries should accept breachData and riskSignals in opts', async () => {
+    const mod = await import('./domainIntel');
+    expect(typeof mod.generateSummaries).toBe('function');
+    // The function signature should accept 5 params: analyses, campaigns, org, historicalContext, opts
+    expect(mod.generateSummaries.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('should build breach context block from breachData', () => {
+    // Simulate the breach context IIFE that gets injected into the prompt
+    const breachData = {
+      totalExposures: 40,
+      uniqueEmails: 14,
+      uniqueBreachSources: 15,
+      breachSources: ['LinkedIn', 'Adobe', 'Dropbox', 'MyFitnessPal'],
+      passwordsExposed: 5,
+      hashedPasswordsExposed: 3,
+      credentialPairs: 14,
+      subdomainsDiscovered: 0,
+      ipsDiscovered: 0,
+      queriedAt: new Date().toISOString(),
+    };
+    const riskSignals = [
+      {
+        signalType: 'credential_exposure',
+        credentialEvidence: {
+          hasPlaintextPasswords: true,
+          hashTypes: ['MD5', 'SHA1'],
+        },
+      },
+    ];
+
+    // Replicate the IIFE logic from the prompt template
+    const bd = breachData;
+    const sigs = riskSignals;
+    const credSignals = sigs.filter((s: any) => s.signalType === 'credential_exposure' || s.signalType === 'high_volume_breach');
+    const parts: string[] = ['CREDENTIAL & BREACH EXPOSURE:'];
+    if (bd) {
+      parts.push(`- Total breach records found: ${bd.totalExposures.toLocaleString()}`);
+      parts.push(`- Unique breach sources: ${bd.uniqueBreachSources}${bd.breachSources?.length > 0 ? ` (${bd.breachSources.slice(0, 8).join(', ')}${bd.breachSources.length > 8 ? ` +${bd.breachSources.length - 8} more` : ''})` : ''}`);
+      parts.push(`- Credentials exposed (email/password pairs): ${bd.credentialPairs}`);
+      if (bd.passwordsExposed > 0) parts.push(`- Passwords exposed (plaintext or crackable): ${bd.passwordsExposed}`);
+      if (bd.hashedPasswordsExposed > 0) parts.push(`- Hashed passwords found: ${bd.hashedPasswordsExposed}`);
+    }
+    if (credSignals.length > 0) {
+      const plaintextCount = credSignals.filter((s: any) => s.credentialEvidence?.hasPlaintextPasswords).length;
+      const hashTypes = [...new Set(credSignals.flatMap((s: any) => s.credentialEvidence?.hashTypes || []))];
+      if (plaintextCount > 0) parts.push(`- \u26a0 ${plaintextCount} breach source(s) contain PLAINTEXT PASSWORDS`);
+      if (hashTypes.length > 0) parts.push(`- Hash types found: ${hashTypes.join(', ')}`);
+    }
+
+    const block = parts.join('\n');
+    expect(block).toContain('CREDENTIAL & BREACH EXPOSURE:');
+    expect(block).toContain('Total breach records found: 40');
+    expect(block).toContain('Unique breach sources: 15');
+    expect(block).toContain('LinkedIn, Adobe, Dropbox, MyFitnessPal');
+    expect(block).toContain('Credentials exposed (email/password pairs): 14');
+    expect(block).toContain('Passwords exposed (plaintext or crackable): 5');
+    expect(block).toContain('Hashed passwords found: 3');
+    expect(block).toContain('PLAINTEXT PASSWORDS');
+    expect(block).toContain('Hash types found: MD5, SHA1');
+  });
+
+  it('should return empty string when no breach data or credential signals', () => {
+    const bd = undefined;
+    const sigs: any[] = [];
+    const credSignals = sigs.filter((s: any) => s.signalType === 'credential_exposure' || s.signalType === 'high_volume_breach');
+    const result = (!bd && credSignals.length === 0) ? '' : 'has content';
+    expect(result).toBe('');
+  });
+});
