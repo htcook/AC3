@@ -59,6 +59,7 @@ const WebCrawlResultsTab = lazy(() => import("./domain-intel-tabs/WebCrawlResult
 const EntityProfileTab = lazy(() => import("./domain-intel-tabs/EntityProfileTab"));
 const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorAlertCorrelationTab"));
 const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
+const InfrastructureMapTab = lazy(() => import("./domain-intel-tabs/InfrastructureMapTab"));
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -1385,6 +1386,7 @@ export default function DomainIntelResults() {
               { value: 'analysis', label: 'AI Analysis', icon: <Lightbulb className="h-3 w-3" />, hidden: !postEnrichmentAnalysis },
               { value: 'methods', label: 'Methods', icon: <Workflow className="h-3 w-3" /> },
               { value: 'osint-sources', label: 'OSINT Sources', icon: <Radio className="h-3 w-3" /> },
+              { value: 'infra-map', label: 'Infrastructure Map', icon: <Network className="h-3 w-3" /> },
             ],
           },
         ];
@@ -4882,6 +4884,11 @@ export default function DomainIntelResults() {
         {/* OSINT Sources Tab */}
         <TabsContent value="osint-sources" className="space-y-4">
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><OsintSourcesTab /></Suspense>
+        </TabsContent>
+
+        {/* Infrastructure Map Tab */}
+        <TabsContent value="infra-map" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><InfrastructureMapTab scanId={scan.id} /></Suspense>
         </TabsContent>
 
         {/* Spider / Recursive Discovery Tab */}

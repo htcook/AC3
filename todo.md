@@ -127,3 +127,17 @@
 - [x] Add clear visual distinction: tier breakdown bar, info banner, tier-accurate labels
 - [x] Write tests for the fix (18 tests passing)
 - [x] Checkpoint and push
+
+### Backend Services Inference Module (Apr 24)
+- [x] Audit existing signal sources (DNS, SPF, MX, headers, cloud-assets, builtwith, etc.)
+- [x] Design InfrastructureMap interface and inference engine
+- [x] Implement infrastructure-inference.ts module (15 service categories, vendor dependency analysis, tech lifecycle, supply chain risks)
+- [x] Add inferInfrastructure tRPC procedure to caldera-proxy.ts
+- [x] Add Infrastructure Map sub-tab to DomainIntelResults.tsx (lazy-loaded InfrastructureMapTab component)
+- [x] Write tests (38 tests passing across 14 test groups)
+
+### Confidence Explanation Tooltips (Apr 24)
+- [x] Add TooltipProvider and Tooltip components to VulnIntelSection.tsx
+- [x] Add confidence explanation tooltips to corroboration tier badges (confirmed/probable/potential)
+- [x] Add confidence explanation tooltips to KEV CONFIRMED/POTENTIAL badges
+- [x] Tooltips explain match specificity (product vs vendor-only, version-confirmed vs unconfirmed)

@@ -1327,4 +1327,26 @@ export const calderaProxyRouter = router({
         const { runVulnFeedSync } = await import('../lib/vuln-feed-sync');
         return runVulnFeedSync('manual');
       }),
+
+    inferInfrastructure: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { inferInfrastructure } = await import('../lib/infrastructure-inference');
+        const scan = await db.getDomainIntelScanById(input.scanId);
+        if (!scan) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scan not found' });
+        const output = scan.pipelineOutput as any;
+        const observations = output?.passiveRecon?.allObservations || [];
+        const assets = (output?.assets || []).map((a: any) => ({
+          hostname: a.hostname || a.asset?.hostname || '',
+          technologies: a.technologies || a.asset?.technologies || [],
+          technologyVersions: a.detectedVersions || a.asset?.detectedVersions || a.asset?.technologyVersions || {},
+          assetClasses: a.assetClasses || a.asset?.assetClasses || [],
+          headers: a.headers || a.asset?.headers || '',
+          tags: a.tags || a.asset?.tags || [],
+        }));
+        const emailSecurity = output?.emailSecurity || null;
+        const managedProvider = output?.emailSecurity?.managedProvider || null;
+        const primaryDomain = (scan as any).primaryDomain || '';
+        return inferInfrastructure(primaryDomain, observations, assets, emailSecurity, managedProvider);
+      }),
   });

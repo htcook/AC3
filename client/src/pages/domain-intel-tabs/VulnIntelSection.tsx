@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowLeft, Shield, Target, AlertTriangle, Brain, Globe, Server,
   ChevronDown, ChevronUp, Crosshair, Zap, FileText, ExternalLink,
@@ -102,6 +103,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
   };
 
   return (
+    <TooltipProvider>
     <>
       {/* Tier Filter Toggle */}
       <div className="flex items-center justify-between mb-2">
@@ -251,11 +253,26 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
                     <Database className="h-3.5 w-3.5 text-accent" />
                     <span className="font-semibold text-sm">{match.technology}</span>
                     {match.corroborationTier && (
-                      <Badge className={`text-[8px] h-4 ${
-                        match.corroborationTier === 'confirmed' ? 'bg-green-600/80 text-white' :
-                        match.corroborationTier === 'probable' ? 'bg-blue-600/80 text-white' :
-                        'bg-gray-600/80 text-white'
-                      }`}>{match.corroborationTier}</Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge className={`text-[8px] h-4 cursor-help ${
+                            match.corroborationTier === 'confirmed' ? 'bg-green-600/80 text-white' :
+                            match.corroborationTier === 'probable' ? 'bg-blue-600/80 text-white' :
+                            'bg-gray-600/80 text-white'
+                          }`}>{match.corroborationTier}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs">
+                          {match.corroborationTier === 'confirmed' && (
+                            <span>Product + version detected and matched to CVE affected range. {match._matchSpecificity === 'product' ? 'Product-specific match with version evidence.' : 'Version-confirmed match.'}</span>
+                          )}
+                          {match.corroborationTier === 'probable' && (
+                            <span>Product detected but version unconfirmed. CVEs exist for this product family. {match._matchSpecificity === 'vendor_only' ? 'Vendor-only match — no specific product version confirmed.' : 'Product match without version confirmation.'}</span>
+                          )}
+                          {match.corroborationTier === 'potential' && (
+                            <span>Vendor-only association. Technology vendor detected but no specific product or version matched to CVE. Advisory-level risk only.</span>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -299,8 +316,26 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
                             }`}>{vuln.severity?.toUpperCase()}</Badge>
                             {vuln.cvssScore && <Badge variant="outline" className="text-[8px] font-mono text-cyan-400 border-cyan-500/40">CVSS {vuln.cvssScore}</Badge>}
                             {vuln.kevListed && <Badge className="bg-red-600/80 text-white text-[8px]">KEV</Badge>}
-                            {vuln.kevListed && vuln.versionMatchConfirmed && <Badge className="bg-emerald-600/80 text-white text-[8px]">CONFIRMED</Badge>}
-                            {vuln.kevListed && !vuln.versionMatchConfirmed && <Badge className="bg-amber-600/80 text-white text-[8px]">POTENTIAL</Badge>}
+                            {vuln.kevListed && vuln.versionMatchConfirmed && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className="bg-emerald-600/80 text-white text-[8px] cursor-help">CONFIRMED</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs text-xs">
+                                  KEV-listed vulnerability with version-confirmed match. Detected version falls within the known affected range.
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {vuln.kevListed && !vuln.versionMatchConfirmed && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className="bg-amber-600/80 text-white text-[8px] cursor-help">POTENTIAL</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs text-xs">
+                                  KEV-listed vulnerability but version not confirmed. The product was detected but the specific version could not be verified against the affected range.
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             {vuln.inTheWild && <Badge className="bg-purple-600/80 text-white text-[8px]">0-DAY</Badge>}
                             {vuln.exploitAvailable && !vuln.inTheWild && <Badge className="bg-amber-600/80 text-white text-[8px]">EXPLOIT</Badge>}
                             {vuln.ransomwareLinked && <Badge className="bg-pink-600/80 text-white text-[8px]">RANSOMWARE</Badge>}
@@ -340,6 +375,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
         })}
       </div>
     </>
+    </TooltipProvider>
   );
 }
 
