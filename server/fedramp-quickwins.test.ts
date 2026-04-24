@@ -238,3 +238,68 @@ describe("End-to-end: Signal → NIST → FedRAMP", () => {
     expect(ia5!.hitCount).toBe(2);
   });
 });
+
+// ─── Signal Classifier → NIST Control Attachment ────────────────────────────
+
+describe("Signal Classifier — NIST Control Attachment", () => {
+  it("getNistControlsForSignal returns objects with controlId, controlName, family", () => {
+    const controls = getNistControlsForSignal("credential_exposure");
+    expect(controls.length).toBeGreaterThan(0);
+    const first = controls[0];
+    expect(first).toHaveProperty("controlId");
+    expect(first).toHaveProperty("controlName");
+    expect(first).toHaveProperty("family");
+    expect(first).toHaveProperty("familyCode");
+    expect(typeof first.controlId).toBe("string");
+    expect(typeof first.controlName).toBe("string");
+    expect(typeof first.family).toBe("string");
+  });
+
+  it("NIST controls for credential_exposure include IA-5 with proper name", () => {
+    const controls = getNistControlsForSignal("credential_exposure");
+    const ia5 = controls.find(c => c.controlId === "IA-5");
+    expect(ia5).toBeDefined();
+    expect(ia5!.controlName).toBe("Authenticator Management");
+    expect(ia5!.family).toBe("Identification and Authentication");
+    expect(ia5!.familyCode).toBe("IA");
+  });
+
+  it("NIST controls for missing_spf include SC-8 with proper name", () => {
+    const controls = getNistControlsForSignal("missing_spf");
+    const sc8 = controls.find(c => c.controlId === "SC-8");
+    expect(sc8).toBeDefined();
+    expect(sc8!.controlName).toBeDefined();
+    expect(sc8!.family).toBe("System and Communications Protection");
+    expect(sc8!.familyCode).toBe("SC");
+  });
+
+  it("aggregateNistControls deduplicates and counts controls", () => {
+    const result = aggregateNistControls([
+      "credential_exposure",
+      "high_volume_breach",
+      "missing_spf",
+      "expired_cert",
+    ]);
+    expect(result.length).toBeGreaterThan(0);
+    // Each entry should have controlId, controlName, family, signalCount
+    const first = result[0];
+    expect(first).toHaveProperty("controlId");
+    expect(first).toHaveProperty("controlName");
+    expect(first).toHaveProperty("hitCount");
+    expect(first.hitCount).toBeGreaterThanOrEqual(1);
+    // IA-5 should appear (from credential_exposure + high_volume_breach)
+    const ia5 = result.find(r => r.controlId === "IA-5");
+    expect(ia5).toBeDefined();
+    expect(ia5!.hitCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("calculateFedrampDeadline returns a Date in the future", () => {
+    const now = new Date();
+    const deadline = calculateFedrampDeadline(now, "critical");
+    expect(deadline instanceof Date).toBe(true);
+    expect(deadline.getTime()).toBeGreaterThan(now.getTime());
+    // Critical = 30 days
+    const diffDays = Math.round((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    expect(diffDays).toBe(30);
+  });
+});

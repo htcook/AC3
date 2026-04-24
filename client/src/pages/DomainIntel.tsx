@@ -16,7 +16,7 @@ import {
   Loader2, CheckCircle2, AlertTriangle, Zap, Building2, Server, Cloud,
   Network, FileText, Brain, Crosshair, ChevronDown, ChevronUp,
   Eye, Fingerprint, Bug, Database, Radio, Radar, Scan, Info, Lock,
-  RotateCcw, Trash2, RefreshCw
+  RotateCcw, Trash2, RefreshCw, Layers, KeyRound, BookOpen, Clock
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -261,6 +261,56 @@ const SCAN_METHODS = [
     outputs: "Campaign plans with attack chains, adversary ability mappings, phishing templates, MITRE technique IDs",
     attribution: "Campaign designs are AI-generated recommendations. Adversary abilities reference real ATT&CK technique IDs (e.g., T1566.001). Verify at: https://attack.mitre.org/techniques/<ID>",
     falsePositiveRisk: "N/A — these are recommendations, not findings.",
+  },
+  {
+    id: "infrastructure_inference",
+    name: "Infrastructure Inference Engine",
+    icon: Layers,
+    category: "Discovery",
+    description: "Analyzes DNS records, HTTP headers, and service banners to infer infrastructure components across 15 service categories (CDN, WAF, email gateway, CI/CD, monitoring, etc.). Maps discovered services to known provider fingerprints.",
+    outputs: "Inferred service categories, provider identification, confidence scores, evidence chains",
+    attribution: "Infrastructure inferences are derived from observable indicators (DNS CNAME patterns, HTTP headers, certificate SANs). Verify by checking the cited evidence.",
+    falsePositiveRisk: "Low — inferences are based on well-known provider fingerprints. Some shared-hosting scenarios may produce false positives.",
+  },
+  {
+    id: "jarm_fingerprinting",
+    name: "JARM TLS Fingerprinting",
+    icon: Fingerprint,
+    category: "Infrastructure Intelligence",
+    description: "Generates JARM TLS fingerprints for each discovered host by sending 10 specially crafted TLS Client Hello packets and hashing the server responses. Matches fingerprints against a community signature database to identify server software, CDNs, C2 frameworks, and malware infrastructure.",
+    outputs: "JARM hash, matched signatures (server software, CDN, C2 framework), historical fingerprint changes",
+    attribution: "JARM is a Salesforce open-source tool. Fingerprints are deterministic — same server config always produces the same hash. Community signatures from jarm.online.",
+    falsePositiveRisk: "Low — JARM hashes are deterministic. Signature matches depend on community database coverage.",
+  },
+  {
+    id: "nist_control_mapping",
+    name: "NIST 800-53 Control Mapping",
+    icon: BookOpen,
+    category: "Compliance Intelligence",
+    description: "Maps each discovered risk signal and vulnerability to relevant NIST 800-53 security controls. Provides FedRAMP remediation timelines based on impact level (Low/Moderate/High) and finding severity.",
+    outputs: "Mapped NIST control IDs (e.g., IA-5, SC-7), control families, FedRAMP remediation deadlines",
+    attribution: "Control mappings follow NIST SP 800-53 Rev. 5. FedRAMP timelines follow FedRAMP Authorization Act requirements.",
+    falsePositiveRisk: "N/A — these are compliance mappings, not binary findings.",
+  },
+  {
+    id: "breach_timeline_analysis",
+    name: "Breach Timeline Analysis",
+    icon: Clock,
+    category: "Breach Intelligence",
+    description: "Aggregates credential exposures from multiple breach databases and constructs a temporal timeline showing when the organization's data appeared in breaches. Identifies breach velocity trends and recurring exposure patterns.",
+    outputs: "Breach timeline visualization, exposure counts by year, breach database attribution, credential type breakdown",
+    attribution: "Data from DeHashed, HIBP, and other breach aggregators. Each exposure links to its source database.",
+    falsePositiveRisk: "Low — breach records are real artifacts. Some records may reference former employees or expired credentials.",
+  },
+  {
+    id: "credential_harvesting",
+    name: "Credential Exposure Analysis",
+    icon: KeyRound,
+    category: "Breach Intelligence",
+    description: "Searches breach databases for exposed credentials associated with the target domain. Identifies password patterns, credential reuse indicators, and spray-viable accounts. Classifies exposure severity based on password strength and recency.",
+    outputs: "Exposed email/username counts, password pattern analysis, spray-viable account flags, breach source attribution",
+    attribution: "Data from DeHashed and breach aggregators. Passwords are partially redacted in results. Full credentials available only in engagement-scoped reports.",
+    falsePositiveRisk: "Low — credentials are real breach artifacts. Some may be outdated or already rotated.",
   },
 ];
 
@@ -576,6 +626,8 @@ export default function DomainIntel() {
     { label: "DNS Verification & Banner Grabbing", stage: 2, method: "dns_verification" },
     { label: "Business Impact & Risk Scoring", stage: 3, method: "carver_shock_bia" },
     { label: "Vuln Feed & KEV Enrichment", stage: 3, method: "kev_enrichment" },
+    { label: "Infrastructure Inference & JARM Fingerprinting", stage: 3, method: "infrastructure_inference" },
+    { label: "NIST 800-53 Control Mapping & Breach Analysis", stage: 3, method: "nist_control_mapping" },
   ];
 
   const ENGAGEMENT_STAGES = [

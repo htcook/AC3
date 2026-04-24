@@ -242,4 +242,17 @@
 - [x] Add FedRAMP Impact Level field to engagement creation (Low/Moderate/High dropdown)
 - [x] Add FedRAMP remediation timelines to findings (auto-calculate 30/90/180-day deadlines)
 - [x] Add FedRAMP report template option (reformat existing report sections with SAR-aligned headings)
-- [ ] Push to GitHub
+- [x] Push to GitHub
+- [x] Wire NIST control references into OSINT Risk Signal cards on frontend
+
+### DI Scan Template & Results UI Audit (Apr 24)
+- [x] Update getConnectorCatalog with all missing connectors (34 connectors missing from OSINT Sources tab)
+- [x] Add new pipeline stage entries to SCAN_METHODS in DomainIntel.tsx (Infrastructure Inference, JARM, NIST Mapping, Breach Analysis, Credential Harvesting)
+
+### Claude Passive/Active Tool Classification Feedback (Apr 24)
+- [x] Add missing passive OSINT tools to connector catalog (subfinder, chaos-client, amass, assetfinder, findomain, gau, waybackurls, FOFA, ZoomEye, whoisfreaks, OpenPhish, EPSS, theHarvester)
+- [x] Update scan policy engine with accurate tool-to-tier classification mapping
+- [x] Add active-tier tool definitions (httpx, dnsx, naabu, gowitness, ffuf, katana, nuclei, nmap)
+- [x] Update DI pipeline documentation with hypothesis-vs-confirmed finding distinction
+- [x] Update SCAN_METHODS UI with passive/active classification labels
+- [x] Add scan mode classification to connector catalog entries

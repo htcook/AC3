@@ -19,8 +19,9 @@ import {
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
   Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2,
-  SendHorizontal, Calendar
+  SendHorizontal, Calendar, BookOpen
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1692,6 +1693,38 @@ export default function DomainIntelResults() {
                                       )}
                                       Send to Credential Testing
                                     </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* NIST 800-53 Control References */}
+                            {typeof signal === 'object' && signal.nistControls && signal.nistControls.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-current/10">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <BookOpen className="h-2.5 w-2.5 text-indigo-400 opacity-70" />
+                                  <span className="text-[9px] font-semibold uppercase tracking-wider text-indigo-400/80">NIST 800-53</span>
+                                </div>
+                                <TooltipProvider delayDuration={200}>
+                                  <div className="flex flex-wrap gap-1">
+                                    {signal.nistControls.map((ctrl: any, ci: number) => (
+                                      <Tooltip key={ci}>
+                                        <TooltipTrigger asChild>
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-mono cursor-help hover:bg-indigo-500/20 transition-colors">
+                                            {ctrl.controlId}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className="max-w-xs">
+                                          <p className="text-xs font-medium">{ctrl.controlId} — {ctrl.controlName || ctrl.title}</p>
+                                          <p className="text-[10px] text-muted-foreground">Family: {ctrl.family}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ))}
+                                  </div>
+                                </TooltipProvider>
+                                {signal.fedrampDeadline && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <Clock className="h-2.5 w-2.5 text-amber-400/60" />
+                                    <span className="text-[9px] text-amber-400/70">FedRAMP remediation by {new Date(signal.fedrampDeadline).toLocaleDateString()}</span>
                                   </div>
                                 )}
                               </div>

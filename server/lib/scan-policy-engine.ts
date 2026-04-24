@@ -843,7 +843,146 @@ export class ScanPolicyEngine {
   }
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Tool-to-Tier Classification (Claude’s Passive/Active Taxonomy) ───────────────
+//
+// Maps external scanning/recon tools to their correct scan mode tier.
+// Classification follows Claude’s analysis (Apr 2026):
+//   - passive:           No packets to target. Queries third-party databases only.
+//   - active-low:        Sends packets but no aggressive probing. Standard web/DNS client behavior.
+//   - active-standard:   Service fingerprinting, content discovery, deeper probing. No exploitation.
+//   - active-aggressive:  Vulnerability probing, exploit-like payloads, high-volume scanning.
+//
+// IMPORTANT: "passive" in OSINT literature = "no packets sent to target."
+// Operations that send packets but don’t probe aggressively (httpx, dnsx) are classified
+// as active-low, NOT passive, to keep ROE conversations honest with customers.
+
+export interface ToolClassification {
+  name: string;
+  tier: ScanMode;
+  description: string;
+  targetContact: boolean;  // Does this tool send packets to the target?
+  stateChange: boolean;    // Can this tool cause state changes on the target?
+  detectionRisk: "none" | "minimal" | "low" | "medium" | "high";
+  roeRequired: boolean;    // Does ROE need to explicitly authorize this tool?
+  notes?: string;
+}
+
+export const TOOL_TIER_CLASSIFICATION: ToolClassification[] = [
+  // ── Fully Passive (no packets to target) ──────────────────────────────
+  // Subdomain & DNS discovery (third-party databases)
+  { name: "crt.sh", tier: "passive", description: "Certificate Transparency log search", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "certspotter", tier: "passive", description: "SSLMate CT log monitoring", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "subfinder", tier: "passive", description: "Passive subdomain discovery (~30 third-party sources)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false, notes: "Passive mode is default. Never use active mode in DI pipeline." },
+  { name: "chaos-client", tier: "passive", description: "ProjectDiscovery managed corpus", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "amass-passive", tier: "passive", description: "Amass enum -passive (touchless mode)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false, notes: "MUST use -passive flag. Without it, amass does active DNS brute-forcing." },
+  { name: "assetfinder", tier: "passive", description: "Passive subdomain discovery", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "findomain", tier: "passive", description: "Passive subdomain discovery", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // Archive & historical data
+  { name: "gau", tier: "passive", description: "GetAllURLs — Wayback Machine + archive sources", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false, notes: "Passive by default. Live-fetching flags push to active-low." },
+  { name: "waybackurls", tier: "passive", description: "Wayback Machine URL extraction", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "commoncrawl", tier: "passive", description: "Common Crawl historical web data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // Infrastructure intelligence (pre-scanned databases)
+  { name: "shodan", tier: "passive", description: "Shodan pre-scanned database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "shodan-internetdb", tier: "passive", description: "Shodan InternetDB free endpoint", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "censys", tier: "passive", description: "Censys internet-wide scan database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "fofa", tier: "passive", description: "FOFA internet-wide scan database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "zoomeye", tier: "passive", description: "ZoomEye internet-wide scan database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "netlas", tier: "passive", description: "Netlas.io internet-wide host scanning", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "team-cymru", tier: "passive", description: "IP-to-ASN mapping via DNS (queries Cymru, not target)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "ripestat", tier: "passive", description: "RIPE Stat routing and RIR data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "bgpview", tier: "passive", description: "BGPView ASN/BGP routing data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // WHOIS & registration
+  { name: "rdap", tier: "passive", description: "RDAP/WHOIS registry data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "whoisxmlapi", tier: "passive", description: "WhoisXML API registration data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "whoisfreaks", tier: "passive", description: "WhoisFreaks WHOIS data", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "securitytrails", tier: "passive", description: "SecurityTrails historical DNS/WHOIS", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // Reputation & threat intel
+  { name: "urlhaus", tier: "passive", description: "abuse.ch malicious URL database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "threatfox", tier: "passive", description: "abuse.ch IOC database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "malwarebazaar", tier: "passive", description: "abuse.ch malware sample database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "feodo-tracker", tier: "passive", description: "abuse.ch botnet C2 tracking", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "sslbl", tier: "passive", description: "abuse.ch SSL certificate blacklist", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "alienvault-otx", tier: "passive", description: "AlienVault OTX threat indicators", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "greynoise", tier: "passive", description: "GreyNoise internet background noise", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "hibp", tier: "passive", description: "Have I Been Pwned breach database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "phishtank", tier: "passive", description: "PhishTank phishing URL database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "openphish", tier: "passive", description: "OpenPhish phishing reputation", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // Vulnerability correlation
+  { name: "nvd", tier: "passive", description: "NVD CVE database", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "cisa-kev", tier: "passive", description: "CISA Known Exploited Vulnerabilities", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "epss", tier: "passive", description: "EPSS exploit prediction scoring", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "osv-dev", tier: "passive", description: "OSV.dev open source vulnerability DB", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "github-advisories", tier: "passive", description: "GitHub Security Advisories (GHSA)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  // Email & org attribution
+  { name: "theharvester-passive", tier: "passive", description: "theHarvester (passive sources only)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false, notes: "Must audit --source flag. Some sources are active." },
+  { name: "sec-edgar", tier: "passive", description: "SEC EDGAR corporate filings", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "companies-house", tier: "passive", description: "UK Companies House registry", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+  { name: "opencorporates", tier: "passive", description: "Global corporate registry (140M+ companies)", targetContact: false, stateChange: false, detectionRisk: "none", roeRequired: false },
+
+  // ── Boundary Cases (passive-by-default, can become active) ────────────
+  // These are classified as active-low because they DO send packets to target.
+  // ROE must authorize probing even though impact is minimal.
+  { name: "httpx", tier: "active-low", description: "HTTP probing — single GET per host, standard web client behavior", targetContact: true, stateChange: false, detectionRisk: "minimal", roeRequired: true, notes: "Lightest possible active probing. Indistinguishable from normal user visit. Classify as active-low, not passive, to keep ROE honest." },
+  { name: "dnsx", tier: "active-low", description: "DNS resolution against authoritative nameservers", targetContact: true, stateChange: false, detectionRisk: "minimal", roeRequired: true, notes: "DNS queries are indistinguishable from normal internet traffic. Almost universally classified as passive in practice, but technically sends packets." },
+
+  // ── Active — Low Impact ────────────────────────────────────────────────
+  // Send packets, no aggressive probing, no exploitation, no state change.
+  { name: "naabu", tier: "active-low", description: "TCP connect port discovery", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true, notes: "Standard TCP connections. No state change, low noise." },
+  { name: "rustscan", tier: "active-low", description: "Fast port discovery (similar to naabu)", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true },
+  { name: "gowitness", tier: "active-low", description: "Web screenshot tool — full HTTP connections + page rendering", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true, notes: "Active, but no probing beyond normal browser behavior." },
+  { name: "aquatone", tier: "active-low", description: "Web screenshot and HTTP probing", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true },
+  { name: "eyewitness", tier: "active-low", description: "Web screenshot tool", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true },
+
+  // ── Active — Standard Impact ───────────────────────────────────────────
+  // Service fingerprinting, content discovery, deeper probing. No exploitation.
+  { name: "nmap-sv", tier: "active-standard", description: "Nmap service/OS fingerprinting (-sS/-sT/-sV/-O, --script safe)", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true, notes: "NSE scripts in 'safe' category stay in this tier." },
+  { name: "naabu-svc", tier: "active-standard", description: "Port scanning with service detection", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true },
+  { name: "whatweb", tier: "active-standard", description: "HTTP fingerprinting with depth", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true },
+  { name: "webanalyze", tier: "active-standard", description: "Technology fingerprinting", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true },
+  { name: "ffuf", tier: "active-standard", description: "Content discovery via fuzzing", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true, notes: "Generates 10,000+ 404s in target logs. OPSEC risk engine should score higher than fingerprinting. Requires explicit ROE for content discovery." },
+  { name: "gobuster", tier: "active-standard", description: "Content discovery via wordlist brute-force", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true, notes: "Same OPSEC concern as ffuf — high log volume on target." },
+  { name: "feroxbuster", tier: "active-standard", description: "Recursive content discovery", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true },
+  { name: "katana", tier: "active-standard", description: "Web crawler", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true, notes: "Configuration-dependent. At aggressive concurrency pushes toward active-aggressive." },
+  { name: "nikto", tier: "active-standard", description: "Web vulnerability scanner (mostly fingerprinting)", targetContact: true, stateChange: false, detectionRisk: "medium", roeRequired: true, notes: "Some checks border on active-aggressive (default credential probing)." },
+  { name: "retire-js", tier: "active-standard", description: "JavaScript vulnerability detection", targetContact: true, stateChange: false, detectionRisk: "low", roeRequired: true, notes: "Active if fetching JS from target, but non-invasive." },
+
+  // ── Active — Aggressive ────────────────────────────────────────────────
+  // Vulnerability probing, exploit-like payloads, high-volume scanning.
+  { name: "nmap-vuln", tier: "active-aggressive", description: "Nmap with NSE vuln scripts (--script vuln)", targetContact: true, stateChange: false, detectionRisk: "high", roeRequired: true, notes: "Some NSE vuln scripts send exploit-like payloads." },
+  { name: "nuclei", tier: "active-aggressive", description: "Template-based vulnerability checking", targetContact: true, stateChange: false, detectionRisk: "high", roeRequired: true, notes: "Severity depends on template tags. Templates tagged dos/intrusive/fuzz need particular care. Info/tech templates are closer to active-standard." },
+  { name: "masscan", tier: "active-aggressive", description: "High-rate port scanning", targetContact: true, stateChange: false, detectionRisk: "high", roeRequired: true, notes: "At any meaningful rate, masscan is aggressive due to volume alone." },
+  { name: "wapiti", tier: "active-aggressive", description: "Web vulnerability scanner with active probing", targetContact: true, stateChange: false, detectionRisk: "high", roeRequired: true },
+  { name: "s3scanner", tier: "active-aggressive", description: "Cloud bucket enumeration (triggers defender alerts)", targetContact: true, stateChange: false, detectionRisk: "high", roeRequired: true },
+];
+
+/**
+ * Get all tools classified at a specific tier.
+ */
+export function getToolsByTier(tier: ScanMode): ToolClassification[] {
+  return TOOL_TIER_CLASSIFICATION.filter(t => t.tier === tier);
+}
+
+/**
+ * Get the classification for a specific tool.
+ */
+export function getToolClassification(toolName: string): ToolClassification | undefined {
+  return TOOL_TIER_CLASSIFICATION.find(t => t.name === toolName);
+}
+
+/**
+ * Check if a tool is allowed under a given scan mode.
+ * A tool is allowed if its tier is equal to or less aggressive than the requested mode.
+ */
+export function isToolAllowedInMode(toolName: string, mode: ScanMode): boolean {
+  const tool = getToolClassification(toolName);
+  if (!tool) return false;
+  const tierOrder: ScanMode[] = ["passive", "active-low", "active-standard", "active-aggressive"];
+  const toolIdx = tierOrder.indexOf(tool.tier);
+  const modeIdx = tierOrder.indexOf(mode);
+  return toolIdx <= modeIdx;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────────────────
 
 function extractDomain(host: string): string {
   // Strip port if present, extract registrable domain

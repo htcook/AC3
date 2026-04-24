@@ -27,6 +27,17 @@ export default function OsintSourcesTab() {
     attack_surface: Target,
     social: Users,
     reputation: ShieldAlert,
+    'threat-intel': Shield,
+    web: Globe,
+    whois: FileText,
+    historical: Clock,
+    cloud: Layers,
+    code: GitBranch,
+    leaks: KeyRound,
+    darkweb: Skull,
+    'business-intel': ClipboardCheck,
+    phishing: ShieldX,
+    vulnerability: Bug,
   };
 
   const categoryLabels: Record<string, string> = {
@@ -40,6 +51,17 @@ export default function OsintSourcesTab() {
     attack_surface: "Attack Surface Mapping",
     social: "Social & Username OSINT",
     reputation: "IP & Domain Reputation",
+    'threat-intel': "Threat Intelligence Feeds",
+    web: "Web Analysis",
+    whois: "WHOIS & Registration",
+    historical: "Historical & Archive",
+    cloud: "Cloud Asset Discovery",
+    code: "Code & Secret Scanning",
+    leaks: "Data Leak Detection",
+    darkweb: "Dark Web Intelligence",
+    'business-intel': "Business Intelligence",
+    phishing: "Phishing Detection",
+    vulnerability: "Vulnerability Databases",
   };
 
   if (catalog.isLoading) {
@@ -63,6 +85,9 @@ export default function OsintSourcesTab() {
   const configuredCount = connectors.filter((c: any) => c.configured).length;
   const freeCount = connectors.filter((c: any) => !c.requiresApiKey).length;
   const paidCount = connectors.filter((c: any) => c.requiresApiKey).length;
+  const passiveCount = connectors.filter((c: any) => c.scanMode === 'passive').length;
+  const standardCount = connectors.filter((c: any) => c.scanMode === 'standard').length;
+  const activeCount = connectors.filter((c: any) => c.scanMode === 'active').length;
 
   return (
     <div className="space-y-6">
@@ -94,6 +119,30 @@ export default function OsintSourcesTab() {
             <div className="text-center p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
               <div className="text-2xl font-bold text-amber-400">{paidCount}</div>
               <div className="text-xs text-muted-foreground">Require API Key</div>
+            </div>
+          </div>
+          {/* Scan Mode Tier Breakdown */}
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm font-semibold text-emerald-400">{passiveCount}</div>
+                <div className="text-[10px] text-muted-foreground">Passive (no target contact)</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
+              <div>
+                <div className="text-sm font-semibold text-blue-400">{standardCount}</div>
+                <div className="text-[10px] text-muted-foreground">Standard (DNS resolution)</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <div className="w-2 h-2 rounded-full bg-orange-400" />
+              <div>
+                <div className="text-sm font-semibold text-orange-400">{activeCount}</div>
+                <div className="text-[10px] text-muted-foreground">Active (target contact)</div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -145,6 +194,17 @@ export default function OsintSourcesTab() {
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{connector.description}</p>
                     <div className="flex flex-wrap gap-1 mt-2">
+                      {connector.scanMode && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                          connector.scanMode === 'passive'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : connector.scanMode === 'standard'
+                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                            : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
+                        }`}>
+                          {connector.scanMode === 'passive' ? '● Passive' : connector.scanMode === 'standard' ? '● Standard' : '● Active'}
+                        </span>
+                      )}
                       {(connector.entityTypes || []).map((et: string) => (
                         <span key={et} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                           {et}

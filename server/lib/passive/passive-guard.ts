@@ -76,6 +76,14 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "companies_house",       // Companies House (UK) — queries corporate registry API (passive)
   "opencorporates",        // OpenCorporates — queries global corporate registry API (passive)
   "hc3",                   // HC3 (HHS) — queries healthcare sector threat intel (passive)
+  // --- Free Subdomain Enumeration Sources (Audit R2) ---
+  "anubis",                // Anubis — queries jldc.me aggregated CT+DNS database (passive)
+  "hackertarget",          // HackerTarget — queries HackerTarget host search API (passive)
+  "rapiddns",              // RapidDNS — queries DNS zone file database (passive)
+  "dnsrepo",               // DNSRepo — queries DNS zone file database (passive)
+  "sitedossier",           // Sitedossier — queries web crawl database (passive)
+  // --- Historical Analysis ---
+  "wayback_diff",          // Wayback Diff — queries Wayback Machine CDX API for historical analysis (passive)
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
@@ -88,6 +96,7 @@ const DNS_RESOLUTION_CONNECTORS = new Set([
   "typosquat",         // Typosquat Generator — performs DNS resolution to check domain availability
   "team_cymru",        // Team Cymru — resolves domain to IP, then queries DNS for ASN mapping
   "feodo_tracker",     // Feodo Tracker — resolves domain to IP, then checks C2 blocklist
+  "domain_health",     // Domain Health — DNS resolution + SMTP connect + DNSBL lookups
 ]);
 
 // Connectors that query registration databases or make direct contact
@@ -102,6 +111,9 @@ const ACTIVE_CONTACT_CONNECTORS = new Set([
   "http_security",       // Direct HTTPS to target (security headers, WAF detection)
   "container-discovery", // Direct HTTP probes to target ports (Docker/K8s/registries)
   "cloud_bucket_recon",  // Direct HTTP probes to cloud provider bucket URLs
+  "favicon_hash",        // Favicon Hash — fetches favicon from target via HTTP (active contact)
+  "jarm_fingerprint",    // JARM — sends 10 TLS Client Hello probes to target (active contact)
+  "dns_zone_transfer",   // DNS Zone Transfer — AXFR attempt against target nameservers (active contact)
 ]);
 
 /**
@@ -237,6 +249,15 @@ export function getScanModeDescription(scanMode: ScanMode): {
           "GitHub code leak scanner (secrets, env files, API keys)",
           "GitHub org/repo/CI-CD exposure recon",
           "Cloud storage enumeration (S3/Azure/GCP bucket discovery)",
+          "Free subdomain enumeration (Anubis, HackerTarget, RapidDNS, DNSRepo, Sitedossier)",
+          "Wayback Diff historical content analysis",
+          "abuse.ch family (URLhaus, MalwareBazaar, ThreatFox, Feodo Tracker, SSLBL)",
+          "CISA Advisories (KEV catalog + ICS advisories)",
+          "OSV.dev open source vulnerability database",
+          "GitHub Security Advisories (GHSA)",
+          "Certspotter CT log monitoring",
+          "Business intelligence (SEC EDGAR, Companies House, OpenCorporates)",
+          "HC3 healthcare sector threat intelligence",
         ],
         restrictions: [
           "No DNS resolution against target nameservers",
@@ -244,6 +265,7 @@ export function getScanModeDescription(scanMode: ScanMode): {
           "No RDAP/WHOIS queries for target domain",
           "No banner grabbing or port probing",
           "No cloud bucket permission probing",
+          "No TLS fingerprinting (JARM) or zone transfer attempts",
         ],
       };
     case "standard":
@@ -251,7 +273,7 @@ export function getScanModeDescription(scanMode: ScanMode): {
         label: "Standard",
         description: "All passive techniques plus DNS resolution, registration lookups, and email security checks. Minimal footprint on target infrastructure.",
         techniques: [
-          "All strict passive techniques (23 connectors)",
+          "All strict passive techniques (50+ connectors)",
           "DNS A/AAAA/MX/NS/TXT/SOA/CAA record resolution (deep DNS analysis)",
           "Email security posture (SPF/DKIM/DMARC validation)",
           "RDAP domain registration lookup",
@@ -270,13 +292,16 @@ export function getScanModeDescription(scanMode: ScanMode): {
         label: "Active",
         description: "Full reconnaissance including direct connections to target infrastructure. Includes banner grabbing, service identification, and cloud bucket probing.",
         techniques: [
-          "All standard techniques (27 connectors)",
+          "All standard techniques (55+ connectors)",
           "HTTP security header analysis & WAF detection",
           "Container infrastructure discovery (Docker/K8s/registries)",
           "Cloud bucket permission probing (S3/Azure/GCP depth scan)",
           "Direct HTTP/HTTPS banner grabbing",
           "Service version identification",
           "TLS certificate inspection",
+          "JARM TLS fingerprinting (10 probe packets per host)",
+          "Favicon hash infrastructure discovery",
+          "DNS zone transfer (AXFR) attempts",
           "LLM-powered asset discovery",
         ],
         restrictions: [
