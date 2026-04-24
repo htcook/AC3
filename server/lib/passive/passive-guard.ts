@@ -63,6 +63,12 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "phishtank",            // PhishTank — queries phishing URL database (passive)
   "darkweb_crossref",     // Dark Web Cross-Reference — queries local underground intel DB only (passive)
   "dehashed_whois",        // Dehashed WHOIS — queries Dehashed API for WHOIS, reverse WHOIS, subdomain scan (passive)
+  // --- Tier 1 OSINT Gap Connectors (Gap Analysis Apr 2026) ---
+  "urlhaus",               // URLhaus (abuse.ch) — queries malicious URL database (passive)
+  "malwarebazaar",         // MalwareBazaar (abuse.ch) — queries malware sample database (passive)
+  "sec_edgar",             // SEC EDGAR — queries SEC filing database (passive)
+  "osv_dev",               // OSV.dev — queries open source vulnerability database (passive)
+  "cisa_advisories",       // CISA Advisories — queries KEV catalog (passive)
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
@@ -73,6 +79,7 @@ const DNS_RESOLUTION_CONNECTORS = new Set([
   "email_security",    // DNS resolution for SPF/DKIM/DMARC records
   "dns_deep",          // Comprehensive DNS record resolution (A/AAAA/MX/NS/TXT/SOA/CAA)
   "typosquat",         // Typosquat Generator — performs DNS resolution to check domain availability
+  "team_cymru",        // Team Cymru — resolves domain to IP, then queries DNS for ASN mapping
 ]);
 
 // Connectors that query registration databases or make direct contact

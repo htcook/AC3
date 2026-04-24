@@ -207,3 +207,16 @@
 ### Breach Timeline Visualization (Apr 24)
 - [x] Add breach timeline visualization to Breaches tab showing when each breach source was first detected chronologically
 - [x] Push to GitHub
+
+### Tier 1 OSINT Connector Gaps (Apr 24)
+- [x] Build abuse.ch URLhaus connector (malicious URL hosting detection)
+- [x] Build abuse.ch MalwareBazaar connector (malware distribution association)
+- [x] Build SEC EDGAR connector (10-K filings for BIA financial impact)
+- [x] Build OSV.dev connector (supply chain vulns for npm/PyPI/Go)
+- [x] Build Team Cymru connector (authoritative IP-to-ASN mapping)
+- [x] Build CISA Advisories connector (real-time vulnerability advisories)
+- [x] Register all 6 new connectors in index.ts and passive-guard.ts
+- [x] Write tests for all new connectors (38 tests passing)
+- [x] Implement evidence multiplier mapping config (confirmed/corroborated/unverified tiers per connector)
+- [x] Implement unified OSINT rate limiter with circuit breaker pattern
+- [x] Implement ToS compliance registry for all connectors

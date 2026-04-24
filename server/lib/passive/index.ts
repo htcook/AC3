@@ -68,6 +68,12 @@ import { faviconHashConnector } from "./favicon-hash";
 import { jarmFingerprintConnector } from "./jarm-fingerprint";
 import { dnsZoneTransferConnector } from "./dns-zone-transfer";
 import { waybackDiffConnector } from "./wayback-diff";
+import { urlhausConnector } from "./urlhaus";
+import { malwarebazaarConnector } from "./malwarebazaar";
+import { secEdgarConnector } from "./sec-edgar";
+import { osvDevConnector } from "./osv-dev";
+import { teamCymruConnector } from "./team-cymru";
+import { cisaAdvisoriesConnector } from "./cisa-advisories";
 import { detectWildcardDns, tagWildcardObservations, createWildcardSignal } from "./wildcard-detection";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
@@ -147,6 +153,13 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   dnsZoneTransferConnector,                // DNS Zone Transfer — AXFR attempt against nameservers
   // --- Historical Analysis (Audit R14) ---
   waybackDiffConnector,                    // Wayback Diff — historical content analysis for removed admin panels, leaked creds
+  // --- Tier 1 OSINT Gap Connectors (Gap Analysis Apr 2026) ---
+  urlhausConnector,                          // URLhaus (abuse.ch) — free malicious URL database
+  malwarebazaarConnector,                    // MalwareBazaar (abuse.ch) — free malware sample database
+  secEdgarConnector,                         // SEC EDGAR — free US public company filings for BIA context
+  osvDevConnector,                           // OSV.dev — free open source vulnerability database (supply chain)
+  teamCymruConnector,                        // Team Cymru — authoritative IP-to-ASN mapping via DNS
+  cisaAdvisoriesConnector,                   // CISA Advisories — KEV catalog & ICS advisories
 ];
 
 export interface PassiveReconConfig {
