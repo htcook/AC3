@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,15 +14,48 @@ import {
   Box, ClipboardCheck, PackageSearch, GitCompareArrows
 } from "lucide-react";
 
+type TierFilter = 'confirmed' | 'confirmed+probable' | 'all';
+
 export default function VulnIntelSection({ scanId }: { scanId: number }) {
   const [expandedTech, setExpandedTech] = useState<string | null>(null);
   const [expandedCve, setExpandedCve] = useState<string | null>(null);
-  const [showAllTiers, setShowAllTiers] = useState(false);
+  const [tierFilter, setTierFilter] = useState<TierFilter>('confirmed');
 
   const { data, isLoading, error } = trpc.calderaProxy.matchTechVulns.useQuery(
     { scanId },
     { enabled: !!scanId }
   );
+
+  // Compute filtered stats based on active tier filter
+  const filteredStats = useMemo(() => {
+    if (!data) return { vulns: 0, exploits: 0, kev: 0, zeroDay: 0, matches: [] };
+
+    const allowedTiers = tierFilter === 'all'
+      ? ['confirmed', 'probable', 'potential']
+      : tierFilter === 'confirmed+probable'
+        ? ['confirmed', 'probable']
+        : ['confirmed'];
+
+    const filteredMatches = data.matches.filter((m: any) => allowedTiers.includes(m.corroborationTier));
+
+    // Recount stats from only the filtered matches
+    let vulns = 0, exploits = 0, kev = 0, zeroDay = 0;
+    for (const match of filteredMatches) {
+      // Count vulns per tier within each tech match
+      if (tierFilter === 'confirmed') {
+        vulns += match.confirmedVulnCount || 0;
+      } else if (tierFilter === 'confirmed+probable') {
+        vulns += (match.confirmedVulnCount || 0) + (match.probableVulnCount || 0);
+      } else {
+        vulns += match.vulns?.length || 0;
+      }
+      exploits += match.exploitCount || 0;
+      kev += match.kevCount || 0;
+      zeroDay += match.vulns?.filter((v: any) => v.inTheWild).length || 0;
+    }
+
+    return { vulns, exploits, kev, zeroDay, matches: filteredMatches };
+  }, [data, tierFilter]);
 
   if (isLoading) {
     return (
@@ -56,40 +89,67 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
     );
   }
 
+  const tierLabel = (tier: TierFilter) => {
+    if (tier === 'confirmed') return 'Confirmed';
+    if (tier === 'confirmed+probable') return 'Confirmed + Probable';
+    return 'All Tiers';
+  };
+
+  const tierCount = (tier: TierFilter) => {
+    if (tier === 'confirmed') return data.confirmedVulnCount || 0;
+    if (tier === 'confirmed+probable') return (data.confirmedVulnCount || 0) + (data.probableVulnCount || 0);
+    return data.totalVulns;
+  };
+
   return (
     <>
       {/* Tier Filter Toggle */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Showing:</span>
-          <button
-            onClick={() => setShowAllTiers(false)}
-            className={`text-xs px-2 py-0.5 rounded border transition-all ${
-              !showAllTiers ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
-            }`}
-          >
-            Confirmed + Probable ({(data as any).confirmedVulnCount + (data as any).probableVulnCount || data.totalVulns})
-          </button>
-          <button
-            onClick={() => setShowAllTiers(true)}
-            className={`text-xs px-2 py-0.5 rounded border transition-all ${
-              showAllTiers ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
-            }`}
-          >
-            All Tiers ({data.totalVulns})
-          </button>
+          {(['confirmed', 'confirmed+probable', 'all'] as TierFilter[]).map(tier => (
+            <button
+              key={tier}
+              onClick={() => setTierFilter(tier)}
+              className={`text-xs px-2 py-0.5 rounded border transition-all ${
+                tierFilter === tier ? 'bg-accent text-accent-foreground border-accent' : 'border-border text-muted-foreground hover:border-accent/50'
+              }`}
+            >
+              {tierLabel(tier)} ({tierCount(tier)})
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Summary Stats */}
+      {/* Confidence Explanation Banner */}
+      {tierFilter === 'confirmed' && filteredStats.vulns === 0 && data.totalVulns > 0 && (
+        <Card className="border-blue-500/20 bg-blue-500/5 mb-3">
+          <CardContent className="p-3">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-blue-300 font-medium">No confirmed vulnerabilities found</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {data.totalVulns} potential CVE associations were identified based on detected technologies, but none have been confirmed through version matching, KEV listing, or active exploitation evidence.
+                  Use the "Confirmed + Probable" or "All Tiers" filters to review these associations.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Stats — filtered by active tier */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-red-500/30 bg-red-500/5">
           <CardContent className="pt-3 pb-2 px-3">
             <div className="flex items-center gap-1.5">
               <Bug className="h-3.5 w-3.5 text-red-500" />
-              <span className="text-[10px] text-muted-foreground">{showAllTiers ? 'Total Vulns' : 'Confirmed Vulns'}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {tierFilter === 'confirmed' ? 'Confirmed' : tierFilter === 'confirmed+probable' ? 'Confirmed + Probable' : 'Total Vulns'}
+              </span>
             </div>
-            <div className="text-xl font-bold text-red-400 mt-0.5">{showAllTiers ? data.totalVulns : ((data as any).confirmedVulnCount + (data as any).probableVulnCount || data.totalVulns)}</div>
+            <div className="text-xl font-bold text-red-400 mt-0.5">{filteredStats.vulns}</div>
           </CardContent>
         </Card>
         <Card className="border-amber-500/30 bg-amber-500/5">
@@ -98,7 +158,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
               <Crosshair className="h-3.5 w-3.5 text-amber-500" />
               <span className="text-[10px] text-muted-foreground">Exploits</span>
             </div>
-            <div className="text-xl font-bold text-amber-400 mt-0.5">{data.totalExploits}</div>
+            <div className="text-xl font-bold text-amber-400 mt-0.5">{filteredStats.exploits}</div>
           </CardContent>
         </Card>
         <Card className="border-orange-500/30 bg-orange-500/5">
@@ -107,7 +167,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
               <Shield className="h-3.5 w-3.5 text-orange-500" />
               <span className="text-[10px] text-muted-foreground">KEV</span>
             </div>
-            <div className="text-xl font-bold text-orange-400 mt-0.5">{data.totalKev}</div>
+            <div className="text-xl font-bold text-orange-400 mt-0.5">{filteredStats.kev}</div>
           </CardContent>
         </Card>
         <Card className="border-purple-500/30 bg-purple-500/5">
@@ -116,7 +176,7 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
               <Zap className="h-3.5 w-3.5 text-purple-500" />
               <span className="text-[10px] text-muted-foreground">0-Day</span>
             </div>
-            <div className="text-xl font-bold text-purple-400 mt-0.5">{data.totalZeroDay}</div>
+            <div className="text-xl font-bold text-purple-400 mt-0.5">{filteredStats.zeroDay}</div>
           </CardContent>
         </Card>
         <Card className="border-blue-500/30 bg-blue-500/5">
@@ -130,9 +190,41 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
         </Card>
       </div>
 
-      {/* Technology Matches */}
+      {/* Tier Breakdown Mini-Bar */}
+      {data.totalVulns > 0 && (
+        <div className="flex items-center gap-2 mt-1 mb-1">
+          <span className="text-[10px] text-muted-foreground">Breakdown:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-[10px] text-green-400">{data.confirmedVulnCount || 0} confirmed</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-[10px] text-blue-400">{data.probableVulnCount || 0} probable</span>
+            </span>
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-gray-500" />
+              <span className="text-[10px] text-gray-400">{data.potentialVulnCount || 0} potential</span>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Technology Matches — filtered by active tier */}
       <div className="space-y-2">
-        {data.matches.filter((match: any) => showAllTiers || match.corroborationTier !== 'potential').map((match: any) => {
+        {filteredStats.matches.length === 0 && (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              <ShieldCheck className="h-6 w-6 mx-auto mb-2 text-green-400" />
+              <p className="text-sm font-medium">No {tierLabel(tierFilter).toLowerCase()} vulnerabilities</p>
+              <p className="text-[10px] mt-1">Try expanding the filter to see probable or potential matches.</p>
+            </CardContent>
+          </Card>
+        )}
+        {filteredStats.matches.map((match: any) => {
           const isExpanded = expandedTech === match.technology;
           const sevColors: Record<string, string> = {
             critical: "border-red-500/40 bg-red-500/5",
@@ -253,4 +345,3 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
 
 
 /** Validate Top 10 — quick-action banner for launching targeted validation from scan results */
-

@@ -118,3 +118,12 @@
 - [x] Write HACS SIN response template mapping AC3 capabilities to each subcategory (525 lines, 14 sections)
 - [x] Checkpoint and push to GitHub
 - [x] Tone down military intelligence experience references in IC Product Guide only
+
+### DI Scan Vulnerability Inflation Bug Fix (Apr 24)
+- [x] Audit DI scan pipeline: trace tech detection → CVE association → vuln classification → UI display
+- [x] Identify where probable/potential CVEs are being counted as "Confirmed Vulns"
+- [x] Fix backend: tightened tier classification — vendor-only matches without version → potential
+- [x] Fix frontend: default to Confirmed-only view, three-tier filter, filtered summary stats
+- [x] Add clear visual distinction: tier breakdown bar, info banner, tier-accurate labels
+- [x] Write tests for the fix (18 tests passing)
+- [x] Checkpoint and push

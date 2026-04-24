@@ -890,30 +890,43 @@ export async function matchTechnologiesAgainstAllFeeds(
       const hasZeroDay = zeroDayCount > 0;
       const hasExploit = exploitCount > 0;
 
-      // Tier classification:
+      // Tier classification (tightened to reduce false inflation):
       // confirmed = (KEV-listed OR in-the-wild 0-day OR version-matched with exploit)
       //             AND product-specific match (not vendor-only)
-      // probable  = version detected OR has public exploit OR vendor-only match
-      // potential = name-only match, no version info, no exploit evidence
-      // FIX: Check if ANY matched vuln is product-specific (not vendor-only)
+      // probable  = product-specific match AND (version detected OR has public exploit)
+      //             OR vendor-only match WITH confirmed version match
+      // potential = vendor-only match without version, OR name-only match, OR no exploit evidence
       const hasProductSpecificMatch = matchedVulns.some(v => (v as any)._matchSpecificity === 'product');
       let tier: CorroborationTier;
       if ((hasKev || hasZeroDay || (hasVersionMatch && hasExploit)) && hasProductSpecificMatch) {
         tier = 'confirmed';
-      } else if (hasVersionMatch || hasExploit) {
+      } else if (hasProductSpecificMatch && (hasVersionMatch || hasExploit)) {
+        // Product-specific match with version or exploit evidence → probable
+        tier = 'probable';
+      } else if (!hasProductSpecificMatch && hasVersionMatch && hasExploit) {
+        // Vendor-only but version-confirmed with exploit → probable (weaker)
         tier = 'probable';
       } else {
+        // Vendor-only without version, or no exploit evidence → potential
         tier = 'potential';
       }
 
       // Per-vuln tier counts — use filteredVulns
-      // FIX: Only count as confirmed if it's a product-specific match
+      // Tightened: vendor-only matches without version confirmation are always potential
       let techConfirmed = 0, techProbable = 0, techPotential = 0;
       for (const v of filteredVulns) {
         const isVulnProductSpecific = (v as any)._matchSpecificity === 'product';
-        if ((v.kevListed || v.inTheWild) && isVulnProductSpecific) techConfirmed++;
-        else if (hasVersionMatch || v.exploitAvailable) techProbable++;
-        else techPotential++;
+        if ((v.kevListed || v.inTheWild) && isVulnProductSpecific) {
+          techConfirmed++;
+        } else if (isVulnProductSpecific && (hasVersionMatch || v.exploitAvailable)) {
+          techProbable++;
+        } else if (!isVulnProductSpecific && hasVersionMatch && v.exploitAvailable) {
+          // Vendor-only but version-confirmed with exploit → probable
+          techProbable++;
+        } else {
+          // Everything else is potential — vendor-only without version, no exploit, etc.
+          techPotential++;
+        }
       }
 
       // Calculate risk score for this technology — use filteredVulns (version-matched only)
