@@ -61,7 +61,7 @@ AC3 serves four primary customer segments, each with distinct operational requir
 | **MSSPs and Consultancies** | Multi-client engagement management, white-label reporting, campaign orchestration, tenant-isolated operations | Engagement Manager, Campaign Orchestrator, White-Label, Tenant Isolation, MSSP Analytics, Report Generator |
 | **Enterprise Security Teams** | Continuous validation, attack surface management, compliance automation, risk trending, executive dashboards | Domain Intel, ScanForge, KSI Dashboard, Compliance Mapper, Risk Center, Executive View |
 | **Red Team Operators** | Adversary emulation, C2 operations, exploit development, evasion testing, purple team exercises | Caldera Integration, Ember C2, Evasion Engine, Exploit Catalog, Purple Team, OPSEC Dashboard |
-| **Government and Defense** | NIST/FedRAMP compliance, CISA KEV tracking, FIPS 140-2 crypto, HACS-compliant threat hunting, OSCAL export | FIPS Compliance, FedRAMP Controls, Hunt Ops, OSCAL Export, STIX Generator, AI Governance |
+| **Government and Defense** | NIST/FedRAMP compliance, CISA KEV tracking, FIPS 140-3 crypto, HACS-compliant threat hunting, OSCAL export | FIPS Compliance, FedRAMP Controls, Hunt Ops, OSCAL Export, STIX Generator, AI Governance |
 
 **Starter Tier** provides domain intelligence, threat catalog, vulnerability scanning, report generation, incident search, and affiliated domain discovery. This tier serves small consultancies and individual practitioners who need a professional-grade reconnaissance and reporting platform.
 
@@ -89,16 +89,17 @@ AC3 is built on a modern TypeScript stack with clear separation between the clie
 
 The eight navigation groups that organize the platform's capabilities are:
 
-| Group | Domain | Module Count (approx.) |
-|---|---|---|
-| **Command Center** | Mission operations, risk analysis, engagement management | 45+ |
-| **Attack Surface** | Discovery, scanning, enumeration, attack paths | 90+ |
-| **Emulation & Testing** | Agents, playbooks, defense validation, Ember C2, test lab | 80+ |
-| **Exploit Ops** | Phishing, exploit tooling, C2, post-exploitation | 85+ |
-| **Intelligence** | Threat intel, darkweb, IOC feeds, actor tracking | 75+ |
-| **Key Security Indicators** | KSI dashboard, compliance, evidence chains | 25+ |
-| **Reports & Knowledge** | Report generation, knowledge bases, LLM learning | 55+ |
-| **Platform** | Administration, integrations, SSIL, infrastructure | 50+ |
+| Group | Domain | Nav Items | Backing Server Modules |
+|---|---|---|---|
+| **Command Center** | Mission operations, risk analysis, engagement management | 21 | 45 |
+| **Attack Surface** | Discovery, scanning, enumeration, attack paths | 27 | 93 |
+| **Emulation & Testing** | Agents, playbooks, defense validation, Ember C2, test lab | 30 | 82 |
+| **Exploit Ops** | Phishing, exploit tooling, C2, post-exploitation | 31 | 87 |
+| **Intelligence** | Threat intel, darkweb, IOC feeds, actor tracking | 18 | 83 |
+| **Key Security Indicators** | KSI dashboard, compliance, evidence chains | 8 | 26 |
+| **Reports & Knowledge** | Report generation, knowledge bases, LLM learning | 14 | 58 |
+| **Platform** | Administration, integrations, SSIL, infrastructure | 33 | 52 |
+| **Total** | | **182** | **526** |
 
 ---
 
@@ -149,7 +150,7 @@ The Attack Surface group provides the reconnaissance and vulnerability assessmen
 
 ### 6.1 Discovery Chain
 
-The **Discovery Chain** is AC3's automated reconnaissance pipeline that orchestrates 70+ passive OSINT connectors in a structured sequence. Starting from a single domain, IP address, or organization name, the chain progressively discovers subdomains, resolves DNS records, fingerprints technologies, identifies cloud assets, checks certificate transparency logs, queries WHOIS records, and cross-references findings against threat intelligence feeds.
+The **Discovery Chain** is AC3's automated reconnaissance pipeline that orchestrates 64 passive OSINT connectors in a structured sequence. Starting from a single domain, IP address, or organization name, the chain progressively discovers subdomains, resolves DNS records, fingerprints technologies, identifies cloud assets, checks certificate transparency logs, queries WHOIS records, and cross-references findings against threat intelligence feeds.
 
 The passive connector library includes integrations with:
 
@@ -720,18 +721,20 @@ Safety is not an afterthought in AC3. It is a structural property of the archite
 
 ### 15.1 Layer 1 — ROE Scope Enforcement
 
-Every action in the platform — whether initiated by a human operator or an automated system — is validated against the current Rules of Engagement before execution. The Scope Guard maintains a runtime representation of the authorized scope (target IP ranges, domain names, authorized techniques, time windows) and performs real-time validation. Out-of-scope actions are blocked, not warned. The enforcement is implemented at the tRPC procedure level, making it impossible for any client-side code to bypass the check.
+Every action in the platform — whether initiated by a human operator or an automated system — is validated against the current Rules of Engagement before execution. The Scope Guard maintains a runtime representation of the authorized scope (target IP ranges, domain names, authorized techniques, time windows) and performs real-time validation. Out-of-scope actions are blocked, not warned. The enforcement is implemented as middleware at the tRPC transport layer — every inbound RPC call passes through the Scope Guard before reaching any procedure handler, making it impossible for any client-side code or procedure-level logic to bypass the check. (This is the same enforcement point described as "tRPC transport layer" in the Safety Architecture Spec v5.)
 
 ### 15.2 Layer 2 — Safety Level Classification
 
 Every exploit, technique, and automated action in the platform is classified into one of four safety levels:
 
-| Level | Description | Authorization |
-|---|---|---|
-| **Safe** | Read-only operations, passive reconnaissance | Automatic |
-| **Cautious** | Active scanning, non-destructive probing | Automatic with logging |
-| **Aggressive** | Exploitation, credential attacks, privilege escalation | Requires operator approval |
-| **Dangerous** | Destructive operations, data modification, denial of service | Requires explicit operator confirmation with impact acknowledgment |
+| Level (Code Enum) | Display Label | Description | Authorization |
+|---|---|---|---|
+| `passive_only` | Passive Only | Read-only operations, passive reconnaissance | Automatic |
+| `low_impact` | Low Impact | Active scanning, non-destructive probing | Automatic with logging |
+| `standard` | Standard | Exploitation, credential attacks, privilege escalation | Requires operator approval |
+| `full_exploitation` | Full Exploitation | Destructive operations, data modification, denial of service | Requires explicit operator confirmation with impact acknowledgment; dual-approval for red-tier risk actions |
+
+> **Terminology note:** The canonical safety level identifiers are the code enum values (`passive_only`, `low_impact`, `standard`, `full_exploitation`) as defined in `safety-engine.ts`. Display labels may vary in the UI but always map to these four canonical levels.
 
 The safety level classification is enforced by the **Exploit Guardrails** module, which gates every exploitation action based on its safety classification and the engagement's authorized safety level.
 
@@ -763,7 +766,7 @@ The **AI Governance** module implements a comprehensive governance framework for
 
 **Bias Detection** — Monitoring for systematic bias in AI-assisted scoring and decision-making. The distribution monitoring system (detailed in the Hybrid Scoring Deep Dive) detects when scoring distributions deviate from expected patterns, which may indicate bias in the LLM's reasoning.
 
-**Human-in-the-Loop Enforcement** — Configurable policies that require human approval for AI-assisted decisions above specified risk thresholds. The default policy requires human approval for all exploitation decisions, all scope changes, and all actions classified as Aggressive or Dangerous.
+**Human-in-the-Loop Enforcement** — Configurable policies that require human approval for AI-assisted decisions above specified risk thresholds. The default policy requires human approval for all exploitation decisions, all scope changes, and all actions classified as `standard` or `full_exploitation`.
 
 ### 15.6 Layer 6 — Scoring Hardening
 
@@ -781,7 +784,7 @@ The operational guardrails enforce platform-level safety policies:
 
 **Infrastructure Hardening** — The platform's own infrastructure is monitored and hardened using the same standards applied to client environments.
 
-**FIPS 140-2 Compliance** — Cryptographic operations use FIPS-validated algorithms when operating in government environments.
+**FIPS 140-3 Compliance** — Cryptographic operations use FIPS 140-3 validated algorithms when operating in government environments. The platform's `FIPSCryptoService` restricts to AES-256 and ECDSA P-256/P-384, independently enforcing minimum key lengths beyond what the FIPS module requires. For federal procurement conversations, AC3 meets CMMC Level 2 cryptographic requirements; customers with Level 3+ physical security assurance requirements should be informed of the Level 1 validation scope.
 
 ---
 
@@ -875,7 +878,7 @@ The practical mitigation for the bus factor is a three-part strategy:
 
 First, **documentation density** — the platform is documented at a level that exceeds industry norms for a solo-built system. The code comments, the JSDoc headers, the test suites, and the companion documents collectively provide a handoff package that a senior security engineer could use to maintain and extend the platform.
 
-Second, **LLM-assisted continuity** — the platform's own LLM specialists encode significant operational knowledge in their system prompts. A future maintainer who does not have Harrison's operational experience can still benefit from the judgment encoded in those prompts, because the LLM will continue to apply the calibrated reasoning even if the person operating it does not fully understand the calibration.
+Second, **LLM-assisted continuity** — the platform's own LLM specialists encode significant operational knowledge in their system prompts. A future maintainer who does not have Harrison's operational experience can still benefit from the judgment encoded in those prompts, because the LLM will continue to apply the calibrated reasoning even if the person operating it does not fully understand the calibration. **Important caveat:** LLM-assisted continuity depends on prompts and model versions that will evolve. The LLM specialist prompts themselves require version control and periodic calibration testing as underlying models change. A prompt that produces reliable CARVER adjustments on one model version may produce different distributions on a successor model. The platform's SSIL (Self-Supervised Iterative Learning) module partially addresses this by continuously validating LLM outputs against historical baselines, but prompt-model compatibility should be treated as a maintenance obligation, not a solved problem.
 
 Third, **graduated onboarding** — the platform's modular architecture allows a new maintainer to take ownership incrementally, starting with the modules they understand best and gradually expanding to the more judgment-intensive components. The test suites provide a safety net throughout this process.
 
@@ -915,6 +918,8 @@ AC3 operates in a market populated by well-funded competitors, each addressing a
 
 ### 20.1 Competitive Comparison
 
+> **Disclaimer:** This comparison reflects publicly available feature documentation as of April 2026. Competitors update their feature sets regularly; specific claims should be verified against each vendor's most recent release notes before use in customer-facing materials.
+
 | Capability | AC3 | Pentera | Tenable | Recorded Future | PlexTrac |
 |---|---|---|---|---|---|
 | Automated Penetration Testing | Yes | Yes | No | No | No |
@@ -950,8 +955,8 @@ No competitor has a scoring system that fuses military target analysis (CARVER+S
 | Database Schema (`drizzle/schema.ts`) | 352 tables | ~18,000 |
 | LLM Specialists (`server/lib/llm-specialists/`) | 13 | ~15,000 |
 | Vendor Integrations (`server/lib/vendors/`) | 10 | ~8,000 |
-| Test Suites (`server/*.test.ts`) | 25+ | ~12,000 |
-| **Total** | **1,000+** | **666,579** |
+| Test Suites (`server/*.test.ts`) | 288 | ~45,000 |
+| **Total** | **1,615+** | **666,579** |
 
 ## Appendix B — External Integration Summary
 

@@ -90,3 +90,13 @@
 - [x] Survey engagement/campaign/DI features
 - [x] Write comprehensive AC3 Platform Deep Dive document (987 lines, 20 sections)
 - [x] Checkpoint and push to GitHub (Platform Deep Dive)
+
+### Claude Round 6 — Final Consistency Cleanup (Apr 23)
+- [x] Reconcile safety level terminology: pick canonical set, cross-reference in other doc
+- [x] Correct FIPS 140-2 to FIPS 140-3 across all documents and add sunset/context notes
+- [x] Add dated disclaimer to competitive comparison table §20.1 ("as of April 2026")
+- [x] Replace approximate module counts ("45+", "90+", "80+") with exact numbers from codebase
+- [x] Reconcile scope enforcement language (tRPC procedure level vs transport-layer middleware)
+- [x] Add LLM prompt versioning note to §18 (model evolution requires calibration testing)
+- [x] Checkpoint and push to GitHub (Round 6)
+- [x] Write intelligence agency product guide document (710 lines, 18 sections)
