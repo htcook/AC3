@@ -189,3 +189,9 @@
 - [x] Wired into both scan-only and full engagement completion paths as fire-and-forget setImmediate hooks
 - [x] Write tests: 7 tests passing (importability, empty observations, no-JARM data, observation mapping, asset mapping, integration points)
 - [x] Push to GitHub for DigitalOcean deployment
+
+### Credential Display & Engagement Passthrough (Apr 24)
+- [x] Display credential details (breach source, email, username, hash type) in OSINT Risk Signal cards
+- [x] Pass credentials through to credential testing when starting an engagement
+- [x] Fix Breaches tab badge count to show breach source count (not total exposure records)
+- [x] Clarify first stat card label from "Exposures" to "Breach Records" to avoid confusion with breach count

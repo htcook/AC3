@@ -926,6 +926,36 @@ export const domainIntelRouter = router({
             });
 
             console.log(`[DomainIntel] Engagement completed for scan ${scanId}: ${campaigns.length} campaigns designed`);
+
+            // ═══ AUTO-HARVEST CREDENTIALS — pass breach data to credential testing ═══
+            // When starting an engagement from a scan-only result, the credential harvester
+            // didn't run during the initial scan. Harvest now from existing findings.
+            if (scan.engagementId) {
+              setImmediate(async () => {
+                try {
+                  const { harvestFromExistingFindings } = await import('../lib/credential-harvester');
+                  const findingsResult = await harvestFromExistingFindings(
+                    scan.engagementId!,
+                    scan.primaryDomain
+                  );
+                  console.log(`[CredentialHarvester] startEngagement: ${findingsResult.inserted} inserted, ${findingsResult.duplicates} duplicates for engagement ${scan.engagementId}`);
+
+                  // Also try to harvest from stored passive recon observations if available
+                  const storedObservations = pipeline?.passiveRecon?.allObservations;
+                  if (storedObservations && storedObservations.length > 0) {
+                    const { harvestCredentialsFromObservations } = await import('../lib/credential-harvester');
+                    const obsResult = await harvestCredentialsFromObservations(
+                      scan.engagementId!,
+                      scan.primaryDomain,
+                      storedObservations
+                    );
+                    console.log(`[CredentialHarvester] startEngagement observations: ${obsResult.inserted} inserted, ${obsResult.duplicates} duplicates`);
+                  }
+                } catch (harvestErr: any) {
+                  console.error(`[CredentialHarvester] startEngagement failed for engagement ${scan.engagementId}:`, harvestErr.message);
+                }
+              });
+            }
           } catch (err: any) {
             console.error(`[DomainIntel] Engagement failed for scan ${scanId}:`, err.message, err.stack?.substring(0, 500));
             // Revert to scan_complete so user can retry, and store error details

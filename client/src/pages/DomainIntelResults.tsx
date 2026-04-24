@@ -964,8 +964,8 @@ export default function DomainIntelResults() {
             onClick: () => setActiveTab('vulns'),
           },
           {
-            label: "Breach Exposures",
-            value: breachExposures,
+            label: "Breach Sources",
+            value: pipeline?.breachData?.uniqueBreachSources || 0,
             icon: <Lock className="h-4 w-4 text-amber-400" />,
             color: breachExposures > 0 ? "text-amber-400" : "text-muted-foreground",
             deltaInverted: true,
@@ -1269,7 +1269,7 @@ export default function DomainIntelResults() {
           <Card className="border-red-500/20">
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-red-400">{breachData.totalExposures?.toLocaleString() || 0}</p>
-              <p className="text-xs text-muted-foreground mt-1">Breach Exposures</p>
+              <p className="text-xs text-muted-foreground mt-1">Exposed Records</p>
               {breachData.credentialPairs > 0 && (
                 <p className="text-[10px] text-red-400/80 mt-0.5">{breachData.credentialPairs} credentials</p>
               )}
@@ -1338,7 +1338,7 @@ export default function DomainIntelResults() {
               { value: 'takeover', label: 'Takeover Risk', icon: <Flag className="h-3 w-3" /> },
               { value: 'takeover-poc', label: 'Takeover PoC', icon: <Play className="h-3 w-3" /> },
               { value: 'credentials', label: 'Default Creds', icon: <KeyRound className="h-3 w-3" />, hidden: !(credentialTestSummary || oemCredentials) },
-              { value: 'breaches', label: 'Breaches', icon: <Lock className="h-3 w-3" />, count: breachData?.totalExposures || 0 },
+              { value: 'breaches', label: 'Breaches', icon: <Lock className="h-3 w-3" />, count: breachData?.uniqueBreachSources || 0 },
             ],
           },
           {
@@ -1532,6 +1532,8 @@ export default function DomainIntelResults() {
                     const signalType = typeof signal === 'object' ? signal.signalType : null;
                     const confidence = typeof signal === 'object' && signal.confidence != null ? signal.confidence : null;
                     const corroboration = typeof signal === 'object' ? signal.corroboration : null;
+                    const credEvidence = typeof signal === 'object' ? signal.credentialEvidence : null;
+                    const isCredentialSignal = signalType === 'credential_exposure' || signalType === 'high_volume_breach';
                     const sevColors: Record<string, string> = {
                       critical: 'border-red-500/40 bg-red-500/10 text-red-300',
                       high: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
@@ -1575,6 +1577,82 @@ export default function DomainIntelResults() {
                             </div>
                             {/* Rationale / description */}
                             <p className="text-xs leading-snug">{text}</p>
+                            {/* Credential evidence details for breach/credential signals */}
+                            {isCredentialSignal && credEvidence && (
+                              <div className="mt-2 pt-2 border-t border-current/10 space-y-1">
+                                {credEvidence.breachName && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Breach:</span>
+                                    <span className="text-[10px] font-medium truncate">{credEvidence.breachName}</span>
+                                  </div>
+                                )}
+                                {credEvidence.breachDate && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Date:</span>
+                                    <span className="text-[10px] font-mono">{credEvidence.breachDate}</span>
+                                  </div>
+                                )}
+                                {credEvidence.totalRecords != null && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Records:</span>
+                                    <span className="text-[10px] font-mono">{credEvidence.totalRecords.toLocaleString()}</span>
+                                  </div>
+                                )}
+                                {credEvidence.uniqueBreaches != null && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Breach Sources:</span>
+                                    <span className="text-[10px] font-mono">{credEvidence.uniqueBreaches}</span>
+                                  </div>
+                                )}
+                                {credEvidence.emails && credEvidence.emails.length > 0 && (
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0 mt-0.5">Emails:</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {credEvidence.emails.slice(0, 5).map((email: string, ei: number) => (
+                                        <span key={ei} className="text-[9px] px-1.5 py-0.5 rounded bg-current/5 border border-current/10 font-mono truncate max-w-[180px]">{email}</span>
+                                      ))}
+                                      {credEvidence.emails.length > 5 && (
+                                        <span className="text-[9px] px-1.5 py-0.5 opacity-50">+{credEvidence.emails.length - 5} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {credEvidence.usernames && credEvidence.usernames.length > 0 && (
+                                  <div className="flex items-start gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0 mt-0.5">Users:</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {credEvidence.usernames.slice(0, 5).map((user: string, ui: number) => (
+                                        <span key={ui} className="text-[9px] px-1.5 py-0.5 rounded bg-current/5 border border-current/10 font-mono truncate max-w-[180px]">{user}</span>
+                                      ))}
+                                      {credEvidence.usernames.length > 5 && (
+                                        <span className="text-[9px] px-1.5 py-0.5 opacity-50">+{credEvidence.usernames.length - 5} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {credEvidence.hashTypes && credEvidence.hashTypes.length > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Hash Types:</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {credEvidence.hashTypes.map((ht: string, hi: number) => (
+                                        <span key={hi} className="text-[9px] px-1.5 py-0.5 rounded bg-current/5 border border-current/10 font-mono uppercase">{ht}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {credEvidence.hasPlaintextPasswords && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/30 text-red-300 font-semibold uppercase">Plaintext Passwords Found</span>
+                                  </div>
+                                )}
+                                {credEvidence.domain && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] opacity-50 shrink-0">Domain:</span>
+                                    <span className="text-[10px] font-mono">{credEvidence.domain}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {/* Source + evidence refs */}
                             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                               {source && <span className="text-[10px] opacity-50">Source: {source}</span>}
@@ -4749,7 +4827,7 @@ export default function DomainIntelResults() {
                 <Card className="border-red-500/30 bg-red-500/5">
                   <CardContent className="p-4 text-center">
                     <p className="text-3xl font-bold text-red-400">{breachData.totalExposures?.toLocaleString() || 0}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Total Exposures</p>
+                    <p className="text-xs text-muted-foreground mt-1">Total Breach Records</p>
                   </CardContent>
                 </Card>
                 <Card className="border-orange-500/30 bg-orange-500/5">

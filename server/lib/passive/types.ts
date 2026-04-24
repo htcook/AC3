@@ -46,6 +46,19 @@ export interface RiskSignal {
   observedAt: Date;
   rationale: string;
   evidenceRefs: string[];
+  /** Credential-specific evidence attached to breach/credential signals */
+  credentialEvidence?: {
+    emails?: string[];           // Exposed email addresses (up to 10)
+    usernames?: string[];        // Exposed usernames (up to 10)
+    breachName?: string;         // Breach database name
+    breachDate?: string;         // When the breach occurred
+    totalRecords?: number;       // Total records in breach
+    uniqueBreaches?: number;     // Number of distinct breaches
+    hashTypes?: string[];        // Hash types found (MD5, SHA1, bcrypt, etc.)
+    hasPlaintextPasswords?: boolean; // Whether plaintext passwords were found
+    sources?: string[];          // OSINT sources that reported this
+    domain?: string;             // Domain the credentials belong to
+  };
 }
 
 // ─── Hybrid Risk Score ──────────────────────────────────────────────

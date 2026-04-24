@@ -24,6 +24,8 @@ interface SignalRule {
   confidence: number;
   match: (obs: AssetObservation) => boolean;
   rationale: (obs: AssetObservation) => string;
+  /** Optional: extract credential evidence from the observation for UI display */
+  credentialEvidence?: (obs: AssetObservation) => RiskSignal['credentialEvidence'];
 }
 
 const SIGNAL_RULES: SignalRule[] = [
@@ -186,6 +188,20 @@ const SIGNAL_RULES: SignalRule[] = [
       const dbName = obs.evidence?.database_name || obs.name;
       return `${creds} credentials (passwords/hashes) for ${obs.domain} exposed in the "${dbName}" data breach. Exposed credentials enable password spraying and credential stuffing attacks.`;
     },
+    credentialEvidence: (obs) => {
+      const ev = obs.evidence || {};
+      return {
+        breachName: ev.database_name || obs.name || undefined,
+        breachDate: ev.breach_date || undefined,
+        totalRecords: ev.credentials_exposed || ev.total_records || undefined,
+        emails: ev.sample_emails?.slice(0, 10) || (ev.email ? [ev.email] : undefined),
+        usernames: ev.sample_usernames?.slice(0, 10) || (ev.username ? [ev.username] : undefined),
+        hashTypes: ev.hash_types || (ev.hash_type ? [ev.hash_type] : undefined),
+        hasPlaintextPasswords: ev.has_plaintext === true || ev.password_count > 0 || undefined,
+        sources: ['dehashed'],
+        domain: obs.domain,
+      };
+    },
   },
 
   // ─── High-Volume Breach Exposure ──────────────────────────────
@@ -203,6 +219,20 @@ const SIGNAL_RULES: SignalRule[] = [
       const total = obs.evidence?.total_records || 0;
       const breaches = obs.evidence?.unique_breaches || 0;
       return `${total} breach records found across ${breaches} data breaches for ${obs.domain}. High-volume exposure significantly increases the risk of credential stuffing and account takeover attacks.`;
+    },
+    credentialEvidence: (obs) => {
+      const ev = obs.evidence || {};
+      return {
+        totalRecords: ev.total_records || undefined,
+        uniqueBreaches: ev.unique_breaches || undefined,
+        emails: ev.sample_emails?.slice(0, 10) || undefined,
+        usernames: ev.sample_usernames?.slice(0, 10) || undefined,
+        hashTypes: ev.hash_types || undefined,
+        hasPlaintextPasswords: ev.has_plaintext === true || ev.password_count > 0 || undefined,
+        breachName: ev.top_breaches?.join(', ') || ev.database_name || undefined,
+        sources: ['dehashed'],
+        domain: obs.domain,
+      };
     },
   },
 
@@ -541,7 +571,7 @@ export function classifySignals(observations: AssetObservation[]): RiskSignal[] 
           if (seen.has(signalId)) continue;
           seen.add(signalId);
 
-          signals.push({
+          const signal: RiskSignal = {
             signalId,
             assetId: obs.assetId,
             signalType: rule.id,
@@ -550,7 +580,16 @@ export function classifySignals(observations: AssetObservation[]): RiskSignal[] 
             observedAt: obs.observedAt,
             rationale: rule.rationale(obs),
             evidenceRefs: [obs.assetId],
-          });
+          };
+          // Attach credential evidence for breach/credential signals
+          if (rule.credentialEvidence) {
+            try {
+              signal.credentialEvidence = rule.credentialEvidence(obs);
+            } catch {
+              // Non-fatal: skip evidence extraction on error
+            }
+          }
+          signals.push(signal);
         }
       } catch {
         // Skip rules that error on specific observations
