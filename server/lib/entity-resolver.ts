@@ -319,7 +319,7 @@ export function resolveEntity(params: {
   // ── Resolve: Pick the best candidate ──
   // Sort by confidence, then prefer copyright > ssl > title > whois > meta > linkedin > domain
   // Filter out candidates that look like third-party service names
-  const thirdPartyNames = ['outlook', 'sign in', 'login', 'microsoft', 'google', 'yahoo', 'office 365', 'webmail', 'roundcube', 'cpanel', 'plesk', 'wordpress', 'godaddy', 'namecheap', 'cloudflare', 'squarespace', 'wix', 'shopify'];
+  const thirdPartyNames = ['outlook', 'sign in', 'login', 'microsoft', 'google', 'yahoo', 'office 365', 'webmail', 'roundcube', 'cpanel', 'plesk', 'wordpress', 'godaddy', 'namecheap', 'cloudflare', 'squarespace', 'wix', 'shopify', 'github', 'gitlab', 'bitbucket', 'jira', 'confluence', 'atlassian', 'salesforce', 'zendesk', 'freshdesk', 'hubspot', 'mailchimp', 'sendgrid', 'twilio', 'slack', 'zoom', 'teams', 'dropbox', 'box.com', 'docusign', 'adobe', 'okta', 'auth0', 'onelogin', 'duo security', 'lastpass', 'aws', 'amazon web services', 'azure', 'oracle cloud', 'heroku', 'netlify', 'vercel', 'firebase', 'supabase', 'akamai', 'fastly', 'imperva', 'sucuri', 'proofpoint', 'mimecast', 'barracuda', 'sophos', 'fortinet', 'palo alto', 'crowdstrike', 'sentinelone', 'carbon black', 'cyberark', 'servicenow', 'workday', 'bamboohr', 'paylocity', 'adp', 'welcome to', 'home page', 'default page', 'coming soon', 'under construction', 'parked domain', 'domain for sale'];
   const filteredCandidates = candidates.filter(c => !thirdPartyNames.some(tp => c.name.toLowerCase().includes(tp)));
   const finalCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
   finalCandidates.sort((a, b) => b.confidence - a.confidence);

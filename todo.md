@@ -175,4 +175,10 @@
 - [x] Fix OSINT Risk Signals cards rendering raw JSON objects instead of formatted human-readable content
 - [x] Fix Asset Risk Heatmap to include all discovered assets (sortedAssets and riskDist now use allAssets = DB assets + subdomain assets)
 - [x] Fix entity profile LLM showing wrong org name: added third-party title filter (Outlook, Sign in, Microsoft, etc.), WHOIS org extraction from passiveRecon pipeline data, domain-derived name as Signal 7 fallback, and third-party name filtering in candidate resolution
-- [ ] Push fixes to GitHub
+- [x] Push fixes to GitHub
+
+### Bug Fix: OSINT Risk Signals Still Raw JSON + Entity Name Wrong (Apr 24)
+- [x] Verified OSINT Risk Signals fix works correctly on dev server (carmax.com scan renders properly with severity badges, confidence %, rationale text)
+- [x] Confirmed deployed site needs redeployment to pick up latest code (scan 2070001/2070002 only exist on production DB)
+- [x] Expanded entity resolver third-party name filter from 18 to 65+ entries (added GitHub, GitLab, Atlassian, Salesforce, security vendors, cloud providers, HR platforms, generic page titles)
+- [x] Push fixes to GitHub
