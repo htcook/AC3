@@ -563,6 +563,29 @@ export const reportsRouter = router({
               calderaEvidenceSnapshot: await collectCalderaEvidenceForReport(engagement),
               exploitationEvidence,
               manualFindings: opsState?.manualFindings || [],
+              usedConnectors: (() => {
+                // Extract connector names from domain intel scan results for compliance attribution
+                const connectors = new Set<string>();
+                for (const scan of domainIntelData) {
+                  const po = scan.pipelineOutput as any;
+                  if (po?.connectorResults) {
+                    for (const cr of po.connectorResults) {
+                      if (cr?.connector) connectors.add(cr.connector);
+                    }
+                  }
+                  // Also check passiveRecon observations
+                  if (po?.passiveRecon?.observations) {
+                    for (const obs of po.passiveRecon.observations) {
+                      if (obs?.tags) {
+                        for (const tag of obs.tags) {
+                          if (typeof tag === 'string' && !tag.includes(' ')) connectors.add(tag);
+                        }
+                      }
+                    }
+                  }
+                }
+                return connectors.size > 0 ? Array.from(connectors) : undefined;
+              })(),
               credentialExposure: await (async () => {
                 try {
                   const { getEngagementCredentials } = await import('../lib/credential-harvester');

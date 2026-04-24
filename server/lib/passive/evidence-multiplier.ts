@@ -264,6 +264,14 @@ export const EVIDENCE_MULTIPLIER_MAP: Record<string, ConnectorEvidenceConfig> = 
   typosquat: { connector: "typosquat", tier: "unverified", multiplier: 0.5, authoritative: false, rationale: "Generated lookalike domains — existence doesn't imply malice" },
   domain_health: { connector: "domain_health", tier: "unverified", multiplier: 0.5, authoritative: false, rationale: "DNSBL/SMTP checks — blacklist status can be transient" },
   dehashed_whois: { connector: "dehashed_whois", tier: "unverified", multiplier: 0.5, authoritative: false, rationale: "Dehashed WHOIS — aggregated, may lag behind RDAP" },
+  // --- Tier 2 OSINT Gap Connectors ---
+  feodo_tracker: { connector: "feodo_tracker", tier: "confirmed", multiplier: 1.0, authoritative: true, rationale: "abuse.ch Feodo Tracker — authoritative botnet C2 blocklist, law enforcement collaboration", authoritativeFor: ["botnet_c2", "malware_infrastructure"] },
+  sslbl: { connector: "sslbl", tier: "confirmed", multiplier: 1.0, authoritative: true, rationale: "abuse.ch SSLBL — authoritative SSL certificate blacklist for C2/malware", authoritativeFor: ["malicious_ssl", "c2_certificates"] },
+  github_advisories: { connector: "github_advisories", tier: "confirmed", multiplier: 1.0, authoritative: true, rationale: "GitHub Security Advisories — peer-reviewed, CVE-assigned vulnerability database", authoritativeFor: ["supply_chain_vuln", "open_source_vuln"] },
+  certspotter: { connector: "certspotter", tier: "confirmed", multiplier: 0.9, authoritative: true, rationale: "SSLMate Certspotter — authoritative CT log monitor, real-time certificate issuance", authoritativeFor: ["certificate_transparency", "subdomain_discovery"] },
+  companies_house: { connector: "companies_house", tier: "confirmed", multiplier: 1.0, authoritative: true, rationale: "UK Companies House — official government corporate registry", authoritativeFor: ["uk_corporate_data", "company_officers"] },
+  opencorporates: { connector: "opencorporates", tier: "corroborated", multiplier: 0.7, authoritative: false, rationale: "OpenCorporates — aggregated global corporate data, good coverage but secondary source" },
+  hc3: { connector: "hc3", tier: "confirmed", multiplier: 0.9, authoritative: true, rationale: "HHS HC3 — official US government healthcare sector threat intelligence", authoritativeFor: ["healthcare_threats", "sector_advisories"] },
 };
 
 /**

@@ -220,3 +220,19 @@
 - [x] Implement evidence multiplier mapping config (confirmed/corroborated/unverified tiers per connector)
 - [x] Implement unified OSINT rate limiter with circuit breaker pattern
 - [x] Implement ToS compliance registry for all connectors
+
+### Rate Limiter Integration & Compliance Attribution (Apr 24)
+- [x] Wire rateLimitedFetch into existing connectors (20 connectors wired)
+- [x] Add compliance attribution footer to generated reports using generateComplianceSummary()
+
+### Tier 2 OSINT Connector Gaps (Apr 24)
+- [x] Build Feodo Tracker connector (C2 botnet tracking)
+- [x] Build SSL Blacklist connector (malicious SSL certificate detection)
+- [x] Build GitHub Security Advisories connector (GHSA vulnerability data)
+- [x] Build Certspotter connector (CT log monitoring)
+- [x] Build Companies House connector (UK company registry data)
+- [x] Build OpenCorporates connector (global corporate registry)
+- [x] Build HC3 connector (Health Sector Cybersecurity Coordination Center)
+- [x] Register all Tier 2 connectors in index.ts and passive-guard.ts
+- [x] Write tests for all Tier 2 connectors (19 tests passing)
+- [x] Push to GitHub

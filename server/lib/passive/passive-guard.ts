@@ -69,6 +69,13 @@ const STRICT_PASSIVE_CONNECTORS = new Set([
   "sec_edgar",             // SEC EDGAR — queries SEC filing database (passive)
   "osv_dev",               // OSV.dev — queries open source vulnerability database (passive)
   "cisa_advisories",       // CISA Advisories — queries KEV catalog (passive)
+  // --- Tier 2 OSINT Gap Connectors (Gap Analysis Apr 2026) ---
+  "sslbl",                 // SSLBL (abuse.ch) — queries SSL blacklist database (passive)
+  "github_advisories",     // GitHub Security Advisories — queries GHSA database (passive)
+  "certspotter",           // Certspotter (SSLMate) — queries CT log database (passive)
+  "companies_house",       // Companies House (UK) — queries corporate registry API (passive)
+  "opencorporates",        // OpenCorporates — queries global corporate registry API (passive)
+  "hc3",                   // HC3 (HHS) — queries healthcare sector threat intel (passive)
 ]);
 
 // Connectors that perform DNS resolution (touch DNS infrastructure)
@@ -80,6 +87,7 @@ const DNS_RESOLUTION_CONNECTORS = new Set([
   "dns_deep",          // Comprehensive DNS record resolution (A/AAAA/MX/NS/TXT/SOA/CAA)
   "typosquat",         // Typosquat Generator — performs DNS resolution to check domain availability
   "team_cymru",        // Team Cymru — resolves domain to IP, then queries DNS for ASN mapping
+  "feodo_tracker",     // Feodo Tracker — resolves domain to IP, then checks C2 blocklist
 ]);
 
 // Connectors that query registration databases or make direct contact

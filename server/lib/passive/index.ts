@@ -74,6 +74,13 @@ import { secEdgarConnector } from "./sec-edgar";
 import { osvDevConnector } from "./osv-dev";
 import { teamCymruConnector } from "./team-cymru";
 import { cisaAdvisoriesConnector } from "./cisa-advisories";
+import { feodoTrackerConnector } from "./feodo-tracker";
+import { sslblConnector } from "./sslbl";
+import { githubAdvisoriesConnector } from "./github-advisories";
+import { certspotterConnector } from "./certspotter";
+import { companiesHouseConnector } from "./companies-house";
+import { opencorporatesConnector } from "./opencorporates";
+import { hc3Connector } from "./hc3";
 import { detectWildcardDns, tagWildcardObservations, createWildcardSignal } from "./wildcard-detection";
 import { filterConnectors, getScanModeDescription } from "./passive-guard";
 import { classifySignals, getSignalRuleDescriptions } from "./signal-classifier";
@@ -160,6 +167,14 @@ export const ALL_CONNECTORS: PassiveConnector[] = [
   osvDevConnector,                           // OSV.dev — free open source vulnerability database (supply chain)
   teamCymruConnector,                        // Team Cymru — authoritative IP-to-ASN mapping via DNS
   cisaAdvisoriesConnector,                   // CISA Advisories — KEV catalog & ICS advisories
+  // --- Tier 2 OSINT Gap Connectors (Gap Analysis Apr 2026) ---
+  feodoTrackerConnector,                       // Feodo Tracker (abuse.ch) — botnet C2 infrastructure tracking
+  sslblConnector,                              // SSLBL (abuse.ch) — SSL certificate blacklist for C2/malware
+  githubAdvisoriesConnector,                   // GitHub Security Advisories — GHSA vulnerability database
+  certspotterConnector,                        // Certspotter (SSLMate) — CT log monitoring & subdomain discovery
+  companiesHouseConnector,                     // Companies House (UK) — corporate registry for BIA context
+  opencorporatesConnector,                     // OpenCorporates — global corporate registry (140M+ companies)
+  hc3Connector,                                // HC3 (HHS) — healthcare sector cybersecurity threat intel
 ];
 
 export interface PassiveReconConfig {
