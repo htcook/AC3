@@ -112,3 +112,9 @@
 - [x] Correct role in Platform Deep Dive
 - [x] Correct role in Hybrid Scoring Deep Dive v2
 - [x] Checkpoint and push
+
+### HACS SIN Response Template (Apr 23)
+- [x] Research GSA HACS SIN subcategories and evaluation criteria
+- [x] Write HACS SIN response template mapping AC3 capabilities to each subcategory (525 lines, 14 sections)
+- [x] Checkpoint and push to GitHub
+- [x] Tone down military intelligence experience references in IC Product Guide only
