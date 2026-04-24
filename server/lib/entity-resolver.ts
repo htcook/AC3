@@ -304,23 +304,39 @@ export function resolveEntity(params: {
     }
   }
 
+  // ── Signal 7: Domain-derived name (low confidence fallback) ──
+  // Extract a human-readable name from the domain itself (e.g., "mdcllc.com" → "MDCLLC")
+  const domainBase = params.domain.replace(/^www\./, "").split(".")[0];
+  if (domainBase && domainBase.length > 1) {
+    // Convert domain slug to a readable name: "mdcllc" → "MDCLLC", "acme-corp" → "Acme Corp"
+    const domainName = domainBase.includes("-")
+      ? domainBase.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+      : domainBase.toUpperCase();
+    evidence.push({ source: "domain_name", signal: "Domain-derived name", value: domainName, confidence: 40 });
+    candidates.push({ name: domainName, confidence: 40, source: "domain_name" });
+  }
+
   // ── Resolve: Pick the best candidate ──
-  // Sort by confidence, then prefer copyright > ssl > title > whois > meta > linkedin
-  candidates.sort((a, b) => b.confidence - a.confidence);
+  // Sort by confidence, then prefer copyright > ssl > title > whois > meta > linkedin > domain
+  // Filter out candidates that look like third-party service names
+  const thirdPartyNames = ['outlook', 'sign in', 'login', 'microsoft', 'google', 'yahoo', 'office 365', 'webmail', 'roundcube', 'cpanel', 'plesk', 'wordpress', 'godaddy', 'namecheap', 'cloudflare', 'squarespace', 'wix', 'shopify'];
+  const filteredCandidates = candidates.filter(c => !thirdPartyNames.some(tp => c.name.toLowerCase().includes(tp)));
+  const finalCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
+  finalCandidates.sort((a, b) => b.confidence - a.confidence);
 
   let orgName = params.domain.replace(/^www\./, "");
   let bestConfidence = 0;
   let identificationMethod = "domain_fallback";
 
-  if (candidates.length > 0) {
-    orgName = candidates[0].name;
-    bestConfidence = candidates[0].confidence;
-    identificationMethod = candidates[0].source;
+  if (finalCandidates.length > 0) {
+    orgName = finalCandidates[0].name;
+    bestConfidence = finalCandidates[0].confidence;
+    identificationMethod = finalCandidates[0].source;
 
     // Boost confidence if multiple signals agree
-    if (candidates.length >= 2) {
-      const topName = candidates[0].name.toLowerCase();
-      const agreeing = candidates.filter(c =>
+    if (finalCandidates.length >= 2) {
+      const topName = finalCandidates[0].name.toLowerCase();
+      const agreeing = finalCandidates.filter(c =>
         c.name.toLowerCase() === topName ||
         c.name.toLowerCase().includes(topName) ||
         topName.includes(c.name.toLowerCase())

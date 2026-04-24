@@ -170,3 +170,9 @@
 - [x] Write 24 tests across 8 test groups (JARM history change classification, processAndStoreJarmHistory, getJarmTimeline, getRecentJarmAlerts, feed parsers, initializeDefaultFeeds, getFeedStats, CSV edge cases)
 - [x] All 90 JARM-related tests passing (66 infrastructure-inference + 24 history/feeds)
 - [x] Push to GitHub
+
+### Bug Fix: OSINT Risk Signals Raw JSON (Apr 24)
+- [x] Fix OSINT Risk Signals cards rendering raw JSON objects instead of formatted human-readable content
+- [x] Fix Asset Risk Heatmap to include all discovered assets (sortedAssets and riskDist now use allAssets = DB assets + subdomain assets)
+- [x] Fix entity profile LLM showing wrong org name: added third-party title filter (Outlook, Sign in, Microsoft, etc.), WHOIS org extraction from passiveRecon pipeline data, domain-derived name as Signal 7 fallback, and third-party name filtering in candidate resolution
+- [ ] Push fixes to GitHub

@@ -614,12 +614,12 @@ export default function DomainIntelResults() {
 
   const allAssets = [...(assets as any[]), ...subdomainAssets];
 
-  // Sort all assets by risk score descending
-  const sortedAssets = [...assets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
+  // Sort ALL assets (DB + subdomains) by risk score descending
+  const sortedAssets = [...allAssets].sort((a: any, b: any) => (b.hybridRiskScore || 0) - (a.hybridRiskScore || 0));
 
   // Risk distribution (includes subdomains)
   const riskDist = { critical: 0, high: 0, medium: 0, low: 0 };
-  assets.forEach((a: any) => {
+  allAssets.forEach((a: any) => {
     const band = a.riskBand || "low";
     if (band in riskDist) riskDist[band as keyof typeof riskDist]++;
   });
@@ -1515,8 +1515,23 @@ export default function DomainIntelResults() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {pipeline.passiveRecon.riskSignals.map((signal: any, idx: number) => {
                     const sev = typeof signal === 'string' ? 'medium' : (signal.severity || 'medium');
-                    const text = typeof signal === 'string' ? signal : (signal.signal || signal.description || signal.title || JSON.stringify(signal));
+                    // Extract human-readable text: prefer rationale > signal > description > title, never fall back to JSON.stringify
+                    let text: string;
+                    if (typeof signal === 'string') {
+                      text = signal;
+                    } else {
+                      text = signal.rationale || signal.signal || signal.description || signal.title || '';
+                      // If still empty, build a summary from known fields
+                      if (!text && signal.signalType) {
+                        const typeLabel = String(signal.signalType).replace(/_/g, ' ');
+                        text = `${typeLabel}${signal.assetId ? ` detected on ${signal.assetId}` : ''}`;
+                      }
+                      if (!text) text = 'Risk signal detected';
+                    }
                     const source = typeof signal === 'string' ? null : (signal.source || signal.connector || null);
+                    const signalType = typeof signal === 'object' ? signal.signalType : null;
+                    const confidence = typeof signal === 'object' && signal.confidence != null ? signal.confidence : null;
+                    const corroboration = typeof signal === 'object' ? signal.corroboration : null;
                     const sevColors: Record<string, string> = {
                       critical: 'border-red-500/40 bg-red-500/10 text-red-300',
                       high: 'border-orange-500/40 bg-orange-500/10 text-orange-300',
@@ -1524,14 +1539,49 @@ export default function DomainIntelResults() {
                       low: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
                       info: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
                     };
+                    const sevBadgeColors: Record<string, string> = {
+                      critical: 'bg-red-500/20 text-red-300 border-red-500/40',
+                      high: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+                      medium: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+                      low: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+                      info: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+                    };
                     const colorClass = sevColors[sev] || sevColors.medium;
                     return (
-                      <div key={idx} className={`rounded-md border px-3 py-2 ${colorClass}`}>
+                      <div key={idx} className={`rounded-md border px-3 py-2.5 ${colorClass}`}>
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-70" />
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium leading-snug">{text}</p>
-                            {source && <p className="text-[10px] opacity-60 mt-1">Source: {source}</p>}
+                          <div className="min-w-0 flex-1">
+                            {/* Signal type label + severity badge */}
+                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                              {signalType && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80">
+                                  {String(signalType).replace(/_/g, ' ')}
+                                </span>
+                              )}
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium uppercase ${sevBadgeColors[sev] || sevBadgeColors.medium}`}>
+                                {sev}
+                              </span>
+                              {confidence != null && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-zinc-600/40 bg-zinc-700/30 text-zinc-300 font-mono">
+                                  {(confidence * 100).toFixed(0)}%
+                                </span>
+                              )}
+                              {corroboration && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-zinc-600/40 bg-zinc-700/30 text-zinc-400">
+                                  {corroboration}
+                                </span>
+                              )}
+                            </div>
+                            {/* Rationale / description */}
+                            <p className="text-xs leading-snug">{text}</p>
+                            {/* Source + evidence refs */}
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              {source && <span className="text-[10px] opacity-50">Source: {source}</span>}
+                              {signal.evidenceRefs?.length > 0 && (
+                                <span className="text-[10px] opacity-40">{signal.evidenceRefs.length} evidence ref{signal.evidenceRefs.length !== 1 ? 's' : ''}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

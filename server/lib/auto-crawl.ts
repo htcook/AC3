@@ -305,14 +305,28 @@ export async function triggerAutoCrawl(scanId: number, domain: string): Promise<
 
       const crawlData = primaryCrawlResult[0];
       if (crawlData) {
+        // Extract WHOIS org from passive recon data if available
+        const [currentScanForWhois] = await db.select().from(domainIntelScans).where(eq(domainIntelScans.id, scanId)).limit(1);
+        const existingPipeline = (currentScanForWhois?.pipelineOutput as any) || {};
+        const whoisOrg = existingPipeline?.passiveRecon?.domainRegistration?.registrantOrg
+          || existingPipeline?.passiveRecon?.connectorResults?.find((c: any) => c.connector === 'dehashed_whois')?.result?.registrantOrg
+          || existingPipeline?.passiveRecon?.connectorResults?.find((c: any) => c.connector === 'whoisxml')?.result?.registrant?.organization
+          || null;
+
+        // Filter page title to avoid picking up third-party service names (e.g., "Outlook", "Sign in")
+        const thirdPartyTitles = ['outlook', 'sign in', 'login', 'microsoft', 'google', 'yahoo', 'office 365', 'webmail', 'roundcube', 'cpanel', 'plesk', 'wordpress'];
+        const rawTitle = crawlData.pageTitle || '';
+        const isThirdPartyTitle = thirdPartyTitles.some(t => rawTitle.toLowerCase().includes(t));
+        const filteredPageTitle = isThirdPartyTitle ? null : crawlData.pageTitle;
+
         const entityProfile = await resolveAndEnrichEntity({
           domain,
-          pageTitle: crawlData.pageTitle,
+          pageTitle: filteredPageTitle,
           metaDescription: crawlData.metaDescription,
           html: null, // We don't store full HTML, rely on other signals
           externalLinks: crawlData.externalLinks as string[] | null,
           tlsInfo: crawlData.tlsInfo as any,
-          whoisOrg: null, // Would need WHOIS lookup — available from passive recon
+          whoisOrg,
           technologies: (crawlData.detectedTechnologies as any[])?.map((t: any) => t.name) || null,
           rawHeaders: crawlData.rawHeaders as Record<string, string> | null,
         });
