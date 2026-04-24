@@ -1,6 +1,6 @@
 # AC3 Platform Deep Dive — Architecture, Capabilities, and Safety Posture
 
-**Author:** Harrison Cook — AceofCloud
+**Author:** AceofCloud (Harrison Cook, Director of Security Engineering and Offensive Operations)
 **Version:** 1.0 — April 2026
 **Classification:** UNCLASSIFIED — Business Confidential
 **Codebase Metrics:** 633 server modules | 319 client pages | 352 database tables | 666,579 lines of TypeScript
@@ -34,7 +34,7 @@
 
 ## 1. Provenance and Calibration Authority
 
-AC3 was not designed by committee, extracted from a requirements document, or assembled by a product team iterating on market research. It was built in four months by a single practitioner — Harrison Cook — drawing on twenty-five years of operational experience that spans physical security, anthropological fieldwork, tiger-team penetration testing, and enterprise cybersecurity architecture. That provenance is not biographical decoration. It is the calibration source for every scoring threshold, every sector anchor, every ROE parsing priority, and every graduation drift sensitivity in the platform.
+AC3 was not designed by committee, extracted from a requirements document, or assembled by a product team iterating on market research. It was built in four months by Harrison Cook, AceofCloud's Director of Security Engineering and Offensive Operations, drawing on twenty-five years of operational experience that spans physical security, anthropological fieldwork, tiger-team penetration testing, and enterprise cybersecurity architecture. That provenance is not biographical decoration. It is the calibration source for every scoring threshold, every sector anchor, every ROE parsing priority, and every graduation drift sensitivity in the platform.
 
 The arc matters because it explains what AC3 encodes. Harrison began as an archaeologist and anthropologist — disciplines that train the practitioner to read material culture backwards, to infer what a society valued from what it built, fortified, buried, and hid. That training transferred directly into physical penetration testing, where the same operation runs in reverse: inferring what is worth attacking from what has been built to protect it. Two decades of walking buildings, networks, and critical infrastructure — observing what actual operators guard and why — produced a set of internalized anchors that no textbook could replicate and no training dataset could approximate.
 
@@ -989,4 +989,4 @@ No competitor has a scoring system that fuses military target analysis (CARVER+S
 
 ---
 
-*This document was prepared by Harrison Cook — AceofCloud. It describes the AC3 platform as implemented in the current codebase (April 2026). For the detailed technical treatment of the hybrid scoring system, see the companion document: AC3 Hybrid Scoring System Deep Dive v2.*
+*This document was prepared by AceofCloud (Harrison Cook, Director of Security Engineering and Offensive Operations). It describes the AC3 platform as implemented in the current codebase (April 2026). For the detailed technical treatment of the hybrid scoring system, see the companion document: AC3 Hybrid Scoring System Deep Dive v2.*

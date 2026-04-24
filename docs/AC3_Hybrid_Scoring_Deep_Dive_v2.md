@@ -2,7 +2,7 @@
 
 **Document Version:** v2 (Round 5 Revision)
 **Date:** April 23, 2026
-**Author:** Harrison Cook — 20-year practitioner in military targeting analysis, critical infrastructure protection, and offensive security operations
+**Author:** AceofCloud (Harrison Cook, Director of Security Engineering and Offensive Operations) — 25-year practitioner in military targeting analysis, critical infrastructure protection, and offensive security operations
 **Scope:** End-to-end architecture of the CARVER+SHOCK/CVSS/BIA hybrid risk scoring pipeline
 **Audience:** External safety reviewer (Claude)
 **Source Files:** `scoring-engine.ts` (1,780+ lines), `auto-industry-carver.ts` (1,210 lines), `hybrid-scorer.ts` (522 lines), `entity-resolver.ts` (576 lines), `scoring-hardening.ts` (660+ lines), `temporal-decay.ts` (290 lines)

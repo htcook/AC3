@@ -106,3 +106,9 @@
 - [x] Reframe product guide from individual to company-centric (AceofCloud as org, Harrison Cook as architect/creator)
 - [x] Emphasize company certifications and collective experience
 - [x] Checkpoint and push to GitHub
+
+### Role Correction — Harrison Cook (Apr 23)
+- [x] Correct role from 'founder' to 'Director of Security Engineering and Offensive Operations' in IC Product Guide
+- [x] Correct role in Platform Deep Dive
+- [x] Correct role in Hybrid Scoring Deep Dive v2
+- [x] Checkpoint and push
