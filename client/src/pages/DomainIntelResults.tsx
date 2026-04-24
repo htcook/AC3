@@ -19,7 +19,7 @@ import {
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
   Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2,
-  SendHorizontal
+  SendHorizontal, Calendar
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -5024,6 +5024,213 @@ export default function DomainIntelResults() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Breach Timeline Visualization */}
+              {(() => {
+                // Collect breach events with dates from all available connector results
+                const allConnectorResults = pipeline?.passiveRecon?.connectorResults || [];
+                const timelineEvents: Array<{
+                  name: string;
+                  date: string;
+                  dateObj: Date;
+                  records: number;
+                  credentials: number;
+                  hasPasswords: boolean;
+                  hasHashes: boolean;
+                  source: string;
+                  classification: string;
+                  severity: string;
+                }> = [];
+                const seenBreaches = new Set<string>();
+
+                for (const cr of allConnectorResults) {
+                  if (!cr.observations) continue;
+                  for (const obs of cr.observations) {
+                    const ev = obs.evidence || {};
+                    // Extract breach date from various field names across connectors
+                    const rawDate = ev.breach_date || ev.breachDate || ev.BreachDate || obs.firstSeen;
+                    const breachName = ev.breach_name || ev.breachName || ev.database_name || ev.title || ev.Title || obs.name;
+                    if (!rawDate || !breachName) continue;
+                    // Skip non-breach observations
+                    if (!obs.tags?.some((t: string) => ['breach_database', 'credential_breach', 'breach_summary', 'credentials_exposed', 'email-breach'].includes(t))) continue;
+                    // Deduplicate by breach name
+                    const key = breachName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (seenBreaches.has(key)) continue;
+                    seenBreaches.add(key);
+
+                    const dateObj = new Date(rawDate);
+                    if (isNaN(dateObj.getTime())) continue;
+
+                    // Determine classification from tags
+                    let classification = 'unknown';
+                    if (obs.tags?.includes('first_party_breach')) classification = 'first_party';
+                    else if (obs.tags?.includes('third_party_breach')) classification = 'third_party';
+                    else if (obs.tags?.includes('credential_reuse')) classification = 'third_party';
+
+                    timelineEvents.push({
+                      name: breachName.replace(/^[🔴🟡] /, '').replace(/^(1st-Party|3rd-Party|Unclassified) Breach: /, ''),
+                      date: rawDate,
+                      dateObj,
+                      records: ev.total_records || ev.credentials_exposed || ev.emailCount || ev.breachCount || 0,
+                      credentials: ev.credentials_exposed || ev.email_count || 0,
+                      hasPasswords: !!ev.has_passwords || !!ev.has_plaintext,
+                      hasHashes: !!ev.has_hashed_passwords || !!ev.hash_types?.length,
+                      source: cr.connector || 'unknown',
+                      classification,
+                      severity: ev.severity || obs.attribution?.severity_label || 'medium',
+                    });
+                  }
+                }
+
+                // Also extract from HIBP breach list observations
+                const hibpResult = allConnectorResults.find((r: any) => r.connector === 'hibp');
+                if (hibpResult?.observations) {
+                  for (const obs of hibpResult.observations) {
+                    const ev = obs.evidence || {};
+                    if (ev.breachDate || ev.BreachDate) {
+                      const breachName = ev.title || ev.Title || obs.name;
+                      if (!breachName) continue;
+                      const key = breachName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                      if (seenBreaches.has(key)) continue;
+                      seenBreaches.add(key);
+                      const dateObj = new Date(ev.breachDate || ev.BreachDate);
+                      if (isNaN(dateObj.getTime())) continue;
+                      timelineEvents.push({
+                        name: breachName,
+                        date: ev.breachDate || ev.BreachDate,
+                        dateObj,
+                        records: ev.pwnCount || ev.recordCount || 0,
+                        credentials: 0,
+                        hasPasswords: (ev.dataClasses || ev.DataClasses || []).some((dc: string) => /password/i.test(dc)),
+                        hasHashes: (ev.dataClasses || ev.DataClasses || []).some((dc: string) => /hash/i.test(dc)),
+                        source: 'hibp',
+                        classification: 'third_party',
+                        severity: ev.isSensitive ? 'critical' : 'medium',
+                      });
+                    }
+                  }
+                }
+
+                if (timelineEvents.length === 0) return null;
+
+                // Sort chronologically
+                timelineEvents.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+                // Calculate timeline range
+                const earliest = timelineEvents[0].dateObj;
+                const latest = timelineEvents[timelineEvents.length - 1].dateObj;
+                const rangeMs = latest.getTime() - earliest.getTime();
+                const rangeYears = rangeMs / (365.25 * 24 * 60 * 60 * 1000);
+
+                // Group by year for the year markers
+                const yearGroups = new Map<number, typeof timelineEvents>();
+                for (const ev of timelineEvents) {
+                  const year = ev.dateObj.getFullYear();
+                  if (!yearGroups.has(year)) yearGroups.set(year, []);
+                  yearGroups.get(year)!.push(ev);
+                }
+                const sortedYears = [...yearGroups.keys()].sort();
+
+                const classColor = (c: string) => c === 'first_party' ? 'text-red-400 border-red-500/40 bg-red-500/10' : c === 'third_party' ? 'text-amber-400 border-amber-500/40 bg-amber-500/10' : 'text-zinc-400 border-zinc-500/40 bg-zinc-500/10';
+                const classLabel = (c: string) => c === 'first_party' ? '1st Party' : c === 'third_party' ? '3rd Party' : 'Unclassified';
+                const dotColor = (c: string) => c === 'first_party' ? 'bg-red-500' : c === 'third_party' ? 'bg-amber-500' : 'bg-zinc-500';
+
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-cyan-400" />
+                        Breach Timeline
+                        <Badge variant="outline" className="text-[10px] ml-2">{timelineEvents.length} breaches</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Chronological view of breach events affecting {scan.primaryDomain} — spanning {rangeYears < 1 ? 'less than a year' : `${Math.round(rangeYears)} year${Math.round(rangeYears) !== 1 ? 's' : ''}`}
+                        {' '}({earliest.getFullYear()}–{latest.getFullYear()})
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {/* Timeline summary stats */}
+                      <div className="grid grid-cols-3 gap-3 mb-5">
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-red-400">{timelineEvents.filter(e => e.classification === 'first_party').length}</p>
+                          <p className="text-[10px] text-muted-foreground">1st Party Breaches</p>
+                        </div>
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-amber-400">{timelineEvents.filter(e => e.classification === 'third_party').length}</p>
+                          <p className="text-[10px] text-muted-foreground">3rd Party Breaches</p>
+                        </div>
+                        <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-cyan-400">{timelineEvents.filter(e => e.hasPasswords).length}</p>
+                          <p className="text-[10px] text-muted-foreground">With Passwords</p>
+                        </div>
+                      </div>
+
+                      {/* Visual timeline */}
+                      <div className="relative">
+                        {/* Vertical line */}
+                        <div className="absolute left-[18px] top-0 bottom-0 w-px bg-gradient-to-b from-cyan-500/50 via-amber-500/30 to-red-500/50" />
+
+                        <div className="space-y-1">
+                          {sortedYears.map((year) => {
+                            const events = yearGroups.get(year)!;
+                            return (
+                              <div key={year}>
+                                {/* Year marker */}
+                                <div className="flex items-center gap-3 py-2">
+                                  <div className="w-[37px] flex justify-center">
+                                    <div className="w-3 h-3 rounded-full bg-cyan-500/30 border-2 border-cyan-500 z-10" />
+                                  </div>
+                                  <span className="text-xs font-bold text-cyan-400 font-mono">{year}</span>
+                                  <div className="flex-1 h-px bg-cyan-500/20" />
+                                  <span className="text-[10px] text-muted-foreground">{events.length} breach{events.length !== 1 ? 'es' : ''}</span>
+                                </div>
+
+                                {/* Events in this year */}
+                                {events.map((ev, i) => (
+                                  <div key={`${year}-${i}`} className="flex items-start gap-3 py-1.5 pl-1">
+                                    {/* Timeline dot */}
+                                    <div className="w-[37px] flex justify-center pt-1.5">
+                                      <div className={`w-2.5 h-2.5 rounded-full ${dotColor(ev.classification)} z-10 ring-2 ring-background`} />
+                                    </div>
+                                    {/* Event card */}
+                                    <div className={`flex-1 rounded-lg border p-3 ${ev.classification === 'first_party' ? 'border-red-500/30 bg-red-500/5' : ev.classification === 'third_party' ? 'border-amber-500/20 bg-amber-500/5' : 'border-zinc-500/20 bg-zinc-500/5'}`}>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="font-mono text-sm font-semibold truncate">{ev.name}</p>
+                                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${classColor(ev.classification)}`}>
+                                              {classLabel(ev.classification)}
+                                            </Badge>
+                                            {ev.hasPasswords && <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-red-400 border-red-500/40">Plaintext</Badge>}
+                                            {ev.hasHashes && <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-orange-400 border-orange-500/40">Hashed</Badge>}
+                                          </div>
+                                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                            <span className="font-mono">{ev.dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                            {ev.records > 0 && <span>{ev.records.toLocaleString()} records</span>}
+                                            {ev.credentials > 0 && <span className="text-red-400">{ev.credentials.toLocaleString()} credentials</span>}
+                                            <span className="text-muted-foreground/60">via {ev.source}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Timeline legend */}
+                      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/50 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /><span>1st Party (direct breach)</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500" /><span>3rd Party (credential reuse)</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-zinc-500" /><span>Unclassified</span></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
 
               {/* Dehashed Observations Detail */}
               {dehashedResult?.observations?.length > 0 && (

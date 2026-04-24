@@ -436,3 +436,224 @@ describe('Report Section Blueprints — Credential Exposure', () => {
     expect(credIdx).toBeLessThan(riskIdx);
   });
 });
+
+// ─── Breach Timeline Visualization — Data Extraction Logic ──────────────────
+
+describe('Breach Timeline — Data Extraction', () => {
+  // Replicate the timeline extraction logic from the frontend component
+  function extractTimelineEvents(connectorResults: any[]) {
+    const timelineEvents: Array<{
+      name: string;
+      date: string;
+      dateObj: Date;
+      records: number;
+      credentials: number;
+      hasPasswords: boolean;
+      hasHashes: boolean;
+      source: string;
+      classification: string;
+    }> = [];
+    const seenBreaches = new Set<string>();
+
+    for (const cr of connectorResults) {
+      if (!cr.observations) continue;
+      for (const obs of cr.observations) {
+        const ev = obs.evidence || {};
+        const rawDate = ev.breach_date || ev.breachDate || ev.BreachDate || obs.firstSeen;
+        const breachName = ev.breach_name || ev.breachName || ev.database_name || ev.title || ev.Title || obs.name;
+        if (!rawDate || !breachName) continue;
+        if (!obs.tags?.some((t: string) => ['breach_database', 'credential_breach', 'breach_summary', 'credentials_exposed', 'email-breach'].includes(t))) continue;
+        const key = breachName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seenBreaches.has(key)) continue;
+        seenBreaches.add(key);
+        const dateObj = new Date(rawDate);
+        if (isNaN(dateObj.getTime())) continue;
+        let classification = 'unknown';
+        if (obs.tags?.includes('first_party_breach')) classification = 'first_party';
+        else if (obs.tags?.includes('third_party_breach')) classification = 'third_party';
+        timelineEvents.push({
+          name: breachName.replace(/^(1st-Party|3rd-Party|Unclassified) Breach: /, ''),
+          date: rawDate,
+          dateObj,
+          records: ev.total_records || ev.credentials_exposed || 0,
+          credentials: ev.credentials_exposed || ev.email_count || 0,
+          hasPasswords: !!ev.has_passwords || !!ev.has_plaintext,
+          hasHashes: !!ev.has_hashed_passwords,
+          source: cr.connector || 'unknown',
+          classification,
+        });
+      }
+    }
+    timelineEvents.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+    return timelineEvents;
+  }
+
+  it('should extract timeline events from dehashed breach_database observations', () => {
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        {
+          name: 'LinkedIn',
+          tags: ['breach_database', 'third_party_breach'],
+          evidence: { breach_date: '2012-05-05', breach_name: 'LinkedIn', total_records: 164611595, credentials_exposed: 117 },
+        },
+        {
+          name: 'Adobe',
+          tags: ['breach_database', 'third_party_breach'],
+          evidence: { breach_date: '2013-10-04', breach_name: 'Adobe', total_records: 152445165, has_hashed_passwords: true },
+        },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(2);
+    expect(events[0].name).toBe('LinkedIn');
+    expect(events[0].dateObj.getFullYear()).toBe(2012);
+    expect(events[0].records).toBe(164611595);
+    expect(events[0].classification).toBe('third_party');
+    expect(events[1].name).toBe('Adobe');
+    expect(events[1].dateObj.getFullYear()).toBe(2013);
+    expect(events[1].hasHashes).toBe(true);
+  });
+
+  it('should extract timeline events from dark web cross-ref credential_breach observations', () => {
+    const connectorResults = [{
+      connector: 'darkweb_crossref',
+      observations: [
+        {
+          name: '1st-Party Breach: TargetCorp2023',
+          tags: ['credential_breach', 'first_party_breach'],
+          firstSeen: '2023-06-15T00:00:00Z',
+          evidence: { breach_name: 'TargetCorp2023', breach_date: '2023-06-15', total_records: 50000, has_passwords: true },
+        },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe('TargetCorp2023');
+    expect(events[0].classification).toBe('first_party');
+    expect(events[0].hasPasswords).toBe(true);
+    expect(events[0].records).toBe(50000);
+  });
+
+  it('should deduplicate breaches by name (case-insensitive)', () => {
+    const connectorResults = [
+      {
+        connector: 'dehashed',
+        observations: [
+          { name: 'LinkedIn', tags: ['breach_database'], evidence: { breach_date: '2012-05-05', breach_name: 'LinkedIn', total_records: 100 } },
+        ],
+      },
+      {
+        connector: 'darkweb_crossref',
+        observations: [
+          { name: '3rd-Party Breach: linkedin', tags: ['credential_breach', 'third_party_breach'], evidence: { breach_name: 'linkedin', breach_date: '2012-05-05', total_records: 200 } },
+        ],
+      },
+    ];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe('LinkedIn'); // First one wins
+  });
+
+  it('should sort events chronologically (oldest first)', () => {
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        { name: 'Recent', tags: ['breach_database'], evidence: { breach_date: '2024-01-01', breach_name: 'Recent', total_records: 10 } },
+        { name: 'Old', tags: ['breach_database'], evidence: { breach_date: '2010-03-15', breach_name: 'Old', total_records: 20 } },
+        { name: 'Middle', tags: ['breach_database'], evidence: { breach_date: '2018-07-20', breach_name: 'Middle', total_records: 30 } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(3);
+    expect(events[0].name).toBe('Old');
+    expect(events[1].name).toBe('Middle');
+    expect(events[2].name).toBe('Recent');
+  });
+
+  it('should skip observations without dates', () => {
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        { name: 'NoDates', tags: ['breach_database'], evidence: { breach_name: 'NoDates', total_records: 100 } },
+        { name: 'HasDate', tags: ['breach_database'], evidence: { breach_date: '2020-01-01', breach_name: 'HasDate', total_records: 50 } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe('HasDate');
+  });
+
+  it('should skip non-breach observations', () => {
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        { name: 'subdomain.example.com', tags: ['subdomain'], assetType: 'subdomain', evidence: { breach_date: '2020-01-01' } },
+        { name: 'Breach1', tags: ['breach_database'], evidence: { breach_date: '2020-01-01', breach_name: 'Breach1', total_records: 100 } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe('Breach1');
+  });
+
+  it('should handle invalid dates gracefully', () => {
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        { name: 'BadDate', tags: ['breach_database'], evidence: { breach_date: 'not-a-date', breach_name: 'BadDate' } },
+        { name: 'GoodDate', tags: ['breach_database'], evidence: { breach_date: '2021-06-01', breach_name: 'GoodDate', total_records: 10 } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(1);
+    expect(events[0].name).toBe('GoodDate');
+  });
+
+  it('should return empty array when no connector results', () => {
+    const events = extractTimelineEvents([]);
+    expect(events).toHaveLength(0);
+  });
+
+  it('should classify first_party and third_party correctly from tags', () => {
+    const connectorResults = [{
+      connector: 'darkweb_crossref',
+      observations: [
+        { name: 'FirstParty', tags: ['credential_breach', 'first_party_breach'], evidence: { breach_date: '2022-01-01', breach_name: 'FirstParty' } },
+        { name: 'ThirdParty', tags: ['credential_breach', 'third_party_breach'], evidence: { breach_date: '2022-06-01', breach_name: 'ThirdParty' } },
+        { name: 'Unknown', tags: ['credential_breach'], evidence: { breach_date: '2022-12-01', breach_name: 'Unknown' } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    expect(events).toHaveLength(3);
+    expect(events[0].classification).toBe('first_party');
+    expect(events[1].classification).toBe('third_party');
+    expect(events[2].classification).toBe('unknown');
+  });
+
+  it('should group events by year correctly', () => {
+    // Use mid-year dates to avoid UTC/local timezone edge cases on Jan 1
+    const connectorResults = [{
+      connector: 'dehashed',
+      observations: [
+        { name: 'BreachAlpha2020', tags: ['breach_database'], evidence: { breach_date: '2020-03-15', breach_name: 'BreachAlpha2020', total_records: 100 } },
+        { name: 'BreachBeta2020', tags: ['breach_database'], evidence: { breach_date: '2020-09-15', breach_name: 'BreachBeta2020', total_records: 200 } },
+        { name: 'BreachGamma2022', tags: ['breach_database'], evidence: { breach_date: '2022-06-15', breach_name: 'BreachGamma2022', total_records: 300 } },
+      ],
+    }];
+    const events = extractTimelineEvents(connectorResults);
+    // Verify all 3 events are extracted
+    expect(events).toHaveLength(3);
+    // Verify they are sorted chronologically
+    expect(events[0].dateObj.getTime()).toBeLessThan(events[1].dateObj.getTime());
+    expect(events[1].dateObj.getTime()).toBeLessThan(events[2].dateObj.getTime());
+    // Verify year extraction works
+    const years = events.map(e => e.dateObj.getFullYear());
+    expect(years).toEqual([2020, 2020, 2022]);
+    // Verify grouping logic
+    const uniqueYears = [...new Set(years)];
+    expect(uniqueYears).toHaveLength(2);
+    expect(uniqueYears).toContain(2020);
+    expect(uniqueYears).toContain(2022);
+  });
+});

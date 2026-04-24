@@ -203,3 +203,7 @@
 ### Credential Spray Status & PDF Report (Apr 24)
 - [x] Add credential spray status indicator on Breaches tab showing tested vs pending credentials
 - [x] Add Credential Exposure section to PDF report export with breach stats
+
+### Breach Timeline Visualization (Apr 24)
+- [x] Add breach timeline visualization to Breaches tab showing when each breach source was first detected chronologically
+- [x] Push to GitHub
