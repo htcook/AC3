@@ -3,7 +3,8 @@
 **Classification: UNCLASSIFIED**
 **Distribution: Approved for public release**
 **Document Version: 1.0 — April 2026**
-**Prepared by: Harrison Cook, AceofCloud — [https://aceofcloud.com](https://aceofcloud.com)**
+**Prepared by: AceofCloud — [https://aceofcloud.com](https://aceofcloud.com)**
+**Contact: info@aceofcloud.com | 703-488-8889 | Sterling, Virginia**
 
 ---
 
@@ -32,9 +33,11 @@
 
 ## 1. Executive Summary
 
-AC3 (AceofCloud Cybersecurity Command) is an integrated offensive security, threat intelligence, and risk analysis platform designed to serve the operational requirements of the United States Intelligence Community (IC), Department of Defense (DoD) cyber organizations, and federal agencies with national security missions. The platform consolidates capabilities that the IC currently procures from multiple vendors — adversary emulation, vulnerability assessment, threat intelligence aggregation, risk scoring, hunt operations, and compliance reporting — into a single, unified operational environment.
+AC3 (AceofCloud Cybersecurity Command) is an integrated offensive security, threat intelligence, and risk analysis platform developed by **AceofCloud**, a NIST-focused cybersecurity and compliance firm headquartered in Sterling, Virginia. AceofCloud is an **Authorized C3PAO** (CMMC Third-Party Assessment Organization), **Registered Provider Organization (RPO)**, and **accredited SCF 3PAO**, with a team of certified CMMC Assessors (CCA), CMMC Professionals (CCP), and offensive security practitioners whose collective experience spans DoD, federal civilian agencies, the Intelligence Community, and critical infrastructure sectors. The platform is designed to serve the operational requirements of the United States Intelligence Community (IC), Department of Defense (DoD) cyber organizations, and federal agencies with national security missions.
 
-The platform was designed by Harrison Cook, a practitioner with 25 years of experience spanning military intelligence, penetration testing, red team operations, and critical infrastructure security across government and defense sectors. The design reflects operational requirements that emerge from direct experience with IC workflows: the need for MITRE ATT&CK-aligned adversary emulation, STIX/TAXII-compliant intelligence sharing, FIPS 140-3 cryptographic operations, evidence chains that withstand legal and congressional scrutiny, and a scoring methodology that translates technical vulnerability data into mission-impact language that intelligence consumers understand.
+AC3 was architected by Harrison Cook, AceofCloud's founder, whose 25 years of experience spanning military intelligence, penetration testing, red team operations, and critical infrastructure security informed every design decision — from the CARVER+SHOCK scoring methodology (adapted from its military origins for digital asset risk analysis) to the seven-layer safety architecture that enforces two-person integrity for high-risk operations. The platform consolidates capabilities that the IC currently procures from multiple vendors — adversary emulation, vulnerability assessment, threat intelligence aggregation, risk scoring, hunt operations, and compliance reporting — into a single, unified operational environment.
+
+AceofCloud's organizational depth extends beyond platform development. The firm's active practice in **CMMC assessments, FedRAMP/GovRAMP advisory, penetration testing (red and purple team), vCISO services, and data governance** means that AC3 is not built by developers imagining what practitioners need — it is built by practitioners who conduct assessments, advise federal agencies on compliance, and perform offensive operations against real targets under real Rules of Engagement. This practitioner-first design philosophy is visible throughout the platform: the ROE scope enforcement system reflects the legal constraints that real engagements face, the evidence integrity chains reflect the evidentiary standards that real oversight processes demand, and the hybrid risk scoring system reflects the mission-impact language that real intelligence consumers understand.
 
 AC3 is not a point solution. It is a platform that spans six GSA HACS subcategories — High Value Asset Assessments, Risk and Vulnerability Assessments, Cyber Hunt, Incident Response, Penetration Testing, and Incident Handling and Event Management — within a single operational environment. For IC customers, this means fewer procurement actions, fewer integration challenges, and a unified evidence chain across all assessment activities.
 
@@ -71,6 +74,22 @@ The platform is built on a modern, containerizable architecture that supports mu
 
 **Cryptographic Layer:** FIPS 140-3 compliant cryptographic operations via the `FIPSCryptoService`, enforcing AES-256 symmetric encryption, ECDSA P-256/P-384 asymmetric operations, and SHA-256/384/512 hashing with application-layer minimum key length enforcement.
 
+### 2.3 AceofCloud Organizational Credentials
+
+AC3 is developed and supported by AceofCloud, a firm whose organizational credentials directly inform the platform's design and provide assurance to IC customers that the platform is backed by demonstrated assessment and compliance expertise.
+
+| Credential | Description | IC Relevance |
+|---|---|---|
+| **Cyber AB Authorized C3PAO** | Authorized by the Cyber AB to conduct CMMC Level 2 certification assessments for the Defense Industrial Base | Demonstrates organizational competence in assessing security controls against NIST SP 800-171 — the same control framework that underpins AC3's compliance modules |
+| **CMMC-AB Registered Provider Organization (RPO)** | Authorized to provide CMMC readiness advisory services to organizations seeking certification | Validates the firm's advisory capability and understanding of the assessment process from both sides |
+| **Accredited SCF 3PAO** | Accredited Third-Party Assessment Organization under the Secure Controls Framework | Extends assessment authority beyond CMMC to the broader SCF control catalog, which maps across 200+ frameworks |
+| **Certified CMMC Assessors (CCA)** | Team members hold individual CCA certifications from the Cyber AB | Ensures that the people building AC3's compliance modules have personally conducted the assessments those modules support |
+| **CMMC Professionals (CCP)** | Team members hold CCP certifications demonstrating CMMC ecosystem expertise | Provides depth beyond individual assessors — the organization maintains a bench of qualified professionals |
+
+AceofCloud's active service lines — **C3PAO assessments, FedRAMP/GovRAMP advisory (Moderate through High, IL4/IL5), red and purple team penetration testing mapped to MITRE ATT&CK, tiered vCISO programs, and data governance consulting (GDPR, CPRA, HIPAA, NIST Privacy Framework)** — mean that the firm's practitioners encounter the operational realities that AC3 is designed to address. When the platform's ROE scope enforcement system validates an action against the engagement's Rules of Engagement, that validation logic was designed by practitioners who have written and operated under real ROE. When the evidence integrity system generates tamper-evident hash chains, those chains were designed by assessors who know what Inspector General investigators and congressional oversight staff actually examine.
+
+This practitioner-to-platform feedback loop is a structural advantage that pure software development firms cannot replicate. AceofCloud does not build tools for practitioners — AceofCloud practitioners build their own tools, and AC3 is the result.
+
 ---
 
 ## 3. Compliance and Authorization Posture
@@ -95,11 +114,11 @@ AC3's architecture is designed to be consistent with the following frameworks. T
 
 For IC customers requiring formal authorization, the following path is recommended:
 
-**FedRAMP High** — The platform's architecture supports the 421 controls required for FedRAMP High authorization. The primary gap is the formal audit process itself, not architectural deficiencies. A FedRAMP High authorization would enable deployment on NIPRNet and support procurement by civilian IC agencies.
+**FedRAMP High** — The platform's architecture supports the 421 controls required for FedRAMP High authorization. AceofCloud's active FedRAMP/GovRAMP advisory practice — supporting cloud service providers through FedRAMP Moderate, High, and IL4/IL5 authorizations — means the firm has direct experience with the authorization process and the evidence packages that 3PAOs and the JAB expect. The primary gap is the formal audit process itself, not architectural deficiencies. A FedRAMP High authorization would enable deployment on NIPRNet and support procurement by civilian IC agencies.
 
 **DoD IL4/IL5** — For DoD components requiring Impact Level 4 (CUI) or Impact Level 5 (CUI + national security information), the platform can be deployed on DoD-authorized cloud infrastructure (AWS GovCloud, Azure Government) with the appropriate security controls overlay. IL5 authorization would enable use by DoD intelligence components for processing national security information.
 
-**ICD 503 / RMF for IC** — For IC elements requiring authorization under ICD 503, the platform's security controls map to the CNSSI 1253 categorization methodology. The platform supports the continuous monitoring requirements of the IC RMF through its comprehensive audit logging, evidence integrity chains, and automated compliance reporting.
+**ICD 503 / RMF for IC** — For IC elements requiring authorization under ICD 503, the platform's security controls map to the CNSSI 1253 categorization methodology. The platform supports the continuous monitoring requirements of the IC RMF through its comprehensive audit logging, evidence integrity chains, and automated compliance reporting. AceofCloud's team includes practitioners with direct experience in IC authorization processes, ensuring that the platform's compliance documentation and evidence packages align with the expectations of IC Designated Authorizing Officials (DAO).
 
 ### 3.3 Cryptographic Compliance
 
@@ -588,7 +607,11 @@ For IC organizations operating across multiple classification levels, AC3 provid
 
 ## 16. Licensing and Procurement
 
-### 16.1 Procurement Vehicles
+### 16.1 AceofCloud as Prime Contractor
+
+AC3 is delivered and supported by AceofCloud, which serves as the prime contractor for all platform engagements. AceofCloud's organizational certifications — Authorized C3PAO, RPO, and accredited SCF 3PAO — provide IC customers with assurance that the firm meets the organizational maturity and security posture requirements expected of vendors operating in the national security space. The firm's team of certified CMMC Assessors (CCA) and CMMC Professionals (CCP) provides the bench depth required for sustained IC engagements, including on-site support, classified deployment assistance, and ongoing platform customization.
+
+### 16.2 Procurement Vehicles
 
 AC3 is designed to be procurable through the following federal procurement mechanisms:
 
@@ -599,7 +622,7 @@ AC3 is designed to be procurable through the following federal procurement mecha
 | **BPA/BOA** | Agencies with recurring assessment needs | Blanket Purchase Agreements for ongoing platform access |
 | **IDIQ** | Large-scale, multi-year engagements | Indefinite Delivery/Indefinite Quantity for enterprise deployments |
 
-### 16.2 Licensing Tiers
+### 16.3 Licensing Tiers
 
 The platform offers tiered licensing appropriate for different organizational scales and mission requirements:
 
@@ -611,7 +634,7 @@ The platform offers tiered licensing appropriate for different organizational sc
 | **Intelligence** | IC elements, national security missions | Government capabilities + air-gapped deployment support, classified network compatibility, VEP analysis tools, cross-domain export |
 | **MSSP** | Managed security service providers serving government | White-label deployment, multi-tenant isolation, client portal, automated reporting |
 
-### 16.3 HACS Subcategory Mapping
+### 16.4 HACS Subcategory Mapping
 
 The following table maps AC3 capabilities to GSA HACS subcategories, demonstrating how a single platform procurement satisfies requirements that traditionally require multiple vendor contracts:
 
@@ -656,7 +679,15 @@ A: The platform supports deployment at multiple classification levels simultaneo
 
 **Q: What training is required for IC analysts?**
 
-A: The platform is designed for practitioners with existing offensive security and threat intelligence experience. IC analysts familiar with MITRE ATT&CK, STIX/TAXII, and standard vulnerability assessment methodologies can be productive within days. The platform's LLM-assisted analysis provides contextual guidance that helps less experienced operators make informed decisions, while the graduation system ensures that AI recommendations are calibrated to the operator's demonstrated proficiency.
+A: The platform is designed for practitioners with existing offensive security and threat intelligence experience. IC analysts familiar with MITRE ATT&CK, STIX/TAXII, and standard vulnerability assessment methodologies can be productive within days. The platform's LLM-assisted analysis provides contextual guidance that helps less experienced operators make informed decisions, while the graduation system ensures that AI recommendations are calibrated to the operator's demonstrated proficiency. AceofCloud provides onboarding support, training packages, and ongoing technical assistance as part of all Government and Intelligence tier engagements.
+
+**Q: What organizational certifications does the vendor hold?**
+
+A: AceofCloud is a Cyber AB Authorized C3PAO, CMMC-AB Registered Provider Organization (RPO), and accredited SCF Third-Party Assessment Organization (3PAO). The firm's team includes certified CMMC Assessors (CCA) and CMMC Professionals (CCP). AceofCloud maintains active service lines in CMMC assessment, FedRAMP/GovRAMP advisory, penetration testing, vCISO services, and data governance — ensuring that the platform is continuously informed by real-world assessment and compliance experience.
+
+**Q: What is the vendor's capacity for sustained IC engagements?**
+
+A: AceofCloud maintains a team of 11-50 professionals with expertise spanning offensive security, compliance assessment, cloud architecture, and AI governance. The firm's organizational structure supports concurrent engagements across multiple classification levels and geographic locations. For large-scale IC deployments, AceofCloud can augment its team with vetted subcontractors holding appropriate clearances.
 
 **Q: How does the platform support congressional oversight?**
 
@@ -700,7 +731,7 @@ A: Every action taken in the platform is logged with cryptographic integrity (HM
 | Document ID | AC3-IC-PG-001 |
 | Version | 1.0 |
 | Date | April 2026 |
-| Author | Harrison Cook, AceofCloud |
+| Author | AceofCloud (Harrison Cook, Architect/Creator) |
 | Classification | UNCLASSIFIED |
 | Distribution | Approved for public release |
 | Review Cycle | Quarterly |

@@ -100,3 +100,9 @@
 - [x] Add LLM prompt versioning note to §18 (model evolution requires calibration testing)
 - [x] Checkpoint and push to GitHub (Round 6)
 - [x] Write intelligence agency product guide document (710 lines, 18 sections)
+
+### IC Product Guide Revision — Company-Centric Framing (Apr 23)
+- [x] Research AceofCloud company profile, certifications, and team depth
+- [x] Reframe product guide from individual to company-centric (AceofCloud as org, Harrison Cook as architect/creator)
+- [x] Emphasize company certifications and collective experience
+- [x] Checkpoint and push to GitHub
