@@ -199,3 +199,7 @@
 ### Credential Testing Button & Executive Summary Stats (Apr 24)
 - [x] Add "Send to Credential Testing" button on individual breach signal cards for manual one-click credential spray initiation
 - [x] Aggregate credential stats into executive summary (e.g., "14 credentials with plaintext passwords across 3 breach sources")
+
+### Credential Spray Status & PDF Report (Apr 24)
+- [x] Add credential spray status indicator on Breaches tab showing tested vs pending credentials
+- [x] Add Credential Exposure section to PDF report export with breach stats

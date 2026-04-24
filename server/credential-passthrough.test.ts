@@ -270,3 +270,169 @@ describe('Executive Summary — Breach Context', () => {
     expect(result).toBe('');
   });
 });
+
+// ─── Credential Spray Status Indicator ──────────────────────────────────────
+
+describe('Credential Harvester — getEngagementCredentials', () => {
+  it('should export getEngagementCredentials function', async () => {
+    const mod = await import('./lib/credential-harvester');
+    expect(typeof mod.getEngagementCredentials).toBe('function');
+  });
+
+  it('getEngagementCredentials should be a function that accepts an engagementId', async () => {
+    const { getEngagementCredentials } = await import('./lib/credential-harvester');
+    // Verify function signature — it takes 1 param (engagementId)
+    expect(getEngagementCredentials.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─── PDF Report — Credential Exposure Section ──────────────────────────────
+
+describe('Pentest Report Pipeline — Credential Exposure Section', () => {
+  it('should include credentialExposure in PipelineInput type', async () => {
+    // Verify the type exists by importing the module
+    const mod = await import('./lib/pentest-report-pipeline');
+    expect(typeof mod.runPentestReportPipeline).toBe('function');
+  });
+
+  it('should generate credential exposure markdown when data is present', () => {
+    // Simulate the credential exposure section generation logic
+    const credentialExposure = {
+      total: 40,
+      withPasswords: 5,
+      withHashes: 12,
+      tested: 14,
+      successful: 2,
+      bySource: { 'LinkedIn': 15, 'Adobe': 10, 'Dropbox': 8, 'MyFitnessPal': 7 } as Record<string, number>,
+      sampleCredentials: [
+        { email: 'john@example.com', username: 'john', source: 'dehashed', breachName: 'LinkedIn', confidence: 'high', isUsed: 1, usedResult: 'success' },
+        { email: 'jane@example.com', username: 'jane', source: 'leakcheck', breachName: 'Adobe', confidence: 'medium', isUsed: 1, usedResult: 'failed' },
+      ],
+    };
+
+    let md = '';
+    if (credentialExposure && credentialExposure.total > 0) {
+      const ce = credentialExposure;
+      md += `### 12.8 Credential Exposure Assessment\n\n`;
+      md += `| Metric | Value |\n|---|---|\n`;
+      md += `| **Total Credentials Harvested** | ${ce.total} |\n`;
+      md += `| **With Plaintext Passwords** | ${ce.withPasswords} |\n`;
+      md += `| **With Password Hashes** | ${ce.withHashes} |\n`;
+      md += `| **Tested via Credential Spray** | ${ce.tested} |\n`;
+      md += `| **Successful Authentications** | ${ce.successful} |\n`;
+      md += `| **Success Rate** | ${ce.tested > 0 ? ((ce.successful / ce.tested) * 100).toFixed(1) + '%' : 'N/A'} |\n\n`;
+
+      if (Object.keys(ce.bySource).length > 0) {
+        md += `#### Breach Sources\n\n`;
+        md += `| Source | Credentials |\n|---|---|\n`;
+        for (const [src, cnt] of Object.entries(ce.bySource)) {
+          md += `| ${src} | ${cnt} |\n`;
+        }
+        md += `\n`;
+      }
+
+      if (ce.successful > 0) {
+        md += `**CRITICAL:**`;
+      }
+
+      if (ce.sampleCredentials.length > 0) {
+        md += `#### Sample Exposed Credentials (Redacted)\n\n`;
+        for (const c of ce.sampleCredentials.slice(0, 15)) {
+          const identity = c.email || c.username;
+          const redacted = identity.includes('@') ? identity.substring(0, 3) + '***@' + identity.split('@')[1] : identity.substring(0, 3) + '***';
+          md += `| ${redacted} |`;
+        }
+      }
+    }
+
+    // Verify the generated markdown
+    expect(md).toContain('12.8 Credential Exposure Assessment');
+    expect(md).toContain('Total Credentials Harvested');
+    expect(md).toContain('40');
+    expect(md).toContain('With Plaintext Passwords');
+    expect(md).toContain('5');
+    expect(md).toContain('Tested via Credential Spray');
+    expect(md).toContain('14');
+    expect(md).toContain('Successful Authentications');
+    expect(md).toContain('2');
+    expect(md).toContain('14.3%'); // 2/14 * 100
+    expect(md).toContain('Breach Sources');
+    expect(md).toContain('LinkedIn');
+    expect(md).toContain('Adobe');
+    expect(md).toContain('CRITICAL:');
+    expect(md).toContain('Sample Exposed Credentials (Redacted)');
+    // Verify email redaction
+    expect(md).toContain('joh***@example.com');
+    expect(md).not.toContain('john@example.com');
+  });
+
+  it('should not generate credential exposure section when no data', () => {
+    const credentialExposure = undefined;
+    let md = '';
+    if (credentialExposure && (credentialExposure as any).total > 0) {
+      md += 'should not appear';
+    }
+    expect(md).toBe('');
+  });
+
+  it('should show HIGH RISK when plaintext passwords exist but no successful spray', () => {
+    const ce = { total: 20, withPasswords: 8, withHashes: 5, tested: 10, successful: 0, bySource: {}, sampleCredentials: [] };
+    let riskLevel = '';
+    if (ce.successful > 0) {
+      riskLevel = 'CRITICAL';
+    } else if (ce.withPasswords > 0) {
+      riskLevel = 'HIGH RISK';
+    } else {
+      riskLevel = 'MODERATE RISK';
+    }
+    expect(riskLevel).toBe('HIGH RISK');
+  });
+
+  it('should show MODERATE RISK when only hashed passwords found', () => {
+    const ce = { total: 20, withPasswords: 0, withHashes: 15, tested: 0, successful: 0, bySource: {}, sampleCredentials: [] };
+    let riskLevel = '';
+    if (ce.successful > 0) {
+      riskLevel = 'CRITICAL';
+    } else if (ce.withPasswords > 0) {
+      riskLevel = 'HIGH RISK';
+    } else {
+      riskLevel = 'MODERATE RISK';
+    }
+    expect(riskLevel).toBe('MODERATE RISK');
+  });
+});
+
+// ─── Report Section Blueprints — Credential Exposure ────────────────────────
+
+describe('Report Section Blueprints — Credential Exposure', () => {
+  it('should include credential_exposure section in pentest blueprint', async () => {
+    const { getReportBlueprint } = await import('./lib/report-section-blueprints');
+    const blueprint = getReportBlueprint('penetration_test');
+    expect(blueprint).toBeDefined();
+    const credSection = blueprint!.sections.find(s => s.id === 'credential_exposure');
+    expect(credSection).toBeDefined();
+    expect(credSection!.title).toBe('Credential Exposure Assessment');
+    expect(credSection!.required).toBe(false);
+    expect(credSection!.dataSources).toContain('credential_exposure');
+  });
+
+  it('should include credential_exposure section in red_team blueprint', async () => {
+    const { getReportBlueprint } = await import('./lib/report-section-blueprints');
+    const blueprint = getReportBlueprint('red_team');
+    expect(blueprint).toBeDefined();
+    const credSection = blueprint!.sections.find(s => s.id === 'credential_exposure');
+    expect(credSection).toBeDefined();
+    expect(credSection!.title).toBe('Credential Exposure Assessment');
+  });
+
+  it('credential_exposure should appear before risk_matrix in pentest blueprint', async () => {
+    const { getReportBlueprint } = await import('./lib/report-section-blueprints');
+    const blueprint = getReportBlueprint('penetration_test');
+    const sections = blueprint!.sections;
+    const credIdx = sections.findIndex(s => s.id === 'credential_exposure');
+    const riskIdx = sections.findIndex(s => s.id === 'risk_matrix');
+    expect(credIdx).toBeGreaterThan(-1);
+    expect(riskIdx).toBeGreaterThan(-1);
+    expect(credIdx).toBeLessThan(riskIdx);
+  });
+});

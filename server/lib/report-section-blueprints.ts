@@ -224,6 +224,13 @@ const PENTEST_BLUEPRINT: ReportBlueprint = {
         { id: 'lateral_movement', title: 'Lateral Movement', promptGuidance: 'Attempts to move between systems and escalate privileges.' },
       ],
     },
+    {
+      id: 'credential_exposure',
+      title: 'Credential Exposure Assessment',
+      required: false,
+      promptGuidance: 'Document breach-sourced credentials discovered during OSINT reconnaissance. Include total credentials harvested, breakdown by source, plaintext vs hashed passwords, credential spray testing results, and remediation guidance. If confirmed valid credentials were found, flag as critical with immediate action items.',
+      dataSources: ['credential_exposure', 'breach_data'],
+    },
     RISK_MATRIX,
     REMEDIATION_ROADMAP,
     {
@@ -302,6 +309,13 @@ const RED_TEAM_BLUEPRINT: ReportBlueprint = {
       required: true,
       promptGuidance: 'For each finding: CVSS scoring with vector breakdown, attack narrative context, evidence artifacts, business impact in terms of adversary objectives, and remediation. Findings should be ordered by attack chain position, not just severity.',
       dataSources: ['findings', 'evidence', 'artifacts'],
+    },
+    {
+      id: 'credential_exposure',
+      title: 'Credential Exposure Assessment',
+      required: false,
+      promptGuidance: 'Document breach-sourced credentials discovered during OSINT reconnaissance. Include total credentials harvested, breakdown by source, plaintext vs hashed passwords, credential spray testing results, and remediation guidance.',
+      dataSources: ['credential_exposure', 'breach_data'],
     },
     RISK_MATRIX,
     {

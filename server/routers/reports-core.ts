@@ -196,10 +196,41 @@ export const reportsRouter = router({
               .where(eqOp(offensiveAuditLog.engagementId, input.engagementId))
               .orderBy(descOp(offensiveAuditLog.createdAt))
               .limit(200);
-          }
-        } catch (e) { console.error('ROE/audit fetch for report failed:', e); }
+          }        } catch (e) { console.error('ROE/audit fetch for report failed:', e); }
 
-        // Helper: Derive asset status from scan results when not explicitly set
+        // ─── Fetch credential exposure data from breach harvesting ───
+        let credentialExposureContext = '';
+        try {
+          const { getEngagementCredentials } = await import('../lib/credential-harvester');
+          const credData = await getEngagementCredentials(input.engagementId);
+          if (credData.stats.total > 0) {
+            const s = credData.stats;
+            credentialExposureContext = `\n\n## CREDENTIAL EXPOSURE ASSESSMENT\n\n`;
+            credentialExposureContext += `Total Breach-Sourced Credentials: ${s.total}\n`;
+            credentialExposureContext += `Credentials with Plaintext Passwords: ${s.withPasswords}\n`;
+            credentialExposureContext += `Credentials with Password Hashes: ${s.withHashes}\n`;
+            credentialExposureContext += `Credentials Tested via Spray: ${s.tested}\n`;
+            credentialExposureContext += `Successful Credential Sprays: ${s.successful}\n`;
+            credentialExposureContext += `Sources: ${Object.entries(s.bySource).map(([src, cnt]) => `${src} (${cnt})`).join(', ')}\n\n`;
+            // Include sample credentials (redacted passwords) for context
+            const samples = credData.credentials.slice(0, 25);
+            credentialExposureContext += `Sample Credentials (${Math.min(25, credData.credentials.length)} of ${credData.credentials.length}):\n`;
+            for (const c of samples) {
+              credentialExposureContext += `- ${c.email || c.username} | Source: ${c.source}${c.breachName ? ` (${c.breachName})` : ''} | Confidence: ${c.confidence} | Tested: ${c.isUsed ? 'Yes' : 'No'}${c.usedResult ? ` (${c.usedResult})` : ''}\n`;
+            }
+            if (credData.credentials.length > 25) {
+              credentialExposureContext += `... and ${credData.credentials.length - 25} more credentials\n`;
+            }
+            credentialExposureContext += `\nIMPORTANT: You MUST include a "Credential Exposure Assessment" section in the report that:\n1. Summarizes the total breach-sourced credentials found and their sources\n2. Highlights the number of plaintext passwords vs hashed passwords\n3. Reports credential spray testing results (tested count, success rate)\n4. Assesses the organizational risk from credential reuse\n5. Provides remediation recommendations (password resets, MFA enforcement, credential monitoring)\n`;
+            if (s.successful > 0) {
+              credentialExposureContext += `\nCRITICAL: ${s.successful} credential(s) were CONFIRMED VALID via spray testing. This represents an active compromise risk and MUST be highlighted as a critical finding with immediate remediation required.\n`;
+            }
+          }
+        } catch (credErr: any) {
+          console.error('[Report] Failed to fetch credential exposure data:', credErr.message);
+        }
+
+        // Fetch engagement ops datatus from scan results when not explicitly set
         function deriveAssetStatus(asset: any): string {
           const hasExploits = (asset.exploitAttempts || []).some((ea: any) => ea.success);
           if (hasExploits) return 'compromised';
@@ -532,6 +563,27 @@ export const reportsRouter = router({
               calderaEvidenceSnapshot: await collectCalderaEvidenceForReport(engagement),
               exploitationEvidence,
               manualFindings: opsState?.manualFindings || [],
+              credentialExposure: await (async () => {
+                try {
+                  const { getEngagementCredentials } = await import('../lib/credential-harvester');
+                  const credData = await getEngagementCredentials(input.engagementId);
+                  if (credData.stats.total > 0) {
+                    return {
+                      ...credData.stats,
+                      sampleCredentials: credData.credentials.slice(0, 25).map(c => ({
+                        email: c.email,
+                        username: c.username,
+                        source: c.source,
+                        breachName: c.breachName,
+                        confidence: c.confidence,
+                        isUsed: c.isUsed,
+                        usedResult: c.usedResult,
+                      })),
+                    };
+                  }
+                } catch (e) { console.error('[Report] Credential exposure fetch failed:', (e as any).message); }
+                return undefined;
+              })(),
             });
 
             // Store as S3 file
@@ -833,6 +885,7 @@ ${opsDataContext}
 IMPORTANT: You MUST include a "Discovery & Reconnaissance" section that covers all asset discovery results, port/service findings from ScanForge/httpx, passive recon data, and technology stack analysis. Include a per-asset summary table with ports, services, technologies, and risk signals.
 
 IMPORTANT: You MUST include a "Tool Execution Evidence" section that documents all security tools executed, their commands, exit codes, and key findings. This provides the forensic evidence chain.
+${credentialExposureContext}
 ${legacyExploitEvidence}
 IMPORTANT: You MUST include a "Compliance & Authorization" section in the report that:
 1. States the ROE status, signed date, expiry date, and signer information

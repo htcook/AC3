@@ -4899,6 +4899,90 @@ export default function DomainIntelResults() {
                 </Card>
               </div>
 
+              {/* Credential Spray Status Indicator */}
+              {scan.engagementId && (() => {
+                const credQuery = trpc.engagementOps.getHarvestedCredentials.useQuery(
+                  { engagementId: scan.engagementId! },
+                  { enabled: !!scan.engagementId }
+                );
+                const stats = credQuery.data?.stats;
+                if (!stats || stats.total === 0) return (
+                  <Card className="border-zinc-500/30 bg-zinc-500/5">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Crosshair className="h-5 w-5 text-zinc-400" />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-zinc-300">Credential Testing Queue</p>
+                          <p className="text-xs text-muted-foreground">No credentials harvested yet. Use the "Send to Credential Testing" button on risk signals above to queue breach credentials for spray testing.</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+                const testedPct = stats.total > 0 ? Math.round((stats.tested / stats.total) * 100) : 0;
+                const successPct = stats.tested > 0 ? Math.round((stats.successful / stats.tested) * 100) : 0;
+                return (
+                  <Card className={`border-${stats.successful > 0 ? 'red' : stats.tested > 0 ? 'emerald' : 'amber'}-500/30 bg-${stats.successful > 0 ? 'red' : stats.tested > 0 ? 'emerald' : 'amber'}-500/5`}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Crosshair className={`h-4 w-4 ${stats.successful > 0 ? 'text-red-400' : stats.tested > 0 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                        Credential Spray Status
+                        {stats.successful > 0 && <Badge className="text-[10px] bg-red-600/30 text-red-300 border-red-500/50 ml-2">{stats.successful} Valid</Badge>}
+                      </CardTitle>
+                      <CardDescription>{stats.total} credentials harvested from breach data — {stats.tested} tested, {stats.total - stats.tested} pending</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div className="bg-muted/30 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold">{stats.total}</p>
+                          <p className="text-[10px] text-muted-foreground">Total Harvested</p>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-blue-400">{stats.withPasswords}</p>
+                          <p className="text-[10px] text-muted-foreground">With Passwords</p>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-purple-400">{stats.withHashes}</p>
+                          <p className="text-[10px] text-muted-foreground">With Hashes</p>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3 text-center">
+                          <p className="text-xl font-bold text-amber-400">{stats.tested}</p>
+                          <p className="text-[10px] text-muted-foreground">Tested</p>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3 text-center">
+                          <p className={`text-xl font-bold ${stats.successful > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{stats.successful}</p>
+                          <p className="text-[10px] text-muted-foreground">Successful</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Testing Progress</span>
+                          <span className="font-mono">{testedPct}%</span>
+                        </div>
+                        <Progress value={testedPct} className="h-2" />
+                      </div>
+                      {stats.successful > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-red-400 font-medium">Success Rate (of tested)</span>
+                            <span className="font-mono text-red-400">{successPct}%</span>
+                          </div>
+                          <Progress value={successPct} className="h-2" />
+                        </div>
+                      )}
+                      {Object.keys(stats.bySource).length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium">Sources:</span>{' '}
+                          {Object.entries(stats.bySource).map(([src, cnt], i) => (
+                            <span key={src}>{i > 0 ? ', ' : ''}{src} ({cnt as number})</span>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
               {/* Breach Sources Table */}
               {breachData.breachSources?.length > 0 && (
                 <Card>
