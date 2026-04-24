@@ -1349,4 +1349,162 @@ export const calderaProxyRouter = router({
         const primaryDomain = (scan as any).primaryDomain || '';
         return inferInfrastructure(primaryDomain, observations, assets, emailSecurity, managedProvider);
       }),
+
+    // ─── JARM Historical Tracking ──────────────────────────────────────────
+
+    getJarmTimeline: protectedProcedure
+      .input(z.object({ domain: z.string() }))
+      .query(async ({ input }) => {
+        const { getJarmTimeline } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getJarmTimeline(dbConn, schema, input.domain);
+      }),
+
+    getJarmHistoryByScan: protectedProcedure
+      .input(z.object({ scanId: z.number() }))
+      .query(async ({ input }) => {
+        const { getJarmHistoryByScan } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getJarmHistoryByScan(dbConn, schema, input.scanId);
+      }),
+
+    getRecentJarmAlerts: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getRecentJarmAlerts } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getRecentJarmAlerts(dbConn, schema, input.limit || 50);
+      }),
+
+    storeJarmHistory: protectedProcedure
+      .input(z.object({
+        scanId: z.number(),
+        domain: z.string(),
+        jarmMatches: z.array(z.object({
+          hash: z.string(),
+          matchedProvider: z.string().nullable(),
+          matchType: z.enum(['cdn', 'cloud', 'server', 'c2', 'unknown']),
+          confidence: z.number(),
+          source: z.string(),
+          port: z.number().nullable(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { processAndStoreJarmHistory } = await import('../lib/jarm-history');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return processAndStoreJarmHistory(dbConn, schema, input.scanId, input.domain, input.jarmMatches, Date.now());
+      }),
+
+    // ─── JARM Community Signature Feeds ────────────────────────────────────
+
+    getJarmFeedSources: protectedProcedure
+      .query(async () => {
+        const { getFeedSources } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getFeedSources(dbConn, schema);
+      }),
+
+    getJarmFeedStats: protectedProcedure
+      .query(async () => {
+        const { getFeedStats } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return getFeedStats(dbConn, schema);
+      }),
+
+    getCommunitySignatures: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getCommunitySignatures } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const sigs = await getCommunitySignatures(dbConn, schema);
+        return input.limit ? sigs.slice(0, input.limit) : sigs;
+      }),
+
+    initializeJarmFeeds: protectedProcedure
+      .mutation(async () => {
+        const { initializeDefaultFeeds } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const added = await initializeDefaultFeeds(dbConn, schema);
+        return { feedsAdded: added };
+      }),
+
+    refreshJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { refreshFeed, getFeedSources } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        const feeds = await getFeedSources(dbConn, schema);
+        const feed = feeds.find((f: any) => f.feedId === input.feedId);
+        if (!feed) throw new TRPCError({ code: 'NOT_FOUND', message: 'Feed not found' });
+        return refreshFeed(dbConn, schema, feed);
+      }),
+
+    refreshAllJarmFeeds: protectedProcedure
+      .mutation(async () => {
+        const { refreshAllFeeds } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        return refreshAllFeeds(dbConn, schema);
+      }),
+
+    addJarmFeedSource: protectedProcedure
+      .input(z.object({
+        feedId: z.string(),
+        name: z.string(),
+        feedType: z.enum(['github_csv', 'github_json', 'censys_dataset', 'custom_api']),
+        url: z.string().url(),
+        description: z.string().nullable(),
+        enabled: z.boolean().default(true),
+        autoRefresh: z.boolean().default(true),
+        refreshIntervalHours: z.number().default(24),
+      }))
+      .mutation(async ({ input }) => {
+        const { addFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await addFeedSource(dbConn, schema, input);
+        return { success: true };
+      }),
+
+    toggleJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string(), enabled: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const { toggleFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await toggleFeedSource(dbConn, schema, input.feedId, input.enabled);
+        return { success: true };
+      }),
+
+    deleteJarmFeed: protectedProcedure
+      .input(z.object({ feedId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { deleteFeedSource } = await import('../lib/jarm-community-feeds');
+        const { getDb } = await import('../db');
+        const dbConn = await getDb();
+        if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+        await deleteFeedSource(dbConn, schema, input.feedId);
+        return { success: true };
+      }),
   });

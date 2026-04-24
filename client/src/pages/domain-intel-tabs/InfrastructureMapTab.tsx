@@ -9,8 +9,11 @@ import {
   Server, Globe, Shield, AlertTriangle, ChevronDown, ChevronUp,
   Loader2, Database, Cpu, Network, Lock, Eye, Mail, Cloud, Layers,
   Activity, Info, ExternalLink, ShieldAlert, ShieldCheck, BarChart3,
-  Fingerprint, Box, Wifi, Radio, Bug
+  Fingerprint, Box, Wifi, Radio, Bug, Clock, RefreshCw, Plus, Trash2,
+  TrendingUp, History, Rss, ToggleLeft, ToggleRight
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const CATEGORY_META: Record<string, { label: string; icon: any; color: string }> = {
   dns: { label: "DNS", icon: Globe, color: "text-blue-400" },
@@ -64,7 +67,7 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
-export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
+export default function InfrastructureMapTab({ scanId, domain }: { scanId: number; domain?: string }) {
   const { data: infraMap, isLoading, error } = trpc.calderaProxy.inferInfrastructure.useQuery(
     { scanId },
     { staleTime: 5 * 60 * 1000 }
@@ -73,6 +76,59 @@ export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
   const [expandedRisks, setExpandedRisks] = useState(false);
   const [expandedVendors, setExpandedVendors] = useState(false);
   const [expandedLifecycle, setExpandedLifecycle] = useState(false);
+  const [expandedHistory, setExpandedHistory] = useState(false);
+  const [expandedFeeds, setExpandedFeeds] = useState(false);
+
+  // JARM History Timeline
+  const { data: jarmTimeline, isLoading: timelineLoading } = trpc.calderaProxy.getJarmTimeline.useQuery(
+    { domain: domain || '' },
+    { enabled: !!domain, staleTime: 5 * 60 * 1000 }
+  );
+
+  // JARM Feed Sources
+  const { data: feedSources, isLoading: feedsLoading, refetch: refetchFeeds } = trpc.calderaProxy.getJarmFeedSources.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const { data: feedStats } = trpc.calderaProxy.getJarmFeedStats.useQuery(
+    undefined,
+    { staleTime: 5 * 60 * 1000 }
+  );
+
+  const initFeedsMut = trpc.calderaProxy.initializeJarmFeeds.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Initialized ${data.feedsAdded} default feed sources`);
+      refetchFeeds();
+    },
+    onError: (err) => toast.error(`Failed to initialize feeds: ${err.message}`),
+  });
+  const refreshFeedMut = trpc.calderaProxy.refreshJarmFeed.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success(`Refreshed: ${data.signaturesAdded} added, ${data.signaturesUpdated} updated`);
+      } else {
+        toast.error(`Feed refresh failed: ${data.error}`);
+      }
+      refetchFeeds();
+    },
+    onError: (err) => toast.error(`Refresh failed: ${err.message}`),
+  });
+  const refreshAllMut = trpc.calderaProxy.refreshAllJarmFeeds.useMutation({
+    onSuccess: (results) => {
+      const ok = results.filter((r: any) => r.success).length;
+      toast.success(`Refreshed ${ok}/${results.length} feeds`);
+      refetchFeeds();
+    },
+    onError: (err) => toast.error(`Refresh all failed: ${err.message}`),
+  });
+  const toggleFeedMut = trpc.calderaProxy.toggleJarmFeed.useMutation({
+    onSuccess: () => { refetchFeeds(); },
+    onError: (err) => toast.error(`Toggle failed: ${err.message}`),
+  });
+  const deleteFeedMut = trpc.calderaProxy.deleteJarmFeed.useMutation({
+    onSuccess: () => { toast.success('Feed deleted'); refetchFeeds(); },
+    onError: (err) => toast.error(`Delete failed: ${err.message}`),
+  });
 
   const toggleCategory = (cat: string) => {
     setExpandedCategories(prev => {
@@ -550,6 +606,284 @@ export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
             </CardContent>
           </Card>
         )}
+
+        {/* ─── JARM History Timeline ─── */}
+        {domain && (
+          <Card className="bg-card/50">
+            <Collapsible open={expandedHistory} onOpenChange={setExpandedHistory}>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="pb-2 cursor-pointer hover:bg-muted/20 transition-colors">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <History className="h-4 w-4 text-cyan-400" />
+                    JARM History Timeline
+                    <Badge variant="outline" className="text-[10px] ml-auto mr-2">
+                      {timelineLoading ? '...' : `${jarmTimeline?.totalRecords || 0} records`}
+                    </Badge>
+                    {jarmTimeline?.criticalAlerts ? (
+                      <Badge variant="outline" className="text-[10px] text-red-400 border-red-500/40 bg-red-500/10">
+                        {jarmTimeline.criticalAlerts} critical
+                      </Badge>
+                    ) : null}
+                    {expandedHistory ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  </CardTitle>
+                  <CardDescription className="text-xs">Track TLS fingerprint changes across scans to detect infrastructure modifications</CardDescription>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 space-y-3">
+                  {timelineLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Loading timeline...
+                    </div>
+                  ) : !jarmTimeline || jarmTimeline.totalRecords === 0 ? (
+                    <div className="text-xs text-muted-foreground py-4 text-center">
+                      No JARM history recorded yet. History will populate after subsequent scans of this domain.
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary stats */}
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="bg-muted/30 rounded-lg p-2 text-center">
+                          <div className="text-lg font-bold">{jarmTimeline.totalRecords}</div>
+                          <div className="text-[10px] text-muted-foreground">Total Records</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-2 text-center">
+                          <div className="text-lg font-bold">{jarmTimeline.uniqueHosts}</div>
+                          <div className="text-[10px] text-muted-foreground">Unique Hosts</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-2 text-center">
+                          <div className={`text-lg font-bold ${jarmTimeline.changesDetected > 0 ? 'text-amber-400' : ''}`}>{jarmTimeline.changesDetected}</div>
+                          <div className="text-[10px] text-muted-foreground">Changes Detected</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-2 text-center">
+                          <div className={`text-lg font-bold ${jarmTimeline.criticalAlerts > 0 ? 'text-red-400' : ''}`}>{jarmTimeline.criticalAlerts}</div>
+                          <div className="text-[10px] text-muted-foreground">Critical Alerts</div>
+                        </div>
+                      </div>
+
+                      {/* Change alerts */}
+                      {jarmTimeline.alerts.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                            <AlertTriangle className="h-3 w-3" /> Change Alerts
+                          </div>
+                          {jarmTimeline.alerts.slice(0, 10).map((alert: any, i: number) => (
+                            <div key={i} className={`rounded-lg border p-2 text-xs ${
+                              alert.severity === 'critical' ? 'border-red-500/40 bg-red-950/20' :
+                              alert.severity === 'high' ? 'border-orange-500/40 bg-orange-950/20' :
+                              alert.severity === 'medium' ? 'border-yellow-500/40 bg-yellow-950/20' :
+                              'border-border/50 bg-muted/20'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                  alert.severity === 'critical' ? 'text-red-400 border-red-500/40' :
+                                  alert.severity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                                  alert.severity === 'medium' ? 'text-yellow-400 border-yellow-500/40' :
+                                  'text-muted-foreground border-border'
+                                }`}>
+                                  {alert.severity.toUpperCase()}
+                                </Badge>
+                                <span className="font-mono text-muted-foreground">{alert.host}:{alert.port}</span>
+                                <span className="text-muted-foreground ml-auto">{new Date(alert.scannedAt).toLocaleDateString()}</span>
+                              </div>
+                              <div className="text-muted-foreground">{alert.description}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Recent records table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/50">
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Scan</th>
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Hash (prefix)</th>
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Provider</th>
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Source</th>
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Change</th>
+                              <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {jarmTimeline.records.slice(0, 20).map((rec: any, i: number) => (
+                              <tr key={i} className={`border-b border-border/30 ${rec.changeDetected ? 'bg-amber-950/10' : ''}`}>
+                                <td className="py-1.5 px-2 text-muted-foreground">#{rec.scanId}</td>
+                                <td className="py-1.5 px-2 font-mono text-[10px] text-muted-foreground">{rec.jarmHash.substring(0, 16)}…</td>
+                                <td className="py-1.5 px-2">{rec.matchedProvider || <span className="text-muted-foreground italic">Unknown</span>}</td>
+                                <td className="py-1.5 px-2 text-muted-foreground">{rec.source}</td>
+                                <td className="py-1.5 px-2">
+                                  {rec.changeDetected ? (
+                                    <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                                      rec.changeSeverity === 'critical' ? 'text-red-400 border-red-500/40' :
+                                      rec.changeSeverity === 'high' ? 'text-orange-400 border-orange-500/40' :
+                                      rec.changeSeverity === 'medium' ? 'text-yellow-400 border-yellow-500/40' :
+                                      'text-muted-foreground border-border'
+                                    }`}>
+                                      {(rec.changeType || 'changed').replace(/_/g, ' ')}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground/50">—</span>
+                                  )}
+                                </td>
+                                <td className="py-1.5 px-2 text-muted-foreground">{new Date(rec.scannedAt).toLocaleDateString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+        )}
+
+        {/* ─── Community Signature Feeds ─── */}
+        <Card className="bg-card/50">
+          <Collapsible open={expandedFeeds} onOpenChange={setExpandedFeeds}>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="pb-2 cursor-pointer hover:bg-muted/20 transition-colors">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Rss className="h-4 w-4 text-purple-400" />
+                  Community JARM Signature Feeds
+                  <Badge variant="outline" className="text-[10px] ml-auto mr-2">
+                    {feedsLoading ? '...' : `${feedStats?.totalSignatures || 0} signatures`}
+                  </Badge>
+                  {feedStats?.c2Signatures ? (
+                    <Badge variant="outline" className="text-[10px] text-red-400 border-red-500/40 bg-red-500/10">
+                      {feedStats.c2Signatures} C2
+                    </Badge>
+                  ) : null}
+                  {expandedFeeds ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </CardTitle>
+                <CardDescription className="text-xs">Auto-update JARM signatures from public threat intelligence feeds</CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0 space-y-3">
+                {/* Feed stats summary */}
+                {feedStats && (
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="bg-muted/30 rounded-lg p-2 text-center">
+                      <div className="text-lg font-bold">{feedStats.totalFeeds}</div>
+                      <div className="text-[10px] text-muted-foreground">Total Feeds</div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-2 text-center">
+                      <div className="text-lg font-bold text-green-400">{feedStats.enabledFeeds}</div>
+                      <div className="text-[10px] text-muted-foreground">Enabled</div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-2 text-center">
+                      <div className="text-lg font-bold">{feedStats.totalSignatures}</div>
+                      <div className="text-[10px] text-muted-foreground">Signatures</div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-2 text-center">
+                      <div className={`text-lg font-bold ${feedStats.c2Signatures > 0 ? 'text-red-400' : ''}`}>{feedStats.c2Signatures}</div>
+                      <div className="text-[10px] text-muted-foreground">C2 Signatures</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => initFeedsMut.mutate()}
+                    disabled={initFeedsMut.isPending}
+                  >
+                    {initFeedsMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                    Initialize Defaults
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => refreshAllMut.mutate()}
+                    disabled={refreshAllMut.isPending}
+                  >
+                    {refreshAllMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                    Refresh All
+                  </Button>
+                </div>
+
+                {/* Feed sources list */}
+                {feedsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading feeds...
+                  </div>
+                ) : !feedSources || feedSources.length === 0 ? (
+                  <div className="text-xs text-muted-foreground py-4 text-center">
+                    No feed sources configured. Click "Initialize Defaults" to add community feeds.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {feedSources.map((feed: any) => (
+                      <div key={feed.feedId} className={`rounded-lg border p-3 text-xs ${
+                        feed.enabled ? 'border-border/50 bg-muted/10' : 'border-border/30 bg-muted/5 opacity-60'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Rss className={`h-3 w-3 ${feed.enabled ? 'text-purple-400' : 'text-muted-foreground'}`} />
+                          <span className="font-medium">{feed.name}</span>
+                          <Badge variant="outline" className="text-[9px] px-1 py-0">{feed.feedType}</Badge>
+                          {feed.lastRefreshStatus === 'success' && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 text-green-400 border-green-500/40">
+                              OK
+                            </Badge>
+                          )}
+                          {feed.lastRefreshStatus === 'error' && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 text-red-400 border-red-500/40">
+                              Error
+                            </Badge>
+                          )}
+                          <div className="ml-auto flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0"
+                              onClick={(e) => { e.stopPropagation(); refreshFeedMut.mutate({ feedId: feed.feedId }); }}
+                              disabled={refreshFeedMut.isPending}
+                              title="Refresh this feed"
+                            >
+                              <RefreshCw className={`h-3 w-3 ${refreshFeedMut.isPending ? 'animate-spin' : ''}`} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0"
+                              onClick={(e) => { e.stopPropagation(); toggleFeedMut.mutate({ feedId: feed.feedId, enabled: !feed.enabled }); }}
+                              title={feed.enabled ? 'Disable feed' : 'Enable feed'}
+                            >
+                              {feed.enabled ? <ToggleRight className="h-3 w-3 text-green-400" /> : <ToggleLeft className="h-3 w-3 text-muted-foreground" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
+                              onClick={(e) => { e.stopPropagation(); if (confirm(`Delete feed "${feed.name}" and all its signatures?`)) deleteFeedMut.mutate({ feedId: feed.feedId }); }}
+                              title="Delete feed"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        {feed.description && <div className="text-muted-foreground mb-1">{feed.description}</div>}
+                        <div className="flex items-center gap-3 text-muted-foreground/70">
+                          <span>{feed.totalSignatures} sigs</span>
+                          <span>Every {feed.refreshIntervalHours}h</span>
+                          {feed.lastRefreshAt && <span>Last: {new Date(feed.lastRefreshAt).toLocaleString()}</span>}
+                          {feed.lastRefreshError && <span className="text-red-400 truncate max-w-[200px]" title={feed.lastRefreshError}>{feed.lastRefreshError}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
 
         {/* ─── Inference Notes ─── */}
         {infraMap.inferenceNotes.length > 0 && (

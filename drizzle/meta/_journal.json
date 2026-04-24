@@ -232,6 +232,20 @@
       "when": 1776981732522,
       "tag": "0032_handy_natasha_romanoff",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1777038974873,
+      "tag": "0033_chunky_silver_sable",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1777039853752,
+      "tag": "0034_bumpy_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

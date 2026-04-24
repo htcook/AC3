@@ -4888,7 +4888,7 @@ export default function DomainIntelResults() {
 
         {/* Infrastructure Map Tab */}
         <TabsContent value="infra-map" className="space-y-4">
-          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><InfrastructureMapTab scanId={scan.id} /></Suspense>
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><InfrastructureMapTab scanId={scan.id} domain={scan.primaryDomain} /></Suspense>
         </TabsContent>
 
         {/* Spider / Recursive Discovery Tab */}

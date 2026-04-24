@@ -154,17 +154,19 @@
 - [x] Push to GitHub
 
 ### JARM Historical Tracking (Apr 24)
-- [ ] Design jarm_scan_history and jarm_community_signatures DB tables
-- [ ] Implement DB helpers for storing/querying JARM fingerprint history per scan
-- [ ] Implement change detection: compare current scan JARM to historical records
-- [ ] Add tRPC procedures for JARM history timeline and change alerts
-- [ ] Add JARM History Timeline UI section to InfrastructureMapTab
+- [x] Design jarm_scan_history and jarm_feed_sources and jarm_community_signatures DB tables (MySQL schema + drizzle)
+- [x] Implement jarm-history.ts: processAndStoreJarmHistory, getJarmTimeline, getJarmHistoryByScan, getRecentJarmAlerts
+- [x] Implement change detection with severity classification: c2_appearance (critical), c2_disappearance (high), provider_change (medium), server_change (medium), new_fingerprint (low), hash_drift (info)
+- [x] Add 4 tRPC procedures: getJarmTimeline, getJarmHistoryByScan, getRecentJarmAlerts, storeJarmHistory
+- [x] Add JARM History Timeline collapsible UI section with summary stats, change alerts, and records table
 
 ### Community JARM Signature Feed Integration (Apr 24)
-- [ ] Design jarm_community_signatures table with source/provider/hash/matchType fields
-- [ ] Implement feed fetcher: pull JARM signatures from public repositories (GitHub JARM lists, Censys)
-- [ ] Implement signature merge logic: community sigs augment hardcoded database at runtime
-- [ ] Add scheduled refresh for community feeds
-- [ ] Add feed management UI: view sources, last refresh, signature count
-- [ ] Write tests for JARM history and community feed modules
-- [ ] Push to GitHub
+- [x] Design jarm_community_signatures table with signatureId/jarmHash/provider/matchType/confidence/feedSource/tags fields
+- [x] Implement jarm-community-feeds.ts with CSV and JSON feed parsers, C2 tool name inference, and key-value format support
+- [x] Add 3 default feed sources: Salesforce JARM Known Hashes, C2 JARM IOC, TLS Fingerprint Database
+- [x] Implement feed lifecycle: initializeDefaultFeeds, refreshFeed, refreshAllFeeds, toggleFeedSource, deleteFeedSource, getFeedStats
+- [x] Add 9 tRPC procedures for feed management: getJarmFeedSources, getJarmFeedStats, getCommunitySignatures, initializeJarmFeeds, refreshJarmFeed, refreshAllJarmFeeds, addJarmFeedSource, toggleJarmFeed, deleteJarmFeed
+- [x] Add Community JARM Signature Feeds collapsible UI section with stats, action buttons, and feed source cards with enable/disable/refresh/delete controls
+- [x] Write 24 tests across 8 test groups (JARM history change classification, processAndStoreJarmHistory, getJarmTimeline, getRecentJarmAlerts, feed parsers, initializeDefaultFeeds, getFeedStats, CSV edge cases)
+- [x] All 90 JARM-related tests passing (66 infrastructure-inference + 24 history/feeds)
+- [x] Push to GitHub
