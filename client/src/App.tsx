@@ -300,6 +300,7 @@ const ThreatGroupProfile = lazyWithRetry(() => import("./pages/ThreatGroupProfil
 const GraduationEngine = lazyWithRetry(() => import("./pages/GraduationEngine"));
 const RemediationTracking = lazyWithRetry(() => import("./pages/RemediationTracking"));
 const SafetyDashboard = lazyWithRetry(() => import("./pages/SafetyDashboard"));
+const PipelineAudit = lazyWithRetry(() => import("./pages/PipelineAudit"));
 const AgentInternalScanning = lazyWithRetry(() => import("./pages/AgentInternalScanning"));
 const PhishingImpactTesting = lazyWithRetry(() => import("./pages/PhishingImpactTesting"));
 const SOC2Compliance = lazyWithRetry(() => import("./pages/SOC2Compliance"));
@@ -1158,6 +1159,9 @@ function Router() {
         </Route>
         <Route path="/safety-dashboard">
           <ProtectedRoute component={SafetyDashboard} />
+        </Route>
+        <Route path="/pipeline-audit">
+          <ProtectedRoute component={PipelineAudit} />
         </Route>
         <Route path="/agent-internal-scanning">
           <ProtectedRoute component={AgentInternalScanning} />

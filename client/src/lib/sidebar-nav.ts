@@ -29,7 +29,7 @@ import {
   ScrollText, GitBranch, Binary, Webhook, Bot, Boxes, CircuitBoard,
   Laptop, Megaphone, PenTool, Skull, Sword, Flame, Telescope,
   Microscope, Newspaper, Link2, Package, Cog, HardDrive, Wifi,
-  ShieldAlert, Container,
+  ShieldAlert, Container, ClipboardCheck,
 } from "lucide-react";
 
 export type UserRole = 'admin' | 'operator' | 'analyst' | 'team_lead' | 'executive' | 'client' | 'soc' | 'viewer';
@@ -214,11 +214,11 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Session Recordings", path: "/session-recordings", icon: Camera },
       { label: "Data Exfil Simulation", path: "/data-exfil-simulation", icon: Flame },
       { label: "Exploit Guardrails", path: "/exploit-guardrails", icon: ShieldCheck },
+      { label: "Pipeline Audit", path: "/pipeline-audit", icon: ClipboardCheck, roles: ["admin", "operator", "team_lead"] },
     ],
   },
-
   // ═══════════════════════════════════════════════════════════════════════════
-  // C2 & AGENTS — Command-and-control frameworks, implant management
+  // C2 & AGENTS — Command-and-control frameworks, implant managementt
   // Visible to: admin, operator, team_lead
   // ═══════════════════════════════════════════════════════════════════════════
   {

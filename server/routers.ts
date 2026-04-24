@@ -159,6 +159,7 @@ import { remediationRouter } from "./routers/remediation";
 import { c2KnowledgeBaseRouter } from "./routers/c2-knowledge-base";
 import { empireRouter } from "./routers/empire";
 import { safetyEngineRouter } from "./routers/safety-engine";
+import { pipelineAuditRouter } from "./routers/pipeline-audit";
 import { agentInternalScanningRouter } from "./routers/agent-internal-scanning";
 import { phishingImpactRouter } from "./routers/phishing-impact";
 import { soc2ComplianceRouter } from "./routers/soc2-compliance";
@@ -548,6 +549,7 @@ export const appRouter = router({
   empire: empireRouter,
   // ─── Production-Safe Autonomous Mode ─────────────────────────────────────
   safetyEngine: safetyEngineRouter,
+  pipelineAudit: pipelineAuditRouter,
   // ─── Agent-Based Internal Scanning ─────────────────────────────────────────
   agentInternalScanning: agentInternalScanningRouter,
   // ─── Phishing Impact Testing ───────────────────────────────────────────────

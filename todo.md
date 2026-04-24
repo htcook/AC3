@@ -256,3 +256,12 @@
 - [x] Update DI pipeline documentation with hypothesis-vs-confirmed finding distinction
 - [x] Update SCAN_METHODS UI with passive/active classification labels
 - [x] Add scan mode classification to connector catalog entries
+
+### Exploit Pipeline Audit (Apr 24)
+- [x] Read and catalog all exploit pipeline modules (24 modules, ~15,000 LOC)
+- [x] Compile architecture summary document (9 architectural layers)
+- [x] Build tRPC endpoint for LLM-powered pipeline audit report generation
+- [x] Build Pipeline Audit page with safety/legal framework banner, recommendations, priority matrix, module inventory
+- [x] Add safety guardrails & legal compliance framework section (ROE Guard, Safety Engine, Audit Trail, Risk Tier Classification)
+- [x] Write tests for pipeline audit feature (21 tests passing)
+- [x] All 111 tests passing across 3 test suites
