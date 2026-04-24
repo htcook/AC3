@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { inferInfrastructure } from "./lib/infrastructure-inference";
-import type { InfrastructureMap } from "./lib/infrastructure-inference";
+import { inferInfrastructure, matchJarmFingerprint } from "./lib/infrastructure-inference";
+import type { InfrastructureMap, JarmAnalysis, JarmMatch } from "./lib/infrastructure-inference";
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
 
@@ -57,6 +57,11 @@ describe("Infrastructure Inference Engine", () => {
       expect(result.supplyChainRisks[0].riskType).toBe("missing_defense");
       expect(result.summary.totalServices).toBe(0);
       expect(result.summary.overallMaturity).toBe("minimal");
+      // JARM analysis should be present but empty
+      expect(result.jarmAnalysis).toBeTruthy();
+      expect(result.jarmAnalysis.fingerprintsCollected).toBe(0);
+      expect(result.jarmAnalysis.matchesFound).toBe(0);
+      expect(result.jarmAnalysis.c2Detected).toBe(false);
     });
 
     it("generates unique service IDs", () => {
@@ -545,6 +550,417 @@ describe("Infrastructure Inference Engine", () => {
       // Summary counts should be consistent
       expect(result.summary.totalServices).toBe(result.services.length);
       expect(result.summary.totalVendors).toBeGreaterThanOrEqual(1);
+
+      // JARM analysis should be present
+      expect(result.jarmAnalysis).toBeTruthy();
+    });
+  });
+
+  // ─── JARM TLS Fingerprint Integration ─────────────────────────────────────
+
+  describe("JARM TLS Fingerprint Integration", () => {
+
+    describe("matchJarmFingerprint", () => {
+      it("returns null for empty hash", () => {
+        expect(matchJarmFingerprint("")).toBeNull();
+      });
+
+      it("returns null for all-zeros (refused/no TLS)", () => {
+        expect(matchJarmFingerprint("00000000000000000000000000000000000000000000000000000000000000")).toBeNull();
+      });
+
+      it("matches Cobalt Strike full hash", () => {
+        const sig = matchJarmFingerprint("07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7bab9a9fb1");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Cobalt Strike");
+        expect(sig!.matchType).toBe("c2");
+        expect(sig!.confidence).toBeGreaterThanOrEqual(0.9);
+      });
+
+      it("matches Metasploit full hash", () => {
+        const sig = matchJarmFingerprint("07d14d16d21d21d07c07d14d07d21d9b2f5869a6985368a9f98571c65bf43");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Metasploit");
+        expect(sig!.matchType).toBe("c2");
+      });
+
+      it("matches Cloudflare CDN full hash", () => {
+        const sig = matchJarmFingerprint("27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Cloudflare");
+        expect(sig!.matchType).toBe("cdn");
+        expect(sig!.confidence).toBeGreaterThanOrEqual(0.9);
+      });
+
+      it("matches AWS CloudFront full hash", () => {
+        const sig = matchJarmFingerprint("29d29d00029d29d00041d41d00000049d8801e4f5e9656b954b3b1ca4a680b");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("AWS CloudFront");
+        expect(sig!.matchType).toBe("cdn");
+      });
+
+      it("matches nginx server full hash", () => {
+        const sig = matchJarmFingerprint("29d29d15d29d29d00042d42d000000fd29d29d29d29d29d29d29d29d29d29");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("nginx");
+        expect(sig!.matchType).toBe("server");
+      });
+
+      it("matches Apache server full hash", () => {
+        const sig = matchJarmFingerprint("2ad2ad0002ad2ad22c42d42d00042d58c7162162308ba7a87a541a0c5601");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Apache");
+        expect(sig!.matchType).toBe("server");
+      });
+
+      it("matches Google Cloud full hash", () => {
+        const sig = matchJarmFingerprint("27d40d40d29d40d1dc42d43d00041d4689ee210f91ef228b73e456a2ce3e8e");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Google Cloud");
+        expect(sig!.matchType).toBe("cloud");
+      });
+
+      it("falls back to prefix match when full hash is unknown", () => {
+        // Use Cloudflare prefix with unknown extension hash
+        const sig = matchJarmFingerprint("27d27d27d29d27d1dc41d43d00041daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        expect(sig).toBeTruthy();
+        expect(sig!.provider).toBe("Cloudflare");
+        expect(sig!.matchType).toBe("cdn");
+        // Prefix match should have lower confidence than full match
+        expect(sig!.confidence).toBeLessThan(0.9);
+      });
+
+      it("returns null for completely unknown hash", () => {
+        const sig = matchJarmFingerprint("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        expect(sig).toBeNull();
+      });
+    });
+
+    describe("JARM data collection from jarm_fingerprint connector", () => {
+      it("collects JARM hashes from jarm_fingerprint observations", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint", "infrastructure_discovery", "https"],
+            evidence: {
+              port: 443,
+              protocol: "TLSv1.3",
+              cipher: "TLS_AES_256_GCM_SHA384",
+              compositeHash: "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0",
+              issuer: "Cloudflare Inc ECC CA-3",
+              subject: "sni.cloudflaressl.com",
+            },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(1);
+        expect(result.jarmAnalysis.matchesFound).toBe(1);
+        expect(result.jarmAnalysis.matches[0].matchedProvider).toBe("Cloudflare");
+        expect(result.jarmAnalysis.matches[0].matchType).toBe("cdn");
+        expect(result.jarmAnalysis.matches[0].source).toBe("jarm_fingerprint");
+        expect(result.jarmAnalysis.matches[0].port).toBe(443);
+      });
+    });
+
+    describe("JARM data collection from BinaryEdge", () => {
+      it("collects JARM hashes from BinaryEdge evidence.jarm_fingerprints", () => {
+        const obs = [
+          makeObs({
+            source: "binaryedge",
+            tags: ["binaryedge"],
+            evidence: {
+              jarm_fingerprints: ["29d29d15d29d29d00042d42d000000fd29d29d29d29d29d29d29d29d29d29"],
+            },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(1);
+        expect(result.jarmAnalysis.matches[0].matchedProvider).toBe("nginx");
+        expect(result.jarmAnalysis.matches[0].source).toBe("binaryedge");
+      });
+
+      it("collects JARM hashes from BinaryEdge jarm: tags", () => {
+        const obs = [
+          makeObs({
+            source: "binaryedge",
+            tags: ["binaryedge", "jarm:2ad2ad0002ad2ad22c42d42d00042d58c7162162308ba7a87a541a0c5601"],
+            evidence: {},
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(1);
+        expect(result.jarmAnalysis.matches[0].matchedProvider).toBe("Apache");
+        expect(result.jarmAnalysis.matches[0].source).toBe("binaryedge_tag");
+      });
+    });
+
+    describe("JARM data collection from httpx", () => {
+      it("collects JARM hashes from httpx jarmHash evidence", () => {
+        const obs = [
+          makeObs({
+            source: "httpx",
+            tags: ["http_probe"],
+            evidence: {
+              jarmHash: "07d14d16d21d21d00042d41d00041d47e4e0ae17960b2a5b4fd6107fbb0926",
+              port: 443,
+            },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(1);
+        expect(result.jarmAnalysis.matches[0].matchedProvider).toBe("Microsoft IIS");
+        expect(result.jarmAnalysis.matches[0].source).toBe("httpx");
+      });
+    });
+
+    describe("JARM deduplication", () => {
+      it("deduplicates identical hashes from multiple sources", () => {
+        const cloudflareHash = "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0";
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: cloudflareHash, port: 443 },
+          }),
+          makeObs({
+            source: "binaryedge",
+            tags: ["binaryedge", `jarm:${cloudflareHash}`],
+            evidence: { jarm_fingerprints: [cloudflareHash] },
+          }),
+          makeObs({
+            source: "httpx",
+            tags: ["http_probe"],
+            evidence: { jarmHash: cloudflareHash, port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        // Should only count the hash once despite 3 sources
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(1);
+        expect(result.jarmAnalysis.matches.length).toBe(1);
+      });
+    });
+
+    describe("CDN confidence boosting via JARM", () => {
+      it("boosts CDN confidence when JARM corroborates CNAME detection", () => {
+        const obs = [
+          // CNAME-based Cloudflare detection
+          makeObs({ tags: ["cname_record"], name: "cdn.cloudflare.net", evidence: { records: ["cdn.cloudflare.net"] } }),
+          // JARM corroboration
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        const cdn = result.services.find(s => s.category === "cdn_waf" && s.provider === "Cloudflare");
+        expect(cdn).toBeTruthy();
+        // Confidence should be boosted above the base 0.85
+        expect(cdn!.confidence).toBeGreaterThan(0.85);
+        expect(cdn!.evidence.some(e => e.includes("JARM TLS fingerprint corroborates"))).toBe(true);
+        expect(result.jarmAnalysis.cdnCorroborated).toBe(true);
+      });
+
+      it("creates new CDN entry when only JARM detects it", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "29d29d00029d29d00041d41d00000049d8801e4f5e9656b954b3b1ca4a680b", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        const cdn = result.services.find(s => s.category === "cdn_waf" && s.provider === "AWS CloudFront");
+        expect(cdn).toBeTruthy();
+        expect(cdn!.evidence.some(e => e.includes("JARM TLS fingerprint matches"))).toBe(true);
+      });
+    });
+
+    describe("Cloud hosting confidence boosting via JARM", () => {
+      it("boosts cloud hosting confidence when JARM corroborates DNS detection", () => {
+        const obs = [
+          // DNS-based Google Cloud detection
+          makeObs({ source: "dns", name: "example.run.app" }),
+          // JARM corroboration
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "27d40d40d29d40d1dc42d43d00041d4689ee210f91ef228b73e456a2ce3e8e", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        const cloud = result.services.find(s => s.category === "cloud_hosting" && s.provider === "Google Cloud");
+        expect(cloud).toBeTruthy();
+        expect(cloud!.confidence).toBeGreaterThan(0.7);
+        expect(cloud!.evidence.some(e => e.includes("JARM TLS fingerprint corroborates"))).toBe(true);
+        expect(result.jarmAnalysis.cloudCorroborated).toBe(true);
+      });
+    });
+
+    describe("Server software identification via JARM", () => {
+      it("identifies web server from JARM when no other detection exists", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "29d29d15d29d29d00042d42d000000fd29d29d29d29d29d29d29d29d29d29", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        const ws = result.services.find(s => s.category === "web_server" && s.name === "nginx");
+        expect(ws).toBeTruthy();
+        expect(ws!.evidence.some(e => e.includes("JARM TLS fingerprint"))).toBe(true);
+        expect(result.jarmAnalysis.serverIdentified).toBe(true);
+      });
+
+      it("boosts existing web server confidence from JARM", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "29d29d15d29d29d00042d42d000000fd29d29d29d29d29d29d29d29d29d29", port: 443 },
+          }),
+        ];
+        const assets = [
+          makeAsset({ technologies: ["nginx"], technologyVersions: { nginx: "1.25.3" } }),
+        ];
+        const result = inferInfrastructure("example.com", obs, assets);
+        const ws = result.services.find(s => s.category === "web_server" && s.name.toLowerCase().includes("nginx"));
+        expect(ws).toBeTruthy();
+        // Should have JARM evidence added
+        expect(ws!.evidence.some(e => e.includes("JARM TLS fingerprint"))).toBe(true);
+        expect(result.jarmAnalysis.serverIdentified).toBe(true);
+      });
+    });
+
+    describe("C2 framework detection via JARM", () => {
+      it("detects Cobalt Strike from JARM fingerprint", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7bab9a9fb1", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.c2Detected).toBe(true);
+        expect(result.jarmAnalysis.matches.some(m => m.matchedProvider === "Cobalt Strike" && m.matchType === "c2")).toBe(true);
+        // Should create a critical supply chain risk
+        const c2Risk = result.supplyChainRisks.find(r => r.riskType === "c2_detected");
+        expect(c2Risk).toBeTruthy();
+        expect(c2Risk!.severity).toBe("critical");
+        expect(c2Risk!.description).toContain("Cobalt Strike");
+        // Should be in inference notes
+        expect(result.inferenceNotes.some(n => n.includes("CRITICAL") && n.includes("Cobalt Strike"))).toBe(true);
+      });
+
+      it("detects Metasploit from JARM fingerprint", () => {
+        const obs = [
+          makeObs({
+            source: "binaryedge",
+            tags: ["binaryedge"],
+            evidence: {
+              jarm_fingerprints: ["07d14d16d21d21d07c07d14d07d21d9b2f5869a6985368a9f98571c65bf43"],
+            },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.c2Detected).toBe(true);
+        const c2Risk = result.supplyChainRisks.find(r => r.riskType === "c2_detected");
+        expect(c2Risk).toBeTruthy();
+        expect(c2Risk!.description).toContain("Metasploit");
+      });
+
+      it("detects multiple C2 frameworks simultaneously", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7bab9a9fb1", port: 443 },
+          }),
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "07d14d16d21d21d07c07d14d07d21d9b2f5869a6985368a9f98571c65bf43", port: 8443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.c2Detected).toBe(true);
+        const c2Risk = result.supplyChainRisks.find(r => r.riskType === "c2_detected");
+        expect(c2Risk).toBeTruthy();
+        expect(c2Risk!.description).toContain("Cobalt Strike");
+        expect(c2Risk!.description).toContain("Metasploit");
+      });
+    });
+
+    describe("Cert issuer corroboration", () => {
+      it("adds CDN evidence from cert issuer in JARM observations", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: {
+              compositeHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              port: 443,
+              issuer: "Cloudflare Inc ECC CA-3",
+            },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        // Should detect Cloudflare from cert issuer even though JARM hash is unknown
+        const cdn = result.services.find(s => s.category === "cdn_waf" && s.provider === "Cloudflare");
+        expect(cdn).toBeTruthy();
+        expect(cdn!.evidence.some(e => e.includes("cert issuer corroboration"))).toBe(true);
+      });
+    });
+
+    describe("JARM inference notes", () => {
+      it("adds JARM summary to inference notes when fingerprints are collected", () => {
+        const obs = [
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0", port: 443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.inferenceNotes.some(n => n.startsWith("JARM:"))).toBe(true);
+      });
+
+      it("does not add JARM notes when no fingerprints collected", () => {
+        const result = inferInfrastructure("example.com", [], []);
+        expect(result.inferenceNotes.some(n => n.startsWith("JARM:"))).toBe(false);
+      });
+    });
+
+    describe("Mixed JARM + traditional signals", () => {
+      it("combines JARM with traditional signals for comprehensive detection", () => {
+        const obs = [
+          // Traditional CDN detection
+          makeObs({ tags: ["cname_record"], name: "cdn.cloudflare.net", evidence: { records: ["cdn.cloudflare.net"] } }),
+          // JARM corroboration
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0", port: 443 },
+          }),
+          // Traditional cloud detection
+          makeObs({ source: "dns", name: "example.run.app" }),
+          // JARM cloud corroboration
+          makeObs({
+            source: "jarm_fingerprint",
+            tags: ["tls_fingerprint"],
+            evidence: { compositeHash: "27d40d40d29d40d1dc42d43d00041d4689ee210f91ef228b73e456a2ce3e8e", port: 8443 },
+          }),
+        ];
+        const result = inferInfrastructure("example.com", obs, []);
+        expect(result.jarmAnalysis.fingerprintsCollected).toBe(2);
+        expect(result.jarmAnalysis.cdnCorroborated).toBe(true);
+        expect(result.jarmAnalysis.cloudCorroborated).toBe(true);
+        // CDN should have boosted confidence
+        const cdn = result.services.find(s => s.category === "cdn_waf" && s.provider === "Cloudflare");
+        expect(cdn!.confidence).toBeGreaterThan(0.85);
+      });
     });
   });
 });

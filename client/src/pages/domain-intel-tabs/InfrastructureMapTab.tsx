@@ -178,7 +178,7 @@ export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-950/30 border border-blue-500/20 text-xs text-blue-300">
           <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           <span>
-            Infrastructure map inferred from passive reconnaissance signals only (DNS, SPF, MX, HTTP headers, CNAME chains, Shodan, BuiltWith, certificate transparency). No active scanning was performed.
+            Infrastructure map inferred from passive reconnaissance signals including DNS, SPF, MX, HTTP headers, CNAME chains, Shodan, BuiltWith, certificate transparency, and JARM TLS fingerprinting. JARM fingerprints identify server TLS implementations to detect CDN, cloud hosting, and C2 frameworks.
           </span>
         </div>
 
@@ -446,6 +446,111 @@ export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
           </Collapsible>
         )}
 
+        {/* ─── JARM TLS Fingerprint Analysis ─── */}
+        {infraMap.jarmAnalysis && infraMap.jarmAnalysis.fingerprintsCollected > 0 && (
+          <Card className={infraMap.jarmAnalysis.c2Detected ? "border-red-500/50 bg-red-950/10" : "bg-card/50"}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Fingerprint className={`h-4 w-4 ${infraMap.jarmAnalysis.c2Detected ? "text-red-400" : "text-emerald-400"}`} />
+                JARM TLS Fingerprint Analysis
+                {infraMap.jarmAnalysis.c2Detected && (
+                  <Badge className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] ml-1">
+                    <Bug className="h-2.5 w-2.5 mr-0.5" /> C2 DETECTED
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {infraMap.jarmAnalysis.fingerprintsCollected} TLS fingerprint(s) collected,{" "}
+                {infraMap.jarmAnalysis.matchesFound} matched to known infrastructure
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Status badges */}
+              <div className="flex flex-wrap gap-2">
+                {infraMap.jarmAnalysis.cdnCorroborated && (
+                  <Badge variant="outline" className="text-[10px] text-green-400 border-green-500/40 bg-green-500/10">
+                    <ShieldCheck className="h-2.5 w-2.5 mr-1" /> CDN Corroborated
+                  </Badge>
+                )}
+                {infraMap.jarmAnalysis.cloudCorroborated && (
+                  <Badge variant="outline" className="text-[10px] text-sky-400 border-sky-500/40 bg-sky-500/10">
+                    <Cloud className="h-2.5 w-2.5 mr-1" /> Cloud Hosting Corroborated
+                  </Badge>
+                )}
+                {infraMap.jarmAnalysis.serverIdentified && (
+                  <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-500/40 bg-slate-500/10">
+                    <Server className="h-2.5 w-2.5 mr-1" /> Server Software Identified
+                  </Badge>
+                )}
+              </div>
+
+              {/* Matches table */}
+              {infraMap.jarmAnalysis.matches.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border/50">
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Hash (prefix)</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Matched Provider</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Type</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Source</th>
+                        <th className="text-left py-1.5 px-2 text-muted-foreground font-medium">Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {infraMap.jarmAnalysis.matches.map((match: any, i: number) => (
+                        <tr key={i} className={`border-b border-border/30 ${match.matchType === "c2" ? "bg-red-950/20" : ""}`}>
+                          <td className="py-1.5 px-2 font-mono text-[10px] text-muted-foreground">
+                            {match.hash.substring(0, 20)}…
+                          </td>
+                          <td className="py-1.5 px-2">
+                            {match.matchedProvider ? (
+                              <span className={match.matchType === "c2" ? "text-red-400 font-medium" : ""}>
+                                {match.matchedProvider}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground italic">Unknown</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2">
+                            <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
+                              match.matchType === "c2" ? "text-red-400 border-red-500/40" :
+                              match.matchType === "cdn" ? "text-green-400 border-green-500/40" :
+                              match.matchType === "cloud" ? "text-sky-400 border-sky-500/40" :
+                              match.matchType === "server" ? "text-slate-400 border-slate-500/40" :
+                              "text-muted-foreground border-border"
+                            }`}>
+                              {match.matchType.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-1.5 px-2 text-muted-foreground">{match.source}</td>
+                          <td className="py-1.5 px-2"><ConfidenceBar value={match.confidence} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* JARM notes */}
+              {infraMap.jarmAnalysis.notes.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  {infraMap.jarmAnalysis.notes.map((note: string, i: number) => (
+                    <div key={i} className={`text-xs flex items-start gap-1.5 ${
+                      note.includes("CRITICAL") ? "text-red-400" :
+                      note.includes("corroborates") ? "text-emerald-400" :
+                      "text-muted-foreground"
+                    }`}>
+                      <span className="mt-0.5">•</span>
+                      <span>{note}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* ─── Inference Notes ─── */}
         {infraMap.inferenceNotes.length > 0 && (
           <Card className="bg-card/50">
@@ -460,7 +565,7 @@ export default function InfrastructureMapTab({ scanId }: { scanId: number }) {
                 {infraMap.inferenceNotes.map((note: string, i: number) => (
                   <div key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
                     <span className="text-muted-foreground/50 mt-0.5">-</span>
-                    <span className={note.startsWith("WARNING") ? "text-amber-400" : ""}>{note}</span>
+                    <span className={note.startsWith("WARNING") || note.startsWith("CRITICAL") ? (note.startsWith("CRITICAL") ? "text-red-400 font-medium" : "text-amber-400") : ""}>{note}</span>
                   </div>
                 ))}
               </div>

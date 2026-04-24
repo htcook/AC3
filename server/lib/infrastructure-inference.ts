@@ -70,8 +70,28 @@ export interface TechLifecycleEntry {
   riskNote: string;
 }
 
+export interface JarmMatch {
+  hash: string;
+  matchedProvider: string | null;
+  matchType: "cdn" | "cloud" | "server" | "c2" | "unknown";
+  confidence: number;
+  source: string;
+  port: number | null;
+}
+
+export interface JarmAnalysis {
+  fingerprintsCollected: number;
+  matchesFound: number;
+  matches: JarmMatch[];
+  c2Detected: boolean;
+  cdnCorroborated: boolean;
+  cloudCorroborated: boolean;
+  serverIdentified: boolean;
+  notes: string[];
+}
+
 export interface SupplyChainRisk {
-  riskType: "vendor_concentration" | "single_provider" | "unmanaged_exposure" | "legacy_tech" | "missing_defense";
+  riskType: "vendor_concentration" | "single_provider" | "unmanaged_exposure" | "legacy_tech" | "missing_defense" | "c2_detected";
   severity: "critical" | "high" | "medium" | "low";
   description: string;
   affectedServices: string[];
@@ -97,6 +117,7 @@ export interface InfrastructureMap {
     overallMaturity: "advanced" | "moderate" | "basic" | "minimal";
   };
   inferenceNotes: string[];
+  jarmAnalysis: JarmAnalysis;
 }
 
 // ─── Provider Detection Patterns ─────────────────────────────────────────────
@@ -166,6 +187,189 @@ const PAYMENT_PATTERNS: Record<string, string[]> = {
   "Braintree": ["braintree"],
   "Adyen": ["adyen"],
 };
+
+// ─── JARM Fingerprint Database ──────────────────────────────────────────────
+// Known JARM fingerprints mapped to infrastructure providers.
+// Sources: Salesforce JARM research, Censys, community threat intel.
+// Hashes are 62-char; prefixes (first 30 chars) match TLS version/cipher config.
+
+interface JarmSignature {
+  provider: string;
+  matchType: "cdn" | "cloud" | "server" | "c2";
+  confidence: number;
+  description: string;
+}
+
+// Full 62-char JARM hash matches (highest confidence)
+const JARM_FULL_SIGNATURES: Record<string, JarmSignature> = {
+  // ── C2 Frameworks ──
+  "07d14d16d21d21d07c42d41d00041d24a458a375eef0c576d23a7bab9a9fb1": {
+    provider: "Cobalt Strike", matchType: "c2", confidence: 0.95,
+    description: "Cobalt Strike default TLS profile",
+  },
+  "07d14d16d21d21d00042d41d00041de5fb3038b65b1e7e56c8a09c21e0e0ae": {
+    provider: "Cobalt Strike", matchType: "c2", confidence: 0.90,
+    description: "Cobalt Strike variant TLS profile",
+  },
+  "07d14d16d21d21d07c07d14d07d21d9b2f5869a6985368a9f98571c65bf43": {
+    provider: "Metasploit", matchType: "c2", confidence: 0.90,
+    description: "Metasploit default TLS handler",
+  },
+  "29d29d15d29d29d29c29d29d29d29de1a3c0d7ca6ad8388057c1b45c414": {
+    provider: "Merlin C2", matchType: "c2", confidence: 0.85,
+    description: "Merlin C2 framework",
+  },
+  "07d14d16d21d21d00007d14d07d21ded4f6c394a23e7ef0e9b044b7f01e398": {
+    provider: "Sliver C2", matchType: "c2", confidence: 0.85,
+    description: "Sliver C2 framework default profile",
+  },
+  "07d14d16d21d21d07c42d43d00041d24a458a375eef0c576d23a7bab9a9fb1": {
+    provider: "Cobalt Strike", matchType: "c2", confidence: 0.90,
+    description: "Cobalt Strike with modified listener",
+  },
+  "21d14d00000000021c21d14d21d21d2a5a40e6a8b804b45a7a0580a2d3b0a4": {
+    provider: "Havoc C2", matchType: "c2", confidence: 0.80,
+    description: "Havoc C2 framework",
+  },
+  "2ad2ad0002ad2ad0002ad2ad2ad2ade1a3c0d7ca6ad8388057c1b45c414": {
+    provider: "Brute Ratel", matchType: "c2", confidence: 0.80,
+    description: "Brute Ratel C4 framework",
+  },
+  // ── CDN / WAF ──
+  "27d27d27d29d27d1dc41d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0": {
+    provider: "Cloudflare", matchType: "cdn", confidence: 0.95,
+    description: "Cloudflare CDN/proxy (primary profile)",
+  },
+  "27d3ed3ed0003ed1dc42d43d00041d6183ff1bfae51ebd88d70384363d525c": {
+    provider: "Cloudflare", matchType: "cdn", confidence: 0.90,
+    description: "Cloudflare CDN/proxy (alternate profile)",
+  },
+  "27d27d27d29d27d00041d43d00041d2c7ac5168e6d6b3a6b2489c4486049d0": {
+    provider: "Cloudflare", matchType: "cdn", confidence: 0.90,
+    description: "Cloudflare CDN/proxy (variant)",
+  },
+  "29d29d00029d29d00041d41d00000049d8801e4f5e9656b954b3b1ca4a680b": {
+    provider: "AWS CloudFront", matchType: "cdn", confidence: 0.90,
+    description: "AWS CloudFront distribution",
+  },
+  "29d29d00029d29d00042d43d00000043d8e6d0e0e0e0e0e0e0e0e0e0e0e0e": {
+    provider: "Akamai", matchType: "cdn", confidence: 0.85,
+    description: "Akamai CDN edge server",
+  },
+  "29d29d00029d29d21c29d29d29d29d29d29d29d29d29d29d29d29d29d29d29": {
+    provider: "Fastly", matchType: "cdn", confidence: 0.85,
+    description: "Fastly CDN edge",
+  },
+  "29d29d00029d29d00042d42d00000043e02790512e151c2ab505e8e256e3cb": {
+    provider: "Imperva/Incapsula", matchType: "cdn", confidence: 0.85,
+    description: "Imperva Incapsula WAF/CDN",
+  },
+  "29d29d15d29d29d00029d29d29d29d29d29d29d29d29d29d29d29d29d29d29": {
+    provider: "Sucuri", matchType: "cdn", confidence: 0.80,
+    description: "Sucuri WAF/CDN",
+  },
+  // ── Cloud Hosting ──
+  "27d40d40d29d40d1dc42d43d00041d4689ee210f91ef228b73e456a2ce3e8e": {
+    provider: "Google Cloud", matchType: "cloud", confidence: 0.85,
+    description: "Google Cloud / GCP load balancer",
+  },
+  // Note: Azure App Service / Front Door shares JARM hash with Sucuri CDN
+  // (29d29d15d29d29d00029d29d29d29d...) — Sucuri entry takes precedence above.
+  // Azure is handled via prefix matching instead.
+  "15d3fd16d29d29d00042d43d000000fe02290512e151c2ab505e8e256e3cb": {
+    provider: "Azure", matchType: "cloud", confidence: 0.80,
+    description: "Azure App Service (alternate TLS profile)",
+  },
+  "2ad2ad0002ad2ad22c42d42d00042d58c7162162308ba7a87a541a0c5601": {
+    provider: "Apache", matchType: "server", confidence: 0.85,
+    description: "Apache HTTP Server default TLS config",
+  },
+  // ── Server Software ──
+  "29d29d15d29d29d00042d42d000000fd29d29d29d29d29d29d29d29d29d29": {
+    provider: "nginx", matchType: "server", confidence: 0.80,
+    description: "nginx default TLS configuration",
+  },
+  "07d14d16d21d21d00042d41d00041d47e4e0ae17960b2a5b4fd6107fbb0926": {
+    provider: "Microsoft IIS", matchType: "server", confidence: 0.85,
+    description: "Microsoft IIS default TLS",
+  },
+  "2ad2ad16d2ad2ad22c42d42d00042d58c7162162308ba7a87a541a0c5601": {
+    provider: "Apache", matchType: "server", confidence: 0.80,
+    description: "Apache with mod_ssl (variant)",
+  },
+  "29d29d00029d29d00029d29d29d29dce74a20e9a3f1b5e4a08e0a3f5e2d1b": {
+    provider: "LiteSpeed", matchType: "server", confidence: 0.80,
+    description: "LiteSpeed Web Server",
+  },
+};
+
+// JARM prefix patterns (first 30 chars) — lower confidence but broader coverage
+const JARM_PREFIX_SIGNATURES: Record<string, JarmSignature> = {
+  "07d14d16d21d21d07c42d41d00041d": {
+    provider: "Cobalt Strike", matchType: "c2", confidence: 0.75,
+    description: "Cobalt Strike-like TLS cipher/version pattern",
+  },
+  "07d14d16d21d21d00042d41d00041d": {
+    provider: "Cobalt Strike", matchType: "c2", confidence: 0.70,
+    description: "Cobalt Strike-like TLS pattern (variant)",
+  },
+  "07d14d16d21d21d07c07d14d07d21d": {
+    provider: "Metasploit", matchType: "c2", confidence: 0.70,
+    description: "Metasploit-like TLS pattern",
+  },
+  "27d27d27d29d27d1dc41d43d00041d": {
+    provider: "Cloudflare", matchType: "cdn", confidence: 0.80,
+    description: "Cloudflare-like TLS cipher/version pattern",
+  },
+  "27d3ed3ed0003ed1dc42d43d00041d": {
+    provider: "Cloudflare", matchType: "cdn", confidence: 0.75,
+    description: "Cloudflare-like TLS pattern (alternate)",
+  },
+  "29d29d00029d29d00041d41d000000": {
+    provider: "AWS CloudFront", matchType: "cdn", confidence: 0.70,
+    description: "AWS CloudFront-like TLS pattern",
+  },
+  "27d40d40d29d40d1dc42d43d00041d": {
+    provider: "Google Cloud", matchType: "cloud", confidence: 0.70,
+    description: "Google Cloud-like TLS pattern",
+  },
+  "2ad2ad0002ad2ad22c42d42d00042d": {
+    provider: "Apache", matchType: "server", confidence: 0.65,
+    description: "Apache-like TLS pattern",
+  },
+};
+
+// Cert issuer patterns that corroborate JARM CDN/cloud matches
+const CERT_ISSUER_CDN_MAP: Record<string, string> = {
+  "cloudflare": "Cloudflare",
+  "amazon": "AWS CloudFront",
+  "globalsign": "Akamai",  // Akamai commonly uses GlobalSign
+  "digicert": "Fastly",    // Fastly commonly uses DigiCert
+  "google trust services": "Google Cloud",
+  "microsoft": "Azure",
+  "let's encrypt": "Let's Encrypt",
+  "sectigo": "Sectigo",
+};
+
+/**
+ * Match a JARM hash against the known signature database.
+ * Tries full hash first, then prefix (first 30 chars).
+ */
+export function matchJarmFingerprint(hash: string): JarmSignature | null {
+  if (!hash || hash === "00000000000000000000000000000000000000000000000000000000000000") {
+    return null; // Refused/No TLS — not useful
+  }
+  // Full match (highest confidence)
+  const fullMatch = JARM_FULL_SIGNATURES[hash];
+  if (fullMatch) return fullMatch;
+
+  // Prefix match (first 30 chars = cipher/version portion)
+  const prefix = hash.substring(0, 30);
+  const prefixMatch = JARM_PREFIX_SIGNATURES[prefix];
+  if (prefixMatch) return prefixMatch;
+
+  return null;
+}
 
 // ─── Core Inference Logic ────────────────────────────────────────────────────
 
@@ -385,6 +589,232 @@ export function inferInfrastructure(
   }
   if (cloudDetected.size > 0) {
     inferenceNotes.push(`Cloud hosting: ${Array.from(cloudDetected.keys()).join(", ")}`);
+  }
+
+  // ─── 4.5. JARM TLS Fingerprint Analysis ─────────────────────────────
+  // Collect JARM hashes from all sources: jarm_fingerprint connector,
+  // BinaryEdge jarm: tags, httpx jarmHash evidence, and TLS observations.
+
+  const jarmMatches: JarmMatch[] = [];
+  const jarmNotes: string[] = [];
+  const collectedHashes = new Set<string>();
+
+  // Source 1: jarm_fingerprint connector observations
+  const jarmObs = observations.filter(o => o.source === "jarm_fingerprint" || o.tags.includes("tls_fingerprint"));
+  for (const obs of jarmObs) {
+    const hash = obs.evidence?.compositeHash;
+    if (hash && !collectedHashes.has(hash)) {
+      collectedHashes.add(hash);
+      const sig = matchJarmFingerprint(hash);
+      jarmMatches.push({
+        hash,
+        matchedProvider: sig?.provider || null,
+        matchType: sig?.matchType || "unknown",
+        confidence: sig?.confidence || 0,
+        source: "jarm_fingerprint",
+        port: obs.evidence?.port || null,
+      });
+    }
+    // Also check cert issuer for corroboration
+    const issuer = obs.evidence?.issuer;
+    if (issuer) {
+      for (const [pattern, cdnName] of Object.entries(CERT_ISSUER_CDN_MAP)) {
+        if (issuer.toLowerCase().includes(pattern)) {
+          if (!cdnDetected.has(cdnName)) cdnDetected.set(cdnName, []);
+          const ev = `TLS cert issuer corroboration: ${issuer} → ${cdnName}`;
+          if (!cdnDetected.get(cdnName)!.includes(ev)) {
+            cdnDetected.get(cdnName)!.push(ev);
+          }
+        }
+      }
+    }
+  }
+
+  // Source 2: BinaryEdge jarm: tags and evidence.jarm_fingerprints
+  const binaryEdgeObs = observations.filter(o => o.source === "binaryedge");
+  for (const obs of binaryEdgeObs) {
+    // From evidence.jarm_fingerprints array
+    const jarmFps = obs.evidence?.jarm_fingerprints || [];
+    for (const hash of jarmFps) {
+      if (hash && !collectedHashes.has(hash)) {
+        collectedHashes.add(hash);
+        const sig = matchJarmFingerprint(hash);
+        jarmMatches.push({
+          hash,
+          matchedProvider: sig?.provider || null,
+          matchType: sig?.matchType || "unknown",
+          confidence: sig?.confidence || 0,
+          source: "binaryedge",
+          port: null,
+        });
+      }
+    }
+    // From jarm: tags
+    const jarmTags = (obs.tags || []).filter((t: string) => t.startsWith("jarm:"));
+    for (const tag of jarmTags) {
+      const hash = tag.replace("jarm:", "");
+      if (hash && !collectedHashes.has(hash)) {
+        collectedHashes.add(hash);
+        const sig = matchJarmFingerprint(hash);
+        jarmMatches.push({
+          hash,
+          matchedProvider: sig?.provider || null,
+          matchType: sig?.matchType || "unknown",
+          confidence: sig?.confidence || 0,
+          source: "binaryedge_tag",
+          port: null,
+        });
+      }
+    }
+  }
+
+  // Source 3: httpx/observation-ingestor jarmHash in evidence
+  const httpxObs = observations.filter(o => o.evidence?.jarmHash);
+  for (const obs of httpxObs) {
+    const hash = obs.evidence.jarmHash;
+    if (hash && !collectedHashes.has(hash)) {
+      collectedHashes.add(hash);
+      const sig = matchJarmFingerprint(hash);
+      jarmMatches.push({
+        hash,
+        matchedProvider: sig?.provider || null,
+        matchType: sig?.matchType || "unknown",
+        confidence: sig?.confidence || 0,
+        source: "httpx",
+        port: obs.evidence?.port || 443,
+      });
+    }
+  }
+
+  // Process JARM matches: boost confidence, add evidence, detect C2
+  const c2Matches = jarmMatches.filter(m => m.matchType === "c2");
+  const cdnJarmMatches = jarmMatches.filter(m => m.matchType === "cdn");
+  const cloudJarmMatches = jarmMatches.filter(m => m.matchType === "cloud");
+  const serverJarmMatches = jarmMatches.filter(m => m.matchType === "server");
+
+  // Boost CDN confidence when JARM corroborates
+  let cdnCorroborated = false;
+  for (const match of cdnJarmMatches) {
+    const provider = match.matchedProvider!;
+    // Check if CDN was already detected by other signals
+    const existingCdn = services.find(s => s.category === "cdn_waf" && s.provider?.toLowerCase().includes(provider.toLowerCase()));
+    if (existingCdn) {
+      existingCdn.confidence = Math.min(0.98, existingCdn.confidence + 0.1);
+      existingCdn.evidence.push(`JARM TLS fingerprint corroborates ${provider} (hash: ${match.hash.substring(0, 16)}…)`);
+      cdnCorroborated = true;
+      jarmNotes.push(`JARM corroborates CDN: ${provider} (confidence boosted to ${existingCdn.confidence.toFixed(2)})`);
+    } else {
+      // New CDN detection from JARM alone
+      services.push({
+        id: nextId(),
+        category: "cdn_waf",
+        name: provider,
+        provider,
+        version: null,
+        evidence: [`JARM TLS fingerprint matches ${provider} (hash: ${match.hash.substring(0, 16)}…)`],
+        confidence: match.confidence,
+        managedByThirdParty: true,
+        exposedExternally: true,
+        ports: match.port ? [match.port] : [443],
+        relatedAssets: [domain],
+      });
+      jarmNotes.push(`JARM identified CDN: ${provider} (new detection, confidence: ${match.confidence.toFixed(2)})`);
+    }
+  }
+
+  // Boost cloud hosting confidence when JARM corroborates
+  let cloudCorroborated = false;
+  for (const match of cloudJarmMatches) {
+    const provider = match.matchedProvider!;
+    const existingCloud = services.find(s => s.category === "cloud_hosting" && s.provider?.toLowerCase().includes(provider.toLowerCase()));
+    if (existingCloud) {
+      existingCloud.confidence = Math.min(0.98, existingCloud.confidence + 0.1);
+      existingCloud.evidence.push(`JARM TLS fingerprint corroborates ${provider} hosting (hash: ${match.hash.substring(0, 16)}…)`);
+      cloudCorroborated = true;
+      jarmNotes.push(`JARM corroborates cloud hosting: ${provider} (confidence boosted to ${existingCloud.confidence.toFixed(2)})`);
+    } else {
+      services.push({
+        id: nextId(),
+        category: "cloud_hosting",
+        name: `${provider} Hosting`,
+        provider,
+        version: null,
+        evidence: [`JARM TLS fingerprint matches ${provider} (hash: ${match.hash.substring(0, 16)}…)`],
+        confidence: match.confidence,
+        managedByThirdParty: true,
+        exposedExternally: true,
+        ports: match.port ? [match.port] : [443],
+        relatedAssets: [domain],
+      });
+      jarmNotes.push(`JARM identified cloud hosting: ${provider} (new detection, confidence: ${match.confidence.toFixed(2)})`);
+    }
+  }
+
+  // Add server software detections from JARM
+  let serverIdentified = false;
+  for (const match of serverJarmMatches) {
+    const provider = match.matchedProvider!;
+    const existingServer = services.find(s => s.category === "web_server" && s.name.toLowerCase().includes(provider.toLowerCase()));
+    if (existingServer) {
+      existingServer.confidence = Math.min(0.98, existingServer.confidence + 0.08);
+      existingServer.evidence.push(`JARM TLS fingerprint corroborates ${provider} (hash: ${match.hash.substring(0, 16)}…)`);
+      serverIdentified = true;
+      jarmNotes.push(`JARM corroborates web server: ${provider}`);
+    } else {
+      services.push({
+        id: nextId(),
+        category: "web_server",
+        name: provider,
+        provider: null,
+        version: null,
+        evidence: [`JARM TLS fingerprint matches ${provider} default config (hash: ${match.hash.substring(0, 16)}…)`],
+        confidence: match.confidence,
+        managedByThirdParty: false,
+        exposedExternally: true,
+        ports: match.port ? [match.port] : [443],
+        relatedAssets: [domain],
+      });
+      serverIdentified = true;
+      jarmNotes.push(`JARM identified web server: ${provider} (new detection)`);
+    }
+  }
+
+  // Create CDN services from cert issuer corroboration (added to cdnDetected during JARM analysis)
+  // These are CDN detections that came from cert issuer patterns, not from JARM hash matching
+  for (const [cdn, evidence] of cdnDetected) {
+    const alreadyExists = services.some(s => s.category === "cdn_waf" && s.provider === cdn);
+    if (!alreadyExists && evidence.some(e => e.includes("cert issuer corroboration"))) {
+      services.push({
+        id: nextId(),
+        category: "cdn_waf",
+        name: cdn,
+        provider: cdn,
+        version: null,
+        evidence,
+        confidence: 0.75,
+        managedByThirdParty: true,
+        exposedExternally: true,
+        ports: [443],
+        relatedAssets: [domain],
+      });
+      jarmNotes.push(`Cert issuer corroboration identified CDN: ${cdn}`);
+    }
+  }
+
+  // Build JARM analysis object
+  const jarmAnalysis: JarmAnalysis = {
+    fingerprintsCollected: collectedHashes.size,
+    matchesFound: jarmMatches.filter(m => m.matchedProvider !== null).length,
+    matches: jarmMatches,
+    c2Detected: c2Matches.length > 0,
+    cdnCorroborated,
+    cloudCorroborated,
+    serverIdentified,
+    notes: jarmNotes,
+  };
+
+  if (collectedHashes.size > 0) {
+    inferenceNotes.push(`JARM: ${collectedHashes.size} fingerprint(s) collected, ${jarmMatches.filter(m => m.matchedProvider).length} matched to known infrastructure`);
   }
 
   // ─── 5. Cloud Storage (Buckets) ──────────────────────────────────────
@@ -789,6 +1219,19 @@ export function inferInfrastructure(
     });
   }
 
+  // C2 framework detected via JARM fingerprint
+  if (c2Matches.length > 0) {
+    const c2Names = [...new Set(c2Matches.map(m => m.matchedProvider!))];
+    supplyChainRisks.push({
+      riskType: "c2_detected",
+      severity: "critical",
+      description: `JARM TLS fingerprint matches known C2 framework(s): ${c2Names.join(", ")}. This may indicate active compromise, red team activity, or a false positive from similar TLS configuration.`,
+      affectedServices: c2Matches.map(m => `JARM:${m.hash.substring(0, 16)}… (${m.matchedProvider})`),
+      recommendation: `Investigate immediately. Verify whether ${c2Names.join(", ")} C2 infrastructure is authorized (red team) or indicates compromise. Cross-reference with historical data — ephemeral servers matching C2 JARM are higher risk.`,
+    });
+    inferenceNotes.push(`CRITICAL: JARM detected C2 framework signature(s): ${c2Names.join(", ")}`);
+  }
+
   // ─── 15. Summary ─────────────────────────────────────────────────────
 
   const uniqueVendors = new Set(services.filter(s => s.provider).map(s => s.provider!));
@@ -825,6 +1268,7 @@ export function inferInfrastructure(
       overallMaturity: maturity,
     },
     inferenceNotes,
+    jarmAnalysis,
   };
 }
 

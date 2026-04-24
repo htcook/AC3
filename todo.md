@@ -141,3 +141,14 @@
 - [x] Add confidence explanation tooltips to corroboration tier badges (confirmed/probable/potential)
 - [x] Add confidence explanation tooltips to KEV CONFIRMED/POTENTIAL badges
 - [x] Tooltips explain match specificity (product vs vendor-only, version-confirmed vs unconfirmed)
+
+### JARM Fingerprint Integration (Apr 24)
+- [x] Research JARM fingerprint patterns for major CDN/cloud/server/C2 providers (Salesforce JARM, Censys, community threat intel)
+- [x] Add JARM known-fingerprint database: 20+ full-hash signatures + 8 prefix patterns covering C2 (Cobalt Strike, Metasploit, Sliver, Havoc, Brute Ratel, Merlin), CDN (Cloudflare, CloudFront, Akamai, Fastly, Imperva, Sucuri), Cloud (Google Cloud, Azure), Server (nginx, Apache, IIS, LiteSpeed)
+- [x] Integrate JARM signals from 3 data sources: jarm_fingerprint connector, BinaryEdge (evidence + tags), httpx jarmHash evidence
+- [x] Implement confidence boosting: CDN/cloud/server confidence +0.08-0.10 when JARM corroborates other signals
+- [x] Implement C2 framework detection with critical supply chain risk alerts
+- [x] Add cert issuer corroboration for CDN identification
+- [x] Add JarmAnalysis type and JARM TLS Fingerprint Analysis section to InfrastructureMapTab UI
+- [x] Write tests: 66 tests passing (28 new JARM-specific tests across 10 test groups)
+- [x] Push to GitHub
