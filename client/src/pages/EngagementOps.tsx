@@ -73,6 +73,7 @@ import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
 import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
+import ManualToolRunner from "@/components/ManualToolRunner";
 import ScanCoverageHeatmap, { computeCoverage } from "@/components/ScanCoverageHeatmap";
 
 // ─── Types (mirror server) ──────────────────────────────────────────────────
@@ -2234,6 +2235,7 @@ export default function EngagementOps() {
                   { value: 'genexploits', label: 'Exploit Code', icon: <Bolt className="h-3 w-3" />, count: generatedExploitsQ.data?.length || 0 },
                   { value: 'ops-viewer', label: 'Ops Viewer', icon: <Network className="h-3 w-3" /> },
                   { value: 'evidence', label: 'Evidence', icon: <Shield className="h-3 w-3" />, count: 0 },
+                  { value: 'toolrunner', label: 'Tool Runner', icon: <Terminal className="h-3 w-3" /> },
                 ],
               },
               {
@@ -4660,6 +4662,11 @@ export default function EngagementOps() {
                   />
                 </div>
               </ScrollArea>
+            </TabsContent>
+
+            {/* ═══ Manual Tool Runner ═══ */}
+            <TabsContent value="toolrunner" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ManualToolRunner engagementId={engagementId} engagementPhase={ops.phase} />
             </TabsContent>
 
             {/* ═══ C2 Activity Feed ═══ */}

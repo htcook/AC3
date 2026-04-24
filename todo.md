@@ -265,3 +265,28 @@
 - [x] Add safety guardrails & legal compliance framework section (ROE Guard, Safety Engine, Audit Trail, Risk Tier Classification)
 - [x] Write tests for pipeline audit feature (21 tests passing)
 - [x] All 111 tests passing across 3 test suites
+
+### Manual Tool Runner & Unified Ingestion Pipeline (Apr 24)
+- [x] Audit all scanning/exploit sidebar tools (functional vs. stub) — 30 functional, 2 light, 3 stubs, 5 missing pages
+- [x] Build unified tool output ingestion pipeline (ingestToolOutput server-side)
+- [x] Build Manual Tool Runner panel in engagement ops dashboard UI
+- [x] Add embedded CLI with matched exploit/script catalog (pre-built scripts matched to target profile)
+- [x] Wire engagement context selector as prerequisite for tool execution
+- [x] Add engagement activity feed for manual tool executions
+- [x] Integrate Safety Engine, ROE Guard, and evidence integrity chain into all manual tool executions
+- [x] Write tests for tool runner and ingestion pipeline (19 tests passing)
+
+### Exploit Pipeline Audit Findings Remediation (Apr 24)
+- [x] REC-001: Automated Exploit Selection and Chaining (vuln-to-exploit mapper, auto-queue, chain logic)
+- [x] REC-002: Automated and Resilient C2 Handoff (multi-channel fallback, persistence, health monitoring)
+- [x] REC-004: Proactive OPSEC and Evasion Module (pre-action OPSEC scoring, traffic shaping, cleanup)
+- [x] REC-003: Automated Initial Post-Exploitation Playbooks (auto-run situational awareness on foothold)
+- [x] REC-005: Dynamic Multi-Vector Payload Delivery (protocol-aware staging, delivery channel selection)
+- [x] REC-006: Automated Credential Harvesting and Reuse (auto-extract + spray across discovered services)
+- [x] REC-007: Automated Privilege Escalation Detection and Execution (OS fingerprint → privesc matcher)
+- [x] REC-008: Advanced C2 Resilience and Fallback (domain fronting, protocol rotation, jitter)
+- [x] REC-009: Dynamic EDR/AV Evasion Profiles (target-aware evasion technique selection)
+- [x] REC-010: Automated Lateral Movement Playbooks (credential + access → pivot path automation)
+- [x] REC-011: Pre-Exploitation Vulnerability Validation (confirm vuln before exploit attempt)
+- [x] REC-012: Payload Staging and Multi-Layer Obfuscation (staged delivery with layered encoding)
+- [x] Generate comprehensive exploit pipeline deep-dive document for Claude (docs/exploit-pipeline-deep-dive.md, 450+ lines)
