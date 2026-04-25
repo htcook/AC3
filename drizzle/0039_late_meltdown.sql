@@ -1,0 +1,1 @@
+ALTER TABLE `engagements` ADD `active_scan_override` tinyint DEFAULT 0;

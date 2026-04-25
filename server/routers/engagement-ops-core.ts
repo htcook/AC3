@@ -5,6 +5,7 @@ import * as db from "../db";
 import { and, eq, min, not, or, sql } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 import { assertEngagementAccess } from "../lib/engagement-access-guard";
+import { validateEngagementTargets } from "../../shared/domain-safety-whitelist";
 
 export const engagementOpsRouter = router({
     /** Get current ops state for an engagement */
@@ -92,6 +93,30 @@ export const engagementOpsRouter = router({
         // Validate RoE scope exists
         if (!engagement.targetDomain && !engagement.targetIpRange) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'No targets defined. Add target domains or IP ranges first.' });
+        }
+
+        // ═══ DOMAIN SAFETY WHITELIST GATE ═══
+        // Block full pipeline execution on non-whitelisted domains unless admin override
+        const domainCheck = validateEngagementTargets(engagement.targetDomain, engagement.targetIpRange);
+        if (!domainCheck.allWhitelisted && !input.trainingLabMode) {
+          // Check if admin has explicitly set an override flag on this engagement
+          const dbConn = await db.getDb();
+          let hasAdminOverride = false;
+          if (dbConn) {
+            const [rows] = await dbConn.execute(
+              sql`SELECT active_scan_override FROM engagements WHERE id = ${input.engagementId}`
+            );
+            hasAdminOverride = !!(rows as any)?.[0]?.active_scan_override;
+          }
+          if (!hasAdminOverride) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: `SAFETY GUARDRAIL: Cannot start full pipeline — ${domainCheck.nonWhitelistedCount} target(s) are not on the approved test lab whitelist: ${domainCheck.nonWhitelistedTargets.join(', ')}. ` +
+                `Only passive reconnaissance is permitted for non-whitelisted domains. ` +
+                `An admin can enable the "Active Scan Override" flag on this engagement if a signed RoE authorizes active testing.`,
+            });
+          }
+          console.warn(`[EngOps] Admin override active for #${input.engagementId} — proceeding with non-whitelisted targets: ${domainCheck.nonWhitelistedTargets.join(', ')}`);
         }
 
         const { executeEngagement, initOpsState, getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');

@@ -472,3 +472,14 @@
 - [x] Updated RoE scope and RoE document in_scope_domains/in_scope_ip_ranges to test lab only
 - [x] Cleared old ops snapshot (contained passive recon data from live domains)
 - [x] Checkpoint and push to GitHub
+
+### Safety Guardrail: Domain Whitelist Validation (Apr 25)
+- [x] Create shared/domain-safety-whitelist.ts with 17 approved domains + 2 IPs + private range patterns
+- [x] Add domain validation to engagement creation procedure (engagements-core.ts) — stores [SAFETY] warning in notes
+- [x] Add domain validation gate to pipeline execute procedure (engagement-ops-core.ts) — FORBIDDEN error for non-whitelisted without admin override
+- [x] Add domain whitelist enforcement in orchestrator (engagement-orchestrator.ts) — forcibly caps safety level to passive_only
+- [x] Add active_scan_override column to engagements table (admin override flag)
+- [x] Add UI warning banner in EngagementOps.tsx — red banner for blocked, amber for admin override
+- [x] Add frontend domain whitelist validation (useMemo with same approved patterns)
+- [x] Write 54 vitest tests for whitelist validator (extractHostname, isDomainWhitelisted, parseTargets, validateEngagementTargets, getSafetyWarning, whitelist integrity)
+- [x] Checkpoint and push to GitHub

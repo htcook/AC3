@@ -3565,6 +3565,7 @@ export const engagements = mysqlTable("engagements", {
 	domainIntelScanId: int("domain_intel_scan_id"),
 	roeCatalogConsent: tinyint("roe_catalog_consent").default(0),
 	fedrampImpactLevel: mysqlEnum("fedramp_impact_level", ['none','low','moderate','high']).default('none'),
+	activeScanOverride: tinyint("active_scan_override").default(0),
 });
 
 export const enrichmentHistory = mysqlTable("enrichment_history", {

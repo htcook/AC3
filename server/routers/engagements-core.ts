@@ -6,6 +6,7 @@ import { ENV } from "../_core/env";
 import { and, eq, inArray, max, min, not, or } from "drizzle-orm";
 import * as schema from "../../drizzle/schema";
 import { assertEngagementAccess } from "../lib/engagement-access-guard";
+import { validateEngagementTargets, getSafetyWarning } from "../../shared/domain-safety-whitelist";
 
 
 export const engagementsRouter = router({
@@ -47,9 +48,23 @@ export const engagementsRouter = router({
           });
         }
 
+        // ═══ DOMAIN SAFETY WHITELIST CHECK ═══
+        // Validate targets against approved test lab whitelist.
+        // Non-whitelisted domains get a warning stored in the engagement notes
+        // and will be restricted to passive-only operations unless admin overrides.
+        const domainValidation = validateEngagementTargets(input.targetDomain, input.targetIpRange);
+        const safetyWarning = getSafetyWarning(domainValidation);
+        let notes = input.notes || '';
+        if (safetyWarning) {
+          notes = `[SAFETY] ${safetyWarning}\n\n${notes}`.trim();
+          console.warn(`[EngCreate] Non-whitelisted targets in new engagement: ${domainValidation.nonWhitelistedTargets.join(', ')}`);
+        }
+
         const id = await db.createEngagement({
           ...input,
+          notes,
           createdBy: ctx.user.id,
+          // Store whitelist validation result for downstream guardrails
         });
 
         // Auto-create RoE document if none linked

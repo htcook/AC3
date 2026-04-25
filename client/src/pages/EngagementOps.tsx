@@ -1291,6 +1291,39 @@ export default function EngagementOps() {
   }, [opsStateQ.data, wsLogBuffer]);
   const engagement = engagementQ.data;
 
+  // ── Domain Safety Whitelist Check ──
+  const domainWhitelistStatus = useMemo(() => {
+    if (!engagement) return null;
+    const targets: string[] = [];
+    if ((engagement as any).targetDomain) {
+      targets.push(...(engagement as any).targetDomain.split(/[,;\s]+/).map((t: string) => t.trim()).filter(Boolean));
+    }
+    if ((engagement as any).targetIpRange) {
+      targets.push(...(engagement as any).targetIpRange.split(/[,;\s]+/).map((t: string) => t.trim()).filter(Boolean));
+    }
+    if (targets.length === 0) return null;
+    // Approved test lab patterns
+    const APPROVED_PATTERNS = [
+      'aceofcloud.io', 'aceofcloud.com', 'vulnweb.com', 'webscantest.com',
+      'testfire.net', 'brokencrystals.com', 'ginandjuice.shop', 'appspot.com',
+      'hack-yourself-first.com', 'pentest-ground.com', 'testsparker.com',
+      'webappsecurity.com', 'nmap.org', '159.223.152.190', '45.33.32.156',
+      'localhost', '127.0.0.1', '10.', '192.168.', '172.16.', '172.17.',
+      '172.18.', '172.19.', '172.2', '172.30.', '172.31.',
+    ];
+    const nonWhitelisted = targets.filter(t => {
+      const h = t.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase();
+      return !APPROVED_PATTERNS.some(p => h === p || h.endsWith('.' + p) || h.startsWith(p));
+    });
+    const hasOverride = !!(engagement as any).activeScanOverride;
+    return {
+      allApproved: nonWhitelisted.length === 0,
+      nonWhitelisted,
+      hasOverride,
+      totalTargets: targets.length,
+    };
+  }, [engagement]);
+
   // ── Resume Engagement (queries — must be after `ops` is defined) ──
   const resumeCapabilityQ = trpc.liveTrigger.checkResumeCapability.useQuery(
     { engagementId },
@@ -1806,6 +1839,49 @@ export default function EngagementOps() {
         ];
         return <KpiStrip items={kpiItems} />;
       })()}
+
+      {/* ── Domain Safety Whitelist Warning Banner ── */}
+      {domainWhitelistStatus && !domainWhitelistStatus.allApproved && (
+        <div className={`flex-none mx-6 rounded-lg border px-4 py-3 ${
+          domainWhitelistStatus.hasOverride
+            ? 'bg-amber-500/10 border-amber-500/30'
+            : 'bg-red-500/10 border-red-500/30'
+        }`}>
+          <div className="flex items-start gap-3">
+            <ShieldAlert className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
+              domainWhitelistStatus.hasOverride ? 'text-amber-400' : 'text-red-400'
+            }`} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-semibold ${
+                  domainWhitelistStatus.hasOverride ? 'text-amber-300' : 'text-red-300'
+                }`}>
+                  {domainWhitelistStatus.hasOverride
+                    ? '\u26a0\ufe0f Domain Whitelist: Admin Override Active'
+                    : '\ud83d\uded1 Domain Whitelist: Non-Approved Targets Detected'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {domainWhitelistStatus.nonWhitelisted.length} target(s) are not on the approved test lab whitelist:{' '}
+                <span className="font-mono text-foreground">
+                  {domainWhitelistStatus.nonWhitelisted.join(', ')}
+                </span>
+              </p>
+              {!domainWhitelistStatus.hasOverride && (
+                <p className="text-xs text-red-400/80 mt-1">
+                  Active scanning, exploitation, and C2 operations are <strong>BLOCKED</strong>. Only passive reconnaissance is permitted.
+                  An admin can enable "Active Scan Override" on this engagement to authorize active testing.
+                </p>
+              )}
+              {domainWhitelistStatus.hasOverride && (
+                <p className="text-xs text-amber-400/80 mt-1">
+                  Admin override is active — full pipeline authorized. Ensure a signed RoE covers all targets.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page Purpose Description */}
       <div className="flex-none px-6">

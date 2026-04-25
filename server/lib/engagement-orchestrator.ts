@@ -91,6 +91,7 @@ import {
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getOwaspTracker, resetOwaspTracker } from "./owasp-coverage-tracker";
 import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
+import { validateEngagementTargets } from "../../shared/domain-safety-whitelist";
 import { captureCalderaEvidence, type CalderaEvidenceSnapshot } from "./caldera-evidence-collector";
 import {
   evidenceGate,
@@ -11688,6 +11689,46 @@ export async function executeEngagement(
   state.phase = startPhase;
   if (options?.scanProfile) state.scanProfile = options.scanProfile;
 
+  // ═══ DOMAIN SAFETY WHITELIST ENFORCEMENT ═══
+  // Validate all targets against the approved domain whitelist.
+  // Non-whitelisted domains are forcibly capped at passive_only unless
+  // the admin has set active_scan_override on the engagement.
+  const domainValidation = validateEngagementTargets(engagement.targetDomain, engagement.targetIpRange);
+  let domainWhitelistOverride = false;
+  if (!domainValidation.allWhitelisted && !state.trainingLabMode) {
+    // Check for admin override
+    try {
+      const mysql = await import('mysql2/promise');
+      const tmpConn = await mysql.createConnection(process.env.DATABASE_URL!);
+      const [rows] = await tmpConn.query('SELECT active_scan_override FROM engagements WHERE id = ?', [engagementId]);
+      domainWhitelistOverride = !!(rows as any)?.[0]?.active_scan_override;
+      await tmpConn.end();
+    } catch {}
+    if (!domainWhitelistOverride) {
+      addLog(state, {
+        phase: state.phase, type: 'info',
+        title: '🛡️ Domain Whitelist: Non-Approved Targets Detected',
+        detail: `${domainValidation.nonWhitelistedCount} target(s) are NOT on the approved test lab whitelist: ${domainValidation.nonWhitelistedTargets.join(', ')}. ` +
+          `Safety level will be capped at passive_only. Active scanning, exploitation, and C2 are BLOCKED. ` +
+          `An admin can enable "Active Scan Override" on this engagement to authorize active testing.`,
+      });
+      console.warn(`[Orchestrator] Domain whitelist enforcement: capping engagement #${engagementId} to passive_only (non-whitelisted: ${domainValidation.nonWhitelistedTargets.join(', ')})`);
+    } else {
+      addLog(state, {
+        phase: state.phase, type: 'info',
+        title: '⚠️ Domain Whitelist: Admin Override Active',
+        detail: `${domainValidation.nonWhitelistedCount} target(s) are not on the whitelist (${domainValidation.nonWhitelistedTargets.join(', ')}), ` +
+          `but an admin has enabled Active Scan Override. Full pipeline authorized per admin authorization.`,
+      });
+    }
+  } else if (domainValidation.allWhitelisted) {
+    addLog(state, {
+      phase: state.phase, type: 'info',
+      title: '✅ Domain Whitelist: All Targets Approved',
+      detail: `All ${domainValidation.totalTargets} target(s) are on the approved test lab whitelist. Full pipeline access authorized.`,
+    });
+  }
+
   // ═══ SAFETY ENGINE INITIALIZATION ═══
   // Initialize or retrieve the safety engine for this engagement.
   // The safety level is derived from the engagement's scanMode:
@@ -11728,6 +11769,24 @@ export async function executeEngagement(
       title: '🔓 Safety Auto-Escalated: Training Lab',
       detail: `Training lab mode detected — safety level escalated from '${originalLevel}' to 'full_exploitation'. Full pipeline authorized for intentionally vulnerable target.`,
     });
+  }
+
+  // ═══ DOMAIN WHITELIST SAFETY CAP (FINAL ENFORCEMENT) ═══
+  // This runs AFTER all auto-escalation logic. If targets are not whitelisted
+  // and there's no admin override, forcibly cap to passive_only regardless of
+  // RoE status, engagement type, or scan mode. This is the ultimate guardrail.
+  if (!domainValidation.allWhitelisted && !state.trainingLabMode && !domainWhitelistOverride) {
+    if (engagementSafetyLevel !== 'passive_only') {
+      const cappedFrom = engagementSafetyLevel;
+      engagementSafetyLevel = 'passive_only';
+      addLog(state, {
+        phase: state.phase, type: 'info',
+        title: '🛑 Safety Level Capped: Non-Whitelisted Targets',
+        detail: `Safety level forcibly capped from '${cappedFrom}' to 'passive_only' because ${domainValidation.nonWhitelistedCount} target(s) ` +
+          `(${domainValidation.nonWhitelistedTargets.join(', ')}) are not on the approved whitelist. ` +
+          `Enable "Active Scan Override" on this engagement to remove this restriction.`,
+      });
+    }
   }
 
   const safetyEngine = getSafetyEngine(engagementId, engagementSafetyLevel);
