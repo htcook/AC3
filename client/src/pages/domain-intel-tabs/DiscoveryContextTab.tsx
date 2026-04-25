@@ -7,7 +7,7 @@
  *
  * Props: scanId, assets (from DomainIntelResults), domain, sector
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -454,6 +454,30 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
   const [analysisResults, setAnalysisResults] = useState<Record<string, any>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [useLLM, setUseLLM] = useState(false);
+  const [loadedFromDb, setLoadedFromDb] = useState(false);
+
+  // Load persisted discovery context from DB on mount
+  const assetDbIds = useMemo(() => assets.map((a: any) => a.id).filter(Boolean), [assets]);
+  const persistedQuery = trpc.calderaProxy.getDiscoveryContextBatch.useQuery(
+    { assetDbIds },
+    { enabled: assetDbIds.length > 0 && !loadedFromDb }
+  );
+
+  useEffect(() => {
+    if (persistedQuery.data && !loadedFromDb) {
+      const loaded: Record<string, any> = {};
+      for (const row of persistedQuery.data) {
+        if (row.discoveryContext) {
+          const ctx = row.discoveryContext as any;
+          loaded[ctx.assetIdentifier || row.hostname] = ctx;
+        }
+      }
+      if (Object.keys(loaded).length > 0) {
+        setAnalysisResults(prev => ({ ...loaded, ...prev }));
+      }
+      setLoadedFromDb(true);
+    }
+  }, [persistedQuery.data, loadedFromDb]);
 
   const runPipelineMut = trpc.calderaProxy.runModularDiscoveryPipeline.useMutation({
     onSuccess: (result, variables) => {

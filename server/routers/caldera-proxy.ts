@@ -1745,7 +1745,7 @@ export const calderaProxyRouter = router({
           invokeThreatRelevanceSpecialist({ evidencePackage: pkg, customerIndustry: input.customerIndustry }, llmFn),
         ]);
 
-        return {
+        const result = {
           assetIdentifier: input.assetIdentifier,
           attribution,
           role,
@@ -1754,5 +1754,83 @@ export const calderaProxyRouter = router({
           threatRelevance,
           aggregatedAt: new Date().toISOString(),
         };
+
+        // Auto-persist if assetId (DB row ID) is provided
+        if (input.assetId) {
+          try {
+            const { db } = await import('../db');
+            const { discoveredAssets } = await import('../../drizzle/schema');
+            const { eq } = await import('drizzle-orm');
+            await db.update(discoveredAssets)
+              .set({
+                discoveryContext: result as any,
+                discoveryContextAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              })
+              .where(eq(discoveredAssets.id, parseInt(input.assetId)));
+          } catch (e) {
+            console.error('[DiscoveryContext] Failed to persist:', e);
+          }
+        }
+
+        return result;
+      }),
+
+    // Save discovery context for an asset
+    saveDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+        discoveryContext: z.any(),
+      }))
+      .mutation(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        await db.update(discoveredAssets)
+          .set({
+            discoveryContext: input.discoveryContext as any,
+            discoveryContextAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          })
+          .where(eq(discoveredAssets.id, input.assetDbId));
+        return { success: true };
+      }),
+
+    // Get discovery context for an asset
+    getDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const [row] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        return row || null;
+      }),
+
+    // Get discovery context for multiple assets (batch)
+    getDiscoveryContextBatch: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return [];
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+        return rows;
       }),
   });

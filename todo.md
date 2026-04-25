@@ -364,3 +364,29 @@
 - [x] Each specialist's invoke function correctly calls LLM with structured prompts (already implemented)
 - [x] Bounded delta clamping works end-to-end (±20pt) — tested in 53 vitest tests
 - [x] Fallback to deterministic-only when LLM call fails (confidence_degraded mode)
+
+### Scan Mode Selector UI (Apr 24)
+- [x] Scan mode selector already exists in DomainIntel.tsx (Passive Only / Passive + DNS / Full)
+- [x] Already integrated with TOOL_TIER_CLASSIFICATION registry and backend ScanMode type
+- [x] Scan mode selector present in DI scan launch flow
+- [x] Selected mode passes through to scan pipeline
+
+### Persist Discovery Context to Database (Apr 24)
+- [x] Add discovery_context and discovery_context_analyzed_at columns to discovered_assets table
+- [x] Add saveDiscoveryContext, getDiscoveryContext, getDiscoveryContextBatch tRPC procedures
+- [x] Auto-save in runModularDiscoveryPipeline when assetId provided
+- [x] Load persisted results on DiscoveryContextTab mount (batch query by scanId)
+- [x] Display previously analyzed assets with "analyzed" badge
+
+### Discovery Context in Report Pipeline (Apr 24)
+- [x] Add discoveryContextData field to PipelineInput interface
+- [x] Add "Asset Discovery Context Intelligence" section to report markdown
+- [x] Summary table + per-asset detail (Attribution, Role, Lifecycle, Business Context, Threat Relevance)
+- [x] Write 27 vitest tests for report integration and persistence (all passing)
+
+### Architecture Documentation (Apr 24)
+- [x] Audited all 137 in-memory stores — categorized into 6 risk categories
+- [x] Documented discovery context engine (bounded delta, 5 specialists, 3 degradation modes)
+- [x] Documented report pipeline (6-step FedRAMP generation)
+- [x] Documented purple team data model, C2 registry, tool tier classification
+- [x] Written comprehensive 12-section ARCHITECTURE.md

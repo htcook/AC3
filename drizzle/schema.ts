@@ -2799,6 +2799,8 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
 	deviceType: varchar({ length: 64 }),
 	platformType: varchar({ length: 64 }),
 	daTenantId: int("da_tenant_id"),
+	discoveryContext: json("discovery_context"),
+	discoveryContextAnalyzedAt: timestamp("discovery_context_analyzed_at", { mode: 'string' }),
 });
 
 export const discoveredAttackPaths = mysqlTable("discovered_attack_paths", {
