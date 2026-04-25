@@ -19,7 +19,7 @@ import {
   Layers, Play, Pause, Settings2, GitBranch, Link2, Users, Hash, Clock, Unplug, Wifi,
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
   Box, ClipboardCheck, PackageSearch, GitCompareArrows, HeartPulse, Stethoscope, MailCheck, ListChecks, Trash2,
-  SendHorizontal, Calendar, BookOpen
+  SendHorizontal, Calendar, BookOpen, Microscope
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -63,6 +63,7 @@ const EntityProfileTab = lazy(() => import("./domain-intel-tabs/EntityProfileTab
 const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorAlertCorrelationTab"));
 const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
 const InfrastructureMapTab = lazy(() => import("./domain-intel-tabs/InfrastructureMapTab"));
+const DiscoveryContextTab = lazy(() => import("./domain-intel-tabs/DiscoveryContextTab"));
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",
@@ -1407,6 +1408,7 @@ export default function DomainIntelResults() {
               { value: 'methods', label: 'Methods', icon: <Workflow className="h-3 w-3" /> },
               { value: 'osint-sources', label: 'OSINT Sources', icon: <Radio className="h-3 w-3" /> },
               { value: 'infra-map', label: 'Infrastructure Map', icon: <Network className="h-3 w-3" /> },
+              { value: 'discovery-context', label: 'Discovery Context', icon: <Microscope className="h-3 w-3" /> },
             ],
           },
         ];
@@ -5385,7 +5387,10 @@ export default function DomainIntelResults() {
         <TabsContent value="infra-map" className="space-y-4">
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><InfrastructureMapTab scanId={scan.id} domain={scan.primaryDomain} /></Suspense>
         </TabsContent>
-
+        {/* Discovery Context — 5-specialist asset intelligence enrichment */}
+        <TabsContent value="discovery-context" className="space-y-4">
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><DiscoveryContextTab scanId={scan.id} assets={assets} domain={scan.primaryDomain} sector={scan.sector} /></Suspense>
+        </TabsContent>
         {/* Spider / Recursive Discovery Tab */}
         <TabsContent value="spider" className="space-y-4">
           <Suspense fallback={<div className="flex items-center justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}><RecursiveDiscoveryTab scanId={scan.id} domain={scan.primaryDomain} /></Suspense>

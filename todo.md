@@ -346,3 +346,21 @@
 - [x] Update tRPC procedures to use new modular specialists (6 new procedures + 1 batch procedure)
 - [x] Write vitest tests for deterministic baselines, validation logic, and scoring integration (53 tests all passing)
 - [x] Save Claude reference implementation document for team handoff (claude-attribution-specialist-reference.md)
+
+### Discovery Context UI Tab (Apr 24)
+- [x] Create DiscoveryContextTab.tsx component with 5 specialist result cards (Attribution, Role, Lifecycle, Business Context, Threat Relevance)
+- [x] Add Discovery Context tab trigger to DomainIntelResults Analysis tab group
+- [x] Add Discovery Context TabsContent with lazy-loading and Suspense fallback
+- [x] Show attribution claims with confidence badges, evidence citations, and primary/alternative claim layout
+- [x] Show asset role (exposure/environment/criticality) with color-coded visual indicators
+- [x] Show lifecycle stage with temporal signals and direction indicators
+- [x] Show business context (function, revenue path, regulatory exposure, dependencies)
+- [x] Show threat relevance (actor types with icons, sector exposure, campaign correlations, overall threat score)
+- [x] Add "Analyze Asset" button + "Batch Analyze Top 20" + deterministic/LLM toggle
+- [x] Handle loading/error/empty states with proper spinner, empty state, and previously-analyzed grid
+
+### Wire LLM Invocation into Specialists (Apr 24)
+- [x] Verified tRPC procedures pass invokeLLM function when deterministicOnly is false
+- [x] Each specialist's invoke function correctly calls LLM with structured prompts (already implemented)
+- [x] Bounded delta clamping works end-to-end (±20pt) — tested in 53 vitest tests
+- [x] Fallback to deterministic-only when LLM call fails (confidence_degraded mode)
