@@ -464,3 +464,11 @@
 - [x] Authorizing official signature added
 - [x] Scan mode: standard, engagement type: red_team, status: active
 - [x] Checkpoint saved and pushed to GitHub for DO deployment
+
+### SAFETY FIX: Remove Live Domains from Test Engagement (Apr 25)
+- [x] Verified: only passive OSINT ran (CISA advisories, GitHub advisories, Feodo, SSLBL) — 0 active/exploit operations
+- [x] Found AC3 test lab sites: scan.aceofcloud.io/lab/{dvwa,juice-shop,bwapp,webgoat,mutillidae} + 159.223.152.190
+- [x] Updated engagement 1830001 targetDomain to test lab sites only
+- [x] Updated RoE scope and RoE document in_scope_domains/in_scope_ip_ranges to test lab only
+- [x] Cleared old ops snapshot (contained passive recon data from live domains)
+- [x] Checkpoint and push to GitHub
