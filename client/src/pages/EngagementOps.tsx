@@ -4653,7 +4653,7 @@ export default function EngagementOps() {
 
             {/* ═══ Manual Tool Runner ═══ */}
             <TabsContent value="toolrunner" className="flex-1 overflow-hidden m-0 px-6 pb-4">
-              <ManualToolRunner engagementId={engagementId} engagementPhase={ops.phase} />
+              <ManualToolRunner engagementId={engagementId} engagementPhase={ops?.phase || 'idle'} />
             </TabsContent>
 
             {/* ═══ C2 Activity Feed ═══ */}

@@ -962,12 +962,14 @@ async function startServer() {
             report.errors.forEach((e) => console.warn(`[OpRecovery] Error: ${e}`));
           }
           // Start heartbeat for this node so future instances can detect our orphans
-          const { getDb } = await import("../db");
-          const db = getDb();
-          if (db) {
-            startHeartbeat(db);
-            console.log(`[OpRecovery] Heartbeat started for node ${NODE_ID}`);
-          }
+          // startHeartbeat expects two callbacks: getRunningCampaignIds and getRunningPlanIds
+          // Since we don't track running campaigns/plans in-memory at boot, pass empty-array stubs.
+          // The heartbeat will still update timestamps for any rows matching this node.
+          startHeartbeat(
+            () => [],  // getRunningCampaignIds — no campaigns tracked at boot
+            () => [],  // getRunningPlanIds — no plans tracked at boot
+          );
+          console.log(`[OpRecovery] Heartbeat started for node ${NODE_ID}`);
         } catch (err: any) {
           console.warn("[OpRecovery] Failed to recover operation state (non-fatal):", err.message);
         }

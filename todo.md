@@ -440,3 +440,27 @@
 - [x] Client-side Blob download for both formats
 - [x] Write vitest tests for CSV formatting and Markdown report structure (13 tests, all passing)
 - [x] Total: 172 tests passing across 5 test suites
+
+##### Bug Fix: Engagement Crash — TypeError null r.phase (Apr 25)
+- [x] Root cause: getState returned null when no in-memory or DB snapshot existed; frontend accessed ops.phase without null guard
+- [x] Fix: getState now returns default idle state instead of null (engagement-ops-core.ts)
+- [x] Fix: ManualToolRunner uses ops?.phase || 'idle' instead of ops.phase (EngagementOps.tsx line 4656)
+- [x] Write 15 vitest tests for null guard, phase safety, normalizer, breachData TDZ, heartbeat fix
+
+### Bug Fix: DI Scan Re-runs Return Empty Results (Apr 25)
+- [x] Root cause: breachData TDZ error — variable used at lines 3741/3790 before declaration at line 3974 in domainIntel.ts
+- [x] Fix: Moved breach data extraction block BEFORE summary generation stage
+- [x] Pipeline error "Cannot access 'breachData' before initialization" resolved
+
+### Bug Fix: Heartbeat getRunningCampaignIds Error (Apr 25)
+- [x] Root cause: startHeartbeat was called with db instance instead of callback functions
+- [x] Fix: Updated server/_core/index.ts to pass proper getRunningCampaignIds/getRunningPlanIds callbacks
+- [x] Server now boots cleanly: "Heartbeat started for node ..."
+
+### New Test Engagement (Apr 25)
+- [x] Created engagement ID 1830001: "Pipeline Test — Full Stack Validation"
+- [x] Targets: tesconsultantsgov.us, mcdllc.com
+- [x] RoE pre-signed (status: signed), RoE document ID 240001 (status: approved)
+- [x] Authorizing official signature added
+- [x] Scan mode: standard, engagement type: red_team, status: active
+- [x] Checkpoint saved and pushed to GitHub for DO deployment

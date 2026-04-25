@@ -55,6 +55,20 @@ export const engagementOpsRouter = router({
         if (state && state.skippedDomains instanceof Set) {
           return { ...state, skippedDomains: [...state.skippedDomains] };
         }
+        // Never return null — always return a default idle state so the frontend doesn't crash
+        if (!state) {
+          return {
+            engagementId: input.engagementId,
+            phase: 'idle' as const,
+            isRunning: false,
+            isPaused: false,
+            progress: 0,
+            log: [],
+            assets: [],
+            approvalGates: [],
+            stats: { hostsScanned: 0, portsFound: 0, vulnsFound: 0, exploitsAttempted: 0, exploitsSucceeded: 0, sessionsOpened: 0, zapScansRun: 0, wafDetections: 0 },
+          };
+        }
         return state;
       }),
 

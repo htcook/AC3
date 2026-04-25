@@ -3719,6 +3719,35 @@ export async function runDomainIntelPipeline(
   }
 
   await yieldEventLoop();
+
+  // ─── Extract breach data BEFORE summary generation (needed by generateScanOnlySummary / generateSummaries) ───
+  let breachData: BreachDataSummary | undefined;
+  if (passiveRecon) {
+    const dehashedResult = passiveRecon.connectorResults.find(r => r.connector === 'dehashed');
+    if (dehashedResult && dehashedResult.observations.length > 0) {
+      const summaryObs = dehashedResult.observations.find(o => o.tags.includes('breach_summary'));
+      const breachObs = dehashedResult.observations.filter(o => o.tags.includes('breach_database'));
+      const subdomainObs = dehashedResult.observations.filter(o => o.assetType === 'subdomain');
+      const ipObs = dehashedResult.observations.filter(o => o.assetType === 'ip');
+
+      if (summaryObs?.evidence) {
+        breachData = {
+          totalExposures: summaryObs.evidence.total_records || 0,
+          uniqueEmails: breachObs.reduce((s, o) => s + (o.evidence?.total_records || 0), 0),
+          uniqueBreachSources: summaryObs.evidence.unique_breaches || breachObs.length,
+          breachSources: summaryObs.evidence.breach_databases || breachObs.map(o => o.name || 'unknown'),
+          passwordsExposed: summaryObs.evidence.credentials_exposed || 0,
+          hashedPasswordsExposed: breachObs.reduce((s, o) => o.evidence?.has_hashed_passwords ? s + 1 : s, 0),
+          credentialPairs: summaryObs.evidence.credentials_exposed || 0,
+          subdomainsDiscovered: summaryObs.evidence.unique_subdomains_found || subdomainObs.length,
+          ipsDiscovered: summaryObs.evidence.unique_ips_found || ipObs.length,
+          queriedAt: new Date().toISOString(),
+        };
+        console.log(`[DomainIntel] Breach data (early extract): ${breachData.totalExposures} exposures across ${breachData.uniqueBreachSources} breach sources, ${breachData.credentialPairs} credentials exposed`);
+      }
+    }
+  }
+
   // ─── Tier 1 Optimization #3.2: Parallelize independent LLM stages ───────
   // Stage 3.99 (post-enrichment analysis) and Stage 4 (campaign recommendations)
   // both consume `analyses` but produce independent outputs. Running them in
@@ -3970,33 +3999,8 @@ export async function runDomainIntelPipeline(
   };
   console.log(`[DomainIntel] Finding counts: ${totalFindings} unique findings (${allCveIds.size} unique CVEs + ${totalNonCveUnique} non-CVE) from ${totalFindingInstances} instances across ${analyses.length} assets (avg ${uniqueCveSummary.averageAssetsPerCve} assets/CVE)`);
 
-  // Extract breach data summary from Dehashed passive recon observations
-  let breachData: BreachDataSummary | undefined;
-  if (passiveRecon) {
-    const dehashedResult = passiveRecon.connectorResults.find(r => r.connector === 'dehashed');
-    if (dehashedResult && dehashedResult.observations.length > 0) {
-      const summaryObs = dehashedResult.observations.find(o => o.tags.includes('breach_summary'));
-      const breachObs = dehashedResult.observations.filter(o => o.tags.includes('breach_database'));
-      const subdomainObs = dehashedResult.observations.filter(o => o.assetType === 'subdomain');
-      const ipObs = dehashedResult.observations.filter(o => o.assetType === 'ip');
-
-      if (summaryObs?.evidence) {
-        breachData = {
-          totalExposures: summaryObs.evidence.total_records || 0,
-          uniqueEmails: breachObs.reduce((s, o) => s + (o.evidence?.total_records || 0), 0),
-          uniqueBreachSources: summaryObs.evidence.unique_breaches || breachObs.length,
-          breachSources: summaryObs.evidence.breach_databases || breachObs.map(o => o.name || 'unknown'),
-          passwordsExposed: summaryObs.evidence.credentials_exposed || 0,
-          hashedPasswordsExposed: breachObs.reduce((s, o) => o.evidence?.has_hashed_passwords ? s + 1 : s, 0),
-          credentialPairs: summaryObs.evidence.credentials_exposed || 0,
-          subdomainsDiscovered: summaryObs.evidence.unique_subdomains_found || subdomainObs.length,
-          ipsDiscovered: summaryObs.evidence.unique_ips_found || ipObs.length,
-          queriedAt: new Date().toISOString(),
-        };
-        console.log(`[DomainIntel] Breach data: ${breachData.totalExposures} exposures across ${breachData.uniqueBreachSources} breach sources, ${breachData.credentialPairs} credentials exposed`);
-      }
-    }
-  }
+  // NOTE: breachData was extracted earlier (before summary generation) to avoid TDZ error.
+  // The variable is already in scope from the block above the LLM parallelization section.
 
   // Count unique subdomains from passive recon not already in analyzed assets
   let subdomainAssetCount = 0;
