@@ -255,6 +255,35 @@ const FRAMEWORK_CAPABILITIES: Record<OrchestratedFramework, {
 /** Active orchestration plans */
 const activePlans = new Map<string, OrchestrationPlan>();
 
+// Write-through persistence (async, non-blocking)
+import { persistOrchestrationPlan, updateOrchestrationPlanStatus } from "./operation-state-persistence";
+function persistPlanAsync(plan: OrchestrationPlan) {
+  persistOrchestrationPlan({
+    planId: plan.id,
+    name: plan.name,
+    description: plan.description,
+    scanMode: plan.scanMode,
+    status: plan.status as any,
+    currentPhase: plan.currentPhase ?? undefined,
+    stepsCompleted: plan.stepsCompleted,
+    stepsFailed: plan.stepsFailed,
+    stepsSkipped: plan.stepsSkipped,
+    maxParallel: plan.maxParallel,
+    abortOnFailure: plan.abortOnFailure,
+    autoHandoff: plan.autoHandoff,
+    phases: plan.phases,
+    steps: plan.steps,
+    frameworkPriority: plan.frameworkPriority,
+    sharedContext: plan.sharedContext,
+    log: plan.log,
+    startedAt: plan.startedAt ?? undefined,
+    completedAt: plan.completedAt ?? undefined,
+  }).catch(() => {/* graceful degradation */});
+}
+function updatePlanStatusAsync(planId: string, updates: Parameters<typeof updateOrchestrationPlanStatus>[1]) {
+  updateOrchestrationPlanStatus(planId, updates).catch(() => {});
+}
+
 /**
  * Create a new orchestration plan from ability graph nodes.
  */
@@ -375,6 +404,7 @@ export function createOrchestrationPlan(params: {
   };
 
   activePlans.set(planId, plan);
+  persistPlanAsync(plan);
   return plan;
 }
 
@@ -391,6 +421,7 @@ export async function executeOrchestrationPlan(
 
   plan.status = "running";
   plan.startedAt = new Date().toISOString();
+  updatePlanStatusAsync(plan.id, { status: 'running' });
   logEntry(plan, "info", null, null, null, `Orchestration plan "${plan.name}" started with ${plan.steps.length} steps across ${plan.phases.length} phases`);
 
   const registry = getC2Registry();
@@ -484,6 +515,7 @@ export async function executeOrchestrationPlan(
           if (plan.abortOnFailure) {
             plan.status = "failed";
             plan.completedAt = new Date().toISOString();
+            updatePlanStatusAsync(plan.id, { status: 'failed', completedAt: plan.completedAt, stepsFailed: plan.stepsFailed, log: plan.log });
             logEntry(plan, "error", step.phase, step.id, step.framework,
               `Plan aborted — step "${step.label}" failed with no fallback`);
             return plan;
@@ -501,6 +533,7 @@ export async function executeOrchestrationPlan(
 
   plan.status = plan.stepsFailed > 0 ? "completed" : "completed";
   plan.completedAt = new Date().toISOString();
+  persistPlanAsync(plan); // Full persist on completion
   logEntry(plan, "success", null, null, null,
     `Orchestration complete: ${plan.stepsCompleted} succeeded, ${plan.stepsFailed} failed, ${plan.stepsSkipped} skipped`);
 
@@ -940,6 +973,7 @@ export function abortOrchestrationPlan(planId: string): OrchestrationPlan | null
     }
   }
 
+  persistPlanAsync(plan);
   logEntry(plan, "warn", null, null, null, `Orchestration plan "${plan.name}" aborted`);
   return plan;
 }
@@ -949,6 +983,7 @@ export function pauseOrchestrationPlan(planId: string): OrchestrationPlan | null
   if (!plan || plan.status !== "running") return null;
 
   plan.status = "paused";
+  updatePlanStatusAsync(plan.id, { status: 'paused' });
   logEntry(plan, "info", null, null, null, `Orchestration plan "${plan.name}" paused`);
   return plan;
 }
@@ -958,6 +993,7 @@ export function resumeOrchestrationPlan(planId: string): OrchestrationPlan | nul
   if (!plan || plan.status !== "paused") return null;
 
   plan.status = "running";
+  updatePlanStatusAsync(plan.id, { status: 'running' });
   logEntry(plan, "info", null, null, null, `Orchestration plan "${plan.name}" resumed`);
   return plan;
 }

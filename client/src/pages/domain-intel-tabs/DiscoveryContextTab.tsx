@@ -448,6 +448,53 @@ function ThreatRelevancePanel({ data }: { data: any }) {
   );
 }
 
+// ─── Stale Analysis Helpers ──────────────────────────────────────
+const STALE_THRESHOLD_DAYS = 7;
+const STALE_THRESHOLD_MS = STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+
+function isStaleAnalysis(analyzedAt: string | number | undefined): boolean {
+  if (!analyzedAt) return false;
+  const ts = typeof analyzedAt === 'number' ? analyzedAt : new Date(analyzedAt).getTime();
+  return Date.now() - ts > STALE_THRESHOLD_MS;
+}
+
+function getAnalysisAge(analyzedAt: string | number | undefined): { days: number; label: string; isStale: boolean } {
+  if (!analyzedAt) return { days: 0, label: "Unknown", isStale: false };
+  const ts = typeof analyzedAt === 'number' ? analyzedAt : new Date(analyzedAt).getTime();
+  const diffMs = Date.now() - ts;
+  const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  const hours = Math.floor(diffMs / (60 * 60 * 1000));
+  const isStale = diffMs > STALE_THRESHOLD_MS;
+  if (days > 0) return { days, label: `${days}d ago`, isStale };
+  if (hours > 0) return { days: 0, label: `${hours}h ago`, isStale };
+  return { days: 0, label: "Just now", isStale };
+}
+
+function StaleBadge({ analyzedAt }: { analyzedAt: string | number | undefined }) {
+  const age = getAnalysisAge(analyzedAt);
+  if (!analyzedAt) return null;
+  if (age.isStale) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge className="bg-orange-600/80 text-white border-orange-500/60 text-[8px] px-1.5 py-0 h-4 gap-0.5 font-medium cursor-help animate-pulse">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            Stale ({age.label})
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-xs">
+          This analysis is over {STALE_THRESHOLD_DAYS} days old and may not reflect current asset state. Click "Re-analyze" to refresh.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[8px] px-1.5 py-0 h-4 text-muted-foreground border-muted-foreground/30">
+      {age.label}
+    </Badge>
+  );
+}
+
 // ─── Main Tab Component ───────────────────────────────────────────
 export default function DiscoveryContextTab({ scanId, assets, domain, sector }: DiscoveryContextTabProps) {
   const [selectedAssetId, setSelectedAssetId] = useState<string>("");
@@ -653,13 +700,90 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
         </div>
       )}
 
+      {/* Stale Analysis Summary Banner */}
+      {analyzedCount > 0 && (() => {
+        const staleAssets = Object.entries(analysisResults).filter(([_, r]) => isStaleAnalysis(r.aggregatedAt));
+        if (staleAssets.length === 0) return null;
+        return (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-500/5 border border-orange-500/20">
+            <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-orange-300">
+                <span className="font-semibold">{staleAssets.length}</span> asset{staleAssets.length > 1 ? 's have' : ' has'} stale analysis (older than {STALE_THRESHOLD_DAYS} days)
+              </p>
+              <p className="text-xs text-orange-400/70 mt-0.5">
+                {staleAssets.slice(0, 5).map(([h]) => h).join(', ')}{staleAssets.length > 5 ? ` and ${staleAssets.length - 5} more` : ''}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
+              disabled={analyzing !== null}
+              onClick={() => {
+                // Re-analyze all stale assets
+                const staleHostnames = staleAssets.map(([h]) => h);
+                const staleAssetObjs = sortedAssets.filter(a => staleHostnames.includes(a.hostname)).slice(0, 20);
+                let idx = 0;
+                function runNext() {
+                  if (idx >= staleAssetObjs.length) {
+                    toast.success(`Re-analyzed ${staleAssetObjs.length} stale assets`);
+                    return;
+                  }
+                  const asset = staleAssetObjs[idx];
+                  setAnalyzing(asset.hostname);
+                  runPipelineMut.mutate({
+                    assetIdentifier: asset.hostname,
+                    assetId: String(asset.id),
+                    discoveryResult: {
+                      hostname: asset.hostname,
+                      dnsRecords: asset.dnsRecords || {},
+                      technologies: asset.technologies || [],
+                      headers: asset.headers || "",
+                      assetType: asset.assetType || "unknown",
+                    },
+                    deterministicOnly: !useLLM,
+                    customerIndustry: sector,
+                    httpFingerprint: asset.technologies ? { technologies: asset.technologies, statusCode: 200 } : undefined,
+                  }, {
+                    onSuccess: (result) => {
+                      setAnalysisResults(prev => ({ ...prev, [asset.hostname]: result }));
+                      idx++;
+                      runNext();
+                    },
+                    onError: () => { idx++; runNext(); },
+                  });
+                }
+                runNext();
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Re-analyze Stale
+            </Button>
+          </div>
+        );
+      })()}
+
       {/* Results Display */}
       {currentResult ? (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-purple-400" />
             <span className="font-mono text-sm font-semibold">{currentResult.assetIdentifier}</span>
+            <StaleBadge analyzedAt={currentResult.aggregatedAt} />
             <span className="text-[10px] text-muted-foreground">Analyzed {new Date(currentResult.aggregatedAt).toLocaleString()}</span>
+            {isStaleAnalysis(currentResult.aggregatedAt) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1 h-6 text-[10px] border-orange-500/40 text-orange-300 hover:bg-orange-500/10 ml-auto"
+                disabled={analyzing !== null}
+                onClick={() => selectedAsset && handleRunAnalysis(selectedAsset)}
+              >
+                <RefreshCw className="h-3 w-3" />
+                Re-analyze
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -696,17 +820,22 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {Object.entries(analysisResults).map(([hostname, result]: [string, any]) => {
               const asset = sortedAssets.find((a: any) => a.hostname === hostname);
+              const stale = isStaleAnalysis(result.aggregatedAt);
               return (
                 <Card
                   key={hostname}
-                  className="p-3 cursor-pointer hover:border-purple-500/40 transition-colors"
+                  className={`p-3 cursor-pointer transition-colors ${stale ? 'hover:border-orange-500/40 border-orange-500/20' : 'hover:border-purple-500/40'}`}
                   onClick={() => {
                     if (asset) setSelectedAssetId(String(asset.id));
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    {stale
+                      ? <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                      : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    }
                     <span className="font-mono text-xs truncate">{hostname}</span>
+                    <StaleBadge analyzedAt={result.aggregatedAt} />
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {result.attribution?.primaryClaim && (

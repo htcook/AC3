@@ -99,6 +99,18 @@ interface CampaignRunState {
 
 const campaignRunStates = new Map<number, CampaignRunState>();
 
+// Write-through persistence (async, non-blocking)
+import { persistCampaignRunState, removeCampaignRunState } from "./operation-state-persistence";
+function persistCampaignAsync(state: CampaignRunState) {
+  persistCampaignRunState({
+    campaignId: state.campaignId,
+    isRunning: state.isRunning,
+    isPaused: state.isPaused,
+    currentStageId: state.currentStageId,
+    startedAt: state.startedAt,
+  }).catch(() => {/* graceful degradation — in-memory still authoritative */});
+}
+
 // ─── Condition Evaluator ────────────────────────────────────────────────────
 
 /**
@@ -429,6 +441,7 @@ export async function executeCampaign(
     startedAt: Date.now(),
   };
   campaignRunStates.set(campaignId, runState);
+  persistCampaignAsync(runState);
 
   // Update campaign status
   await db.update(redteamCampaigns)
@@ -779,6 +792,7 @@ export async function executeCampaign(
   } finally {
     runState.isRunning = false;
     campaignRunStates.delete(campaignId);
+    removeCampaignRunState(campaignId).catch(() => {});
   }
 }
 
@@ -788,6 +802,7 @@ export function pauseCampaign(campaignId: number): boolean {
   const state = campaignRunStates.get(campaignId);
   if (!state || !state.isRunning) return false;
   state.isPaused = true;
+  persistCampaignAsync(state);
   return true;
 }
 
@@ -795,6 +810,7 @@ export function resumeCampaign(campaignId: number): boolean {
   const state = campaignRunStates.get(campaignId);
   if (!state || !state.isPaused) return false;
   state.isPaused = false;
+  persistCampaignAsync(state);
   return true;
 }
 

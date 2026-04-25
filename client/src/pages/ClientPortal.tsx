@@ -5,7 +5,8 @@ import {
   Shield, AlertTriangle, CheckCircle, Lock, Eye, FileText,
   ChevronDown, ChevronUp, ExternalLink, Bug, Server, Globe,
   BarChart3, Target, Lightbulb, BookOpen, Clock, Pen, Download,
-  Calendar, MapPin, Users, Scale, Database, Radio, Hash
+  Calendar, MapPin, Users, Scale, Database, Radio, Hash, Microscope,
+  Building2, Activity, Skull
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -519,6 +520,81 @@ export default function ClientPortal() {
                               {t}
                             </Badge>
                           ))}
+                        </div>
+                      )}
+                      {/* Discovery Context Intelligence */}
+                      {a.discoveryContext && (
+                        <div className="mt-3 pt-3 border-t border-slate-700/30">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Microscope className="w-3.5 h-3.5 text-teal-400" />
+                            <span className="text-xs font-medium text-teal-400">Asset Intelligence</span>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-slate-600 text-slate-500 ml-auto">
+                              {a.discoveryContext.mode === 'full_llm' ? 'LLM Enhanced' : 'Deterministic'}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {a.discoveryContext.attribution && (
+                              <div className="p-2 rounded bg-slate-800/40 border border-slate-700/20">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Building2 className="w-3 h-3 text-blue-400" />
+                                  <span className="text-[10px] text-slate-500">Attribution</span>
+                                </div>
+                                <p className="text-xs text-white font-medium truncate" title={a.discoveryContext.attribution.primaryClaim}>
+                                  {a.discoveryContext.attribution.primaryClaim}
+                                </p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <div className="h-1 flex-1 rounded-full bg-slate-700">
+                                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${a.discoveryContext.attribution.confidence}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-slate-500">{a.discoveryContext.attribution.confidence}%</span>
+                                </div>
+                              </div>
+                            )}
+                            {a.discoveryContext.role && (
+                              <div className="p-2 rounded bg-slate-800/40 border border-slate-700/20">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Globe className="w-3 h-3 text-purple-400" />
+                                  <span className="text-[10px] text-slate-500">Role</span>
+                                </div>
+                                <p className="text-xs text-white font-medium capitalize">{a.discoveryContext.role.exposure}</p>
+                                <p className="text-[10px] text-slate-400 capitalize">{a.discoveryContext.role.environment} / {a.discoveryContext.role.criticality}</p>
+                              </div>
+                            )}
+                            {a.discoveryContext.lifecycle && (
+                              <div className="p-2 rounded bg-slate-800/40 border border-slate-700/20">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Activity className="w-3 h-3 text-green-400" />
+                                  <span className="text-[10px] text-slate-500">Lifecycle</span>
+                                </div>
+                                <p className="text-xs text-white font-medium capitalize">{a.discoveryContext.lifecycle.stage}</p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <div className="h-1 flex-1 rounded-full bg-slate-700">
+                                    <div className="h-full rounded-full bg-green-500" style={{ width: `${a.discoveryContext.lifecycle.confidence}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-slate-500">{a.discoveryContext.lifecycle.confidence}%</span>
+                                </div>
+                              </div>
+                            )}
+                            {a.discoveryContext.threatRelevance && (
+                              <div className="p-2 rounded bg-slate-800/40 border border-slate-700/20">
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Skull className="w-3 h-3 text-red-400" />
+                                  <span className="text-[10px] text-slate-500">Threat</span>
+                                </div>
+                                <p className={`text-xs font-bold ${
+                                  a.discoveryContext.threatRelevance.overallScore >= 70 ? 'text-red-400' :
+                                  a.discoveryContext.threatRelevance.overallScore >= 40 ? 'text-yellow-400' : 'text-green-400'
+                                }`}>
+                                  {a.discoveryContext.threatRelevance.overallScore}/100
+                                </p>
+                                {a.discoveryContext.threatRelevance.topActorTypes?.length > 0 && (
+                                  <p className="text-[10px] text-slate-400 truncate" title={a.discoveryContext.threatRelevance.topActorTypes.map((at: any) => at.type).join(', ')}>
+                                    {a.discoveryContext.threatRelevance.topActorTypes.map((at: any) => at.type).join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </CardContent>

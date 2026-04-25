@@ -390,3 +390,28 @@
 - [x] Documented report pipeline (6-step FedRAMP generation)
 - [x] Documented purple team data model, C2 registry, tool tier classification
 - [x] Written comprehensive 12-section ARCHITECTURE.md
+
+### Migrate P0 Active Operation State to DB (Apr 24)
+- [x] Audit campaignRunStates in campaign-orchestrator.ts (5 fields, 6 access points)
+- [x] Audit activePlans in c2-orchestrator.ts (~25 fields, 7 access points)
+- [x] Add campaign_run_states DB table to drizzle schema (10 columns incl. heartbeat)
+- [x] Add c2_orchestration_plans DB table to drizzle schema (16 columns incl. phases_json, log_json)
+- [x] Create operation-state-persistence.ts with write-through DB layer
+- [x] Migrate campaignRunStates: write-through at set/pause/resume/abort/delete + heartbeat
+- [x] Migrate activePlans: write-through at create/update-status/pause/resume/abort/complete/fail
+- [x] Add fallback to in-memory on DB failure (try/catch with console.warn)
+- [x] Write vitest tests for DB-backed state machines (35 tests, all passing)
+
+### Discovery Context in ClientPortal (Apr 24)
+- [x] Add discovery context query to client-portal.ts accessReport procedure (fetches from discovered_assets by scanId)
+- [x] Add inline discovery context cards on each asset in ClientPortal assets tab
+- [x] Show attribution (org + confidence), role (exposure/environment), lifecycle (stage + direction), threat relevance (score + band)
+- [x] Handle assets with no discovery context gracefully (hidden when null)
+
+### Stale Analysis Indicator (Apr 24)
+- [x] Add stale analysis detection (>7 days threshold with isStaleAnalysis/getAnalysisAge helpers)
+- [x] Display pulsing orange StaleBadge on stale assets with tooltip explanation
+- [x] Add summary banner showing count of stale assets with "Re-analyze Stale" batch button
+- [x] Add inline "Re-analyze" button on individual stale asset results
+- [x] Stale assets shown with orange border and AlertTriangle icon in summary grid
+- [x] Write vitest tests for stale detection logic (14 tests incl. boundary cases, all passing)

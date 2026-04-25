@@ -7966,3 +7966,59 @@ export const zeroDayScanMatches = mysqlTable("zero_day_scan_matches", {
 	index("zdsm_severity_idx").on(table.severity),
 	index("zdsm_created_at_idx").on(table.createdAt),
 ]);
+
+// ─── Campaign Run States (P0 migration from in-memory) ─────────────────────
+export const campaignRunStates = mysqlTable("campaign_run_states", {
+	id: int().autoincrement().notNull(),
+	campaignId: int("campaign_id").notNull(),
+	isRunning: tinyint("is_running").default(0).notNull(),
+	isPaused: tinyint("is_paused").default(0).notNull(),
+	currentStageId: int("current_stage_id"),
+	startedAt: bigint("started_at", { mode: "number" }),
+	lastHeartbeat: bigint("last_heartbeat", { mode: "number" }),
+	nodeId: varchar("node_id", { length: 128 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("crs_campaign_id_idx").on(table.campaignId),
+	index("crs_is_running_idx").on(table.isRunning),
+]);
+
+// ─── C2 Orchestration Plans (P0 migration from in-memory) ──────────────────
+export const orchestrationPlans = mysqlTable("orchestration_plans", {
+	id: int().autoincrement().notNull(),
+	planId: varchar("plan_id", { length: 128 }).notNull(),
+	engagementId: int("engagement_id"),
+	campaignId: int("campaign_id"),
+	name: varchar({ length: 255 }).notNull(),
+	description: text(),
+	targetDomain: varchar("target_domain", { length: 512 }),
+	scanMode: varchar("scan_mode", { length: 32 }),
+	status: mysqlEnum("op_status", ['pending','running','paused','completed','failed','aborted']).default('pending').notNull(),
+	currentPhase: varchar("current_phase", { length: 64 }),
+	stepsCompleted: int("steps_completed").default(0).notNull(),
+	stepsFailed: int("steps_failed").default(0).notNull(),
+	stepsSkipped: int("steps_skipped").default(0).notNull(),
+	maxParallel: int("max_parallel").default(3).notNull(),
+	abortOnFailure: tinyint("abort_on_failure").default(0).notNull(),
+	autoHandoff: tinyint("auto_handoff").default(1).notNull(),
+	phases: json(),
+	steps: json(),
+	frameworkPriority: json("framework_priority"),
+	sharedContext: json("shared_context"),
+	log: json("op_log"),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	lastHeartbeat: bigint("last_heartbeat", { mode: "number" }),
+	nodeId: varchar("node_id", { length: 128 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	opTenantId: int("op_tenant_id"),
+},
+(table) => [
+	index("op_plan_id_idx").on(table.planId),
+	index("op_engagement_id_idx").on(table.engagementId),
+	index("op_campaign_id_idx").on(table.campaignId),
+	index("op_status_idx").on(table.status),
+]);

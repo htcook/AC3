@@ -9,7 +9,7 @@ import * as db from "../db";
 import { TRPCError } from "@trpc/server";
 import crypto from "crypto";
 import { getDb as _getDb } from "../db";
-import { roeDocuments, roePersonnel, roeSignatures, engagements } from "../../drizzle/schema";
+import { roeDocuments, roePersonnel, roeSignatures, engagements, discoveredAssets } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { assertEngagementAccess } from "../lib/engagement-access-guard";
 
@@ -228,15 +228,54 @@ export const clientPortalRouter = router({
 
         if (share.includeAssets && pipelineOutput) {
           const analyses = pipelineOutput.analyses || [];
-          response.assets = analyses.map((a: any) => ({
-            hostname: a.asset?.hostname,
-            assetType: a.asset?.assetType,
-            riskScore: a.hybridRiskScore,
-            riskBand: a.riskBand,
-            criticalityScore: a.criticalityScore,
-            findingCount: a.postureFindings?.length || 0,
-            technologies: a.asset?.technologies?.slice(0, 10),
-          }));
+
+          // Fetch discovery context from discovered_assets table
+          const dbAssets = await db.getDiscoveredAssetsByScan(latestScan.id);
+          const contextMap = new Map<string, any>();
+          for (const da of dbAssets) {
+            if (da.discoveryContext) {
+              contextMap.set(da.hostname, typeof da.discoveryContext === 'string' ? JSON.parse(da.discoveryContext) : da.discoveryContext);
+            }
+          }
+
+          response.assets = analyses.map((a: any) => {
+            const ctx = contextMap.get(a.asset?.hostname);
+            return {
+              hostname: a.asset?.hostname,
+              assetType: a.asset?.assetType,
+              riskScore: a.hybridRiskScore,
+              riskBand: a.riskBand,
+              criticalityScore: a.criticalityScore,
+              findingCount: a.postureFindings?.length || 0,
+              technologies: a.asset?.technologies?.slice(0, 10),
+              // Discovery context intelligence (if analyzed)
+              discoveryContext: ctx ? {
+                attribution: ctx.attribution ? {
+                  primaryClaim: ctx.attribution.claims?.[0]?.ownerOrg || ctx.attribution.primaryClaim?.ownerOrg || 'Unknown',
+                  confidence: ctx.attribution.claims?.[0]?.confidence || ctx.attribution.confidence || 0,
+                  tier: ctx.attribution.tier || 'unknown',
+                } : undefined,
+                role: ctx.role ? {
+                  exposure: ctx.role.exposure || 'unknown',
+                  environment: ctx.role.environment || 'unknown',
+                  criticality: ctx.role.criticality || 'unknown',
+                  confidence: ctx.role.confidence || 0,
+                } : undefined,
+                lifecycle: ctx.lifecycle ? {
+                  stage: ctx.lifecycle.stage || 'unknown',
+                  confidence: ctx.lifecycle.confidence || 0,
+                } : undefined,
+                threatRelevance: ctx.threatRelevance ? {
+                  overallScore: ctx.threatRelevance.overallScore || 0,
+                  topActorTypes: (ctx.threatRelevance.actorTypes || []).slice(0, 3).map((at: any) => ({
+                    type: at.type || at.actorType,
+                    score: at.score || at.relevanceScore || 0,
+                  })),
+                } : undefined,
+                mode: ctx.mode || 'deterministic_only',
+              } : undefined,
+            };
+          });
         }
 
         if (share.includeFindings && pipelineOutput) {
