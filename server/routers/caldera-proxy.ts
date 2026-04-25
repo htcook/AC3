@@ -1507,4 +1507,62 @@ export const calderaProxyRouter = router({
         await deleteFeedSource(dbConn, schema, input.feedId);
         return { success: true };
       }),
+
+    analyzeDiscoveryContext: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+        businessIntelData: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { analyzeAssetContext } = await import('../lib/discovery-context-engine');
+        const { invokeLLM } = await import('../_core/llm');
+        const result = await analyzeAssetContext(
+          input.assetIdentifier,
+          input.discoveryResult,
+          {
+            deterministicOnly: input.deterministicOnly,
+            customerIndustry: input.customerIndustry,
+            customerSize: input.customerSize,
+            llmInvoke: input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages }),
+          },
+          input.whoisData,
+          input.httpFingerprint,
+          input.businessIntelData
+        );
+        return result;
+      }),
+
+    analyzeDiscoveryContextBatch: protectedProcedure
+      .input(z.object({
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprints: z.record(z.string(), z.any()).optional(),
+        businessIntelData: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { analyzeDiscoveryContext } = await import('../lib/discovery-context-engine');
+        const { invokeLLM } = await import('../_core/llm');
+        const results = await analyzeDiscoveryContext(
+          input.discoveryResult,
+          {
+            deterministicOnly: input.deterministicOnly,
+            customerIndustry: input.customerIndustry,
+            customerSize: input.customerSize,
+            llmInvoke: input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages }),
+          },
+          input.whoisData,
+          input.httpFingerprints,
+          input.businessIntelData
+        );
+        return results;
+      }),
   });

@@ -304,3 +304,32 @@
 - [x] Update report module for purple team test plan section (PT-2, PT-3)
 - [x] Update report module for purple team final report (PT-4 metrics, PT-5 bilateral timeline, PT-6 gap analysis, PT-7 replayability)
 - [x] Write tests for all purple team enhancements (25 tests passing: data model, ROE addendum, detection metrics, negative evidence, replayability, test plan, unified timeline, detection assessment catalog, report pipeline, Manjusaka deprecation)
+
+### Fix Missing Sidebar Tool Pages (Apr 24)
+- [x] Audit sidebar navigation links and identify dead/missing pages (all 6 originally flagged pages now exist and route correctly)
+- [x] Updated audit-tool-status.md to reflect resolved status
+
+### Hypothesis-vs-Confirmed Badges in Scan Results (Apr 24)
+- [x] Created shared CorroborationTierBadge component with consistent color-coded styling and tooltips
+- [x] Added per-CVE tier badges to VulnIntelSection (tech-level + individual CVE badges)
+- [x] Added tier badges to DomainIntelResults subdomain findings view
+- [x] Added tier badges to DomainIntelResults risk signals (replaced plain text)
+- [x] Added tier badges to DomainIntelResults exploit match view
+- [x] Replaced plain badge in ClientPortal findings with CorroborationTierBadge
+- [x] Replaced inline tier badges in EngagementOps (2 locations) with shared component
+- [x] Replaced tierBadge function in ScanComparison with shared component
+- [ ] Write vitest tests for CorroborationTierBadge logic
+
+### Discovery Context Engine (Claude Analysis Implementation, Apr 24)
+- [x] Build DiscoveryContextEngine data model with 5 specialist interfaces (AttributionClaim, RoleInference, LifecycleStage, BusinessContext, ThreatRelevance)
+- [x] Implement structured evidence package builder (assembles cert, DNS, BGP, WHOIS, HTTP into structured packages)
+- [x] Implement Asset Attribution Specialist with bounded delta pattern (deterministic baseline + LLM ±20pt adjustment)
+- [x] Implement Asset Role Specialist (customer-facing/internal, prod/non-prod, primary/backup)
+- [x] Implement Lifecycle Stage Specialist (active/declining/abandoned/unknown with temporal signals)
+- [x] Implement Business Context Specialist (business unit, function, revenue path attribution)
+- [x] Implement Threat Relevance Specialist (per-actor-type, per-attack-pattern scoring with sector context)
+- [x] Add evidence grounding validation (every claim must cite input evidence, reject ungrounded claims)
+- [x] Add three degradation modes (Full LLM, Deterministic-only, Confidence-degraded)
+- [x] Integrate discovery context into existing scan pipeline (2 tRPC procedures: analyzeDiscoveryContext + analyzeDiscoveryContextBatch)
+- [ ] Add discovery context UI panel to DomainIntelResults
+- [ ] Write vitest tests for discovery context engine

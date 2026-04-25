@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
+import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 
 // ─── Severity helpers ──────────────────────────────────────────────
 function severityColor(sev: number): string {
@@ -416,9 +417,7 @@ export default function ClientPortal() {
                             <Badge className="bg-orange-600/30 text-orange-300 text-xs border border-orange-500/40">Exploit</Badge>
                           )}
                           {f.corroborationTier && (
-                            <Badge variant="outline" className="text-xs border-slate-600 text-slate-400 capitalize">
-                              {f.corroborationTier}
-                            </Badge>
+                            <CorroborationTierBadge tier={f.corroborationTier} size="sm" showTooltip={true} />
                           )}
                         </div>
                         <h4 className="font-medium text-white text-sm">{f.title}</h4>

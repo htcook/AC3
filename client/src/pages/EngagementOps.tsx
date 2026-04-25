@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -2570,14 +2571,7 @@ export default function EngagementOps() {
                                 {/* Version Confidence Indicator */}
                                 {v.corroborationTier && (
                                   <div className="flex items-center gap-1.5 flex-wrap ml-0.5">
-                                    <Badge variant="outline" className={`text-[8px] font-semibold ${
-                                      v.corroborationTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
-                                      v.corroborationTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
-                                      'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
-                                    }`}>
-                                      {v.corroborationTier === 'confirmed' ? '\u2713 CONFIRMED' :
-                                       v.corroborationTier === 'probable' ? '\u223c PROBABLE' : '? POTENTIAL'}
-                                    </Badge>
+                                    <CorroborationTierBadge tier={v.corroborationTier} size="xs" showTooltip={true} />
                                     {v.detectedVersion && (
                                       <span className="text-[9px] font-mono text-emerald-400" title={v.evidenceDetail || undefined}>
                                         v{v.detectedVersion}
@@ -4188,14 +4182,7 @@ export default function EngagementOps() {
                                     <Badge variant="outline" className="text-[8px] text-green-300 border-green-500/30 bg-green-500/10">✓ active scan confirmed</Badge>
                                   )}
                                   {v.corroborationTier && (
-                                    <Badge variant="outline" className={`text-[8px] font-semibold ${
-                                      v.corroborationTier === 'confirmed' ? 'bg-green-500/20 text-green-300 border-green-500/40' :
-                                      v.corroborationTier === 'probable' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
-                                      'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
-                                    }`}>
-                                      {v.corroborationTier === 'confirmed' ? '\u2713 VER' :
-                                       v.corroborationTier === 'probable' ? '\u223c VER' : '? VER'}
-                                    </Badge>
+                                    <CorroborationTierBadge tier={v.corroborationTier} size="xs" showTooltip={true} />
                                   )}
                                   {v.detectedVersion && (
                                     <span className="text-[9px] font-mono text-emerald-400" title={v.evidenceDetail || undefined}>

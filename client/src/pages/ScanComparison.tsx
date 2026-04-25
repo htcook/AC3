@@ -1,4 +1,5 @@
 import AppShell from "@/components/AppShell";
+import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,12 +29,8 @@ function riskBandColor(band: string) {
 }
 
 function tierBadge(tier: string) {
-  switch (tier) {
-    case "confirmed": return <Badge className="bg-green-600/80 text-white text-[10px] px-1.5 py-0"><CheckCircle className="h-2.5 w-2.5 mr-0.5" />Confirmed</Badge>;
-    case "probable": return <Badge className="bg-yellow-600/80 text-white text-[10px] px-1.5 py-0"><Clock className="h-2.5 w-2.5 mr-0.5" />Probable</Badge>;
-    case "potential": return <Badge className="bg-zinc-600/80 text-white text-[10px] px-1.5 py-0"><HelpCircle className="h-2.5 w-2.5 mr-0.5" />Potential</Badge>;
-    default: return null;
-  }
+  if (!tier) return null;
+  return <CorroborationTierBadge tier={tier} size="sm" showTooltip={true} />;
 }
 
 function DeltaIndicator({ value, suffix = "" }: { value: number; suffix?: string }) {

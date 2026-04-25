@@ -14,6 +14,7 @@ import {
   Workflow, Lightbulb, Route, Telescope, ShieldQuestion, ArrowRightLeft, KeyRound,
   Box, ClipboardCheck, PackageSearch, GitCompareArrows
 } from "lucide-react";
+import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 
 type TierFilter = 'confirmed' | 'confirmed+probable' | 'all';
 
@@ -253,26 +254,12 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
                     <Database className="h-3.5 w-3.5 text-accent" />
                     <span className="font-semibold text-sm">{match.technology}</span>
                     {match.corroborationTier && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge className={`text-[8px] h-4 cursor-help ${
-                            match.corroborationTier === 'confirmed' ? 'bg-green-600/80 text-white' :
-                            match.corroborationTier === 'probable' ? 'bg-blue-600/80 text-white' :
-                            'bg-gray-600/80 text-white'
-                          }`}>{match.corroborationTier}</Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs text-xs">
-                          {match.corroborationTier === 'confirmed' && (
-                            <span>Product + version detected and matched to CVE affected range. {match._matchSpecificity === 'product' ? 'Product-specific match with version evidence.' : 'Version-confirmed match.'}</span>
-                          )}
-                          {match.corroborationTier === 'probable' && (
-                            <span>Product detected but version unconfirmed. CVEs exist for this product family. {match._matchSpecificity === 'vendor_only' ? 'Vendor-only match — no specific product version confirmed.' : 'Product match without version confirmation.'}</span>
-                          )}
-                          {match.corroborationTier === 'potential' && (
-                            <span>Vendor-only association. Technology vendor detected but no specific product or version matched to CVE. Advisory-level risk only.</span>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
+                      <CorroborationTierBadge
+                        tier={match.corroborationTier}
+                        size="xs"
+                        showTooltip={true}
+                        matchSpecificity={match._matchSpecificity}
+                      />
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -316,26 +303,28 @@ export default function VulnIntelSection({ scanId }: { scanId: number }) {
                             }`}>{vuln.severity?.toUpperCase()}</Badge>
                             {vuln.cvssScore && <Badge variant="outline" className="text-[8px] font-mono text-cyan-400 border-cyan-500/40">CVSS {vuln.cvssScore}</Badge>}
                             {vuln.kevListed && <Badge className="bg-red-600/80 text-white text-[8px]">KEV</Badge>}
-                            {vuln.kevListed && vuln.versionMatchConfirmed && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge className="bg-emerald-600/80 text-white text-[8px] cursor-help">CONFIRMED</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs text-xs">
-                                  KEV-listed vulnerability with version-confirmed match. Detected version falls within the known affected range.
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {vuln.kevListed && !vuln.versionMatchConfirmed && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge className="bg-amber-600/80 text-white text-[8px] cursor-help">POTENTIAL</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs text-xs">
-                                  KEV-listed vulnerability but version not confirmed. The product was detected but the specific version could not be verified against the affected range.
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
+                            {/* Per-CVE corroboration tier badge */}
+                            {(() => {
+                              const isProductSpecific = (vuln as any)._matchSpecificity === 'product';
+                              const hasVersion = !!(match as any)._detectedVersion;
+                              let cveTier: string;
+                              if ((vuln.kevListed || vuln.inTheWild) && isProductSpecific) {
+                                cveTier = 'confirmed';
+                              } else if (isProductSpecific && (hasVersion || vuln.exploitAvailable)) {
+                                cveTier = 'probable';
+                              } else if (!isProductSpecific && hasVersion && vuln.exploitAvailable) {
+                                cveTier = 'probable';
+                              } else {
+                                cveTier = 'potential';
+                              }
+                              return (
+                                <CorroborationTierBadge
+                                  tier={cveTier}
+                                  size="xs"
+                                  matchSpecificity={(vuln as any)._matchSpecificity}
+                                />
+                              );
+                            })()}
                             {vuln.inTheWild && <Badge className="bg-purple-600/80 text-white text-[8px]">0-DAY</Badge>}
                             {vuln.exploitAvailable && !vuln.inTheWild && <Badge className="bg-amber-600/80 text-white text-[8px]">EXPLOIT</Badge>}
                             {vuln.ransomwareLinked && <Badge className="bg-pink-600/80 text-white text-[8px]">RANSOMWARE</Badge>}

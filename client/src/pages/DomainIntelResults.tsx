@@ -39,6 +39,7 @@ import type { KpiItem } from "@/components/KpiStrip";
 import { TabGroupNav } from "@/components/TabGroupNav";
 import type { TabGroup } from "@/components/TabGroupNav";
 import { FindingStateBadge } from "@/components/FindingStateBadge";
+import { CorroborationTierBadge } from "@/components/CorroborationTierBadge";
 import type { ValidationResultExport, ValidationRunExport } from "@/lib/export-utils";
 
 // Lazy-loaded sub-tabs (split from monolithic file for bundle optimization)
@@ -1589,9 +1590,7 @@ export default function DomainIntelResults() {
                                 </span>
                               )}
                               {corroboration && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-zinc-600/40 bg-zinc-700/30 text-zinc-400">
-                                  {corroboration}
-                                </span>
+                                <CorroborationTierBadge tier={corroboration} size="xs" showTooltip={true} />
                               )}
                             </div>
                             {/* Rationale / description */}
@@ -1973,6 +1972,7 @@ export default function DomainIntelResults() {
                                   <div className="flex items-center gap-1.5 flex-wrap mb-1">
                                     <Badge className={`text-[9px] px-1 py-0 ${SSEV_COLORS[f.severity] || SSEV_COLORS.medium}`}>{(f.severity || 'medium').toUpperCase()}</Badge>
                                     {f.category && <Badge className={`text-[9px] px-1 py-0 ${SCAT_COLORS[f.category] || 'bg-muted text-muted-foreground border-border'}`}>{(f.category || '').replace(/_/g, ' ').toUpperCase()}</Badge>}
+                                    {f.corroborationTier && <CorroborationTierBadge tier={f.corroborationTier} size="xs" showTooltip={false} />}
                                   </div>
                                   <p className="font-medium text-foreground/90 mb-1">{f.finding}</p>
                                   {f.remediation && (
@@ -4606,7 +4606,7 @@ export default function DomainIntelResults() {
                           </Badge>
                         )}
                         {m.corroborationTier && (
-                          <Badge variant="outline" className="text-[10px]">{m.corroborationTier}</Badge>
+                          <CorroborationTierBadge tier={m.corroborationTier} size="xs" showTooltip={true} />
                         )}
                       </div>
                       <div className="flex items-center gap-1">
