@@ -945,6 +945,35 @@ async function startServer() {
       }).catch((err) => {
         console.warn("[ScanRecovery] Failed to initialize scan recovery scheduler:", err);
       });
+
+      // Recover orphaned operations from previous instance crashes
+      import("../lib/operation-state-persistence").then(async ({ recoverOperationState, startHeartbeat, NODE_ID }) => {
+        try {
+          const report = await recoverOperationState();
+          console.log(
+            `[OpRecovery] Node ${NODE_ID} recovery complete: ` +
+            `${report.campaignsRecovered} campaigns recovered, ` +
+            `${report.plansRecovered} plans recovered, ` +
+            `${report.orphanedCampaigns} orphaned campaigns marked failed, ` +
+            `${report.orphanedPlans} orphaned plans marked failed` +
+            (report.errors.length > 0 ? `, ${report.errors.length} errors` : "")
+          );
+          if (report.errors.length > 0) {
+            report.errors.forEach((e) => console.warn(`[OpRecovery] Error: ${e}`));
+          }
+          // Start heartbeat for this node so future instances can detect our orphans
+          const { getDb } = await import("../db");
+          const db = getDb();
+          if (db) {
+            startHeartbeat(db);
+            console.log(`[OpRecovery] Heartbeat started for node ${NODE_ID}`);
+          }
+        } catch (err: any) {
+          console.warn("[OpRecovery] Failed to recover operation state (non-fatal):", err.message);
+        }
+      }).catch((err) => {
+        console.warn("[OpRecovery] Failed to import operation-state-persistence:", err);
+      });
     }, 30_000);
 
     // ── PHASE 3: After 2 min — Cron-only schedulers (no immediate sync) ──

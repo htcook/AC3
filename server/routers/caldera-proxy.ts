@@ -1785,13 +1785,36 @@ export const calderaProxyRouter = router({
         const { db } = await import('../db');
         const { discoveredAssets } = await import('../../drizzle/schema');
         const { eq } = await import('drizzle-orm');
+        // Snapshot previous context into history before overwriting
+        const [existing] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextHistory: discoveredAssets.discoveryContextHistory,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        let history: any[] = [];
+        if (existing?.discoveryContextHistory && Array.isArray(existing.discoveryContextHistory)) {
+          history = existing.discoveryContextHistory as any[];
+        }
+        // Push previous snapshot (if it exists) into history, keep last 10
+        if (existing?.discoveryContext) {
+          history.push({
+            context: existing.discoveryContext,
+            analyzedAt: existing.discoveryContextAnalyzedAt || new Date().toISOString(),
+            snapshotId: `snap-${Date.now()}`,
+          });
+          if (history.length > 10) history = history.slice(-10);
+        }
         await db.update(discoveredAssets)
           .set({
             discoveryContext: input.discoveryContext as any,
+            discoveryContextHistory: history as any,
             discoveryContextAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           })
           .where(eq(discoveredAssets.id, input.assetDbId));
-        return { success: true };
+        return { success: true, historyCount: history.length };
       }),
 
     // Get discovery context for an asset
@@ -1806,6 +1829,27 @@ export const calderaProxyRouter = router({
         const [row] = await db.select({
           discoveryContext: discoveredAssets.discoveryContext,
           discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(eq(discoveredAssets.id, input.assetDbId))
+          .limit(1);
+        return row || null;
+      }),
+
+    // Get discovery context history for an asset (for comparison view)
+    getDiscoveryContextHistory: protectedProcedure
+      .input(z.object({
+        assetDbId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        const [row] = await db.select({
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextHistory: discoveredAssets.discoveryContextHistory,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+          hostname: discoveredAssets.hostname,
         })
           .from(discoveredAssets)
           .where(eq(discoveredAssets.id, input.assetDbId))
@@ -1832,5 +1876,183 @@ export const calderaProxyRouter = router({
           .from(discoveredAssets)
           .where(inArray(discoveredAssets.id, input.assetDbIds));
         return rows;
+      }),
+
+    // Export discovery context as structured CSV data
+    exportDiscoveryContextCSV: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return { csv: '', filename: 'discovery-context-export.csv' };
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+
+        // Build CSV
+        const headers = [
+          'Hostname', 'Analyzed At',
+          'Attribution Org', 'Attribution Confidence', 'Attribution Tier',
+          'Role Exposure', 'Role Environment', 'Role Criticality',
+          'Lifecycle Stage', 'Lifecycle Direction',
+          'Business Function', 'Revenue Impact',
+          'Threat Score', 'Threat Band', 'Actor Types',
+          'Analysis Mode'
+        ];
+        const csvRows = [headers.join(',')];
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          const attr = ctx.attribution?.primaryClaim;
+          const role = ctx.role?.role;
+          const lc = ctx.lifecycle;
+          const bc = ctx.businessContext;
+          const tr = ctx.threatRelevance;
+          const escapeCsv = (v: any) => {
+            if (v == null) return '';
+            const s = String(v);
+            return s.includes(',') || s.includes('"') || s.includes('\n')
+              ? `"${s.replace(/"/g, '""')}"`
+              : s;
+          };
+          csvRows.push([
+            escapeCsv(row.hostname),
+            escapeCsv(row.discoveryContextAnalyzedAt),
+            escapeCsv(attr?.attributedTo?.organization),
+            escapeCsv(attr?.confidenceScore),
+            escapeCsv(attr?.claimType),
+            escapeCsv(role?.exposure),
+            escapeCsv(role?.environment),
+            escapeCsv(role?.criticality),
+            escapeCsv(lc?.stage),
+            escapeCsv(lc?.direction),
+            escapeCsv(bc?.businessFunction),
+            escapeCsv(bc?.revenueImpact),
+            escapeCsv(tr?.overallThreatScore),
+            escapeCsv(tr?.threatBand),
+            escapeCsv((tr?.relevantActorTypes || []).join('; ')),
+            escapeCsv(ctx.attribution?.metadata?.mode || 'unknown'),
+          ].join(','));
+        }
+        return { csv: csvRows.join('\n'), filename: `discovery-context-${new Date().toISOString().slice(0,10)}.csv` };
+      }),
+
+    // Export discovery context as markdown (for PDF rendering on client)
+    exportDiscoveryContextMarkdown: protectedProcedure
+      .input(z.object({
+        assetDbIds: z.array(z.number()),
+        scanDomain: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        if (input.assetDbIds.length === 0) return { markdown: '', filename: 'discovery-context-report.md' };
+        const { db } = await import('../db');
+        const { discoveredAssets } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const rows = await db.select({
+          id: discoveredAssets.id,
+          hostname: discoveredAssets.hostname,
+          discoveryContext: discoveredAssets.discoveryContext,
+          discoveryContextAnalyzedAt: discoveredAssets.discoveryContextAnalyzedAt,
+        })
+          .from(discoveredAssets)
+          .where(inArray(discoveredAssets.id, input.assetDbIds));
+
+        const domain = input.scanDomain || 'Unknown Domain';
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        let md = `# Discovery Context Intelligence Report\n\n`;
+        md += `**Domain:** ${domain}  \n`;
+        md += `**Generated:** ${now}  \n`;
+        md += `**Assets Analyzed:** ${rows.filter(r => r.discoveryContext).length}/${rows.length}  \n\n`;
+        md += `---\n\n`;
+
+        // Summary table
+        md += `## Summary\n\n`;
+        md += `| Hostname | Attribution | Confidence | Lifecycle | Threat Score | Threat Band |\n`;
+        md += `|----------|-------------|------------|-----------|--------------|-------------|\n`;
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          const attr = ctx.attribution?.primaryClaim;
+          const lc = ctx.lifecycle;
+          const tr = ctx.threatRelevance;
+          md += `| ${row.hostname} | ${attr?.attributedTo?.organization || '—'} | ${attr?.confidenceScore ?? '—'}% | ${lc?.stage || '—'} | ${tr?.overallThreatScore ?? '—'} | ${tr?.threatBand || '—'} |\n`;
+        }
+        md += `\n`;
+
+        // Per-asset details
+        md += `## Per-Asset Analysis\n\n`;
+        for (const row of rows) {
+          const ctx = row.discoveryContext as any;
+          if (!ctx) continue;
+          md += `### ${row.hostname}\n\n`;
+          md += `**Analyzed:** ${row.discoveryContextAnalyzedAt || 'Unknown'}  \n\n`;
+
+          // Attribution
+          const attr = ctx.attribution?.primaryClaim;
+          if (attr) {
+            md += `#### Attribution\n`;
+            md += `- **Organization:** ${attr.attributedTo?.organization || '—'}\n`;
+            md += `- **Confidence:** ${attr.confidenceScore ?? '—'}%\n`;
+            md += `- **Claim Type:** ${(attr.claimType || '—').replace(/_/g, ' ')}\n`;
+            if (attr.reasoning) md += `- **Reasoning:** ${attr.reasoning}\n`;
+            md += `\n`;
+          }
+
+          // Role
+          const role = ctx.role?.role;
+          if (role) {
+            md += `#### Asset Role\n`;
+            md += `- **Exposure:** ${(role.exposure || '—').replace(/_/g, ' ')}\n`;
+            md += `- **Environment:** ${role.environment || '—'}\n`;
+            md += `- **Criticality:** ${role.criticality || '—'}\n`;
+            if (role.primaryFunction) md += `- **Primary Function:** ${role.primaryFunction}\n`;
+            md += `\n`;
+          }
+
+          // Lifecycle
+          const lc = ctx.lifecycle;
+          if (lc) {
+            md += `#### Lifecycle\n`;
+            md += `- **Stage:** ${lc.stage || '—'}\n`;
+            md += `- **Direction:** ${lc.direction || '—'}\n`;
+            md += `\n`;
+          }
+
+          // Business Context
+          const bc = ctx.businessContext;
+          if (bc) {
+            md += `#### Business Context\n`;
+            if (bc.businessFunction) md += `- **Function:** ${bc.businessFunction}\n`;
+            if (bc.revenueImpact) md += `- **Revenue Impact:** ${bc.revenueImpact}\n`;
+            if (bc.regulatoryScope) md += `- **Regulatory Scope:** ${bc.regulatoryScope}\n`;
+            if (bc.dataClassification) md += `- **Data Classification:** ${bc.dataClassification}\n`;
+            md += `\n`;
+          }
+
+          // Threat Relevance
+          const tr = ctx.threatRelevance;
+          if (tr) {
+            md += `#### Threat Relevance\n`;
+            md += `- **Overall Score:** ${tr.overallThreatScore ?? '—'}\n`;
+            md += `- **Threat Band:** ${tr.threatBand || '—'}\n`;
+            if (tr.relevantActorTypes?.length) md += `- **Actor Types:** ${tr.relevantActorTypes.join(', ')}\n`;
+            if (tr.campaignCorrelations?.length) {
+              md += `- **Campaign Correlations:** ${tr.campaignCorrelations.map((c: any) => c.campaignName || c.campaignId).join(', ')}\n`;
+            }
+            md += `\n`;
+          }
+
+          md += `---\n\n`;
+        }
+
+        return { markdown: md, filename: `discovery-context-${domain}-${new Date().toISOString().slice(0,10)}.md` };
       }),
   });

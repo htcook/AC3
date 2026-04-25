@@ -2800,6 +2800,7 @@ export const discoveredAssets = mysqlTable("discovered_assets", {
 	platformType: varchar({ length: 64 }),
 	daTenantId: int("da_tenant_id"),
 	discoveryContext: json("discovery_context"),
+	discoveryContextHistory: json("discovery_context_history"),
 	discoveryContextAnalyzedAt: timestamp("discovery_context_analyzed_at", { mode: 'string' }),
 });
 

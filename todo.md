@@ -415,3 +415,28 @@
 - [x] Add inline "Re-analyze" button on individual stale asset results
 - [x] Stale assets shown with orange border and AlertTriangle icon in summary grid
 - [x] Write vitest tests for stale detection logic (14 tests incl. boundary cases, all passing)
+
+### Orphaned Operation Recovery on Startup (Apr 24)
+- [x] Wire recoverOperationState() into server boot sequence (Phase 2, 30s after boot)
+- [x] Log recovery report on startup (campaigns recovered, plans recovered, orphans marked failed)
+- [x] Add startHeartbeat() call on server boot for active node tracking
+- [x] Write vitest tests for recovery integration (35 tests in operation-state-and-stale.test.ts)
+
+### Discovery Context Comparison View (Apr 24)
+- [x] Add discovery_context_history column to DB schema and discovered_assets table
+- [x] Update saveDiscoveryContext to snapshot previous context into history (keeps last 10)
+- [x] Add getDiscoveryContextHistory tRPC procedure
+- [x] Build DiscoveryContextComparisonView.tsx with side-by-side diff dialog
+- [x] Detect per-specialist changes: attribution shifts, role changes, lifecycle transitions, business context, threat relevance
+- [x] Add snapshot selector (dropdown of up to 10 historical snapshots with timestamps)
+- [x] Add snapshot timeline bar with visual indicator
+- [x] Add "View Changes" button on analyzed asset results in DiscoveryContextTab
+- [x] Write vitest tests for comparison diff logic (9 tests, all passing)
+
+### Discovery Context Export to CSV/PDF (Apr 24)
+- [x] Build exportDiscoveryContextCSV tRPC procedure (16-column CSV with proper escaping)
+- [x] Build exportDiscoveryContextMarkdown tRPC procedure (full report with summary table + per-asset details)
+- [x] Add CSV and Report (MD) export buttons to DiscoveryContextTab toolbar
+- [x] Client-side Blob download for both formats
+- [x] Write vitest tests for CSV formatting and Markdown report structure (13 tests, all passing)
+- [x] Total: 172 tests passing across 5 test suites

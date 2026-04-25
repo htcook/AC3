@@ -22,9 +22,10 @@ import {
   TrendingUp, Fingerprint, Info, Search, Scan, Flag,
   Users, Clock, Workflow, AlertTriangle, CheckCircle2,
   Building2, Crosshair, HeartPulse, ShieldAlert, Layers,
-  Play, RefreshCw, Box, Lock, Cpu
+  Play, RefreshCw, Box, Lock, Cpu, History, Download, FileText
 } from "lucide-react";
 import { toast } from "sonner";
+import DiscoveryContextComparisonView from "./DiscoveryContextComparisonView";
 
 interface DiscoveryContextTabProps {
   scanId: number;
@@ -502,6 +503,8 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [useLLM, setUseLLM] = useState(false);
   const [loadedFromDb, setLoadedFromDb] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const trpcUtils = trpc.useUtils();
 
   // Load persisted discovery context from DB on mount
   const assetDbIds = useMemo(() => assets.map((a: any) => a.id).filter(Boolean), [assets]);
@@ -692,6 +695,53 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
         </div>
       </div>
 
+      {/* Export Row */}
+      {analyzedCount > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground font-medium">Export:</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-7 text-xs"
+            onClick={async () => {
+              try {
+                const result = await trpcUtils.calderaProxy.exportDiscoveryContextCSV.fetch({ assetDbIds });
+                if (!result.csv) { toast.error('No data to export'); return; }
+                const blob = new Blob([result.csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = result.filename; a.click();
+                URL.revokeObjectURL(url);
+                toast.success(`Exported ${result.filename}`);
+              } catch (e: any) { toast.error(`Export failed: ${e.message}`); }
+            }}
+          >
+            <Download className="h-3 w-3" />
+            CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-7 text-xs"
+            onClick={async () => {
+              try {
+                const result = await trpcUtils.calderaProxy.exportDiscoveryContextMarkdown.fetch({ assetDbIds, scanDomain: domain });
+                if (!result.markdown) { toast.error('No data to export'); return; }
+                const blob = new Blob([result.markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = result.filename; a.click();
+                URL.revokeObjectURL(url);
+                toast.success(`Exported ${result.filename}`);
+              } catch (e: any) { toast.error(`Export failed: ${e.message}`); }
+            }}
+          >
+            <FileText className="h-3 w-3" />
+            Report (MD)
+          </Button>
+        </div>
+      )}
+
       {/* Analysis Status */}
       {analyzing && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
@@ -772,18 +822,29 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
             <span className="font-mono text-sm font-semibold">{currentResult.assetIdentifier}</span>
             <StaleBadge analyzedAt={currentResult.aggregatedAt} />
             <span className="text-[10px] text-muted-foreground">Analyzed {new Date(currentResult.aggregatedAt).toLocaleString()}</span>
-            {isStaleAnalysis(currentResult.aggregatedAt) && (
+            <div className="flex items-center gap-1.5 ml-auto">
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1 h-6 text-[10px] border-orange-500/40 text-orange-300 hover:bg-orange-500/10 ml-auto"
-                disabled={analyzing !== null}
-                onClick={() => selectedAsset && handleRunAnalysis(selectedAsset)}
+                className="gap-1 h-6 text-[10px] border-purple-500/40 text-purple-300 hover:bg-purple-500/10"
+                onClick={() => setComparisonOpen(true)}
               >
-                <RefreshCw className="h-3 w-3" />
-                Re-analyze
+                <History className="h-3 w-3" />
+                View Changes
               </Button>
-            )}
+              {isStaleAnalysis(currentResult.aggregatedAt) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 h-6 text-[10px] border-orange-500/40 text-orange-300 hover:bg-orange-500/10"
+                  disabled={analyzing !== null}
+                  onClick={() => selectedAsset && handleRunAnalysis(selectedAsset)}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Re-analyze
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -868,6 +929,17 @@ export default function DiscoveryContextTab({ scanId, assets, domain, sector }: 
             })}
           </div>
         </div>
+      )}
+
+      {/* Comparison View Dialog */}
+      {selectedAsset && currentResult && (
+        <DiscoveryContextComparisonView
+          assetDbId={selectedAsset.id}
+          hostname={selectedAsset.hostname}
+          currentContext={currentResult}
+          open={comparisonOpen}
+          onClose={() => setComparisonOpen(false)}
+        />
       )}
     </div>
   );
