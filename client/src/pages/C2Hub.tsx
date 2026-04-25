@@ -13,7 +13,7 @@ const tabs: { id: string; label: string; icon?: ComponentType<{className?:string
   { id: 'c2', label: 'C2 Command Center', component: C2CommandCenter, icon: Terminal },
   { id: 'msf', label: 'MSF Servers', component: MsfServers, icon: Server },
   { id: 'sliver', label: 'Sliver C2', component: SliverC2, icon: Cpu },
-  { id: 'manjusaka', label: 'Manjusaka C2', component: ManjusakaC2, icon: Flame },
+  { id: 'manjusaka', label: 'Manjusaka C2 (Deprecated)', component: ManjusakaC2, icon: Flame },
 ];
 
 const C2Hub: React.FC = () => {

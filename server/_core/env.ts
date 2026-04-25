@@ -119,7 +119,8 @@ export const ENV = {
   SLIVER_SERVER_URL: process.env.SLIVER_SERVER_URL ?? "",
   SLIVER_OPERATOR_TOKEN: process.env.SLIVER_OPERATOR_TOKEN ?? "",
   SLIVER_OPERATOR_CONFIG: process.env.SLIVER_OPERATOR_CONFIG ?? "", // Base64-encoded operator config JSON
-  // Manjusaka C2 (REST API)
+  // Manjusaka C2 (REST API) — DEPRECATED per security review (REC-LEGAL-001)
+  // Adapter is no longer auto-registered in C2Registry. Env vars retained for backward compat.
   MANJUSAKA_SERVER_URL: process.env.MANJUSAKA_SERVER_URL ?? "",
   MANJUSAKA_API_TOKEN: process.env.MANJUSAKA_API_TOKEN ?? "",
   MANJUSAKA_ADMIN_PASSWORD: process.env.MANJUSAKA_ADMIN_PASSWORD ?? "",

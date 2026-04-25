@@ -1558,6 +1558,14 @@ export class EmpireAdapter implements IC2Adapter {
 // ─── Manjusaka Adapter ──────────────────────────────────────────────────────
 
 /**
+ * @deprecated DEPRECATED — Manjusaka C2 adapter has been deprecated per security review.
+ * 
+ * Reason: Manjusaka is a Chinese-origin offensive framework with limited Western legal
+ * precedent for authorized use in penetration testing engagements. Its inclusion creates
+ * unnecessary legal risk for operators and clients. The adapter is retained in source for
+ * reference but is no longer auto-registered in the C2Registry.
+ * 
+ * Original description:
  * Manjusaka C2 adapter using the NPS REST API (Poem + OpenAPI).
  * Manjusaka is a Rust-based C2 framework with staged implants (NPC1/NPC2),
  * VNC remote desktop, file management, tunneling, and BOF plugin support.
@@ -1569,8 +1577,12 @@ export class EmpireAdapter implements IC2Adapter {
  *   - Tasks → C2TaskResult
  *   - Listeners → required for agent callbacks
  *   - Tunnels → network pivoting capability
+ *
+ * @see Pipeline Audit REC-LEGAL-001 for full rationale
  */
 export class ManjusakaAdapter implements IC2Adapter {
+  /** @deprecated This adapter is deprecated and should not be used in production engagements */
+  static readonly DEPRECATED = true;
   readonly framework: C2FrameworkType = "manjusaka";
 
   private get baseUrl(): string {
@@ -1979,7 +1991,8 @@ export class C2Registry {
       C2Registry.instance.register(new SliverAdapter());
       C2Registry.instance.register(new EmpireAdapter());
       C2Registry.instance.register(new CobaltStrikeAdapter());
-      C2Registry.instance.register(new ManjusakaAdapter());
+      // ManjusakaAdapter deprecated per security review — not auto-registered
+      // C2Registry.instance.register(new ManjusakaAdapter());
     }
     return C2Registry.instance;
   }
@@ -2110,6 +2123,8 @@ export function getCobaltStrikeAdapter(): CobaltStrikeAdapter {
   return C2Registry.getInstance().get("cobaltstrike") as CobaltStrikeAdapter;
 }
 
+/** @deprecated Manjusaka adapter is deprecated per security review. Do not use in production engagements. */
 export function getManjusakaAdapter(): ManjusakaAdapter {
+  console.warn("[DEPRECATED] Manjusaka C2 adapter is deprecated per security review (REC-LEGAL-001). Do not use in production engagements.");
   return C2Registry.getInstance().get("manjusaka") as ManjusakaAdapter;
 }
