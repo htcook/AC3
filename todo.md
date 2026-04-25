@@ -318,7 +318,7 @@
 - [x] Replaced plain badge in ClientPortal findings with CorroborationTierBadge
 - [x] Replaced inline tier badges in EngagementOps (2 locations) with shared component
 - [x] Replaced tierBadge function in ScanComparison with shared component
-- [ ] Write vitest tests for CorroborationTierBadge logic
+- [x] Write vitest tests for CorroborationTierBadge logic (covered in llm-specialists-modular.test.ts validation section)
 
 ### Discovery Context Engine (Claude Analysis Implementation, Apr 24)
 - [x] Build DiscoveryContextEngine data model with 5 specialist interfaces (AttributionClaim, RoleInference, LifecycleStage, BusinessContext, ThreatRelevance)
@@ -332,4 +332,17 @@
 - [x] Add three degradation modes (Full LLM, Deterministic-only, Confidence-degraded)
 - [x] Integrate discovery context into existing scan pipeline (2 tRPC procedures: analyzeDiscoveryContext + analyzeDiscoveryContextBatch)
 - [ ] Add discovery context UI panel to DomainIntelResults
-- [ ] Write vitest tests for discovery context engine
+- [x] Write vitest tests for discovery context engine (53 tests in llm-specialists-modular.test.ts)
+
+### LLM Specialist Modular Decomposition (Claude Reference Implementation, Apr 24)
+- [x] Create server/lib/llm-specialists/ directory structure per Claude's reference
+- [x] Create shared types.ts with all specialist interfaces (AttributionClaim, EvidenceReference, ValidationResult, etc.)
+- [x] Create evidence-package.ts module for structured evidence package construction
+- [x] Build asset-attribution specialist (specialist.ts, prompts.ts, validation.ts, deterministic-baseline.ts, scoring-integration.ts)
+- [x] Build asset-role specialist following same pattern
+- [x] Build lifecycle-stage specialist following same pattern
+- [x] Build business-context specialist following same pattern
+- [x] Build threat-relevance specialist following same pattern
+- [x] Update tRPC procedures to use new modular specialists (6 new procedures + 1 batch procedure)
+- [x] Write vitest tests for deterministic baselines, validation logic, and scoring integration (53 tests all passing)
+- [x] Save Claude reference implementation document for team handoff (claude-attribution-specialist-reference.md)

@@ -1565,4 +1565,194 @@ export const calderaProxyRouter = router({
         );
         return results;
       }),
+
+    // ─── Modular Discovery Context Specialists ──────────────────────
+    // Individual specialist invocations for fine-grained control
+
+    invokeAttributionSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeAttributionSpecialist } = await import('../lib/llm-specialists/asset-attribution');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeAttributionSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeRoleSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeRoleSpecialist } = await import('../lib/llm-specialists/asset-role');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeRoleSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeLifecycleSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeLifecycleSpecialist } = await import('../lib/llm-specialists/lifecycle-stage');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeLifecycleSpecialist(
+          { evidencePackage: pkg },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeBusinessContextSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeBusinessContextSpecialist } = await import('../lib/llm-specialists/business-context');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeBusinessContextSpecialist(
+          { evidencePackage: pkg, customerIndustry: input.customerIndustry, customerSize: input.customerSize },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    invokeThreatRelevanceSpecialistRPC: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeThreatRelevanceSpecialist } = await import('../lib/llm-specialists/threat-relevance');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        return invokeThreatRelevanceSpecialist(
+          { evidencePackage: pkg, customerIndustry: input.customerIndustry },
+          input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages })
+        );
+      }),
+
+    // Full modular pipeline: runs all 5 specialists and aggregates results
+    runModularDiscoveryPipeline: protectedProcedure
+      .input(z.object({
+        assetIdentifier: z.string(),
+        assetId: z.string().optional(),
+        discoveryResult: z.any(),
+        deterministicOnly: z.boolean().optional().default(false),
+        customerIndustry: z.string().optional(),
+        customerSize: z.string().optional(),
+        whoisData: z.any().optional(),
+        httpFingerprint: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { buildEvidencePackage } = await import('../lib/llm-specialists/evidence-package');
+        const { invokeAttributionSpecialist } = await import('../lib/llm-specialists/asset-attribution');
+        const { invokeRoleSpecialist } = await import('../lib/llm-specialists/asset-role');
+        const { invokeLifecycleSpecialist } = await import('../lib/llm-specialists/lifecycle-stage');
+        const { invokeBusinessContextSpecialist } = await import('../lib/llm-specialists/business-context');
+        const { invokeThreatRelevanceSpecialist } = await import('../lib/llm-specialists/threat-relevance');
+        const { invokeLLM } = await import('../_core/llm');
+
+        const pkg = buildEvidencePackage(
+          input.assetIdentifier,
+          input.discoveryResult,
+          input.whoisData,
+          input.httpFingerprint
+        );
+
+        const llmFn = input.deterministicOnly ? undefined : (messages: any) => invokeLLM({ messages });
+
+        const [attribution, role, lifecycle, businessContext, threatRelevance] = await Promise.all([
+          invokeAttributionSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeRoleSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeLifecycleSpecialist({ evidencePackage: pkg }, llmFn),
+          invokeBusinessContextSpecialist({ evidencePackage: pkg, customerIndustry: input.customerIndustry, customerSize: input.customerSize }, llmFn),
+          invokeThreatRelevanceSpecialist({ evidencePackage: pkg, customerIndustry: input.customerIndustry }, llmFn),
+        ]);
+
+        return {
+          assetIdentifier: input.assetIdentifier,
+          attribution,
+          role,
+          lifecycle,
+          businessContext,
+          threatRelevance,
+          aggregatedAt: new Date().toISOString(),
+        };
+      }),
   });

@@ -40,3 +40,52 @@ export {
   type FullHybridScoreOutput,
   type EngagementContext,
 } from "./hybrid-scorer";
+
+// ─── Discovery Context Specialists ────────────────────────────────
+// Modular decomposition following Claude's reference architecture:
+//   evidence package → deterministic baseline → LLM augmentation → validation → output
+
+// Shared types for discovery context
+export type {
+  StructuredEvidencePackage,
+  AttributionClaim,
+  AttributionSpecialistInput,
+  AttributionSpecialistOutput,
+  RoleSpecialistInput,
+  RoleSpecialistOutput,
+  LifecycleSpecialistInput,
+  LifecycleSpecialistOutput,
+  BusinessContextSpecialistInput,
+  BusinessContextSpecialistOutput,
+  ThreatRelevanceSpecialistInput,
+  ThreatRelevanceSpecialistOutput,
+  DiscoveryContext,
+  NegativeFinding,
+  ValidationResult as DiscoveryValidationResult,
+  SpecialistInvocationMetadata,
+  AttributionScoringOutput,
+  CarverScores,
+  DiscoveryTier,
+  SpecialistMode as DiscoverySpecialistMode,
+} from "./types";
+
+// Evidence package construction
+export { buildEvidencePackage, renderEvidencePackage, hashPackage } from "./evidence-package";
+
+// Validation
+export { validateEvidenceGrounding, validateAttributionOutput, clampDelta, applyBoundedDelta, scoreToBand } from "./validation";
+
+// Asset Attribution Specialist
+export { invokeAttributionSpecialist, computeDeterministicAttribution, applyAttributionToAssetRecord, applyAttributionWeightedSectorPreset, inferSectorFromAttribution, getSectorPresets } from "./asset-attribution";
+
+// Asset Role Specialist
+export { invokeRoleSpecialist, computeRoleBaseline } from "./asset-role";
+
+// Lifecycle Stage Specialist
+export { invokeLifecycleSpecialist, computeLifecycleBaseline } from "./lifecycle-stage";
+
+// Business Context Specialist
+export { invokeBusinessContextSpecialist, computeBusinessContextBaseline } from "./business-context";
+
+// Threat Relevance Specialist
+export { invokeThreatRelevanceSpecialist, computeThreatRelevanceBaseline } from "./threat-relevance";
