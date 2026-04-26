@@ -5950,9 +5950,9 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       'broken-crystals': [
         // BC exposes DB creds via /api/config: postgres://bc:bc@db:5432/bc
         { username: "bc", password: "bc", service: "postgresql", loginPath: "/api/auth/login" },
-        // Default admin credentials for the application
-        { username: "admin", password: "admin", service: "http-post", loginPath: "/api/auth/login" },
-        { username: "john", password: "john", service: "http-post", loginPath: "/api/auth/login" },
+        // Default user credentials for the application
+        { username: "john@mail.com", password: "Admin123!", service: "http-post", loginPath: "/api/auth/login" },
+        { username: "admin@mail.com", password: "Admin123!", service: "http-post", loginPath: "/api/auth/login" },
       ],
     };
 
@@ -7019,6 +7019,10 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
     'altoro.lab.aceofcloud.io': {
       zapBaseUrl: 'http://altoro.lab.aceofcloud.io/altoromutual',
       skipPortScan: true, // Altoro Mutual runs under /altoromutual/ context path on Tomcat
+    },
+    'brokencrystals.lab.aceofcloud.io': {
+      zapBaseUrl: 'https://scan.aceofcloud.io/lab/broken-crystals',
+      skipPortScan: true, // Broken Crystals runs behind nginx reverse proxy
     },
   };
 
@@ -10239,6 +10243,28 @@ ${await (async () => {
         continue; // Already attempted this exploit in a previous run
       }
 
+      // ── Nuclei-verified exploit skip: don't re-test already-promoted vulns ──
+      // If this CVE/vuln was already promoted as a verified exploit by Nuclei,
+      // skip the exploitation attempt — it's already counted as a success.
+      if (asset) {
+        const { isNucleiPromotedExploit } = await import('./nuclei-exploit-promotion');
+        const matchingVuln = asset.vulns.find((v: any) =>
+          (cve && v.cve === cve) ||
+          (service && v.title?.toLowerCase().includes(service.toLowerCase())) ||
+          (module && v.title?.toLowerCase().includes(module.toLowerCase()))
+        );
+        if (matchingVuln && isNucleiPromotedExploit(matchingVuln)) {
+          addLog(state, {
+            phase: 'exploitation', type: 'info',
+            title: `⚡ Skip (Nuclei Promoted): ${target}:${port}`,
+            detail: `Skipping exploitation of ${cve || service || module} — already verified as successful exploit by Nuclei scan. Evidence: ${(matchingVuln as any).nucleiPromotionResult?.reason || 'verified'}`,
+          });
+          // Mark as completed so it's not retried on resume either
+          state.completedScans.exploitCompleted.add(exploitKey);
+          continue;
+        }
+      }
+
       // Request operator approval for exploitation
       const approved = await requestApproval(state, {
         phase: "exploitation",
@@ -10432,6 +10458,8 @@ ${await (async () => {
               if (h.includes('mutillidae')) return 'mutillidae';
               if (h.includes('crapi')) return 'crapi';
               if (h.includes('vampi')) return 'vampi';
+              if (h.includes('broken') || h.includes('brokencrystals')) return 'broken-crystals';
+              if (h.includes('dvga')) return 'dvga';
               return 'unknown-lab';
             })() : undefined,
             scanServerHost: scanServerHost || undefined,
@@ -12613,7 +12641,48 @@ export async function executeEngagement(
         }
       }
 
-      // Phase 6b: Social Engineering / Phishing (ROE-gated, optional)
+      // ═══ NUCLEI-VERIFIED EXPLOIT PROMOTION ═══
+      // Promote Nuclei findings that already demonstrate exploitation impact
+      // (data extraction, command execution, injection proof) to verified exploits.
+      // These are counted as exploit successes and skipped during the exploitation phase.
+      try {
+        const { promoteNucleiVerifiedExploits } = await import('./nuclei-exploit-promotion');
+        const promotionSummary = promoteNucleiVerifiedExploits(
+          state.assets as any,
+          state.stats,
+          (entry) => addLog(state, entry as any),
+        );
+
+        if (promotionSummary.totalPromoted > 0) {
+          addLog(state, {
+            phase: 'vuln_detection', type: 'phase_complete',
+            title: `⚡ Nuclei Exploit Promotion: ${promotionSummary.totalPromoted} finding(s) promoted`,
+            detail: `${promotionSummary.totalPromoted} Nuclei findings with demonstrated exploitation impact promoted to verified exploits.
+` +
+              `By category: ${Object.entries(promotionSummary.byCategory).map(([k, v]) => `${k}: ${v}`).join(', ')}
+` +
+              `By confidence: ${Object.entries(promotionSummary.byConfidence).map(([k, v]) => `${k}: ${v}`).join(', ')}
+` +
+              `Promoted: ${promotionSummary.promotedVulns.map(p => `${p.vulnTitle.slice(0, 60)} (${p.category})`).join('; ')}`,
+            data: { nucleiPromotion: promotionSummary },
+          });
+        } else {
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: '⚡ Nuclei Exploit Promotion: No findings qualified',
+            detail: 'No Nuclei findings met the promotion criteria for verified exploit status. All vulns will proceed to standard exploitation phase.',
+          });
+        }
+      } catch (promoErr: any) {
+        console.error('[NucleiPromotion] Promotion logic failed:', promoErr.message);
+        addLog(state, {
+          phase: 'vuln_detection', type: 'warning',
+          title: '⚠️ Nuclei Exploit Promotion Failed',
+          detail: `Promotion logic encountered an error: ${promoErr.message}. Proceeding without promotions.`,
+        });
+      }
+
+            // Phase 6b: Social Engineering / Phishing (ROE-gated, optional)
       // Only runs if social engineering is explicitly authorized in the ROE scope
       const roeScope = engagement.roeScope as any;
       const socialEngAuthorized = roeScope && typeof roeScope === 'object' && (

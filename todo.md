@@ -483,3 +483,24 @@
 - [x] Add frontend domain whitelist validation (useMemo with same approved patterns)
 - [x] Write 54 vitest tests for whitelist validator (extractHostname, isDomainWhitelisted, parseTargets, validateEngagementTargets, getSafetyWarning, whitelist integrity)
 - [x] Checkpoint and push to GitHub
+
+### Monitor Broken Crystals Engagement + Exploit Workflow Audit (Apr 26)
+- [ ] Monitor Broken Crystals engagement on prod for errors
+- [ ] Audit exploit pipeline: vuln-to-exploit selection, LLM exploit generation, execution flow
+- [ ] Identify why exploits are not succeeding (0 successful exploits across all engagements)
+- [ ] Fix exploit selection logic (vuln-to-exploit mapper)
+- [ ] Fix LLM exploit generation prompts and validation
+- [ ] Fix exploit execution and result verification
+- [ ] Ensure LLM can independently identify, create, and run exploits
+- [ ] Write vitest tests for exploit workflow fixes
+- [ ] Checkpoint and push to GitHub
+
+### Nuclei-Verified Exploit Promotion (Apr 26)
+- [x] Define criteria for Nuclei findings that qualify as verified exploits (data extraction, command execution, injection proof)
+- [x] Add nucleiVerifiedExploit flag to vuln findings in the orchestrator
+- [x] Implement promotion logic after Nuclei vuln detection that counts verified findings as exploit successes
+- [x] Update stats.exploitsSucceeded counter for promoted findings
+- [x] Add log entries for promoted exploits with evidence
+- [x] Update the exploitation phase to skip re-testing already-promoted vulns
+- [x] Write vitest tests for promotion logic (57 tests passing)
+- [x] Checkpoint and push to GitHub
