@@ -515,3 +515,13 @@
 - [ ] Re-run Broken Crystals engagement on prod to validate promotion + evidence capture (post-deploy)
 - [x] Write vitest tests for ZAP and Burp promotion logic (120 tests passing)
 - [x] Checkpoint and push to GitHub
+
+### Engagement Pipeline Scan Effectiveness Fix (Apr 26)
+- [x] Investigate how assets/targets are stored and recovered during server restarts (persistence is solid)
+- [x] Fix Nuclei URL generation in rerunFullPipeline to scan both HTTP and HTTPS with discovered ports
+- [x] Fix stats recalculation and asset count display after pipeline completion
+- [x] Fix same Nuclei URL issue in executeEngagement's vuln_detection phase
+- [x] Write vitest tests for the fixes (140 tests passing across 3 suites)
+- [ ] Deploy fix and re-run Broken Crystals engagement to validate
+- [ ] Verify promotion logic fires with actual scanner findings
+- [ ] Checkpoint and push to GitHub

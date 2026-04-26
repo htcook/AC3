@@ -2009,6 +2009,10 @@ export const engagementOpsRouter = router({
               }
             }
 
+            // ── Recalculate stats after Phase 1 (Passive Recon) ──
+            state!.stats.assetsDiscovered = state!.assets.length;
+            state!.stats.portsFound = state!.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);
+            state!.stats.hostsScanned = state!.assets.filter(a => a.status !== 'pending').length;
             // ── Persist after Phase 1 (Passive Recon) ──
             await persistOpsStateNow(input.engagementId).catch(() => {});
 
@@ -2282,8 +2286,22 @@ export const engagementOpsRouter = router({
 
                   addLog(state!, { phase: 'scanning', type: 'info', title: `\u{1f50d} Nuclei: ${asset.hostname}`, detail: nucleiCfg ? `Handoff config: ${nucleiCfg.rationale}` : 'Vulnerability templates (default config)...' });
                   try {
+                    // Build target URLs from discovered ports, fallback to both http+https
+                    const NUCLEI_INFRA_PORTS = new Set([1337, 31337, 8834, 9392, 5432, 3306, 27017, 6379]);
+                    const webPorts = (asset.ports || []).filter((p: any) =>
+                      (['http', 'https', 'http-proxy', 'http-alt'].includes(p.service) ||
+                      [80, 443, 8080, 8443, 8000, 3000, 5000].includes(p.port))
+                      && !NUCLEI_INFRA_PORTS.has(p.port)
+                    );
+                    const nucleiTargetUrls = webPorts.length > 0
+                      ? webPorts.map((p: any) => {
+                          const scheme = p.port === 443 || p.port === 8443 ? 'https' : 'http';
+                          return `${scheme}://${asset.hostname}:${p.port}`;
+                        })
+                      : [`http://${asset.hostname}`, `https://${asset.hostname}`];
                     // Use stdin piping to avoid nuclei hanging on PDCP TTY auth prompt
-                    const nucleiResult = await executeRawCommand(`echo "http://${asset.hostname}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
+                    const nucleiInput = nucleiTargetUrls.join('\n');
+                    const nucleiResult = await executeRawCommand(`echo "${nucleiInput}" | nuclei -severity ${nucleiSeverity} -jsonl -nc -duc -ni -timeout 20 -retries 2 -rate-limit ${nucleiRateLimit} -tags ${nucleiTags} ${nucleiCustomHeaders} 2>&1`, 300);
                     const findings = nucleiResult.stdout.split('\n').filter(Boolean).map((line: string) => {
                       try { return JSON.parse(line); } catch { return null; }
                     }).filter(Boolean);
@@ -2313,7 +2331,8 @@ export const engagementOpsRouter = router({
                     const scopeFlag = dc.crawlScope === 'strict' ? '' : dc.crawlScope === 'subdomain' ? `-cs ${asset.hostname}` : `-cs ${asset.hostname.split('.').slice(-2).join('.')}`;
                     const headlessFlag = dc.headless ? '-headless' : '';
                     const customHeaderFlags = dc.customHeaders ? Object.entries(dc.customHeaders).map(([k, v]) => `-H "${k}: ${v}"`).join(' ') : '';
-                    const dastCmd = `echo "http://${asset.hostname}" | nuclei -dast ${headlessFlag} -crawl-depth ${dc.crawlDepth} -crawl-duration ${dc.timeout * 2} -severity critical,high,medium -jsonl -nc -duc -ni -timeout ${dc.timeout} -rate-limit ${dc.rateLimit} -max-host-error 10 ${scopeFlag} ${customHeaderFlags} -system-resolvers 2>&1`;
+                    const dastInput = nucleiTargetUrls.join('\n');
+                    const dastCmd = `echo "${dastInput}" | nuclei -dast ${headlessFlag} -crawl-depth ${dc.crawlDepth} -crawl-duration ${dc.timeout * 2} -severity critical,high,medium -jsonl -nc -duc -ni -timeout ${dc.timeout} -rate-limit ${dc.rateLimit} -max-host-error 10 ${scopeFlag} ${customHeaderFlags} -system-resolvers 2>&1`;
                     const dastResult = await executeRawCommand(
                       dastCmd,
                       Math.max(180, dc.timeout * 3)
@@ -2421,6 +2440,11 @@ export const engagementOpsRouter = router({
                 // Restore phase to 'scanning' even on failure
                 state!.phase = 'scanning';
               }
+              // ── Recalculate stats after active + vuln scanning ──
+              state!.stats.vulnsFound = state!.assets.reduce((sum, a) => sum + (a.vulns || []).length, 0);
+              state!.stats.portsFound = state!.assets.reduce((sum, a) => sum + (a.ports || []).length, 0);
+              state!.stats.assetsDiscovered = state!.assets.length;
+              state!.stats.hostsScanned = state!.assets.filter(a => a.status !== 'pending').length;
               // ── Persist after ZAP + Burp scanning ──
               await persistOpsStateNow(input.engagementId).catch(() => {});
 

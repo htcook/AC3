@@ -6406,7 +6406,7 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
             const scheme = p.port === 443 || p.port === 8443 ? "https" : "http";
             return `${scheme}://${asset.hostname}:${p.port}`;
           })
-        : [asset.hostname];
+        : [`http://${asset.hostname}`, `https://${asset.hostname}`];
 
       // Build technology-aware nuclei tags from httpx-detected technologies
       const detectedTechs = asset.passiveRecon?.technologies || [];
@@ -6805,7 +6805,7 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
               const scheme = p.port === 443 || p.port === 8443 ? "https" : "http";
               return `${scheme}://${asset.hostname}:${p.port}`;
             })
-          : [asset.hostname];
+          : [`http://${asset.hostname}`, `https://${asset.hostname}`];
         const assetVulnKeys = existingVulnKeys.get(asset.hostname) || new Set();
         const target = getEffectiveTarget(asset, 'http');
         for (const url of nucleiTargetUrls) {
