@@ -522,6 +522,8 @@
 - [x] Fix stats recalculation and asset count display after pipeline completion
 - [x] Fix same Nuclei URL issue in executeEngagement's vuln_detection phase
 - [x] Write vitest tests for the fixes (140 tests passing across 3 suites)
+- [x] Fix ZAP scan fallback to scan both HTTP and HTTPS when no web ports discovered
+- [x] Fix Burp extractScopeUrls to include both HTTP and HTTPS for targetDomain and discovered assets
 - [ ] Deploy fix and re-run Broken Crystals engagement to validate
 - [ ] Verify promotion logic fires with actual scanner findings
 - [ ] Checkpoint and push to GitHub

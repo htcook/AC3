@@ -7129,11 +7129,24 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
     if (labZapUrl && !scannedTargetUrls.has(`zap-proxy-done:${labZapUrl.zapBaseUrl}`)) {
       scanTargets.push({ targetUrl: labZapUrl.zapBaseUrl, dedupKey: `zap-proxy-done:${labZapUrl.zapBaseUrl}` });
     } else if (!labZapUrl) {
-      for (const wp of filteredWebPorts) {
-        const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
-        const url = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
-        const key = `${webApp.hostname}:${wp.port}`;
-        scanTargets.push({ targetUrl: url, dedupKey: key });
+      if (filteredWebPorts.length > 0) {
+        for (const wp of filteredWebPorts) {
+          const protocol = wp.port === 443 || wp.port === 8443 || wp.service === "https" ? "https" : "http";
+          const url = `${protocol}://${webApp.hostname}${wp.port === 80 || wp.port === 443 ? "" : `:${wp.port}`}`;
+          const key = `${webApp.hostname}:${wp.port}`;
+          scanTargets.push({ targetUrl: url, dedupKey: key });
+        }
+      } else {
+        // Fallback: no web ports discovered, scan both HTTP and HTTPS
+        scanTargets.push(
+          { targetUrl: `http://${webApp.hostname}`, dedupKey: `${webApp.hostname}:80` },
+          { targetUrl: `https://${webApp.hostname}`, dedupKey: `${webApp.hostname}:443` },
+        );
+        addLog(state, {
+          phase: "vuln_detection", type: "info",
+          title: `ZAP Port Fallback: ${webApp.hostname}`,
+          detail: `No web ports discovered — scanning both http:// and https:// as fallback`,
+        });
       }
     }
 

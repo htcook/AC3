@@ -965,6 +965,7 @@ export function extractScopeUrls(engagement: any, opsState?: any): string[] {
   // From engagement targetDomain (construct URL)
   if (engagement.targetDomain) {
     urls.add(`https://${engagement.targetDomain}`);
+    urls.add(`http://${engagement.targetDomain}`);
   }
 
   // From report scope assets
@@ -983,6 +984,7 @@ export function extractScopeUrls(engagement: any, opsState?: any): string[] {
     for (const asset of opsState.assets) {
       if (asset.hostname) {
         urls.add(`https://${asset.hostname}`);
+        urls.add(`http://${asset.hostname}`);
       }
       if (asset.webApps) {
         for (const wa of asset.webApps) {
