@@ -71,6 +71,7 @@ import EngagementTerminal from "@/components/EngagementTerminal";
 import TestPlanGate from "@/components/TestPlanGate";
 import { CoverageQuality } from "@/components/CoverageQuality";
 import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
+import PromotedExploitsPanel from "@/components/PromotedExploitsPanel";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
 import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
@@ -2312,6 +2313,7 @@ export default function EngagementOps() {
                   { value: 'genexploits', label: 'Exploit Code', icon: <Bolt className="h-3 w-3" />, count: generatedExploitsQ.data?.length || 0 },
                   { value: 'ops-viewer', label: 'Ops Viewer', icon: <Network className="h-3 w-3" /> },
                   { value: 'evidence', label: 'Evidence', icon: <Shield className="h-3 w-3" />, count: 0 },
+                  { value: 'promoted', label: 'Promoted Exploits', icon: <Zap className="h-3 w-3" />, count: (ops?.assets || []).reduce((sum: number, a: any) => sum + (a.vulns || []).filter((v: any) => v.nucleiVerifiedExploit || v.scannerVerifiedExploit).length, 0) || 0 },
                   { value: 'toolrunner', label: 'Tool Runner', icon: <Terminal className="h-3 w-3" /> },
                 ],
               },
@@ -4426,6 +4428,13 @@ export default function EngagementOps() {
             <TabsContent value="evidence" className="flex-1 overflow-hidden m-0 px-6 pb-4">
               <ScrollArea className="h-[calc(100vh-280px)]">
                 <ExploitEvidencePanel engagementId={engagementId} />
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Promoted Exploits Tab ── */}
+            <TabsContent value="promoted" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <PromotedExploitsPanel assets={ops?.assets || []} stats={ops?.stats} />
               </ScrollArea>
             </TabsContent>
 

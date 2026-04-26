@@ -10243,21 +10243,23 @@ ${await (async () => {
         continue; // Already attempted this exploit in a previous run
       }
 
-      // ── Nuclei-verified exploit skip: don't re-test already-promoted vulns ──
-      // If this CVE/vuln was already promoted as a verified exploit by Nuclei,
+      // ── Scanner-verified exploit skip: don't re-test already-promoted vulns ──
+      // If this CVE/vuln was already promoted as a verified exploit by Nuclei/ZAP/Burp,
       // skip the exploitation attempt — it's already counted as a success.
       if (asset) {
-        const { isNucleiPromotedExploit } = await import('./nuclei-exploit-promotion');
+        const { isScannerPromotedExploit } = await import('./nuclei-exploit-promotion');
         const matchingVuln = asset.vulns.find((v: any) =>
           (cve && v.cve === cve) ||
           (service && v.title?.toLowerCase().includes(service.toLowerCase())) ||
           (module && v.title?.toLowerCase().includes(module.toLowerCase()))
         );
-        if (matchingVuln && isNucleiPromotedExploit(matchingVuln)) {
+        if (matchingVuln && isScannerPromotedExploit(matchingVuln)) {
+          const promoResult = (matchingVuln as any).promotionResult || (matchingVuln as any).nucleiPromotionResult;
+          const scannerName = promoResult?.scanner?.toUpperCase() || 'SCANNER';
           addLog(state, {
             phase: 'exploitation', type: 'info',
-            title: `⚡ Skip (Nuclei Promoted): ${target}:${port}`,
-            detail: `Skipping exploitation of ${cve || service || module} — already verified as successful exploit by Nuclei scan. Evidence: ${(matchingVuln as any).nucleiPromotionResult?.reason || 'verified'}`,
+            title: `⚡ Skip (${scannerName} Promoted): ${target}:${port}`,
+            detail: `Skipping exploitation of ${cve || service || module} — already verified as successful exploit by ${scannerName} scan. Evidence: ${promoResult?.reason || 'verified'}`,
           });
           // Mark as completed so it's not retried on resume either
           state.completedScans.exploitCompleted.add(exploitKey);
@@ -12641,43 +12643,42 @@ export async function executeEngagement(
         }
       }
 
-      // ═══ NUCLEI-VERIFIED EXPLOIT PROMOTION ═══
-      // Promote Nuclei findings that already demonstrate exploitation impact
-      // (data extraction, command execution, injection proof) to verified exploits.
+      // ═══ SCANNER-VERIFIED EXPLOIT PROMOTION (Nuclei + ZAP + Burp) ═══
+      // Promote findings from Nuclei, ZAP, and Burp that already demonstrate exploitation
+      // impact (data extraction, command execution, injection proof) to verified exploits.
       // These are counted as exploit successes and skipped during the exploitation phase.
       try {
-        const { promoteNucleiVerifiedExploits } = await import('./nuclei-exploit-promotion');
-        const promotionSummary = promoteNucleiVerifiedExploits(
+        const { promoteAllScannerExploits } = await import('./nuclei-exploit-promotion');
+        const promotionSummary = promoteAllScannerExploits(
           state.assets as any,
           state.stats,
           (entry) => addLog(state, entry as any),
         );
 
         if (promotionSummary.totalPromoted > 0) {
+          const scannerBreakdown = Object.entries(promotionSummary.byScanner || {}).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(', ');
           addLog(state, {
             phase: 'vuln_detection', type: 'phase_complete',
-            title: `⚡ Nuclei Exploit Promotion: ${promotionSummary.totalPromoted} finding(s) promoted`,
-            detail: `${promotionSummary.totalPromoted} Nuclei findings with demonstrated exploitation impact promoted to verified exploits.
-` +
-              `By category: ${Object.entries(promotionSummary.byCategory).map(([k, v]) => `${k}: ${v}`).join(', ')}
-` +
-              `By confidence: ${Object.entries(promotionSummary.byConfidence).map(([k, v]) => `${k}: ${v}`).join(', ')}
-` +
-              `Promoted: ${promotionSummary.promotedVulns.map(p => `${p.vulnTitle.slice(0, 60)} (${p.category})`).join('; ')}`,
-            data: { nucleiPromotion: promotionSummary },
+            title: `⚡ Scanner Exploit Promotion: ${promotionSummary.totalPromoted} finding(s) promoted`,
+            detail: `${promotionSummary.totalPromoted} scanner findings with demonstrated exploitation impact promoted to verified exploits.\n` +
+              `By scanner: ${scannerBreakdown}\n` +
+              `By category: ${Object.entries(promotionSummary.byCategory).map(([k, v]) => `${k}: ${v}`).join(', ')}\n` +
+              `By confidence: ${Object.entries(promotionSummary.byConfidence).map(([k, v]) => `${k}: ${v}`).join(', ')}\n` +
+              `Promoted: ${promotionSummary.promotedVulns.map(p => `${p.vulnTitle.slice(0, 50)} [${p.scanner}/${p.category}]`).join('; ')}`,
+            data: { scannerPromotion: promotionSummary },
           });
         } else {
           addLog(state, {
             phase: 'vuln_detection', type: 'info',
-            title: '⚡ Nuclei Exploit Promotion: No findings qualified',
-            detail: 'No Nuclei findings met the promotion criteria for verified exploit status. All vulns will proceed to standard exploitation phase.',
+            title: '⚡ Scanner Exploit Promotion: No findings qualified',
+            detail: 'No Nuclei/ZAP/Burp findings met the promotion criteria for verified exploit status. All vulns will proceed to standard exploitation phase.',
           });
         }
       } catch (promoErr: any) {
-        console.error('[NucleiPromotion] Promotion logic failed:', promoErr.message);
+        console.error('[ScannerPromotion] Promotion logic failed:', promoErr.message);
         addLog(state, {
           phase: 'vuln_detection', type: 'warning',
-          title: '⚠️ Nuclei Exploit Promotion Failed',
+          title: '⚠️ Scanner Exploit Promotion Failed',
           detail: `Promotion logic encountered an error: ${promoErr.message}. Proceeding without promotions.`,
         });
       }

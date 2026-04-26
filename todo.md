@@ -504,3 +504,14 @@
 - [x] Update the exploitation phase to skip re-testing already-promoted vulns
 - [x] Write vitest tests for promotion logic (57 tests passing)
 - [x] Checkpoint and push to GitHub
+
+### Exploit Promotion Enhancements (Apr 26)
+- [x] Expand promotion module to cover ZAP active scan findings with injection/extraction evidence
+- [x] Expand promotion module to cover Burp Suite findings with injection/extraction evidence
+- [x] Ensure evidence is captured and stored on promoted vulns (extractedDataPreview, category, confidence)
+- [x] Add "Promoted Exploits" UI section in EngagementOps showing promoted findings with evidence
+- [x] Add evidence detail cards with proof text, category badges, confidence indicators
+- [x] Wire ZAP/Burp promotion into orchestrator alongside Nuclei promotion
+- [ ] Re-run Broken Crystals engagement on prod to validate promotion + evidence capture (post-deploy)
+- [x] Write vitest tests for ZAP and Burp promotion logic (120 tests passing)
+- [x] Checkpoint and push to GitHub
