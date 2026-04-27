@@ -624,4 +624,11 @@
 - [x] Connect Bug Bounty Workspace to live engagement data (Import tab with adopt flow)
 - [x] Add sidebar navigation entries and routes for Finding Triage Queue
 - [x] Write vitest tests for new procedures — 26 tests (all passing)
+- [x] Checkpoint and push to GitHub
+
+### Bulk Triage & Engagement Selector Sprint (Apr 26)
+- [x] Add bulk triage actions to Finding Triage Queue (multi-select checkboxes, batch accept/reject/reclassify, bulk action bar)
+- [x] Single cross-training submission for bulk triage operations (batch outcomes with extractedPatterns)
+- [x] Add engagement selector dropdown to Bug Bounty Import tab (listActiveEngagements procedure, dropdown with type badges, manual fallback)
+- [x] Write vitest tests for new functionality — 15 tests (all passing)
 - [ ] Checkpoint and push to GitHub

@@ -1105,12 +1105,36 @@ function ImportFromEngagementTab({
   onAdopt: (f: any) => void;
   existingFindingIds: Set<string>;
 }) {
+  // Fetch active engagements for the dropdown
+  const engagementsQuery = trpc.vaBugBounty.listActiveEngagements.useQuery();
+  const engagements = engagementsQuery.data || [];
+  const [showManualInput, setShowManualInput] = useState(false);
+
   const severityColor: Record<string, string> = {
     critical: 'bg-red-500/10 text-red-400 border-red-500/30',
     high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
     medium: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     low: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
     info: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  };
+
+  const engagementTypeColors: Record<string, string> = {
+    pentest: 'bg-red-500/10 text-red-400 border-red-500/30',
+    vulnerability_assessment: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    bug_bounty: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    phishing: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    red_team: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+    purple_team: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+    tabletop: 'bg-green-500/10 text-green-400 border-green-500/30',
+  };
+
+  const handleSelectEngagement = (engId: string) => {
+    if (engId === '__manual__') {
+      setShowManualInput(true);
+      return;
+    }
+    setShowManualInput(false);
+    onEngagementIdChange(engId);
   };
 
   return (
@@ -1122,26 +1146,100 @@ function ImportFromEngagementTab({
             Import Findings from Engagement
           </CardTitle>
           <CardDescription>
-            Pull normalized findings from an existing engagement scan. Select findings to adopt into your
+            Select an active engagement to pull normalized findings. Choose findings to adopt into your
             Bug Bounty workspace, then add reproduction steps and impact analysis for submission.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter engagement ID (e.g., 42)"
-              value={engagementIdInput}
-              onChange={e => onEngagementIdChange(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && onImport()}
-              className="flex-1 max-w-xs"
-            />
-            <Button onClick={onImport} disabled={isImporting || !engagementIdInput.trim()} className="gap-2 bg-orange-600 hover:bg-orange-700">
-              {isImporting ? (
-                <><Loader2 className="h-4 w-4 animate-spin" />Importing...</>
-              ) : (
-                <><Download className="h-4 w-4" />Import Findings</>
-              )}
-            </Button>
+          {/* Engagement Selector Dropdown */}
+          <div className="space-y-3">
+            <Label className="text-xs font-medium text-muted-foreground">Select Engagement</Label>
+            <div className="flex gap-2">
+              <Select
+                value={engagementIdInput || undefined}
+                onValueChange={handleSelectEngagement}
+              >
+                <SelectTrigger className="flex-1 max-w-md h-9">
+                  <SelectValue placeholder={
+                    engagementsQuery.isLoading ? "Loading engagements..." : 
+                    engagements.length === 0 ? "No engagements found" :
+                    "Choose an engagement..."
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {engagements.map((eng: any) => (
+                    <SelectItem key={eng.id} value={String(eng.id)}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">#{eng.id}</span>
+                        <span className="text-muted-foreground">—</span>
+                        <span>{eng.name}</span>
+                        {eng.engagementType && (
+                          <Badge variant="outline" className={`text-[9px] ml-1 ${engagementTypeColors[eng.engagementType] || 'bg-gray-500/10 text-gray-400'}`}>
+                            {eng.engagementType.replace(/_/g, ' ')}
+                          </Badge>
+                        )}
+                        {eng.targetDomain && (
+                          <span className="text-[10px] text-muted-foreground ml-1 font-mono">{eng.targetDomain}</span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__manual__">
+                    <span className="text-muted-foreground">Enter ID manually...</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={onImport} disabled={isImporting || !engagementIdInput.trim()} className="gap-2 bg-orange-600 hover:bg-orange-700">
+                {isImporting ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Importing...</>
+                ) : (
+                  <><Download className="h-4 w-4" />Import Findings</>
+                )}
+              </Button>
+            </div>
+
+            {/* Manual ID input fallback */}
+            {showManualInput && (
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder="Enter engagement ID (e.g., 42)"
+                  value={engagementIdInput}
+                  onChange={e => onEngagementIdChange(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && onImport()}
+                  className="flex-1 max-w-xs h-8 text-sm"
+                  autoFocus
+                />
+                <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setShowManualInput(false)}>
+                  Back to dropdown
+                </Button>
+              </div>
+            )}
+
+            {/* Selected engagement info card */}
+            {engagementIdInput && !showManualInput && (() => {
+              const selected = engagements.find((e: any) => String(e.id) === engagementIdInput);
+              if (!selected) return null;
+              return (
+                <div className="flex items-center gap-3 p-2.5 rounded-lg border border-orange-500/20 bg-orange-500/5 text-xs">
+                  <div className="h-8 w-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-none">
+                    <Target className="h-4 w-4 text-orange-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-foreground">{selected.name}</div>
+                    <div className="flex items-center gap-2 text-muted-foreground mt-0.5">
+                      {selected.clientName && <span>{selected.clientName}</span>}
+                      {selected.targetDomain && <span className="font-mono">{selected.targetDomain}</span>}
+                      <Badge variant="outline" className={`text-[9px] ${engagementTypeColors[selected.engagementType] || ''}`}>
+                        {selected.engagementType?.replace(/_/g, ' ')}
+                      </Badge>
+                      <Badge variant="outline" className="text-[9px]">
+                        {selected.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {importedFindings.length > 0 && (

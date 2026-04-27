@@ -4,9 +4,11 @@
  * Analysts review normalized findings from any engagement, accept/reject/reclassify
  * them, and feed triage outcomes into the cross-training pipeline to improve
  * future scanner calibration and pattern recognition.
+ *
+ * Supports both individual and bulk triage actions with multi-select.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,7 +26,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, RefreshCw, Search, Filter,
   ArrowUpDown, Shield, Bug, Target, Eye, Layers, Brain, ChevronDown,
   ChevronRight, Fingerprint, Clock, ThumbsUp, ThumbsDown, Edit2,
-  BarChart3, Zap, Info, Send, Sparkles,
+  BarChart3, Zap, Info, Send, Sparkles, CheckSquare, Square, ListChecks,
 } from "lucide-react";
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -61,6 +64,13 @@ export default function FindingTriageQueue() {
   const [dialogSeverity, setDialogSeverity] = useState("medium");
   const [dialogNotes, setDialogNotes] = useState("");
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkDecision, setBulkDecision] = useState<TriageDecision>("true_positive");
+  const [bulkSeverity, setBulkSeverity] = useState("medium");
+  const [bulkNotes, setBulkNotes] = useState("");
+
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string | null>(null);
@@ -81,11 +91,13 @@ export default function FindingTriageQueue() {
     if (!isNaN(id) && id > 0) {
       setEngagementId(id);
       setTriaged(new Map());
+      setSelectedIds(new Set());
       normalizeMut.mutate({ engagementId: id });
     }
   };
 
-  // Quick triage actions
+  // ─── Individual triage actions ──────────────────────────────────────────────
+
   const quickAccept = (findingId: string) => {
     setTriaged(prev => {
       const next = new Map(prev);
@@ -141,7 +153,109 @@ export default function FindingTriageQueue() {
     setActiveDialog(null);
   };
 
-  // Submit all triage decisions to cross-training
+  // ─── Bulk triage actions ────────────────────────────────────────────────────
+
+  const getFindingId = useCallback((f: any) => f.findingId || f.fingerprint, []);
+
+  const toggleSelect = useCallback((fId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(fId)) next.delete(fId);
+      else next.add(fId);
+      return next;
+    });
+  }, []);
+
+  const selectAllVisible = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      filtered.forEach((f: any) => next.add(getFindingId(f)));
+      return next;
+    });
+  }, []);
+
+  const deselectAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const selectPending = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      filtered.forEach((f: any) => {
+        const fId = getFindingId(f);
+        if (!triaged.has(fId)) next.add(fId);
+      });
+      return next;
+    });
+  }, [triaged]);
+
+  const bulkQuickAccept = () => {
+    if (selectedIds.size === 0) return;
+    const now = Date.now();
+    setTriaged(prev => {
+      const next = new Map(prev);
+      selectedIds.forEach(fId => {
+        next.set(fId, { findingId: fId, decision: "true_positive", analystNotes: "", timestamp: now });
+      });
+      return next;
+    });
+    toast({
+      title: `${selectedIds.size} findings accepted`,
+      description: "Bulk marked as true positive",
+    });
+    setSelectedIds(new Set());
+  };
+
+  const bulkQuickReject = () => {
+    if (selectedIds.size === 0) return;
+    const now = Date.now();
+    setTriaged(prev => {
+      const next = new Map(prev);
+      selectedIds.forEach(fId => {
+        next.set(fId, { findingId: fId, decision: "false_positive", analystNotes: "", timestamp: now });
+      });
+      return next;
+    });
+    toast({
+      title: `${selectedIds.size} findings rejected`,
+      description: "Bulk marked as false positive",
+    });
+    setSelectedIds(new Set());
+  };
+
+  const openBulkDialog = () => {
+    if (selectedIds.size === 0) return;
+    setBulkDecision("true_positive");
+    setBulkSeverity("medium");
+    setBulkNotes("");
+    setBulkDialogOpen(true);
+  };
+
+  const submitBulkDialog = () => {
+    const now = Date.now();
+    setTriaged(prev => {
+      const next = new Map(prev);
+      selectedIds.forEach(fId => {
+        next.set(fId, {
+          findingId: fId,
+          decision: bulkDecision,
+          reclassifiedSeverity: bulkDecision === "reclassify" ? bulkSeverity : undefined,
+          analystNotes: bulkNotes,
+          timestamp: now,
+        });
+      });
+      return next;
+    });
+    toast({
+      title: `${selectedIds.size} findings ${bulkDecision === "reclassify" ? "reclassified" : bulkDecision.replace(/_/g, " ")}`,
+      description: bulkNotes ? `Note: ${bulkNotes.slice(0, 50)}...` : `Bulk triage applied to ${selectedIds.size} findings`,
+    });
+    setSelectedIds(new Set());
+    setBulkDialogOpen(false);
+  };
+
+  // ─── Submit all triage decisions to cross-training ──────────────────────────
+
   const submitToCrossTraining = () => {
     const outcomes = Array.from(triaged.values()).map(t => {
       const finding = findings.find((f: any) => (f.findingId || f.fingerprint) === t.findingId);
@@ -173,7 +287,8 @@ export default function FindingTriageQueue() {
     });
   };
 
-  // Filter and sort
+  // ─── Filter and sort ────────────────────────────────────────────────────────
+
   const filtered = useMemo(() => {
     let result = [...findings];
     if (searchQuery) {
@@ -233,6 +348,10 @@ export default function FindingTriageQueue() {
   const fpCount = Array.from(triaged.values()).filter(t => t.decision === "false_positive").length;
   const pendingCount = findings.length - triagedCount;
 
+  // Bulk selection helpers
+  const allVisibleSelected = filtered.length > 0 && filtered.every((f: any) => selectedIds.has(getFindingId(f)));
+  const someVisibleSelected = filtered.some((f: any) => selectedIds.has(getFindingId(f)));
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -245,8 +364,8 @@ export default function FindingTriageQueue() {
         </h2>
         <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
           Review normalized findings from engagement scans. Accept true positives, reject false positives,
-          or reclassify severity. Triage decisions feed into the cross-training pipeline to improve future
-          scanner accuracy and pattern recognition.
+          or reclassify severity. Use checkboxes for bulk triage. Triage decisions feed into the cross-training
+          pipeline to improve future scanner accuracy and pattern recognition.
         </p>
       </div>
 
@@ -342,9 +461,85 @@ export default function FindingTriageQueue() {
         </div>
       )}
 
+      {/* Bulk Action Bar — appears when items are selected */}
+      {selectedIds.size > 0 && (
+        <Card className="border-violet-500/30 bg-violet-500/5 sticky top-0 z-10">
+          <CardContent className="py-3 px-5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4 text-violet-400" />
+                <span className="text-sm font-medium text-foreground">
+                  {selectedIds.size} finding{selectedIds.size !== 1 ? "s" : ""} selected
+                </span>
+              </div>
+              <div className="h-4 w-px bg-border/50" />
+              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 text-green-400 hover:text-green-300 hover:bg-green-500/10" onClick={bulkQuickAccept}>
+                <ThumbsUp className="h-3.5 w-3.5" />
+                Accept All
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={bulkQuickReject}>
+                <ThumbsDown className="h-3.5 w-3.5" />
+                Reject All
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10" onClick={openBulkDialog}>
+                <Edit2 className="h-3.5 w-3.5" />
+                Detailed Bulk Triage
+              </Button>
+              <div className="h-4 w-px bg-border/50" />
+              <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={deselectAll}>
+                Clear Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search and Filter Controls */}
       {findings.length > 0 && (
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Select all / pending controls */}
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => allVisibleSelected ? deselectAll() : selectAllVisible()}
+                >
+                  {allVisibleSelected ? (
+                    <CheckSquare className="h-4 w-4 text-violet-400" />
+                  ) : someVisibleSelected ? (
+                    <div className="relative">
+                      <Square className="h-4 w-4 text-muted-foreground" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-2 w-2 bg-violet-400 rounded-sm" />
+                      </div>
+                    </div>
+                  ) : (
+                    <Square className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{allVisibleSelected ? "Deselect all" : "Select all visible"}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  onClick={selectPending}
+                  disabled={pendingCount === 0}
+                >
+                  <Clock className="h-3 w-3" />
+                  Select Pending ({pendingCount})
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Select all un-triaged findings</TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="h-4 w-px bg-border/50" />
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -390,14 +585,16 @@ export default function FindingTriageQueue() {
         <ScrollArea className="h-[calc(100vh-480px)]">
           <div className="space-y-2">
             {filtered.map((f: any) => {
-              const fId = f.findingId || f.fingerprint;
+              const fId = getFindingId(f);
               const triageState = triaged.get(fId);
               const isExpanded = expandedFindings.has(fId);
+              const isSelected = selectedIds.has(fId);
 
               return (
                 <Card
                   key={fId}
                   className={`border-border/30 transition-colors ${
+                    isSelected ? "ring-1 ring-violet-500/40 bg-violet-500/5" :
                     triageState?.decision === "true_positive" ? "bg-green-500/5 border-green-500/20" :
                     triageState?.decision === "false_positive" ? "bg-red-500/5 border-red-500/20" :
                     triageState?.decision === "reclassify" ? "bg-yellow-500/5 border-yellow-500/20" :
@@ -406,6 +603,15 @@ export default function FindingTriageQueue() {
                 >
                   <CardContent className="p-3">
                     <div className="flex items-start gap-3">
+                      {/* Checkbox for bulk selection */}
+                      <div className="flex-none mt-0.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(fId)}
+                          className="data-[state=checked]:bg-violet-500 data-[state=checked]:border-violet-500"
+                        />
+                      </div>
+
                       {/* Expand toggle */}
                       <button onClick={() => toggleExpanded(fId)} className="mt-0.5 flex-none">
                         {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
@@ -580,7 +786,7 @@ export default function FindingTriageQueue() {
         </Card>
       )}
 
-      {/* Triage Dialog */}
+      {/* Individual Triage Dialog */}
       <Dialog open={!!activeDialog} onOpenChange={open => !open && setActiveDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -634,6 +840,91 @@ export default function FindingTriageQueue() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setActiveDialog(null)}>Cancel</Button>
             <Button onClick={submitTriageDialog}>Submit Triage</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Triage Dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <ListChecks className="h-5 w-5 text-violet-400" />
+              Bulk Triage — {selectedIds.size} Finding{selectedIds.size !== 1 ? "s" : ""}
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              Apply the same triage decision to all {selectedIds.size} selected findings. This will
+              overwrite any existing individual triage decisions for these findings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Decision</label>
+              <Select value={bulkDecision} onValueChange={v => setBulkDecision(v as TriageDecision)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true_positive">True Positive</SelectItem>
+                  <SelectItem value="false_positive">False Positive</SelectItem>
+                  <SelectItem value="reclassify">Reclassify Severity</SelectItem>
+                  <SelectItem value="needs_review">Needs Further Review</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {bulkDecision === "reclassify" && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">New Severity</label>
+                <Select value={bulkSeverity} onValueChange={setBulkSeverity}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="info">Info</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Analyst Notes (applied to all)</label>
+              <Textarea
+                placeholder="Optional notes applied to all selected findings..."
+                value={bulkNotes}
+                onChange={e => setBulkNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+            {/* Preview of selected findings */}
+            <div className="bg-background/50 rounded-lg border border-border/30 p-3 max-h-32 overflow-y-auto">
+              <div className="text-xs text-muted-foreground mb-1.5">Selected findings:</div>
+              <div className="space-y-1">
+                {Array.from(selectedIds).slice(0, 10).map(fId => {
+                  const f = findings.find((f: any) => getFindingId(f) === fId);
+                  return f ? (
+                    <div key={fId} className="flex items-center gap-2 text-xs">
+                      <Badge variant="outline" className={`${SEVERITY_COLORS[f.severity] || SEVERITY_COLORS.info} text-[9px] px-1`}>
+                        {f.severity}
+                      </Badge>
+                      <span className="truncate text-foreground/80">{f.title}</span>
+                    </div>
+                  ) : null;
+                })}
+                {selectedIds.size > 10 && (
+                  <div className="text-xs text-muted-foreground">...and {selectedIds.size - 10} more</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBulkDialogOpen(false)}>Cancel</Button>
+            <Button onClick={submitBulkDialog} className="gap-2">
+              <ListChecks className="h-4 w-4" />
+              Apply to {selectedIds.size} Finding{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

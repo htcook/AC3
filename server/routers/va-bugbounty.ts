@@ -384,6 +384,33 @@ export const vaBugBountyRouter = router({
       return toolTracker.getEffectivenessSummary();
     }),
 
+  // ─── Active Engagements Listing (for dropdowns) ───────────────────────────
+
+  /**
+   * List active engagements with basic info for dropdown selectors.
+   * Used by the Bug Bounty Import tab and Triage Queue to browse engagements
+   * instead of requiring users to type IDs manually.
+   */
+  listActiveEngagements: protectedProcedure
+    .query(async ({ ctx }) => {
+      try {
+        const db = await import('../db.js');
+        const engagements = await db.getEngagements(ctx.user);
+        // Return a simplified list suitable for dropdown selectors
+        return (engagements || []).map((e: any) => ({
+          id: e.id,
+          name: e.name || e.clientName || `Engagement #${e.id}`,
+          clientName: e.clientName || '',
+          engagementType: e.engagementType || 'pentest',
+          status: e.status || 'active',
+          targetDomain: e.targetDomain || '',
+          createdAt: e.createdAt,
+        })).filter((e: any) => e.status !== 'archived');
+      } catch {
+        return [];
+      }
+    }),
+
   // ─── Engagement-to-BugBounty Bridge ───────────────────────────────────────
 
   /**
