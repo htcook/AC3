@@ -3953,6 +3953,36 @@ export default function EngagementOps() {
                                   </div>
                                 </div>
                               ))}
+                              {/* Provision Now Button */}
+                              <div className="pt-2 border-t border-amber-500/10">
+                                <button
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-sm font-medium transition-all hover:shadow-lg hover:shadow-amber-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  onClick={async () => {
+                                    if (!engagement?.id) return;
+                                    const btn = document.activeElement as HTMLButtonElement;
+                                    if (btn) { btn.disabled = true; btn.textContent = 'Provisioning...'; }
+                                    try {
+                                      for (let i = 0; i < buildReqs.length; i++) {
+                                        await (trpc as any).engagementOps.provisionAsset.mutate({
+                                          engagementId: engagement.id,
+                                          assetIndex: i,
+                                          repoUrl: buildReqs[i]?.acquisitionMethod,
+                                        });
+                                      }
+                                      if (btn) { btn.textContent = '\u2705 Provisioned'; btn.classList.replace('bg-amber-500/20', 'bg-green-500/20'); btn.classList.replace('border-amber-500/40', 'border-green-500/40'); btn.classList.replace('text-amber-300', 'text-green-300'); }
+                                    } catch (err: any) {
+                                      if (btn) { btn.disabled = false; btn.textContent = '\u274C Failed \u2014 Retry'; btn.classList.replace('bg-amber-500/20', 'bg-red-500/20'); btn.classList.replace('border-amber-500/40', 'border-red-500/40'); btn.classList.replace('text-amber-300', 'text-red-300'); }
+                                      console.error('Provision failed:', err);
+                                    }
+                                  }}
+                                >
+                                  <Rocket className="h-4 w-4" />
+                                  Provision Now \u2014 Clone, Build & Deploy All Assets
+                                </button>
+                                <p className="text-[10px] text-muted-foreground text-center mt-1.5">
+                                  Runs on the scan server via SSH. Requires Docker and network access to the source repository.
+                                </p>
+                              </div>
                             </CardContent>
                           </Card>
                         )}
@@ -3979,6 +4009,33 @@ export default function EngagementOps() {
                                     <code className="text-[10px] text-muted-foreground/70 hidden lg:block">{tr.installCommand}</code>
                                   </div>
                                 ))}
+                              </div>
+                              {/* Install Tools Button */}
+                              <div className="pt-2 mt-2 border-t border-cyan-500/10">
+                                <button
+                                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-sm font-medium transition-all hover:shadow-lg hover:shadow-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  onClick={async () => {
+                                    if (!engagement?.id) return;
+                                    const btn = document.activeElement as HTMLButtonElement;
+                                    if (btn) { btn.disabled = true; btn.textContent = 'Installing tools...'; }
+                                    try {
+                                      await (trpc as any).engagementOps.provisionAsset.mutate({
+                                        engagementId: engagement.id,
+                                        repoUrl: 'install-tools',
+                                      });
+                                      if (btn) { btn.textContent = '\u2705 Tools Installed'; btn.classList.replace('bg-cyan-500/20', 'bg-green-500/20'); btn.classList.replace('border-cyan-500/40', 'border-green-500/40'); btn.classList.replace('text-cyan-300', 'text-green-300'); }
+                                    } catch (err: any) {
+                                      if (btn) { btn.disabled = false; btn.textContent = '\u274C Failed \u2014 Retry'; btn.classList.replace('bg-cyan-500/20', 'bg-red-500/20'); btn.classList.replace('border-cyan-500/40', 'border-red-500/40'); btn.classList.replace('text-cyan-300', 'text-red-300'); }
+                                      console.error('Tool install failed:', err);
+                                    }
+                                  }}
+                                >
+                                  <Wrench className="h-4 w-4" />
+                                  Install All Required Tools on Scan Server
+                                </button>
+                                <p className="text-[10px] text-muted-foreground text-center mt-1.5">
+                                  Installs {toolReqs.filter((t: any) => t.required).length} required tool(s) via SSH on the scan server.
+                                </p>
                               </div>
                             </CardContent>
                           </Card>

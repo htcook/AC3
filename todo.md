@@ -665,3 +665,10 @@
 - [x] Update engagement builder LLM prompt to output buildRequirements and toolRequirements
 - [x] Add provisioning status display to ops page (build progress, tool install status)
 - [x] Write vitest tests for both provisioner modules (17 tests passing)
+
+### Verification & Provision Now Button (Apr 27)
+- [x] Re-generate Broken Crystals report and verify corrected executive summary, evidence counters, deduplication
+- [x] Create new Node.js bug bounty engagement to test scope loading and build requirements — updated whitelist, source code detection, engagement-orchestrator
+- [x] Add "Provision Now" button to Build & Deploy Requirements card on ops page
+- [x] Create tRPC mutation for triggering asset provisioning from the UI (engagementOps.provisionAsset)
+- [x] Write tests for the new provision mutation (20 tests passing — source code detection, whitelist, provisioner exports, exploit status resolution, deduplication)

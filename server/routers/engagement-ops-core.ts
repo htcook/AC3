@@ -4387,15 +4387,122 @@ Return ONLY a JSON object with vulnerabilities array.`;
       let state = getOpsState(input.engagementId);
       if (!state) state = await getOpsStateWithRecovery(input.engagementId);
       if (!state?.manualFindings) throw new Error('No manual findings found');
-
       const finding = state.manualFindings.find(f => f.id === input.findingId);
       if (!finding) throw new Error('Finding not found');
-
       const idx = finding.evidence.findIndex((e: any) => e.id === input.evidenceId);
       if (idx === -1) throw new Error('Evidence not found');
       finding.evidence.splice(idx, 1);
       finding.updatedAt = Date.now();
-
       return { success: true };
+    }),
+
+  /** Provision a buildable asset (clone, build, deploy to Docker on scan server) */
+  provisionAsset: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      assetIndex: z.number().optional(),
+      repoUrl: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const dbConn = await db.getDb();
+      if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+      const { getOpsState, getOpsStateWithRecovery, addLog, broadcastOpsUpdate } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new Error('Engagement ops state not found');
+
+      // Get build requirements from ROE scope
+      const engagement = await db.getEngagementById(input.engagementId);
+      if (!engagement) throw new Error('Engagement not found');
+      let roeData: any = {};
+      try { roeData = JSON.parse(engagement.roeScope || '{}'); } catch {}
+      const buildReqs = roeData.buildRequirements || [];
+
+      // Determine which asset to provision
+      const targetReq = input.assetIndex !== undefined ? buildReqs[input.assetIndex] : buildReqs[0];
+      const repoUrl = input.repoUrl || targetReq?.acquisitionMethod || '';
+
+      if (!repoUrl) throw new Error('No repository URL or acquisition method found for provisioning');
+
+      addLog(state, {
+        phase: state.phase || 'idle',
+        type: 'info',
+        title: '\uD83D\uDE80 Asset Provisioning Started',
+        detail: `Initiating build & deploy pipeline for: ${targetReq?.assetName || repoUrl}\n` +
+          `Repository: ${repoUrl}\n` +
+          `Dependencies: ${(targetReq?.dependencies || []).join(', ') || 'auto-detect'}`,
+      });
+      broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+
+      // Import and run the asset provisioner
+      try {
+        const { provisionSourceCodeAsset } = await import('../lib/asset-provisioner');
+        const result = await provisionSourceCodeAsset({
+          engagementId: input.engagementId,
+          repoUrl,
+          assetName: targetReq?.assetName || 'unknown',
+          buildInstructions: targetReq?.buildInstructions || [],
+          deployInstructions: targetReq?.deployInstructions || [],
+          dependencies: targetReq?.dependencies || [],
+        });
+
+        if (result.success) {
+          addLog(state, {
+            phase: state.phase || 'idle',
+            type: 'info',
+            title: '\u2705 Asset Provisioned Successfully',
+            detail: `${targetReq?.assetName || 'Asset'} is now running at ${result.deployedUrl || result.containerName || 'local container'}.\n` +
+              `Container: ${result.containerName || 'N/A'}\n` +
+              `Build time: ${result.buildTimeMs ? Math.round(result.buildTimeMs / 1000) + 's' : 'N/A'}`,
+          });
+
+          // Update the asset in ops state if it exists
+          if (result.deployedUrl) {
+            const existingAsset = state.assets.find((a: any) => a.type === 'source_code' || a.hostname?.includes(targetReq?.assetName?.toLowerCase()));
+            if (existingAsset) {
+              (existingAsset as any).deployedUrl = result.deployedUrl;
+              (existingAsset as any).containerName = result.containerName;
+              existingAsset.status = 'scanned';
+            }
+            // Also add the deployed URL as a new scannable asset
+            const deployedHostname = new URL(result.deployedUrl).hostname;
+            if (!state.assets.find(a => a.hostname === deployedHostname)) {
+              state.assets.push({
+                hostname: deployedHostname,
+                type: 'web_app',
+                ports: [{ port: parseInt(new URL(result.deployedUrl).port) || 80, service: 'http', state: 'open' }],
+                vulns: [],
+                pendingVulns: [],
+                zapFindings: [],
+                exploitAttempts: [],
+                confirmedCredentials: [],
+                toolResults: [],
+                status: 'pending',
+              });
+            }
+          }
+        } else {
+          addLog(state, {
+            phase: state.phase || 'idle',
+            type: 'error',
+            title: '\u274C Asset Provisioning Failed',
+            detail: `Failed to provision ${targetReq?.assetName || 'asset'}: ${result.error || 'Unknown error'}\n` +
+              `Check scan server connectivity and Docker availability.`,
+          });
+        }
+
+        broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+        return result;
+      } catch (err: any) {
+        addLog(state, {
+          phase: state.phase || 'idle',
+          type: 'error',
+          title: '\u274C Provisioning Error',
+          detail: `Unexpected error during provisioning: ${err.message}`,
+        });
+        broadcastOpsUpdate(input.engagementId, { type: 'log_update' });
+        return { success: false, error: err.message };
+      }
     }),
   });

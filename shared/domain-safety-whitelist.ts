@@ -45,7 +45,42 @@ export const WHITELISTED_DOMAINS: readonly string[] = [
 
   // Nmap official scan target
   "scanme.nmap.org",
+
+  // Source code hosting platforms (for bug bounty source code audits)
+  "github.com",
+  "gitlab.com",
+  "bitbucket.org",
+  "codeberg.org",
+  "sr.ht",
 ] as const;
+
+// ─── Source Code Hosting Platforms ─────────────────────────────────────────
+// Domains that host source code repositories. When these appear as targets,
+// the asset should be treated as a source code audit (download & build)
+// rather than a live web application scan.
+
+export const SOURCE_CODE_HOSTS: readonly string[] = [
+  "github.com",
+  "gitlab.com",
+  "bitbucket.org",
+  "codeberg.org",
+  "sr.ht",
+] as const;
+
+/**
+ * Check if a target URL/domain is a source code repository.
+ * Returns the repo URL if it is, null otherwise.
+ */
+export function isSourceCodeTarget(target: string): { isSourceCode: boolean; repoUrl?: string; host?: string } {
+  const hostname = extractHostname(target);
+  const isSourceCode = SOURCE_CODE_HOSTS.some(h => hostname === h || hostname.endsWith(`.${h}`));
+  if (isSourceCode) {
+    // Normalize to full URL
+    const repoUrl = target.includes('://') ? target : `https://${target}`;
+    return { isSourceCode: true, repoUrl, host: hostname };
+  }
+  return { isSourceCode: false };
+}
 
 // ─── Approved Test Lab IPs ──────────────────────────────────────────────────
 // IP addresses of AC3-owned test infrastructure.

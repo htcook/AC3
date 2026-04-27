@@ -91,7 +91,7 @@ import {
 import { retryWithBackoff, isRetryableError } from "./api-resilience";
 import { getOwaspTracker, resetOwaspTracker } from "./owasp-coverage-tracker";
 import { getSafetyEngine, clearSafetyEngine, type SafetyLevel } from "./safety-engine";
-import { validateEngagementTargets } from "../../shared/domain-safety-whitelist";
+import { validateEngagementTargets, isSourceCodeTarget } from "../../shared/domain-safety-whitelist";
 import { captureCalderaEvidence, type CalderaEvidenceSnapshot } from "./caldera-evidence-collector";
 import {
   evidenceGate,
@@ -2694,18 +2694,41 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
   // Initialize assets from scope
   for (const domain of domains) {
     if (!state.assets.find(a => a.hostname === domain)) {
-      state.assets.push({
-        hostname: domain,
-        type: "unknown",
-        ports: [],
-        vulns: [],
-        pendingVulns: [],
-        zapFindings: [],
-        exploitAttempts: [],
-        confirmedCredentials: [],
-        toolResults: [],
-        status: "pending",
-      });
+      const sourceCheck = isSourceCodeTarget(domain);
+      if (sourceCheck.isSourceCode) {
+        // Source code repository — mark as source_code type, not a scannable domain
+        state.assets.push({
+          hostname: domain,
+          type: "source_code",
+          ports: [],
+          vulns: [],
+          pendingVulns: [],
+          zapFindings: [],
+          exploitAttempts: [],
+          confirmedCredentials: [],
+          toolResults: [],
+          status: "pending",
+          sourceCodeUrl: sourceCheck.repoUrl,
+        } as any);
+        addLog(state, {
+          phase: "recon", type: "info",
+          title: "\uD83D\uDCE6 Source Code Asset Detected",
+          detail: `${domain} is a source code repository. This asset requires download and local build before testing. Use the Build & Deploy panel in RoE & Scope to provision the test environment.`,
+        });
+      } else {
+        state.assets.push({
+          hostname: domain,
+          type: "unknown",
+          ports: [],
+          vulns: [],
+          pendingVulns: [],
+          zapFindings: [],
+          exploitAttempts: [],
+          confirmedCredentials: [],
+          toolResults: [],
+          status: "pending",
+        });
+      }
     }
   }
   for (const ip of ipRanges) {
