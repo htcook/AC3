@@ -631,4 +631,4 @@
 - [x] Single cross-training submission for bulk triage operations (batch outcomes with extractedPatterns)
 - [x] Add engagement selector dropdown to Bug Bounty Import tab (listActiveEngagements procedure, dropdown with type badges, manual fallback)
 - [x] Write vitest tests for new functionality — 15 tests (all passing)
-- [ ] Checkpoint and push to GitHub
+- [x] Checkpoint and push to GitHub
