@@ -640,3 +640,28 @@
 - [x] Fix useAuth import paths (FindingTriageQueue.tsx, CustomerPortalSelfService.tsx)
 - [x] Fix listVerificationProfiles returning partial data (now returns full profile objects)
 - [x] Fix VA Wizard type mismatch (scannerConfig.enabledScanners → getEnabledScanners helper)
+
+### Broken Crystals Report & Node.js Engagement Fixes (Apr 27)
+- [x] Fix exploit status contradiction: exploitation_attempts with ea_status=failed but shell_obtained=1 should resolve correctly
+- [x] Fix evidence summary counter bug in report generation
+- [x] Fix report generation to determine exploit success from shell_obtained + ea_access_level fields
+- [x] Add finding deduplication logic to prevent duplicate .env/config findings in reports
+- [x] Add false positive CVE detection for mismatched software (e.g. Qlik Sense CVEs on non-Qlik targets)
+- [x] Fix HackerOne scope loading: pulls hackerone.com instead of actual program in-scope assets
+- [x] Fix Node.js engagement 1830002 targetDomain and scope data
+
+### Buildable Asset Detection & Requirements (Apr 27)
+- [x] Detect SOURCE_CODE and DOWNLOADABLE_EXECUTABLES asset types in engagement builder
+- [x] Generate build/test requirements (clone, build, deploy locally) in engagement plan
+- [x] Include program sponsor's build instructions from HackerOne scope instructions in ROE
+- [x] Display build requirements banner/section on ops page for non-URL assets
+- [x] Differentiate scan pipeline behavior for buildable vs live-URL assets
+
+### Auto-Build Pipeline & Dynamic Tooling Provisioner (Apr 27)
+- [x] Create asset-provisioner.ts module (clone/download, detect build system, build, deploy to Docker)
+- [x] Create tooling-provisioner.ts module (LLM analyzes program requirements → determines needed tools → installs) — integrated into engagement-builder.ts
+- [x] Add provisioning DB tables — using engagement_timeline_events with metadata type=build_requirement/tool_requirements
+- [x] Integrate provisioners into engagement builder createEngagement flow
+- [x] Update engagement builder LLM prompt to output buildRequirements and toolRequirements
+- [x] Add provisioning status display to ops page (build progress, tool install status)
+- [x] Write vitest tests for both provisioner modules (17 tests passing)

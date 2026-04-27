@@ -28,6 +28,24 @@ import { eq, and, sql, desc } from "drizzle-orm";
 
 // ─── Types ───
 
+// Asset types that require local download, build, and deployment before testing
+const BUILDABLE_ASSET_TYPES = new Set([
+  'SOURCE_CODE',
+  'DOWNLOADABLE_EXECUTABLES',
+  'HARDWARE',
+  'SMART_CONTRACT',
+]);
+
+// Asset types that can be scanned directly over the network
+const SCANNABLE_ASSET_TYPES = new Set([
+  'URL',
+  'DOMAIN',
+  'WILDCARD',
+  'IP_ADDRESS',
+  'CIDR',
+  'API',
+]);
+
 export interface EngagementPreview {
   programName: string;
   programHandle: string;
@@ -48,6 +66,9 @@ export interface EngagementPreview {
     assetCategories: Record<string, number>;
   };
 
+  /** Build/deploy requirements for non-URL assets (source code, executables, etc.) */
+  buildRequirements?: BuildRequirement[];
+
   testEnvironment: {
     infrastructure: string;
     primaryLab: string;
@@ -63,12 +84,44 @@ export interface EngagementPreview {
   successMetrics: Record<string, string>;
 }
 
+export interface BuildRequirement {
+  assetName: string;
+  assetType: string;
+  /** How to obtain the asset (git clone URL, download link, etc.) */
+  acquisitionMethod: string;
+  /** Build/compile instructions from program sponsor or inferred */
+  buildInstructions: string[];
+  /** Local deployment instructions (Docker, VM, etc.) */
+  deployInstructions: string[];
+  /** Dependencies required (language runtimes, databases, etc.) */
+  dependencies: string[];
+  /** Program sponsor's original instructions (from HackerOne scope instruction field) */
+  sponsorInstructions?: string;
+  /** Whether the asset can also be tested via a hosted instance */
+  hasHostedInstance: boolean;
+  /** Hosted instance URL if available */
+  hostedInstanceUrl?: string;
+}
+
 export interface ScopeAsset {
   name: string;
   type: string; // SOURCE_CODE, URL, DOMAIN, OTHER, DOWNLOADABLE_EXECUTABLES, etc.
   tier: "critical" | "high" | "medium" | "low";
   description: string;
   eligibleForBounty: boolean;
+  /** Whether this asset requires local build/deploy before testing */
+  requiresBuild?: boolean;
+  /** Program sponsor's testing instructions for this specific asset */
+  sponsorInstruction?: string;
+}
+
+export interface ToolRequirement {
+  tool: string;
+  installCommand: string;
+  purpose: string;
+  category: 'SAST' | 'DAST' | 'fuzzer' | 'linter' | 'dependency_audit' | 'custom';
+  required: boolean;
+  alternatives: string[];
 }
 
 export interface EngagementPhase {
@@ -158,19 +211,97 @@ export async function buildEngagementPreview(input: {
     programUrl = programData.program.url || `https://hackerone.com/${programHandle}`;
   }
 
-  // 2. Fetch program page for additional context
+  // 2. If we have a program but no scopes in DB, try fetching from HackerOne API directly
+  if (programData && (!programData.scopes || programData.scopes.length === 0) && platform === 'hackerone' && programHandle) {
+    try {
+      console.log(`[EngagementBuilder] No scopes in DB for ${programHandle}, fetching from HackerOne API...`);
+      const h1Username = process.env.HACKERONE_API_USERNAME || process.env.HACKERONE_API_KEY?.split(':')[0];
+      const h1Token = process.env.HACKERONE_API_KEY?.includes(':') 
+        ? process.env.HACKERONE_API_KEY.split(':').slice(1).join(':')
+        : process.env.HACKERONE_API_KEY;
+      
+      if (h1Username && h1Token) {
+        const headers: Record<string, string> = {
+          Accept: 'application/json',
+          Authorization: 'Basic ' + Buffer.from(`${h1Username}:${h1Token}`).toString('base64'),
+        };
+        const scopeRes = await fetch(
+          `https://api.hackerone.com/v1/hackers/programs/${encodeURIComponent(programHandle)}/structured_scopes?page[number]=1&page[size]=50`,
+          { headers, signal: AbortSignal.timeout(15000) }
+        );
+        if (scopeRes.ok) {
+          const scopeData = await scopeRes.json();
+          if (scopeData?.data?.length) {
+            programData.scopes = scopeData.data.map((item: any) => {
+              const attrs = item.attributes || {};
+              return {
+                id: 0,
+                platform: 'hackerone',
+                programId: programData!.program.id,
+                programHandle,
+                externalId: String(item.id),
+                assetType: attrs.asset_type || 'OTHER',
+                assetIdentifier: attrs.asset_identifier || 'unknown',
+                eligibleForBounty: attrs.eligible_for_bounty ? 1 : 0,
+                eligibleForSubmission: attrs.eligible_for_submission !== false ? 1 : 0,
+                maxSeverity: attrs.max_severity || null,
+                confidentialityRequirement: attrs.confidentiality_requirement || null,
+                integrityRequirement: attrs.integrity_requirement || null,
+                availabilityRequirement: attrs.availability_requirement || null,
+                instruction: attrs.instruction || null,
+                createdAt: null,
+                updatedAt: null,
+              };
+            });
+            console.log(`[EngagementBuilder] Fetched ${programData.scopes.length} scopes from HackerOne API for ${programHandle}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[EngagementBuilder] Failed to fetch scopes from HackerOne API: ${err.message}`);
+    }
+  }
+
+  // 3. Also try extracting handle from URL if not set
+  if (!programHandle && programUrl) {
+    try {
+      const urlObj = new URL(programUrl);
+      if (urlObj.hostname === 'hackerone.com') {
+        const pathParts = urlObj.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0) {
+          programHandle = pathParts[0];
+          programName = programName || programHandle;
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fetch program page for additional context
   if (programUrl) {
     pageContent = await fetchProgramPage(programUrl);
   }
 
-  // 3. Build the LLM prompt with all available data
+  // 5. Identify buildable vs scannable assets and include sponsor instructions
+  const buildableAssets = programData?.scopes?.filter(s => BUILDABLE_ASSET_TYPES.has(s.assetType)) || [];
+  const scannableAssets = programData?.scopes?.filter(s => SCANNABLE_ASSET_TYPES.has(s.assetType)) || [];
+  const otherAssets = programData?.scopes?.filter(s => !BUILDABLE_ASSET_TYPES.has(s.assetType) && !SCANNABLE_ASSET_TYPES.has(s.assetType)) || [];
+
+  // Build the LLM prompt with all available data
   const scopeContext = programData?.scopes?.length
     ? `\n\nKNOWN SCOPE ASSETS (${programData.scopes.length} total):\n${programData.scopes
         .map(
-          (s) =>
-            `- [${s.assetType}] ${s.assetIdentifier} (bounty: ${s.eligibleForBounty ? "yes" : "no"}, max_severity: ${s.maxSeverity || "unknown"})`
+          (s) => {
+            let line = `- [${s.assetType}] ${s.assetIdentifier} (bounty: ${s.eligibleForBounty ? "yes" : "no"}, max_severity: ${s.maxSeverity || "unknown"})`;
+            if (s.instruction) line += `\n  SPONSOR INSTRUCTIONS: ${s.instruction}`;
+            if (BUILDABLE_ASSET_TYPES.has(s.assetType)) line += `\n  ⚠️ REQUIRES LOCAL BUILD: This asset must be downloaded, built, and deployed locally before testing.`;
+            return line;
+          }
         )
         .join("\n")}`
+    : "";
+
+  const buildableContext = buildableAssets.length > 0
+    ? `\n\n⚠️ BUILDABLE ASSETS DETECTED (${buildableAssets.length}):\nThe following assets are SOURCE_CODE or DOWNLOADABLE_EXECUTABLES and CANNOT be scanned over the network. They must be:\n1. Downloaded/cloned to a local test environment\n2. Built and compiled according to the project's build system\n3. Deployed locally (Docker, VM, or bare metal) before any scanning or exploitation\n\n${buildableAssets.map(a => `- [${a.assetType}] ${a.assetIdentifier}${a.instruction ? `\n  Program sponsor says: "${a.instruction}"` : ''}`).join('\n')}\n\nYou MUST include buildRequirements for each buildable asset in your response.`
     : "";
 
   const weaknessContext = programData?.weaknesses?.length
@@ -203,9 +334,32 @@ You must output valid JSON matching this exact schema:
   },
   "scope": {
     "totalAssets": number,
-    "assets": [{ "name": "string", "type": "SOURCE_CODE|URL|DOMAIN|OTHER|DOWNLOADABLE_EXECUTABLES|HARDWARE|SMART_CONTRACT", "tier": "critical|high|medium|low", "description": "string", "eligibleForBounty": true/false }],
+    "assets": [{ "name": "string", "type": "SOURCE_CODE|URL|DOMAIN|OTHER|DOWNLOADABLE_EXECUTABLES|HARDWARE|SMART_CONTRACT", "tier": "critical|high|medium|low", "description": "string", "eligibleForBounty": true/false, "requiresBuild": true/false, "sponsorInstruction": "string or null" }],
     "assetCategories": { "category_name": count }
   },
+  "buildRequirements": [
+    {
+      "assetName": "the asset identifier (e.g., https://github.com/nodejs/node)",
+      "assetType": "SOURCE_CODE or DOWNLOADABLE_EXECUTABLES",
+      "acquisitionMethod": "how to obtain (git clone URL, download link, etc.)",
+      "buildInstructions": ["step-by-step build commands"],
+      "deployInstructions": ["step-by-step local deployment commands (Docker preferred)"],
+      "dependencies": ["language runtimes, databases, libraries needed"],
+      "sponsorInstructions": "original instructions from the program sponsor if available, or null",
+      "hasHostedInstance": false,
+      "hostedInstanceUrl": "URL if a hosted test instance exists, or null"
+    }
+  ],
+  "toolRequirements": [
+    {
+      "tool": "tool name (e.g., semgrep, gosec, slither)",
+      "installCommand": "command to install the tool (e.g., pip install semgrep)",
+      "purpose": "why this tool is needed for this specific program",
+      "category": "SAST|DAST|fuzzer|linter|dependency_audit|custom",
+      "required": true/false,
+      "alternatives": ["alternative tools if primary is unavailable"]
+    }
+  ],
   "testEnvironment": {
     "infrastructure": "Docker Compose or VM description",
     "primaryLab": "Primary test environment description",
@@ -226,7 +380,28 @@ IMPORTANT RULES:
 - Phases should follow a logical progression: recon → SAST → DAST → specialized → reporting
 - Include specific tools for each phase (open source preferred)
 - Vulnerability patterns should be specific to the target's technology stack
-- Success metrics should be realistic and measurable`;
+- Success metrics should be realistic and measurable
+
+BUILDABLE ASSET RULES:
+- For SOURCE_CODE assets: set requiresBuild=true, include git clone + build + deploy steps in buildRequirements
+- For DOWNLOADABLE_EXECUTABLES: set requiresBuild=true, include download + setup steps
+- For SMART_CONTRACT assets: set requiresBuild=true, include local chain deployment steps
+- For URL/DOMAIN assets: set requiresBuild=false
+- If the program sponsor provided testing instructions (in the scope instruction field), include them verbatim in sponsorInstructions
+- buildRequirements MUST include realistic build commands based on the project's actual tech stack (check README, package.json, Makefile, etc.)
+- deployInstructions should prefer Docker containerization for isolation
+
+TOOL REQUIREMENTS RULES:
+- Analyze the target's tech stack and determine what specialized tools are needed beyond the standard arsenal
+- For JavaScript/TypeScript: include semgrep, eslint-security, retire.js, npm audit
+- For Python: include bandit, safety, semgrep
+- For Go: include gosec, staticcheck
+- For Rust: include cargo-audit, cargo-deny
+- For Solidity/Smart Contracts: include slither, mythril, echidna
+- For C/C++: include cppcheck, flawfinder, AFL++
+- Include installCommand that works on Ubuntu 22.04
+- Mark tools as required=true if they are essential for the target's primary language
+- Include alternatives for each tool in case the primary is unavailable`;
 
   const userPrompt = `Build a complete bug bounty engagement plan for:
 
@@ -238,9 +413,12 @@ ${scopeContext}
 ${weaknessContext}
 ${findingsContext}
 
+${buildableContext}
 ${pageContent ? `\nPROGRAM PAGE CONTENT (partial):\n${pageContent.substring(0, 8000)}` : ""}
 
-Generate the full engagement plan JSON. Be thorough — include all known assets, realistic tooling, and a detailed phase plan.`;
+Generate the full engagement plan JSON. Be thorough — include all known assets, realistic tooling, and a detailed phase plan.
+${buildableAssets.length > 0 ? '\nCRITICAL: This program has SOURCE_CODE/DOWNLOADABLE assets. You MUST include buildRequirements with real build/deploy instructions. Do NOT attempt to scan these as live URLs.' : ''}
+Always include toolRequirements based on the target tech stack — analyze what specialized security tools are needed beyond standard web scanners.`;
 
   const response = await invokeLLM({
     _caller: "engagement-builder:buildEngagementPlan",
@@ -288,10 +466,43 @@ Generate the full engagement plan JSON. Be thorough — include all known assets
                       tier: { type: "string" },
                       description: { type: "string" },
                       eligibleForBounty: { type: "boolean" },
+                      requiresBuild: { type: "boolean" },
+                      sponsorInstruction: { type: "string" },
                     },
                   },
                 },
                 assetCategories: { type: "object" },
+              },
+            },
+            buildRequirements: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  assetName: { type: "string" },
+                  assetType: { type: "string" },
+                  acquisitionMethod: { type: "string" },
+                  buildInstructions: { type: "array", items: { type: "string" } },
+                  deployInstructions: { type: "array", items: { type: "string" } },
+                  dependencies: { type: "array", items: { type: "string" } },
+                  sponsorInstructions: { type: "string" },
+                  hasHostedInstance: { type: "boolean" },
+                  hostedInstanceUrl: { type: "string" },
+                },
+              },
+            },
+            toolRequirements: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  tool: { type: "string" },
+                  installCommand: { type: "string" },
+                  purpose: { type: "string" },
+                  category: { type: "string" },
+                  required: { type: "boolean" },
+                  alternatives: { type: "array", items: { type: "string" } },
+                },
               },
             },
             testEnvironment: {
@@ -342,18 +553,27 @@ Generate the full engagement plan JSON. Be thorough — include all known assets
     }
   }
 
+  // Post-process: mark buildable assets and attach sponsor instructions
+  const scopeAssets = (plan.scope?.assets || []).map((a: any) => ({
+    ...a,
+    requiresBuild: a.requiresBuild ?? BUILDABLE_ASSET_TYPES.has(a.type),
+    sponsorInstruction: a.sponsorInstruction || null,
+  }));
+
   return {
     programName,
     programHandle,
     platform,
     programUrl,
     roe: plan.roe || { prohibitedActions: [], mandatoryRequirements: [], eligibleVersions: [], bountyRange: { low: 0, medium: 0, high: 0, critical: 0 }, outOfScope: [] },
-    scope: plan.scope || { totalAssets: 0, assets: [], assetCategories: {} },
+    scope: { ...(plan.scope || { totalAssets: 0, assetCategories: {} }), assets: scopeAssets },
+    buildRequirements: plan.buildRequirements || [],
     testEnvironment: plan.testEnvironment || { infrastructure: "", primaryLab: "", secondaryLab: "", requiredServices: [], testUsers: [], toolingArsenal: {} },
     phases: plan.phases || [],
     vulnerabilityPatterns: plan.vulnerabilityPatterns || [],
     successMetrics: plan.successMetrics || {},
-  };
+    toolRequirements: plan.toolRequirements || [],
+  } as EngagementPreview & { toolRequirements: ToolRequirement[] };
 }
 
 // ─── Create Engagement from Preview ───
@@ -372,6 +592,11 @@ export async function createEngagementFromPreview(
   const engagementName =
     options?.customName || `${preview.programName} Bug Bounty Engagement`;
 
+  // Identify buildable assets and tool requirements
+  const buildableAssets = preview.scope.assets.filter(a => a.requiresBuild || BUILDABLE_ASSET_TYPES.has(a.type));
+  const hasBuildableAssets = buildableAssets.length > 0;
+  const extPreview = preview as EngagementPreview & { toolRequirements?: ToolRequirement[] };
+
   // Build ROE scope JSON (stored in roe_scope column)
   const roeScope = JSON.stringify({
     platform: preview.platform,
@@ -386,6 +611,12 @@ export async function createEngagementFromPreview(
     highValueTargets: categorizeAssetsByTier(preview.scope.assets),
     testEnvironment: preview.testEnvironment,
     toolingArsenal: preview.testEnvironment.toolingArsenal,
+    // Build & deploy requirements for downloadable assets
+    buildRequirements: preview.buildRequirements || [],
+    // Specialized tool requirements from LLM analysis
+    toolRequirements: extPreview.toolRequirements || [],
+    // Flag indicating this engagement has assets that need local build/deploy
+    requiresAssetProvisioning: hasBuildableAssets,
     engagementPhases: preview.phases.map((p) => ({
       week: p.week,
       phase: p.name,
@@ -463,7 +694,72 @@ export async function createEngagementFromPreview(
     scopeAssetCount++;
   }
 
-  // 4. Also populate bug_bounty_program_scopes if not already present
+  // 4. Create provisioning timeline events for buildable assets
+  if (hasBuildableAssets && preview.buildRequirements) {
+    for (const br of preview.buildRequirements) {
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: engagementId,
+        eventType: "note_added",
+        phase: "setup",
+        title: `Build Required: ${br.assetName}`.substring(0, 255),
+        description: `Asset type: ${br.assetType}. Acquisition: ${br.acquisitionMethod}. Dependencies: ${br.dependencies?.join(', ') || 'none'}. ${br.sponsorInstructions ? 'Sponsor instructions: ' + br.sponsorInstructions : ''}`,
+        timestamp: Date.now(),
+        metadata: JSON.stringify({
+          type: 'build_requirement',
+          assetName: br.assetName,
+          assetType: br.assetType,
+          acquisitionMethod: br.acquisitionMethod,
+          buildInstructions: br.buildInstructions,
+          deployInstructions: br.deployInstructions,
+          dependencies: br.dependencies,
+          sponsorInstructions: br.sponsorInstructions,
+          hasHostedInstance: br.hasHostedInstance,
+          hostedInstanceUrl: br.hostedInstanceUrl,
+        }),
+      });
+      timelineEventCount++;
+    }
+  }
+
+  // 4b. Create tool installation timeline events
+  if (extPreview.toolRequirements && extPreview.toolRequirements.length > 0) {
+    const requiredTools = extPreview.toolRequirements.filter(t => t.required);
+    const optionalTools = extPreview.toolRequirements.filter(t => !t.required);
+    if (requiredTools.length > 0) {
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: engagementId,
+        eventType: "note_added",
+        phase: "setup",
+        title: `Required Tools: ${requiredTools.map(t => t.tool).join(', ')}`.substring(0, 255),
+        description: requiredTools.map(t => `${t.tool} (${t.category}): ${t.purpose} — Install: ${t.installCommand}`).join('\n'),
+        timestamp: Date.now(),
+        metadata: JSON.stringify({
+          type: 'tool_requirements',
+          required: true,
+          tools: requiredTools,
+        }),
+      });
+      timelineEventCount++;
+    }
+    if (optionalTools.length > 0) {
+      await db.insert(engagementTimelineEvents).values({
+        engagementId: engagementId,
+        eventType: "note_added",
+        phase: "setup",
+        title: `Optional Tools: ${optionalTools.map(t => t.tool).join(', ')}`.substring(0, 255),
+        description: optionalTools.map(t => `${t.tool} (${t.category}): ${t.purpose} — Install: ${t.installCommand}`).join('\n'),
+        timestamp: Date.now(),
+        metadata: JSON.stringify({
+          type: 'tool_requirements',
+          required: false,
+          tools: optionalTools,
+        }),
+      });
+      timelineEventCount++;
+    }
+  }
+
+  // 5. Also populate bug_bounty_program_scopes if not already present
   if (preview.scope.assets.length > 0) {
     const [existing] = await db.execute(
       sql`SELECT COUNT(*) as cnt FROM bug_bounty_program_scopes WHERE program_handle = ${preview.programHandle}`
@@ -508,17 +804,33 @@ function categorizeAssetsByTier(assets: ScopeAsset[]): Record<string, string[]> 
 }
 
 function extractPrimaryDomain(preview: EngagementPreview): string {
-  // Try to find a URL or domain asset
+  // Try to find a URL or domain asset from scope
   const domainAsset = preview.scope.assets.find(
     (a) => a.type === "URL" || a.type === "DOMAIN"
   );
   if (domainAsset) return domainAsset.name;
 
-  // Try to extract from program URL
-  try {
-    const url = new URL(preview.programUrl);
-    return url.hostname;
-  } catch {
-    return preview.programHandle || preview.programName;
+  // Try SOURCE_CODE assets (e.g., GitHub repos)
+  const sourceAsset = preview.scope.assets.find(
+    (a) => a.type === "SOURCE_CODE"
+  );
+  if (sourceAsset) {
+    // Extract domain from source code URL (e.g., github.com/nodejs/node → github.com)
+    try {
+      const url = new URL(sourceAsset.name);
+      return url.hostname;
+    } catch {
+      return sourceAsset.name;
+    }
   }
+
+  // Any asset at all
+  if (preview.scope.assets.length > 0) {
+    return preview.scope.assets[0].name;
+  }
+
+  // IMPORTANT: Do NOT extract hostname from programUrl — that gives us the platform
+  // domain (e.g., hackerone.com) instead of the actual target.
+  // Use the program handle or name as the engagement identifier.
+  return preview.programHandle || preview.programName;
 }

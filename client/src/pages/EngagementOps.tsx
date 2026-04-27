@@ -55,6 +55,7 @@ import {
   ScanEye, ShieldOff, Bolt, TrendingUp, BarChart3, Scan, Microscope, Scissors,
   FileUp, Upload, Filter, FilterX, ToggleLeft, ToggleRight,
   X, FileCheck, Fingerprint, Edit2, BookOpen, Rocket,
+  Package, Code,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -3867,6 +3868,124 @@ export default function EngagementOps() {
                   {/* Comms Protocol & Scope Constraints from Uploaded Doc */}
                   {engagement?.id && <FingerprintDiffPanel engagementId={engagement.id} />}
                   {engagement?.id && <CommsProtocolPanel engagementId={engagement.id} />}
+
+                  {/* Build & Provisioning Requirements */}
+                  {(() => {
+                    const roeData = (() => { try { return JSON.parse(engagement?.roeScope || '{}'); } catch { return {}; } })();
+                    const buildReqs = roeData.buildRequirements || [];
+                    const toolReqs = roeData.toolRequirements || [];
+                    const requiresProvisioning = roeData.requiresAssetProvisioning;
+                    if (!requiresProvisioning && buildReqs.length === 0 && toolReqs.length === 0) return null;
+                    return (
+                      <>
+                        {buildReqs.length > 0 && (
+                          <Card className="bg-card/50 border-amber-500/30">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Package className="h-4 w-4 text-amber-400" /> Build & Deploy Requirements
+                                <Badge variant="outline" className="ml-auto text-[10px] border-amber-500/50 text-amber-400">
+                                  {buildReqs.length} asset{buildReqs.length !== 1 ? 's' : ''} require build
+                                </Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">These assets must be downloaded, built, and deployed locally before scanning</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                              {buildReqs.map((br: any, i: number) => (
+                                <div key={i} className="bg-muted/10 rounded-lg p-3 border border-amber-500/10">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Code className="h-3.5 w-3.5 text-amber-400" />
+                                    <span className="text-sm font-medium">{br.assetName}</span>
+                                    <Badge variant="outline" className="text-[10px]">{br.assetType}</Badge>
+                                  </div>
+                                  <div className="space-y-2 text-xs">
+                                    <div>
+                                      <span className="text-muted-foreground">Acquire:</span>
+                                      <code className="ml-1 px-1.5 py-0.5 bg-muted/30 rounded text-amber-300">{br.acquisitionMethod}</code>
+                                    </div>
+                                    {br.dependencies?.length > 0 && (
+                                      <div>
+                                        <span className="text-muted-foreground">Dependencies:</span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {br.dependencies.map((d: string, j: number) => (
+                                            <Badge key={j} variant="outline" className="text-[10px]">{d}</Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {br.buildInstructions?.length > 0 && (
+                                      <div>
+                                        <span className="text-muted-foreground">Build steps:</span>
+                                        <div className="mt-1 space-y-0.5">
+                                          {br.buildInstructions.map((step: string, j: number) => (
+                                            <div key={j} className="flex items-start gap-1.5">
+                                              <span className="text-muted-foreground/50 select-none">{j + 1}.</span>
+                                              <code className="text-[11px] text-foreground/80">{step}</code>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {br.deployInstructions?.length > 0 && (
+                                      <div>
+                                        <span className="text-muted-foreground">Deploy steps:</span>
+                                        <div className="mt-1 space-y-0.5">
+                                          {br.deployInstructions.map((step: string, j: number) => (
+                                            <div key={j} className="flex items-start gap-1.5">
+                                              <span className="text-muted-foreground/50 select-none">{j + 1}.</span>
+                                              <code className="text-[11px] text-foreground/80">{step}</code>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {br.sponsorInstructions && (
+                                      <div className="bg-blue-500/5 border border-blue-500/10 rounded p-2 mt-1">
+                                        <span className="text-blue-400 text-[10px] font-medium">Sponsor Instructions:</span>
+                                        <p className="text-foreground/70 mt-0.5">{br.sponsorInstructions}</p>
+                                      </div>
+                                    )}
+                                    {br.hasHostedInstance && br.hostedInstanceUrl && (
+                                      <div className="flex items-center gap-1.5 text-green-400">
+                                        <Globe className="h-3 w-3" />
+                                        <span>Hosted instance available: {br.hostedInstanceUrl}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {toolReqs.length > 0 && (
+                          <Card className="bg-card/50 border-cyan-500/30">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Wrench className="h-4 w-4 text-cyan-400" /> Required Security Tools
+                                <Badge variant="outline" className="ml-auto text-[10px] border-cyan-500/50 text-cyan-400">
+                                  {toolReqs.filter((t: any) => t.required).length} required / {toolReqs.length} total
+                                </Badge>
+                              </CardTitle>
+                              <CardDescription className="text-xs">Specialized tools identified by LLM analysis of the target tech stack</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-1">
+                                {toolReqs.map((tr: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-xs px-2 py-1.5 bg-muted/10 rounded">
+                                    <div className={`h-1.5 w-1.5 rounded-full ${tr.required ? 'bg-cyan-400' : 'bg-muted-foreground/30'}`} />
+                                    <span className="font-medium min-w-[100px]">{tr.tool}</span>
+                                    <Badge variant="outline" className="text-[9px]">{tr.category}</Badge>
+                                    <span className="text-muted-foreground flex-1 truncate">{tr.purpose}</span>
+                                    <code className="text-[10px] text-muted-foreground/70 hidden lg:block">{tr.installCommand}</code>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {/* Scope Enforcement Log */}
                   <Card className="bg-card/50 border-border/30">

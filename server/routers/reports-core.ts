@@ -503,29 +503,38 @@ export const reportsRouter = router({
             try {
               const dbEvidence = await db.getExploitationAttempts(input.engagementId);
               if (dbEvidence.length > 0) {
-                exploitationEvidence = dbEvidence.map(e => ({
-                  id: e.id,
-                  targetHost: e.targetHost,
-                  targetPort: e.targetPort,
-                  targetService: e.targetService,
-                  vulnerabilityId: e.vulnerabilityId,
-                  vulnerabilityCve: e.vulnerabilityCve,
-                  exploitSource: e.exploitSource,
-                  exploitModule: e.exploitModule,
-                  status: e.status,
-                  resultType: e.resultType,
-                  resultOutput: e.resultOutput,
-                  shellObtained: e.shellObtained,
-                  accessLevel: e.accessLevel,
-                  evidence: e.evidence,
-                  attackTechnique: e.attackTechnique,
-                  matchConfidence: e.matchConfidence,
-                  opsecRisk: e.opsecRisk,
-                  durationMs: e.durationMs,
-                  attemptedAt: e.attemptedAt,
-                  completedAt: e.completedAt,
-                  screenshotUrls: e.screenshotUrls ? (typeof e.screenshotUrls === 'string' ? JSON.parse(e.screenshotUrls) : e.screenshotUrls) : [],
-                }));
+                exploitationEvidence = dbEvidence.map(e => {
+                  // Resolve true exploit status: if shell was obtained or meaningful access achieved,
+                  // the exploit succeeded regardless of ea_status (which may reflect runner cleanup errors)
+                  const rawStatus = e.eaStatus || 'attempted';
+                  const shellGot = !!e.shellObtained;
+                  const hasAccess = e.eaAccessLevel && e.eaAccessLevel !== 'none';
+                  const resolvedStatus = (shellGot || hasAccess) ? 'succeeded' : rawStatus;
+
+                  return {
+                    id: e.id,
+                    targetHost: e.targetHost,
+                    targetPort: e.targetPort,
+                    targetService: e.targetService,
+                    vulnerabilityId: e.vulnerabilityId,
+                    vulnerabilityCve: e.vulnerabilityCve,
+                    exploitSource: e.exploitSource,
+                    exploitModule: e.exploitModule,
+                    status: resolvedStatus,
+                    resultType: e.resultType,
+                    resultOutput: e.resultOutput,
+                    shellObtained: e.shellObtained,
+                    accessLevel: e.eaAccessLevel,
+                    evidence: e.eaEvidence,
+                    attackTechnique: e.eaAttackTechnique,
+                    matchConfidence: e.matchConfidence,
+                    opsecRisk: e.opsecRisk,
+                    durationMs: e.durationMs,
+                    attemptedAt: e.eaAttemptedAt,
+                    completedAt: e.eaCompletedAt,
+                    screenshotUrls: e.screenshotUrls ? (typeof e.screenshotUrls === 'string' ? JSON.parse(e.screenshotUrls) : e.screenshotUrls) : [],
+                  };
+                });
                 console.log(`[Report] Loaded ${exploitationEvidence.length} exploitation evidence records from DB`);
               }
             } catch (evidenceErr: any) {
