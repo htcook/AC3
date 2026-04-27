@@ -1411,6 +1411,15 @@ export default function DomainIntelResults() {
               { value: 'discovery-context', label: 'Discovery Context', icon: <Microscope className="h-3 w-3" /> },
             ],
           },
+          {
+            id: 'compliance',
+            label: 'Compliance',
+            icon: <Shield className="h-3.5 w-3.5" />,
+            color: 'text-indigo-400',
+            subTabs: [
+              { value: 'frameworkmapping', label: 'Framework Mapping', icon: <Shield className="h-3 w-3" /> },
+            ],
+          },
         ];
         return <TabGroupNav groups={tabGroups} activeTab={activeTab} onTabChange={setActiveTab} />;
       })()}
@@ -6685,6 +6694,14 @@ export default function DomainIntelResults() {
             </Suspense>
           </TabsContent>
         ))}
+
+        {/* ─── Framework Mapping Tab ─── */}
+        <TabsContent value="frameworkmapping" className="space-y-4">
+          <ComplianceFrameworkSelector
+            scanSource="di"
+            scanId={scanId}
+          />
+        </TabsContent>
 
       </Tabs>
 

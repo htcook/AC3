@@ -527,3 +527,84 @@
 - [ ] Deploy fix and re-run Broken Crystals engagement to validate
 - [ ] Verify promotion logic fires with actual scanner findings
 - [ ] Checkpoint and push to GitHub
+
+### Delete Pipeline Test Engagement (Apr 26)
+- [x] Delete engagement #1830001 (Pipeline Test — Full Stack Validation) with live sites
+
+### Vulnerability Assessment Engagement Type (Apr 26)
+- [x] Add 'Vulnerability Assessment' to engagement type enum in schema
+- [ ] Build VA-specific pipeline (recon → active discovery → vuln detection → LLM synthesis, NO exploitation)
+- [ ] Add VA-specific report template (vuln inventory, CVSS scores, remediation guidance)
+- [ ] Add VA engagement creation in New Engagement wizard
+- [ ] Add VA-specific EngagementOps view (scanner coverage, vuln classification focus)
+
+### Bug Bounty Engagement Type (Apr 26)
+- [x] Add 'Bug Bounty' already in engagement type enum in schema
+- [ ] Build Program Policy Parser (HackerOne/Bugcrowd policy → structured PolicyROE)
+- [ ] Build bug-bounty-specific scope enforcement extensions
+- [ ] Build finding documentation workflow (reproduction steps, evidence capture, impact analysis)
+- [ ] Build originality verification system (duplicate/known issue detection)
+- [ ] Build submission workflow (platform-specific formatting, draft review)
+- [ ] Add Bug Bounty engagement creation in New Engagement wizard
+- [ ] Add Bug Bounty EngagementOps view (program info, scope, findings tracker)
+
+### Cross-Training Infrastructure (Apr 26)
+- [ ] Build specialist outcome logging schema (triage outcomes, finding confirmations, program decisions)
+- [ ] Build pattern repository for context-independent patterns (reproduction quality, evidence quality, vuln class)
+- [ ] Build vulnerability validation calibration pipeline (bug bounty triage → vuln detection improvement)
+- [ ] Build tool effectiveness cross-training (scanner results → tool selection improvement)
+- [ ] Build reproduction quality patterns (bug bounty evidence → reporting improvement)
+
+### License-Tier Gating (Apr 26)
+- [ ] Add licenseRequirement field to engagement type configuration
+- [ ] Define tier mapping (Standard: VA + Bug Bounty, Professional: Pentest, Enterprise: Red Team + Purple Team)
+- [ ] Add UI gating in New Engagement wizard with upgrade prompts
+- [ ] Add backend enforcement in engagement creation endpoint
+
+### Vitest Tests for New Features (Apr 26)
+- [ ] Write tests for VA pipeline phase gating
+- [ ] Write tests for Bug Bounty policy parser
+- [ ] Write tests for cross-training pipelines
+- [ ] Write tests for license-tier enforcement
+
+### Compliance Framework Mapping for Scan Results (Apr 26)
+- [x] Build compliance framework mapping engine (NIST 800-53, CIS Controls, PCI-DSS, ISO 27001, HIPAA, SOC 2)
+- [x] Map CWE/CVE categories to 800-53 control families (AC, AU, CA, CM, IA, IR, MA, MP, PE, PL, PM, PS, RA, SA, SC, SI)
+- [x] Map CWE/CVE categories to CIS Controls v8 (18 control groups)
+- [x] Map CWE/CVE categories to PCI-DSS v4.0 requirements
+- [x] Map CWE/CVE categories to ISO 27001:2022 Annex A controls
+- [x] Map CWE/CVE categories to HIPAA Security Rule safeguards
+- [x] Map CWE/CVE categories to SOC 2 Trust Services Criteria
+- [x] Integrate framework mapping into vuln scan results (EngagementOps vuln findings)
+- [x] Integrate framework mapping into DI scan results (DomainIntelResults vuln section)
+- [x] Build framework selection UI — user picks which frameworks to include in scan reports
+- [ ] Add framework compliance summary to engagement reports (controls affected, gap analysis)
+- [ ] Add framework compliance summary to DI scan reports
+- [ ] Write vitest tests for framework mapping engine
+
+### VA & Bug Bounty Sprint (Apr 26)
+- [x] Build NormalizedFinding interface and finding normalization layer (Nuclei, ZAP, Burp, Trivy normalizers)
+- [x] Build fingerprint generation, severity inference, corroboration tier inference
+- [x] Build finding deduplication and merge logic with confidence boosting
+- [x] Build batch normalization pipeline with stats tracking
+- [x] Build VerificationProfile system (7 profiles: Standard VA, PCI ASV, FedRAMP ConMon, HIPAA, SOC 2, Deep Assessment, Continuous Monitoring)
+- [x] Build VA pipeline configuration with phase gating (no exploitation in VA)
+- [x] Build verification depth ladder (unverified → config_verified → behavior_verified)
+- [x] Build finding prioritization engine with severity/KEV/EPSS/corroboration scoring
+- [x] Build VA report data builder with executive summary, remediation roadmap, compliance mapping
+- [x] Build Bug Bounty policy parser (HackerOne, Bugcrowd, Intigriti, YesWeHack URL parsing)
+- [x] Build scope enforcement engine (in-scope, out-of-scope, wildcard domain matching)
+- [x] Build finding originality verification (known issue matching, common non-original pattern detection)
+- [x] Build platform-specific submission formatting (HackerOne, Bugcrowd, Intigriti, Synack, YesWeHack, Custom)
+- [x] Build policy enrichment from parsed text
+- [x] Build cross-training infrastructure — PatternRepository with contamination isolation
+- [x] Build CalibrationPipeline for scanner confidence adjustment from triage outcomes
+- [x] Build ToolEffectivenessTracker with best-tool-for-vuln-class ranking
+- [x] Build reproduction quality guidelines for 4 vuln classes + default
+- [x] Build cross-training batch processor (outcome logging → pattern extraction → calibration → tool tracking)
+- [x] Build license-tier gating (Standard/Professional/Enterprise tiers)
+- [x] Build engagement type gating (VA+BB+Phishing+Tabletop=Standard, +Pentest+Purple=Pro, +RedTeam=Enterprise)
+- [x] Build feature availability checks and tier comparison data
+- [x] Build tRPC router for VA/Bug Bounty (verification profiles, normalization, policy parsing, scope checking, tier gating, cross-training)
+- [x] Wire vaBugBounty router into appRouter
+- [x] Write comprehensive vitest tests — 117 tests across all 5 modules (all passing)

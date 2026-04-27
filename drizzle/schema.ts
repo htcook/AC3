@@ -3537,7 +3537,7 @@ export const engagements = mysqlTable("engagements", {
 	name: varchar({ length: 255 }).notNull(),
 	customerName: varchar({ length: 255 }).notNull(),
 	description: text(),
-	engagementType: mysqlEnum(['red_team','phishing','pentest','purple_team','tabletop','bug_bounty']).default('red_team').notNull(),
+	engagementType: mysqlEnum(['red_team','phishing','pentest','purple_team','tabletop','bug_bounty','vulnerability_assessment']).default('red_team').notNull(),
 	status: mysqlEnum(['planning','active','paused','completed','archived']).default('planning').notNull(),
 	startDate: timestamp({ mode: 'string' }),
 	endDate: timestamp({ mode: 'string' }),
@@ -3566,6 +3566,10 @@ export const engagements = mysqlTable("engagements", {
 	roeCatalogConsent: tinyint("roe_catalog_consent").default(0),
 	fedrampImpactLevel: mysqlEnum("fedramp_impact_level", ['none','low','moderate','high']).default('none'),
 	activeScanOverride: tinyint("active_scan_override").default(0),
+	licenseTier: mysqlEnum("license_tier", ['standard','professional','enterprise']).default('standard'),
+	bugBountyProgramUrl: text("bug_bounty_program_url"),
+	bugBountyPlatform: mysqlEnum("bug_bounty_platform", ['hackerone','bugcrowd','intigriti','synack','yeswehack','custom']),
+	selectedFrameworks: json("selected_frameworks"),
 });
 
 export const enrichmentHistory = mysqlTable("enrichment_history", {

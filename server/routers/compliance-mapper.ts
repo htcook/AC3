@@ -18,6 +18,15 @@ import {
   getMappingRules,
   type EvidenceMapperResult,
 } from "../lib/compliance-evidence-mapper";
+import {
+  mapVulnToFrameworks,
+  generateComplianceReport,
+  getAvailableFrameworks,
+  inferCweFromFinding,
+  type FrameworkId,
+  type ComplianceReport,
+  FRAMEWORK_METADATA,
+} from "../lib/compliance-framework-mapping";
 
 const frameworkTypeEnum = z.enum(["soc2", "iso27001", "nist_csf", "pci_dss", "hipaa", "cis", "fedramp", "dod_stig", "cmmc", "custom"]);
 
@@ -324,6 +333,130 @@ export const complianceMapperRouter = router({
   getMappingRules: protectedProcedure.query(() => {
     return getMappingRules();
   }),
+
+  // ─── CWE-Based Framework Mapping (Vuln Scan + DI Scan) ────────────────────
+
+  /** Get available CWE-based compliance frameworks with metadata */
+  getCweFrameworks: protectedProcedure.query(() => {
+    return getAvailableFrameworks();
+  }),
+
+  /** Map engagement vuln scan results to selected compliance frameworks using CWE-based mapping */
+  mapVulnScanToFrameworks: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      frameworks: z.array(z.enum(['nist_800_53', 'cis_v8', 'pci_dss_v4', 'iso_27001', 'hipaa', 'soc2'])),
+    }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator');
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new TRPCError({ code: 'NOT_FOUND', message: 'No ops state found for this engagement' });
+
+      // Collect all vulns from all assets
+      const vulns: Array<{ id: string; title: string; cwe?: string; cveIds?: string[]; category?: string; severity: string }> = [];
+      for (const asset of state.assets || []) {
+        for (const v of asset.vulns || []) {
+          vulns.push({
+            id: `${asset.hostname}-${v.title}-${v.source || 'unknown'}`,
+            title: v.title || 'Unknown',
+            cwe: (v as any).cwe || undefined,
+            cveIds: v.cve ? [v.cve] : undefined,
+            category: (v as any).category || v.source || undefined,
+            severity: v.severity || 'info',
+          });
+        }
+        // Also include ZAP findings
+        for (const z of asset.zapFindings || []) {
+          vulns.push({
+            id: `${asset.hostname}-zap-${z.alert}`,
+            title: z.alert || 'Unknown',
+            cwe: (z as any).cweid ? `CWE-${(z as any).cweid}` : undefined,
+            category: 'DAST',
+            severity: z.risk || 'info',
+          });
+        }
+        // Include Burp findings
+        for (const b of (asset as any).burpFindings || []) {
+          vulns.push({
+            id: `${asset.hostname}-burp-${b.name || b.title}`,
+            title: b.name || b.title || 'Unknown',
+            cwe: b.cwe ? `CWE-${b.cwe}` : undefined,
+            category: 'DAST',
+            severity: b.severity || 'info',
+          });
+        }
+      }
+
+      const report = generateComplianceReport(vulns, input.frameworks as FrameworkId[]);
+      return report;
+    }),
+
+  /** Map DI scan posture findings to selected compliance frameworks */
+  mapDiScanToFrameworks: protectedProcedure
+    .input(z.object({
+      domainId: z.number(),
+      frameworks: z.array(z.enum(['nist_800_53', 'cis_v8', 'pci_dss_v4', 'iso_27001', 'hipaa', 'soc2'])),
+    }))
+    .mutation(async ({ input }) => {
+      // Load DI scan results from DB
+      const { getDb } = await import('../db');
+      const dbConn = await getDb();
+      if (!dbConn) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database unavailable' });
+
+      const { diScanResults } = await import('../../drizzle/schema');
+      const { eq, desc } = await import('drizzle-orm');
+
+      // Get the latest scan result for this domain
+      const [latestScan] = await dbConn.select().from(diScanResults)
+        .where(eq(diScanResults.domainId, input.domainId))
+        .orderBy(desc(diScanResults.createdAt))
+        .limit(1);
+
+      if (!latestScan) throw new TRPCError({ code: 'NOT_FOUND', message: 'No DI scan results found for this domain' });
+
+      // Extract posture findings from the scan result
+      const scanData = latestScan.resultData as any;
+      const postureFindings = scanData?.postureFindings || scanData?.findings || [];
+
+      const vulns = postureFindings.map((f: any, idx: number) => ({
+        id: f.id || `di-${input.domainId}-${idx}`,
+        title: f.title || f.name || 'Unknown',
+        cwe: f.cwe || undefined,
+        cveIds: f.cveIds || (f.cve ? [f.cve] : undefined),
+        category: f.category || 'posture',
+        severity: typeof f.severity === 'number' ? String(f.severity) : (f.severity || 'info'),
+      }));
+
+      const report = generateComplianceReport(vulns, input.frameworks as FrameworkId[]);
+      return report;
+    }),
+
+  /** Map arbitrary findings (manual input) to selected frameworks */
+  mapFindingsToFrameworks: protectedProcedure
+    .input(z.object({
+      findings: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        cwe: z.string().optional(),
+        cveIds: z.array(z.string()).optional(),
+        category: z.string().optional(),
+        severity: z.string(),
+      })),
+      frameworks: z.array(z.enum(['nist_800_53', 'cis_v8', 'pci_dss_v4', 'iso_27001', 'hipaa', 'soc2'])),
+    }))
+    .mutation(({ input }) => {
+      const report = generateComplianceReport(input.findings, input.frameworks as FrameworkId[]);
+      return report;
+    }),
+
+  /** Infer CWE from a finding's category/title (utility endpoint) */
+  inferCwe: protectedProcedure
+    .input(z.object({ category: z.string(), title: z.string() }))
+    .query(({ input }) => {
+      const cwe = inferCweFromFinding(input.category, input.title);
+      return { cwe: cwe || null };
+    }),
 
   /** Get compliance statistics */
   getStats: protectedProcedure.query(async () => {

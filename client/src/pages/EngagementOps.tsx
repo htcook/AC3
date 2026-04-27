@@ -72,6 +72,7 @@ import TestPlanGate from "@/components/TestPlanGate";
 import { CoverageQuality } from "@/components/CoverageQuality";
 import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 import PromotedExploitsPanel from "@/components/PromotedExploitsPanel";
+import ComplianceFrameworkSelector from "@/components/ComplianceFrameworkSelector";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
 import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
@@ -2337,6 +2338,15 @@ export default function EngagementOps() {
                   { value: 'feedback', label: 'Feedback Loop', icon: <RefreshCw className="h-3 w-3" />, count: feedbackLoopQ.data?.totalScansExecuted || 0 },
                   { value: 'fpsuppression', label: 'FP Suppression', icon: <Filter className="h-3 w-3" /> },
                   { value: 'coverage', label: 'Coverage & Quality', icon: <Scissors className="h-3 w-3" /> },
+                ],
+              },
+              {
+                id: 'compliance',
+                label: 'Compliance',
+                icon: <Shield className="h-3.5 w-3.5" />,
+                color: 'text-indigo-400',
+                subTabs: [
+                  { value: 'frameworkmapping', label: 'Framework Mapping', icon: <Shield className="h-3 w-3" /> },
                 ],
               },
             ];
@@ -4759,6 +4769,18 @@ export default function EngagementOps() {
                     dedupStats={(ops as any)?.dedupStats}
                     coverageReport={(ops as any)?.coverageReport}
                     engagementPhase={ops?.phase}
+                  />
+                </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Framework Mapping Tab ── */}
+            <TabsContent value="frameworkmapping" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <div className="py-3">
+                  <ComplianceFrameworkSelector
+                    scanSource="engagement"
+                    engagementId={engagementId}
                   />
                 </div>
               </ScrollArea>

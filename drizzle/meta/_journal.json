@@ -281,6 +281,13 @@
       "when": 1777131511512,
       "tag": "0039_late_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1777253417959,
+      "tag": "0040_faulty_captain_stacy",
+      "breakpoints": true
     }
   ]
 }
