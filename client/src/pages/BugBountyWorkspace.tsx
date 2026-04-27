@@ -1,0 +1,1037 @@
+/**
+ * Bug Bounty Workspace
+ * 
+ * Full-featured workspace for bug bounty research: paste a program URL, parse scope/policy,
+ * document findings, check originality, and format submissions per platform.
+ */
+
+import { useState, useMemo, useCallback } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Bug, Globe, Shield, Target, FileText, Check, X, AlertTriangle,
+  Search, Copy, ExternalLink, Sparkles, CheckCircle2, XCircle,
+  Clock, Zap, Eye, Send, ArrowRight, Loader2, Info, ChevronDown,
+  ChevronRight, Crosshair, Link2, AlertCircle, FileCheck, Clipboard,
+} from "lucide-react";
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+interface PolicyROE {
+  programName: string;
+  platform: string;
+  programUrl: string;
+  scope: { inScope: ScopeEntry[]; outOfScope: ScopeEntry[] };
+  rules: string[];
+  rewardRange?: { low: number; high: number; currency: string };
+  safeHarbor: boolean;
+  responseTimeSla?: { firstResponse: string; triage: string; bountyDecision: string };
+  parsedAt: string;
+}
+
+interface ScopeEntry {
+  type: string;
+  value: string;
+  eligible: boolean;
+  notes?: string;
+}
+
+interface ScopeCheckResult {
+  target: string;
+  inScope: boolean;
+  matchedRule?: string;
+  reason: string;
+}
+
+interface OriginalityResult {
+  isOriginal: boolean;
+  confidence: number;
+  matchedPatterns: string[];
+  recommendation: string;
+}
+
+interface Finding {
+  id: string;
+  title: string;
+  severity: string;
+  target: string;
+  description: string;
+  stepsToReproduce: string;
+  impact: string;
+  cweId?: string;
+  cvssScore?: number;
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────────
+
+export default function BugBountyWorkspace() {
+  const [activeTab, setActiveTab] = useState('program');
+  const [programUrl, setProgramUrl] = useState('');
+  const [policy, setPolicy] = useState<PolicyROE | null>(null);
+  const [isParsing, setIsParsing] = useState(false);
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [selectedPlatform, setSelectedPlatform] = useState('hackerone');
+
+  // tRPC mutations
+  const parsePolicy = trpc.vaBugBounty.parseBugBountyPolicy.useMutation();
+  const checkScope = trpc.vaBugBounty.checkScope.useMutation();
+  const checkOriginality = trpc.vaBugBounty.checkOriginality.useMutation();
+
+  const handleParseProgram = async () => {
+    if (!programUrl.trim()) return;
+    setIsParsing(true);
+    try {
+      const result = await parsePolicy.mutateAsync({ programUrl: programUrl.trim() });
+      setPolicy(result as unknown as PolicyROE);
+      setSelectedPlatform(result.platform || 'hackerone');
+      toast.success('Program parsed successfully', {
+        description: `${result.programName} — ${result.scope.inScope.length} in-scope targets`,
+      });
+      setActiveTab('scope');
+    } catch (err: any) {
+      toast.error('Failed to parse program', { description: err.message });
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+            <Bug className="h-5 w-5 text-orange-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Bug Bounty Workspace</h1>
+            <p className="text-sm text-muted-foreground">
+              Parse program policies, verify scope, document findings, check originality, and format platform-ready submissions.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="program" className="gap-1.5">
+            <Globe className="h-3.5 w-3.5" />
+            Program
+          </TabsTrigger>
+          <TabsTrigger value="scope" className="gap-1.5" disabled={!policy}>
+            <Target className="h-3.5 w-3.5" />
+            Scope
+          </TabsTrigger>
+          <TabsTrigger value="findings" className="gap-1.5" disabled={!policy}>
+            <Search className="h-3.5 w-3.5" />
+            Findings
+          </TabsTrigger>
+          <TabsTrigger value="originality" className="gap-1.5" disabled={!policy || findings.length === 0}>
+            <Sparkles className="h-3.5 w-3.5" />
+            Originality
+          </TabsTrigger>
+          <TabsTrigger value="submit" className="gap-1.5" disabled={!policy || findings.length === 0}>
+            <Send className="h-3.5 w-3.5" />
+            Submit
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Program Parser */}
+        <TabsContent value="program">
+          <ProgramTab
+            programUrl={programUrl}
+            onUrlChange={setProgramUrl}
+            onParse={handleParseProgram}
+            isParsing={isParsing}
+            policy={policy}
+          />
+        </TabsContent>
+
+        {/* Tab: Scope Checker */}
+        <TabsContent value="scope">
+          {policy && <ScopeTab policy={policy} checkScope={checkScope} />}
+        </TabsContent>
+
+        {/* Tab: Finding Documenter */}
+        <TabsContent value="findings">
+          {policy && (
+            <FindingsTab
+              findings={findings}
+              onFindingsChange={setFindings}
+              policy={policy}
+            />
+          )}
+        </TabsContent>
+
+        {/* Tab: Originality Checker */}
+        <TabsContent value="originality">
+          {policy && findings.length > 0 && (
+            <OriginalityTab findings={findings} checkOriginality={checkOriginality} />
+          )}
+        </TabsContent>
+
+        {/* Tab: Submission Formatter */}
+        <TabsContent value="submit">
+          {policy && findings.length > 0 && (
+            <SubmitTab
+              findings={findings}
+              policy={policy}
+              platform={selectedPlatform}
+              onPlatformChange={setSelectedPlatform}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Tab: Program Parser ───────────────────────────────────────────────────────
+
+function ProgramTab({
+  programUrl,
+  onUrlChange,
+  onParse,
+  isParsing,
+  policy,
+}: {
+  programUrl: string;
+  onUrlChange: (v: string) => void;
+  onParse: () => void;
+  isParsing: boolean;
+  policy: PolicyROE | null;
+}) {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="h-4 w-4 text-orange-400" />
+            Parse Bug Bounty Program
+          </CardTitle>
+          <CardDescription>
+            Paste a program URL from HackerOne, Bugcrowd, Intigriti, or YesWeHack. The parser extracts scope, rules, reward ranges, and SLA timelines.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://hackerone.com/your-program or https://bugcrowd.com/your-program"
+              value={programUrl}
+              onChange={e => onUrlChange(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && onParse()}
+              className="flex-1"
+            />
+            <Button onClick={onParse} disabled={isParsing || !programUrl.trim()} className="gap-2 bg-orange-600 hover:bg-orange-700">
+              {isParsing ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Parsing...</>
+              ) : (
+                <><Search className="h-4 w-4" />Parse</>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {['HackerOne', 'Bugcrowd', 'Intigriti', 'YesWeHack', 'Synack', 'Custom'].map(p => (
+              <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Parsed Policy Summary */}
+      {policy && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Shield className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-medium">Program Info</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{policy.programName}</span></div>
+                <div><span className="text-muted-foreground">Platform:</span> <Badge variant="secondary" className="text-[10px] ml-1">{policy.platform}</Badge></div>
+                <div className="flex items-center gap-1">
+                  <span className="text-muted-foreground">Safe Harbor:</span>
+                  {policy.safeHarbor ? (
+                    <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Yes</Badge>
+                  ) : (
+                    <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/30">No</Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-medium">Scope</span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                  <span>{policy.scope.inScope.length} in-scope targets</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-3 w-3 text-red-400" />
+                  <span>{policy.scope.outOfScope.length} out-of-scope exclusions</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="h-4 w-4 text-orange-400" />
+                <span className="text-sm font-medium">Rewards</span>
+              </div>
+              {policy.rewardRange ? (
+                <div className="text-xs">
+                  <span className="text-2xl font-bold text-orange-400">
+                    {policy.rewardRange.currency}{policy.rewardRange.low.toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground"> — </span>
+                  <span className="text-2xl font-bold text-orange-400">
+                    {policy.rewardRange.currency}{policy.rewardRange.high.toLocaleString()}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No reward range specified</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Rules */}
+      {policy && policy.rules.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileText className="h-4 w-4 text-orange-400" />
+              Program Rules ({policy.rules.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-48">
+              <div className="space-y-2">
+                {policy.rules.map((rule, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <AlertCircle className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <span>{rule}</span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SLA */}
+      {policy?.responseTimeSla && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4 text-orange-400" />
+              Response SLA
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              {Object.entries(policy.responseTimeSla).map(([key, val]) => (
+                <div key={key} className="text-center">
+                  <p className="text-lg font-bold text-orange-400">{val}</p>
+                  <p className="text-[10px] text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Scope Checker ────────────────────────────────────────────────────────
+
+function ScopeTab({
+  policy,
+  checkScope,
+}: {
+  policy: PolicyROE;
+  checkScope: any;
+}) {
+  const [targetToCheck, setTargetToCheck] = useState('');
+  const [scopeResults, setScopeResults] = useState<ScopeCheckResult[]>([]);
+  const [isChecking, setIsChecking] = useState(false);
+
+  const handleCheck = async () => {
+    if (!targetToCheck.trim()) return;
+    setIsChecking(true);
+    try {
+      const result = await checkScope.mutateAsync({
+        target: targetToCheck.trim(),
+        policy: policy as any,
+      });
+      setScopeResults(prev => [result as ScopeCheckResult, ...prev]);
+      setTargetToCheck('');
+    } catch (err: any) {
+      toast.error('Scope check failed', { description: err.message });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* In-Scope */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              In-Scope ({policy.scope.inScope.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-64">
+              <div className="space-y-2">
+                {policy.scope.inScope.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 rounded bg-emerald-500/5 border border-emerald-500/10">
+                    <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">{entry.type}</Badge>
+                    <span className="text-xs font-mono">{entry.value}</span>
+                    {entry.notes && <span className="text-[10px] text-muted-foreground ml-auto">{entry.notes}</span>}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Out-of-Scope */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-red-400" />
+              Out-of-Scope ({policy.scope.outOfScope.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-64">
+              <div className="space-y-2">
+                {policy.scope.outOfScope.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 rounded bg-red-500/5 border border-red-500/10">
+                    <Badge variant="outline" className="text-[9px] border-red-500/30 text-red-400">{entry.type}</Badge>
+                    <span className="text-xs font-mono">{entry.value}</span>
+                    {entry.notes && <span className="text-[10px] text-muted-foreground ml-auto">{entry.notes}</span>}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Scope Checker */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Crosshair className="h-4 w-4 text-orange-400" />
+            Check Target Scope
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Verify whether a specific target is in-scope before testing. Supports domains, subdomains, IPs, and URLs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="e.g., api.example.com or 10.0.0.1"
+              value={targetToCheck}
+              onChange={e => setTargetToCheck(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCheck()}
+              className="flex-1 max-w-md"
+            />
+            <Button onClick={handleCheck} disabled={isChecking || !targetToCheck.trim()} variant="outline" className="gap-1">
+              {isChecking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Check
+            </Button>
+          </div>
+
+          {scopeResults.length > 0 && (
+            <div className="space-y-2">
+              {scopeResults.map((result, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    result.inScope
+                      ? 'bg-emerald-500/5 border-emerald-500/20'
+                      : 'bg-red-500/5 border-red-500/20'
+                  }`}
+                >
+                  {result.inScope ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-400" />
+                  )}
+                  <div className="flex-1">
+                    <span className="text-sm font-mono font-medium">{result.target}</span>
+                    <p className="text-xs text-muted-foreground">{result.reason}</p>
+                    {result.matchedRule && (
+                      <p className="text-[10px] text-muted-foreground mt-1">Matched: {result.matchedRule}</p>
+                    )}
+                  </div>
+                  <Badge variant={result.inScope ? 'default' : 'destructive'} className="text-[10px]">
+                    {result.inScope ? 'IN SCOPE' : 'OUT OF SCOPE'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Tab: Finding Documenter ───────────────────────────────────────────────────
+
+function FindingsTab({
+  findings,
+  onFindingsChange,
+  policy,
+}: {
+  findings: Finding[];
+  onFindingsChange: (f: Finding[]) => void;
+  policy: PolicyROE;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<Partial<Finding>>({
+    severity: 'medium',
+  });
+
+  const handleSave = () => {
+    if (!form.title || !form.target || !form.description || !form.stepsToReproduce || !form.impact) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    if (editingId) {
+      onFindingsChange(findings.map(f => f.id === editingId ? { ...f, ...form } as Finding : f));
+      setEditingId(null);
+    } else {
+      const newFinding: Finding = {
+        id: `finding-${Date.now()}`,
+        title: form.title!,
+        severity: form.severity || 'medium',
+        target: form.target!,
+        description: form.description!,
+        stepsToReproduce: form.stepsToReproduce!,
+        impact: form.impact!,
+        cweId: form.cweId,
+        cvssScore: form.cvssScore,
+      };
+      onFindingsChange([...findings, newFinding]);
+    }
+    setForm({ severity: 'medium' });
+    setIsAdding(false);
+  };
+
+  const handleEdit = (finding: Finding) => {
+    setForm(finding);
+    setEditingId(finding.id);
+    setIsAdding(true);
+  };
+
+  const handleDelete = (id: string) => {
+    onFindingsChange(findings.filter(f => f.id !== id));
+  };
+
+  const severityColor: Record<string, string> = {
+    critical: 'bg-red-500/10 text-red-400 border-red-500/30',
+    high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+    medium: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    low: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    informational: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Findings ({findings.length})</h2>
+          <p className="text-sm text-muted-foreground">
+            Document each vulnerability with reproduction steps, impact, and CWE classification.
+          </p>
+        </div>
+        <Button onClick={() => { setIsAdding(true); setEditingId(null); setForm({ severity: 'medium' }); }} className="gap-1 bg-orange-600 hover:bg-orange-700">
+          <Bug className="h-4 w-4" />
+          New Finding
+        </Button>
+      </div>
+
+      {/* Finding Form */}
+      {isAdding && (
+        <Card className="border-orange-500/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">{editingId ? 'Edit Finding' : 'New Finding'}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  placeholder="e.g., Stored XSS in Comment Field"
+                  value={form.title || ''}
+                  onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
+                  <Label>Severity *</Label>
+                  <Select value={form.severity || 'medium'} onValueChange={v => setForm(p => ({ ...p, severity: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="informational">Informational</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>CWE ID</Label>
+                  <Input
+                    placeholder="CWE-79"
+                    value={form.cweId || ''}
+                    onChange={e => setForm(p => ({ ...p, cweId: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Target *</Label>
+              <Input
+                placeholder="e.g., https://api.example.com/v2/comments"
+                value={form.target || ''}
+                onChange={e => setForm(p => ({ ...p, target: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description *</Label>
+              <Textarea
+                placeholder="Describe the vulnerability in detail..."
+                value={form.description || ''}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Steps to Reproduce *</Label>
+              <Textarea
+                placeholder="1. Navigate to...\n2. Enter payload...\n3. Observe..."
+                value={form.stepsToReproduce || ''}
+                onChange={e => setForm(p => ({ ...p, stepsToReproduce: e.target.value }))}
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Impact *</Label>
+              <Textarea
+                placeholder="Describe the security impact and business risk..."
+                value={form.impact || ''}
+                onChange={e => setForm(p => ({ ...p, impact: e.target.value }))}
+                rows={2}
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => { setIsAdding(false); setEditingId(null); }}>Cancel</Button>
+              <Button onClick={handleSave} className="bg-orange-600 hover:bg-orange-700">
+                {editingId ? 'Update' : 'Save'} Finding
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Findings List */}
+      {findings.length === 0 && !isAdding ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center">
+            <Bug className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">No findings documented yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Click "New Finding" to start documenting vulnerabilities</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {findings.map(finding => (
+            <Card key={finding.id} className="hover:shadow-sm transition-shadow">
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge className={`text-[10px] ${severityColor[finding.severity]}`}>
+                        {finding.severity.toUpperCase()}
+                      </Badge>
+                      <h3 className="text-sm font-medium truncate">{finding.title}</h3>
+                      {finding.cweId && <Badge variant="outline" className="text-[9px]">{finding.cweId}</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground font-mono">{finding.target}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{finding.description}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(finding)} className="h-7 px-2 text-xs">Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(finding.id)} className="h-7 px-2 text-xs text-red-400 hover:text-red-300">Delete</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Originality Checker ──────────────────────────────────────────────────
+
+function OriginalityTab({
+  findings,
+  checkOriginality,
+}: {
+  findings: Finding[];
+  checkOriginality: any;
+}) {
+  const [results, setResults] = useState<Map<string, OriginalityResult>>(new Map());
+  const [checking, setChecking] = useState<string | null>(null);
+
+  const handleCheck = async (finding: Finding) => {
+    setChecking(finding.id);
+    try {
+      const result = await checkOriginality.mutateAsync({
+        finding: {
+          title: finding.title,
+          description: finding.description,
+          cweId: finding.cweId,
+          target: finding.target,
+        },
+      });
+      setResults(prev => new Map(prev).set(finding.id, result as OriginalityResult));
+    } catch (err: any) {
+      toast.error('Originality check failed', { description: err.message });
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  const handleCheckAll = async () => {
+    for (const finding of findings) {
+      if (!results.has(finding.id)) {
+        await handleCheck(finding);
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Originality Verification</h2>
+          <p className="text-sm text-muted-foreground">
+            Check each finding against known issue patterns and common non-original submissions to avoid duplicates and wasted effort.
+          </p>
+        </div>
+        <Button onClick={handleCheckAll} variant="outline" className="gap-1">
+          <Sparkles className="h-4 w-4" />
+          Check All
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {findings.map(finding => {
+          const result = results.get(finding.id);
+          const isChecking = checking === finding.id;
+          return (
+            <Card key={finding.id}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium">{finding.title}</h3>
+                    <p className="text-xs text-muted-foreground font-mono">{finding.target}</p>
+                  </div>
+                  {!result ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCheck(finding)}
+                      disabled={isChecking}
+                      className="gap-1"
+                    >
+                      {isChecking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      Check
+                    </Button>
+                  ) : (
+                    <Badge className={`text-[10px] ${
+                      result.isOriginal
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    }`}>
+                      {result.isOriginal ? 'LIKELY ORIGINAL' : 'POSSIBLE DUPLICATE'}
+                    </Badge>
+                  )}
+                </div>
+                {result && (
+                  <div className="mt-3 p-3 rounded bg-muted/30 border border-border/50 space-y-2">
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-muted-foreground">Confidence:</span>
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${result.isOriginal ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                          style={{ width: `${result.confidence * 100}%` }}
+                        />
+                      </div>
+                      <span className="font-mono">{(result.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                    {result.matchedPatterns.length > 0 && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Matched patterns:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {result.matchedPatterns.map((p, i) => (
+                            <Badge key={i} variant="outline" className="text-[9px]">{p}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">{result.recommendation}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Submission Formatter ─────────────────────────────────────────────────
+
+function SubmitTab({
+  findings,
+  policy,
+  platform,
+  onPlatformChange,
+}: {
+  findings: Finding[];
+  policy: PolicyROE;
+  platform: string;
+  onPlatformChange: (p: string) => void;
+}) {
+  const [selectedFinding, setSelectedFinding] = useState<Finding | null>(findings[0] || null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const formatSubmission = useCallback((finding: Finding): string => {
+    const sections = [];
+
+    // Title
+    sections.push(`## ${finding.title}`);
+    sections.push('');
+
+    // Metadata
+    sections.push(`**Severity:** ${finding.severity.charAt(0).toUpperCase() + finding.severity.slice(1)}`);
+    if (finding.cweId) sections.push(`**CWE:** ${finding.cweId}`);
+    if (finding.cvssScore) sections.push(`**CVSS:** ${finding.cvssScore}`);
+    sections.push(`**Target:** \`${finding.target}\``);
+    sections.push('');
+
+    // Description
+    sections.push('### Description');
+    sections.push(finding.description);
+    sections.push('');
+
+    // Steps to Reproduce
+    sections.push('### Steps to Reproduce');
+    sections.push(finding.stepsToReproduce);
+    sections.push('');
+
+    // Impact
+    sections.push('### Impact');
+    sections.push(finding.impact);
+    sections.push('');
+
+    // Platform-specific footer
+    if (platform === 'hackerone') {
+      sections.push('---');
+      sections.push(`*Submitted via AC3 Bug Bounty Workspace for ${policy.programName}*`);
+    } else if (platform === 'bugcrowd') {
+      sections.push('---');
+      sections.push(`Program: ${policy.programName}`);
+    }
+
+    return sections.join('\n');
+  }, [platform, policy.programName]);
+
+  const handleCopy = (finding: Finding) => {
+    const text = formatSubmission(finding);
+    navigator.clipboard.writeText(text);
+    setCopiedId(finding.id);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Format & Submit</h2>
+          <p className="text-sm text-muted-foreground">
+            Generate platform-formatted submission reports for each finding. Copy to clipboard and submit directly on the platform.
+          </p>
+        </div>
+        <Select value={platform} onValueChange={onPlatformChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hackerone">HackerOne</SelectItem>
+            <SelectItem value="bugcrowd">Bugcrowd</SelectItem>
+            <SelectItem value="intigriti">Intigriti</SelectItem>
+            <SelectItem value="synack">Synack</SelectItem>
+            <SelectItem value="yeswehack">YesWeHack</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Finding Selector */}
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground">Select Finding</Label>
+          <ScrollArea className="max-h-[500px]">
+            <div className="space-y-2">
+              {findings.map(finding => (
+                <Card
+                  key={finding.id}
+                  className={`cursor-pointer transition-all ${
+                    selectedFinding?.id === finding.id
+                      ? 'ring-1 ring-orange-500/50 border-orange-500/30'
+                      : 'hover:border-muted-foreground/30'
+                  }`}
+                  onClick={() => setSelectedFinding(finding)}
+                >
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[9px]">{finding.severity}</Badge>
+                      <span className="text-xs font-medium truncate">{finding.title}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Formatted Preview */}
+        <div className="lg:col-span-2">
+          {selectedFinding ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-orange-400" />
+                    Formatted Submission
+                    <Badge variant="outline" className="text-[9px]">{platform}</Badge>
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopy(selectedFinding)}
+                    className="gap-1"
+                  >
+                    {copiedId === selectedFinding.id ? (
+                      <><Check className="h-3 w-3" />Copied</>
+                    ) : (
+                      <><Copy className="h-3 w-3" />Copy</>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="max-h-[400px]">
+                  <pre className="text-xs font-mono whitespace-pre-wrap p-4 rounded-lg bg-muted/30 border border-border/50">
+                    {formatSubmission(selectedFinding)}
+                  </pre>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center">
+                <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Select a finding to preview the formatted submission</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Batch Copy */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Batch Export</p>
+              <p className="text-xs text-muted-foreground">Copy all {findings.length} findings as a single formatted report</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const all = findings.map(f => formatSubmission(f)).join('\n\n---\n\n');
+                navigator.clipboard.writeText(all);
+                toast.success(`Copied ${findings.length} findings to clipboard`);
+              }}
+              className="gap-1"
+            >
+              <Clipboard className="h-4 w-4" />
+              Copy All
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

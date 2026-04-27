@@ -608,3 +608,11 @@
 - [x] Build tRPC router for VA/Bug Bounty (verification profiles, normalization, policy parsing, scope checking, tier gating, cross-training)
 - [x] Wire vaBugBounty router into appRouter
 - [x] Write comprehensive vitest tests — 117 tests across all 5 modules (all passing)
+
+### VA & Bug Bounty UI Sprint (Apr 26)
+- [x] Build VA Engagement Creation wizard page (profile picker, target input, framework selector, pipeline launch)
+- [x] Build Bug Bounty Workspace page (program URL parser, scope viewer, finding documenter, originality checker, submission formatter)
+- [x] Wire normalization pipeline to live Nuclei/ZAP scan results in engagement ops (normalizeEngagementFindings procedure)
+- [x] Add sidebar navigation entries and route wiring for VA wizard and Bug Bounty workspace
+- [x] Write vitest tests for new tRPC procedures and integration points — 32 tests (all passing)
+- [ ] Checkpoint and push to GitHub

@@ -158,6 +158,8 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Activity Log", path: "/activity", icon: FileText },
       { label: "Audit Log", path: "/audit-log", icon: ScrollText, roles: ["admin", "team_lead", "executive"] },
       { label: "Bug Bounty Hub", path: "/bug-bounty", icon: Bug },
+      { label: "Bug Bounty Workspace", path: "/bug-bounty-workspace", icon: Bug, roles: ["admin", "operator", "team_lead"] },
+      { label: "VA Wizard", path: "/va-wizard", icon: ShieldCheck, roles: ["admin", "operator", "team_lead"] },
     ],
   },
 
@@ -325,6 +327,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Naabu", path: "/tools/naabu", icon: Wifi, roles: ["admin", "operator", "team_lead"] },
       { label: "Scan Server Health", path: "/scan-server", icon: Server, roles: ["admin", "operator", "team_lead"] },
       { label: "Active Verification", path: "/active-verification", icon: ShieldCheck },
+      { label: "Finding Normalizer", path: "/va-wizard", icon: Layers, roles: ["admin", "operator", "team_lead"] },
       { label: "Scan Schedules", path: "/scan-schedules", icon: CalendarClock },
     ],
   },

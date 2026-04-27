@@ -7,6 +7,7 @@
  * - Bug bounty policy parsing and scope checking
  * - License-tier gating checks
  * - Finding normalization batch processing
+ * - Live engagement normalization pipeline
  * - Cross-training data
  */
 
@@ -23,6 +24,9 @@ import {
 } from '../lib/verification-profile.js';
 import {
   batchNormalize,
+  normalizeNucleiFinding,
+  normalizeZapFinding,
+  deduplicateFindings,
   type NormalizedFinding,
 } from '../lib/finding-normalization.js';
 import {
@@ -136,8 +140,113 @@ export const vaBugBountyRouter = router({
       });
     }),
   
+  // ─── Live Engagement Normalization Pipeline ────────────────────────────────
+  
+  /**
+   * Normalize all findings from a live engagement's ops state.
+   * Pulls vulns + zapFindings from each asset, runs them through the
+   * finding-normalization layer (batchNormalize), and returns a unified
+   * NormalizedFinding[] with dedup, corroboration tiers, and stats.
+   */
+  normalizeEngagementFindings: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator.js');
+
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new Error(`No ops state found for engagement ${input.engagementId}`);
+
+      // Collect raw findings from all assets in the engagement
+      const nucleiRaw: any[] = [];
+      const zapRaw: any[] = [];
+      const otherRaw: any[] = [];
+
+      for (const asset of (state.assets || [])) {
+        // Vulns from Nuclei (or other scanners stored in vulns[])
+        for (const v of (asset.vulns || [])) {
+          if (v.source === 'nuclei' || v.nucleiTemplateId || v.templateId) {
+            nucleiRaw.push({
+              templateId: v.nucleiTemplateId || v.templateId || v.id || 'unknown',
+              info: {
+                name: v.title,
+                severity: v.severity || 'info',
+                description: v.description || v.title,
+                classification: {
+                  cveId: v.cve ? [v.cve] : [],
+                  cweId: v.cweId ? [v.cweId] : (v.cwe ? [v.cwe] : []),
+                },
+                tags: v.tags || [],
+              },
+              host: asset.hostname || asset.ip || 'unknown',
+              ip: asset.ip,
+              port: v.port?.toString(),
+              matchedAt: v.url || `${asset.hostname}:${v.port || 443}`,
+              timestamp: v.timestamp || Date.now(),
+              extractorResults: v.evidence ? [{ name: 'evidence', values: [v.evidence] }] : [],
+            });
+          } else {
+            otherRaw.push({ ...v, hostname: asset.hostname, ip: asset.ip });
+          }
+        }
+
+        // ZAP findings
+        for (const zf of (asset.zapFindings || [])) {
+          zapRaw.push({
+            alert: zf.alert,
+            risk: zf.risk || 'Informational',
+            confidence: zf.confidence || 'Medium',
+            url: zf.url || `https://${asset.hostname}`,
+            description: zf.description || zf.alert,
+            solution: zf.solution || '',
+            reference: zf.reference || '',
+            cweid: zf.cweId?.toString() || zf.cweid?.toString() || '',
+            wascid: zf.wascid || '',
+            evidence: zf.evidence || '',
+            param: zf.param || '',
+            attack: zf.attack || '',
+            method: zf.method || 'GET',
+          });
+        }
+      }
+
+      // Run through normalization pipeline
+      const result = batchNormalize({
+        nucleiFindings: nucleiRaw.length > 0 ? nucleiRaw : undefined,
+        zapFindings: zapRaw.length > 0 ? zapRaw : undefined,
+      });
+
+      // Also normalize "other" scanner vulns that don't fit nuclei/zap format
+      const otherCount = otherRaw.length;
+
+      return {
+        ...result,
+        otherScannerFindings: otherCount,
+        engagementId: input.engagementId,
+        totalAssetsAnalyzed: (state.assets || []).length,
+      };
+    }),
+  
   // ─── Bug Bounty Policy ────────────────────────────────────────────────────
   
+  /**
+   * Parse a bug bounty program URL into a PolicyROE skeleton.
+   * Used by the BugBountyWorkspace to parse program pages.
+   */
+  parseBugBountyPolicy: protectedProcedure
+    .input(z.object({ programUrl: z.string() }))
+    .mutation(({ input }) => {
+      const parsed = parseProgramUrl(input.programUrl);
+      if (!parsed) {
+        throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack');
+      }
+      const skeleton = createSkeletonPolicy({
+        ...parsed,
+        programUrl: input.programUrl,
+      });
+      return skeleton;
+    }),
+
   parseProgramUrl: protectedProcedure
     .input(z.object({ url: z.string() }))
     .mutation(({ input }) => {

@@ -132,6 +132,8 @@ const AttackPaths = lazyWithRetry(() => import("./pages/AttackPaths"));
 const PurpleTeam = lazyWithRetry(() => import("./pages/PurpleTeam"));
 const Webhooks = lazyWithRetry(() => import("./pages/Webhooks"));
 const BugBountyHub = lazyWithRetry(() => import("./pages/BugBountyHub"));
+const BugBountyWorkspace = lazyWithRetry(() => import("./pages/BugBountyWorkspace"));
+const VAWizard = lazyWithRetry(() => import("./pages/VAWizard"));
 const ScoringHub = lazyWithRetry(() => import("./pages/ScoringHub"));
 const BiaReport = lazyWithRetry(() => import("./pages/BiaReport"));
 const ValidationEngine = lazyWithRetry(() => import("./pages/ValidationEngine"));
@@ -763,6 +765,12 @@ function Router() {
         </Route>
         <Route path="/bug-bounty">
           <ProtectedRoute component={BugBountyHub} />
+        </Route>
+        <Route path="/bug-bounty-workspace">
+          <ProtectedRoute component={BugBountyWorkspace} />
+        </Route>
+        <Route path="/va-wizard">
+          <ProtectedRoute component={VAWizard} />
         </Route>
         <Route path="/scoring">
           <ProtectedRoute component={RiskCenterHub} />
