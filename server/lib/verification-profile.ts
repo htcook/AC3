@@ -724,10 +724,6 @@ export function getVerificationProfile(profileId: string): VerificationProfile |
   return VERIFICATION_PROFILES[profileId];
 }
 
-export function listVerificationProfiles(): Array<{ id: string; name: string; description: string }> {
-  return Object.values(VERIFICATION_PROFILES).map(p => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-  }));
+export function listVerificationProfiles(): VerificationProfile[] {
+  return Object.values(VERIFICATION_PROFILES);
 }
