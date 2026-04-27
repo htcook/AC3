@@ -678,4 +678,12 @@
 - [x] Create fresh Node.js bug bounty engagement — confirmed github.com/nodejs/node now shows correctly as target
 - [x] Add real-time provisioning status tracker with WebSocket updates on ops page (clone/build/deploy progress bar with stage labels and elapsed time)
 - [x] Write tests for provisioning status tracker (37 total tests passing)
-- [ ] Push all changes to GitHub (pending checkpoint)
+- [x] Push all changes to GitHub (pushed c3459778 to htcook/caldera-dashboard)
+
+### Dependabot Vulnerability Fixes (Apr 27)
+- [x] Audit all 71 vulnerabilities (3 critical, 36 high, 28 moderate, 4 low) — found 88 total
+- [x] Fix critical severity vulnerabilities (tar, esbuild)
+- [x] Fix high severity vulnerabilities (path-to-regexp, picomatch, minimatch, rollup)
+- [x] Fix moderate severity vulnerabilities (fast-xml-parser, uuid, postcss, qs, follow-redirects, lodash, brace-expansion, protobufjs)
+- [x] Verify fixes with pnpm audit — 0 vulnerabilities remaining. 37 new tests passing.
+- [ ] Push fixes to GitHub (pending checkpoint)
