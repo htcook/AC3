@@ -37,16 +37,49 @@ interface VerificationProfile {
   id: string;
   name: string;
   description: string;
-  category: string;
   maxVerificationDepth: string;
-  complianceFrameworks: string[];
+  allowedVerificationMethods?: string[];
   scannerConfig: {
-    enabledScanners: string[];
+    enableNuclei: boolean;
+    enableZap: boolean;
+    enableBurp: boolean;
+    enableTrivy: boolean;
+    enableOpenVas: boolean;
+    enableNikto: boolean;
+    nucleiTemplateCategories?: string[];
+    zapScanPolicy?: string;
+    burpScanType?: string;
   };
-  reportConfig: {
+  timing: {
+    scanWindowOnly: boolean;
+    businessHoursOnly: boolean;
+    maxScanDurationMinutes: number;
+    cooldownBetweenScansMinutes: number;
+  };
+  compliance?: {
+    frameworks: string[];
+    requireEvidencePackage: boolean;
+    autoMapFindings: boolean;
+  };
+  reportConfig?: {
     includeComplianceMapping: boolean;
     includeRemediationTimeline: boolean;
+    executiveSummary: boolean;
+    technicalDetails: boolean;
   };
+  [key: string]: any;
+}
+
+/** Derive enabled scanner names from the boolean flags */
+function getEnabledScanners(config: VerificationProfile['scannerConfig']): string[] {
+  const scanners: string[] = [];
+  if (config.enableNuclei) scanners.push('Nuclei');
+  if (config.enableZap) scanners.push('ZAP');
+  if (config.enableBurp) scanners.push('Burp');
+  if (config.enableTrivy) scanners.push('Trivy');
+  if (config.enableOpenVas) scanners.push('OpenVAS');
+  if (config.enableNikto) scanners.push('Nikto');
+  return scanners;
 }
 
 type WizardStep = 'profile' | 'targets' | 'frameworks' | 'review';
@@ -113,7 +146,7 @@ export default function VAWizard() {
   // Auto-select frameworks from profile
   const profileFrameworks = useMemo(() => {
     if (!selectedProfile) return [];
-    return selectedProfile.complianceFrameworks || [];
+    return selectedProfile.compliance?.frameworks || [];
   }, [selectedProfile]);
 
   // Merge profile frameworks with user-selected
@@ -401,11 +434,11 @@ function ProfileStep({
                     Depth: {profile.maxVerificationDepth}
                   </Badge>
                   <Badge variant="secondary" className="text-[10px]">
-                    {profile.scannerConfig.enabledScanners.length} scanners
+                    {getEnabledScanners(profile.scannerConfig).length} scanners
                   </Badge>
-                  {profile.complianceFrameworks.length > 0 && (
+                  {(profile.compliance?.frameworks?.length ?? 0) > 0 && (
                     <Badge variant="secondary" className="text-[10px]">
-                      {profile.complianceFrameworks.length} frameworks
+                      {profile.compliance!.frameworks.length} frameworks
                     </Badge>
                   )}
                 </div>
@@ -522,9 +555,9 @@ function TargetsStep({
               <span className="text-sm font-medium">Selected Profile: {selectedProfile.name}</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {selectedProfile.scannerConfig.enabledScanners.map((s: string) => (
-                <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
-              ))}
+{getEnabledScanners(selectedProfile.scannerConfig).map((s: string) => (
+                 <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>
+               ))}
             </div>
           </CardContent>
         </Card>
@@ -686,8 +719,8 @@ function ReviewStep({
             <div>
               <span className="text-xs text-muted-foreground">Scanners</span>
               <div className="flex flex-wrap gap-1 mt-1">
-                {profile.scannerConfig.enabledScanners.map((s: string) => (
-                  <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
+{getEnabledScanners(profile.scannerConfig).map((s: string) => (
+                   <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
                 ))}
               </div>
             </div>
