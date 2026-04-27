@@ -632,3 +632,11 @@
 - [x] Add engagement selector dropdown to Bug Bounty Import tab (listActiveEngagements procedure, dropdown with type badges, manual fallback)
 - [x] Write vitest tests for new functionality — 15 tests (all passing)
 - [x] Checkpoint and push to GitHub
+
+### Bug Fixes (Apr 27)
+- [x] Fix ReferenceError: ComplianceFrameworkSelector is not defined (added missing import in DomainIntelResults.tsx)
+- [x] Fix ZAP self-referencing loop on scan server (nginx reverse proxy on port 8092 → localhost:8090, Host: zap header)
+- [x] Update Caldera ZAP connection config (scan-service-url.ts + zap-scanner.ts → port 8092, diagnostic check updated)
+- [x] Fix useAuth import paths (FindingTriageQueue.tsx, CustomerPortalSelfService.tsx)
+- [x] Fix listVerificationProfiles returning partial data (now returns full profile objects)
+- [x] Fix VA Wizard type mismatch (scannerConfig.enabledScanners → getEnabledScanners helper)

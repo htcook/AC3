@@ -64,6 +64,7 @@ const VendorAlertCorrelationTab = lazy(() => import("./domain-intel-tabs/VendorA
 const DomainHealthTab = lazy(() => import("./domain-intel-tabs/DomainHealthTab"));
 const InfrastructureMapTab = lazy(() => import("./domain-intel-tabs/InfrastructureMapTab"));
 const DiscoveryContextTab = lazy(() => import("./domain-intel-tabs/DiscoveryContextTab"));
+import ComplianceFrameworkSelector from "@/components/ComplianceFrameworkSelector";
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-400 bg-red-500/20 border-red-500/40",

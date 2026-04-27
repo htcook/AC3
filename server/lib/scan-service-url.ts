@@ -23,7 +23,7 @@ export const SCANFORGE_DEDICATED_URL = `http://${SCANFORGE_DEDICATED_IP}:4000`;
 // ─── Legacy Shared Scan Server (also hosts ZAP + lab containers) ────────────
 export const LEGACY_SCAN_URL = "https://scan.aceofcloud.io";
 export const LEGACY_SCAN_IP = process.env.SCAN_SERVER_HOST || "137.184.211.238";
-export const LEGACY_ZAP_URL = process.env.ZAP_BASE_URL || `http://${LEGACY_SCAN_IP}:8090`;
+export const LEGACY_ZAP_URL = process.env.ZAP_BASE_URL || `http://${LEGACY_SCAN_IP}:8092`;
 
 // ─── Primary URL (used by do-scan-api.ts and job-queue-bridge.ts) ───────────
 export const SCAN_SERVICE_URL = (() => {
@@ -78,7 +78,9 @@ export async function getActiveScanUrl(): Promise<string> {
 
 /**
  * Get the ZAP base URL.
- * ZAP runs on the legacy shared scan server (Docker container on port 8090),
+ * ZAP runs on the legacy shared scan server via nginx reverse proxy on port 8092.
+ * The nginx proxy forwards to localhost:8090 inside the server, preventing
+ * ZAP's self-referencing loop when requests arrive on the public IP.
  * NOT on the dedicated ScanForge droplet (which only runs the Node.js scan service).
  * The dedicated droplet does not have ZAP installed.
  */

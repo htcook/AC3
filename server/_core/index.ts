@@ -499,7 +499,7 @@ async function startServer() {
       results.zapProcess = zapProcess.stdout;
 
       // 10. Check what's listening on port 8080 (default ZAP port)
-      const port8080 = await executeTool({ tool: 'bash', args: '-c "ss -tlnp | grep -E \":8080|:8090\""', timeoutSeconds: 10 });
+      const port8080 = await executeTool({ tool: 'bash', args: '-c "ss -tlnp | grep -E \":8080|:8090|:8092\""', timeoutSeconds: 10 });
       results.zapPorts = port8080.stdout;
 
       res.json({ ok: true, results });
