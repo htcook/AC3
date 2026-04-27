@@ -73,6 +73,7 @@ import { CoverageQuality } from "@/components/CoverageQuality";
 import ExploitEvidencePanel from "@/components/ExploitEvidencePanel";
 import PromotedExploitsPanel from "@/components/PromotedExploitsPanel";
 import ComplianceFrameworkSelector from "@/components/ComplianceFrameworkSelector";
+import { NormalizedFindingsPanel } from "@/components/NormalizedFindingsPanel";
 import TargetProfilePanel from "@/components/TargetProfilePanel";
 import { EvasionStatusIndicator } from "@/components/EvasionStatusIndicator";
 import EngagementTimeline from "@/components/EngagementTimeline";
@@ -2338,6 +2339,7 @@ export default function EngagementOps() {
                   { value: 'feedback', label: 'Feedback Loop', icon: <RefreshCw className="h-3 w-3" />, count: feedbackLoopQ.data?.totalScansExecuted || 0 },
                   { value: 'fpsuppression', label: 'FP Suppression', icon: <Filter className="h-3 w-3" /> },
                   { value: 'coverage', label: 'Coverage & Quality', icon: <Scissors className="h-3 w-3" /> },
+                  { value: 'normalized', label: 'Normalized', icon: <Layers className="h-3 w-3" />, count: 0 },
                 ],
               },
               {
@@ -4771,6 +4773,13 @@ export default function EngagementOps() {
                     engagementPhase={ops?.phase}
                   />
                 </div>
+              </ScrollArea>
+            </TabsContent>
+
+            {/* ── Normalized Findings Tab ── */}
+            <TabsContent value="normalized" className="flex-1 overflow-hidden m-0 px-6 pb-4">
+              <ScrollArea className="h-[calc(100vh-280px)]">
+                <NormalizedFindingsPanel engagementId={engagementId} />
               </ScrollArea>
             </TabsContent>
 

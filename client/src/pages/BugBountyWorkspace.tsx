@@ -37,6 +37,7 @@ import {
   Search, Copy, ExternalLink, Sparkles, CheckCircle2, XCircle,
   Clock, Zap, Eye, Send, ArrowRight, Loader2, Info, ChevronDown,
   ChevronRight, Crosshair, Link2, AlertCircle, FileCheck, Clipboard,
+  Download, Layers,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -95,11 +96,43 @@ export default function BugBountyWorkspace() {
   const [isParsing, setIsParsing] = useState(false);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState('hackerone');
+  const [engagementIdInput, setEngagementIdInput] = useState('');
+  const [importedFindings, setImportedFindings] = useState<any[]>([]);
 
   // tRPC mutations
   const parsePolicy = trpc.vaBugBounty.parseBugBountyPolicy.useMutation();
   const checkScope = trpc.vaBugBounty.checkScope.useMutation();
   const checkOriginality = trpc.vaBugBounty.checkOriginality.useMutation();
+  const importEngagementFindings = trpc.vaBugBounty.listEngagementFindingsForBounty.useMutation();
+
+  const handleImportFromEngagement = async () => {
+    const id = parseInt(engagementIdInput);
+    if (isNaN(id) || id <= 0) return;
+    try {
+      const result = await importEngagementFindings.mutateAsync({ engagementId: id });
+      setImportedFindings(result.findings || []);
+      toast.success(`Imported ${result.findings.length} findings from engagement #${id}`, {
+        description: `${result.totalAssets} assets analyzed`,
+      });
+    } catch (err: any) {
+      toast.error('Failed to import findings', { description: err.message });
+    }
+  };
+
+  const adoptImportedFinding = (imported: any) => {
+    const newFinding: Finding = {
+      id: `imported-${imported.id || Date.now()}`,
+      title: imported.title || 'Imported Finding',
+      severity: imported.severity || 'medium',
+      target: imported.target || 'unknown',
+      description: imported.description || '',
+      stepsToReproduce: imported.reproductionSteps?.map((s: any) => `${s.stepNumber}. ${s.action}`).join('\n') || 'Imported from engagement scan — add reproduction steps.',
+      impact: imported.impactAnalysis?.technicalImpact || imported.description || '',
+      cweId: imported.cweIds?.[0],
+    };
+    setFindings(prev => [...prev, newFinding]);
+    toast.success(`Adopted: ${newFinding.title}`);
+  };
 
   const handleParseProgram = async () => {
     if (!programUrl.trim()) return;
@@ -158,6 +191,10 @@ export default function BugBountyWorkspace() {
             <Send className="h-3.5 w-3.5" />
             Submit
           </TabsTrigger>
+          <TabsTrigger value="import" className="gap-1.5">
+            <Download className="h-3.5 w-3.5" />
+            Import
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab: Program Parser */}
@@ -204,6 +241,18 @@ export default function BugBountyWorkspace() {
               onPlatformChange={setSelectedPlatform}
             />
           )}
+        </TabsContent>
+        {/* Tab: Import from Engagement */}
+        <TabsContent value="import">
+          <ImportFromEngagementTab
+            engagementIdInput={engagementIdInput}
+            onEngagementIdChange={setEngagementIdInput}
+            onImport={handleImportFromEngagement}
+            isImporting={importEngagementFindings.isPending}
+            importedFindings={importedFindings}
+            onAdopt={adoptImportedFinding}
+            existingFindingIds={new Set(findings.map(f => f.id))}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -1032,6 +1081,172 @@ function SubmitTab({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ─── Tab: Import from Engagement ──────────────────────────────────────────────
+
+function ImportFromEngagementTab({
+  engagementIdInput,
+  onEngagementIdChange,
+  onImport,
+  isImporting,
+  importedFindings,
+  onAdopt,
+  existingFindingIds,
+}: {
+  engagementIdInput: string;
+  onEngagementIdChange: (v: string) => void;
+  onImport: () => void;
+  isImporting: boolean;
+  importedFindings: any[];
+  onAdopt: (f: any) => void;
+  existingFindingIds: Set<string>;
+}) {
+  const severityColor: Record<string, string> = {
+    critical: 'bg-red-500/10 text-red-400 border-red-500/30',
+    high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+    medium: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    low: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    info: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="h-4 w-4 text-orange-400" />
+            Import Findings from Engagement
+          </CardTitle>
+          <CardDescription>
+            Pull normalized findings from an existing engagement scan. Select findings to adopt into your
+            Bug Bounty workspace, then add reproduction steps and impact analysis for submission.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter engagement ID (e.g., 42)"
+              value={engagementIdInput}
+              onChange={e => onEngagementIdChange(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && onImport()}
+              className="flex-1 max-w-xs"
+            />
+            <Button onClick={onImport} disabled={isImporting || !engagementIdInput.trim()} className="gap-2 bg-orange-600 hover:bg-orange-700">
+              {isImporting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" />Importing...</>
+              ) : (
+                <><Download className="h-4 w-4" />Import Findings</>
+              )}
+            </Button>
+          </div>
+
+          {importedFindings.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {importedFindings.length} findings available for adoption
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Imported Findings List */}
+      {importedFindings.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Layers className="h-4 w-4 text-orange-400" />
+              Engagement Findings ({importedFindings.length})
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Click "Adopt" to add a finding to your workspace. You can then edit reproduction steps and impact before submission.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="max-h-[500px]">
+              <div className="space-y-2">
+                {importedFindings.map((f: any) => {
+                  const adopted = existingFindingIds.has(`imported-${f.id}`);
+                  return (
+                    <div
+                      key={f.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        adopted ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-card/50 border-border/30 hover:bg-card/70'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className={`${severityColor[f.severity] || severityColor.info} text-[10px]`}>
+                            {f.severity}
+                          </Badge>
+                          {f.corroborationTier && (
+                            <Badge variant="outline" className="text-[10px] bg-background/50">
+                              {f.corroborationTier.replace(/_/g, ' ')}
+                            </Badge>
+                          )}
+                          <span className="text-sm font-medium text-foreground truncate">{f.title}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Target className="h-3 w-3" /> {f.target}
+                          </span>
+                          {f.cveIds?.length > 0 && (
+                            <span className="flex items-center gap-1 font-mono">
+                              <Shield className="h-3 w-3" /> {f.cveIds.slice(0, 2).join(', ')}
+                            </span>
+                          )}
+                          {f.sourceCount > 1 && (
+                            <span className="flex items-center gap-1">
+                              <Eye className="h-3 w-3" /> {f.sourceCount} sources
+                            </span>
+                          )}
+                          {f.detectionConfidence != null && (
+                            <span className="flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" /> {Math.round(f.detectionConfidence * 100)}% conf
+                            </span>
+                          )}
+                        </div>
+                        {f.description && (
+                          <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{f.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        variant={adopted ? "secondary" : "outline"}
+                        size="sm"
+                        className="flex-none h-7 text-xs gap-1"
+                        disabled={adopted}
+                        onClick={() => onAdopt(f)}
+                      >
+                        {adopted ? (
+                          <><CheckCircle2 className="h-3 w-3 text-emerald-400" />Adopted</>
+                        ) : (
+                          <><ArrowRight className="h-3 w-3" />Adopt</>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isImporting && importedFindings.length === 0 && (
+        <Card className="border-border/30 bg-card/30">
+          <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+            <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center">
+              <Download className="h-6 w-6 text-orange-400" />
+            </div>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Enter an engagement ID to import normalized findings. Findings are pulled from the engagement's
+              scan results, deduplicated, and presented for adoption into your Bug Bounty workspace.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

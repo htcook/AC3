@@ -383,4 +383,111 @@ export const vaBugBountyRouter = router({
     .query(() => {
       return toolTracker.getEffectivenessSummary();
     }),
+
+  // ─── Engagement-to-BugBounty Bridge ───────────────────────────────────────
+
+  /**
+   * List normalized findings from an engagement that can be used in the
+   * Bug Bounty Workspace. Returns findings enriched with engagement context
+   * so they can be selected, documented, and formatted for submission.
+   */
+  listEngagementFindingsForBounty: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { getOpsState, getOpsStateWithRecovery } = await import('../lib/engagement-orchestrator.js');
+
+      let state = getOpsState(input.engagementId);
+      if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+      if (!state) throw new Error(`No ops state found for engagement ${input.engagementId}`);
+
+      // Collect raw findings
+      const nucleiRaw: any[] = [];
+      const zapRaw: any[] = [];
+
+      for (const asset of (state.assets || [])) {
+        for (const v of (asset.vulns || [])) {
+          if (v.source === 'nuclei' || v.nucleiTemplateId || v.templateId) {
+            nucleiRaw.push({
+              templateId: v.nucleiTemplateId || v.templateId || v.id || 'unknown',
+              info: {
+                name: v.title,
+                severity: v.severity || 'info',
+                description: v.description || v.title,
+                classification: {
+                  cveId: v.cve ? [v.cve] : [],
+                  cweId: v.cweId ? [v.cweId] : (v.cwe ? [v.cwe] : []),
+                },
+                tags: v.tags || [],
+              },
+              host: asset.hostname || asset.ip || 'unknown',
+              ip: asset.ip,
+              port: v.port?.toString(),
+              matchedAt: v.url || `${asset.hostname}:${v.port || 443}`,
+              timestamp: v.timestamp || Date.now(),
+              extractorResults: v.evidence ? [{ name: 'evidence', values: [v.evidence] }] : [],
+            });
+          }
+        }
+        for (const zf of (asset.zapFindings || [])) {
+          zapRaw.push({
+            alert: zf.alert,
+            risk: zf.risk || 'Informational',
+            confidence: zf.confidence || 'Medium',
+            url: zf.url || `https://${asset.hostname}`,
+            description: zf.description || zf.alert,
+            solution: zf.solution || '',
+            reference: zf.reference || '',
+            cweid: zf.cweId?.toString() || zf.cweid?.toString() || '',
+            wascid: zf.wascid || '',
+            evidence: zf.evidence || '',
+            param: zf.param || '',
+            attack: zf.attack || '',
+            method: zf.method || 'GET',
+          });
+        }
+      }
+
+      const result = batchNormalize({
+        nucleiFindings: nucleiRaw.length > 0 ? nucleiRaw : undefined,
+        zapFindings: zapRaw.length > 0 ? zapRaw : undefined,
+      });
+
+      // Convert normalized findings to BugBountyFinding-compatible format
+      const bountyFindings = result.findings.map((nf: any) => ({
+        id: nf.findingId || nf.fingerprint,
+        title: nf.title,
+        severity: nf.severity,
+        vulnClass: nf.vulnClass || 'unknown',
+        target: nf.affectedAsset?.hostname || 'unknown',
+        description: nf.description || '',
+        cveIds: nf.cveIds || [],
+        cweIds: nf.cweIds || [],
+        corroborationTier: nf.corroborationTier,
+        sourceCount: nf.sources?.length || 1,
+        detectionConfidence: nf.detectionConfidence,
+        evidence: nf.evidence || [],
+        // Pre-fill BugBountyFinding fields
+        reproductionSteps: [],
+        prerequisites: [],
+        impactAnalysis: {
+          technicalImpact: nf.description || '',
+          businessImpact: '',
+          affectedUsers: 'unknown',
+          dataAtRisk: [],
+        },
+        originalityIndicators: {
+          isNovelChain: false,
+          uniqueEndpoint: false,
+          requiresSpecificConditions: false,
+          bypassesExistingFix: false,
+        },
+      }));
+
+      return {
+        findings: bountyFindings,
+        engagementId: input.engagementId,
+        totalAssets: (state.assets || []).length,
+        stats: result.stats,
+      };
+    }),
 });

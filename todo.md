@@ -615,4 +615,13 @@
 - [x] Wire normalization pipeline to live Nuclei/ZAP scan results in engagement ops (normalizeEngagementFindings procedure)
 - [x] Add sidebar navigation entries and route wiring for VA wizard and Bug Bounty workspace
 - [x] Write vitest tests for new tRPC procedures and integration points — 32 tests (all passing)
+- [x] Checkpoint and push to GitHub
+
+### Normalization Stats, Triage Queue & BB Integration Sprint (Apr 26)
+- [x] Add Normalized Findings tab to EngagementOps with dedup/corroboration breakdown and stats (NormalizedFindingsPanel component)
+- [x] Build Finding Triage Queue page (accept/reject/reclassify findings, feed outcomes to cross-training pipeline)
+- [x] Add tRPC procedures for triage queue operations and engagement-to-bounty workspace bridge (listEngagementFindingsForBounty)
+- [x] Connect Bug Bounty Workspace to live engagement data (Import tab with adopt flow)
+- [x] Add sidebar navigation entries and routes for Finding Triage Queue
+- [x] Write vitest tests for new procedures — 26 tests (all passing)
 - [ ] Checkpoint and push to GitHub

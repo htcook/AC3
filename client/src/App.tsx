@@ -134,6 +134,7 @@ const Webhooks = lazyWithRetry(() => import("./pages/Webhooks"));
 const BugBountyHub = lazyWithRetry(() => import("./pages/BugBountyHub"));
 const BugBountyWorkspace = lazyWithRetry(() => import("./pages/BugBountyWorkspace"));
 const VAWizard = lazyWithRetry(() => import("./pages/VAWizard"));
+const FindingTriageQueue = lazyWithRetry(() => import("./pages/FindingTriageQueue"));
 const ScoringHub = lazyWithRetry(() => import("./pages/ScoringHub"));
 const BiaReport = lazyWithRetry(() => import("./pages/BiaReport"));
 const ValidationEngine = lazyWithRetry(() => import("./pages/ValidationEngine"));
@@ -771,6 +772,9 @@ function Router() {
         </Route>
         <Route path="/va-wizard">
           <ProtectedRoute component={VAWizard} />
+        </Route>
+        <Route path="/triage-queue">
+          <ProtectedRoute component={FindingTriageQueue} />
         </Route>
         <Route path="/scoring">
           <ProtectedRoute component={RiskCenterHub} />

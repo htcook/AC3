@@ -328,6 +328,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Scan Server Health", path: "/scan-server", icon: Server, roles: ["admin", "operator", "team_lead"] },
       { label: "Active Verification", path: "/active-verification", icon: ShieldCheck },
       { label: "Finding Normalizer", path: "/va-wizard", icon: Layers, roles: ["admin", "operator", "team_lead"] },
+      { label: "Triage Queue", path: "/triage-queue", icon: ShieldCheck, roles: ["admin", "operator", "team_lead", "analyst"] },
       { label: "Scan Schedules", path: "/scan-schedules", icon: CalendarClock },
     ],
   },
