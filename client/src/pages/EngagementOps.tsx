@@ -3983,6 +3983,71 @@ export default function EngagementOps() {
                                   Runs on the scan server via SSH. Requires Docker and network access to the source repository.
                                 </p>
                               </div>
+
+                              {/* Real-time Provisioning Progress Tracker */}
+                              {(() => {
+                                const provisionEvents = wsEvents.filter((e: any) => e.data?.type === 'provision_progress');
+                                if (provisionEvents.length === 0) return null;
+                                // Group by assetName, take latest event per asset
+                                const latestByAsset = new Map<string, any>();
+                                provisionEvents.forEach((e: any) => {
+                                  const d = e.data;
+                                  const existing = latestByAsset.get(d.assetName);
+                                  if (!existing || (d.elapsedMs || 0) >= (existing.elapsedMs || 0)) {
+                                    latestByAsset.set(d.assetName, d);
+                                  }
+                                });
+                                const STAGE_LABELS: Record<string, string> = {
+                                  init: 'Initializing',
+                                  acquire: 'Acquiring Source',
+                                  dependencies: 'Installing Dependencies',
+                                  build: 'Building',
+                                  deploy: 'Deploying',
+                                  verify: 'Verifying',
+                                  complete: 'Complete',
+                                  error: 'Failed',
+                                };
+                                const STAGE_COLORS: Record<string, string> = {
+                                  init: 'bg-blue-500',
+                                  acquire: 'bg-amber-500',
+                                  dependencies: 'bg-purple-500',
+                                  build: 'bg-orange-500',
+                                  deploy: 'bg-cyan-500',
+                                  verify: 'bg-teal-500',
+                                  complete: 'bg-green-500',
+                                  error: 'bg-red-500',
+                                };
+                                return (
+                                  <div className="mt-3 space-y-2 bg-muted/5 rounded-lg p-3 border border-amber-500/10">
+                                    <div className="flex items-center gap-2 text-xs font-medium text-amber-300">
+                                      <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                                      Provisioning Progress
+                                    </div>
+                                    {Array.from(latestByAsset.entries()).map(([assetName, evt]) => (
+                                      <div key={assetName} className="space-y-1.5">
+                                        <div className="flex items-center justify-between text-[11px]">
+                                          <span className="font-medium truncate max-w-[200px]">{assetName}</span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground">
+                                              {STAGE_LABELS[evt.stage] || evt.stage}
+                                            </span>
+                                            <span className="text-muted-foreground/50">
+                                              {evt.elapsedMs ? `${(evt.elapsedMs / 1000).toFixed(0)}s` : ''}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="h-2 w-full bg-muted/20 rounded-full overflow-hidden">
+                                          <div
+                                            className={`h-full rounded-full transition-all duration-500 ${STAGE_COLORS[evt.stage] || 'bg-amber-500'} ${evt.stage !== 'complete' && evt.stage !== 'error' ? 'animate-pulse' : ''}`}
+                                            style={{ width: `${evt.progress ?? 0}%` }}
+                                          />
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground/70 truncate">{evt.detail}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </CardContent>
                           </Card>
                         )}

@@ -21,6 +21,7 @@
  */
 
 import { executeRawCommand, executeTool, checkScanServerStatus } from "./scan-server-executor";
+import { broadcastOpsUpdate } from "./engagement-orchestrator";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -99,14 +100,31 @@ export async function provisionAsset(
   let deployLog = "";
   const installedTools: string[] = [];
 
+  // Helper to broadcast provisioning progress
+  const broadcast = (stage: string, status: string, detail: string, progress?: number) => {
+    try {
+      broadcastOpsUpdate(engagementId, {
+        type: "provision_progress",
+        assetName: br.assetName,
+        stage,
+        status,
+        detail,
+        progress: progress ?? undefined,
+        elapsedMs: Date.now() - startTime,
+      });
+    } catch (_) { /* non-critical */ }
+  };
+
   try {
     // 0. Ensure base directory and Docker network exist
+    broadcast("init", "running", `Preparing workspace for ${br.assetName}...`, 0);
     await executeRawCommand(
       `mkdir -p ${assetDir} && docker network create ${DOCKER_NETWORK} 2>/dev/null || true`,
       30000
     );
 
     // 1. Acquire the asset (git clone, wget, etc.)
+    broadcast("acquire", "running", `Cloning/downloading ${br.assetName}...`, 10);
     buildLog += `\n=== ACQUISITION ===\n`;
     const acquisitionCmd = deriveAcquisitionCommand(br, assetDir);
     const acqResult = await executeRawCommand(acquisitionCmd, CLONE_TIMEOUT * 1000);
@@ -122,7 +140,9 @@ export async function provisionAsset(
     }
 
     // 2. Install dependencies
+    broadcast("acquire", "complete", `Source acquired successfully`, 25);
     if (br.dependencies && br.dependencies.length > 0) {
+      broadcast("dependencies", "running", `Installing ${br.dependencies.length} dependencies...`, 30);
       buildLog += `\n=== DEPENDENCIES ===\n`;
       for (const dep of br.dependencies) {
         const depCmd = deriveInstallCommand(dep);
@@ -136,6 +156,7 @@ export async function provisionAsset(
 
     // 3. Build (unless skipped or has hosted instance)
     if (!options?.skipBuild && !br.hasHostedInstance) {
+      broadcast("build", "running", `Building ${br.assetName}...`, 50);
       buildLog += `\n=== BUILD ===\n`;
       if (br.buildInstructions && br.buildInstructions.length > 0) {
         for (const step of br.buildInstructions) {
@@ -158,6 +179,7 @@ export async function provisionAsset(
 
     // 4. Deploy (Docker preferred)
     if (!options?.skipDeploy) {
+      broadcast("deploy", "running", `Deploying to Docker container on port ${port}...`, 75);
       deployLog += `\n=== DEPLOY ===\n`;
       if (br.hasHostedInstance && br.hostedInstanceUrl) {
         deployLog += `Using hosted instance: ${br.hostedInstanceUrl}\n`;
@@ -195,6 +217,7 @@ export async function provisionAsset(
       }
 
       // 5. Verify the deployment is accessible
+      broadcast("verify", "running", `Verifying deployment on port ${port}...`, 90);
       const verifyResult = await executeRawCommand(
         `sleep 5 && curl -s -o /dev/null -w '%{http_code}' http://localhost:${port}/ 2>/dev/null || echo 'unreachable'`,
         30000
@@ -203,6 +226,7 @@ export async function provisionAsset(
       deployLog += `\n=== VERIFY ===\nHTTP status: ${httpCode}\n`;
 
       if (httpCode === "unreachable" || httpCode === "000") {
+        broadcast("verify", "warning", `Asset deployed but not responding on port ${port}. May need manual configuration.`, 95);
         return {
           assetName: br.assetName,
           status: "partial",
@@ -217,6 +241,7 @@ export async function provisionAsset(
       }
     }
 
+    broadcast("complete", "success", `Asset provisioned successfully at http://localhost:${port}`, 100);
     return {
       assetName: br.assetName,
       status: "success",
@@ -229,6 +254,7 @@ export async function provisionAsset(
       installedTools,
     };
   } catch (error: any) {
+    broadcast("error", "failed", `Provisioning failed: ${error.message}`, 100);
     return {
       assetName: br.assetName,
       status: "failed",

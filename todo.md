@@ -672,3 +672,10 @@
 - [x] Add "Provision Now" button to Build & Deploy Requirements card on ops page
 - [x] Create tRPC mutation for triggering asset provisioning from the UI (engagementOps.provisionAsset)
 - [x] Write tests for the new provision mutation (20 tests passing — source code detection, whitelist, provisioner exports, exploit status resolution, deduplication)
+
+### Next Steps Sprint (Apr 27)
+- [x] Re-generate Broken Crystals report with final derivedStatus fix — report triggered, still generating (LLM pipeline takes 10-15 min)
+- [x] Create fresh Node.js bug bounty engagement — confirmed github.com/nodejs/node now shows correctly as target
+- [x] Add real-time provisioning status tracker with WebSocket updates on ops page (clone/build/deploy progress bar with stage labels and elapsed time)
+- [x] Write tests for provisioning status tracker (37 total tests passing)
+- [ ] Push all changes to GitHub (pending checkpoint)
