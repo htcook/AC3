@@ -851,9 +851,10 @@
 ### Pull-Sync from hcook-aoc/AC3 to aceofcloud/AC3 (Apr 28)
 - [x] Create pull-sync workflow (aceofcloud-sync-workflow.yml) for aceofcloud admin
 - [x] Create SETUP-PULL-SYNC.md with admin instructions and PAT value
-- [ ] Admin installs workflow and UPSTREAM_PAT secret on aceofcloud/AC3
+- [x] Admin installs workflow and UPSTREAM_PAT secret on aceofcloud/AC3 (switched to push-based approach from hcook-aoc/AC3)
 
 ### Push-to-Company Workflow — Option B (Apr 28)
 - [x] Create push-to-company.yml workflow on hcook-aoc/AC3 (pushes to aceofcloud/AC3)
-- [ ] Add ACEOFCLOUD_PAT secret to hcook-aoc/AC3
-- [ ] Verify push to aceofcloud/AC3 works
+- [x] Add ACEOFCLOUD_PAT secret to hcook-aoc/AC3 (user set manually)
+- [x] Verify push to aceofcloud/AC3 works (3,196 objects pushed, aceofcloud PAT confirmed push:true)
+- [x] Set AWS_ACCOUNT_ID (808038814732) and AWS_REGION (us-east-1) variables on aceofcloud/AC3 via API
