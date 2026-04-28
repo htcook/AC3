@@ -727,4 +727,16 @@
   - 6-hour TTL, upsert pattern, graceful fallback on DB errors
 - [x] Added 43 tests in bb-workspace-multiplatform.test.ts — all passing
 - [x] All existing tests still passing (22 parser + 117 sprint + 32 ui-sprint + 20 provision)
+- [x] Push to GitHub (pushed 72ffc23f)
+
+### BB Workspace Enhancements Sprint (Apr 27)
+- [ ] Live-test real Bugcrowd URL (e.g., tidal-bugbounty) via parser backend
+- [ ] Live-test real Intigriti URL (e.g., AMD) via parser backend
+- [ ] Live-test real OpenBugBounty URL via parser backend
+- [ ] Add "Refresh Scope" button to BB Workspace Scope tab
+- [ ] Wire refresh button to invalidate cache and re-fetch
+- [ ] Auto-populate engagement assets from parsed in-scope targets
+- [ ] Add backend procedure to sync scope targets to engagement assets
+- [ ] Add UI button/flow to trigger scope-to-asset sync
+- [ ] Write tests for new features
 - [ ] Push to GitHub
