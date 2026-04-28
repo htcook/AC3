@@ -1126,6 +1126,190 @@ export const vaBugBountyRouter = router({
         skippedTypes: input.inScopeTargets.filter(t => ['source_code', 'hardware', 'other'].includes(t.type.toLowerCase())).length,
       };
     }),
+
+  // ─── Refresh All Scopes (Batch) ─────────────────────────────────────────────
+
+  /**
+   * Batch-refresh scopes for multiple programs at once.
+   * Accepts an array of program URLs, invalidates their cache entries,
+   * and re-fetches fresh scope data for each. Returns per-program results.
+   * Useful for engagements that target multiple bug bounty programs.
+   */
+  refreshAllScopes: protectedProcedure
+    .input(z.object({
+      programUrls: z.array(z.string()).min(1).max(50),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const results: Array<{
+        programUrl: string;
+        status: 'success' | 'error';
+        programName?: string;
+        platform?: string;
+        inScopeCount?: number;
+        outOfScopeCount?: number;
+        error?: string;
+      }> = [];
+
+      // Process each URL sequentially to avoid rate limiting
+      for (const programUrl of input.programUrls) {
+        try {
+          const parsed = parseProgramUrl(programUrl);
+          if (!parsed) {
+            results.push({ programUrl, status: 'error', error: 'Could not parse URL' });
+            continue;
+          }
+
+          // Invalidate cache
+          const cacheKey = `${parsed.platform}:${parsed.programSlug}`;
+          await deletePolicyCacheEntry(cacheKey);
+
+          // Re-fetch by calling the same logic as refreshBugBountyPolicy
+          const skeleton = createSkeletonPolicy({ ...parsed, programUrl });
+
+          // Platform-specific fetch
+          if (parsed.platform === 'hackerone') {
+            try {
+              const creds = await resolveH1CredentialsForBBWorkspace(ctx.user.id);
+              if (creds) {
+                const inScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+                const outOfScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+                for (let page = 1; page <= 3; page++) {
+                  const scopePath = `/programs/${encodeURIComponent(parsed.programSlug)}/structured_scopes?page[number]=${page}&page[size]=25`;
+                  const scopeData = await h1FetchForBBWorkspace(scopePath, creds.username, creds.token);
+                  if (!scopeData?.data?.length) break;
+                  for (const item of scopeData.data) {
+                    const attrs = item.attributes || {};
+                    const entry = {
+                      type: mapH1AssetType(attrs.asset_type),
+                      value: attrs.asset_identifier || 'unknown',
+                      eligible: !!attrs.eligible_for_bounty,
+                      notes: attrs.instruction || (attrs.max_severity ? `Max severity: ${attrs.max_severity}` : undefined),
+                    };
+                    if (attrs.eligible_for_submission !== false) inScope.push(entry);
+                    else outOfScope.push(entry);
+                  }
+                }
+                skeleton.scope.inScope = inScope.map(s => ({ type: s.type as any, target: s.value, instruction: s.notes, bountyEligible: s.eligible }));
+                skeleton.scope.outOfScope = outOfScope.map(s => ({ type: s.type as any, target: s.value, instruction: s.notes, bountyEligible: false }));
+              }
+            } catch (err: any) { console.warn(`[Batch Refresh] H1 error for ${parsed.programSlug}:`, err.message); }
+          } else if (parsed.platform === 'bugcrowd') {
+            try {
+              const bcData = await fetchBountyTargetsData('bugcrowd');
+              if (bcData) {
+                const program = findBugcrowdProgram(bcData, parsed.programSlug, programUrl);
+                if (program) {
+                  skeleton.programName = program.name || parsed.programSlug;
+                  if (program.targets?.in_scope) {
+                    skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                      type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                      instruction: t.name || undefined, bountyEligible: true,
+                    }));
+                  }
+                  if (program.targets?.out_of_scope) {
+                    skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                      type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                      instruction: t.name || undefined, bountyEligible: false,
+                    }));
+                  }
+                }
+              }
+            } catch (err: any) { console.warn(`[Batch Refresh] Bugcrowd error for ${parsed.programSlug}:`, err.message); }
+          } else if (parsed.platform === 'intigriti') {
+            try {
+              const igData = await fetchBountyTargetsData('intigriti');
+              if (igData) {
+                const program = findIntigritiProgram(igData, parsed.programSlug, programUrl);
+                if (program) {
+                  skeleton.programName = program.name || parsed.programSlug;
+                  if (program.targets?.in_scope) {
+                    skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                      type: mapIntigritiAssetType(t.type), target: t.endpoint || 'unknown',
+                      instruction: t.description || undefined, bountyEligible: t.impact !== 'Out of scope' && t.impact !== 'No Bounty',
+                    }));
+                  }
+                  if (program.targets?.out_of_scope) {
+                    skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                      type: mapIntigritiAssetType(t.type), target: t.endpoint || 'unknown',
+                      instruction: t.description || undefined, bountyEligible: false,
+                    }));
+                  }
+                }
+              }
+            } catch (err: any) { console.warn(`[Batch Refresh] Intigriti error for ${parsed.programSlug}:`, err.message); }
+          } else if (parsed.platform === 'yeswehack') {
+            try {
+              const ywhData = await fetchBountyTargetsData('yeswehack');
+              if (ywhData) {
+                const program = findYesWeHackProgram(ywhData, parsed.programSlug);
+                if (program) {
+                  skeleton.programName = program.title || program.name || parsed.programSlug;
+                  if (program.targets?.in_scope) {
+                    skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                      type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                      instruction: t.scope || undefined, bountyEligible: true,
+                    }));
+                  }
+                }
+              }
+            } catch (err: any) { console.warn(`[Batch Refresh] YWH error for ${parsed.programSlug}:`, err.message); }
+          } else if (parsed.platform === 'openbugbounty') {
+            try {
+              const obbDomain = await fetchOpenBugBountyDomain(parsed.programSlug);
+              if (obbDomain) {
+                skeleton.programName = `${parsed.programSlug} (OpenBugBounty)`;
+                skeleton.scope.inScope = [{ type: 'domain', target: obbDomain, instruction: 'OpenBugBounty — XSS/CSRF only', bountyEligible: false }];
+              }
+            } catch (err: any) { console.warn(`[Batch Refresh] OBB error for ${parsed.programSlug}:`, err.message); }
+          }
+
+          // Build result and cache
+          const result = {
+            programName: skeleton.programName,
+            platform: skeleton.platform,
+            programUrl: skeleton.programUrl,
+            scope: {
+              inScope: skeleton.scope.inScope.map(s => ({ type: s.type, value: s.target, eligible: s.bountyEligible, notes: s.instruction })),
+              outOfScope: skeleton.scope.outOfScope.map(s => ({ type: s.type, value: s.target, eligible: false, notes: s.instruction })),
+            },
+            rules: [
+              ...skeleton.rules.prohibitedActions,
+              skeleton.rules.disclosurePolicy !== 'none' ? `Disclosure: ${skeleton.rules.disclosurePolicy}` : null,
+            ].filter(Boolean) as string[],
+            rewardRange: skeleton.bounty.hasBounty && skeleton.bounty.ranges.length > 0 ? {
+              low: Math.min(...skeleton.bounty.ranges.map(r => r.minBounty)),
+              high: Math.max(...skeleton.bounty.ranges.map(r => r.maxBounty)),
+              currency: skeleton.bounty.currency === 'USD' ? '$' : skeleton.bounty.currency,
+            } : undefined,
+            parsedAt: new Date().toISOString(),
+          };
+
+          await setPolicyCacheEntry(cacheKey, parsed.platform, parsed.programSlug, programUrl, result);
+
+          results.push({
+            programUrl,
+            status: 'success',
+            programName: skeleton.programName,
+            platform: parsed.platform,
+            inScopeCount: skeleton.scope.inScope.length,
+            outOfScopeCount: skeleton.scope.outOfScope.length,
+          });
+        } catch (err: any) {
+          results.push({ programUrl, status: 'error', error: err.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.status === 'success').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+      console.log(`[BB Workspace] Batch refresh complete: ${successCount} success, ${errorCount} errors`);
+
+      return {
+        total: results.length,
+        successCount,
+        errorCount,
+        results,
+      };
+    }),
 });
 
 // ─── HackerOne API Helpers for Bug Bounty Workspace ─────────────────────────

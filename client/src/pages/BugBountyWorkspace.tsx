@@ -37,7 +37,7 @@ import {
   Search, Copy, ExternalLink, Sparkles, CheckCircle2, XCircle,
   Clock, Zap, Eye, Send, ArrowRight, Loader2, Info, ChevronDown,
   ChevronRight, Crosshair, Link2, AlertCircle, FileCheck, Clipboard,
-  Download, Layers, RefreshCw, Upload,
+  Download, Layers, RefreshCw, Upload, List,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -98,6 +98,9 @@ export default function BugBountyWorkspace() {
   const [selectedPlatform, setSelectedPlatform] = useState('hackerone');
   const [engagementIdInput, setEngagementIdInput] = useState('');
   const [importedFindings, setImportedFindings] = useState<any[]>([]);
+  const [parsedPrograms, setParsedPrograms] = useState<Array<{ url: string; policy: PolicyROE }>>([]);
+  const [batchUrls, setBatchUrls] = useState('');
+  const [isBatchParsing, setIsBatchParsing] = useState(false);
 
   // tRPC mutations
   const parsePolicy = trpc.vaBugBounty.parseBugBountyPolicy.useMutation();
@@ -106,6 +109,7 @@ export default function BugBountyWorkspace() {
   const importEngagementFindings = trpc.vaBugBounty.listEngagementFindingsForBounty.useMutation();
   const refreshPolicy = trpc.vaBugBounty.refreshBugBountyPolicy.useMutation();
   const syncScopeToEngagement = trpc.vaBugBounty.syncScopeToEngagement.useMutation();
+  const refreshAllScopes = trpc.vaBugBounty.refreshAllScopes.useMutation();
   const activeEngagements = trpc.vaBugBounty.listActiveEngagements.useQuery();
 
   const handleImportFromEngagement = async () => {
@@ -142,8 +146,19 @@ export default function BugBountyWorkspace() {
     setIsParsing(true);
     try {
       const result = await parsePolicy.mutateAsync({ programUrl: programUrl.trim() });
-      setPolicy(result as unknown as PolicyROE);
+      const pol = result as unknown as PolicyROE;
+      setPolicy(pol);
       setSelectedPlatform(result.platform || 'hackerone');
+      // Track parsed programs for batch refresh
+      setParsedPrograms(prev => {
+        const existing = prev.findIndex(p => p.url === programUrl.trim());
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = { url: programUrl.trim(), policy: pol };
+          return updated;
+        }
+        return [...prev, { url: programUrl.trim(), policy: pol }];
+      });
       toast.success('Program parsed successfully', {
         description: `${result.programName} — ${result.scope.inScope.length} in-scope targets`,
       });
@@ -155,12 +170,97 @@ export default function BugBountyWorkspace() {
     }
   };
 
+  const handleBatchParse = async () => {
+    const urls = batchUrls.split('\n').map(u => u.trim()).filter(Boolean);
+    if (urls.length === 0) return;
+    setIsBatchParsing(true);
+    let successCount = 0;
+    let errorCount = 0;
+    for (const url of urls) {
+      try {
+        const result = await parsePolicy.mutateAsync({ programUrl: url });
+        const pol = result as unknown as PolicyROE;
+        setParsedPrograms(prev => {
+          const existing = prev.findIndex(p => p.url === url);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = { url, policy: pol };
+            return updated;
+          }
+          return [...prev, { url, policy: pol }];
+        });
+        // Set the last successful one as the active policy
+        setPolicy(pol);
+        setSelectedPlatform(result.platform || 'hackerone');
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    setIsBatchParsing(false);
+    toast.success(`Batch parse complete`, {
+      description: `${successCount} succeeded, ${errorCount} failed out of ${urls.length} programs`,
+    });
+    if (successCount > 0) setActiveTab('scope');
+  };
+
+  const handleRefreshAll = async () => {
+    const urls = parsedPrograms.map(p => p.url);
+    if (urls.length === 0) {
+      toast.error('No programs to refresh');
+      return;
+    }
+    setIsBatchParsing(true);
+    try {
+      const result = await refreshAllScopes.mutateAsync({ programUrls: urls });
+      // Update parsed programs with fresh data from cache
+      for (const r of result.results) {
+        if (r.status === 'success') {
+          // Re-fetch the individual policy to get full data
+          try {
+            const fresh = await parsePolicy.mutateAsync({ programUrl: r.programUrl });
+            const pol = fresh as unknown as PolicyROE;
+            setParsedPrograms(prev => {
+              const idx = prev.findIndex(p => p.url === r.programUrl);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { url: r.programUrl, policy: pol };
+                return updated;
+              }
+              return prev;
+            });
+            // Update active policy if it matches
+            if (policy?.programUrl === r.programUrl) setPolicy(pol);
+          } catch { /* cache was already refreshed, just couldn't re-read */ }
+        }
+      }
+      toast.success(`Refreshed ${result.successCount} of ${result.total} programs`, {
+        description: result.errorCount > 0 ? `${result.errorCount} failed` : 'All scopes up to date',
+      });
+    } catch (err: any) {
+      toast.error('Batch refresh failed', { description: err.message });
+    } finally {
+      setIsBatchParsing(false);
+    }
+  };
+
   const handleRefreshScope = async () => {
     if (!policy?.programUrl) return;
     setIsParsing(true);
     try {
       const result = await refreshPolicy.mutateAsync({ programUrl: policy.programUrl });
-      setPolicy(result as unknown as PolicyROE);
+      const pol = result as unknown as PolicyROE;
+      setPolicy(pol);
+      // Update in parsedPrograms too
+      setParsedPrograms(prev => {
+        const idx = prev.findIndex(p => p.url === policy.programUrl);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { url: policy.programUrl, policy: pol };
+          return updated;
+        }
+        return prev;
+      });
       toast.success('Scope refreshed', {
         description: `${result.programName} — ${result.scope.inScope.length} in-scope targets (fresh data)`,
       });
@@ -242,6 +342,12 @@ export default function BugBountyWorkspace() {
             onParse={handleParseProgram}
             isParsing={isParsing}
             policy={policy}
+            batchUrls={batchUrls}
+            onBatchUrlsChange={setBatchUrls}
+            onBatchParse={handleBatchParse}
+            isBatchParsing={isBatchParsing}
+            parsedPrograms={parsedPrograms}
+            onSelectProgram={(p) => { setPolicy(p.policy); setSelectedPlatform(p.policy.platform); setProgramUrl(p.url); }}
           />
         </TabsContent>
 
@@ -256,6 +362,9 @@ export default function BugBountyWorkspace() {
               onSyncToEngagement={handleSyncToEngagement}
               isSyncing={syncScopeToEngagement.isPending}
               engagements={activeEngagements.data || []}
+              parsedProgramCount={parsedPrograms.length}
+              onRefreshAll={handleRefreshAll}
+              isBatchRefreshing={isBatchParsing}
             />
           )}
         </TabsContent>
@@ -314,13 +423,27 @@ function ProgramTab({
   onParse,
   isParsing,
   policy,
+  batchUrls,
+  onBatchUrlsChange,
+  onBatchParse,
+  isBatchParsing,
+  parsedPrograms,
+  onSelectProgram,
 }: {
   programUrl: string;
   onUrlChange: (v: string) => void;
   onParse: () => void;
   isParsing: boolean;
   policy: PolicyROE | null;
+  batchUrls: string;
+  onBatchUrlsChange: (v: string) => void;
+  onBatchParse: () => void;
+  isBatchParsing: boolean;
+  parsedPrograms: Array<{ url: string; policy: PolicyROE }>;
+  onSelectProgram: (p: { url: string; policy: PolicyROE }) => void;
 }) {
+  const [showBatch, setShowBatch] = useState(false);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -330,10 +453,11 @@ function ProgramTab({
             Parse Bug Bounty Program
           </CardTitle>
           <CardDescription>
-            Paste a program URL from HackerOne, Bugcrowd, Intigriti, or YesWeHack. The parser extracts scope, rules, reward ranges, and SLA timelines.
+            Paste a program URL from HackerOne, Bugcrowd, Intigriti, YesWeHack, or OpenBugBounty. The parser extracts scope, rules, reward ranges, and SLA timelines.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Single URL input */}
           <div className="flex gap-2">
             <Input
               placeholder="https://hackerone.com/your-program, https://bugcrowd.com/engagements/your-program, or https://intigriti.com/programs/..."
@@ -351,13 +475,96 @@ function ProgramTab({
             </Button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {['HackerOne', 'Bugcrowd', 'Intigriti', 'YesWeHack', 'OpenBugBounty', 'Synack', 'Custom'].map(p => (
-              <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
-            ))}
+          <div className="flex items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              {['HackerOne', 'Bugcrowd', 'Intigriti', 'YesWeHack', 'OpenBugBounty', 'Synack', 'Custom'].map(p => (
+                <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
+              ))}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowBatch(!showBatch)}
+              className="gap-1.5 text-xs text-muted-foreground"
+            >
+              <List className="h-3.5 w-3.5" />
+              {showBatch ? 'Hide' : 'Batch'} Parse
+            </Button>
           </div>
+
+          {/* Batch URL input */}
+          {showBatch && (
+            <div className="space-y-3 border-t pt-3">
+              <Label className="text-xs text-muted-foreground">Paste multiple program URLs (one per line)</Label>
+              <Textarea
+                placeholder={"https://hackerone.com/nodejs\nhttps://bugcrowd.com/engagements/tidal-bugbounty\nhttps://www.intigriti.com/programs/amd/amd/detail"}
+                value={batchUrls}
+                onChange={e => onBatchUrlsChange(e.target.value)}
+                rows={5}
+                className="font-mono text-xs"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">
+                  {batchUrls.split('\n').filter(u => u.trim()).length} URLs
+                </span>
+                <Button
+                  onClick={onBatchParse}
+                  disabled={isBatchParsing || !batchUrls.trim()}
+                  size="sm"
+                  className="gap-2 bg-orange-600 hover:bg-orange-700"
+                >
+                  {isBatchParsing ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" />Parsing All...</>
+                  ) : (
+                    <><Layers className="h-3.5 w-3.5" />Parse All</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Parsed Programs List */}
+      {parsedPrograms.length > 1 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <List className="h-4 w-4 text-orange-400" />
+              Parsed Programs ({parsedPrograms.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {parsedPrograms.map((p, i) => (
+                <button
+                  key={i}
+                  onClick={() => onSelectProgram(p)}
+                  className={`w-full flex items-center justify-between p-2.5 rounded-md border text-left transition-colors hover:bg-accent/50 ${
+                    policy?.programUrl === p.url ? 'border-orange-500/50 bg-orange-500/5' : 'border-border'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{p.policy.platform}</Badge>
+                    <span className="text-sm font-medium truncate">{p.policy.programName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-muted-foreground">
+                      {p.policy.scope.inScope.length} in-scope
+                    </span>
+                    {p.policy.rewardRange && (
+                      <Badge className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                        {p.policy.rewardRange.currency}{p.policy.rewardRange.high.toLocaleString()}
+                      </Badge>
+                    )}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Parsed Policy Summary */}
       {policy && (
@@ -485,6 +692,9 @@ function ScopeTab({
   onSyncToEngagement,
   isSyncing,
   engagements,
+  parsedProgramCount,
+  onRefreshAll,
+  isBatchRefreshing,
 }: {
   policy: PolicyROE;
   checkScope: any;
@@ -493,6 +703,9 @@ function ScopeTab({
   onSyncToEngagement: (engagementId: number) => void;
   isSyncing: boolean;
   engagements: Array<{ id: number; name: string; engagementType: string; status: string }>;
+  parsedProgramCount: number;
+  onRefreshAll: () => void;
+  isBatchRefreshing: boolean;
 }) {
   const [targetToCheck, setTargetToCheck] = useState('');
   const [scopeResults, setScopeResults] = useState<ScopeCheckResult[]>([]);
@@ -535,6 +748,22 @@ function ScopeTab({
             )}
             Refresh Scope
           </Button>
+          {parsedProgramCount > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefreshAll}
+              disabled={isBatchRefreshing}
+              className="gap-1.5"
+            >
+              {isBatchRefreshing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Layers className="h-3.5 w-3.5" />
+              )}
+              Refresh All ({parsedProgramCount})
+            </Button>
+          )}
           {policy.parsedAt && (
             <span className="text-[10px] text-muted-foreground">
               Last fetched: {new Date(policy.parsedAt).toLocaleString()}

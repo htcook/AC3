@@ -739,7 +739,7 @@
 - [x] Add backend procedure: syncScopeToEngagement (maps scope targets to engagement assets)
 - [x] Add UI: Sync to Engagement button with engagement selector dropdown
 - [x] All tests passing (22 parser + 43 multiplatform + 117 sprint + 20 provision + 20 dashboard)
-- [ ] Push to GitHub
+- [x] Push to GitHub (pushed beee66b0)
 
 ### HackerOne 401 Fix (Apr 27)
 - [x] Diagnosed: /hackers/me endpoint returns 401 for hacker API tokens; /hackers/programs works
@@ -756,4 +756,16 @@
 - [x] Refresh Scope button in ScopeTab with cache invalidation
 - [x] Sync to Engagement button with engagement selector
 - [x] All tests passing
+- [x] Push to GitHub (pushed beee66b0)
+
+### H1 Live Test + DB Credentials + Refresh All Scopes (Apr 27)
+- [x] Test H1 parsing live with htc0 credentials (nodejs: 200, hackerone_h1c_security: 200 w/ 35 scopes, github: 200 w/ 39 scopes)
+- [x] Store htc0 H1 credentials in userPlatformCredentials DB (id: 30003, user_id: 1, encrypted)
+- [x] Store htc0 HTB credentials in userPlatformCredentials DB (id: 30004, user_id: 1, encrypted JWT)
+- [x] Add refreshAllScopes backend procedure (batch refresh up to 50 programs, parallel processing)
+- [x] Add "Refresh All" button to ScopeTab (shows when 2+ programs parsed)
+- [x] Add batch parse UI: collapsible multi-URL textarea in ProgramTab with "Parse All" button
+- [x] Add parsed programs list: clickable program cards showing platform, name, scope count, max bounty
+- [x] 18 new tests in bb-batch-refresh.test.ts — all passing
+- [x] All 252 bug bounty tests passing (18 batch + 22 parser + 43 multiplatform + 117 sprint + 32 ui + 20 provision)
 - [ ] Push to GitHub
