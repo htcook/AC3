@@ -782,4 +782,9 @@
 - [x] ROOT CAUSE: engagement-builder.ts used process.env.HACKERONE_API_* directly → 401 → empty scope
 - [x] FIX: engagement-builder.ts now uses getH1CredentialsForUser from credential-service
 - [x] All 272 tests passing (83 parser/multiplatform/batch + 137 sprint/provision + 52 ui/dashboard)
-- [ ] Push to GitHub
+- [x] Push to GitHub (pushed 523c8fc9)
+
+### Company Repo Push & Dual-Mirror Setup (Apr 28)
+- [x] Push full codebase + git history to hcook-aoc/AC3 on main branch
+- [x] Configure user_github remote with dual push URLs (htcook/caldera-dashboard + hcook-aoc/AC3)
+- [ ] Verify dual-push mirroring works with a test commit
