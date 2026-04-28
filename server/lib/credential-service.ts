@@ -2,7 +2,13 @@
  * Credential Service
  * 
  * Provides per-user API credential lookup from the user_platform_credentials table.
- * Falls back to global environment variables when no user-specific credentials exist.
+ * Falls back to any active credential in the DB, then global environment variables.
+ * 
+ * Resolution order for HackerOne:
+ * 1. User-specific credentials from DB (if userId provided)
+ * 2. ANY active HackerOne credential from DB (owner/admin fallback)
+ * 3. Global environment variables (HACKERONE_API_USERNAME / HACKERONE_API_KEY)
+ * 4. null (no credentials available)
  * 
  * Used by:
  * - bug-bounty-intelligence.ts (HackerOne enrichment)
@@ -10,6 +16,8 @@
  * - engagement-orchestrator.ts (passes user context through pipeline)
  * - cross-module-enrichment.ts
  * - discovery-engine.ts
+ * - va-bugbounty.ts (BB workspace parser)
+ * - bug-bounty.ts (H1 sync)
  */
 
 import { getDb as _getDb } from "../db";
@@ -45,6 +53,31 @@ export interface PlatformCredentials {
   userId?: number;
 }
 
+// ─── H1 API Validation ─────────────────────────────────────────────────────
+
+const H1_API_BASE = "https://api.hackerone.com";
+
+/**
+ * Quick validation of H1 credentials by hitting /v1/hackers/programs (lightweight).
+ * Returns true if the credentials are accepted (HTTP 200).
+ */
+async function validateH1Credentials(username: string, apiKey: string): Promise<boolean> {
+  try {
+    const basicAuth = Buffer.from(`${username}:${apiKey}`).toString("base64");
+    const resp = await fetch(`${H1_API_BASE}/v1/hackers/programs?page%5Bsize%5D=1`, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+    return resp.status === 200;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Credential Lookup ──────────────────────────────────────────────────────
 
 /**
@@ -52,17 +85,19 @@ export interface PlatformCredentials {
  * 
  * Resolution order:
  * 1. User-specific credentials from user_platform_credentials table (if userId provided)
- * 2. Global environment variables (HACKERONE_API_USERNAME / HACKERONE_API_KEY)
- * 3. null (no credentials available)
+ * 2. ANY active HackerOne credential from the DB (fallback for background jobs / shared use)
+ * 3. Global environment variables (HACKERONE_API_USERNAME / HACKERONE_API_KEY)
+ *    — only if they pass a quick validation check (prevents stale BYOK creds)
+ * 4. null (no credentials available)
  */
 export async function getH1CredentialsForUser(
   userId?: number | string | null
 ): Promise<PlatformCredentials | null> {
-  // 1. Try user-specific credentials from DB
-  if (userId) {
-    try {
-      const db = await _getDb();
-      if (db) {
+  try {
+    const db = await _getDb();
+    if (db) {
+      // 1. Try user-specific credentials from DB
+      if (userId) {
         const numericUserId = typeof userId === "string" ? parseInt(userId, 10) : userId;
         if (!isNaN(numericUserId)) {
           const rows = await db
@@ -94,29 +129,65 @@ export async function getH1CredentialsForUser(
           }
         }
       }
-    } catch (dbErr: any) {
-      console.warn("[CredentialService] DB lookup failed, falling back to env vars:", dbErr.message);
+
+      // 2. Try ANY active HackerOne credential from the DB (owner/admin fallback)
+      const anyRows = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(
+          and(
+            eq(userPlatformCredentials.platform, "hackerone"),
+            eq(userPlatformCredentials.isActive, 1)
+          )
+        )
+        .limit(5); // get a few in case some fail to decrypt
+
+      for (const cred of anyRows) {
+        try {
+          const apiKey = decrypt(cred.apiKeyEncrypted);
+          console.log(`[CredentialService] Using H1 credentials from DB (user ${cred.userId}, username: ${cred.apiUsername})`);
+          return {
+            username: cred.apiUsername || "",
+            apiKey,
+            baseUrl: cred.baseUrl || undefined,
+            source: "user_db",
+            userId: cred.userId,
+          };
+        } catch (decryptErr: any) {
+          console.warn(`[CredentialService] Failed to decrypt H1 credentials for user ${cred.userId}:`, decryptErr.message);
+          continue;
+        }
+      }
     }
+  } catch (dbErr: any) {
+    console.warn("[CredentialService] DB lookup failed, falling back to env vars:", dbErr.message);
   }
 
-  // 2. Fall back to global env vars
+  // 3. Fall back to global env vars — but validate first to catch stale BYOK creds
   const envKey = process.env.HACKERONE_API_KEY;
   const envUsername = process.env.HACKERONE_API_USERNAME;
   if (envKey) {
-    return {
-      username: envUsername || "htc0",
-      apiKey: envKey,
-      source: "env_var",
-    };
+    const username = envUsername || "htc0";
+    // Quick validation to prevent using stale/revoked credentials
+    const isValid = await validateH1Credentials(username, envKey);
+    if (isValid) {
+      return {
+        username,
+        apiKey: envKey,
+        source: "env_var",
+      };
+    } else {
+      console.warn(`[CredentialService] Env H1 credentials (${username}) failed validation — skipping`);
+    }
   }
 
-  // 3. No credentials available
+  // 4. No credentials available
   return null;
 }
 
 /**
  * Get credentials for any supported platform.
- * Currently supports: hackerone, bugcrowd, intigriti, synack, yeswehack
+ * Currently supports: hackerone, bugcrowd, intigriti, synack, yeswehack, hackthebox
  */
 export async function getPlatformCredentials(
   platform: string,
@@ -127,10 +198,11 @@ export async function getPlatformCredentials(
   }
 
   // Generic lookup for other platforms
-  if (userId) {
-    try {
-      const db = await _getDb();
-      if (db) {
+  try {
+    const db = await _getDb();
+    if (db) {
+      // 1. Try user-specific
+      if (userId) {
         const numericUserId = typeof userId === "string" ? parseInt(userId, 10) : userId;
         if (!isNaN(numericUserId)) {
           const rows = await db
@@ -162,9 +234,36 @@ export async function getPlatformCredentials(
           }
         }
       }
-    } catch (dbErr: any) {
-      console.warn(`[CredentialService] DB lookup failed for ${platform}:`, dbErr.message);
+
+      // 2. Try ANY active credential for this platform
+      const anyRows = await db
+        .select()
+        .from(userPlatformCredentials)
+        .where(
+          and(
+            eq(userPlatformCredentials.platform, platform as any),
+            eq(userPlatformCredentials.isActive, 1)
+          )
+        )
+        .limit(5);
+
+      for (const cred of anyRows) {
+        try {
+          const apiKey = decrypt(cred.apiKeyEncrypted);
+          return {
+            username: cred.apiUsername || "",
+            apiKey,
+            baseUrl: cred.baseUrl || undefined,
+            source: "user_db",
+            userId: cred.userId,
+          };
+        } catch {
+          continue;
+        }
+      }
     }
+  } catch (dbErr: any) {
+    console.warn(`[CredentialService] DB lookup failed for ${platform}:`, dbErr.message);
   }
 
   return null;

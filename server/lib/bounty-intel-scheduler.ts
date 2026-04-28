@@ -55,17 +55,11 @@ export function setSchedulerUser(userId: number | string | null): void {
 }
 
 async function getH1Credentials(): Promise<{ username: string; token: string } | null> {
-  // Try per-user credentials from DB first
+  // Delegate entirely to credential-service (DB-first → env var fallback with validation)
   const creds = await getH1CredentialsForUser(_schedulerUserId);
   if (creds) {
     return { username: creds.username, token: creds.apiKey };
   }
-  // Fallback to env vars
-  const envKey = process.env.HACKERONE_API_KEY;
-  if (!envKey) return null;
-  const username = process.env.HACKERONE_API_USERNAME || envKey.split(":")[0];
-  const token = envKey.includes(":") ? envKey.split(":").slice(1).join(":") : envKey;
-  if (username && token) return { username, token };
   return null;
 }
 

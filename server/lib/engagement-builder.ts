@@ -16,6 +16,7 @@
 
 import { invokeLLM } from "../_core/llm";
 import { getDb } from "../db";
+import { getH1CredentialsForUser } from "./credential-service";
 import {
   bugBountyPrograms,
   bugBountyProgramScopes,
@@ -215,12 +216,11 @@ export async function buildEngagementPreview(input: {
   if (programData && (!programData.scopes || programData.scopes.length === 0) && platform === 'hackerone' && programHandle) {
     try {
       console.log(`[EngagementBuilder] No scopes in DB for ${programHandle}, fetching from HackerOne API...`);
-      const h1Username = process.env.HACKERONE_API_USERNAME || process.env.HACKERONE_API_KEY?.split(':')[0];
-      const h1Token = process.env.HACKERONE_API_KEY?.includes(':') 
-        ? process.env.HACKERONE_API_KEY.split(':').slice(1).join(':')
-        : process.env.HACKERONE_API_KEY;
+      const h1Creds = await getH1CredentialsForUser(); // uses DB-first resolution
       
-      if (h1Username && h1Token) {
+      if (h1Creds) {
+        const h1Username = h1Creds.username;
+        const h1Token = h1Creds.apiKey;
         const headers: Record<string, string> = {
           Accept: 'application/json',
           Authorization: 'Basic ' + Buffer.from(`${h1Username}:${h1Token}`).toString('base64'),
@@ -253,7 +253,7 @@ export async function buildEngagementPreview(input: {
                 updatedAt: null,
               };
             });
-            console.log(`[EngagementBuilder] Fetched ${programData.scopes.length} scopes from HackerOne API for ${programHandle}`);
+            console.log(`[EngagementBuilder] Fetched ${programData.scopes.length} scopes from HackerOne API for ${programHandle} (creds source: ${h1Creds.source})`);
           }
         }
       }

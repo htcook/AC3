@@ -1357,14 +1357,9 @@ async function resolveH1CredentialsForBBWorkspace(userId: number): Promise<{ use
       return { username: creds.username, token: creds.apiKey };
     }
   } catch (err: any) {
-    console.warn('[BBWorkspace] credential-service lookup failed, trying direct env fallback:', err.message);
+    console.warn('[BBWorkspace] credential-service lookup failed:', err.message);
   }
-  // Direct env fallback if credential-service itself fails
-  const username = process.env.HACKERONE_API_USERNAME;
-  const token = process.env.HACKERONE_API_KEY;
-  if (username && token) {
-    return { username, token };
-  }
+  // No direct env fallback — credential-service already handles DB → env with validation
   return null;
 }
 

@@ -78,14 +78,9 @@ async function resolveH1Credentials(userId: number): Promise<{ username: string;
       return { username: creds.username, token: creds.apiKey };
     }
   } catch (err: any) {
-    console.warn('[BugBounty] credential-service lookup failed, trying direct env fallback:', err.message);
+    console.warn('[BugBounty] credential-service lookup failed:', err.message);
   }
-  // Direct env fallback if credential-service itself fails
-  const username = process.env.HACKERONE_API_USERNAME;
-  const token = process.env.HACKERONE_API_KEY;
-  if (username && token) {
-    return { username, token };
-  }
+  // No direct env fallback — credential-service already handles DB → env with validation
   return null;
 }
 

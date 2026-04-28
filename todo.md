@@ -768,4 +768,18 @@
 - [x] Add parsed programs list: clickable program cards showing platform, name, scope count, max bounty
 - [x] 18 new tests in bb-batch-refresh.test.ts — all passing
 - [x] All 252 bug bounty tests passing (18 batch + 22 parser + 43 multiplatform + 117 sprint + 32 ui + 20 provision)
+- [x] Push to GitHub (pushed 6c23f925)
+
+### Production Bugs Fix (Apr 28)
+- [x] BUG: HackerOne 401 on DO production — env vars have stale wombatrider credentials (401), DB has correct htc0 (200)
+- [x] ROOT CAUSE: 5 files bypassed credential-service and used process.env.HACKERONE_API_* directly
+  - bounty-intel-scheduler.ts, bounty-platform-sync.ts, bug-bounty.ts, va-bugbounty.ts, engagement-builder.ts
+- [x] FIX: Removed ALL direct env var fallbacks — every H1 credential lookup now goes through credential-service.ts
+  - credential-service resolution: DB user-specific → DB any-active → env vars (with validation)
+  - Stale env creds (wombatrider) will fail validation and be skipped
+  - DB-stored htc0 credentials will be found in step 2 (any-active fallback)
+- [x] BUG: Priceline engagement shows SCOPE ASSETS (0)
+- [x] ROOT CAUSE: engagement-builder.ts used process.env.HACKERONE_API_* directly → 401 → empty scope
+- [x] FIX: engagement-builder.ts now uses getH1CredentialsForUser from credential-service
+- [x] All 272 tests passing (83 parser/multiplatform/batch + 137 sprint/provision + 52 ui/dashboard)
 - [ ] Push to GitHub

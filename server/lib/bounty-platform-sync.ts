@@ -69,22 +69,22 @@ async function resolveCredentials(
     .limit(1);
 
   if (!cred) {
-    // Fallback to env vars
-    switch (platform) {
-      case "hackerone":
-        if (process.env.HACKERONE_API_KEY && process.env.HACKERONE_API_USERNAME) {
-          return {
-            platform,
-            apiKey: process.env.HACKERONE_API_KEY,
-            apiUsername: process.env.HACKERONE_API_USERNAME,
-          };
+    // Fallback: try credential-service (DB any-user fallback + validated env vars)
+    try {
+      const { getH1CredentialsForUser, getPlatformCredentials } = await import('./credential-service');
+      if (platform === 'hackerone') {
+        const h1Creds = await getH1CredentialsForUser(userId);
+        if (h1Creds) {
+          return { platform, apiKey: h1Creds.apiKey, apiUsername: h1Creds.username };
         }
-        break;
-      case "bugcrowd":
-        if (process.env.BUGCROWD_API_KEY) {
-          return { platform, apiKey: process.env.BUGCROWD_API_KEY };
+      } else {
+        const platCreds = await getPlatformCredentials(platform, userId);
+        if (platCreds) {
+          return { platform, apiKey: platCreds.apiKey, apiUsername: platCreds.username };
         }
-        break;
+      }
+    } catch (e: any) {
+      console.warn(`[BountyPlatformSync] credential-service fallback failed for ${platform}:`, e.message);
     }
     return null;
   }
