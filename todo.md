@@ -833,5 +833,12 @@
 - [x] Revert Dockerfile.aws OCI label back to hcook-aoc/AC3
 - [x] Push latest code to hcook-aoc/AC3 (dual-push confirmed working)
 - [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3 (PAT lacks actions:variables scope — user must set manually)
+
+### Session State Audit & AWS Independence (Apr 28)
+- [x] Audit all env vars in env.ts vs Terraform secrets module
+- [x] Add 39 missing secrets to Terraform secrets module (C2 frameworks, OSINT expansion, Manus platform)
+- [x] Create comprehensive AWS-SETUP-GUIDE.md with full migration checklist
+- [x] Create env.aws.template with all 80+ env vars documented
+- [x] Document session-only state (git remotes, Manus secrets, database data)
 - [x] Update dual-push remote to hcook-aoc/AC3 (updated with new aceofcloud PAT)
 - [x] Update COMPANY_PAT secret with new hcook-aoc PAT (updated on htcook/caldera-dashboard)
