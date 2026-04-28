@@ -16,7 +16,7 @@ enable_waf            = true
 
 # Domain (update with your production domain)
 # domain_name     = "ac3.aceofcloud.com"
-# certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID"
+# certificate_arn = "arn:aws:acm:us-east-1:808038814732:certificate/CERT_ID"
 
 # Database (production — HA, encryption, long retention)
 db_min_capacity        = 1

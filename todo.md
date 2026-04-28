@@ -809,3 +809,29 @@
 - [x] BUG: prebuild-client.yml uses self-hosted runners — changed to ubuntu-latest
 - [x] FIX: Update all workflows to use ubuntu-latest for company repo compatibility
 - [x] FIX: Update mirror workflow with correct company repo URL and COMPANY_PAT secret reference
+
+### AWS Deployment Setup Steps (Apr 28)
+- [ ] Run bootstrap.sh to create S3 state bucket + DynamoDB lock table in AWS
+- [x] Add COMPANY_PAT secret to htcook/caldera-dashboard GitHub repo
+- [ ] Set AWS_ACCOUNT_ID variable in hcook-aoc/AC3 GitHub repo
+
+### Fix Company Repo URL (Apr 28)
+- [ ] BUG: Company repo URL was hcook-aoc/AC3, correct URL is aceofcloud/AC3
+- [x] Update mirror-to-company.yml with aceofcloud/AC3
+- [x] Update deploy-aws.yml repo guard to aceofcloud/AC3
+- [x] Update Terraform OIDC module github_repo to aceofcloud/AC3
+- [x] Update DEPLOYMENT.md references
+- [x] Update Dockerfile.aws OCI label
+- [ ] Update git remote dual-push URL to aceofcloud/AC3
+- [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on aceofcloud/AC3
+
+### Revert to hcook-aoc/AC3 as Company Repo (Apr 28)
+- [x] Revert mirror-to-company.yml back to hcook-aoc/AC3
+- [x] Revert deploy-aws.yml repo guard back to hcook-aoc/AC3
+- [x] Revert Terraform OIDC module github_repo back to hcook-aoc/AC3
+- [x] Revert DEPLOYMENT.md references back to hcook-aoc/AC3
+- [x] Revert Dockerfile.aws OCI label back to hcook-aoc/AC3
+- [ ] Push latest code to hcook-aoc/AC3
+- [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3
+- [ ] Update dual-push remote to hcook-aoc/AC3
+- [ ] Update COMPANY_PAT secret with new hcook-aoc PAT
