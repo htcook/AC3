@@ -288,6 +288,13 @@
       "when": 1777253417959,
       "tag": "0040_faulty_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1777340491465,
+      "tag": "0041_breezy_speed_demon",
+      "breakpoints": true
     }
   ]
 }

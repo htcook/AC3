@@ -240,8 +240,16 @@ export const vaBugBountyRouter = router({
     .mutation(async ({ ctx, input }) => {
       const parsed = parseProgramUrl(input.programUrl);
       if (!parsed) {
-        throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack');
+        throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack, OpenBugBounty');
       }
+
+      // Check cache first (6-hour TTL)
+      const cacheKey = `${parsed.platform}:${parsed.programSlug}`;
+      const cached = await getPolicyCacheEntry(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const skeleton = createSkeletonPolicy({
         ...parsed,
         programUrl: input.programUrl,
@@ -319,8 +327,168 @@ export const vaBugBountyRouter = router({
         }
       }
 
-      // Return in frontend-compatible format
-      return {
+      // For Bugcrowd programs, fetch scope from bounty-targets-data
+      if (parsed.platform === 'bugcrowd') {
+        try {
+          const bcData = await fetchBountyTargetsData('bugcrowd');
+          if (bcData) {
+            const program = findBugcrowdProgram(bcData, parsed.programSlug, input.programUrl);
+            if (program) {
+              skeleton.programName = program.name || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type),
+                  target: t.target || t.name || t.uri || 'unknown',
+                  instruction: t.name && t.name !== t.target ? t.name : undefined,
+                  bountyEligible: true,
+                }));
+              }
+              if (program.targets?.out_of_scope) {
+                skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type),
+                  target: t.target || t.name || t.uri || 'unknown',
+                  instruction: t.name && t.name !== t.target ? t.name : undefined,
+                  bountyEligible: false,
+                }));
+              }
+              skeleton.scope.wildcardDomains = skeleton.scope.inScope
+                .filter(s => s.target.startsWith('*.'))
+                .map(s => s.target);
+              if (program.max_payout) {
+                skeleton.bounty.hasBounty = true;
+                skeleton.bounty.ranges = [{ severity: 'critical', minBounty: 0, maxBounty: program.max_payout }];
+              }
+              if (program.safe_harbor) {
+                skeleton.rules.safeHarborStatement = `Safe harbor: ${program.safe_harbor}`;
+              }
+              skeleton.parseConfidence = 0.75;
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Failed to fetch Bugcrowd scopes for ${parsed.programSlug}:`, err.message);
+          skeleton.parseConfidence = 0.3;
+        }
+      }
+
+      // For Intigriti programs, fetch scope from bounty-targets-data
+      if (parsed.platform === 'intigriti') {
+        try {
+          const igData = await fetchBountyTargetsData('intigriti');
+          if (igData) {
+            const program = findIntigritiProgram(igData, parsed.programSlug, input.programUrl);
+            if (program) {
+              skeleton.programName = program.name || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapIntigritiAssetType(t.type),
+                  target: t.endpoint || 'unknown',
+                  instruction: t.description || undefined,
+                  bountyEligible: t.impact !== 'Out of scope' && t.impact !== 'No Bounty',
+                }));
+              }
+              if (program.targets?.out_of_scope) {
+                skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                  type: mapIntigritiAssetType(t.type),
+                  target: t.endpoint || 'unknown',
+                  instruction: t.description || undefined,
+                  bountyEligible: false,
+                }));
+              }
+              skeleton.scope.wildcardDomains = skeleton.scope.inScope
+                .filter(s => s.target.startsWith('*.'))
+                .map(s => s.target);
+              if (program.min_bounty || program.max_bounty) {
+                skeleton.bounty.hasBounty = true;
+                skeleton.bounty.ranges = [{
+                  severity: 'critical',
+                  minBounty: program.min_bounty?.value || 0,
+                  maxBounty: program.max_bounty?.value || 0,
+                }];
+                skeleton.bounty.currency = program.max_bounty?.currency || 'USD';
+              }
+              skeleton.parseConfidence = 0.75;
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Failed to fetch Intigriti scopes for ${parsed.programSlug}:`, err.message);
+          skeleton.parseConfidence = 0.3;
+        }
+      }
+
+      // For YesWeHack programs, fetch scope from bounty-targets-data
+      if (parsed.platform === 'yeswehack') {
+        try {
+          const ywhData = await fetchBountyTargetsData('yeswehack');
+          if (ywhData) {
+            const program = findYesWeHackProgram(ywhData, parsed.programSlug, input.programUrl);
+            if (program) {
+              skeleton.programName = program.title || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type), // similar format
+                  target: t.target || 'unknown',
+                  instruction: undefined,
+                  bountyEligible: true,
+                }));
+              }
+              if (program.targets?.out_of_scope) {
+                skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type),
+                  target: t.target || 'unknown',
+                  instruction: undefined,
+                  bountyEligible: false,
+                }));
+              }
+              skeleton.scope.wildcardDomains = skeleton.scope.inScope
+                .filter(s => s.target.startsWith('*.'))
+                .map(s => s.target);
+              if (program.min_bounty || program.max_bounty) {
+                skeleton.bounty.hasBounty = true;
+                skeleton.bounty.ranges = [{
+                  severity: 'critical',
+                  minBounty: program.min_bounty || 0,
+                  maxBounty: program.max_bounty || 0,
+                }];
+              }
+              skeleton.parseConfidence = 0.75;
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Failed to fetch YesWeHack scopes for ${parsed.programSlug}:`, err.message);
+          skeleton.parseConfidence = 0.3;
+        }
+      }
+
+      // For OpenBugBounty programs, scope is the domain itself
+      if (parsed.platform === 'openbugbounty') {
+        try {
+          // The slug IS the program owner, and the domain is typically their website
+          // OpenBugBounty programs are domain-based
+          const obbDomain = await fetchOpenBugBountyDomain(parsed.programSlug);
+          if (obbDomain) {
+            skeleton.programName = `${parsed.programSlug} (OpenBugBounty)`;
+            skeleton.scope.inScope = [{
+              type: 'domain',
+              target: obbDomain,
+              instruction: 'OpenBugBounty program — only XSS, CSRF, and other web vulnerabilities accepted',
+              bountyEligible: false, // OBB is typically non-bounty
+            }];
+            skeleton.scope.wildcardDomains = [`*.${obbDomain}`];
+            skeleton.rules.prohibitedActions = [
+              'No automated scanning without permission',
+              'No denial of service testing',
+              'Report only XSS, CSRF, open redirect, and similar web vulnerabilities',
+            ];
+            skeleton.parseConfidence = 0.6;
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Failed to fetch OBB data for ${parsed.programSlug}:`, err.message);
+          skeleton.parseConfidence = 0.3;
+        }
+      }
+
+      // Build frontend-compatible result
+      const result = {
         programName: skeleton.programName,
         platform: skeleton.platform,
         programUrl: skeleton.programUrl,
@@ -358,6 +526,11 @@ export const vaBugBountyRouter = router({
         } : undefined,
         parsedAt: new Date(skeleton.parsedAt).toISOString(),
       };
+
+      // Cache the result (6-hour TTL)
+      await setPolicyCacheEntry(cacheKey, parsed.platform, parsed.programSlug, input.programUrl, result);
+
+      return result;
     }),
 
   parseProgramUrl: protectedProcedure
@@ -736,4 +909,266 @@ function mapH1AssetType(h1Type?: string): string {
     'OTHER_APK': 'mobile_app',
   };
   return mapping[h1Type.toUpperCase()] || 'other';
+}
+
+// ─── Bounty-Targets-Data Helpers (Bugcrowd, Intigriti, YesWeHack) ─────────
+
+const BOUNTY_TARGETS_BASE = 'https://raw.githubusercontent.com/arkadiyt/bounty-targets-data/main/data';
+
+// In-memory cache with TTL (1 hour)
+const bountyTargetsCache: Record<string, { data: any[]; fetchedAt: number }> = {};
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Fetch platform scope data from the bounty-targets-data GitHub repo.
+ * Uses an in-memory cache with 1-hour TTL.
+ */
+async function fetchBountyTargetsData(platform: 'bugcrowd' | 'intigriti' | 'yeswehack'): Promise<any[] | null> {
+  const cacheKey = platform;
+  const cached = bountyTargetsCache[cacheKey];
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const fileMap: Record<string, string> = {
+    bugcrowd: 'bugcrowd_data.json',
+    intigriti: 'intigriti_data.json',
+    yeswehack: 'yeswehack_data.json',
+  };
+
+  const url = `${BOUNTY_TARGETS_BASE}/${fileMap[platform]}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!res.ok) {
+    console.warn(`[BB Workspace] Failed to fetch ${platform} data: ${res.status}`);
+    return null;
+  }
+
+  const data = await res.json() as any[];
+  bountyTargetsCache[cacheKey] = { data, fetchedAt: Date.now() };
+  return data;
+}
+
+/**
+ * Find a Bugcrowd program by slug or URL match.
+ */
+function findBugcrowdProgram(data: any[], slug: string, programUrl: string): any | null {
+  const slugLower = slug.toLowerCase();
+  const urlLower = programUrl.toLowerCase();
+
+  // Try exact URL match first
+  let found = data.find((p: any) => p.url?.toLowerCase() === urlLower);
+  if (found) return found;
+
+  // Try slug match in URL
+  found = data.find((p: any) => {
+    const pUrl = (p.url || '').toLowerCase();
+    return pUrl.includes(`/${slugLower}`) || pUrl.endsWith(`/${slugLower}`);
+  });
+  if (found) return found;
+
+  // Try name match
+  found = data.find((p: any) => {
+    const pName = (p.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return pName === slugLower.replace(/[^a-z0-9]/g, '');
+  });
+  return found || null;
+}
+
+/**
+ * Find an Intigriti program by handle or URL match.
+ */
+function findIntigritiProgram(data: any[], slug: string, programUrl: string): any | null {
+  const slugLower = slug.toLowerCase();
+  const urlLower = programUrl.toLowerCase();
+
+  // Try exact URL match
+  let found = data.find((p: any) => p.url?.toLowerCase() === urlLower);
+  if (found) return found;
+
+  // Try handle match
+  found = data.find((p: any) =>
+    (p.handle || '').toLowerCase() === slugLower ||
+    (p.company_handle || '').toLowerCase() === slugLower
+  );
+  if (found) return found;
+
+  // Try URL contains slug
+  found = data.find((p: any) => {
+    const pUrl = (p.url || '').toLowerCase();
+    return pUrl.includes(`/${slugLower}/`) || pUrl.includes(`/${slugLower}`);
+  });
+  return found || null;
+}
+
+/**
+ * Find a YesWeHack program by slug or URL match.
+ */
+function findYesWeHackProgram(data: any[], slug: string, programUrl: string): any | null {
+  const slugLower = slug.toLowerCase();
+  const urlLower = programUrl.toLowerCase();
+
+  // Try exact URL match
+  let found = data.find((p: any) => p.url?.toLowerCase() === urlLower);
+  if (found) return found;
+
+  // Try slug match
+  found = data.find((p: any) => {
+    const pSlug = (p.slug || '').toLowerCase();
+    return pSlug === slugLower;
+  });
+  if (found) return found;
+
+  // Try title match
+  found = data.find((p: any) => {
+    const pTitle = (p.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return pTitle === slugLower.replace(/[^a-z0-9]/g, '');
+  });
+  return found || null;
+}
+
+/**
+ * Map Bugcrowd asset type strings to our ScopeTarget type values.
+ */
+function mapBugcrowdAssetType(bcType?: string): string {
+  if (!bcType) return 'other';
+  const mapping: Record<string, string> = {
+    'website': 'url',
+    'api': 'url',
+    'android': 'mobile_app',
+    'ios': 'mobile_app',
+    'hardware': 'other',
+    'other': 'other',
+  };
+  return mapping[bcType.toLowerCase()] || 'other';
+}
+
+/**
+ * Map Intigriti asset type strings to our ScopeTarget type values.
+ */
+function mapIntigritiAssetType(igType?: string): string {
+  if (!igType) return 'other';
+  const mapping: Record<string, string> = {
+    'url': 'url',
+    'domain': 'domain',
+    'android': 'mobile_app',
+    'ios': 'mobile_app',
+    'iprange': 'cidr',
+    'device': 'other',
+    'other': 'other',
+  };
+  return mapping[igType.toLowerCase()] || 'other';
+}
+
+// ─── OpenBugBounty Helpers ─────────────────────────────────────────────────
+
+/**
+ * Fetch domain info from OpenBugBounty.
+ * The slug is the program name, and we extract the domain from the OBB page.
+ */
+async function fetchOpenBugBountyDomain(slug: string): Promise<string | null> {
+  // OpenBugBounty slugs are typically the domain name itself
+  // e.g., https://openbugbounty.org/bugbounty/example.com/
+  // The slug IS the domain
+  if (slug.includes('.')) {
+    return slug;
+  }
+
+  // If it's not a domain, try fetching the OBB page
+  try {
+    const res = await fetch(`https://www.openbugbounty.org/bugbounty/${encodeURIComponent(slug)}/`, {
+      signal: AbortSignal.timeout(10000),
+      headers: { 'User-Agent': 'CalderaDashboard/1.0' },
+    });
+    if (!res.ok) return null;
+
+    const html = await res.text();
+    // Try to extract domain from the page content
+    const domainMatch = html.match(/<title>.*?Bug Bounty.*?(?:for|of)\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (domainMatch) return domainMatch[1];
+
+    // Fallback: the slug might be the domain
+    return slug;
+  } catch {
+    return slug; // Best effort: assume slug is the domain
+  }
+}
+
+// ─── Policy Cache Helpers ─────────────────────────────────────────────────
+
+const POLICY_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/**
+ * Get a cached parsed policy result from the database.
+ * Returns null if not found or expired.
+ */
+async function getPolicyCacheEntry(cacheKey: string): Promise<any | null> {
+  try {
+    const { getDb: _getDb } = await import('../db.js');
+    const { parsedPolicyCache } = await import('../../drizzle/schema.js');
+    const { eq, gt } = await import('drizzle-orm');
+    const db = await _getDb();
+    if (!db) return null;
+
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const [entry] = await db
+      .select()
+      .from(parsedPolicyCache)
+      .where(
+        eq(parsedPolicyCache.cacheKey, cacheKey)
+      )
+      .limit(1);
+
+    if (!entry) return null;
+
+    // Check if expired
+    const expiresAt = new Date(entry.expiresAt).getTime();
+    if (Date.now() > expiresAt) {
+      // Expired, delete and return null
+      await db.delete(parsedPolicyCache).where(eq(parsedPolicyCache.cacheKey, cacheKey));
+      return null;
+    }
+
+    console.log(`[BB Workspace] Cache hit for ${cacheKey}`);
+    return entry.parsedResult;
+  } catch (err: any) {
+    console.warn(`[BB Workspace] Cache read error:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Store a parsed policy result in the database cache.
+ */
+async function setPolicyCacheEntry(
+  cacheKey: string,
+  platform: string,
+  programSlug: string,
+  programUrl: string,
+  result: any
+): Promise<void> {
+  try {
+    const { getDb: _getDb } = await import('../db.js');
+    const { parsedPolicyCache } = await import('../../drizzle/schema.js');
+    const { eq } = await import('drizzle-orm');
+    const db = await _getDb();
+    if (!db) return;
+
+    const expiresAt = new Date(Date.now() + POLICY_CACHE_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
+
+    // Upsert: delete old entry if exists, then insert
+    await db.delete(parsedPolicyCache).where(eq(parsedPolicyCache.cacheKey, cacheKey));
+    await db.insert(parsedPolicyCache).values({
+      cacheKey,
+      platform,
+      programSlug,
+      programUrl,
+      parsedResult: result,
+      expiresAt,
+    });
+
+    console.log(`[BB Workspace] Cached policy for ${cacheKey} (expires: ${expiresAt})`);
+  } catch (err: any) {
+    console.warn(`[BB Workspace] Cache write error:`, err.message);
+    // Non-fatal: parsing still works without cache
+  }
 }

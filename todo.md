@@ -702,4 +702,29 @@
   - Also fetches program info for name and bounty data
 - [x] Added 22 tests in bb-workspace-parser.test.ts — all passing
 - [x] All 192 existing bug bounty tests still passing
+- [x] Push to GitHub (pushed 2f62727a to htcook/caldera-dashboard)
+
+### Bugcrowd/Intigriti/OBB/YWH Scope Fetching + Policy Caching (Apr 27)
+- [x] Research Bugcrowd API — no free API; using arkadiyt/bounty-targets-data GitHub repo (hourly updated JSON)
+- [x] Research Intigriti API — has researcher API but requires auth; using bounty-targets-data as well
+- [x] Research OpenBugBounty API — no scope API; slug IS the domain; fallback to page scraping
+- [x] Updated parseProgramUrl to support OpenBugBounty URLs (openbugbounty.org/bugbounty/{domain})
+- [x] Updated parseProgramUrl to support Intigriti new URL format (intigriti.com/programs/{company}/{handle})
+- [x] Updated BugBountyPlatform type to include 'openbugbounty'
+- [x] Add Bugcrowd scope fetching via bounty-targets-data with in-memory cache (1h TTL)
+  - fetchBountyTargetsData(), findBugcrowdProgram(), mapBugcrowdAssetType()
+  - Extracts in_scope/out_of_scope targets, max_payout, safe_harbor
+- [x] Add Intigriti scope fetching via bounty-targets-data
+  - findIntigritiProgram(), mapIntigritiAssetType()
+  - Extracts targets, min/max bounty, determines eligibility from impact field
+- [x] Add YesWeHack scope fetching via bounty-targets-data
+  - findYesWeHackProgram() with slug/title matching
+- [x] Add OpenBugBounty scope fetching
+  - fetchOpenBugBountyDomain() — extracts domain from slug or page scraping
+  - Sets non-bounty, XSS/CSRF-only rules
+- [x] Design DB schema: parsedPolicyCache table (cache_key, platform, program_slug, program_url, parsed_result JSON, expires_at)
+- [x] Implement cache read/write: getPolicyCacheEntry() / setPolicyCacheEntry()
+  - 6-hour TTL, upsert pattern, graceful fallback on DB errors
+- [x] Added 43 tests in bb-workspace-multiplatform.test.ts — all passing
+- [x] All existing tests still passing (22 parser + 117 sprint + 32 ui-sprint + 20 provision)
 - [ ] Push to GitHub

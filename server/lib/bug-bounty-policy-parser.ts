@@ -64,7 +64,7 @@ export interface PolicyROE {
   rawPolicyText?: string;
 }
 
-export type BugBountyPlatform = 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'yeswehack' | 'custom';
+export type BugBountyPlatform = 'hackerone' | 'bugcrowd' | 'intigriti' | 'synack' | 'yeswehack' | 'openbugbounty' | 'custom';
 
 export type TestType = 
   | 'web_application'
@@ -492,17 +492,30 @@ function formatGenericSubmission(
  * This creates a skeleton that can be enriched by LLM analysis of the actual policy page.
  */
 export function parseProgramUrl(url: string): { platform: BugBountyPlatform; programSlug: string } | null {
-  const patterns: Array<{ pattern: RegExp; platform: BugBountyPlatform }> = [
+  const patterns: Array<{ pattern: RegExp; platform: BugBountyPlatform; slugIndex?: number }> = [
     { pattern: /hackerone\.com\/([^/?#]+)/i, platform: 'hackerone' },
+    // Bugcrowd: /engagements/slug or /slug
+    { pattern: /bugcrowd\.com\/engagements\/([^/?#]+)/i, platform: 'bugcrowd' },
     { pattern: /bugcrowd\.com\/([^/?#]+)/i, platform: 'bugcrowd' },
+    // Intigriti: /programs/company/handle/detail or old app.intigriti.com format
+    { pattern: /intigriti\.com\/programs\/([^/?#]+)\/([^/?#]+)/i, platform: 'intigriti', slugIndex: 2 },
     { pattern: /app\.intigriti\.com\/(?:researcher\/)?programs\/([^/?#]+)/i, platform: 'intigriti' },
+    // YesWeHack
     { pattern: /yeswehack\.com\/programs\/([^/?#]+)/i, platform: 'yeswehack' },
+    // OpenBugBounty: /bugbounty/slug/ or /reports/NNN/
+    { pattern: /openbugbounty\.org\/bugbounty\/([^/?#]+)/i, platform: 'openbugbounty' },
   ];
   
-  for (const { pattern, platform } of patterns) {
+  for (const { pattern, platform, slugIndex } of patterns) {
     const match = url.match(pattern);
     if (match) {
-      return { platform, programSlug: match[1] };
+      // For Intigriti with company/handle format, use the handle (2nd capture group)
+      const slug = slugIndex ? match[slugIndex] : match[1];
+      // For Bugcrowd, skip non-program paths
+      if (platform === 'bugcrowd' && ['engagements', 'programs', 'blog', 'resources', 'about', 'contact', 'customers', 'researchers', 'platform', 'solutions', 'pricing', 'vulnerability-disclosure-program'].includes(slug.toLowerCase())) {
+        continue;
+      }
+      return { platform, programSlug: slug };
     }
   }
   

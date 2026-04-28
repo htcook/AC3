@@ -8028,3 +8028,20 @@ export const orchestrationPlans = mysqlTable("orchestration_plans", {
 	index("op_campaign_id_idx").on(table.campaignId),
 	index("op_status_idx").on(table.status),
 ]);
+
+// ─── Parsed Policy Cache (BB Workspace) ────────────────────────────────────
+export const parsedPolicyCache = mysqlTable("parsed_policy_cache", {
+	id: int().autoincrement().notNull(),
+	cacheKey: varchar("cache_key", { length: 255 }).notNull(),
+	platform: varchar({ length: 32 }).notNull(),
+	programSlug: varchar("program_slug", { length: 255 }).notNull(),
+	programUrl: varchar("program_url", { length: 1024 }).notNull(),
+	parsedResult: json("parsed_result").notNull(),
+	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("ppc_cache_key_idx").on(table.cacheKey),
+	index("ppc_platform_slug_idx").on(table.platform, table.programSlug),
+]);
