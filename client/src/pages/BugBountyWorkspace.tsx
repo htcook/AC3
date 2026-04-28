@@ -37,7 +37,7 @@ import {
   Search, Copy, ExternalLink, Sparkles, CheckCircle2, XCircle,
   Clock, Zap, Eye, Send, ArrowRight, Loader2, Info, ChevronDown,
   ChevronRight, Crosshair, Link2, AlertCircle, FileCheck, Clipboard,
-  Download, Layers,
+  Download, Layers, RefreshCw, Upload,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -104,6 +104,9 @@ export default function BugBountyWorkspace() {
   const checkScope = trpc.vaBugBounty.checkScope.useMutation();
   const checkOriginality = trpc.vaBugBounty.checkOriginality.useMutation();
   const importEngagementFindings = trpc.vaBugBounty.listEngagementFindingsForBounty.useMutation();
+  const refreshPolicy = trpc.vaBugBounty.refreshBugBountyPolicy.useMutation();
+  const syncScopeToEngagement = trpc.vaBugBounty.syncScopeToEngagement.useMutation();
+  const activeEngagements = trpc.vaBugBounty.listActiveEngagements.useQuery();
 
   const handleImportFromEngagement = async () => {
     const id = parseInt(engagementIdInput);
@@ -149,6 +152,40 @@ export default function BugBountyWorkspace() {
       toast.error('Failed to parse program', { description: err.message });
     } finally {
       setIsParsing(false);
+    }
+  };
+
+  const handleRefreshScope = async () => {
+    if (!policy?.programUrl) return;
+    setIsParsing(true);
+    try {
+      const result = await refreshPolicy.mutateAsync({ programUrl: policy.programUrl });
+      setPolicy(result as unknown as PolicyROE);
+      toast.success('Scope refreshed', {
+        description: `${result.programName} — ${result.scope.inScope.length} in-scope targets (fresh data)`,
+      });
+    } catch (err: any) {
+      toast.error('Failed to refresh scope', { description: err.message });
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleSyncToEngagement = async (engagementId: number) => {
+    if (!policy) return;
+    try {
+      const result = await syncScopeToEngagement.mutateAsync({
+        engagementId,
+        inScopeTargets: policy.scope.inScope,
+        programName: policy.programName,
+        programUrl: policy.programUrl,
+        platform: policy.platform,
+      });
+      toast.success(`Synced to Engagement #${engagementId}`, {
+        description: `${result.totalDomainsAdded} domains + ${result.totalIpsAdded} IPs added (${result.totalTargets} total targets)${result.skippedTypes > 0 ? ` — ${result.skippedTypes} non-network targets skipped` : ''}`,
+      });
+    } catch (err: any) {
+      toast.error('Failed to sync scope', { description: err.message });
     }
   };
 
@@ -210,7 +247,17 @@ export default function BugBountyWorkspace() {
 
         {/* Tab: Scope Checker */}
         <TabsContent value="scope">
-          {policy && <ScopeTab policy={policy} checkScope={checkScope} />}
+          {policy && (
+            <ScopeTab
+              policy={policy}
+              checkScope={checkScope}
+              onRefresh={handleRefreshScope}
+              isRefreshing={isParsing}
+              onSyncToEngagement={handleSyncToEngagement}
+              isSyncing={syncScopeToEngagement.isPending}
+              engagements={activeEngagements.data || []}
+            />
+          )}
         </TabsContent>
 
         {/* Tab: Finding Documenter */}
@@ -289,7 +336,7 @@ function ProgramTab({
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="https://hackerone.com/your-program or https://bugcrowd.com/your-program"
+              placeholder="https://hackerone.com/your-program, https://bugcrowd.com/engagements/your-program, or https://intigriti.com/programs/..."
               value={programUrl}
               onChange={e => onUrlChange(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && onParse()}
@@ -305,7 +352,7 @@ function ProgramTab({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {['HackerOne', 'Bugcrowd', 'Intigriti', 'YesWeHack', 'Synack', 'Custom'].map(p => (
+            {['HackerOne', 'Bugcrowd', 'Intigriti', 'YesWeHack', 'OpenBugBounty', 'Synack', 'Custom'].map(p => (
               <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>
             ))}
           </div>
@@ -433,13 +480,24 @@ function ProgramTab({
 function ScopeTab({
   policy,
   checkScope,
+  onRefresh,
+  isRefreshing,
+  onSyncToEngagement,
+  isSyncing,
+  engagements,
 }: {
   policy: PolicyROE;
   checkScope: any;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+  onSyncToEngagement: (engagementId: number) => void;
+  isSyncing: boolean;
+  engagements: Array<{ id: number; name: string; engagementType: string; status: string }>;
 }) {
   const [targetToCheck, setTargetToCheck] = useState('');
   const [scopeResults, setScopeResults] = useState<ScopeCheckResult[]>([]);
   const [isChecking, setIsChecking] = useState(false);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
 
   const handleCheck = async () => {
     if (!targetToCheck.trim()) return;
@@ -460,6 +518,85 @@ function ScopeTab({
 
   return (
     <div className="space-y-6">
+      {/* Action Bar: Refresh + Sync to Engagement */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="gap-1.5"
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Refresh Scope
+          </Button>
+          {policy.parsedAt && (
+            <span className="text-[10px] text-muted-foreground">
+              Last fetched: {new Date(policy.parsedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={policy.scope.inScope.length === 0}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Sync to Engagement
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-orange-400" />
+                Sync Scope to Engagement
+              </DialogTitle>
+              <DialogDescription>
+                Add {policy.scope.inScope.length} in-scope targets from <strong>{policy.programName}</strong> as engagement assets.
+                Domains, IPs, and URLs will be extracted and added. Non-network targets (source code, hardware) will be skipped.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 mt-2">
+              {engagements.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active engagements found. Create an engagement first.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {engagements.filter(e => e.status !== 'archived' && e.status !== 'completed').map(eng => (
+                    <button
+                      key={eng.id}
+                      onClick={() => {
+                        onSyncToEngagement(eng.id);
+                        setShowSyncDialog(false);
+                      }}
+                      disabled={isSyncing}
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors text-left"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{eng.name}</p>
+                        <p className="text-[10px] text-muted-foreground">#{eng.id} · {eng.engagementType.replace(/_/g, ' ')} · {eng.status}</p>
+                      </div>
+                      {isSyncing ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* In-Scope */}
         <Card>

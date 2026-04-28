@@ -803,6 +803,329 @@ export const vaBugBountyRouter = router({
         stats: result.stats,
       };
     }),
+
+  // ─── Refresh Scope (Cache Invalidation) ──────────────────────────────────
+
+  /**
+   * Invalidate the cached policy for a program URL and re-fetch fresh scope data.
+   * This is the backend for the "Refresh Scope" button in the BB Workspace.
+   */
+  refreshBugBountyPolicy: protectedProcedure
+    .input(z.object({ programUrl: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const parsed = parseProgramUrl(input.programUrl);
+      if (!parsed) {
+        throw new Error('Could not parse program URL');
+      }
+
+      // Invalidate the cache entry
+      const cacheKey = `${parsed.platform}:${parsed.programSlug}`;
+      await deletePolicyCacheEntry(cacheKey);
+      console.log(`[BB Workspace] Cache invalidated for ${cacheKey}, re-fetching...`);
+
+      // Re-run the full parse (which will now skip cache and fetch fresh data)
+      // We reuse the parseBugBountyPolicy logic by calling the same flow
+      const skeleton = createSkeletonPolicy({
+        ...parsed,
+        programUrl: input.programUrl,
+      });
+
+      // HackerOne
+      if (parsed.platform === 'hackerone') {
+        try {
+          const creds = await resolveH1CredentialsForBBWorkspace(ctx.user.id);
+          if (creds) {
+            const inScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+            const outOfScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+            for (let page = 1; page <= 3; page++) {
+              const scopePath = `/programs/${encodeURIComponent(parsed.programSlug)}/structured_scopes?page[number]=${page}&page[size]=25`;
+              const scopeData = await h1FetchForBBWorkspace(scopePath, creds.username, creds.token);
+              if (!scopeData?.data?.length) break;
+              for (const item of scopeData.data) {
+                const attrs = item.attributes || {};
+                const entry = {
+                  type: mapH1AssetType(attrs.asset_type),
+                  value: attrs.asset_identifier || 'unknown',
+                  eligible: !!attrs.eligible_for_bounty,
+                  notes: attrs.instruction || (attrs.max_severity ? `Max severity: ${attrs.max_severity}` : undefined),
+                };
+                if (attrs.eligible_for_submission !== false) inScope.push(entry);
+                else outOfScope.push(entry);
+              }
+            }
+            skeleton.scope.inScope = inScope.map(s => ({ type: s.type as any, target: s.value, instruction: s.notes, bountyEligible: s.eligible }));
+            skeleton.scope.outOfScope = outOfScope.map(s => ({ type: s.type as any, target: s.value, instruction: s.notes, bountyEligible: false }));
+            skeleton.scope.wildcardDomains = inScope.filter(s => s.value.startsWith('*.')).map(s => s.value);
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Refresh H1 fetch failed:`, err.message);
+        }
+      }
+
+      // Bugcrowd
+      if (parsed.platform === 'bugcrowd') {
+        try {
+          // Force fresh fetch by clearing the in-memory bounty-targets cache
+          bountyTargetsCache.bugcrowd = null;
+          bountyTargetsCacheTimestamp.bugcrowd = 0;
+          const bcData = await fetchBountyTargetsData('bugcrowd');
+          if (bcData) {
+            const program = findBugcrowdProgram(bcData, parsed.programSlug, input.programUrl);
+            if (program) {
+              skeleton.programName = program.name || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                  instruction: t.name || undefined, bountyEligible: true,
+                }));
+              }
+              if (program.targets?.out_of_scope) {
+                skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                  instruction: t.name || undefined, bountyEligible: false,
+                }));
+              }
+              if (program.max_payout) {
+                skeleton.bounty.hasBounty = true;
+                skeleton.bounty.ranges = [{ severity: 'critical', minBounty: 0, maxBounty: program.max_payout }];
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Refresh Bugcrowd fetch failed:`, err.message);
+        }
+      }
+
+      // Intigriti
+      if (parsed.platform === 'intigriti') {
+        try {
+          bountyTargetsCache.intigriti = null;
+          bountyTargetsCacheTimestamp.intigriti = 0;
+          const igData = await fetchBountyTargetsData('intigriti');
+          if (igData) {
+            const program = findIntigritiProgram(igData, parsed.programSlug, input.programUrl);
+            if (program) {
+              skeleton.programName = program.name || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapIntigritiAssetType(t.type), target: t.endpoint || 'unknown',
+                  instruction: t.description || undefined, bountyEligible: t.impact !== 'Out of scope' && t.impact !== 'No Bounty',
+                }));
+              }
+              if (program.targets?.out_of_scope) {
+                skeleton.scope.outOfScope = program.targets.out_of_scope.map((t: any) => ({
+                  type: mapIntigritiAssetType(t.type), target: t.endpoint || 'unknown',
+                  instruction: t.description || undefined, bountyEligible: false,
+                }));
+              }
+              if (program.min_bounty || program.max_bounty) {
+                skeleton.bounty.hasBounty = true;
+                skeleton.bounty.ranges = [{ severity: 'critical', minBounty: program.min_bounty?.value || 0, maxBounty: program.max_bounty?.value || 0 }];
+                skeleton.bounty.currency = program.max_bounty?.currency || 'USD';
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Refresh Intigriti fetch failed:`, err.message);
+        }
+      }
+
+      // YesWeHack
+      if (parsed.platform === 'yeswehack') {
+        try {
+          bountyTargetsCache.yeswehack = null;
+          bountyTargetsCacheTimestamp.yeswehack = 0;
+          const ywhData = await fetchBountyTargetsData('yeswehack');
+          if (ywhData) {
+            const program = findYesWeHackProgram(ywhData, parsed.programSlug);
+            if (program) {
+              skeleton.programName = program.title || program.name || parsed.programSlug;
+              if (program.targets?.in_scope) {
+                skeleton.scope.inScope = program.targets.in_scope.map((t: any) => ({
+                  type: mapBugcrowdAssetType(t.type), target: t.target || 'unknown',
+                  instruction: t.scope || undefined, bountyEligible: true,
+                }));
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Refresh YWH fetch failed:`, err.message);
+        }
+      }
+
+      // OpenBugBounty
+      if (parsed.platform === 'openbugbounty') {
+        try {
+          const obbDomain = await fetchOpenBugBountyDomain(parsed.programSlug);
+          if (obbDomain) {
+            skeleton.programName = `${parsed.programSlug} (OpenBugBounty)`;
+            skeleton.scope.inScope = [{ type: 'domain', target: obbDomain, instruction: 'OpenBugBounty — XSS/CSRF only', bountyEligible: false }];
+          }
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Refresh OBB fetch failed:`, err.message);
+        }
+      }
+
+      // Build result and cache it
+      const result = {
+        programName: skeleton.programName,
+        platform: skeleton.platform,
+        programUrl: skeleton.programUrl,
+        scope: {
+          inScope: skeleton.scope.inScope.map(s => ({ type: s.type, value: s.target, eligible: s.bountyEligible, notes: s.instruction })),
+          outOfScope: skeleton.scope.outOfScope.map(s => ({ type: s.type, value: s.target, eligible: false, notes: s.instruction })),
+        },
+        rules: [
+          ...skeleton.rules.prohibitedActions,
+          skeleton.rules.disclosurePolicy !== 'none' ? `Disclosure: ${skeleton.rules.disclosurePolicy}` : null,
+          skeleton.rules.requiresVPN ? 'VPN required' : null,
+          skeleton.rules.requiresAccountCreation ? 'Account creation required' : null,
+          skeleton.rules.testingHoursRestriction ? `Testing hours: ${skeleton.rules.testingHoursRestriction}` : null,
+        ].filter(Boolean) as string[],
+        rewardRange: skeleton.bounty.hasBounty && skeleton.bounty.ranges.length > 0 ? {
+          low: Math.min(...skeleton.bounty.ranges.map(r => r.minBounty)),
+          high: Math.max(...skeleton.bounty.ranges.map(r => r.maxBounty)),
+          currency: skeleton.bounty.currency === 'USD' ? '$' : skeleton.bounty.currency,
+        } : undefined,
+        safeHarbor: !!skeleton.rules.safeHarborStatement,
+        responseTimeSla: skeleton.responseExpectations.firstResponseDays ? {
+          firstResponse: `${skeleton.responseExpectations.firstResponseDays}d`,
+          triage: skeleton.responseExpectations.triageDays ? `${skeleton.responseExpectations.triageDays}d` : 'N/A',
+          bountyDecision: skeleton.responseExpectations.bountyPaymentDays ? `${skeleton.responseExpectations.bountyPaymentDays}d` : 'N/A',
+        } : undefined,
+        parsedAt: new Date().toISOString(),
+      };
+
+      await setPolicyCacheEntry(cacheKey, parsed.platform, parsed.programSlug, input.programUrl, result);
+      return result;
+    }),
+
+  // ─── Sync Scope to Engagement Assets ─────────────────────────────────────
+
+  /**
+   * Take the parsed in-scope targets from a BB workspace policy and add them
+   * as targets to an existing engagement. This bridges the BB workspace
+   * to the engagement ops pipeline.
+   */
+  syncScopeToEngagement: protectedProcedure
+    .input(z.object({
+      engagementId: z.number(),
+      inScopeTargets: z.array(z.object({
+        type: z.string(),
+        value: z.string(),
+        eligible: z.boolean().optional(),
+        notes: z.string().optional(),
+      })),
+      programName: z.string().optional(),
+      programUrl: z.string().optional(),
+      platform: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await import('../db.js');
+      const engagement = await db.getEngagementById(input.engagementId);
+      if (!engagement) {
+        throw new Error(`Engagement #${input.engagementId} not found`);
+      }
+
+      // Extract domains, IPs, and URLs from in-scope targets
+      const domains: string[] = [];
+      const ips: string[] = [];
+      const urls: string[] = [];
+
+      for (const target of input.inScopeTargets) {
+        const val = target.value.trim();
+        if (!val || val === 'unknown') continue;
+
+        const lowerType = target.type.toLowerCase();
+
+        if (lowerType === 'ip' || lowerType === 'cidr' || /^\d{1,3}(\.\d{1,3}){3}/.test(val)) {
+          ips.push(val);
+        } else if (lowerType === 'url' || /^https?:\/\//i.test(val)) {
+          urls.push(val);
+          // Also extract the hostname
+          try {
+            const hostname = new URL(val.startsWith('http') ? val : `https://${val}`).hostname;
+            if (hostname && !domains.includes(hostname)) domains.push(hostname);
+          } catch { /* not a valid URL */ }
+        } else if (lowerType === 'domain' || lowerType === 'wildcard' || val.includes('.')) {
+          // Strip wildcard prefix for domain matching
+          const clean = val.replace(/^\*\./, '');
+          if (clean && !domains.includes(clean)) domains.push(clean);
+          // Also keep the wildcard version if present
+          if (val.startsWith('*.') && !domains.includes(val)) domains.push(val);
+        } else if (lowerType === 'source_code' || lowerType === 'hardware' || lowerType === 'other') {
+          // Non-network targets — skip for engagement asset population
+          continue;
+        } else {
+          // Default: treat as domain
+          if (val.includes('.')) domains.push(val);
+        }
+      }
+
+      // Merge with existing engagement targets
+      const existingDomains = (engagement.targetDomain || '').split(/[,;\s]+/).filter(Boolean);
+      const existingIps = (engagement.targetIpRange || '').split(/[,;\s]+/).filter(Boolean);
+      const allDomains = [...new Set([...existingDomains, ...domains])];
+      const allIps = [...new Set([...existingIps, ...ips])];
+
+      // Update the engagement record
+      const updates: any = {
+        targetDomain: allDomains.join(', '),
+        targetIpRange: allIps.join(', '),
+      };
+
+      // Also set bug bounty metadata if provided
+      if (input.programUrl) updates.bugBountyProgramUrl = input.programUrl;
+      if (input.platform) {
+        const validPlatforms = ['hackerone', 'bugcrowd', 'intigriti', 'synack', 'yeswehack', 'custom'] as const;
+        const plat = input.platform.toLowerCase();
+        if (validPlatforms.includes(plat as any)) {
+          updates.bugBountyPlatform = plat;
+        }
+      }
+
+      await db.updateEngagement(input.engagementId, updates);
+
+      // Also update the in-memory ops state if it exists
+      try {
+        const { getOpsState, getOpsStateWithRecovery, initOpsState } = await import('../lib/engagement-orchestrator.js');
+        let state = getOpsState(input.engagementId);
+        if (!state) state = await getOpsStateWithRecovery(input.engagementId);
+        if (!state) state = initOpsState(input.engagementId, engagement.engagementType);
+
+        for (const d of allDomains) {
+          if (!state.assets.find((a: any) => a.hostname === d)) {
+            state.assets.push({ hostname: d, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
+          }
+        }
+        for (const ip of allIps) {
+          if (!state.assets.find((a: any) => a.ip === ip || a.hostname === ip)) {
+            state.assets.push({ hostname: ip, ip, type: 'unknown', ports: [], vulns: [], zapFindings: [], exploitAttempts: [], toolResults: [], status: 'pending' });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[BB Workspace] Failed to update ops state:`, err.message);
+      }
+
+      const newDomains = domains.filter(d => !existingDomains.includes(d));
+      const newIps = ips.filter(ip => !existingIps.includes(ip));
+
+      await db.logActivity({
+        userId: ctx.user.id,
+        action: 'bb_scope_synced',
+        details: `Synced ${newDomains.length + newIps.length} new targets from ${input.programName || 'BB program'} to engagement #${input.engagementId}`,
+      });
+
+      return {
+        engagementId: input.engagementId,
+        totalDomainsAdded: newDomains.length,
+        totalIpsAdded: newIps.length,
+        totalTargets: allDomains.length + allIps.length,
+        newDomains,
+        newIps,
+        skippedTypes: input.inScopeTargets.filter(t => ['source_code', 'hardware', 'other'].includes(t.type.toLowerCase())).length,
+      };
+    }),
 });
 
 // ─── HackerOne API Helpers for Bug Bounty Workspace ─────────────────────────
@@ -837,46 +1160,24 @@ async function h1FetchForBBWorkspace(path: string, username?: string, token?: st
   return res.json();
 }
 
+/**
+ * Unified H1 credential resolution — delegates to credential-service.ts
+ * which handles: DB per-user lookup → env var fallback.
+ * This ensures all BB platform credential fixes apply universally.
+ */
 async function resolveH1CredentialsForBBWorkspace(userId: number): Promise<{ username: string; token: string } | null> {
   try {
-    const { getDb: _getDb } = await import('../db.js');
-    const { userPlatformCredentials } = await import('../../drizzle/schema.js');
-    const { eq, and } = await import('drizzle-orm');
-    const db = await _getDb();
-    if (!db) return fallbackH1Creds();
-
-    const [cred] = await db
-      .select()
-      .from(userPlatformCredentials)
-      .where(
-        and(
-          eq(userPlatformCredentials.userId, userId),
-          eq(userPlatformCredentials.platform, "hackerone"),
-          eq(userPlatformCredentials.isActive, 1)
-        )
-      )
-      .limit(1);
-
-    if (cred) {
-      try {
-        const apiKey = decryptBB(cred.apiKeyEncrypted);
-        return { username: cred.apiUsername || "", token: apiKey };
-      } catch {
-        // Decryption failed, fall through to env vars
-      }
+    const { getH1CredentialsForUser } = await import('../lib/credential-service.js');
+    const creds = await getH1CredentialsForUser(userId);
+    if (creds) {
+      return { username: creds.username, token: creds.apiKey };
     }
-  } catch {
-    // DB access failed, fall through to env vars
+  } catch (err: any) {
+    console.warn('[BBWorkspace] credential-service lookup failed, trying direct env fallback:', err.message);
   }
-
-  return fallbackH1Creds();
-}
-
-function fallbackH1Creds(): { username: string; token: string } | null {
-  const username = process.env.HACKERONE_API_USERNAME || process.env.HACKERONE_API_KEY?.split(":")[0];
-  const token = process.env.HACKERONE_API_KEY?.includes(":")
-    ? process.env.HACKERONE_API_KEY.split(":").slice(1).join(":")
-    : process.env.HACKERONE_API_KEY;
+  // Direct env fallback if credential-service itself fails
+  const username = process.env.HACKERONE_API_USERNAME;
+  const token = process.env.HACKERONE_API_KEY;
   if (username && token) {
     return { username, token };
   }
@@ -1170,5 +1471,24 @@ async function setPolicyCacheEntry(
   } catch (err: any) {
     console.warn(`[BB Workspace] Cache write error:`, err.message);
     // Non-fatal: parsing still works without cache
+  }
+}
+
+
+/**
+ * Delete a cached policy entry (used by refresh flow).
+ */
+async function deletePolicyCacheEntry(cacheKey: string): Promise<void> {
+  try {
+    const { getDb: _getDb } = await import('../db.js');
+    const { parsedPolicyCache } = await import('../../drizzle/schema.js');
+    const { eq } = await import('drizzle-orm');
+    const db = await _getDb();
+    if (!db) return;
+
+    await db.delete(parsedPolicyCache).where(eq(parsedPolicyCache.cacheKey, cacheKey));
+    console.log(`[BB Workspace] Cache entry deleted for ${cacheKey}`);
+  } catch (err: any) {
+    console.warn(`[BB Workspace] Cache delete error:`, err.message);
   }
 }

@@ -66,43 +66,26 @@ async function h1Fetch(path: string, username?: string, token?: string) {
 }
 
 /**
- * Resolve HackerOne credentials from:
- * 1. User's stored platform credentials (encrypted in DB)
- * 2. Fallback to env vars HACKERONE_API_USERNAME / HACKERONE_API_KEY
+ * Unified H1 credential resolution — delegates to credential-service.ts
+ * which handles: DB per-user lookup → env var fallback.
+ * This ensures all BB platform credential fixes apply universally to all users.
  */
 async function resolveH1Credentials(userId: number): Promise<{ username: string; token: string } | null> {
-  const db = await getDbSafe();
-  // Try user's stored credentials first
-  const [cred] = await db
-    .select()
-    .from(userPlatformCredentials)
-    .where(
-      and(
-        eq(userPlatformCredentials.userId, userId),
-        eq(userPlatformCredentials.platform, "hackerone"),
-        eq(userPlatformCredentials.isActive, 1)
-      )
-    )
-    .limit(1);
-
-  if (cred) {
-    try {
-      const apiKey = decrypt(cred.apiKeyEncrypted);
-      return { username: cred.apiUsername || "", token: apiKey };
-    } catch {
-      // Decryption failed, fall through to env vars
+  try {
+    const { getH1CredentialsForUser } = await import('../lib/credential-service.js');
+    const creds = await getH1CredentialsForUser(userId);
+    if (creds) {
+      return { username: creds.username, token: creds.apiKey };
     }
+  } catch (err: any) {
+    console.warn('[BugBounty] credential-service lookup failed, trying direct env fallback:', err.message);
   }
-
-  // Fallback to env vars
-  const username = process.env.HACKERONE_API_USERNAME || process.env.HACKERONE_API_KEY?.split(":")[0];
-  const token = process.env.HACKERONE_API_KEY?.includes(":") 
-    ? process.env.HACKERONE_API_KEY.split(":").slice(1).join(":")
-    : process.env.HACKERONE_API_KEY;
+  // Direct env fallback if credential-service itself fails
+  const username = process.env.HACKERONE_API_USERNAME;
+  const token = process.env.HACKERONE_API_KEY;
   if (username && token) {
     return { username, token };
   }
-
   return null;
 }
 

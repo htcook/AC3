@@ -50,7 +50,7 @@ async function verifyHackerOne(username: string, apiKey: string): Promise<{ vali
       Accept: "application/json",
       Authorization: "Basic " + Buffer.from(`${username}:${apiKey}`).toString("base64"),
     };
-    const res = await fetch("https://api.hackerone.com/v1/hackers/me/reports?page[size]=1", {
+    const res = await fetch("https://api.hackerone.com/v1/hackers/programs?page[size]=1", {
       headers,
       signal: AbortSignal.timeout(10000),
     });

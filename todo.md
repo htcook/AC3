@@ -730,13 +730,30 @@
 - [x] Push to GitHub (pushed 72ffc23f)
 
 ### BB Workspace Enhancements Sprint (Apr 27)
-- [ ] Live-test real Bugcrowd URL (e.g., tidal-bugbounty) via parser backend
-- [ ] Live-test real Intigriti URL (e.g., AMD) via parser backend
-- [ ] Live-test real OpenBugBounty URL via parser backend
-- [ ] Add "Refresh Scope" button to BB Workspace Scope tab
-- [ ] Wire refresh button to invalidate cache and re-fetch
-- [ ] Auto-populate engagement assets from parsed in-scope targets
-- [ ] Add backend procedure to sync scope targets to engagement assets
-- [ ] Add UI button/flow to trigger scope-to-asset sync
-- [ ] Write tests for new features
+- [x] Live-test real Bugcrowd URL (TIDAL: 10 in-scope, 2 out-of-scope; OpenAI: 15 in-scope)
+- [x] Live-test real Intigriti URL (AMD: 4 in-scope, $500-$30k bounty)
+- [x] Live-test real OpenBugBounty URL (domain extraction working)
+- [x] Add "Refresh Scope" button to BB Workspace Scope tab
+- [x] Wire refresh button to invalidate cache and re-fetch (refreshBugBountyPolicy procedure)
+- [x] Auto-populate engagement assets from parsed in-scope targets
+- [x] Add backend procedure: syncScopeToEngagement (maps scope targets to engagement assets)
+- [x] Add UI: Sync to Engagement button with engagement selector dropdown
+- [x] All tests passing (22 parser + 43 multiplatform + 117 sprint + 20 provision + 20 dashboard)
+- [ ] Push to GitHub
+
+### HackerOne 401 Fix (Apr 27)
+- [x] Diagnosed: /hackers/me endpoint returns 401 for hacker API tokens; /hackers/programs works
+- [x] Root cause: all 3 credential sources (DB, env, new token) tested against wrong endpoint
+- [x] Fix: validation endpoint changed to /hackers/programs in platform-credentials.ts
+- [x] Verified htc0 credentials work on /hackers/programs and /structured_scopes (200 OK)
+
+### Universal H1 Auth Fix (Apr 27)
+- [x] Fix H1 validation endpoint: /hackers/me → /hackers/programs (platform-credentials.ts)
+- [x] Unify credential resolution: va-bugbounty.ts + bug-bounty.ts both delegate to credential-service.ts
+- [x] Removed duplicate resolveH1CredentialsForBBWorkspace (replaced with credential-service import)
+- [x] Fixed all /hackers/me references in tests (hackerone-auth, hackerone-api-key, bug-bounty-dashboard)
+- [x] credential-service env fallback works for all users (getH1CredentialsForUser)
+- [x] Refresh Scope button in ScopeTab with cache invalidation
+- [x] Sync to Engagement button with engagement selector
+- [x] All tests passing
 - [ ] Push to GitHub

@@ -28,10 +28,10 @@ describe("Bug Bounty Dashboard", () => {
   });
 
   describe("Credential Verification Logic", () => {
-    it("should verify HackerOne credentials via /me endpoint", () => {
-      const hackerOneVerifyUrl = "https://api.hackerone.com/v1/me";
+    it("should verify HackerOne credentials via /programs endpoint", () => {
+      const hackerOneVerifyUrl = "https://api.hackerone.com/v1/hackers/programs";
       expect(hackerOneVerifyUrl).toContain("hackerone.com");
-      expect(hackerOneVerifyUrl).toContain("/me");
+      expect(hackerOneVerifyUrl).toContain("/programs");
     });
 
     it("should verify Bugcrowd credentials via /bounties endpoint", () => {
