@@ -20,6 +20,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Only deploy to DO from the personal repo (company repo deploys to AWS)
+    if: github.repository == 'htcook/caldera-dashboard'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

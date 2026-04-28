@@ -788,3 +788,24 @@
 - [x] Push full codebase + git history to hcook-aoc/AC3 on main branch
 - [x] Configure user_github remote with dual push URLs (htcook/caldera-dashboard + hcook-aoc/AC3)
 - [x] Verify dual-push mirroring works with a test commit
+
+### AWS Deployment — FedRAMP High Architecture (Apr 28)
+- [x] Create Terraform networking module (VPC, subnets, NAT, ALB, WAF)
+- [x] Create Terraform ECR module (container registry with image scanning)
+- [x] Create Terraform database module (Aurora MySQL Serverless v2 with encryption)
+- [x] Create Terraform ECS module (Fargate cluster, service, task definition)
+- [x] Create Terraform secrets module (Secrets Manager with rotation)
+- [x] Create Terraform security module (GuardDuty, Security Hub, CloudTrail, Config)
+- [x] Create Terraform monitoring module (CloudWatch, alarms, dashboards)
+- [x] Create environment configs (dev/staging/prod tfvars)
+- [x] Create root Terraform config with module composition + OIDC module
+- [x] Create FedRAMP-hardened Dockerfile (Dockerfile.aws — multi-stage, non-root, dumb-init)
+- [x] Create GitHub Actions deploy-aws.yml workflow (OIDC, build, push ECR, deploy ECS)
+- [x] Write deployment documentation and runbook (infrastructure/DEPLOYMENT.md + bootstrap script)
+
+### Fix GitHub Actions for Company Repo (Apr 28)
+- [x] BUG: mirror-to-company.yml has placeholder COMPANY_REPO_URL — updated with hcook-aoc/AC3.git + repo guard
+- [x] BUG: ci.yml uses self-hosted runners — changed to ubuntu-latest
+- [x] BUG: prebuild-client.yml uses self-hosted runners — changed to ubuntu-latest
+- [x] FIX: Update all workflows to use ubuntu-latest for company repo compatibility
+- [x] FIX: Update mirror workflow with correct company repo URL and COMPANY_PAT secret reference

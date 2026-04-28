@@ -1,0 +1,11 @@
+variable "environment" { type = string }
+variable "project_name" { type = string }
+variable "vpc_id" { type = string }
+variable "database_subnet_ids" { type = list(string) }
+variable "ecs_security_group_id" { type = string }
+variable "db_master_username" { type = string }
+variable "db_min_capacity" { type = number }
+variable "db_max_capacity" { type = number }
+variable "deletion_protection" { type = bool }
+variable "backup_retention_days" { type = number }
+variable "kms_key_arn" { type = string }

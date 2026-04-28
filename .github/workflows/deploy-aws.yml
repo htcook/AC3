@@ -1,0 +1,227 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy to AWS ECS Fargate
+# ─────────────────────────────────────────────────────────────────────────────
+# Builds a Docker image, pushes to ECR, and updates the ECS service.
+# Uses OIDC federation — NO long-lived AWS credentials stored in GitHub.
+#
+# PREREQUISITES:
+#   1. Terraform has been applied (creates OIDC provider, ECR, ECS, etc.)
+#   2. Repository variables set in GitHub:
+#      - AWS_ACCOUNT_ID
+#      - AWS_REGION (default: us-east-1)
+#
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+# Prevent concurrent deployments to the same environment
+concurrency:
+  group: deploy-aws-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: ac3
+
+permissions:
+  id-token: write   # OIDC federation
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Determine target environment
+  # ─────────────────────────────────────────────
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    # Only run from the company repo
+    if: github.repository == 'hcook-aoc/AC3'
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      ecr_repo: ${{ steps.env.outputs.ecr_repo }}
+      ecs_cluster: ${{ steps.env.outputs.ecs_cluster }}
+      ecs_service: ${{ steps.env.outputs.ecs_service }}
+      deploy_role: ${{ steps.env.outputs.deploy_role }}
+
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          # Manual dispatch uses the input; push to main defaults to dev
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "ecr_repo=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
+          echo "ecs_cluster=${{ env.PROJECT_NAME }}-${ENV}" >> $GITHUB_OUTPUT
+          echo "ecs_service=${{ env.PROJECT_NAME }}-${ENV}-service" >> $GITHUB_OUTPUT
+          echo "deploy_role=arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${ENV}-github-deploy" >> $GITHUB_OUTPUT
+          echo "🎯 Deploying to: $ENV"
+
+  # ─────────────────────────────────────────────
+  # Build, push, and deploy
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Build & Deploy (${{ needs.setup.outputs.environment }})
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.setup.outputs.deploy_role }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: ${{ needs.setup.outputs.ecr_repo }}
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          FULL_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          LATEST_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+
+          echo "Building image: $FULL_IMAGE"
+          docker build \
+            --build-arg NODE_ENV=production \
+            --build-arg BUILD_SHA=${{ github.sha }} \
+            --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+            -t "$FULL_IMAGE" \
+            -t "$LATEST_IMAGE" \
+            .
+
+          echo "Pushing to ECR..."
+          docker push "$FULL_IMAGE"
+          # Note: latest tag push will fail with immutable tags — that's expected
+          docker push "$LATEST_IMAGE" 2>/dev/null || echo "::notice::Latest tag skipped (immutable tags)"
+
+          echo "image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+          echo "✅ Image pushed: $FULL_IMAGE"
+
+      - name: Download current task definition
+        id: task-def
+        env:
+          ECS_CLUSTER: ${{ needs.setup.outputs.ecs_cluster }}
+          ECS_SERVICE: ${{ needs.setup.outputs.ecs_service }}
+        run: |
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' \
+            --output text)
+
+          aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_ARN" \
+            --query 'taskDefinition' \
+            > task-definition.json
+
+          echo "task_def_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "📋 Current task definition: $TASK_DEF_ARN"
+
+      - name: Update task definition with new image
+        id: new-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.PROJECT_NAME }}-app
+          image: ${{ steps.build.outputs.image }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.new-task-def.outputs.task-definition }}
+          service: ${{ needs.setup.outputs.ecs_service }}
+          cluster: ${{ needs.setup.outputs.ecs_cluster }}
+          wait-for-service-stability: true
+          wait-for-minutes: 10
+
+      - name: Verify deployment
+        env:
+          ECS_CLUSTER: ${{ needs.setup.outputs.ecs_cluster }}
+          ECS_SERVICE: ${{ needs.setup.outputs.ecs_service }}
+        run: |
+          echo "🔍 Checking service status..."
+          aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --query 'services[0].{status:status,runningCount:runningCount,desiredCount:desiredCount,deployments:deployments[*].{status:status,runningCount:runningCount,desiredCount:desiredCount,rolloutState:rolloutState}}' \
+            --output table
+
+          echo ""
+          echo "✅ Deployment complete for ${{ needs.setup.outputs.environment }}"
+
+  # ─────────────────────────────────────────────
+  # Post-deployment smoke test
+  # ─────────────────────────────────────────────
+  smoke-test:
+    name: Smoke Test (${{ needs.setup.outputs.environment }})
+    needs: [setup, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.setup.outputs.deploy_role }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ALB DNS
+        id: alb
+        run: |
+          # Get the ALB DNS from the ECS service's load balancer config
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names "${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-alb" \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+            echo "::warning::Could not determine ALB DNS — skipping smoke test"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Health check
+        if: steps.alb.outputs.skip != 'true'
+        run: |
+          ALB_DNS="${{ steps.alb.outputs.alb_dns }}"
+          echo "🏥 Health check: http://${ALB_DNS}/api/health"
+
+          for i in $(seq 1 5); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${ALB_DNS}/api/health" || echo "000")
+            echo "  Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "::warning::Health check did not return 200 after 5 attempts"

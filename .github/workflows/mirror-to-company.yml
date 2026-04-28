@@ -1,19 +1,18 @@
 # Mirror to Company Repository
 # =============================
-# This workflow automatically pushes every commit on `main` to your company's
-# private Git repository, keeping both repos in sync.
+# This workflow automatically pushes every commit on `main` to the company's
+# private Git repository (hcook-aoc/AC3), keeping both repos in sync.
 #
-# SETUP (3 steps):
-#   1. Replace COMPANY_REPO_URL below with your company's repo URL
-#      (HTTPS format: https://github.com/your-company/repo-name.git)
-#      (SSH format:   git@github.com:your-company/repo-name.git)
-#   2. Replace COMPANY_BRANCH below with the target branch (e.g., main, develop)
-#   3. Add a repository secret named COMPANY_PAT:
-#      → Go to your GitHub repo → Settings → Secrets and variables → Actions
-#      → New repository secret → Name: COMPANY_PAT → Value: your company PAT
+# PREREQUISITE:
+#   Add a repository secret named COMPANY_PAT in BOTH repos:
+#   → GitHub repo → Settings → Secrets and variables → Actions
+#   → New repository secret → Name: COMPANY_PAT → Value: your company PAT
 #
-# The PAT needs `repo` scope (GitHub) or `write_repository` scope (GitLab).
-# For Bitbucket, use an App Password with Repositories Write permission.
+# The PAT needs `repo` + `workflow` scopes.
+#
+# NOTE: The Manus sandbox also has dual-push configured on the user_github
+# remote, so this workflow serves as a backup sync mechanism for pushes
+# that originate outside the sandbox (e.g., direct GitHub edits, other CI).
 #
 # Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
 
@@ -22,13 +21,10 @@ name: Mirror to Company Repo
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Allow manual trigger from Actions tab
+  workflow_dispatch:
 
 env:
-  # ──────────────────────────────────────────────────────────
-  # TODO: Replace these two placeholders with your values
-  # ──────────────────────────────────────────────────────────
-  COMPANY_REPO_URL: "https://github.com/YOUR-COMPANY/YOUR-REPO.git"
+  COMPANY_REPO_URL: "https://github.com/hcook-aoc/AC3.git"
   COMPANY_BRANCH: "main"
 
 jobs:
@@ -36,6 +32,8 @@ jobs:
     name: Push to Company Repo
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Only run from the personal repo (htcook/caldera-dashboard), not from AC3 itself
+    if: github.repository == 'htcook/caldera-dashboard'
 
     steps:
       - name: Checkout full history
@@ -45,15 +43,18 @@ jobs:
 
       - name: Configure Git identity
         run: |
-          git config user.name "Manus Mirror Bot"
+          git config user.name "AC3 Mirror Bot"
           git config user.email "mirror-bot@aceofcloud.com"
 
       - name: Add company remote and push
         env:
           COMPANY_PAT: ${{ secrets.COMPANY_PAT }}
         run: |
-          # Inject PAT into the HTTPS URL for authentication
-          # Supports GitHub, GitLab, Bitbucket, and Azure DevOps HTTPS URLs
+          if [ -z "$COMPANY_PAT" ]; then
+            echo "::warning::COMPANY_PAT secret not set — skipping mirror"
+            exit 0
+          fi
+
           AUTHED_URL=$(echo "$COMPANY_REPO_URL" | sed "s|https://|https://x-access-token:${COMPANY_PAT}@|")
 
           git remote add company "$AUTHED_URL"

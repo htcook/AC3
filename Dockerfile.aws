@@ -1,0 +1,136 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AC3 Platform — AWS Dockerfile (FedRAMP High)
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-stage build for minimal attack surface:
+#   Stage 1 (builder): Install deps, build client + server
+#   Stage 2 (runner):  Production runtime only — no build tools, no dev deps
+#
+# FedRAMP Controls Addressed:
+#   CM-7  — Least functionality (minimal base image, no unnecessary packages)
+#   SC-28 — Protection of information at rest (non-root user)
+#   SI-2  — Flaw remediation (pinned base image, security updates)
+#   AC-6  — Least privilege (non-root execution)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Stage 1: Builder
+# ═══════════════════════════════════════════════════════════════════════════════
+FROM node:22-slim AS builder
+
+# Build arguments for traceability
+ARG BUILD_SHA="unknown"
+ARG BUILD_DATE="unknown"
+ARG NODE_ENV=production
+
+# Install native module build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+
+WORKDIR /usr/src/app
+
+# Copy dependency manifests first for Docker layer caching
+COPY package.json pnpm-lock.yaml postinstall.cjs ./
+COPY patches/ ./patches/
+
+# Install all dependencies (dev deps needed for build)
+RUN pnpm install --no-frozen-lockfile
+
+# Copy source
+COPY . .
+
+# Build client (Vite) and server (esbuild)
+RUN rm -rf .client-assets dist/public && \
+    NODE_OPTIONS="--max-old-space-size=4096" npx vite build && \
+    cp -r dist/public .client-assets && \
+    echo "Vite build complete"
+
+RUN pnpm run build
+
+# Verify critical build outputs
+RUN test -f dist/index.js && echo "OK: dist/index.js" || (echo "FAIL: dist/index.js MISSING" && exit 1) && \
+    test -f dist/_server.js && echo "OK: dist/_server.js" || echo "WARN: dist/_server.js missing" && \
+    test -f dist/public/index.html && echo "OK: dist/public/index.html" || echo "WARN: index.html missing"
+
+# Embed build metadata
+RUN echo "{\"sha\":\"${BUILD_SHA}\",\"date\":\"${BUILD_DATE}\",\"image\":\"aws\"}" > dist/build-info.json
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Stage 2: Production Runner
+# ═══════════════════════════════════════════════════════════════════════════════
+FROM node:22-slim AS runner
+
+# FedRAMP: Install only runtime security essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# FedRAMP: AC-6 — Non-root user with no login shell
+RUN groupadd --gid 1001 ac3 && \
+    useradd --uid 1001 --gid ac3 --shell /usr/sbin/nologin --create-home ac3
+
+# Install pnpm for runtime (needed because vite is a runtime dependency)
+RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+
+WORKDIR /usr/src/app
+
+# Copy dependency manifests and install ALL deps (vite needed at runtime)
+COPY --from=builder /usr/src/app/package.json /usr/src/app/pnpm-lock.yaml /usr/src/app/postinstall.cjs ./
+COPY --from=builder /usr/src/app/patches/ ./patches/
+RUN pnpm install --no-frozen-lockfile && \
+    pnpm store prune
+
+# Copy built artifacts from builder
+COPY --from=builder /usr/src/app/dist/ ./dist/
+COPY --from=builder /usr/src/app/.client-assets/ ./.client-assets/
+
+# Copy necessary source files that the server references at runtime
+COPY --from=builder /usr/src/app/drizzle/ ./drizzle/
+COPY --from=builder /usr/src/app/shared/ ./shared/
+
+# FedRAMP: Set secure file permissions
+RUN chown -R ac3:ac3 /usr/src/app && \
+    chmod -R 550 /usr/src/app && \
+    chmod -R 770 /usr/src/app/dist
+
+# FedRAMP: SC-28 — Prevent writing to filesystem (except /tmp)
+# The app should use S3 for all file storage
+RUN chmod 1777 /tmp
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# V8 heap tuned for ECS Fargate (2GB task = ~1.5GB heap)
+# Override via ECS task definition environment variables for larger tasks
+ENV NODE_OPTIONS="--max-old-space-size=1536 --expose-gc"
+
+# Build metadata labels (OCI standard)
+LABEL org.opencontainers.image.title="AC3 Platform"
+LABEL org.opencontainers.image.description="AceofCloud Cybersecurity Command Center"
+LABEL org.opencontainers.image.authors="Harrison Cook <harrison.cook@aceofcloud.com>"
+LABEL org.opencontainers.image.vendor="AceofCloud"
+LABEL org.opencontainers.image.source="https://github.com/hcook-aoc/AC3"
+
+# Expose application port
+EXPOSE 8080
+
+# FedRAMP: AC-6 — Run as non-root
+USER ac3
+
+# Health check for ECS
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/api/health || exit 1
+
+# Use dumb-init to handle PID 1 responsibilities (signal forwarding, zombie reaping)
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/index.js"]

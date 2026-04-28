@@ -1,10 +1,13 @@
+# Pre-build Client Assets
+# ========================
+# Runs on push to main when client/shared files change — rebuilds .client-assets/
+# and commits so the Manus sandbox never needs to run Vite build (avoids OOM).
+# NOTE: The Dockerfile also runs a fresh Vite build as a safety net.
+#
+# Author: Harrison Cook — AceofCloud (https://aceofcloud.com)
+
 name: Pre-build Client Assets
 
-# Runs on push to main — rebuilds .client-assets/ and commits
-# so the Manus sandbox never needs to run Vite build (avoids OOM).
-# NOTE: This is now independent of CI to avoid stale assets when CI has
-# pre-existing failures. The Dockerfile also runs a fresh Vite build as
-# a safety net.
 on:
   push:
     branches: [main]
@@ -32,7 +35,7 @@ env:
 jobs:
   prebuild:
     name: Rebuild .client-assets
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
