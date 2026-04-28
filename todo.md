@@ -686,4 +686,20 @@
 - [x] Fix high severity vulnerabilities (path-to-regexp, picomatch, minimatch, rollup)
 - [x] Fix moderate severity vulnerabilities (fast-xml-parser, uuid, postcss, qs, follow-redirects, lodash, brace-expansion, protobufjs)
 - [x] Verify fixes with pnpm audit — 0 vulnerabilities remaining. 37 new tests passing.
-- [ ] Push fixes to GitHub (pending checkpoint)
+- [x] Push fixes to GitHub (pushed 9142b63b to htcook/caldera-dashboard)
+
+### HackerOne Credentials & Parser Fix (Apr 27)
+- [x] Update HACKERONE_API_USERNAME to htc0
+- [x] Update HACKERONE_API_KEY with new token
+- [x] Verify HackerOne API authentication (new htc0 credentials return 200 OK)
+- [x] Investigate bug bounty workspace parser issue (parseBugBountyPolicy only created skeleton with empty scope)
+- [x] Fix parser: enhanced parseBugBountyPolicy to fetch live structured scopes from HackerOne API
+  - Added h1FetchForBBWorkspace, resolveH1CredentialsForBBWorkspace, mapH1AssetType helpers
+  - Parser now fetches /programs/{slug}/structured_scopes (up to 3 pages)
+  - Maps H1 asset_type to ScopeTarget type (URL, DOMAIN, CIDR, IP, SOURCE_CODE, etc.)
+  - Returns frontend-compatible format with scope.inScope[].{type, value, eligible, notes}
+  - Graceful fallback to skeleton if API fetch fails
+  - Also fetches program info for name and bounty data
+- [x] Added 22 tests in bb-workspace-parser.test.ts — all passing
+- [x] All 192 existing bug bounty tests still passing
+- [ ] Push to GitHub

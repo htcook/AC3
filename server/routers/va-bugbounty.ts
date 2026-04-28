@@ -13,6 +13,7 @@
 
 import { z } from 'zod';
 import { router, protectedProcedure } from '../_core/trpc.js';
+import crypto from 'crypto';
 import {
   VERIFICATION_PROFILES,
   listVerificationProfiles,
@@ -230,12 +231,13 @@ export const vaBugBountyRouter = router({
   // ─── Bug Bounty Policy ────────────────────────────────────────────────────
   
   /**
-   * Parse a bug bounty program URL into a PolicyROE skeleton.
-   * Used by the BugBountyWorkspace to parse program pages.
+   * Parse a bug bounty program URL into a PolicyROE skeleton,
+   * then enrich it with live structured scopes from the HackerOne API.
+   * Returns a frontend-compatible PolicyROE with populated scope data.
    */
   parseBugBountyPolicy: protectedProcedure
     .input(z.object({ programUrl: z.string() }))
-    .mutation(({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const parsed = parseProgramUrl(input.programUrl);
       if (!parsed) {
         throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack');
@@ -244,7 +246,118 @@ export const vaBugBountyRouter = router({
         ...parsed,
         programUrl: input.programUrl,
       });
-      return skeleton;
+
+      // For HackerOne programs, fetch live structured scopes
+      if (parsed.platform === 'hackerone') {
+        try {
+          const creds = await resolveH1CredentialsForBBWorkspace(ctx.user.id);
+          if (creds) {
+            // Fetch structured scopes (up to 3 pages)
+            const inScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+            const outOfScope: Array<{ type: string; value: string; eligible: boolean; notes?: string }> = [];
+
+            for (let page = 1; page <= 3; page++) {
+              const scopePath = `/programs/${encodeURIComponent(parsed.programSlug)}/structured_scopes?page[number]=${page}&page[size]=25`;
+              const scopeData = await h1FetchForBBWorkspace(scopePath, creds.username, creds.token);
+              if (!scopeData?.data?.length) break;
+
+              for (const item of scopeData.data) {
+                const attrs = item.attributes || {};
+                const assetType = mapH1AssetType(attrs.asset_type);
+                const entry = {
+                  type: assetType,
+                  value: attrs.asset_identifier || 'unknown',
+                  eligible: !!attrs.eligible_for_bounty,
+                  notes: attrs.instruction || (attrs.max_severity ? `Max severity: ${attrs.max_severity}` : undefined),
+                };
+
+                if (attrs.eligible_for_submission !== false) {
+                  inScope.push(entry);
+                } else {
+                  outOfScope.push(entry);
+                }
+              }
+            }
+
+            // Also try to fetch program info for name and bounty data
+            try {
+              const programPath = `/programs/${encodeURIComponent(parsed.programSlug)}`;
+              const programData = await h1FetchForBBWorkspace(programPath, creds.username, creds.token);
+              if (programData?.attributes) {
+                const pAttrs = programData.attributes;
+                skeleton.programName = pAttrs.name || pAttrs.handle || parsed.programSlug;
+              }
+            } catch {
+              // Program info fetch is optional, skeleton name is fine
+            }
+
+            // Populate the skeleton scope
+            skeleton.scope.inScope = inScope.map(s => ({
+              type: s.type as any,
+              target: s.value,
+              instruction: s.notes,
+              bountyEligible: s.eligible,
+            }));
+            skeleton.scope.outOfScope = outOfScope.map(s => ({
+              type: s.type as any,
+              target: s.value,
+              instruction: s.notes,
+              bountyEligible: false,
+            }));
+
+            // Detect wildcard domains
+            skeleton.scope.wildcardDomains = inScope
+              .filter(s => s.value.startsWith('*.'))
+              .map(s => s.value);
+
+            skeleton.parseConfidence = 0.8; // High confidence with live API data
+          }
+        } catch (err: any) {
+          // If API fetch fails, return skeleton with error note
+          console.warn(`[BB Workspace] Failed to fetch H1 scopes for ${parsed.programSlug}:`, err.message);
+          skeleton.parseConfidence = 0.3;
+        }
+      }
+
+      // Return in frontend-compatible format
+      return {
+        programName: skeleton.programName,
+        platform: skeleton.platform,
+        programUrl: skeleton.programUrl,
+        scope: {
+          inScope: skeleton.scope.inScope.map(s => ({
+            type: s.type,
+            value: s.target,
+            eligible: s.bountyEligible,
+            notes: s.instruction,
+          })),
+          outOfScope: skeleton.scope.outOfScope.map(s => ({
+            type: s.type,
+            value: s.target,
+            eligible: false,
+            notes: s.instruction,
+          })),
+        },
+        rules: [
+          ...skeleton.rules.prohibitedActions,
+          skeleton.rules.disclosurePolicy !== 'none' ? `Disclosure: ${skeleton.rules.disclosurePolicy}` : null,
+          skeleton.rules.requiresVPN ? 'VPN required' : null,
+          skeleton.rules.requiresAccountCreation ? 'Account creation required' : null,
+          skeleton.rules.testingHoursRestriction ? `Testing hours: ${skeleton.rules.testingHoursRestriction}` : null,
+        ].filter(Boolean) as string[],
+        rewardRange: skeleton.bounty.hasBounty && skeleton.bounty.ranges.length > 0 ? {
+          low: Math.min(...skeleton.bounty.ranges.map(r => r.minBounty)),
+          high: Math.max(...skeleton.bounty.ranges.map(r => r.maxBounty)),
+          currency: skeleton.bounty.currency === 'USD' ? '$' : skeleton.bounty.currency,
+        } : undefined,
+        safeHarbor: !!skeleton.rules.safeHarborStatement,
+        responseTimeSla: skeleton.responseExpectations.firstResponseDays ? {
+          firstResponse: `${skeleton.responseExpectations.firstResponseDays}d`,
+          triage: skeleton.responseExpectations.triageDays ? `${skeleton.responseExpectations.triageDays}d` : 'N/A',
+          bountyDecision: skeleton.responseExpectations.bountyPaymentDays ? `${skeleton.responseExpectations.bountyPaymentDays}d` : 'N/A',
+        } : undefined,
+        parsedAt: new Date(skeleton.parsedAt).toISOString(),
+      };
     }),
 
   parseProgramUrl: protectedProcedure
@@ -518,3 +631,109 @@ export const vaBugBountyRouter = router({
       };
     }),
 });
+
+// ─── HackerOne API Helpers for Bug Bounty Workspace ─────────────────────────
+
+const H1_BASE = "https://api.hackerone.com/v1/hackers";
+
+const ENCRYPTION_KEY_BB = process.env.JWT_SECRET
+  ? crypto.createHash("sha256").update(process.env.JWT_SECRET).digest()
+  : crypto.randomBytes(32);
+
+function decryptBB(encryptedText: string): string {
+  const [ivHex, authTagHex, encrypted] = encryptedText.split(":");
+  if (!ivHex || !authTagHex || !encrypted) throw new Error("Invalid encrypted format");
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", ENCRYPTION_KEY_BB, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+async function h1FetchForBBWorkspace(path: string, username?: string, token?: string) {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (username && token) {
+    headers.Authorization = "Basic " + Buffer.from(`${username}:${token}`).toString("base64");
+  }
+  const res = await fetch(`${H1_BASE}${path}`, { headers, signal: AbortSignal.timeout(15000) });
+  if (!res.ok) {
+    throw new Error(`HackerOne API ${res.status}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+async function resolveH1CredentialsForBBWorkspace(userId: number): Promise<{ username: string; token: string } | null> {
+  try {
+    const { getDb: _getDb } = await import('../db.js');
+    const { userPlatformCredentials } = await import('../../drizzle/schema.js');
+    const { eq, and } = await import('drizzle-orm');
+    const db = await _getDb();
+    if (!db) return fallbackH1Creds();
+
+    const [cred] = await db
+      .select()
+      .from(userPlatformCredentials)
+      .where(
+        and(
+          eq(userPlatformCredentials.userId, userId),
+          eq(userPlatformCredentials.platform, "hackerone"),
+          eq(userPlatformCredentials.isActive, 1)
+        )
+      )
+      .limit(1);
+
+    if (cred) {
+      try {
+        const apiKey = decryptBB(cred.apiKeyEncrypted);
+        return { username: cred.apiUsername || "", token: apiKey };
+      } catch {
+        // Decryption failed, fall through to env vars
+      }
+    }
+  } catch {
+    // DB access failed, fall through to env vars
+  }
+
+  return fallbackH1Creds();
+}
+
+function fallbackH1Creds(): { username: string; token: string } | null {
+  const username = process.env.HACKERONE_API_USERNAME || process.env.HACKERONE_API_KEY?.split(":")[0];
+  const token = process.env.HACKERONE_API_KEY?.includes(":")
+    ? process.env.HACKERONE_API_KEY.split(":").slice(1).join(":")
+    : process.env.HACKERONE_API_KEY;
+  if (username && token) {
+    return { username, token };
+  }
+  return null;
+}
+
+/**
+ * Map HackerOne asset_type strings to our ScopeTarget type values.
+ */
+function mapH1AssetType(h1Type?: string): string {
+  if (!h1Type) return 'other';
+  const mapping: Record<string, string> = {
+    'URL': 'url',
+    'CIDR': 'cidr',
+    'DOMAIN': 'domain',
+    'WILDCARD': 'domain',
+    'IP_ADDRESS': 'ip',
+    'SOURCE_CODE': 'source_code',
+    'MOBILE_APPLICATION': 'mobile_app',
+    'DOWNLOADABLE_EXECUTABLES': 'other',
+    'HARDWARE': 'other',
+    'OTHER': 'other',
+    'SMART_CONTRACT': 'other',
+    'AI_MODEL': 'other',
+    'WINDOWS_APP': 'other',
+    'APPLE_STORE_APP_ID': 'mobile_app',
+    'GOOGLE_PLAY_APP_ID': 'mobile_app',
+    'TESTFLIGHT': 'mobile_app',
+    'OTHER_IPA': 'mobile_app',
+    'OTHER_APK': 'mobile_app',
+  };
+  return mapping[h1Type.toUpperCase()] || 'other';
+}
