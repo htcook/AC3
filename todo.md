@@ -831,7 +831,7 @@
 - [x] Revert Terraform OIDC module github_repo back to hcook-aoc/AC3
 - [x] Revert DEPLOYMENT.md references back to hcook-aoc/AC3
 - [x] Revert Dockerfile.aws OCI label back to hcook-aoc/AC3
-- [ ] Push latest code to hcook-aoc/AC3
-- [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3
-- [ ] Update dual-push remote to hcook-aoc/AC3
-- [ ] Update COMPANY_PAT secret with new hcook-aoc PAT
+- [x] Push latest code to hcook-aoc/AC3 (dual-push confirmed working)
+- [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3 (PAT lacks actions:variables scope — user must set manually)
+- [x] Update dual-push remote to hcook-aoc/AC3 (updated with new aceofcloud PAT)
+- [x] Update COMPANY_PAT secret with new hcook-aoc PAT (updated on htcook/caldera-dashboard)
