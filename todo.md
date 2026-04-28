@@ -832,7 +832,7 @@
 - [x] Revert DEPLOYMENT.md references back to hcook-aoc/AC3
 - [x] Revert Dockerfile.aws OCI label back to hcook-aoc/AC3
 - [x] Push latest code to hcook-aoc/AC3 (dual-push confirmed working)
-- [ ] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3 (PAT lacks actions:variables scope — user must set manually)
+- [x] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3 (user set manually) (PAT lacks actions:variables scope — user must set manually)
 
 ### Session State Audit & AWS Independence (Apr 28)
 - [x] Audit all env vars in env.ts vs Terraform secrets module
@@ -842,3 +842,13 @@
 - [x] Document session-only state (git remotes, Manus secrets, database data)
 - [x] Update dual-push remote to hcook-aoc/AC3 (updated with new aceofcloud PAT)
 - [x] Update COMPANY_PAT secret with new hcook-aoc PAT (updated on htcook/caldera-dashboard)
+
+### Execute Final AWS Setup Steps (Apr 28)
+- [x] Set AWS_ACCOUNT_ID and AWS_REGION variables on hcook-aoc/AC3 (user set manually)
+- [ ] Run bootstrap script to create Terraform state backend (S3 + DynamoDB)
+- [x] Export Manus secrets (44 secrets) and create AWS Secrets Manager population script
+
+### Pull-Sync from hcook-aoc/AC3 to aceofcloud/AC3 (Apr 28)
+- [x] Create pull-sync workflow (aceofcloud-sync-workflow.yml) for aceofcloud admin
+- [x] Create SETUP-PULL-SYNC.md with admin instructions and PAT value
+- [ ] Admin installs workflow and UPSTREAM_PAT secret on aceofcloud/AC3

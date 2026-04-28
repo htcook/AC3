@@ -1,0 +1,101 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Pull-Sync Workflow for aceofcloud/AC3
+# ─────────────────────────────────────────────────────────────────────────────
+# This workflow pulls the latest code from hcook-aoc/AC3 (the developer repo)
+# into aceofcloud/AC3 (the company repo).
+#
+# INSTALLATION:
+#   1. Copy this file to aceofcloud/AC3 at .github/workflows/sync-from-dev.yml
+#   2. Add the UPSTREAM_PAT secret (see SETUP-PULL-SYNC.md for the PAT value)
+#   3. The workflow runs daily at 06:00 UTC and can be triggered manually
+#
+# Author: Harrison Cook
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sync from Developer Repo
+
+on:
+  # Run daily at 06:00 UTC
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force sync (overwrite local changes)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Pull from hcook-aoc/AC3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout company repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "aceofcloud-bot"
+          git config user.email "devops@aceofcloud.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream "https://${{ secrets.UPSTREAM_PAT }}@github.com/hcook-aoc/AC3.git"
+          git fetch upstream main
+
+      - name: Check for changes
+        id: diff
+        run: |
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          AHEAD=$(git rev-list --count upstream/main..HEAD)
+          echo "behind=$BEHIND" >> $GITHUB_OUTPUT
+          echo "ahead=$AHEAD" >> $GITHUB_OUTPUT
+          echo "📊 Company repo is $BEHIND commits behind, $AHEAD commits ahead of developer repo"
+
+      - name: Sync (fast-forward merge)
+        if: steps.diff.outputs.behind != '0' && github.event.inputs.force != 'true'
+        run: |
+          echo "🔄 Attempting fast-forward merge..."
+          if git merge upstream/main --ff-only; then
+            echo "✅ Fast-forward merge successful"
+            git push origin main
+          else
+            echo "⚠️ Fast-forward not possible — company repo has diverged."
+            echo "Run this workflow with force=true to overwrite, or merge manually."
+            exit 1
+          fi
+
+      - name: Force sync (overwrite)
+        if: steps.diff.outputs.behind != '0' && github.event.inputs.force == 'true'
+        run: |
+          echo "⚠️ Force syncing — overwriting company repo with developer repo..."
+          git reset --hard upstream/main
+          git push origin main --force
+          echo "✅ Force sync complete"
+
+      - name: Already up to date
+        if: steps.diff.outputs.behind == '0'
+        run: echo "✅ Company repo is already up to date with developer repo"
+
+      - name: Summary
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream | hcook-aoc/AC3 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commits synced | ${{ steps.diff.outputs.behind }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Force mode | ${{ github.event.inputs.force || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest commit | $(git log -1 --format='%h %s') |" >> $GITHUB_STEP_SUMMARY

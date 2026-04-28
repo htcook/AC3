@@ -203,3 +203,7 @@ dist/public/
 !.client-assets/**
 # Also exclude stale client build directories
 client/.client-assets/
+
+# Secrets export — NEVER commit
+infrastructure/ac3-secrets-export.json
+*.secrets.json
