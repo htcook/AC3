@@ -222,6 +222,61 @@ function flattenStack(profile: {
   ].filter(Boolean);
 }
 
+// ─── Technology Categorization ─────────────────────────────────────────────
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  languages: ['python', 'javascript', 'typescript', 'java', 'go', 'golang', 'ruby', 'php', 'c#', 'csharp', 'rust', 'swift', 'kotlin', 'scala', 'perl', 'r', 'lua', 'dart', 'elixir', 'haskell', 'c++', 'cpp', 'objective-c'],
+  webFrameworks: ['react', 'angular', 'vue', 'svelte', 'next.js', 'nextjs', 'nuxt', 'express', 'node.js', 'node', 'django', 'flask', 'fastapi', 'rails', 'spring', 'laravel', 'asp.net', 'gatsby', 'remix', 'astro', 'streamlit', 'bootstrap', 'tailwind', 'jquery', 'ember', 'backbone', 'wordpress', 'drupal', 'joomla', 'shopify', 'wix', 'squarespace', 'deno', 'bun', 'koa', 'hapi', 'nest', 'nestjs'],
+  dataAndMl: ['tensorflow', 'pytorch', 'scikit-learn', 'pandas', 'numpy', 'jupyter', 'jupyterlab', 'jupyterhub', 'notebook', 'faiss', 'mlflow', 'kubeflow', 'spark', 'hadoop', 'kafka', 'airflow', 'dbt', 'snowflake', 'databricks', 'sagemaker'],
+  genaiAndLlm: ['langchain', 'langserve', 'openai', 'gpt', 'llama', 'anthropic', 'huggingface', 'transformers', 'ollama', 'chromadb', 'pinecone', 'weaviate', 'qdrant', 'milvus', 'vector', 'embedding', 'rag', 'chatgpt'],
+  cloudServices: ['aws', 'amazon', 'azure', 'gcp', 'google cloud', 'firebase', 'cloudflare', 'vercel', 'netlify', 'heroku', 'digitalocean', 'linode', 'vultr', 'oracle cloud', 'ibm cloud', 'alibaba cloud', 's3', 'lambda', 'ec2', 'ecs', 'eks', 'fargate'],
+  securityTools: ['waf', 'cloudflare waf', 'modsecurity', 'imperva', 'crowdstrike', 'sentinel', 'splunk', 'snort', 'suricata', 'ossec', 'fail2ban', 'vault', 'keycloak', 'auth0', 'okta', 'duo', 'fortinet', 'palo alto', 'checkpoint'],
+  devopsAndCi: ['docker', 'kubernetes', 'k8s', 'jenkins', 'github actions', 'gitlab', 'circleci', 'travis', 'ansible', 'terraform', 'pulumi', 'helm', 'argocd', 'prometheus', 'grafana', 'datadog', 'new relic', 'nginx', 'apache', 'caddy', 'haproxy', 'envoy', 'istio'],
+  databasesList: ['mysql', 'postgresql', 'postgres', 'mongodb', 'redis', 'elasticsearch', 'cassandra', 'dynamodb', 'cosmosdb', 'couchdb', 'neo4j', 'influxdb', 'timescaledb', 'cockroachdb', 'mariadb', 'sqlite', 'oracle', 'sql server', 'mssql', 'supabase', 'firebase realtime', 'firestore'],
+  infrastructure: ['linux', 'ubuntu', 'centos', 'debian', 'windows server', 'vmware', 'proxmox', 'openstack', 'cloudformation', 'cdn', 'load balancer', 'dns', 'smtp', 'ftp', 'ssh', 'vpn', 'wireguard', 'openvpn', 'iis', 'litespeed', 'tomcat', 'weblogic'],
+};
+
+export function categorizeTechnologies(techs: string[]): {
+  languages: string[];
+  webFrameworks: string[];
+  dataAndMl: string[];
+  genaiAndLlm: string[];
+  cloudServices: string[];
+  securityTools: string[];
+  devopsAndCi: string[];
+  databasesList: string[];
+  infrastructure: string[];
+  other: string[];
+} {
+  const result: Record<string, string[]> = {
+    languages: [], webFrameworks: [], dataAndMl: [], genaiAndLlm: [],
+    cloudServices: [], securityTools: [], devopsAndCi: [], databasesList: [],
+    infrastructure: [], other: [],
+  };
+
+  for (const tech of techs) {
+    const techLower = tech.toLowerCase().trim();
+    if (!techLower) continue;
+    let categorized = false;
+    for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      if (keywords.some(kw => {
+        // For short keywords (<=2 chars), require exact match or word boundary
+        if (kw.length <= 2) {
+          return techLower === kw || techLower.split(/[\s\/\-_.]+/).some(part => part === kw);
+        }
+        return techLower.includes(kw) || kw.includes(techLower);
+      })) {
+        result[category].push(tech);
+        categorized = true;
+        break;
+      }
+    }
+    if (!categorized) result.other.push(tech);
+  }
+
+  return result as any;
+}
+
 // ─── Zod Schemas ────────────────────────────────────────────────────────────
 
 const stackProfileInput = z.object({
@@ -665,6 +720,99 @@ Return ONLY a JSON array of objects with these fields.`;
       return {
         ...profile,
         computedMatch: { matched, coveragePercent, gaps },
+        versionCves,
+      };
+    }),
+
+  /** Auto-create a stack profile from DI scan results */
+  createFromScan: protectedProcedure
+    .input(z.object({
+      scanId: z.number(),
+      customerName: z.string().min(1),
+      engagementId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb: getDbCore } = await import("../db");
+      const dbConn = await getDbCore();
+      if (!dbConn) throw new Error("Database not available");
+
+      // Import scan data helpers
+      const { getDomainIntelScanById, getDiscoveredAssetsByScan } = await import("../db");
+      const scan = await getDomainIntelScanById(input.scanId);
+      if (!scan) throw new Error("Scan not found");
+
+      const output = (scan as any).pipelineOutput as any;
+
+      // Collect all technologies and versions from scan assets
+      const allTechs = new Set<string>();
+      const detectedVersions: Record<string, string> = {};
+
+      // From pipeline output assets
+      (output?.assets || []).forEach((a: any) => {
+        const techList = a.technologies || a.asset?.technologies || [];
+        (Array.isArray(techList) ? techList : []).forEach((t: string) => allTechs.add(t));
+        // Extract versions
+        const versions = a.detectedVersions || a.asset?.detectedVersions || a.asset?.technologyVersions || {};
+        if (typeof versions === 'object') {
+          Object.entries(versions).forEach(([k, v]) => {
+            if (typeof v === 'string' && v.trim()) detectedVersions[k.toLowerCase()] = v;
+          });
+        }
+      });
+
+      // From DB discovered assets
+      try {
+        const dbAssets = await getDiscoveredAssetsByScan(input.scanId);
+        dbAssets.forEach((a: any) => {
+          const techList = a.technologies || [];
+          (Array.isArray(techList) ? techList : []).forEach((t: string) => allTechs.add(t));
+        });
+      } catch { /* fallback if function not available */ }
+
+      if (allTechs.size === 0) {
+        throw new Error("No technologies detected in this scan. Cannot create stack profile.");
+      }
+
+      // Categorize technologies into stack profile fields
+      const categorized = categorizeTechnologies(Array.from(allTechs));
+
+      // Build the profile
+      const allTechsFlat = flattenStack(categorized);
+      const { matched, coveragePercent, gaps } = matchScannersToStack(allTechsFlat);
+      const versionCves = Object.keys(detectedVersions).length > 0
+        ? matchVersionCves(detectedVersions)
+        : [];
+
+      const db = await getDb();
+      const [result] = await db.insert(customerStackProfiles).values({
+        customerName: input.customerName,
+        engagementId: input.engagementId || null,
+        languages: categorized.languages.length > 0 ? categorized.languages : null,
+        webFrameworks: categorized.webFrameworks.length > 0 ? categorized.webFrameworks : null,
+        dataAndMl: categorized.dataAndMl.length > 0 ? categorized.dataAndMl : null,
+        genaiAndLlm: categorized.genaiAndLlm.length > 0 ? categorized.genaiAndLlm : null,
+        cloudServices: categorized.cloudServices.length > 0 ? categorized.cloudServices : null,
+        securityTools: categorized.securityTools.length > 0 ? categorized.securityTools : null,
+        devopsAndCi: categorized.devopsAndCi.length > 0 ? categorized.devopsAndCi : null,
+        databasesList: categorized.databasesList.length > 0 ? categorized.databasesList : null,
+        infrastructure: categorized.infrastructure.length > 0 ? categorized.infrastructure : null,
+        other: categorized.other.length > 0 ? categorized.other : null,
+        technologyVersions: Object.keys(detectedVersions).length > 0 ? detectedVersions : null,
+        matchedScanners: matched,
+        coveragePercent,
+        gaps,
+        notes: `Auto-generated from DI scan #${input.scanId} (${(scan as any).primaryDomain || 'unknown domain'})`,
+        createdBy: ctx.user?.id || null,
+      });
+
+      return {
+        id: result.insertId,
+        technologiesDetected: allTechs.size,
+        categorized,
+        detectedVersions,
+        matchedScanners: matched,
+        coveragePercent,
+        gaps,
         versionCves,
       };
     }),

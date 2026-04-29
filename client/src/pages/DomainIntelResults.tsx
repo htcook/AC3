@@ -196,6 +196,8 @@ export default function DomainIntelResults() {
   const [testPlanGenerating, setTestPlanGenerating] = useState(false);
   const [testPlanDialogOpen, setTestPlanDialogOpen] = useState(false);
   const [testPlanResult, setTestPlanResult] = useState<any>(null);
+  const [showCreateStackProfile, setShowCreateStackProfile] = useState(false);
+  const [stackProfileName, setStackProfileName] = useState('');
 
   const FP_REASON_TEMPLATES = [
     { value: "patched", label: "Already patched / remediated" },
@@ -253,6 +255,16 @@ export default function DomainIntelResults() {
     },
     onError: (err: any) => {
       toast.error(`Failed to start engagement: ${sanitizeErrorForToast(err)}`);
+    },
+  });
+  const createStackProfileMut = trpc.stackProfile.createFromScan.useMutation({
+    onSuccess: (result) => {
+      setShowCreateStackProfile(false);
+      setStackProfileName('');
+      toast.success(`Stack profile created with ${result.technologiesDetected} technologies detected, ${result.matchedScanners?.length || 0} scanners matched (${result.coveragePercent}% coverage)`);
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to create stack profile: ${sanitizeErrorForToast(err)}`);
     },
   });
   const deployExploitsMutation = trpc.domainIntel.deployExploits.useMutation({
@@ -1203,6 +1215,14 @@ export default function DomainIntelResults() {
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
+              <Button
+                variant="outline"
+                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                onClick={() => setShowCreateStackProfile(true)}
+              >
+                <Layers className="h-4 w-4 mr-2" />
+                Create Stack Profile
+              </Button>
               <Link href="/engagements">
                 <Button variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
                   <FileText className="h-4 w-4 mr-2" />
@@ -6956,6 +6976,47 @@ export default function DomainIntelResults() {
         </DialogContent>
       </Dialog>
     </div>
+
+    {/* Create Stack Profile from Scan Dialog */}
+    <Dialog open={showCreateStackProfile} onOpenChange={setShowCreateStackProfile}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Stack Profile from Scan</DialogTitle>
+          <DialogDescription>
+            Auto-generate a Customer Stack Profile from the technologies detected in this DI scan. The profile will include all detected technologies, versions, and matched scanner modules.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium">Customer / Profile Name</label>
+            <input
+              className="w-full mt-1.5 px-3 py-2 rounded-md border border-border bg-background text-sm"
+              placeholder={scan?.primaryDomain || 'Customer name...'}
+              value={stackProfileName}
+              onChange={(e) => setStackProfileName(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">Defaults to the scan domain if left empty.</p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCreateStackProfile(false)}>Cancel</Button>
+          <Button
+            className="bg-amber-600 hover:bg-amber-700"
+            onClick={() => createStackProfileMut.mutate({
+              scanId,
+              customerName: stackProfileName || scan?.primaryDomain || 'Unknown',
+            })}
+            disabled={createStackProfileMut.isPending}
+          >
+            {createStackProfileMut.isPending ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</>
+            ) : (
+              <><Layers className="h-4 w-4 mr-2" /> Create Profile</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </AppShell>
   );
 }

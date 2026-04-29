@@ -951,4 +951,12 @@
 - [x] Add suggestStackProfiles procedure (relevance scoring by customer name, boost unlinked)
 - [x] Add Stack Profile selector UI to engagement creation dialog (radio list, badges, clear)
 - [x] Write vitest tests for NVD refresh, version extraction, and engagement linking (19 tests passing)
+- [x] Push checkpoint to htcook/caldera-dashboard (aceofcloud/AC3 still 403)
+
+### Weekly NVD Refresh Scheduled Task + Auto-Create Stack Profiles from DI Scans (Apr 29)
+- [x] Create weekly scheduled task (cron, Mondays 3AM) that queries NVD API for tracked CPEs and POSTs to /api/scheduled/cve-refresh
+- [x] Auto-create stack profile from DI scan results: createFromScan tRPC procedure with categorizeTechnologies helper
+- [x] Add "Create Stack Profile" button to DI scan results page (scan_complete banner) with dialog
+- [x] Auto-populate technology versions from DI scan detection into the new profile
+- [x] Write vitest tests for auto-create stack profile from scan results (16 tests passing, 77 total)
 - [ ] Push checkpoint to GitHub
