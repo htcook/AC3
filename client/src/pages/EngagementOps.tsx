@@ -30,6 +30,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import AppShell from "@/components/AppShell";
 import { CodeViewer } from "@/components/CodeViewer";
@@ -1128,6 +1132,20 @@ export default function EngagementOps() {
   // ── Resume Engagement (state only — queries moved after `ops` is defined) ──
   const [showResumeDialog, setShowResumeDialog] = useState(false);
 
+  // ── Target Approval / Active Scan Override ──
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [approvalJustification, setApprovalJustification] = useState('');
+  const toggleOverrideMut = trpc.engagements.toggleActiveScanOverride.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowApprovalDialog(false);
+      setApprovalJustification('');
+      // Refetch engagement to update the UI
+      engagementQ.refetch();
+    },
+    onError: (e) => toast.error(`Override failed: ${e.message}`),
+  });
+
   // ── WebSocket live feed ──
   const wsChannels = useMemo(
     () => engagementId ? ["global", `engagement:${engagementId}`] : ["global"],
@@ -1856,7 +1874,7 @@ export default function EngagementOps() {
               domainWhitelistStatus.hasOverride ? 'text-amber-400' : 'text-red-400'
             }`} />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between">
                 <span className={`text-sm font-semibold ${
                   domainWhitelistStatus.hasOverride ? 'text-amber-300' : 'text-red-300'
                 }`}>
@@ -1864,21 +1882,66 @@ export default function EngagementOps() {
                     ? '\u26a0\ufe0f Domain Whitelist: Admin Override Active'
                     : '\ud83d\uded1 Domain Whitelist: Non-Approved Targets Detected'}
                 </span>
+                <div className="flex items-center gap-2">
+                  {!domainWhitelistStatus.hasOverride ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 text-xs h-7"
+                      onClick={() => setShowApprovalDialog(true)}
+                    >
+                      <ShieldCheck className="h-3 w-3" />
+                      Review & Approve Targets
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-red-500/40 text-red-400 hover:bg-red-500/10 text-xs h-7"
+                      onClick={() => {
+                        toggleOverrideMut.mutate({
+                          engagementId,
+                          enabled: false,
+                          justification: 'Override revoked by operator',
+                        });
+                      }}
+                      disabled={toggleOverrideMut.isPending}
+                    >
+                      <ShieldAlert className="h-3 w-3" />
+                      Revoke Override
+                    </Button>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {domainWhitelistStatus.nonWhitelisted.length} target(s) are not on the approved test lab whitelist:{' '}
-                <span className="font-mono text-foreground">
-                  {domainWhitelistStatus.nonWhitelisted.join(', ')}
-                </span>
+                {domainWhitelistStatus.nonWhitelisted.length} target(s) are not on the approved test lab whitelist:
               </p>
+              {/* Per-target review list */}
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                {domainWhitelistStatus.nonWhitelisted.map((target: string, i: number) => (
+                  <div key={i} className="flex items-center gap-2 px-2 py-1 rounded bg-black/20 border border-border/30">
+                    <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                      domainWhitelistStatus.hasOverride ? 'bg-amber-400' : 'bg-red-400'
+                    }`} />
+                    <span className="text-xs font-mono text-foreground flex-1 truncate">{target}</span>
+                    <Badge variant="outline" className={`text-[8px] ${
+                      domainWhitelistStatus.hasOverride
+                        ? 'border-amber-500/30 text-amber-400'
+                        : 'border-red-500/30 text-red-400'
+                    }`}>
+                      {domainWhitelistStatus.hasOverride ? 'Override Active' : 'Blocked'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
               {!domainWhitelistStatus.hasOverride && (
-                <p className="text-xs text-red-400/80 mt-1">
+                <p className="text-xs text-red-400/80 mt-2">
                   Active scanning, exploitation, and C2 operations are <strong>BLOCKED</strong>. Only passive reconnaissance is permitted.
-                  An admin can enable "Active Scan Override" on this engagement to authorize active testing.
+                  Click "Review & Approve Targets" to authorize active testing with a signed RoE justification.
                 </p>
               )}
               {domainWhitelistStatus.hasOverride && (
-                <p className="text-xs text-amber-400/80 mt-1">
+                <p className="text-xs text-amber-400/80 mt-2">
                   Admin override is active — full pipeline authorized. Ensure a signed RoE covers all targets.
                 </p>
               )}
@@ -1886,6 +1949,74 @@ export default function EngagementOps() {
           </div>
         </div>
       )}
+
+      {/* ── Target Approval Dialog ── */}
+      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-amber-400" />
+              Review & Approve Non-Whitelisted Targets
+            </DialogTitle>
+            <DialogDescription>
+              The following {domainWhitelistStatus?.nonWhitelisted.length || 0} target(s) are not on the approved test lab whitelist.
+              Enabling active scan override will authorize full pipeline operations (active scanning, exploitation, C2) on ALL targets in this engagement.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* Target list */}
+            <div className="space-y-1 max-h-48 overflow-y-auto rounded border border-border p-2 bg-black/20">
+              {(domainWhitelistStatus?.nonWhitelisted || []).map((target: string, i: number) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/5 border border-red-500/10">
+                  <span className="h-2 w-2 rounded-full bg-red-400 flex-shrink-0" />
+                  <span className="text-xs font-mono text-foreground flex-1">{target}</span>
+                  <Badge variant="outline" className="text-[8px] border-red-500/30 text-red-400">Not Whitelisted</Badge>
+                </div>
+              ))}
+            </div>
+            {/* Justification */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Justification (required)</label>
+              <Textarea
+                placeholder="e.g., Signed RoE covers all WordPress program targets. HackerOne program authorizes active testing."
+                value={approvalJustification}
+                onChange={(e) => setApprovalJustification(e.target.value)}
+                className="text-xs min-h-[80px]"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                This justification will be logged in the engagement timeline as an audit trail.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowApprovalDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={!approvalJustification.trim() || toggleOverrideMut.isPending}
+              onClick={() => {
+                toggleOverrideMut.mutate({
+                  engagementId,
+                  enabled: true,
+                  justification: approvalJustification.trim(),
+                });
+              }}
+            >
+              {toggleOverrideMut.isPending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Approving...</>
+              ) : (
+                <><ShieldCheck className="h-3 w-3" /> Approve & Enable Active Scanning</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Page Purpose Description */}
       <div className="flex-none px-6">

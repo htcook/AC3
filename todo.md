@@ -873,3 +873,10 @@
 - [x] Source code in-scope assets should display build-out requirements (clone repo, build locally, don't test live)
 - [x] Add clear "Test Environment Setup" section showing what to clone/build for source_code assets
 - [x] Write vitest tests for the new sync-to-engagement creation flow (11 tests passing)
+
+### Target Review & Approval Flow (Apr 29)
+- [x] Add backend procedure to toggle activeScanOverride on an engagement (protectedProcedure with justification)
+- [x] Add "Review & Approve Targets" button to the whitelist warning banner + "Revoke Override" button
+- [x] Add per-target review list showing each non-whitelisted target with status badges (Blocked/Override Active)
+- [x] Add approval dialog with justification textarea and audit trail logging to timeline
+- [x] Write vitest tests for the approval flow (26 tests passing)

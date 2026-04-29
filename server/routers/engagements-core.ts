@@ -279,6 +279,7 @@ export const engagementsRouter = router({
         notes: z.string().optional(),
         roeDocumentId: z.number().nullable().optional(),
         fedrampImpactLevel: z.enum(['none', 'low', 'moderate', 'high']).optional(),
+        activeScanOverride: z.number().min(0).max(1).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
@@ -292,6 +293,59 @@ export const engagementsRouter = router({
           details: `Updated engagement ID: ${id}`,
         });
         return { success: true };
+      }),
+
+    /**
+     * Toggle the active scan override for an engagement.
+     * This allows non-whitelisted targets to be actively scanned.
+     * Admin-only: requires signed RoE authorization.
+     */
+    toggleActiveScanOverride: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        enabled: z.boolean(),
+        justification: z.string().min(1, 'Justification is required for active scan override'),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (dbConn) await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        await db.updateEngagement(input.engagementId, {
+          activeScanOverride: input.enabled ? 1 : 0,
+        });
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: input.enabled ? 'active_scan_override_enabled' : 'active_scan_override_disabled',
+          details: `${input.enabled ? 'Enabled' : 'Disabled'} active scan override on engagement #${input.engagementId}. Justification: ${input.justification}`,
+        });
+        // Log as engagement timeline event
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          await dbInstance.insert(schema.engagementTimelineEvents).values({
+            engagementId: input.engagementId,
+            eventType: 'safety_override',
+            title: input.enabled
+              ? '\u26a0\ufe0f Active Scan Override Enabled'
+              : '\ud83d\udee1\ufe0f Active Scan Override Disabled',
+            description: `${ctx.user.name || ctx.user.email} ${input.enabled ? 'enabled' : 'disabled'} active scan override. Justification: ${input.justification}`,
+            phase: 'scoping',
+            severity: input.enabled ? 'high' : 'info',
+            metadata: JSON.stringify({
+              userId: ctx.user.id,
+              userName: ctx.user.name,
+              enabled: input.enabled,
+              justification: input.justification,
+              timestamp: new Date().toISOString(),
+            }),
+            createdAt: new Date(),
+          });
+        }
+        return {
+          success: true,
+          enabled: input.enabled,
+          message: input.enabled
+            ? 'Active scan override enabled. Full pipeline authorized for all targets.'
+            : 'Active scan override disabled. Non-whitelisted targets restricted to passive only.',
+        };
       }),
 
     delete: adminProcedure
