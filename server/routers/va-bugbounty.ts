@@ -1033,6 +1033,72 @@ export const vaBugBountyRouter = router({
       return result;
     }),
 
+  // ─── Create Engagement from Parsed Scope ─────────────────────────────────
+
+  /**
+   * Create a new engagement directly from parsed scope data.
+   * Used when "Sync to Engagement" is clicked but no engagement exists.
+   * Calls the auto-engagement creator with all in-scope assets (including
+   * source code assets that need build-out requirements).
+   */
+  createEngagementFromScope: protectedProcedure
+    .input(z.object({
+      programName: z.string(),
+      programUrl: z.string(),
+      platform: z.string(),
+      inScopeTargets: z.array(z.object({
+        type: z.string(),
+        value: z.string(),
+        eligible: z.boolean().optional(),
+        notes: z.string().optional(),
+      })),
+      outOfScopeTargets: z.array(z.object({
+        type: z.string(),
+        value: z.string(),
+        eligible: z.boolean().optional(),
+        notes: z.string().optional(),
+      })).optional(),
+      rules: z.array(z.string()).optional(),
+      rewardRange: z.object({
+        low: z.number(),
+        high: z.number(),
+        currency: z.string(),
+      }).optional(),
+      safeHarbor: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { autoCreateEngagement } = await import('../lib/auto-engagement-creator.js');
+
+      // Build a ParsedPolicyResult from the input
+      const policyResult = {
+        programName: input.programName,
+        platform: input.platform,
+        programUrl: input.programUrl,
+        scope: {
+          inScope: input.inScopeTargets.map(t => ({
+            type: t.type,
+            value: t.value,
+            eligible: t.eligible !== false,
+            notes: t.notes,
+          })),
+          outOfScope: (input.outOfScopeTargets || []).map(t => ({
+            type: t.type,
+            value: t.value,
+            eligible: false,
+            notes: t.notes,
+          })),
+        },
+        rules: input.rules || [],
+        rewardRange: input.rewardRange,
+        safeHarbor: input.safeHarbor ?? false,
+        parsedAt: new Date().toISOString(),
+        parseConfidence: 0.9, // High confidence since user explicitly triggered
+      };
+
+      const result = await autoCreateEngagement(policyResult, ctx.user.id, 0.9);
+      return result;
+    }),
+
   // ─── Sync Scope to Engagement Assets ─────────────────────────────────────
 
   /**

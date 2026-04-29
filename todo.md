@@ -867,3 +867,9 @@
 - [x] Add frontend notification/toast with link to new engagement
 - [x] Write vitest tests for auto-engagement creation (7 tests passing)
 - [x] Support auto-engagement creation from any URL (not just known platforms) — parse page for scope data via LLM
+
+### BB Workspace Fixes — Sync to Engagement & Build Requirements (Apr 29)
+- [x] "Sync to Engagement" should auto-create a new engagement if none exists (not require pre-existing one)
+- [x] Source code in-scope assets should display build-out requirements (clone repo, build locally, don't test live)
+- [x] Add clear "Test Environment Setup" section showing what to clone/build for source_code assets
+- [x] Write vitest tests for the new sync-to-engagement creation flow (11 tests passing)

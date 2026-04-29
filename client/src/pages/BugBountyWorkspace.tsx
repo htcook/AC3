@@ -37,7 +37,7 @@ import {
   Search, Copy, ExternalLink, Sparkles, CheckCircle2, XCircle,
   Clock, Zap, Eye, Send, ArrowRight, Loader2, Info, ChevronDown,
   ChevronRight, Crosshair, Link2, AlertCircle, FileCheck, Clipboard,
-  Download, Layers, RefreshCw, Upload, List,
+  Download, Layers, RefreshCw, Upload, List, Plus, GitBranch, Wrench, Server,
 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -111,6 +111,8 @@ export default function BugBountyWorkspace() {
   const syncScopeToEngagement = trpc.vaBugBounty.syncScopeToEngagement.useMutation();
   const refreshAllScopes = trpc.vaBugBounty.refreshAllScopes.useMutation();
   const activeEngagements = trpc.vaBugBounty.listActiveEngagements.useQuery();
+  const createEngagementFromScope = trpc.vaBugBounty.createEngagementFromScope.useMutation();
+  const [isCreatingEngagement, setIsCreatingEngagement] = useState(false);
 
   const handleImportFromEngagement = async () => {
     const id = parseInt(engagementIdInput);
@@ -319,6 +321,39 @@ export default function BugBountyWorkspace() {
     }
   };
 
+  const handleCreateNewEngagement = async () => {
+    if (!policy) return;
+    setIsCreatingEngagement(true);
+    try {
+      const result = await createEngagementFromScope.mutateAsync({
+        programName: policy.programName,
+        programUrl: policy.programUrl,
+        platform: policy.platform,
+        inScopeTargets: policy.scope.inScope,
+        outOfScopeTargets: policy.scope.outOfScope,
+        rules: policy.rules,
+        rewardRange: policy.rewardRange,
+        safeHarbor: policy.safeHarbor,
+      });
+      if (result.created && result.engagementId) {
+        toast.success(`Engagement Created: ${result.engagementName || 'New Engagement'}`, {
+          description: `#${result.engagementId} — ${result.totalAssetsAdded} assets added (including build requirements)`,
+          action: {
+            label: 'View',
+            onClick: () => window.location.href = `/engagements/${result.engagementId}`,
+          },
+        });
+        activeEngagements.refetch();
+      } else {
+        toast.info('Engagement not created', { description: result.reason || 'Unknown reason' });
+      }
+    } catch (err: any) {
+      toast.error('Failed to create engagement', { description: err.message });
+    } finally {
+      setIsCreatingEngagement(false);
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -395,6 +430,8 @@ export default function BugBountyWorkspace() {
               parsedProgramCount={parsedPrograms.length}
               onRefreshAll={handleRefreshAll}
               isBatchRefreshing={isBatchParsing}
+              onCreateNewEngagement={handleCreateNewEngagement}
+              isCreatingEngagement={isCreatingEngagement}
             />
           )}
         </TabsContent>
@@ -725,6 +762,8 @@ function ScopeTab({
   parsedProgramCount,
   onRefreshAll,
   isBatchRefreshing,
+  onCreateNewEngagement,
+  isCreatingEngagement,
 }: {
   policy: PolicyROE;
   checkScope: any;
@@ -736,6 +775,8 @@ function ScopeTab({
   parsedProgramCount: number;
   onRefreshAll: () => void;
   isBatchRefreshing: boolean;
+  onCreateNewEngagement: () => void;
+  isCreatingEngagement: boolean;
 }) {
   const [targetToCheck, setTargetToCheck] = useState('');
   const [scopeResults, setScopeResults] = useState<ScopeCheckResult[]>([]);
@@ -820,12 +861,34 @@ function ScopeTab({
               </DialogTitle>
               <DialogDescription>
                 Add {policy.scope.inScope.length} in-scope targets from <strong>{policy.programName}</strong> as engagement assets.
-                Domains, IPs, and URLs will be extracted and added. Non-network targets (source code, hardware) will be skipped.
+                All targets will be included — network assets (domains, IPs, URLs) as scan targets, and source code/hardware assets with build-out requirements.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 mt-2">
+              {/* Create New Engagement button — always shown */}
+              <button
+                onClick={() => {
+                  onCreateNewEngagement();
+                  setShowSyncDialog(false);
+                }}
+                disabled={isCreatingEngagement}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-dashed border-orange-500/40 hover:bg-orange-500/5 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  {isCreatingEngagement ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-orange-400" />
+                  ) : (
+                    <Plus className="h-4 w-4 text-orange-400" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-orange-400">Create New Engagement</p>
+                    <p className="text-[10px] text-muted-foreground">Auto-generate engagement from parsed scope with all assets</p>
+                  </div>
+                </div>
+                <Sparkles className="h-4 w-4 text-orange-400" />
+              </button>
               {engagements.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No active engagements found. Create an engagement first.</p>
+                <p className="text-[10px] text-muted-foreground text-center">No existing engagements — create one above</p>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {engagements.filter(e => e.status !== 'archived' && e.status !== 'completed').map(eng => (
@@ -866,15 +929,42 @@ function ScopeTab({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-64">
+            <ScrollArea className="max-h-80">
               <div className="space-y-2">
-                {policy.scope.inScope.map((entry, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 rounded bg-emerald-500/5 border border-emerald-500/10">
-                    <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">{entry.type}</Badge>
-                    <span className="text-xs font-mono">{entry.value}</span>
-                    {entry.notes && <span className="text-[10px] text-muted-foreground ml-auto">{entry.notes}</span>}
-                  </div>
-                ))}
+                {policy.scope.inScope.map((entry, i) => {
+                  const isBuildable = ['source_code', 'hardware', 'downloadable_executables', 'smart_contract'].includes(entry.type.toLowerCase());
+                  return (
+                    <div key={i} className={`p-2 rounded border ${isBuildable ? 'bg-amber-500/5 border-amber-500/20' : 'bg-emerald-500/5 border-emerald-500/10'}`}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={`text-[9px] ${isBuildable ? 'border-amber-500/30 text-amber-400' : 'border-emerald-500/30 text-emerald-400'}`}>{entry.type}</Badge>
+                        <span className="text-xs font-mono flex-1 min-w-0 truncate">{entry.value}</span>
+                        {isBuildable && (
+                          <Badge variant="outline" className="text-[8px] border-amber-500/30 text-amber-400 gap-0.5 shrink-0">
+                            <Wrench className="h-2.5 w-2.5" />
+                            Build Required
+                          </Badge>
+                        )}
+                      </div>
+                      {entry.notes && (
+                        <p className="text-[10px] text-muted-foreground mt-1 ml-1">{entry.notes}</p>
+                      )}
+                      {isBuildable && (
+                        <div className="mt-1.5 ml-1 p-1.5 rounded bg-amber-500/5 border border-amber-500/10">
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Server className="h-2.5 w-2.5 text-amber-400" />
+                            <span className="text-[9px] font-medium text-amber-400">Local Build Required</span>
+                          </div>
+                          <p className="text-[9px] text-muted-foreground">
+                            Clone/download and build locally. Do NOT test against live production sites.
+                            {entry.value.includes('github.com') && (
+                              <span className="block mt-0.5"><GitBranch className="h-2.5 w-2.5 inline mr-0.5" />git clone {entry.value}</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </CardContent>
