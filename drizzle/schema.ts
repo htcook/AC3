@@ -8045,3 +8045,26 @@ export const parsedPolicyCache = mysqlTable("parsed_policy_cache", {
 	index("ppc_cache_key_idx").on(table.cacheKey),
 	index("ppc_platform_slug_idx").on(table.platform, table.programSlug),
 ]);
+
+
+// ─── Per-Target Approval for Domain Whitelist ───────────────────────────────
+// Tracks individual target approval/rejection for engagements with non-whitelisted domains.
+// Allows granular control instead of all-or-nothing activeScanOverride.
+
+export const engagementApprovedTargets = mysqlTable("engagement_approved_targets", {
+	id: int("id").autoincrement().primaryKey(),
+	engagementId: int("engagement_id").notNull(),
+	target: varchar("target", { length: 512 }).notNull(),
+	hostname: varchar("hostname", { length: 255 }).notNull(),
+	status: mysqlEnum("status", ['pending', 'approved', 'rejected']).default('pending').notNull(),
+	approvedBy: int("approved_by"),
+	approvedByName: varchar("approved_by_name", { length: 255 }),
+	justification: text("justification"),
+	roeReference: varchar("roe_reference", { length: 512 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("eat_engagement_idx").on(table.engagementId),
+	index("eat_hostname_idx").on(table.engagementId, table.hostname),
+]);

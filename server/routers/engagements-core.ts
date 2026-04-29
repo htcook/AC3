@@ -348,6 +348,207 @@ export const engagementsRouter = router({
         };
       }),
 
+    /**
+     * Get per-target approval statuses for an engagement.
+     */
+    getTargetApprovals: protectedProcedure
+      .input(z.object({ engagementId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) return [];
+        await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+        const rows = await dbConn.select().from(schema.engagementApprovedTargets)
+          .where(eq(schema.engagementApprovedTargets.engagementId, input.engagementId));
+        return rows;
+      }),
+
+    /**
+     * Set per-target approval status (approve/reject individual targets).
+     * When all non-whitelisted targets are approved, automatically enables activeScanOverride.
+     */
+    setTargetApproval: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        targets: z.array(z.object({
+          target: z.string(),
+          hostname: z.string(),
+          status: z.enum(['approved', 'rejected', 'pending']),
+          justification: z.string().optional(),
+        })),
+        globalJustification: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new Error('Database unavailable');
+        await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+        const results: Array<{ target: string; status: string }> = [];
+
+        for (const t of input.targets) {
+          // Upsert: check if target already exists
+          const existing = await dbConn.select().from(schema.engagementApprovedTargets)
+            .where(and(
+              eq(schema.engagementApprovedTargets.engagementId, input.engagementId),
+              eq(schema.engagementApprovedTargets.hostname, t.hostname),
+            ));
+
+          const justification = t.justification || input.globalJustification || '';
+
+          if (existing.length > 0) {
+            await dbConn.update(schema.engagementApprovedTargets)
+              .set({
+                status: t.status,
+                approvedBy: ctx.user.id,
+                approvedByName: ctx.user.name || ctx.user.email,
+                justification,
+              })
+              .where(eq(schema.engagementApprovedTargets.id, existing[0].id));
+          } else {
+            await dbConn.insert(schema.engagementApprovedTargets).values({
+              engagementId: input.engagementId,
+              target: t.target,
+              hostname: t.hostname,
+              status: t.status,
+              approvedBy: ctx.user.id,
+              approvedByName: ctx.user.name || ctx.user.email,
+              justification,
+            });
+          }
+          results.push({ target: t.hostname, status: t.status });
+        }
+
+        // Check if all non-whitelisted targets are now approved
+        const allApprovals = await dbConn.select().from(schema.engagementApprovedTargets)
+          .where(eq(schema.engagementApprovedTargets.engagementId, input.engagementId));
+        const allApproved = allApprovals.length > 0 && allApprovals.every(a => a.status === 'approved');
+
+        // Auto-enable activeScanOverride if all targets approved
+        if (allApproved) {
+          await db.updateEngagement(input.engagementId, { activeScanOverride: 1 });
+        }
+
+        // Log timeline event
+        const approvedCount = results.filter(r => r.status === 'approved').length;
+        const rejectedCount = results.filter(r => r.status === 'rejected').length;
+        await dbConn.insert(schema.engagementTimelineEvents).values({
+          engagementId: input.engagementId,
+          eventType: 'target_approval',
+          title: `Target Approval: ${approvedCount} approved, ${rejectedCount} rejected`,
+          description: `${ctx.user.name || ctx.user.email} reviewed ${results.length} target(s). ${allApproved ? 'All targets approved — active scan override auto-enabled.' : ''}`,
+          phase: 'scoping',
+          severity: 'info',
+          metadata: JSON.stringify({
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            results,
+            allApproved,
+            globalJustification: input.globalJustification,
+            timestamp: new Date().toISOString(),
+          }),
+          createdAt: new Date(),
+        });
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'target_approval_updated',
+          details: `Reviewed ${results.length} targets on engagement #${input.engagementId}: ${approvedCount} approved, ${rejectedCount} rejected`,
+        });
+
+        return {
+          success: true,
+          results,
+          allApproved,
+          message: allApproved
+            ? `All ${results.length} targets approved. Active scan override auto-enabled.`
+            : `${approvedCount} target(s) approved, ${rejectedCount} rejected. ${allApprovals.filter(a => a.status === 'pending').length} still pending.`,
+        };
+      }),
+
+    /**
+     * Bulk approve all non-whitelisted targets for an engagement.
+     */
+    bulkApproveTargets: protectedProcedure
+      .input(z.object({
+        engagementId: z.number(),
+        targets: z.array(z.object({
+          target: z.string(),
+          hostname: z.string(),
+        })),
+        justification: z.string().min(1, 'Justification is required'),
+        roeReference: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const dbConn = await db.getDb();
+        if (!dbConn) throw new Error('Database unavailable');
+        await assertEngagementAccess(dbConn, input.engagementId, ctx.user);
+
+        // Upsert all targets as approved
+        for (const t of input.targets) {
+          const existing = await dbConn.select().from(schema.engagementApprovedTargets)
+            .where(and(
+              eq(schema.engagementApprovedTargets.engagementId, input.engagementId),
+              eq(schema.engagementApprovedTargets.hostname, t.hostname),
+            ));
+
+          if (existing.length > 0) {
+            await dbConn.update(schema.engagementApprovedTargets)
+              .set({
+                status: 'approved',
+                approvedBy: ctx.user.id,
+                approvedByName: ctx.user.name || ctx.user.email,
+                justification: input.justification,
+                roeReference: input.roeReference || null,
+              })
+              .where(eq(schema.engagementApprovedTargets.id, existing[0].id));
+          } else {
+            await dbConn.insert(schema.engagementApprovedTargets).values({
+              engagementId: input.engagementId,
+              target: t.target,
+              hostname: t.hostname,
+              status: 'approved',
+              approvedBy: ctx.user.id,
+              approvedByName: ctx.user.name || ctx.user.email,
+              justification: input.justification,
+              roeReference: input.roeReference || null,
+            });
+          }
+        }
+
+        // Enable activeScanOverride
+        await db.updateEngagement(input.engagementId, { activeScanOverride: 1 });
+
+        // Log timeline event
+        await dbConn.insert(schema.engagementTimelineEvents).values({
+          engagementId: input.engagementId,
+          eventType: 'target_approval',
+          title: `Bulk Approved: ${input.targets.length} targets`,
+          description: `${ctx.user.name || ctx.user.email} bulk-approved all ${input.targets.length} non-whitelisted targets. Active scan override enabled. Justification: ${input.justification}`,
+          phase: 'scoping',
+          severity: 'high',
+          metadata: JSON.stringify({
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            targets: input.targets.map(t => t.hostname),
+            justification: input.justification,
+            roeReference: input.roeReference,
+            timestamp: new Date().toISOString(),
+          }),
+          createdAt: new Date(),
+        });
+
+        await db.logActivity({
+          userId: ctx.user.id,
+          action: 'targets_bulk_approved',
+          details: `Bulk approved ${input.targets.length} targets on engagement #${input.engagementId}`,
+        });
+
+        return {
+          success: true,
+          approvedCount: input.targets.length,
+          message: `All ${input.targets.length} targets approved. Active scan override enabled.`,
+        };
+      }),
+
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {

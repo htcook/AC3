@@ -880,3 +880,13 @@
 - [x] Add per-target review list showing each non-whitelisted target with status badges (Blocked/Override Active)
 - [x] Add approval dialog with justification textarea and audit trail logging to timeline
 - [x] Write vitest tests for the approval flow (26 tests passing)
+
+### Three Enhancements Sprint (Apr 29)
+- [x] Per-target granular approval: DB table (engagementApprovedTargets), backend procedures (setTargetApproval, bulkApproveTargets, getTargetApprovals)
+- [x] Per-target granular approval: Frontend per-target approve/reject toggles with Select All Approved/Rejected bulk actions
+- [x] Per-target granular approval: Auto-enable activeScanOverride when ALL targets are approved
+- [x] Auto-detect RoE document: Check engagement roeStatus, pre-populate justification when signed/pending
+- [x] Auto-detect RoE document: Show RoE status indicator (green signed / red none) in approval dialog
+- [x] WordPress-specific build instructions: Detect WP repos (WordPress, WP-CLI, GlotPress, BuddyPress, bbPress, WordCamp, WooCommerce) + plugins
+- [x] WordPress-specific build instructions: Show wp-env, Docker, DDEV commands with repo-specific instructions (WP-CLI, GlotPress)
+- [x] Write vitest tests for all three features (39 tests passing)

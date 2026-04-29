@@ -948,20 +948,80 @@ function ScopeTab({
                       {entry.notes && (
                         <p className="text-[10px] text-muted-foreground mt-1 ml-1">{entry.notes}</p>
                       )}
-                      {isBuildable && (
-                        <div className="mt-1.5 ml-1 p-1.5 rounded bg-amber-500/5 border border-amber-500/10">
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <Server className="h-2.5 w-2.5 text-amber-400" />
-                            <span className="text-[9px] font-medium text-amber-400">Local Build Required</span>
-                          </div>
-                          <p className="text-[9px] text-muted-foreground">
-                            Clone/download and build locally. Do NOT test against live production sites.
-                            {entry.value.includes('github.com') && (
-                              <span className="block mt-0.5"><GitBranch className="h-2.5 w-2.5 inline mr-0.5" />git clone {entry.value}</span>
+                      {isBuildable && (() => {
+                        const val = entry.value.toLowerCase();
+                        const isWpRepo = val.includes('wordpress') || val.includes('wp-cli') || val.includes('glotpress') || val.includes('buddypress') || val.includes('bbpress') || val.includes('wordcamp') || val.includes('woocommerce');
+                        const isWpPlugin = val.includes('plugin') || val.includes('profiles.wordpress.org') || val.includes('wordpress.org/plugins');
+                        const isGithub = val.includes('github.com');
+                        const isGitlab = val.includes('gitlab.com');
+                        const isBitbucket = val.includes('bitbucket.org');
+                        const repoUrl = isGithub || isGitlab || isBitbucket ? entry.value.replace(/\/$/, '') : null;
+                        return (
+                          <div className="mt-1.5 ml-1 p-2 rounded bg-amber-500/5 border border-amber-500/10 space-y-1.5">
+                            <div className="flex items-center gap-1">
+                              <Server className="h-2.5 w-2.5 text-amber-400" />
+                              <span className="text-[9px] font-medium text-amber-400">
+                                {isWpRepo || isWpPlugin ? 'WordPress Local Environment Setup' : 'Local Build Required'}
+                              </span>
+                            </div>
+                            <p className="text-[9px] text-red-400 font-medium">
+                              Do NOT test against live production sites. Build and test locally only.
+                            </p>
+                            {repoUrl && (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-black/30 border border-border/20">
+                                  <GitBranch className="h-2.5 w-2.5 text-cyan-400 flex-shrink-0" />
+                                  <code className="text-[9px] text-cyan-300 font-mono select-all">git clone {repoUrl}.git</code>
+                                </div>
+                              </div>
                             )}
-                          </p>
-                        </div>
-                      )}
+                            {(isWpRepo || isWpPlugin) && (
+                              <div className="space-y-1 pt-1 border-t border-amber-500/10">
+                                <span className="text-[9px] font-medium text-amber-300">WordPress Test Environment Options:</span>
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-black/30 border border-border/20">
+                                    <span className="text-[8px] text-purple-400 font-medium shrink-0">wp-env</span>
+                                    <code className="text-[9px] text-purple-300 font-mono select-all">npx @wordpress/env start</code>
+                                  </div>
+                                  <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-black/30 border border-border/20">
+                                    <span className="text-[8px] text-blue-400 font-medium shrink-0">Docker</span>
+                                    <code className="text-[9px] text-blue-300 font-mono select-all">docker run -d -p 8080:80 -e WORDPRESS_DB_HOST=db wordpress:latest</code>
+                                  </div>
+                                  <div className="flex items-center gap-1 px-1.5 py-1 rounded bg-black/30 border border-border/20">
+                                    <span className="text-[8px] text-green-400 font-medium shrink-0">DDEV</span>
+                                    <code className="text-[9px] text-green-300 font-mono select-all">ddev config --project-type=wordpress && ddev start</code>
+                                  </div>
+                                </div>
+                                {isWpPlugin && (
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">
+                                    For plugins: download the .zip from WordPress.org, install in your local WP instance via Plugins &gt; Add New &gt; Upload.
+                                  </p>
+                                )}
+                                {val.includes('wp-cli') && (
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">
+                                    WP-CLI: Install via <code className="text-cyan-300">curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar</code> and test commands against your local WP instance.
+                                  </p>
+                                )}
+                                {val.includes('glotpress') && (
+                                  <p className="text-[9px] text-muted-foreground mt-0.5">
+                                    GlotPress: Clone the repo into <code className="text-cyan-300">wp-content/plugins/</code> of your local WP install, then activate via the admin panel.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {!isWpRepo && !isWpPlugin && repoUrl && (
+                              <p className="text-[9px] text-muted-foreground">
+                                Clone the repository, review the README for build instructions, and set up a local test environment before scanning.
+                              </p>
+                            )}
+                            {!isWpRepo && !isWpPlugin && !repoUrl && (
+                              <p className="text-[9px] text-muted-foreground">
+                                Download the target, build locally per the project's documentation, and test in an isolated environment.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

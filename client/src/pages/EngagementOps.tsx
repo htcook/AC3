@@ -1135,15 +1135,73 @@ export default function EngagementOps() {
   // ── Target Approval / Active Scan Override ──
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalJustification, setApprovalJustification] = useState('');
+  const [perTargetStatuses, setPerTargetStatuses] = useState<Record<string, 'approved' | 'rejected' | 'pending'>>({});
+
+  // Fetch existing per-target approvals
+  const targetApprovalsQ = trpc.engagements.getTargetApprovals.useQuery(
+    { engagementId },
+    { enabled: engagementId > 0 }
+  );
+
+  // Auto-detect RoE and pre-populate justification when dialog opens
+  const roeStatus = (engagement as any)?.roeStatus || 'none';
+  const roeSigned = roeStatus === 'signed' || roeStatus === 'pending';
+  const roeSignedDate = (engagement as any)?.roeSignedDate;
+
+  useEffect(() => {
+    if (showApprovalDialog && roeSigned && !approvalJustification) {
+      const roeRef = roeSignedDate
+        ? `Signed RoE (${roeStatus}, ${new Date(roeSignedDate).toLocaleDateString()}) authorizes active testing on all program targets.`
+        : `RoE status: ${roeStatus}. Active testing authorized per engagement rules of engagement.`;
+      setApprovalJustification(roeRef);
+    }
+  }, [showApprovalDialog, roeSigned, roeStatus, roeSignedDate]);
+
+  // Initialize per-target statuses from existing approvals
+  useEffect(() => {
+    if (showApprovalDialog && targetApprovalsQ.data && domainWhitelistStatus) {
+      const statuses: Record<string, 'approved' | 'rejected' | 'pending'> = {};
+      for (const t of domainWhitelistStatus.nonWhitelisted) {
+        const existing = targetApprovalsQ.data.find((a: any) => a.hostname === t);
+        statuses[t] = (existing?.status as any) || 'pending';
+      }
+      setPerTargetStatuses(statuses);
+    }
+  }, [showApprovalDialog, targetApprovalsQ.data, domainWhitelistStatus]);
+
   const toggleOverrideMut = trpc.engagements.toggleActiveScanOverride.useMutation({
     onSuccess: (data) => {
       toast.success(data.message);
       setShowApprovalDialog(false);
       setApprovalJustification('');
-      // Refetch engagement to update the UI
       engagementQ.refetch();
+      targetApprovalsQ.refetch();
     },
     onError: (e) => toast.error(`Override failed: ${e.message}`),
+  });
+
+  const setTargetApprovalMut = trpc.engagements.setTargetApproval.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      if (data.allApproved) {
+        setShowApprovalDialog(false);
+        setApprovalJustification('');
+      }
+      engagementQ.refetch();
+      targetApprovalsQ.refetch();
+    },
+    onError: (e) => toast.error(`Target approval failed: ${e.message}`),
+  });
+
+  const bulkApproveMut = trpc.engagements.bulkApproveTargets.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowApprovalDialog(false);
+      setApprovalJustification('');
+      engagementQ.refetch();
+      targetApprovalsQ.refetch();
+    },
+    onError: (e) => toast.error(`Bulk approval failed: ${e.message}`),
   });
 
   // ── WebSocket live feed ──
@@ -1395,8 +1453,7 @@ export default function EngagementOps() {
   );
 
   // Derived state
-  const roeStatus = engagement?.roeStatus || "none";
-  const roeSigned = roeStatus === "signed" || roeStatus === "pending";
+  // roeStatus and roeSigned already declared above in Target Approval section
   const hasTargets = (ops?.assets?.length || 0) > 0 || !!(engagement?.targetDomain || engagement?.targetIpRange);
   const isReconComplete = ops?.phase === "recon_complete" || (getPhaseIndex(ops?.phase || "idle") > 0 && ops?.phase !== "recon");
   const isIdle = !ops || ops.phase === "idle";
@@ -1916,23 +1973,23 @@ export default function EngagementOps() {
               <p className="text-xs text-muted-foreground mt-1">
                 {domainWhitelistStatus.nonWhitelisted.length} target(s) are not on the approved test lab whitelist:
               </p>
-              {/* Per-target review list */}
+              {/* Per-target review list with individual approval status */}
               <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                {domainWhitelistStatus.nonWhitelisted.map((target: string, i: number) => (
-                  <div key={i} className="flex items-center gap-2 px-2 py-1 rounded bg-black/20 border border-border/30">
-                    <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                      domainWhitelistStatus.hasOverride ? 'bg-amber-400' : 'bg-red-400'
-                    }`} />
-                    <span className="text-xs font-mono text-foreground flex-1 truncate">{target}</span>
-                    <Badge variant="outline" className={`text-[8px] ${
-                      domainWhitelistStatus.hasOverride
-                        ? 'border-amber-500/30 text-amber-400'
-                        : 'border-red-500/30 text-red-400'
-                    }`}>
-                      {domainWhitelistStatus.hasOverride ? 'Override Active' : 'Blocked'}
-                    </Badge>
-                  </div>
-                ))}
+                {domainWhitelistStatus.nonWhitelisted.map((target: string, i: number) => {
+                  const approval = targetApprovalsQ.data?.find((a: any) => a.hostname === target);
+                  const status = approval?.status || (domainWhitelistStatus.hasOverride ? 'override' : 'blocked');
+                  const statusColor = status === 'approved' ? 'green' : status === 'rejected' ? 'red' : domainWhitelistStatus.hasOverride ? 'amber' : 'red';
+                  const statusLabel = status === 'approved' ? 'Approved' : status === 'rejected' ? 'Rejected' : domainWhitelistStatus.hasOverride ? 'Override Active' : 'Blocked';
+                  return (
+                    <div key={i} className="flex items-center gap-2 px-2 py-1 rounded bg-black/20 border border-border/30">
+                      <span className={`h-2 w-2 rounded-full flex-shrink-0 bg-${statusColor}-400`} />
+                      <span className="text-xs font-mono text-foreground flex-1 truncate">{target}</span>
+                      <Badge variant="outline" className={`text-[8px] border-${statusColor}-500/30 text-${statusColor}-400`}>
+                        {statusLabel}
+                      </Badge>
+                    </div>
+                  );
+                })}
               </div>
               {!domainWhitelistStatus.hasOverride && (
                 <p className="text-xs text-red-400/80 mt-2">
@@ -1952,28 +2009,108 @@ export default function EngagementOps() {
 
       {/* ── Target Approval Dialog ── */}
       <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-amber-400" />
               Review & Approve Non-Whitelisted Targets
             </DialogTitle>
             <DialogDescription>
-              The following {domainWhitelistStatus?.nonWhitelisted.length || 0} target(s) are not on the approved test lab whitelist.
-              Enabling active scan override will authorize full pipeline operations (active scanning, exploitation, C2) on ALL targets in this engagement.
+              {domainWhitelistStatus?.nonWhitelisted.length || 0} target(s) require approval. Toggle each target individually or use bulk actions below.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            {/* Target list */}
-            <div className="space-y-1 max-h-48 overflow-y-auto rounded border border-border p-2 bg-black/20">
-              {(domainWhitelistStatus?.nonWhitelisted || []).map((target: string, i: number) => (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/5 border border-red-500/10">
-                  <span className="h-2 w-2 rounded-full bg-red-400 flex-shrink-0" />
-                  <span className="text-xs font-mono text-foreground flex-1">{target}</span>
-                  <Badge variant="outline" className="text-[8px] border-red-500/30 text-red-400">Not Whitelisted</Badge>
-                </div>
-              ))}
+            {/* RoE Status Indicator */}
+            {roeSigned && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-500/10 border border-green-500/30">
+                <ShieldCheck className="h-4 w-4 text-green-400" />
+                <span className="text-xs text-green-300 font-medium">RoE {roeStatus === 'signed' ? 'Signed' : 'Pending'}</span>
+                {roeSignedDate && <span className="text-[10px] text-green-400/70">({new Date(roeSignedDate).toLocaleDateString()})</span>}
+                <span className="text-[10px] text-green-400/60 ml-auto">Justification auto-populated from RoE</span>
+              </div>
+            )}
+            {!roeSigned && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/30">
+                <ShieldX className="h-4 w-4 text-red-400" />
+                <span className="text-xs text-red-300 font-medium">No signed RoE detected</span>
+                <span className="text-[10px] text-red-400/60 ml-auto">Manual justification required</span>
+              </div>
+            )}
+
+            {/* Per-target approval toggles */}
+            <div className="space-y-1 max-h-64 overflow-y-auto rounded border border-border p-2 bg-black/20">
+              {(domainWhitelistStatus?.nonWhitelisted || []).map((target: string, i: number) => {
+                const status = perTargetStatuses[target] || 'pending';
+                return (
+                  <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded border border-border/30 hover:bg-white/5 transition-colors">
+                    <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                      status === 'approved' ? 'bg-green-400' : status === 'rejected' ? 'bg-red-400' : 'bg-yellow-400'
+                    }`} />
+                    <span className="text-xs font-mono text-foreground flex-1 truncate">{target}</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-6 px-2 text-[10px] ${
+                          status === 'approved'
+                            ? 'border-green-500/50 text-green-400 bg-green-500/10'
+                            : 'border-border/50 text-muted-foreground hover:border-green-500/50 hover:text-green-400'
+                        }`}
+                        onClick={() => setPerTargetStatuses(prev => ({ ...prev, [target]: status === 'approved' ? 'pending' : 'approved' }))}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-6 px-2 text-[10px] ${
+                          status === 'rejected'
+                            ? 'border-red-500/50 text-red-400 bg-red-500/10'
+                            : 'border-border/50 text-muted-foreground hover:border-red-500/50 hover:text-red-400'
+                        }`}
+                        onClick={() => setPerTargetStatuses(prev => ({ ...prev, [target]: status === 'rejected' ? 'pending' : 'rejected' }))}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Quick actions */}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[10px] h-6 gap-1 border-green-500/30 text-green-400 hover:bg-green-500/10"
+                onClick={() => {
+                  const all: Record<string, 'approved'> = {};
+                  (domainWhitelistStatus?.nonWhitelisted || []).forEach((t: string) => { all[t] = 'approved'; });
+                  setPerTargetStatuses(all);
+                }}
+              >
+                Select All Approved
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[10px] h-6 gap-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                onClick={() => {
+                  const all: Record<string, 'rejected'> = {};
+                  (domainWhitelistStatus?.nonWhitelisted || []).forEach((t: string) => { all[t] = 'rejected'; });
+                  setPerTargetStatuses(all);
+                }}
+              >
+                Select All Rejected
+              </Button>
+              <span className="text-[10px] text-muted-foreground ml-auto">
+                {Object.values(perTargetStatuses).filter(s => s === 'approved').length} approved,{' '}
+                {Object.values(perTargetStatuses).filter(s => s === 'rejected').length} rejected,{' '}
+                {Object.values(perTargetStatuses).filter(s => s === 'pending').length} pending
+              </span>
+            </div>
+
             {/* Justification */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground">Justification (required)</label>
@@ -1984,7 +2121,7 @@ export default function EngagementOps() {
                 className="text-xs min-h-[80px]"
               />
               <p className="text-[10px] text-muted-foreground">
-                This justification will be logged in the engagement timeline as an audit trail.
+                This justification will be logged in the engagement timeline as an audit trail for each approved target.
               </p>
             </div>
           </div>
@@ -1999,19 +2136,53 @@ export default function EngagementOps() {
             <Button
               size="sm"
               className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
-              disabled={!approvalJustification.trim() || toggleOverrideMut.isPending}
+              disabled={!approvalJustification.trim() || setTargetApprovalMut.isPending || Object.values(perTargetStatuses).every(s => s === 'pending')}
               onClick={() => {
-                toggleOverrideMut.mutate({
+                const targets = Object.entries(perTargetStatuses)
+                  .filter(([_, status]) => status !== 'pending')
+                  .map(([hostname, status]) => ({
+                    target: hostname,
+                    hostname,
+                    status: status as 'approved' | 'rejected',
+                  }));
+                if (targets.length === 0) {
+                  toast.error('Please approve or reject at least one target');
+                  return;
+                }
+                setTargetApprovalMut.mutate({
                   engagementId,
-                  enabled: true,
-                  justification: approvalJustification.trim(),
+                  targets,
+                  globalJustification: approvalJustification.trim(),
                 });
               }}
             >
-              {toggleOverrideMut.isPending ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Approving...</>
+              {setTargetApprovalMut.isPending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
               ) : (
-                <><ShieldCheck className="h-3 w-3" /> Approve & Enable Active Scanning</>
+                <><ShieldCheck className="h-3 w-3" /> Save Target Approvals</>
+              )}
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+              disabled={!approvalJustification.trim() || bulkApproveMut.isPending}
+              onClick={() => {
+                const targets = (domainWhitelistStatus?.nonWhitelisted || []).map((t: string) => ({
+                  target: t,
+                  hostname: t,
+                }));
+                bulkApproveMut.mutate({
+                  engagementId,
+                  targets,
+                  justification: approvalJustification.trim(),
+                  roeReference: roeSigned ? `RoE ${roeStatus} (${roeSignedDate || 'date unknown'})` : undefined,
+                });
+              }}
+            >
+              {bulkApproveMut.isPending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Approving All...</>
+              ) : (
+                <><Shield className="h-3 w-3" /> Bulk Approve All ({domainWhitelistStatus?.nonWhitelisted.length || 0})</>
               )}
             </Button>
           </DialogFooter>
