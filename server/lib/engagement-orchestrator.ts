@@ -5925,6 +5925,64 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
     console.warn(`[ExploitTaxonomy] Enrichment failed: ${e.message}`);
   }
 
+  // ── Customer Stack Profile Auto-Load ──
+  // If a stack profile is linked to this engagement, pre-seed detected technologies
+  // and version-specific CVEs so scanners are activated even before live detection.
+  try {
+    const { getDb: getDbForProfile } = require('../db');
+    const { customerStackProfiles } = require('../../drizzle/schema');
+    const { eq: eqOp, desc: descOp } = require('drizzle-orm');
+    const dbForProfile = await getDbForProfile();
+    const linkedProfiles = await dbForProfile.select().from(customerStackProfiles)
+      .where(eqOp(customerStackProfiles.engagementId, state.engagementId))
+      .orderBy(descOp(customerStackProfiles.updatedAt))
+      .limit(1);
+    if (linkedProfiles.length > 0) {
+      const profile = linkedProfiles[0];
+      const profileTechs: string[] = [
+        ...(profile.languages || []),
+        ...(profile.webFrameworks || []),
+        ...(profile.dataAndMl || []),
+        ...(profile.genaiAndLlm || []),
+        ...(profile.cloudServices || []),
+        ...(profile.securityTools || []),
+        ...(profile.devopsAndCi || []),
+        ...(profile.databasesList || []),
+        ...(profile.infrastructure || []),
+        ...(profile.other || []),
+      ].filter(Boolean);
+      (state as any).__linkedStackProfile = {
+        id: profile.id,
+        customerName: profile.customerName,
+        technologies: profileTechs,
+        technologyVersions: profile.technologyVersions || {},
+        matchedScanners: profile.matchedScanners || [],
+      };
+      // Pre-seed version CVEs from the stack profile
+      if (profile.technologyVersions && Object.keys(profile.technologyVersions).length > 0) {
+        const { matchVersionCves } = require('../routers/stack-profile');
+        const versionCves = matchVersionCves(profile.technologyVersions);
+        (state as any).__versionCves = versionCves;
+        if (versionCves.length > 0) {
+          addLog(state, {
+            phase: 'vuln_detection', type: 'warning',
+            title: `⚠️ Stack Profile: ${versionCves.length} version-specific CVEs identified`,
+            detail: `Customer "${profile.customerName}" stack profile pre-loaded.\n` +
+              versionCves.map((c: any) => `• ${c.cveId} (${c.severity.toUpperCase()}) — ${c.technology} ${c.version} < ${c.affectedBelow}: ${c.title}`).join('\n'),
+          });
+        }
+      }
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: `📋 Stack Profile Loaded: ${profile.customerName}`,
+        detail: `Pre-seeded ${profileTechs.length} technologies and ${(profile.matchedScanners || []).length} scanner modules from linked stack profile #${profile.id}.\n` +
+          `Technologies: ${profileTechs.slice(0, 15).join(', ')}${profileTechs.length > 15 ? ` (+${profileTechs.length - 15} more)` : ''}`,
+      });
+    }
+  } catch (e: any) {
+    console.warn(`[StackProfileAutoLoad] Failed to load linked profile: ${e.message}`);
+  }
+
   // ── Technology Auto-Detection Engine ──
   // Detect specialized technologies (Streamlit, Jupyter, LangChain, FAISS, Firebase, GitHub Actions)
   // and activate corresponding scanner modules for targeted vulnerability testing.
@@ -5979,6 +6037,55 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       title: '⚠️ Tech Auto-Detection failed',
       detail: e.message,
     });
+  }
+
+  // ── Merge Stack Profile + Live Detection ──
+  // Combine pre-seeded technologies from the linked stack profile with live-detected ones.
+  // This ensures scanners are activated for both known (profile) and discovered (live) technologies.
+  try {
+    const profileData = (state as any).__linkedStackProfile;
+    const liveDetected = (state as any).__detectedTechnologies || [];
+    if (profileData && profileData.technologies.length > 0) {
+      const combinedTechs = new Set<string>([
+        ...liveDetected.map((t: any) => (typeof t === 'string' ? t : t.technology || '').toLowerCase()),
+        ...profileData.technologies.map((t: string) => t.toLowerCase()),
+      ]);
+      const profileOnly = profileData.technologies.filter((t: string) =>
+        !liveDetected.some((ld: any) => {
+          const ldName = (typeof ld === 'string' ? ld : ld.technology || '').toLowerCase();
+          return ldName.includes(t.toLowerCase()) || t.toLowerCase().includes(ldName);
+        })
+      );
+      if (profileOnly.length > 0) {
+        addLog(state, {
+          phase: 'vuln_detection', type: 'info',
+          title: `🔗 Stack Profile added ${profileOnly.length} technologies not found by live detection`,
+          detail: `Profile-only technologies: ${profileOnly.join(', ')}\nTotal combined: ${combinedTechs.size} unique technologies`,
+        });
+      }
+      // Merge scanner activations from profile
+      const existingActivations = (state as any).__scannerActivations || [];
+      const existingModules = new Set(existingActivations.map((a: any) => a.module));
+      for (const scanner of profileData.matchedScanners || []) {
+        if (!existingModules.has(scanner)) {
+          existingActivations.push({
+            module: scanner,
+            technology: 'stack-profile',
+            priority: 'high',
+            testPlanItems: [],
+            source: 'customer-stack-profile',
+          });
+          addLog(state, {
+            phase: 'vuln_detection', type: 'info',
+            title: `🧩 Scanner activated from profile: ${scanner}`,
+            detail: `Added by linked stack profile (not detected in live scan)`,
+          });
+        }
+      }
+      (state as any).__scannerActivations = existingActivations;
+    }
+  } catch (e: any) {
+    console.warn(`[StackProfileMerge] Merge failed: ${e.message}`);
   }
 
   // ── Log Nuclei fast-path hint coverage ──

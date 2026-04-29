@@ -917,3 +917,21 @@
 ### Dependency Audit & GitHub Push (Apr 29)
 - [x] Audit all imports — ensure every dependency is in package.json (not just sandbox memory)
 - [x] Push checkpoint to both GitHub repos (htcook/caldera-dashboard + hcook-aoc/AC3) for DO deployment
+
+### Version-Aware Scanner Matching + Engagement-Linked Profiles (Apr 29)
+- [x] Add technologyVersions JSON column to customerStackProfiles schema
+- [x] Build VERSION_CVE_DATABASE with 15+ CVE ranges for Streamlit, Jupyter, LangChain, FAISS, Firebase, GitHub Actions
+- [x] Implement matchVersionCves() with semver comparison logic
+- [x] Add lookupVersionCves and getCveDatabase tRPC procedures
+- [x] Update create/update mutations to return version CVE results
+- [x] Add engagementId FK column to customerStackProfiles schema (already existed)
+- [x] Add linkToEngagement and unlinkFromEngagement tRPC procedures
+- [x] Add getForOrchestrator procedure (returns profile + computed match + version CVEs)
+- [x] Wire orchestrator to auto-load linked stack profile at scan kickoff (before tech auto-detection)
+- [x] Merge stack profile technologies with live-detected technologies in orchestrator
+- [x] Update StackProfiles frontend — version input fields for trackable technologies
+- [x] Update StackProfiles frontend — EngagementLinker component on profile cards
+- [x] Add VersionCveSummary component to profile cards (expandable CVE list)
+- [x] Add version CVE preview to ProfileForm scanner match preview
+- [x] Write vitest tests for version-aware matching and engagement-linked profiles (17 tests passing)
+- [ ] Push checkpoint to GitHub repos

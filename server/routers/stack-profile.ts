@@ -16,6 +16,41 @@ import { customerStackProfiles } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 
+// ─── Version-Specific CVE Database ─────────────────────────────────────────
+
+export interface VersionCveRange {
+  technology: string;
+  cveId: string;
+  affectedBelow: string;       // Versions below this are affected (semver)
+  affectedAbove?: string;      // Optional: versions above this are affected (range)
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  scannerModule: string;
+}
+
+export const VERSION_CVE_DATABASE: VersionCveRange[] = [
+  // ─── Streamlit ───
+  { technology: 'streamlit', cveId: 'CVE-2024-0217', affectedBelow: '1.30.0', severity: 'high', title: 'Streamlit XSS via st.html', description: 'Stored XSS through st.html component in Streamlit < 1.30.0 allows arbitrary JavaScript execution in viewer browsers', scannerModule: 'streamlit-scanner' },
+  { technology: 'streamlit', cveId: 'CVE-2023-44442', affectedBelow: '1.28.0', severity: 'medium', title: 'Streamlit SSRF via file upload', description: 'Server-side request forgery through file upload widget in Streamlit < 1.28.0', scannerModule: 'streamlit-scanner' },
+  { technology: 'streamlit', cveId: 'CVE-2024-3568', affectedBelow: '1.33.0', severity: 'high', title: 'Streamlit session state manipulation', description: 'Session state injection allows cross-session data leakage in Streamlit < 1.33.0', scannerModule: 'streamlit-scanner' },
+  // ─── Jupyter ───
+  { technology: 'jupyter', cveId: 'CVE-2024-22421', affectedBelow: '7.0.7', severity: 'critical', title: 'Jupyter Server auth bypass', description: 'Authentication bypass in jupyter-server < 7.0.7 allows unauthenticated code execution', scannerModule: 'jupyter-scanner' },
+  { technology: 'jupyterlab', cveId: 'CVE-2024-22420', affectedBelow: '4.0.11', severity: 'high', title: 'JupyterLab XSS via cell output', description: 'Cross-site scripting through notebook cell output rendering in JupyterLab < 4.0.11', scannerModule: 'jupyter-scanner' },
+  { technology: 'jupyterhub', cveId: 'CVE-2024-28233', affectedBelow: '4.1.0', severity: 'high', title: 'JupyterHub CSRF token leak', description: 'CSRF token leakage via open redirect in JupyterHub < 4.1.0', scannerModule: 'jupyter-scanner' },
+  // ─── LangChain ───
+  { technology: 'langchain', cveId: 'CVE-2023-44467', affectedBelow: '0.0.312', severity: 'critical', title: 'LangChain arbitrary code execution', description: 'Arbitrary code execution via PALChain in LangChain < 0.0.312 through crafted Python expressions', scannerModule: 'langchain-agent-scanner' },
+  { technology: 'langchain', cveId: 'CVE-2024-0243', affectedBelow: '0.1.0', severity: 'high', title: 'LangChain SSRF via document loaders', description: 'Server-side request forgery through WebBaseLoader and other document loaders in LangChain < 0.1.0', scannerModule: 'langchain-agent-scanner' },
+  { technology: 'langchain', cveId: 'CVE-2024-3571', affectedBelow: '0.1.12', severity: 'high', title: 'LangChain SQL injection via SQLDatabaseChain', description: 'SQL injection through SQLDatabaseChain when user input is not sanitized in LangChain < 0.1.12', scannerModule: 'langchain-agent-scanner' },
+  // ─── FAISS ───
+  { technology: 'faiss', cveId: 'FAISS-2024-PICKLE', affectedBelow: '999.0.0', severity: 'critical', title: 'FAISS pickle deserialization RCE', description: 'All FAISS versions using pickle-based index serialization are vulnerable to arbitrary code execution via crafted index files', scannerModule: 'faiss-vector-scanner' },
+  // ─── Firebase ───
+  { technology: 'firebase', cveId: 'FIREBASE-RULES-OPEN', affectedBelow: '999.0.0', severity: 'high', title: 'Firebase Firestore open security rules', description: 'Default or misconfigured Firestore security rules allow unauthenticated read/write access', scannerModule: 'firebase-scanner' },
+  { technology: 'firebase', cveId: 'CVE-2024-1527', affectedBelow: '10.8.0', severity: 'medium', title: 'Firebase JS SDK auth token leak', description: 'Authentication token exposure in Firebase JS SDK < 10.8.0 through error messages', scannerModule: 'firebase-scanner' },
+  // ─── GitHub Actions ───
+  { technology: 'github actions', cveId: 'GHA-EXPR-INJECTION', affectedBelow: '999.0.0', severity: 'critical', title: 'GitHub Actions expression injection', description: 'Workflow files using ${{ }} expressions with untrusted input (issue title, PR body) are vulnerable to arbitrary command injection', scannerModule: 'github-actions-scanner' },
+];
+
 // ─── Scanner Module Registry ────────────────────────────────────────────────
 
 const SCANNER_REGISTRY: Record<string, {
@@ -62,7 +97,69 @@ const SCANNER_REGISTRY: Record<string, {
   },
 };
 
-// ─── Technology Matching ────────────────────────────────────────────────────
+//// ─── Semver Comparison Utility ───────────────────────────────────────────
+
+/** Returns true if versionA < versionB (simple semver comparison) */
+export function semverLessThan(versionA: string, versionB: string): boolean {
+  const partsA = versionA.split('.').map(Number);
+  const partsB = versionB.split('.').map(Number);
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const a = partsA[i] || 0;
+    const b = partsB[i] || 0;
+    if (a < b) return true;
+    if (a > b) return false;
+  }
+  return false; // equal
+}
+
+// ─── Version-Aware CVE Matching ─────────────────────────────────────────
+
+export interface VersionCveMatch {
+  technology: string;
+  version: string;
+  cveId: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  scannerModule: string;
+  affectedBelow: string;
+}
+
+/**
+ * Match technology versions against the CVE database.
+ * Returns CVEs that apply to the given technology+version combinations.
+ */
+export function matchVersionCves(
+  technologyVersions: Record<string, string>
+): VersionCveMatch[] {
+  const matches: VersionCveMatch[] = [];
+  for (const [tech, version] of Object.entries(technologyVersions)) {
+    if (!version || !version.trim()) continue;
+    const normalizedTech = tech.toLowerCase().trim();
+    const cleanVersion = version.replace(/^v/i, '').trim();
+    for (const cve of VERSION_CVE_DATABASE) {
+      if (cve.technology !== normalizedTech) continue;
+      if (semverLessThan(cleanVersion, cve.affectedBelow)) {
+        matches.push({
+          technology: tech,
+          version: cleanVersion,
+          cveId: cve.cveId,
+          severity: cve.severity,
+          title: cve.title,
+          description: cve.description,
+          scannerModule: cve.scannerModule,
+          affectedBelow: cve.affectedBelow,
+        });
+      }
+    }
+  }
+  // Sort by severity: critical > high > medium > low
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  matches.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  return matches;
+}
+
+// ─── Technology Matching ────────────────────────────────────────────────
 
 function matchScannersToStack(stack: string[]): {
   matched: string[];
@@ -140,6 +237,7 @@ const stackProfileInput = z.object({
   databasesList: z.array(z.string()).optional(),
   infrastructure: z.array(z.string()).optional(),
   other: z.array(z.string()).optional(),
+  technologyVersions: z.record(z.string(), z.string()).optional(),
   notes: z.string().optional(),
 });
 
@@ -181,6 +279,11 @@ export const stackProfileRouter = router({
       const allTechs = flattenStack(input);
       const { matched, coveragePercent, gaps } = matchScannersToStack(allTechs);
 
+      // Version-aware CVE matching
+      const versionCves = input.technologyVersions
+        ? matchVersionCves(input.technologyVersions)
+        : [];
+
       const db = await getDb();
       const [result] = await db.insert(customerStackProfiles).values({
         customerName: input.customerName,
@@ -195,6 +298,7 @@ export const stackProfileRouter = router({
         databasesList: input.databasesList || null,
         infrastructure: input.infrastructure || null,
         other: input.other || null,
+        technologyVersions: input.technologyVersions || null,
         matchedScanners: matched,
         coveragePercent,
         gaps,
@@ -202,7 +306,7 @@ export const stackProfileRouter = router({
         createdBy: ctx.user?.id || null,
       });
 
-      return { id: result.insertId, matchedScanners: matched, coveragePercent, gaps };
+      return { id: result.insertId, matchedScanners: matched, coveragePercent, gaps, versionCves };
     }),
 
   /** Update an existing stack profile */
@@ -212,9 +316,14 @@ export const stackProfileRouter = router({
       const { id, ...updates } = input;
       const allTechs = flattenStack(updates as any);
       let matchData: any = {};
+      let versionCves: VersionCveMatch[] = [];
       if (allTechs.length > 0) {
         const { matched, coveragePercent, gaps } = matchScannersToStack(allTechs);
         matchData = { matchedScanners: matched, coveragePercent, gaps };
+      }
+      if (updates.technologyVersions) {
+        versionCves = matchVersionCves(updates.technologyVersions);
+        matchData.technologyVersions = updates.technologyVersions;
       }
 
       const db = await getDb();
@@ -222,7 +331,7 @@ export const stackProfileRouter = router({
         .set({ ...updates, ...matchData })
         .where(eq(customerStackProfiles.id, id));
 
-      return { success: true, ...matchData };
+      return { success: true, ...matchData, versionCves };
     }),
 
   /** Delete a stack profile */
@@ -467,5 +576,81 @@ Return ONLY a JSON array of objects with these fields.`;
           message: `Failed to detect technologies: ${e.message}`,
         });
       }
+    }),
+
+  /** Look up version-specific CVEs for a set of technology+version pairs (preview without saving) */
+  lookupVersionCves: protectedProcedure
+    .input(z.object({ technologyVersions: z.record(z.string(), z.string()) }))
+    .mutation(({ input }) => {
+      return {
+        cves: matchVersionCves(input.technologyVersions),
+        database: VERSION_CVE_DATABASE.map(c => ({ technology: c.technology, cveId: c.cveId, affectedBelow: c.affectedBelow, severity: c.severity, title: c.title })),
+      };
+    }),
+
+  /** Get the full CVE database for reference */
+  getCveDatabase: protectedProcedure.query(() => {
+    return VERSION_CVE_DATABASE.map(c => ({
+      technology: c.technology,
+      cveId: c.cveId,
+      affectedBelow: c.affectedBelow,
+      severity: c.severity,
+      title: c.title,
+      description: c.description,
+      scannerModule: c.scannerModule,
+    }));
+  }),
+
+  /** Link a stack profile to an engagement */
+  linkToEngagement: protectedProcedure
+    .input(z.object({ profileId: z.number(), engagementId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      const [profile] = await db.select().from(customerStackProfiles)
+        .where(eq(customerStackProfiles.id, input.profileId));
+      if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Stack profile not found" });
+
+      await db.update(customerStackProfiles)
+        .set({ engagementId: input.engagementId })
+        .where(eq(customerStackProfiles.id, input.profileId));
+
+      return { success: true, profileId: input.profileId, engagementId: input.engagementId };
+    }),
+
+  /** Unlink a stack profile from its engagement */
+  unlinkFromEngagement: protectedProcedure
+    .input(z.object({ profileId: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      await db.update(customerStackProfiles)
+        .set({ engagementId: null })
+        .where(eq(customerStackProfiles.id, input.profileId));
+      return { success: true };
+    }),
+
+  /**
+   * Get the stack profile for an engagement (used by the orchestrator at scan kickoff).
+   * Returns the most recently updated profile linked to the engagement, or null.
+   */
+  getForOrchestrator: protectedProcedure
+    .input(z.object({ engagementId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const profiles = await db.select().from(customerStackProfiles)
+        .where(eq(customerStackProfiles.engagementId, input.engagementId))
+        .orderBy(desc(customerStackProfiles.updatedAt))
+        .limit(1);
+      if (!profiles.length) return null;
+      const profile = profiles[0];
+      const allTechs = flattenStack(profile);
+      const { matched, coveragePercent, gaps } = matchScannersToStack(allTechs);
+      const versionCves = profile.technologyVersions
+        ? matchVersionCves(profile.technologyVersions as Record<string, string>)
+        : [];
+      return {
+        ...profile,
+        computedMatch: { matched, coveragePercent, gaps },
+        versionCves,
+      };
     }),
 });

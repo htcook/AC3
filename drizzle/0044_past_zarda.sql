@@ -1,0 +1,1 @@
+ALTER TABLE `customer_stack_profiles` ADD `technology_versions` json;

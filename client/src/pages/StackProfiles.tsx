@@ -2,7 +2,8 @@
  * Customer Stack Profile Page
  * ============================
  * Manage customer technology stacks, match to scanner modules,
- * generate tailored test plans, and run live probes.
+ * generate tailored test plans, run live probes, and link profiles
+ * to engagements for orchestrator auto-load.
  *
  * @author Harrison Cook — AceofCloud
  */
@@ -20,7 +21,7 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Search, Layers, Shield, Zap, AlertTriangle,
   ChevronDown, ChevronRight, Loader2, Radar, FileText, X,
-  CheckCircle2, XCircle, Target,
+  CheckCircle2, XCircle, Target, Link2, Unlink, Bug,
 } from "lucide-react";
 
 // ─── Technology Categories ──────────────────────────────────────────────────
@@ -39,6 +40,12 @@ const TECH_CATEGORIES = [
 ] as const;
 
 type CategoryKey = typeof TECH_CATEGORIES[number]["key"];
+
+// Technologies that support version-specific CVE matching
+const VERSION_TRACKABLE_TECHS = [
+  "streamlit", "jupyter", "jupyterlab", "jupyterhub", "langchain",
+  "faiss", "firebase", "github actions",
+];
 
 // ─── Tag Input Component ────────────────────────────────────────────────────
 
@@ -91,6 +98,104 @@ function TagInput({
   );
 }
 
+// ─── Version CVE Badge ──────────────────────────────────────────────────────
+
+function CveSeverityBadge({ severity }: { severity: string }) {
+  const colors: Record<string, string> = {
+    critical: "bg-red-500/20 text-red-400 border-red-500/30",
+    high: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    medium: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    low: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  };
+  return (
+    <Badge variant="outline" className={`text-[10px] ${colors[severity] || ""}`}>
+      {severity.toUpperCase()}
+    </Badge>
+  );
+}
+
+// ─── Engagement Linker Component ────────────────────────────────────────────
+
+function EngagementLinker({
+  profileId,
+  currentEngagementId,
+  onLinked,
+}: {
+  profileId: number;
+  currentEngagementId: number | null;
+  onLinked: () => void;
+}) {
+  const [engagementIdInput, setEngagementIdInput] = useState("");
+  const utils = trpc.useUtils();
+
+  const linkMutation = trpc.stackProfile.linkToEngagement.useMutation({
+    onSuccess: () => {
+      toast.success("Profile linked to engagement");
+      utils.stackProfile.list.invalidate();
+      onLinked();
+    },
+    onError: (err) => toast.error(`Link failed: ${err.message}`),
+  });
+
+  const unlinkMutation = trpc.stackProfile.unlinkFromEngagement.useMutation({
+    onSuccess: () => {
+      toast.success("Profile unlinked from engagement");
+      utils.stackProfile.list.invalidate();
+      onLinked();
+    },
+    onError: (err) => toast.error(`Unlink failed: ${err.message}`),
+  });
+
+  if (currentEngagementId) {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant="secondary" className="text-xs gap-1">
+          <Link2 className="h-3 w-3 text-emerald-400" />
+          Engagement #{currentEngagementId}
+        </Badge>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => unlinkMutation.mutate({ profileId })}
+          disabled={unlinkMutation.isPending}
+        >
+          {unlinkMutation.isPending ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Unlink className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        value={engagementIdInput}
+        onChange={(e) => setEngagementIdInput(e.target.value.replace(/\D/g, ""))}
+        placeholder="Engagement ID"
+        className="h-7 w-28 text-xs"
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
+        onClick={() => {
+          const id = parseInt(engagementIdInput);
+          if (!id || isNaN(id)) { toast.error("Enter a valid engagement ID"); return; }
+          linkMutation.mutate({ profileId, engagementId: id });
+        }}
+        disabled={linkMutation.isPending || !engagementIdInput}
+      >
+        {linkMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+        <span className="ml-1">Link</span>
+      </Button>
+    </div>
+  );
+}
+
 // ─── Profile Form ───────────────────────────────────────────────────────────
 
 function ProfileForm({
@@ -111,14 +216,32 @@ function ProfileForm({
     }
     return initial as Record<CategoryKey, string[]>;
   });
+  const [technologyVersions, setTechnologyVersions] = useState<Record<string, string>>(
+    () => initialData?.technologyVersions || {}
+  );
+  const [showVersions, setShowVersions] = useState(
+    () => initialData?.technologyVersions && Object.keys(initialData.technologyVersions).length > 0
+  );
 
   const allTechs = useMemo(
     () => Object.values(techStacks).flat().filter(Boolean),
     [techStacks]
   );
 
+  // Find which techs support version tracking
+  const versionTrackableTechs = useMemo(() => {
+    return allTechs.filter(t =>
+      VERSION_TRACKABLE_TECHS.some(vt =>
+        t.toLowerCase().includes(vt) || vt.includes(t.toLowerCase())
+      )
+    );
+  }, [allTechs]);
+
   // Live scanner matching preview
   const matchPreview = trpc.stackProfile.matchScanners.useMutation();
+
+  // Version CVE preview
+  const versionCvePreview = trpc.stackProfile.lookupVersionCves.useMutation();
 
   const handlePreview = () => {
     if (allTechs.length === 0) {
@@ -126,6 +249,13 @@ function ProfileForm({
       return;
     }
     matchPreview.mutate({ technologies: allTechs });
+    // Also check version CVEs if any versions are set
+    const activeVersions = Object.fromEntries(
+      Object.entries(technologyVersions).filter(([, v]) => v.trim())
+    );
+    if (Object.keys(activeVersions).length > 0) {
+      versionCvePreview.mutate({ technologyVersions: activeVersions });
+    }
   };
 
   return (
@@ -137,6 +267,7 @@ function ProfileForm({
         </CardTitle>
         <CardDescription>
           Define the customer's technology stack to auto-match scanner modules and generate tailored test plans.
+          Add version numbers to enable version-specific CVE matching.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -166,6 +297,53 @@ function ProfileForm({
             </div>
           ))}
         </div>
+
+        {/* Version Tracking Section */}
+        {versionTrackableTechs.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <Bug className="h-4 w-4 text-amber-400" />
+                Technology Versions (CVE Matching)
+              </Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => setShowVersions(!showVersions)}
+              >
+                {showVersions ? "Hide" : "Show"} Version Fields
+                {showVersions ? <ChevronDown className="h-3 w-3 ml-1" /> : <ChevronRight className="h-3 w-3 ml-1" />}
+              </Button>
+            </div>
+            {showVersions && (
+              <div className="rounded-lg border bg-card/50 p-4 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Enter version numbers for technologies with known CVE ranges.
+                  The system will flag version-specific vulnerabilities automatically.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {versionTrackableTechs.map((tech) => (
+                    <div key={tech} className="space-y-1">
+                      <Label className="text-[11px] text-muted-foreground">{tech}</Label>
+                      <Input
+                        value={technologyVersions[tech.toLowerCase()] || ""}
+                        onChange={(e) =>
+                          setTechnologyVersions((prev) => ({
+                            ...prev,
+                            [tech.toLowerCase()]: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. 1.28.0"
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Notes */}
         <div className="space-y-2">
@@ -227,6 +405,32 @@ function ProfileForm({
               )}
             </div>
           )}
+
+          {/* Version CVE Preview */}
+          {versionCvePreview.data && versionCvePreview.data.cves.length > 0 && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Bug className="h-4 w-4 text-red-400" />
+                <span className="text-sm font-medium text-red-400">
+                  {versionCvePreview.data.cves.length} Version-Specific CVEs Found
+                </span>
+              </div>
+              <div className="space-y-2">
+                {versionCvePreview.data.cves.map((cve: any, i: number) => (
+                  <div key={i} className="text-xs border-l-2 border-red-400/50 pl-3 py-1">
+                    <div className="flex items-center gap-2">
+                      <CveSeverityBadge severity={cve.severity} />
+                      <span className="font-mono font-medium">{cve.cveId}</span>
+                      <span className="text-muted-foreground">
+                        {cve.technology} {cve.version} &lt; {cve.affectedBelow}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground mt-0.5">{cve.title}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -240,7 +444,15 @@ function ProfileForm({
                 toast.error("Customer name is required");
                 return;
               }
-              onSave({ customerName, ...techStacks, notes });
+              const activeVersions = Object.fromEntries(
+                Object.entries(technologyVersions).filter(([, v]) => v.trim())
+              );
+              onSave({
+                customerName,
+                ...techStacks,
+                technologyVersions: Object.keys(activeVersions).length > 0 ? activeVersions : undefined,
+                notes,
+              });
             }}
           >
             {initialData ? "Update Profile" : "Create Profile"}
@@ -443,6 +655,73 @@ function LiveProbePanel() {
   );
 }
 
+// ─── Version CVE Summary ────────────────────────────────────────────────────
+
+function VersionCveSummary({ profile }: { profile: any }) {
+  const [expanded, setExpanded] = useState(false);
+  const versions = profile.technologyVersions as Record<string, string> | null;
+  if (!versions || Object.keys(versions).length === 0) return null;
+
+  const lookupCves = trpc.stackProfile.lookupVersionCves.useMutation();
+
+  return (
+    <div className="space-y-2">
+      <button
+        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+        onClick={() => {
+          if (!expanded && !lookupCves.data) {
+            lookupCves.mutate({ technologyVersions: versions });
+          }
+          setExpanded(!expanded);
+        }}
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <Bug className="h-3 w-3 text-amber-400" />
+        Version CVEs ({Object.keys(versions).length} tracked)
+      </button>
+      {expanded && (
+        <div className="space-y-2 pl-4">
+          {/* Version list */}
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(versions).map(([tech, ver]) => (
+              <Badge key={tech} variant="outline" className="text-[10px] font-mono">
+                {tech}: {ver}
+              </Badge>
+            ))}
+          </div>
+          {/* CVE results */}
+          {lookupCves.isPending && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Checking CVE database...
+            </div>
+          )}
+          {lookupCves.data && lookupCves.data.cves.length > 0 && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+              <span className="text-xs font-medium text-red-400">
+                {lookupCves.data.cves.length} CVEs affect these versions
+              </span>
+              {lookupCves.data.cves.map((cve: any, i: number) => (
+                <div key={i} className="text-[11px] border-l-2 border-red-400/50 pl-2 py-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <CveSeverityBadge severity={cve.severity} />
+                    <span className="font-mono">{cve.cveId}</span>
+                  </div>
+                  <p className="text-muted-foreground">{cve.title}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {lookupCves.data && lookupCves.data.cves.length === 0 && (
+            <p className="text-xs text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" /> No known CVEs for these versions
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Profile Card ───────────────────────────────────────────────────────────
 
 function ProfileCard({
@@ -455,6 +734,7 @@ function ProfileCard({
   onDelete: () => void;
 }) {
   const [showTestPlan, setShowTestPlan] = useState(false);
+  const utils = trpc.useUtils();
   const allTechs = useMemo(() => {
     const stacks = [
       profile.languages, profile.webFrameworks, profile.dataAndMl,
@@ -487,6 +767,13 @@ function ProfileCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Engagement Link */}
+        <EngagementLinker
+          profileId={profile.id}
+          currentEngagementId={profile.engagementId}
+          onLinked={() => utils.stackProfile.list.invalidate()}
+        />
+
         {/* Tech tags preview */}
         <div className="flex flex-wrap gap-1">
           {allTechs.slice(0, 12).map((tech: string) => (
@@ -528,6 +815,9 @@ function ProfileCard({
           </div>
         )}
 
+        {/* Version CVE Summary */}
+        <VersionCveSummary profile={profile} />
+
         {/* Test Plan Section */}
         <div className="pt-1">
           <button
@@ -556,7 +846,10 @@ export default function StackProfiles() {
 
   const createProfile = trpc.stackProfile.create.useMutation({
     onSuccess: (data) => {
-      toast.success(`Profile created — ${data.matchedScanners.length} scanners matched (${data.coveragePercent}% coverage)`);
+      const cveMsg = data.versionCves?.length
+        ? ` — ${data.versionCves.length} version-specific CVEs found!`
+        : "";
+      toast.success(`Profile created — ${data.matchedScanners.length} scanners matched (${data.coveragePercent}% coverage)${cveMsg}`);
       utils.stackProfile.list.invalidate();
       setShowForm(false);
     },
@@ -564,8 +857,11 @@ export default function StackProfiles() {
   });
 
   const updateProfile = trpc.stackProfile.update.useMutation({
-    onSuccess: () => {
-      toast.success("Profile updated");
+    onSuccess: (data) => {
+      const cveMsg = data.versionCves?.length
+        ? ` — ${data.versionCves.length} version-specific CVEs found!`
+        : "";
+      toast.success(`Profile updated${cveMsg}`);
       utils.stackProfile.list.invalidate();
       setEditingProfile(null);
       setShowForm(false);
@@ -604,7 +900,8 @@ export default function StackProfiles() {
             Customer Stack Profiles
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Map customer technology stacks to scanner modules, identify coverage gaps, and generate tailored test plans.
+            Map customer technology stacks to scanner modules, identify coverage gaps, track version-specific CVEs,
+            and link profiles to engagements for automatic orchestrator pre-loading.
           </p>
         </div>
         <Button onClick={() => { setEditingProfile(null); setShowForm(true); }}>
