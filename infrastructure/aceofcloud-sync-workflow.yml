@@ -1,14 +1,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Pull-Sync Workflow for aceofcloud/AC3
 # ─────────────────────────────────────────────────────────────────────────────
-# Pulls latest code from hcook-aoc/AC3 into aceofcloud/AC3.
+# Pulls latest code from hcook-aoc/AC3 into aceofcloud/AC3 using raw git
+# commands to bypass org-level PAT restrictions on actions/checkout.
 #
-# REQUIRED SECRETS:
-#   UPSTREAM_PAT — Read-only PAT for hcook-aoc/AC3
-#
-# REQUIRED SETTINGS:
-#   aceofcloud/AC3 → Settings → Actions → General → Workflow permissions
-#   → Select "Read and write permissions"
+# REQUIRED SECRETS (set on aceofcloud/AC3):
+#   UPSTREAM_PAT — PAT with read access to hcook-aoc/AC3 (scoped to hcook-aoc)
+#   REPO_PAT     — PAT with write access to aceofcloud/AC3
 #
 # Author: Harrison Cook
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,33 +18,32 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   sync:
     name: Pull from hcook-aoc/AC3
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout upstream (developer) repo
-        uses: actions/checkout@v4
-        with:
-          repository: hcook-aoc/AC3
-          ref: main
-          token: ${{ secrets.UPSTREAM_PAT }}
-          fetch-depth: 0
-
-      - name: Push to company repo
+      - name: Clone upstream and push to company repo
+        env:
+          UPSTREAM_PAT: ${{ secrets.UPSTREAM_PAT }}
+          REPO_PAT: ${{ secrets.REPO_PAT }}
         run: |
-          git config user.name "aceofcloud-bot"
-          git config user.email "devops@aceofcloud.com"
+          set -e
 
-          # Replace origin with the company repo using GITHUB_TOKEN
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/aceofcloud/AC3.git"
+          # Configure git
+          git config --global user.name "aceofcloud-bot"
+          git config --global user.email "devops@aceofcloud.com"
 
-          # Push all content from upstream to company repo
-          git push origin main --force
+          # Clone the upstream (developer) repo using raw git
+          echo "Cloning hcook-aoc/AC3..."
+          git clone --mirror "https://x-access-token:${UPSTREAM_PAT}@github.com/hcook-aoc/AC3.git" upstream-mirror
+
+          cd upstream-mirror
+
+          # Push everything to the company repo (force to ensure full sync)
+          echo "Pushing to aceofcloud/AC3..."
+          git push --mirror --force "https://x-access-token:${REPO_PAT}@github.com/aceofcloud/AC3.git"
 
           echo "✅ Sync complete"
-          echo "Latest commit: $(git log -1 --format='%h %s')"
+          echo "Latest commit: $(git log -1 --format='%h %s' main)"

@@ -858,3 +858,12 @@
 - [x] Add ACEOFCLOUD_PAT secret to hcook-aoc/AC3 (user set manually)
 - [x] Verify push to aceofcloud/AC3 works (3,196 objects pushed, aceofcloud PAT confirmed push:true)
 - [x] Set AWS_ACCOUNT_ID (808038814732) and AWS_REGION (us-east-1) variables on aceofcloud/AC3 via API
+
+### Auto-Engagement Creation from Parsed Programs (Apr 29)
+- [x] Auto-create engagements from parsed bug bounty programs when sufficient supporting data exists
+- [x] Ensure all in-scope assets are identified and added to the engagement automatically
+- [x] Create autoCreateEngagement backend function (server/lib/auto-engagement-creator.ts)
+- [x] Wire auto-engagement creation into parseBugBountyPolicy and batch parse flows
+- [x] Add frontend notification/toast with link to new engagement
+- [x] Write vitest tests for auto-engagement creation (7 tests passing)
+- [x] Support auto-engagement creation from any URL (not just known platforms) — parse page for scope data via LLM

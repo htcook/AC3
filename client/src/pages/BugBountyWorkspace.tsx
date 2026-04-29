@@ -162,6 +162,26 @@ export default function BugBountyWorkspace() {
       toast.success('Program parsed successfully', {
         description: `${result.programName} — ${result.scope.inScope.length} in-scope targets`,
       });
+      // Notify about auto-created engagement
+      const autoEng = (result as any).autoEngagement;
+      if (autoEng?.created) {
+        toast.success('Engagement auto-created', {
+          description: `${autoEng.engagementName || 'New engagement'} — ${autoEng.totalAssetsAdded} assets added`,
+          action: {
+            label: 'View',
+            onClick: () => window.location.href = `/engagements/${autoEng.engagementId}`,
+          },
+          duration: 8000,
+        });
+      } else if (autoEng && !autoEng.created && autoEng.engagementId) {
+        toast.info('Engagement already exists', {
+          description: `Engagement #${autoEng.engagementId} already covers this program`,
+          action: {
+            label: 'View',
+            onClick: () => window.location.href = `/engagements/${autoEng.engagementId}`,
+          },
+        });
+      }
       setActiveTab('scope');
     } catch (err: any) {
       toast.error('Failed to parse program', { description: err.message });
@@ -176,6 +196,7 @@ export default function BugBountyWorkspace() {
     setIsBatchParsing(true);
     let successCount = 0;
     let errorCount = 0;
+    let engagementsCreated = 0;
     for (const url of urls) {
       try {
         const result = await parsePolicy.mutateAsync({ programUrl: url });
@@ -193,14 +214,23 @@ export default function BugBountyWorkspace() {
         setPolicy(pol);
         setSelectedPlatform(result.platform || 'hackerone');
         successCount++;
+        // Track auto-engagement creation
+        const autoEng = (result as any).autoEngagement;
+        if (autoEng?.created) engagementsCreated++;
       } catch {
         errorCount++;
       }
     }
     setIsBatchParsing(false);
     toast.success(`Batch parse complete`, {
-      description: `${successCount} succeeded, ${errorCount} failed out of ${urls.length} programs`,
+      description: `${successCount} succeeded, ${errorCount} failed out of ${urls.length} programs${engagementsCreated > 0 ? `. ${engagementsCreated} engagement(s) auto-created.` : ''}`,
     });
+    if (engagementsCreated > 0) {
+      toast.success(`${engagementsCreated} engagement(s) auto-created`, {
+        description: 'Engagements were automatically created for programs with sufficient scope data.',
+        duration: 6000,
+      });
+    }
     if (successCount > 0) setActiveTab('scope');
   };
 

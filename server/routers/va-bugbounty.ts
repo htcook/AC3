@@ -236,18 +236,39 @@ export const vaBugBountyRouter = router({
    * Returns a frontend-compatible PolicyROE with populated scope data.
    */
   parseBugBountyPolicy: protectedProcedure
-    .input(z.object({ programUrl: z.string() }))
+    .input(z.object({ programUrl: z.string(), autoCreateEngagement: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       const parsed = parseProgramUrl(input.programUrl);
       if (!parsed) {
-        throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack, OpenBugBounty');
+        // Unknown platform — try LLM-based parsing for any URL
+        const { parseUnknownProgramUrl, autoCreateEngagement } = await import('../lib/auto-engagement-creator.js');
+        const customResult = await parseUnknownProgramUrl(input.programUrl);
+        if (!customResult || customResult.scope.inScope.length === 0) {
+          throw new Error('Could not parse program URL. Supported platforms: HackerOne, Bugcrowd, Intigriti, YesWeHack, OpenBugBounty, or any page with identifiable scope data.');
+        }
+        // Auto-create engagement if sufficient data (default: true)
+        let autoEngagement = undefined;
+        if (input.autoCreateEngagement !== false) {
+          autoEngagement = await autoCreateEngagement(customResult, ctx.user.id, customResult.parseConfidence || 0.6);
+        }
+        return { ...customResult, autoEngagement };
       }
 
       // Check cache first (6-hour TTL)
       const cacheKey = `${parsed.platform}:${parsed.programSlug}`;
       const cached = await getPolicyCacheEntry(cacheKey);
       if (cached) {
-        return cached;
+        // Auto-create engagement from cached result if requested
+        let autoEngagement = undefined;
+        if (input.autoCreateEngagement !== false) {
+          try {
+            const { autoCreateEngagement } = await import('../lib/auto-engagement-creator.js');
+            autoEngagement = await autoCreateEngagement(cached, ctx.user.id, 0.7);
+          } catch (err: any) {
+            console.warn(`[BB Workspace] Auto-engagement creation failed (cached):`, err.message);
+          }
+        }
+        return { ...cached, autoEngagement };
       }
 
       const skeleton = createSkeletonPolicy({
@@ -530,7 +551,19 @@ export const vaBugBountyRouter = router({
       // Cache the result (6-hour TTL)
       await setPolicyCacheEntry(cacheKey, parsed.platform, parsed.programSlug, input.programUrl, result);
 
-      return result;
+      // Auto-create engagement if sufficient data (default: true for known platforms)
+      let autoEngagement = undefined;
+      if (input.autoCreateEngagement !== false && skeleton.parseConfidence >= 0.5) {
+        try {
+          const { autoCreateEngagement } = await import('../lib/auto-engagement-creator.js');
+          autoEngagement = await autoCreateEngagement(result, ctx.user.id, skeleton.parseConfidence);
+        } catch (err: any) {
+          console.warn(`[BB Workspace] Auto-engagement creation failed for ${result.programName}:`, err.message);
+          // Non-fatal: parsing still succeeds without auto-engagement
+        }
+      }
+
+      return { ...result, autoEngagement };
     }),
 
   parseProgramUrl: protectedProcedure
