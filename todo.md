@@ -893,3 +893,12 @@
 
 ### EngagementOps Page Error Fix (Apr 29)
 - [x] Diagnose and fix EngagementOps page error — moved RoE detection and per-target status useEffects after domainWhitelistStatus/engagement are defined (was referencing variables before declaration)
+
+### Gap Module Sprint — Customer Stack Coverage (Apr 29)
+- [x] Streamlit security scanner: fingerprinting, CVE database, HTML injection/widget manipulation/session poisoning payloads, test plan generation
+- [x] Jupyter Notebook security scanner: fingerprinting (Notebook/Lab/Hub/KernelGateway), kernel execution payloads, path traversal, CVE database, test plan
+- [x] LangChain agent security: dangerous tools registry (ShellTool, PythonREPL, etc.), tool injection/memory poisoning/guardrail bypass/RAG manipulation payloads, agent profiling, test plan
+- [x] FAISS vector DB security: index file exposure paths, pickle RCE concepts, embedding extraction, vector poisoning, denial of service, test plan
+- [x] Firebase security: config extraction from JS, Firestore rules testing, auth bypass, Cloud Functions enumeration, CVE database, test plan
+- [x] GitHub Actions workflow injection: expression injection detection (- run: + ${{ }}), pull_request_target abuse, unpinned actions, self-hosted runner abuse, secret exposure, test plan
+- [x] Write vitest tests for all 6 modules (34 tests passing)
