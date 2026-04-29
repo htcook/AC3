@@ -5925,6 +5925,62 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
     console.warn(`[ExploitTaxonomy] Enrichment failed: ${e.message}`);
   }
 
+  // ── Technology Auto-Detection Engine ──
+  // Detect specialized technologies (Streamlit, Jupyter, LangChain, FAISS, Firebase, GitHub Actions)
+  // and activate corresponding scanner modules for targeted vulnerability testing.
+  try {
+    const { detectTechnologies, formatDetectionSummary, buildScannerActivations } = require('./scanners/tech-auto-detector');
+    const assetSignals = state.assets.map((asset: any) => ({
+      hostname: asset.hostname || asset.target || '',
+      ip: asset.ip,
+      headers: asset.headers || {},
+      html: asset.html || '',
+      technologies: asset.technologies || [],
+      ports: asset.ports || [],
+      passiveRecon: {
+        technologies: asset.passiveReconTechs || [],
+        cloudProvider: asset.cloudProvider,
+        riskSignals: asset.riskSignals || [],
+      },
+      repoUrl: asset.repoUrl || asset.url || '',
+      responseSnippets: asset.responseSnippets || [],
+    }));
+    const techResult = detectTechnologies(assetSignals);
+    if (techResult.confirmedTechnologies.length > 0) {
+      const summary = formatDetectionSummary(techResult);
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: `🔍 Tech Auto-Detection: ${techResult.confirmedTechnologies.length} specialized technologies found`,
+        detail: summary,
+      });
+      // Store detected technologies and scanner activations on state for downstream use
+      (state as any).__detectedTechnologies = techResult.confirmedTechnologies;
+      (state as any).__scannerActivations = buildScannerActivations(techResult);
+      (state as any).__techTestPlanItems = techResult.testPlanItems;
+      // Log each recommended scanner module
+      for (const activation of buildScannerActivations(techResult)) {
+        addLog(state, {
+          phase: 'vuln_detection', type: 'info',
+          title: `🧩 Scanner activated: ${activation.module} (${activation.technology})`,
+          detail: `Priority ${activation.priority} — ${activation.testPlanItems.length} test plan items generated`,
+        });
+      }
+    } else {
+      addLog(state, {
+        phase: 'vuln_detection', type: 'info',
+        title: '🔍 Tech Auto-Detection: No specialized technologies detected',
+        detail: 'Checked for Streamlit, Jupyter, LangChain, FAISS, Firebase, GitHub Actions — none confirmed above threshold.',
+      });
+    }
+  } catch (e: any) {
+    console.warn(`[TechAutoDetector] Detection failed: ${e.message}`);
+    addLog(state, {
+      phase: 'vuln_detection', type: 'warning',
+      title: '⚠️ Tech Auto-Detection failed',
+      detail: e.message,
+    });
+  }
+
   // ── Log Nuclei fast-path hint coverage ──
   const nucleiHintedVulns = state.assets.reduce((sum, a) => sum + a.vulns.filter((v: any) => v.__nucleiHint).length, 0);
   if (nucleiHintedVulns > 0) {

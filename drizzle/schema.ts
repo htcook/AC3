@@ -8068,3 +8068,35 @@ export const engagementApprovedTargets = mysqlTable("engagement_approved_targets
 	index("eat_engagement_idx").on(table.engagementId),
 	index("eat_hostname_idx").on(table.engagementId, table.hostname),
 ]);
+
+// ─── Customer Stack Profiles ────────────────────────────────────────────────
+// Stores customer technology stack profiles linked to engagements.
+// Used to auto-generate tailored test plans from all relevant scanner modules.
+export const customerStackProfiles = mysqlTable("customer_stack_profiles", {
+id: int("id").autoincrement().primaryKey(),
+engagementId: int("engagement_id"),
+customerName: varchar("customer_name", { length: 255 }).notNull(),
+languages: json("languages").$type<string[]>(),
+webFrameworks: json("web_frameworks").$type<string[]>(),
+dataAndMl: json("data_and_ml").$type<string[]>(),
+genaiAndLlm: json("genai_and_llm").$type<string[]>(),
+cloudServices: json("cloud_services").$type<string[]>(),
+securityTools: json("security_tools").$type<string[]>(),
+devopsAndCi: json("devops_and_ci").$type<string[]>(),
+databasesList: json("databases_list").$type<string[]>(),
+infrastructure: json("infrastructure").$type<string[]>(),
+other: json("other_techs").$type<string[]>(),
+autoDetected: json("auto_detected").$type<string[]>(),
+generatedTestPlan: json("generated_test_plan").$type<{title:string;description:string;scannerModule?:string;priority:string}[]>(),
+matchedScanners: json("matched_scanners").$type<string[]>(),
+coveragePercent: int("coverage_percent"),
+gaps: json("gaps").$type<string[]>(),
+notes: text("notes"),
+createdBy: int("created_by"),
+createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
+updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+index("csp_engagement_idx").on(table.engagementId),
+index("csp_customer_idx").on(table.customerName),
+]);

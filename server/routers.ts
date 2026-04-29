@@ -232,6 +232,7 @@ import { scoutsuiteIntegrationRouter } from "./routers/scoutsuite-integration";
 import { cspmDashboardRouter } from "./routers/cspm-dashboard";
 import { cspmScheduledScansRouter } from "./routers/cspm-scheduled-scans";
 import { vaBugBountyRouter } from "./routers/va-bugbounty";
+import { stackProfileRouter } from "./routers/stack-profile";
 
 // Caldera session cookie name
 const CALDERA_SESSION_COOKIE = 'caldera_session';
@@ -631,6 +632,7 @@ export const appRouter = router({
   cspmDashboard: cspmDashboardRouter,
   cspmScheduledScans: cspmScheduledScansRouter,
   vaBugBounty: vaBugBountyRouter,
+  stackProfile: stackProfileRouter,
 });
 export type AppRouter = typeof appRouter;
 

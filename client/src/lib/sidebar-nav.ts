@@ -330,6 +330,7 @@ export const sidebarNavGroups: NavGroup[] = [
       { label: "Finding Normalizer", path: "/va-wizard", icon: Layers, roles: ["admin", "operator", "team_lead"] },
       { label: "Triage Queue", path: "/triage-queue", icon: ShieldCheck, roles: ["admin", "operator", "team_lead", "analyst"] },
       { label: "Scan Schedules", path: "/scan-schedules", icon: CalendarClock },
+      { label: "Stack Profiles", path: "/stack-profiles", icon: Layers },
     ],
   },
 

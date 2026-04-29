@@ -902,3 +902,18 @@
 - [x] Firebase security: config extraction from JS, Firestore rules testing, auth bypass, Cloud Functions enumeration, CVE database, test plan
 - [x] GitHub Actions workflow injection: expression injection detection (- run: + ${{ }}), pull_request_target abuse, unpinned actions, self-hosted runner abuse, secret exposure, test plan
 - [x] Write vitest tests for all 6 modules (34 tests passing)
+
+### Orchestrator + Stack Profile + Live Probe Sprint (Apr 29)
+- [x] Wire gap scanners into engagement orchestrator with technology auto-detection
+- [x] Add technology fingerprint detection logic (Streamlit, Jupyter, LangChain, FAISS, Firebase, GitHub Actions)
+- [x] Auto-trigger corresponding scanner modules when technology is detected during scan pipeline
+- [x] Build Customer Stack Profile feature — input customer tech stack, auto-generate tailored test plan
+- [x] Add customerStackProfiles DB table and tRPC procedures (CRUD)
+- [x] Add Customer Stack Profile UI page with tech stack input and generated test plan display
+- [x] Build FAISS/LangChain live probe module — active testing for RAG endpoints, FAISS indexes, agent tool enumeration
+- [x] Add live probe payloads and response analysis for FAISS, LangChain, and RAG detection
+- [x] Write vitest tests for all three features (25 tests passing)
+
+### Dependency Audit & GitHub Push (Apr 29)
+- [x] Audit all imports — ensure every dependency is in package.json (not just sandbox memory)
+- [x] Push checkpoint to both GitHub repos (htcook/caldera-dashboard + hcook-aoc/AC3) for DO deployment
