@@ -890,3 +890,6 @@
 - [x] WordPress-specific build instructions: Detect WP repos (WordPress, WP-CLI, GlotPress, BuddyPress, bbPress, WordCamp, WooCommerce) + plugins
 - [x] WordPress-specific build instructions: Show wp-env, Docker, DDEV commands with repo-specific instructions (WP-CLI, GlotPress)
 - [x] Write vitest tests for all three features (39 tests passing)
+
+### EngagementOps Page Error Fix (Apr 29)
+- [x] Diagnose and fix EngagementOps page error — moved RoE detection and per-target status useEffects after domainWhitelistStatus/engagement are defined (was referencing variables before declaration)

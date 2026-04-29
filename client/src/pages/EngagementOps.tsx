@@ -1143,31 +1143,7 @@ export default function EngagementOps() {
     { enabled: engagementId > 0 }
   );
 
-  // Auto-detect RoE and pre-populate justification when dialog opens
-  const roeStatus = (engagement as any)?.roeStatus || 'none';
-  const roeSigned = roeStatus === 'signed' || roeStatus === 'pending';
-  const roeSignedDate = (engagement as any)?.roeSignedDate;
-
-  useEffect(() => {
-    if (showApprovalDialog && roeSigned && !approvalJustification) {
-      const roeRef = roeSignedDate
-        ? `Signed RoE (${roeStatus}, ${new Date(roeSignedDate).toLocaleDateString()}) authorizes active testing on all program targets.`
-        : `RoE status: ${roeStatus}. Active testing authorized per engagement rules of engagement.`;
-      setApprovalJustification(roeRef);
-    }
-  }, [showApprovalDialog, roeSigned, roeStatus, roeSignedDate]);
-
-  // Initialize per-target statuses from existing approvals
-  useEffect(() => {
-    if (showApprovalDialog && targetApprovalsQ.data && domainWhitelistStatus) {
-      const statuses: Record<string, 'approved' | 'rejected' | 'pending'> = {};
-      for (const t of domainWhitelistStatus.nonWhitelisted) {
-        const existing = targetApprovalsQ.data.find((a: any) => a.hostname === t);
-        statuses[t] = (existing?.status as any) || 'pending';
-      }
-      setPerTargetStatuses(statuses);
-    }
-  }, [showApprovalDialog, targetApprovalsQ.data, domainWhitelistStatus]);
+  // NOTE: RoE detection and per-target status initialization moved after domainWhitelistStatus is defined (below)
 
   const toggleOverrideMut = trpc.engagements.toggleActiveScanOverride.useMutation({
     onSuccess: (data) => {
@@ -1403,6 +1379,32 @@ export default function EngagementOps() {
       totalTargets: targets.length,
     };
   }, [engagement]);
+
+  // Auto-detect RoE and pre-populate justification when dialog opens
+  const roeStatus = (engagement as any)?.roeStatus || 'none';
+  const roeSigned = roeStatus === 'signed' || roeStatus === 'pending';
+  const roeSignedDate = (engagement as any)?.roeSignedDate;
+
+  useEffect(() => {
+    if (showApprovalDialog && roeSigned && !approvalJustification) {
+      const roeRef = roeSignedDate
+        ? `Signed RoE (${roeStatus}, ${new Date(roeSignedDate).toLocaleDateString()}) authorizes active testing on all program targets.`
+        : `RoE status: ${roeStatus}. Active testing authorized per engagement rules of engagement.`;
+      setApprovalJustification(roeRef);
+    }
+  }, [showApprovalDialog, roeSigned, roeStatus, roeSignedDate]);
+
+  // Initialize per-target statuses from existing approvals
+  useEffect(() => {
+    if (showApprovalDialog && targetApprovalsQ.data && domainWhitelistStatus) {
+      const statuses: Record<string, 'approved' | 'rejected' | 'pending'> = {};
+      for (const t of domainWhitelistStatus.nonWhitelisted) {
+        const existing = targetApprovalsQ.data.find((a: any) => a.hostname === t);
+        statuses[t] = (existing?.status as any) || 'pending';
+      }
+      setPerTargetStatuses(statuses);
+    }
+  }, [showApprovalDialog, targetApprovalsQ.data, domainWhitelistStatus]);
 
   // ── Resume Engagement (queries — must be after `ops` is defined) ──
   const resumeCapabilityQ = trpc.liveTrigger.checkResumeCapability.useQuery(
