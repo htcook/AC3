@@ -6015,6 +6015,32 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
       (state as any).__detectedTechnologies = techResult.confirmedTechnologies;
       (state as any).__scannerActivations = buildScannerActivations(techResult);
       (state as any).__techTestPlanItems = techResult.testPlanItems;
+      // Auto-populate detected versions for version-aware CVE matching
+      if (techResult.detectedVersions && Object.keys(techResult.detectedVersions).length > 0) {
+        (state as any).__detectedVersions = techResult.detectedVersions;
+        const versionSummary = Object.entries(techResult.detectedVersions)
+          .map(([t, v]) => `${t}: ${v}`).join(', ');
+        addLog(state, {
+          phase: 'vuln_detection', type: 'info',
+          title: `📋 Version Auto-Detection: ${Object.keys(techResult.detectedVersions).length} versions extracted`,
+          detail: `Detected versions: ${versionSummary}`,
+        });
+        // Run version-aware CVE matching on auto-detected versions
+        try {
+          const { matchVersionCves } = require('../routers/stack-profile');
+          const versionCves = matchVersionCves(techResult.detectedVersions);
+          if (versionCves.length > 0) {
+            (state as any).__autoDetectedCves = versionCves;
+            addLog(state, {
+              phase: 'vuln_detection', type: 'warning',
+              title: `🚨 Version CVE Alert: ${versionCves.length} known CVEs for detected versions`,
+              detail: versionCves.slice(0, 5).map((c: any) => `${c.cveId} (${c.severity}) — ${c.technology} ${c.version} < ${c.affectedBelow}`).join('\n'),
+            });
+          }
+        } catch (e: any) {
+          console.warn(`[VersionCVE] Auto-match failed: ${e.message}`);
+        }
+      }
       // Log each recommended scanner module
       for (const activation of buildScannerActivations(techResult)) {
         addLog(state, {

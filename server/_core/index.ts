@@ -761,6 +761,36 @@ async function startServer() {
     console.warn("[CICD-Webhooks] Failed to initialize:", err.message);
   }
 
+  // ─── Scheduled Task Endpoints ──────────────────────────────────────────
+  // These endpoints are called by Manus scheduled tasks with auto-injected cookies
+  const { sdk: scheduledSdk } = await import("./sdk");
+  app.post('/api/scheduled/cve-refresh', async (req, res) => {
+    try {
+      // Authenticate via session cookie (scheduled tasks inject app_session_id)
+      let user: any = null;
+      try {
+        user = await scheduledSdk.authenticateRequest(req);
+      } catch { /* unauthenticated */ }
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      // Allow user role (scheduled tasks get "user" role)
+      const { refreshCveDatabase, ingestExternalCves, getCveRefreshStats } = await import("../lib/nvd-cve-refresh");
+      const { action } = req.body || {};
+      if (action === 'ingest' && req.body.cves) {
+        // Accept pre-formatted CVE data from the scheduled task
+        const result = ingestExternalCves(req.body.cves);
+        return res.json({ success: true, ...result, stats: getCveRefreshStats() });
+      }
+      // Default: trigger a full NVD refresh
+      const result = await refreshCveDatabase(req.body.technologies);
+      return res.json({ success: true, ...result, stats: getCveRefreshStats() });
+    } catch (err: any) {
+      console.error('[CveRefresh] Scheduled endpoint error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Rate Limiting ────────────────────────────────────────────────────
   const { apiRateLimiter, trpcAuthRateLimiter } = await import("../lib/rate-limiter");
 

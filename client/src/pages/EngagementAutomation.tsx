@@ -30,11 +30,17 @@ export default function EngagementAutomation() {
   const [includePostExploit, setIncludePostExploit] = useState(true);
   const [includeCleanup, setIncludeCleanup] = useState(true);
   const [selectedVectorIds, setSelectedVectorIds] = useState<string[]>([]);
+  const [selectedStackProfileId, setSelectedStackProfileId] = useState<number | null>(null);
 
   const { data: stats, isLoading: statsLoading } = trpc.engagementAutomation.getDashboardStats.useQuery();
   const { data: templates } = trpc.engagementAutomation.getTemplates.useQuery();
   const { data: automatedEngagements, refetch: refetchEngagements } = trpc.engagementAutomation.listAutomatedEngagements.useQuery({ limit: 20 });
   const { data: vectors } = trpc.attackVectorEngine.listVectors.useQuery({ limit: 50, status: "confirmed" });
+
+  const { data: suggestedProfiles } = trpc.engagementAutomation.suggestStackProfiles.useQuery(
+    { customerName: customerName || undefined },
+    { enabled: showCreateDialog }
+  );
 
   const createFromVectors = trpc.engagementAutomation.createFromVectors.useMutation({
     onSuccess: (data) => {
@@ -62,6 +68,7 @@ export default function EngagementAutomation() {
     setTargetIpRange("");
     setNotes("");
     setSelectedVectorIds([]);
+    setSelectedStackProfileId(null);
   }
 
   function handleCreate() {
@@ -76,6 +83,7 @@ export default function EngagementAutomation() {
       targetDomain: targetDomain || undefined,
       targetIpRange: targetIpRange || undefined,
       vectorIds: selectedVectorIds,
+      stackProfileId: selectedStackProfileId || undefined,
       includePostExploit,
       includeCleanup,
       notes: notes || undefined,
@@ -202,6 +210,57 @@ export default function EngagementAutomation() {
                   <Checkbox checked={includeCleanup} onCheckedChange={(c) => setIncludeCleanup(!!c)} />
                   <span className="text-sm">Include cleanup procedures</span>
                 </label>
+              </div>
+              {/* Stack Profile Selector */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  Customer Stack Profile
+                  <Badge variant="outline" className="text-xs font-normal">Optional</Badge>
+                </Label>
+                {suggestedProfiles && suggestedProfiles.profiles.length > 0 ? (
+                  <div className="border rounded-md max-h-36 overflow-y-auto p-2 space-y-1">
+                    {suggestedProfiles.profiles.map((p: any) => (
+                      <label key={p.id} className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
+                        selectedStackProfileId === p.id ? 'bg-primary/10 border border-primary/30' : 'hover:bg-accent/50'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="stackProfile"
+                          checked={selectedStackProfileId === p.id}
+                          onChange={() => setSelectedStackProfileId(p.id)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">{p.customerName}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {(p.technologies as string[])?.slice(0, 4).join(', ')}
+                            {(p.technologies as string[])?.length > 4 && ` +${(p.technologies as string[]).length - 4}`}
+                          </span>
+                        </div>
+                        {p.isLinked && <Badge variant="secondary" className="text-xs">Linked</Badge>}
+                        {p.relevanceScore >= 100 && <Badge className="text-xs bg-green-600">Match</Badge>}
+                      </label>
+                    ))}
+                    {selectedStackProfileId && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStackProfileId(null)}
+                        className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground p-2 border rounded-md">
+                    No stack profiles available. Create one in Stack Profiles to auto-link.
+                  </p>
+                )}
+                {selectedStackProfileId && (
+                  <p className="text-xs text-green-600">
+                    ✓ Profile will be linked — orchestrator will auto-load this tech stack at scan kickoff
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>

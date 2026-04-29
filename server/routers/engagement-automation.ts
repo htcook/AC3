@@ -19,6 +19,7 @@ import {
   threatActorAbilities,
   unifiedExploitCatalog,
   ttpKnowledge,
+  customerStackProfiles,
 } from "../../drizzle/schema";
 import { eq, desc, sql, and, inArray, count, like, gte } from "drizzle-orm";
 import { createEngagement, createEngagementPipeline, updateEngagementPipeline } from "../db";
@@ -117,6 +118,7 @@ export const engagementAutomationRouter = router({
       vectorIds: z.array(z.string()).min(1),
       playbookId: z.string().optional(),
       threatActorIds: z.array(z.number()).optional(),
+      stackProfileId: z.number().optional(),
       includePostExploit: z.boolean().default(true),
       includeCleanup: z.boolean().default(true),
       notes: z.string().optional(),
@@ -245,6 +247,17 @@ export const engagementAutomationRouter = router({
           status: "approved",
           updatedAt: Date.now(),
         }).where(eq(attackPlaybooks.id, input.playbookId));
+      }
+
+      // If a stack profile was specified, link it to this engagement
+      if (input.stackProfileId) {
+        try {
+          await db.update(customerStackProfiles).set({
+            engagementId,
+          }).where(eq(customerStackProfiles.id, input.stackProfileId));
+        } catch (e: any) {
+          console.warn(`[EngagementAuto] Failed to link stack profile ${input.stackProfileId}: ${e.message}`);
+        }
       }
 
       // Update vectors to link them to this engagement
@@ -1231,6 +1244,45 @@ export const engagementAutomationRouter = router({
         trainingStats,
         graduationSummary,
         labSummary,
+      };
+    }),
+
+  /** Suggest stack profiles for engagement creation based on customer name */
+  suggestStackProfiles: protectedProcedure
+    .input(z.object({
+      customerName: z.string().optional(),
+      engagementId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDbSafe();
+      const profiles = await db.select().from(customerStackProfiles)
+        .orderBy(desc(customerStackProfiles.createdAt))
+        .limit(50);
+
+      // Score profiles by relevance to customer name
+      const scored = profiles.map(p => {
+        let relevanceScore = 0;
+        const profileName = (p.customerName || '').toLowerCase();
+        const searchName = (input.customerName || '').toLowerCase();
+        if (searchName && profileName.includes(searchName)) relevanceScore = 100;
+        else if (searchName && profileName.split(/\s+/).some((w: string) => searchName.includes(w))) relevanceScore = 50;
+        // Boost unlinked profiles
+        if (!p.engagementId) relevanceScore += 10;
+        return { ...p, relevanceScore };
+      }).sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+      return {
+        profiles: scored.slice(0, 10).map(p => ({
+          id: p.id,
+          customerName: p.customerName,
+          technologies: p.technologies,
+          technologyVersions: p.technologyVersions,
+          engagementId: p.engagementId,
+          relevanceScore: p.relevanceScore,
+          isLinked: !!p.engagementId,
+        })),
+        totalAvailable: profiles.length,
+        unlinkedCount: profiles.filter(p => !p.engagementId).length,
       };
     }),
 });

@@ -43,6 +43,8 @@ export interface TechDetectionResult {
   }>;
   /** Generated test plan items from all detected technologies */
   testPlanItems: string[];
+  /** Auto-detected version strings for each confirmed technology */
+  detectedVersions: Record<string, string>;
   /** Total detection time in ms */
   detectionTimeMs: number;
 }
@@ -399,10 +401,161 @@ const SCANNER_MODULE_MAP: Record<DetectableTechnology, {
   },
 };
 
-// ─── Main Detection Function ────────────────────────────────────────────────
+//// ─── Version Extraction Engine ──────────────────────────────────────────
+
+/** Version extraction patterns per technology */
+const VERSION_EXTRACTORS: Record<DetectableTechnology, {
+  headerPatterns: Array<{ key: string; regex: RegExp }>;
+  htmlPatterns: RegExp[];
+  techTagPatterns: RegExp[];
+}> = {
+  streamlit: {
+    headerPatterns: [
+      { key: "x-streamlit-version", regex: /(\d+\.\d+\.\d+)/ },
+      { key: "server", regex: /streamlit[\/ ](\d+\.\d+\.\d+)/i },
+    ],
+    htmlPatterns: [
+      /streamlit[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /"streamlitVersion"\s*:\s*"(\d+\.\d+\.\d+)"/i,
+      /_stcore\/static\/js\/.*?(\d+\.\d+\.\d+)/i,
+    ],
+    techTagPatterns: [
+      /streamlit[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+  },
+  jupyter: {
+    headerPatterns: [
+      { key: "x-jupyter-server-version", regex: /(\d+\.\d+\.\d+)/ },
+      { key: "server", regex: /jupyter[\/ ](\d+\.\d+\.\d+)/i },
+    ],
+    htmlPatterns: [
+      /jupyter[_\-]?(?:server|lab|hub|notebook)[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /"version"\s*:\s*"(\d+\.\d+\.\d+)".*jupyter/i,
+      /jupyter.*?"version"\s*:\s*"(\d+\.\d+\.\d+)"/i,
+      /nbconvert[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+    techTagPatterns: [
+      /jupyter[\-_]?(?:server|lab|hub|notebook)?[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+  },
+  langchain: {
+    headerPatterns: [
+      { key: "x-langserve-version", regex: /(\d+\.\d+\.\d+)/ },
+    ],
+    htmlPatterns: [
+      /langchain[\-_]?(?:core|community)?[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /langserve[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /"langchain_version"\s*:\s*"(\d+\.\d+\.\d+)"/i,
+    ],
+    techTagPatterns: [
+      /langchain[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+  },
+  faiss: {
+    headerPatterns: [],
+    htmlPatterns: [
+      /faiss[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /faiss_version["']?\s*[:=]\s*["']?(\d+\.\d+\.\d+)/i,
+    ],
+    techTagPatterns: [
+      /faiss[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+  },
+  firebase: {
+    headerPatterns: [
+      { key: "x-firebase-sdk-version", regex: /(\d+\.\d+\.\d+)/ },
+    ],
+    htmlPatterns: [
+      /firebase[\-\/]v?(\d+\.\d+\.\d+)/i,
+      /firebase\/js\/(\d+\.\d+\.\d+)/i,
+      /firebasejs\/(\d+\.\d+\.\d+)/i,
+      /"firebase"\s*:\s*"[\^~]?(\d+\.\d+\.\d+)"/i,
+      /firebase@(\d+\.\d+\.\d+)/i,
+    ],
+    techTagPatterns: [
+      /firebase[\/ ](\d+\.\d+\.\d+)/i,
+    ],
+  },
+  github_actions: {
+    headerPatterns: [],
+    htmlPatterns: [],
+    techTagPatterns: [],
+  },
+};
+
+/**
+ * Extract version string for a confirmed technology from asset signals.
+ * Checks headers, HTML content, technology tags, and port service versions.
+ * Returns the first high-confidence version found, or null.
+ */
+export function extractVersion(
+  tech: DetectableTechnology,
+  assets: AssetSignals[]
+): string | null {
+  const extractor = VERSION_EXTRACTORS[tech];
+  if (!extractor) return null;
+
+  for (const asset of assets) {
+    // 1. Check HTTP headers (highest confidence)
+    if (asset.headers && extractor.headerPatterns.length > 0) {
+      for (const hp of extractor.headerPatterns) {
+        const headerVal = asset.headers[hp.key] || asset.headers[hp.key.toLowerCase()];
+        if (headerVal) {
+          const match = headerVal.match(hp.regex);
+          if (match?.[1]) return match[1];
+        }
+      }
+    }
+
+    // 2. Check Server and X-Powered-By headers generically
+    if (asset.headers) {
+      const serverHeader = asset.headers["server"] || asset.headers["Server"] || "";
+      const poweredBy = asset.headers["x-powered-by"] || asset.headers["X-Powered-By"] || "";
+      const combined = `${serverHeader} ${poweredBy}`;
+      const techName = tech.replace("_", "[ -]");
+      const genericMatch = combined.match(new RegExp(`${techName}[\\/ ](\\d+\\.\\d+\\.\\d+)`, "i"));
+      if (genericMatch?.[1]) return genericMatch[1];
+    }
+
+    // 3. Check HTML/response body
+    const htmlSources = [asset.html, ...(asset.responseSnippets || [])].filter(Boolean) as string[];
+    for (const html of htmlSources) {
+      for (const pattern of extractor.htmlPatterns) {
+        const match = html.match(pattern);
+        if (match?.[1]) return match[1];
+      }
+    }
+
+    // 4. Check technology tags (e.g., from Wappalyzer/BuiltWith)
+    const allTechs = [
+      ...(asset.technologies || []),
+      ...(asset.passiveRecon?.technologies || []),
+    ];
+    for (const tag of allTechs) {
+      for (const pattern of extractor.techTagPatterns) {
+        const match = tag.match(pattern);
+        if (match?.[1]) return match[1];
+      }
+    }
+
+    // 5. Check port service versions
+    if (asset.ports) {
+      for (const port of asset.ports) {
+        if (port.version && port.service?.toLowerCase().includes(tech.replace("_", ""))) {
+          const vMatch = port.version.match(/(\d+\.\d+\.\d+)/);
+          if (vMatch?.[1]) return vMatch[1];
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// ─── Main Detection Function ────────────────────────────────────────────
 
 /** Confidence threshold for considering a technology "confirmed" */
-const CONFIRMATION_THRESHOLD = 0.6;
+const CONFIRMATION_THRESHOLD = 0.6;6;
 
 /**
  * Run technology auto-detection across all asset signals.
@@ -516,11 +669,22 @@ export function detectTechnologies(assets: AssetSignals[]): TechDetectionResult 
     }
   }
 
+  // ─── Version Auto-Detection ─────────────────────────────────────────────
+  // Extract version strings from headers, HTML, and technology tags
+  const detectedVersions: Record<string, string> = {};
+  for (const tech of confirmedTechnologies) {
+    const version = extractVersion(tech, assets);
+    if (version) {
+      detectedVersions[tech] = version;
+    }
+  }
+
   return {
     detections: allDetections,
     confirmedTechnologies,
     recommendedScanners,
     testPlanItems,
+    detectedVersions,
     detectionTimeMs: Date.now() - startTime,
   };
 }

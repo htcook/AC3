@@ -588,9 +588,10 @@ Return ONLY a JSON array of objects with these fields.`;
       };
     }),
 
-  /** Get the full CVE database for reference */
-  getCveDatabase: protectedProcedure.query(() => {
-    return VERSION_CVE_DATABASE.map(c => ({
+  /** Get the full CVE database for reference (static + NVD dynamic) */
+  getCveDatabase: protectedProcedure.query(async () => {
+    const { getFullCveDatabase } = await import("../lib/nvd-cve-refresh");
+    return getFullCveDatabase().map(c => ({
       technology: c.technology,
       cveId: c.cveId,
       affectedBelow: c.affectedBelow,
@@ -600,6 +601,20 @@ Return ONLY a JSON array of objects with these fields.`;
       scannerModule: c.scannerModule,
     }));
   }),
+
+  /** Get CVE refresh stats for admin dashboard */
+  cveRefreshStats: protectedProcedure.query(async () => {
+    const { getCveRefreshStats } = await import("../lib/nvd-cve-refresh");
+    return getCveRefreshStats();
+  }),
+
+  /** Manually trigger NVD CVE refresh */
+  triggerCveRefresh: protectedProcedure
+    .input(z.object({ technologies: z.array(z.string()).optional() }).optional())
+    .mutation(async ({ input }) => {
+      const { refreshCveDatabase } = await import("../lib/nvd-cve-refresh");
+      return refreshCveDatabase(input?.technologies);
+    }),
 
   /** Link a stack profile to an engagement */
   linkToEngagement: protectedProcedure

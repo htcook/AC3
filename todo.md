@@ -934,4 +934,21 @@
 - [x] Add VersionCveSummary component to profile cards (expandable CVE list)
 - [x] Add version CVE preview to ProfileForm scanner match preview
 - [x] Write vitest tests for version-aware matching and engagement-linked profiles (17 tests passing)
-- [ ] Push checkpoint to GitHub repos
+- [x] Push checkpoint to htcook/caldera-dashboard (aceofcloud/AC3 returned 403 — PAT needs repo write scope)
+
+### NVD API Scheduled CVE Refresh + Version Auto-Detection + Engagement Profile Auto-Prompt (Apr 29)
+- [x] Build /api/scheduled/cve-refresh endpoint with session auth (POST /api/scheduled/cve-refresh)
+- [x] Create nvd-cve-refresh.ts service (NVD API v2.0 query, rate limiting, CPE-based search, dynamic CVE store)
+- [x] Add ingestExternalCves for scheduled task POST, getFullCveDatabase for merged static+dynamic
+- [x] Add getCveRefreshStats and triggerCveRefresh tRPC procedures
+- [x] Update getCveDatabase to include dynamic NVD-discovered CVEs
+- [x] Add VERSION_EXTRACTORS patterns per technology (headers, HTML, tech tags, port service versions)
+- [x] Implement extractVersion() in tech-auto-detector.ts (checks 5 signal sources per tech)
+- [x] Add detectedVersions field to TechDetectionResult interface
+- [x] Wire orchestrator to run matchVersionCves on auto-detected versions + log CVE alerts
+- [x] Add stackProfileId optional input to createFromVectors procedure
+- [x] Auto-link stack profile to engagement on creation (customerStackProfiles.engagementId update)
+- [x] Add suggestStackProfiles procedure (relevance scoring by customer name, boost unlinked)
+- [x] Add Stack Profile selector UI to engagement creation dialog (radio list, badges, clear)
+- [x] Write vitest tests for NVD refresh, version extraction, and engagement linking (19 tests passing)
+- [ ] Push checkpoint to GitHub
