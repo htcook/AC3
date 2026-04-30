@@ -101,6 +101,10 @@ export const ENV = {
   S3_SSE_KMS_KEY_ID: process.env.S3_SSE_KMS_KEY_ID ?? "",        // KMS Key ARN
   S3_BUCKET_KEY_ENABLED: process.env.S3_BUCKET_KEY_ENABLED ?? "false",  // Reduce KMS API calls
   S3_PRIVATE_MODE: process.env.S3_PRIVATE_MODE ?? "false",       // Force presigned URLs (auto-enabled with SSE)
+  S3_USE_FIPS: process.env.S3_USE_FIPS ?? "",                    // "true" to force FIPS endpoints (auto for us-gov-* regions)
+  // Client-Side Encryption (CSE) — envelope encryption for highest-sensitivity artifacts
+  S3_CSE_KEY_ARN: process.env.S3_CSE_KEY_ARN ?? "",              // KMS CMK ARN for data key encryption (or local key ID)
+  S3_CSE_ENABLED: process.env.S3_CSE_ENABLED ?? "false",         // "true" to enable CSE for doStoragePutEncrypted/GetDecrypted
   // DigitalOcean Spaces — legacy storage config (backward compat)
   // These are used if S3_* vars above are not set.
   DO_SPACES_KEY: process.env.DO_SPACES_KEY ?? "",

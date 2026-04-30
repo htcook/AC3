@@ -1060,3 +1060,30 @@
 - [x] Update getStorageInfo() to report encryption config (algorithm, kmsKeyConfigured, bucketKeyEnabled, privateMode)
 - [x] Write tests for SSE-KMS behavior (12 new tests, 31 total passing)
 - [x] Update env.ts with all new SSE env vars and documentation
+
+### FIPS Endpoint Enforcement (Apr 30)
+- [x] Auto-detect us-gov-* regions and use FIPS S3 endpoints (s3-fips.us-gov-west-1.amazonaws.com)
+- [x] Add S3_USE_FIPS env var for explicit opt-in on non-GovCloud regions
+- [x] Add resolveFipsMode() with auto-enable for us-gov-*, us-iso-*, us-isob-* regions
+- [x] Add resolveFipsEndpoint() generating s3-fips.{region}.amazonaws.com pattern
+- [x] Add getEffectiveEndpoint() to route S3Client through FIPS endpoint
+- [x] Update getStorageInfo() with fips.enabled, fips.endpoint, fips.autoDetected fields
+- [x] Write tests for FIPS endpoint resolution (12 new tests, 43 total passing)
+
+### Client-Side Encryption (CSE) for Sensitive Artifacts (Apr 30)
+- [x] Design CSE architecture — envelope encryption with per-object AES-256-GCM DEK
+- [x] Implement doStoragePutEncrypted() — encrypt-before-upload with metadata sidecar
+- [x] Implement doStorageGetDecrypted() — decrypt-after-download with DEK unwrapping
+- [x] Add S3_CSE_KEY_ARN env var (KMS ARN for production, local passphrase for dev)
+- [x] Add S3_CSE_ENABLED env var to gate CSE functionality
+- [x] Store CSE metadata (IV, encrypted DEK, auth tag, key ID) as .cse-meta.json sidecar
+- [x] Support local key mode (SHA-256 derived wrapping key) for dev/non-AWS environments
+- [x] Support KMS mode detection (arn:aws:kms: and arn:aws-us-gov:kms: prefixes)
+- [x] Add getCSEInfo() diagnostics (enabled, keyId, mode)
+- [x] Add resetCSEConfig() for testing
+- [x] Write tests for CSE encrypt/decrypt roundtrip (16 new tests passing)
+
+### User Documentation & Guides (Apr 30)
+- [ ] Feature Guide — Platform overview with screenshots of each major page
+- [ ] User Guide — Step-by-step for Dashboard, running a DI scan, creating/running an engagement
+- [ ] Master Threat Catalog Guide — How threat catalog data flows through the platform, AC3 value vs. commercial tools

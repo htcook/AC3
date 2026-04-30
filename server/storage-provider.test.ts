@@ -508,4 +508,190 @@ describe('Storage Provider - Config Resolution & URL Generation', () => {
       expect(callArgs.ServerSideEncryption).toBeUndefined();
     });
   });
+
+  describe('FIPS 140-3 Endpoint Enforcement', () => {
+    it('should auto-enable FIPS for us-gov-west-1 region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+    });
+
+    it('should auto-enable FIPS for us-gov-east-1 region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-east';
+      process.env.S3_REGION = 'us-gov-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-east-1.amazonaws.com');
+    });
+
+    it('should auto-enable FIPS for us-iso-east-1 (C2S) region', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-iso-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'c2s-bucket';
+      process.env.S3_REGION = 'us-iso-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+    });
+
+    it('should explicitly enable FIPS via S3_USE_FIPS=true for commercial regions', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'fips-commercial';
+      process.env.S3_REGION = 'us-east-1';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(false);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-east-1.amazonaws.com');
+    });
+
+    it('should explicitly disable FIPS via S3_USE_FIPS=false even for GovCloud', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-no-fips';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_USE_FIPS = 'false';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(false);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should pass through already-FIPS endpoint unchanged', async () => {
+      process.env.S3_ENDPOINT = 'https://s3-fips.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'already-fips';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+    });
+
+    it('should return null FIPS endpoint for non-AWS providers (DO Spaces)', async () => {
+      process.env.S3_ENDPOINT = 'https://nyc3.digitaloceanspaces.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'do-bucket';
+      process.env.S3_REGION = 'nyc3';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should return null FIPS endpoint for MinIO (self-hosted)', async () => {
+      process.env.S3_ENDPOINT = 'http://minio.internal:9000';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'minio-bucket';
+      process.env.S3_FORCE_PATH_STYLE = 'true';
+      process.env.S3_USE_FIPS = 'true';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.endpoint).toBeNull();
+    });
+
+    it('should NOT auto-enable FIPS for standard commercial regions', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'commercial-bucket';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+      expect(info.fips.enabled).toBe(false);
+      expect(info.fips.endpoint).toBeNull();
+      expect(info.fips.autoDetected).toBe(false);
+    });
+
+    it('should use FIPS endpoint in S3Client initialization', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-bucket';
+      process.env.S3_REGION = 'us-gov-west-1';
+
+      const { S3Client } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+
+      await doStoragePut('test/fips.pdf', Buffer.from('data'));
+
+      expect(S3Client).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'https://s3-fips.us-gov-west-1.amazonaws.com',
+          region: 'us-gov-west-1',
+          useFipsEndpoint: true,
+        })
+      );
+    });
+
+    it('should NOT set useFipsEndpoint when FIPS is disabled', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-east-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'no-fips';
+      process.env.S3_REGION = 'us-east-1';
+
+      const { S3Client } = await import('@aws-sdk/client-s3');
+      const { doStoragePut } = await import('./do-storage');
+
+      await doStoragePut('test/normal.pdf', Buffer.from('data'));
+
+      const callArgs = (S3Client as any).mock.calls.slice(-1)[0][0];
+      expect(callArgs.useFipsEndpoint).toBeUndefined();
+      expect(callArgs.endpoint).toBe('https://s3.us-east-1.amazonaws.com');
+    });
+
+    it('should report FIPS config in getStorageInfo diagnostics', async () => {
+      process.env.S3_ENDPOINT = 'https://s3.us-gov-west-1.amazonaws.com';
+      process.env.S3_ACCESS_KEY = 'key';
+      process.env.S3_SECRET_KEY = 'secret';
+      process.env.S3_BUCKET = 'govcloud-diag';
+      process.env.S3_REGION = 'us-gov-west-1';
+      process.env.S3_SSE_ALGORITHM = 'aws:kms';
+      process.env.S3_SSE_KMS_KEY_ID = 'arn:aws:kms:us-gov-west-1:123456:key/gov-key';
+
+      const { getStorageInfo } = await import('./do-storage');
+      const info = getStorageInfo();
+
+      expect(info.provider).toBe('aws_s3');
+      expect(info.fips.enabled).toBe(true);
+      expect(info.fips.autoDetected).toBe(true);
+      expect(info.fips.endpoint).toBe('https://s3-fips.us-gov-west-1.amazonaws.com');
+      expect(info.encryption.algorithm).toBe('aws:kms');
+      expect(info.encryption.kmsKeyConfigured).toBe(true);
+      expect(info.privateMode).toBe(true);
+    });
+  });
 });
