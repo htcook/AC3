@@ -323,6 +323,13 @@
       "when": 1777534504385,
       "tag": "0045_regular_moonstone",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1777556420077,
+      "tag": "0046_black_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }
