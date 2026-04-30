@@ -60,15 +60,16 @@ describe('Scan Concurrency Limiter', () => {
     });
 
     it('should track per-engagement counts', async () => {
+      // Use different tool types to avoid hitting the per-tool nuclei limit (2)
       const r1 = await acquireScanSlot('nuclei', 100);
-      const r2 = await acquireScanSlot('nuclei', 100);
+      const r2 = await acquireScanSlot('zap', 100);
       const r3 = await acquireScanSlot('nuclei', 200);
 
       const metrics = getScanConcurrencyMetrics();
       expect(metrics.perEngagement[100]).toBe(2);
       expect(metrics.perEngagement[200]).toBe(1);
 
-      r1(); r3();
+      r1(); r2(); r3();
     });
 
     it('should track peak concurrent', async () => {
@@ -116,6 +117,9 @@ describe('Scan Concurrency Limiter', () => {
 
   describe('Global Total Limit', () => {
     it('should enforce global total limit (4)', async () => {
+      // Increase per-tool limits so we can fill up to the global total (4)
+      configureScanConcurrency({ maxConcurrentNuclei: 3, maxConcurrentZap: 2, maxConcurrentTotal: 4, maxPerEngagement: 4 });
+
       const releases: (() => void)[] = [];
       // Fill up: 2 nuclei + 1 ZAP + 1 nuclei = 4 total (across different engagements)
       releases.push(await acquireScanSlot('nuclei', 1));
@@ -136,13 +140,16 @@ describe('Scan Concurrency Limiter', () => {
 
   describe('Per-Engagement Fairness', () => {
     it('should enforce per-engagement limit (2)', async () => {
+      // Increase nuclei limit so per-engagement is the binding constraint
+      configureScanConcurrency({ maxConcurrentNuclei: 4, maxConcurrentTotal: 6, maxPerEngagement: 2 });
+
       const releases: (() => void)[] = [];
       // Same engagement acquires 2 slots
       for (let i = 0; i < 2; i++) {
         releases.push(await acquireScanSlot('nuclei', 42));
       }
 
-      // 3rd slot for same engagement should be blocked
+      // 3rd slot for same engagement should be blocked (per-engagement limit)
       expect(isScanSlotAvailable('nuclei', 42)).toBe(false);
 
       // But a different engagement can still acquire
@@ -220,6 +227,7 @@ describe('Scan Concurrency Limiter', () => {
 
   describe('Force Release', () => {
     it('should release all slots for a specific engagement', async () => {
+      // Use different tools to avoid per-tool limits
       const r1 = await acquireScanSlot('nuclei', 100);
       const r2 = await acquireScanSlot('zap', 100);
       const r3 = await acquireScanSlot('nuclei', 200);

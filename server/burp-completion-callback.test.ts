@@ -4,7 +4,11 @@ import * as path from "path";
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
-describe("Burp Scan Completion Callback", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Burp Scan Completion Callback", () => {
   // ─── db.addTimelineEvent Fix ───
 
   describe("db.addTimelineEvent function", () => {

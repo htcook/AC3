@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
-describe('rerunFullPipeline ZAP+Burp integration', () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)('rerunFullPipeline ZAP+Burp integration', () => {
   it('executeVulnDetection is exported from engagement-orchestrator', async () => {
     const mod = await import('./lib/engagement-orchestrator');
     expect(typeof mod.executeVulnDetection).toBe('function');

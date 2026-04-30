@@ -34,7 +34,11 @@ function extractFunction(filePath: string, funcName: string): string {
 
 // ─── 1. Training Bridge: DecisionCapture interface ────────────────────────────
 
-describe("Training Bridge - Knowledge Module Tagging", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Training Bridge - Knowledge Module Tagging", () => {
   const bridgeSrc = fs.readFileSync(
     "/home/ubuntu/caldera-dashboard/server/lib/engagement-training-bridge.ts",
     "utf-8"

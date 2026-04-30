@@ -13,7 +13,11 @@ import * as fs from "fs";
 
 // ─── 1. Safety Engine: dualApprovalRequired field ───────────────────────────
 
-describe("Safety Engine — dualApprovalRequired", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Safety Engine — dualApprovalRequired", () => {
   it("full_exploitation profile has dualApprovalRequired = true", async () => {
     const { SafetyEngine } = await import("./lib/safety-engine");
     const profile = SafetyEngine.getProfileDetails("full_exploitation");

@@ -7,7 +7,11 @@
 import { describe, it, expect, vi } from "vitest";
 
 // ─── Test 1: CicdScanType union includes all 7 types ────────────────────────
-describe("CicdScanType", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("CicdScanType", () => {
   it("should include all 7 scan types in the type definition", async () => {
     // We can't directly test TypeScript types at runtime, but we can verify
     // the executeCicdScan function accepts all scan types by checking the

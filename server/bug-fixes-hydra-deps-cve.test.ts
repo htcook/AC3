@@ -10,7 +10,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // §1 — HYDRA HOSTNAME FIX
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('Hydra Hostname Fix for HTTPS/ALB Targets', () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)('Hydra Hostname Fix for HTTPS/ALB Targets', () => {
   it('should use hostname instead of raw IP for HTTPS (port 443) targets', async () => {
     const { suggestToolCommands } = await import('./lib/scan-server-executor');
     const commands = await suggestToolCommands({

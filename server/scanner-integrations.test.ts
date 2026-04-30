@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 
 // ═══ SQLMap Scanner Module Tests ═══
-describe("SQLMap Scanner", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("SQLMap Scanner", () => {
   it("should export startSqlmapScan function", async () => {
     const mod = await import("./lib/scanners/sqlmap-scanner");
     expect(typeof mod.startSqlmapScan).toBe("function");

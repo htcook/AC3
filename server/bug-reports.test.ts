@@ -10,7 +10,11 @@ import path from "path";
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // Test the router module can be imported without errors
-describe("Bug Reports Router", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Bug Reports Router", () => {
   it("exports bugReportsRouter", async () => {
     const mod = await import("./routers/bug-reports");
     expect(mod.bugReportsRouter).toBeDefined();

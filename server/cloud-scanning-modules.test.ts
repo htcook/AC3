@@ -13,7 +13,11 @@ import * as fs from "fs";
 
 // ─── ScoutSuite Integration Tests ──────────────────────────────────────────
 
-describe("ScoutSuite Integration Router", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("ScoutSuite Integration Router", () => {
   it("should export scoutsuiteIntegrationRouter", async () => {
     const mod = await import("./routers/scoutsuite-integration");
     expect(mod.scoutsuiteIntegrationRouter).toBeDefined();

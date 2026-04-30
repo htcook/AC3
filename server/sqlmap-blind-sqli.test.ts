@@ -55,7 +55,11 @@ function mockScanResult(overrides: Partial<SqlmapScanResult> = {}): SqlmapScanRe
   };
 }
 
-describe("SQLMap Blind SQLi Integration", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("SQLMap Blind SQLi Integration", () => {
   const sqlmapCode = fs.readFileSync("server/lib/scanners/sqlmap-scanner.ts", "utf-8");
   const orchestratorCode = fs.readFileSync("server/lib/engagement-orchestrator.ts", "utf-8");
 

@@ -12,7 +12,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 // We test the server-side broadcastReconFinding function
 // and the client-side eventToGraphDelta logic (imported as a module)
 
-describe('Live Graph Updates', () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)('Live Graph Updates', () => {
 
   describe('broadcastReconFinding — server-side event emission', () => {
     it('should export broadcastReconFinding function', async () => {

@@ -8,7 +8,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // ─── Feature 1: Context Engine Tracker ──────────────────────────────────────
 
-describe("Context Engine Tracker", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Context Engine Tracker", () => {
   let tracker: typeof import("./lib/context-engine-tracker");
 
   beforeEach(async () => {

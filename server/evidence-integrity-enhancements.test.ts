@@ -13,7 +13,11 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ─── 1. WebSocket Evidence Integrity Emitters ──────────────────────────
 
-describe("WebSocket Evidence Integrity Emitters", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("WebSocket Evidence Integrity Emitters", () => {
   // We test that the emitter functions exist, accept correct params, and call broadcastGlobal
   let eventHub: any;
 

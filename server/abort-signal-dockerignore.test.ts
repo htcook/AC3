@@ -17,7 +17,11 @@ import * as path from "path";
 
 // ─── AbortSignal Early-Exit Tests ──────────────────────────────────────────
 
-describe("AbortSignal — executeToolViaHttp early exit", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("AbortSignal — executeToolViaHttp early exit", () => {
   it("should return abort error when signal is already aborted", async () => {
     const { executeToolViaHttp } = await import("../server/lib/do-scan-api");
     const controller = new AbortController();

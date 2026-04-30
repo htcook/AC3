@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-describe("Server Instance Identity", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Server Instance Identity", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

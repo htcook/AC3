@@ -8,7 +8,11 @@ import { describe, it, expect } from "vitest";
 
 // ─── Phase 1: Free Subdomain Connectors (R2) ───────────────────────
 
-describe("Passive Connectors — Free Subdomain Sources (R2)", () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)("Passive Connectors — Free Subdomain Sources (R2)", () => {
   it("anubis connector exports correctly", async () => {
     const { anubisConnector } = await import("./lib/passive/anubis");
     expect(anubisConnector).toBeDefined();

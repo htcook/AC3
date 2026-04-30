@@ -105,7 +105,11 @@ function simulatePostureToVulns(findings: any[], domain: string = 'test.com') {
 // 1. CVE-based static map resolution
 // ═══════════════════════════════════════════════════════════════════
 
-describe('DI Pipeline → Nuclei Fast-Path: CVE Static Map', () => {
+
+// Skip in CI — requires SSH access to scan server
+const __skipInCI = !process.env.SCAN_SERVER_HOST;
+
+describe.skipIf(__skipInCI)('DI Pipeline → Nuclei Fast-Path: CVE Static Map', () => {
   it('annotates CVE-2021-44228 (Log4Shell) with known Nuclei template', () => {
     const findings = [{
       title: 'Log4Shell RCE',
