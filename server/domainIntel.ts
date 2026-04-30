@@ -920,6 +920,82 @@ Be thorough and realistic. Score based on the specific sector (${org.sector}) an
 
 // ─── Stage 3: Hybrid Risk Computation ────────────────────────────────
 
+/**
+ * Map LLM-returned missionFunction values to MISSION_FUNCTION_BASELINES keys.
+ * The LLM prompt uses descriptive names (e.g. 'command_and_control') while the
+ * scoring engine baselines use shorter keys (e.g. 'command_control').
+ * FIX: Without this mapping, applyMissionBaselines() never found a matching
+ * baseline, causing all assets to receive identical default treatment.
+ */
+function normalizeMissionFunction(llmValue: string): string {
+  const MISSION_FUNCTION_MAP: Record<string, string> = {
+    'command_and_control': 'command_control',
+    'command_control': 'command_control',
+    'revenue_generation': 'revenue_generation',
+    'customer_data_processing': 'customer_data',
+    'customer_data': 'customer_data',
+    'intellectual_property_storage': 'intellectual_property',
+    'intellectual_property': 'intellectual_property',
+    'authentication_and_access': 'authentication',
+    'authentication': 'authentication',
+    'communication_infrastructure': 'external_communication',
+    'external_communication': 'external_communication',
+    'regulatory_compliance': 'compliance',
+    'compliance': 'compliance',
+    'business_continuity': 'operational_continuity',
+    'operational_continuity': 'operational_continuity',
+    'supply_chain_integration': 'supply_chain',
+    'supply_chain': 'supply_chain',
+    'public_facing_services': 'external_communication',
+    'data_processing': 'data_processing',
+  };
+  const mapped = MISSION_FUNCTION_MAP[llmValue];
+  if (!mapped) {
+    console.warn(`[DomainIntel] Unknown missionFunction '${llmValue}' — no baseline will be applied`);
+  }
+  return mapped || llmValue;
+}
+
+/**
+ * Map LLM-returned essentialService values to ESSENTIAL_SERVICE_BASELINES keys.
+ * FIX: Same key mismatch issue as missionFunction.
+ */
+function normalizeEssentialService(llmValue: string): string {
+  const SERVICE_MAP: Record<string, string> = {
+    'sso_idp': 'sso',
+    'active_directory': 'active_directory',
+    'payment_processing': 'payment_processing',
+    'email_gateway': 'email',
+    'vpn_concentrator': 'vpn',
+    'dns_infrastructure': 'dns',
+    'database_primary': 'database',
+    'database_replica': 'database',
+    'load_balancer': 'load_balancer',
+    'web_application_firewall': 'waf',
+    'api_gateway': 'api_gateway',
+    'ci_cd_pipeline': 'ci_cd',
+    'monitoring_alerting': 'siem',
+    'backup_recovery': 'backup',
+    'file_storage': 'backup',
+    'certificate_authority': 'encryption_key_management',
+    'secrets_management': 'encryption_key_management',
+    'container_orchestration': 'ci_cd',
+    'message_queue': 'api_gateway',
+    'cdn_edge': 'load_balancer',
+    'erp_system': 'erp',
+    'crm_system': 'customer_portal',
+    'scada_hmi': 'critical_infrastructure',
+    'medical_device': 'critical_infrastructure',
+    'pos_terminal': 'payment_processing',
+    'voip_pbx': 'email',
+    'print_server': 'general_server',
+    'general_server': 'general_server',
+    'source_control': 'source_control',
+    'firewall': 'firewall',
+  };
+  return SERVICE_MAP[llmValue] || llmValue;
+}
+
 function normalizeCarver(raw: any): CarverScores {
   return {
     criticality: clamp(raw.criticality || 3, 0, 10),
@@ -3649,11 +3725,14 @@ export async function runDomainIntelPipeline(
       if (missionIdx % 10 === 0) await yieldEventLoop();
       // Apply mission function + essential service baselines in one call
       // This ensures critical assets are never under-scored regardless of vuln data
+      // FIX: Normalize LLM-returned mission/service keys to match BASELINES keys
+      const normalizedMission = normalizeMissionFunction(a.missionFunction || 'public_facing_services');
+      const normalizedService = normalizeEssentialService(a.essentialService || 'general_server');
       const baselines = applyMissionBaselines(
         a.carverScores,
         a.shockScores,
-        a.missionFunction || 'public_facing_services',
-        a.essentialService || 'general_server'
+        normalizedMission,
+        normalizedService
       );
       // Use the baseline-adjusted scores for mission impact calculation
       const missionImpact = computeMissionImpact(baselines.carver, baselines.shock);
@@ -4399,28 +4478,44 @@ export async function runDomainIntelPipeline(
   let adjustedBand = overallBand;
   const floorReasons: string[] = [];
 
-  // Floor 1: CISA KEV matches with ransomware exposure → minimum HIGH (75)
-  if (kevEnrichment && kevEnrichment.ransomwareExposure && kevEnrichment.matches.length > 0) {
-    const floor = 75;
-    if (adjustedRisk < floor) {
-      floorReasons.push(`KEV ransomware exposure (${kevEnrichment.matches.length} KEV matches, ransomware-linked) → floor ${floor}`);
-      adjustedRisk = floor;
+  // Floor 1-3: CISA KEV matches
+  // FIX: Only CONFIRMED (version-verified) KEV matches trigger floor adjustments.
+  // Previously, potential/unconfirmed matches (product-family or vendor-only) also
+  // triggered the ransomware floor, causing virtually every scan to hit 75 because
+  // common technologies (Apache, jQuery, PHP) produce KEV matches with ransomware links.
+  if (kevEnrichment && kevEnrichment.matches.length > 0) {
+    const confirmedKevMatches = kevEnrichment.matches.filter(m => m.matchQuality === 'exact_product');
+    const confirmedRansomware = confirmedKevMatches.filter(m => m.knownRansomware);
+    const totalKev = kevEnrichment.matches.length;
+    const confirmedCount = confirmedKevMatches.length;
+
+    // Floor 1: CONFIRMED KEV matches with ransomware exposure → minimum HIGH (75)
+    if (confirmedRansomware.length > 0) {
+      const floor = 75;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`KEV ransomware exposure (${confirmedRansomware.length} confirmed ransomware-linked KEV matches out of ${totalKev} total) → floor ${floor}`);
+        adjustedRisk = floor;
+      }
     }
-  }
-  // Floor 2: Multiple KEV matches without ransomware → minimum MEDIUM-HIGH (55)
-  else if (kevEnrichment && kevEnrichment.matches.length >= 3) {
-    const floor = 55;
-    if (adjustedRisk < floor) {
-      floorReasons.push(`${kevEnrichment.matches.length} CISA KEV matches → floor ${floor}`);
-      adjustedRisk = floor;
+    // Floor 2: Multiple CONFIRMED KEV matches without ransomware → minimum MEDIUM-HIGH (55)
+    else if (confirmedCount >= 3) {
+      const floor = 55;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${confirmedCount} confirmed CISA KEV matches (${totalKev} total incl. unconfirmed) → floor ${floor}`);
+        adjustedRisk = floor;
+      }
     }
-  }
-  // Floor 3: Any KEV match → minimum MEDIUM (45)
-  else if (kevEnrichment && kevEnrichment.matches.length > 0) {
-    const floor = 45;
-    if (adjustedRisk < floor) {
-      floorReasons.push(`${kevEnrichment.matches.length} CISA KEV match(es) → floor ${floor}`);
-      adjustedRisk = floor;
+    // Floor 3: Any CONFIRMED KEV match → minimum MEDIUM (45)
+    else if (confirmedCount > 0) {
+      const floor = 45;
+      if (adjustedRisk < floor) {
+        floorReasons.push(`${confirmedCount} confirmed CISA KEV match(es) (${totalKev} total incl. unconfirmed) → floor ${floor}`);
+        adjustedRisk = floor;
+      }
+    }
+    // Unconfirmed-only KEV matches: advisory only, no floor adjustment
+    else if (totalKev > 0) {
+      console.log(`[DomainIntel] ${totalKev} unconfirmed KEV matches found (advisory only — no floor adjustment applied)`);
     }
   }
 
