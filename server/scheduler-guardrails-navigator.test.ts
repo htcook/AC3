@@ -22,6 +22,7 @@ describe("Catalog Enrichment Scheduler", () => {
       completenessThreshold: 60,
       cronHourUtc: 3,
       cronMinuteUtc: 0,
+      discoveryEnabled: true,
       enabled: true,
     });
     expect(status.running).toBe(false);
@@ -223,6 +224,7 @@ describe("MITRE ATT&CK Navigator Layer Export", () => {
       color: "#ff6666",
       comment: "Used by: APT28, Lazarus Group",
       score: 2,
+      discoveryEnabled: true,
       enabled: true,
       metadata: [],
       links: [],
@@ -244,6 +246,7 @@ describe("MITRE ATT&CK Navigator Layer Export", () => {
       color: "#ff9999",
       comment: "Used by: APT29",
       score: 1,
+      discoveryEnabled: true,
       enabled: true,
       metadata: [],
       links: [],

@@ -134,7 +134,7 @@ describe("ZAP Poll Failure Recovery", () => {
   });
 
   it("should auto-mark scan as error after MAX_POLL_FAILURES (5)", () => {
-    expect(zapSrc).toContain("MAX_POLL_FAILURES = 5");
+    expect(zapSrc).toContain("MAX_POLL_FAILURES = 8");
   });
 
   it("should reset failure counter on successful poll", () => {

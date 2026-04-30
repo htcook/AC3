@@ -37,6 +37,16 @@ function detectCdn(cname: string): string | undefined {
   return undefined;
 }
 
+/** Wrap a DNS query with a per-query timeout to prevent individual queries from hanging */
+async function dnsWithTimeout<T>(queryFn: () => Promise<T>, timeoutMs: number = 5000): Promise<T> {
+  return Promise.race([
+    queryFn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 export const dnsDeepConnector: PassiveConnector = {
   name: "dns_deep",
   description: "Comprehensive DNS record analysis — A, AAAA, CNAME, NS, SOA, TXT, SRV, CAA records with CDN and hosting provider detection",
@@ -48,10 +58,17 @@ export const dnsDeepConnector: PassiveConnector = {
     const errors: string[] = [];
     const observations: AssetObservation[] = [];
     const now = new Date();
+    const signal = config?.signal;
+    const DNS_TIMEOUT = 5000; // 5s per individual DNS query
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: "dns_deep", domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     // A records
     try {
-      const aRecords = await resolve4(domain);
+      const aRecords = await dnsWithTimeout(() => resolve4(domain), DNS_TIMEOUT);
       if (aRecords.length > 0) {
         observations.push({
           assetId: makeAssetId(domain, `a:${domain}`, "dns_deep"),
@@ -63,11 +80,13 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS A Record Lookup", method: `Resolved A records for ${domain}`, verifyUrl: `https://dns.google/resolve?name=${domain}&type=A` },
         });
       }
-    } catch { /* No A records */ }
+    } catch { /* No A records or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // AAAA records
     try {
-      const aaaaRecords = await resolve6(domain);
+      const aaaaRecords = await dnsWithTimeout(() => resolve6(domain), DNS_TIMEOUT);
       if (aaaaRecords.length > 0) {
         observations.push({
           assetId: makeAssetId(domain, `aaaa:${domain}`, "dns_deep"),
@@ -79,11 +98,13 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS AAAA Record Lookup", method: `Resolved AAAA records for ${domain}` },
         });
       }
-    } catch { /* No AAAA records */ }
+    } catch { /* No AAAA records or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // CNAME records
     try {
-      const cnameRecords = await resolveCname(domain);
+      const cnameRecords = await dnsWithTimeout(() => resolveCname(domain), DNS_TIMEOUT);
       if (cnameRecords.length > 0) {
         const cdn = detectCdn(cnameRecords[0]);
         observations.push({
@@ -96,11 +117,13 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS CNAME Record Lookup", method: `Resolved CNAME records for ${domain}` },
         });
       }
-    } catch { /* No CNAME records */ }
+    } catch { /* No CNAME records or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // NS records
     try {
-      const nsRecords = await resolveNs(domain);
+      const nsRecords = await dnsWithTimeout(() => resolveNs(domain), DNS_TIMEOUT);
       if (nsRecords.length > 0) {
         const nsProviders: string[] = [];
         for (const ns of nsRecords) {
@@ -121,11 +144,13 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS NS Record Lookup", method: `Resolved NS records for ${domain}` },
         });
       }
-    } catch { /* No NS records */ }
+    } catch { /* No NS records or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // SOA record
     try {
-      const soa = await resolveSoa(domain);
+      const soa = await dnsWithTimeout(() => resolveSoa(domain), DNS_TIMEOUT);
       if (soa) {
         observations.push({
           assetId: makeAssetId(domain, `soa:${domain}`, "dns_deep"),
@@ -137,11 +162,13 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS SOA Record Lookup", method: `Resolved SOA record for ${domain}` },
         });
       }
-    } catch { /* No SOA record */ }
+    } catch { /* No SOA record or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // TXT records (non-SPF/DMARC — those are handled by email-security connector)
     try {
-      const txtRecords = await resolveTxt(domain);
+      const txtRecords = await dnsWithTimeout(() => resolveTxt(domain), DNS_TIMEOUT);
       const nonEmailTxt = txtRecords.filter(parts => {
         const record = parts.join("");
         return !record.toLowerCase().startsWith("v=spf1") && !record.toLowerCase().startsWith("v=dmarc1");
@@ -167,13 +194,16 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS TXT Record Lookup", method: `Resolved TXT records for ${domain} (excluding SPF/DMARC)` },
         });
       }
-    } catch { /* No TXT records */ }
+    } catch { /* No TXT records or timeout */ }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // SRV records — common service discovery
     const srvPrefixes = ["_sip._tcp", "_sip._udp", "_xmpp-server._tcp", "_xmpp-client._tcp", "_autodiscover._tcp", "_ldap._tcp", "_kerberos._tcp"];
     for (const prefix of srvPrefixes) {
+      if (signal?.aborted) break;
       try {
-        const srvRecords = await resolveSrv(`${prefix}.${domain}`);
+        const srvRecords = await dnsWithTimeout(() => resolveSrv(`${prefix}.${domain}`), DNS_TIMEOUT);
         if (srvRecords.length > 0) {
           observations.push({
             assetId: makeAssetId(domain, `srv:${prefix}:${domain}`, "dns_deep"),
@@ -185,12 +215,14 @@ export const dnsDeepConnector: PassiveConnector = {
             attribution: { provider: "DNS SRV Record Lookup", method: `Resolved SRV records for ${prefix}.${domain}` },
           });
         }
-      } catch { /* No SRV records for this prefix */ }
+      } catch { /* No SRV records for this prefix or timeout */ }
     }
+
+    if (signal?.aborted) return { connector: "dns_deep", domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited: false };
 
     // CAA records
     try {
-      const caaRecords = await resolveCaa(domain);
+      const caaRecords = await dnsWithTimeout(() => resolveCaa(domain), DNS_TIMEOUT);
       if (caaRecords.length > 0) {
         const issuers = caaRecords.filter((r: any) => r.critical !== undefined || r.issue || r.issuewild).map((r: any) => r.issue || r.issuewild || JSON.stringify(r));
         observations.push({
@@ -203,7 +235,7 @@ export const dnsDeepConnector: PassiveConnector = {
           attribution: { provider: "DNS CAA Record Lookup", method: `Resolved CAA records for ${domain} to identify authorized certificate authorities` },
         });
       }
-    } catch { /* No CAA records */ }
+    } catch { /* No CAA records or timeout */ }
 
     return { connector: "dns_deep", domain, observations, errors, durationMs: Date.now() - start, rateLimited: false };
   },

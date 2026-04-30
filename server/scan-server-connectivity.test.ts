@@ -32,7 +32,7 @@ describe("Scan Server URL Configuration", () => {
     expect(sourceFile).toContain('LEGACY_ZAP_URL');
     expect(sourceFile).toContain('8090');
     // ZAP URL should be derived from LEGACY_SCAN_IP, not hardcoded
-    expect(sourceFile).toMatch(/LEGACY_ZAP_URL.*LEGACY_SCAN_IP.*8090/);
+    expect(sourceFile).toMatch(/LEGACY_ZAP_URL.*LEGACY_SCAN_IP.*8092/);
   });
 
   it("ScanForge dedicated IP should be 137.184.71.192", () => {

@@ -11,25 +11,50 @@
  */
 
 import { createHash } from "crypto";
-import { resolveNs, resolve4, resolveMx, resolveTxt, resolveCname } from "dns/promises";
+import { resolveNs, resolve4 } from "dns/promises";
 import type { AssetObservation, ConnectorConfig, ConnectorResult, PassiveConnector } from "./types";
 
 function makeAssetId(domain: string, name: string, source: string): string {
   return createHash("sha256").update(`${domain}|${name}|${source}`).digest("hex").slice(0, 20);
 }
 
+/** Wrap a DNS query with a per-query timeout */
+async function dnsWithTimeout<T>(queryFn: () => Promise<T>, timeoutMs: number = 5000): Promise<T> {
+  return Promise.race([
+    queryFn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 /**
  * Attempt a DNS zone transfer using a raw TCP connection.
  * AXFR uses TCP on port 53 with a specific wire format.
+ * Respects abort signal for early cancellation.
  */
-async function attemptAxfr(nameserver: string, domain: string, timeout: number): Promise<string[]> {
+async function attemptAxfr(nameserver: string, domain: string, timeout: number, signal?: AbortSignal): Promise<string[]> {
   const net = await import("net");
   
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("Aborted before AXFR connect"));
+      return;
+    }
+
+    const PER_NS_TIMEOUT = Math.min(timeout, 8000); // 8s max per nameserver
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error("AXFR timeout"));
-    }, timeout);
+    }, PER_NS_TIMEOUT);
+
+    // Listen for external abort
+    const onAbort = () => {
+      clearTimeout(timer);
+      socket.destroy();
+      reject(new Error("Aborted by external signal"));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     const socket = new net.Socket();
     const subdomains: string[] = [];
@@ -80,7 +105,6 @@ async function attemptAxfr(nameserver: string, domain: string, timeout: number):
       responseBuffer = Buffer.concat([responseBuffer, data]);
       
       // Try to extract domain names from the response
-      // Simple heuristic: look for domain name patterns in the response
       const responseStr = responseBuffer.toString("ascii");
       const domainPattern = new RegExp(`[a-zA-Z0-9][-a-zA-Z0-9]*\\.${domain.replace(/\./g, '\\.')}`, 'gi');
       let match: RegExpExecArray | null;
@@ -94,12 +118,21 @@ async function attemptAxfr(nameserver: string, domain: string, timeout: number):
 
     socket.on("end", () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       resolve(subdomains);
     });
 
     socket.on("error", (err: Error) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       reject(err);
+    });
+
+    socket.on("timeout", () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      socket.destroy();
+      reject(new Error("Socket timeout"));
     });
   });
 }
@@ -116,12 +149,18 @@ export const dnsZoneTransferConnector: PassiveConnector = {
     const observations: AssetObservation[] = [];
     const timeout = config?.timeout ?? 10000;
     const maxResults = config?.maxResults ?? 500;
+    const signal = config?.signal;
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: "dns_zone_transfer", domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     try {
       // Step 1: Resolve NS records
       let nameservers: string[];
       try {
-        nameservers = await resolveNs(domain);
+        nameservers = await dnsWithTimeout(() => resolveNs(domain), 5000);
       } catch {
         return { connector: "dns_zone_transfer", domain, observations, errors: ["Could not resolve NS records"], durationMs: Date.now() - start, rateLimited: false };
       }
@@ -132,18 +171,25 @@ export const dnsZoneTransferConnector: PassiveConnector = {
 
       // Step 2: Attempt AXFR against each nameserver
       for (const ns of nameservers.slice(0, 4)) { // Limit to 4 NS records
+        if (signal?.aborted) {
+          errors.push('Aborted mid-execution');
+          break;
+        }
+
         try {
           // Resolve NS hostname to IP
           let nsIps: string[];
           try {
-            nsIps = await resolve4(ns);
+            nsIps = await dnsWithTimeout(() => resolve4(ns), 5000);
           } catch {
             continue;
           }
 
           for (const nsIp of nsIps.slice(0, 2)) {
+            if (signal?.aborted) break;
+
             try {
-              const subdomains = await attemptAxfr(nsIp, domain, timeout);
+              const subdomains = await attemptAxfr(nsIp, domain, timeout, signal);
               
               if (subdomains.length > 0) {
                 transferSucceeded = true;
@@ -200,7 +246,7 @@ export const dnsZoneTransferConnector: PassiveConnector = {
         }
       }
 
-      if (!transferSucceeded) {
+      if (!transferSucceeded && !signal?.aborted) {
         // Not an error — zone transfers SHOULD be blocked
         observations.push({
           assetId: makeAssetId(domain, "axfr:blocked", "dns_zone_transfer"),

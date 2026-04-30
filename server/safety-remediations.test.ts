@@ -612,7 +612,7 @@ describe("Database Schema — Quarantine & Catalog Tables", () => {
     expect(source).toContain("quarantine_id");
     expect(source).toContain("exploit_title");
     expect(source).toContain("source_pipeline");
-    expect(source).toContain("'pending_review', 'approved', 'rejected'");
+    expect(source).toContain("'pending_review','approved','rejected'");
   });
 
   it("approved_exploit_catalog table is defined in schema", async () => {

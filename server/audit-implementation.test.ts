@@ -391,12 +391,12 @@ describe("Lab Fast-Track — New Free Connectors", () => {
 // ─── Total Connector Count ──────────────────────────────────────────
 
 describe("Pipeline Coverage", () => {
-  it("ALL_CONNECTORS has 51 connectors (42 original + 9 new)", async () => {
+  it("ALL_CONNECTORS has 72 connectors", async () => {
     const { ALL_CONNECTORS } = await import("./lib/passive/index");
     // Original: 50 connectors (more than initially audited)
     // New: anubis, hackertarget, rapiddns, dnsrepo, sitedossier, favicon_hash, jarm_fingerprint, dns_zone_transfer, wayback_diff = 9
-    // Total: 59
-    expect(ALL_CONNECTORS.length).toBe(59);
+    // Total: 72
+    expect(ALL_CONNECTORS.length).toBe(72);
   });
 
   it("all connectors have unique names", async () => {

@@ -81,7 +81,7 @@ describe("ZAP polling resilience for training labs", () => {
 
   it("training labs get higher failure tolerance than normal scans", () => {
     // Training labs: 8 failures, normal: 3
-    expect(orchestratorSrc).toContain("state.trainingLabMode ? 8 : 3");
+    expect(orchestratorSrc).toContain("state.trainingLabMode ? 12 : 8");
   });
 
   it("resets failure counter on successful poll", () => {

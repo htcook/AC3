@@ -18,6 +18,16 @@ function makeAssetId(domain: string, name: string, source: string): string {
   return createHash("sha256").update(`${domain}|${name}|${source}`).digest("hex").slice(0, 20);
 }
 
+/** Wrap a DNS query with a per-query timeout */
+async function dnsWithTimeout<T>(queryFn: () => Promise<T>, timeoutMs: number = 5000): Promise<T> {
+  return Promise.race([
+    queryFn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 interface EmailSecurityResult {
   spf: { found: boolean; record?: string; policy?: string; issues: string[] };
   dmarc: { found: boolean; record?: string; policy?: string; pct?: number; rua?: string; issues: string[] };
@@ -25,7 +35,8 @@ interface EmailSecurityResult {
   mx: { records: { exchange: string; priority: number }[]; issues: string[] };
 }
 
-async function queryDns(domain: string, _timeout: number): Promise<EmailSecurityResult> {
+async function queryDns(domain: string, _timeout: number, signal?: AbortSignal): Promise<EmailSecurityResult> {
+  const DNS_TIMEOUT = 5000; // 5s per individual DNS query
   const result: EmailSecurityResult = {
     spf: { found: false, issues: [] },
     dmarc: { found: false, issues: [] },
@@ -35,7 +46,8 @@ async function queryDns(domain: string, _timeout: number): Promise<EmailSecurity
 
   // SPF
   try {
-    const txtRecords = await resolveTxt(domain);
+    if (signal?.aborted) throw new Error('Aborted');
+    const txtRecords = await dnsWithTimeout(() => resolveTxt(domain), DNS_TIMEOUT);
     for (const parts of txtRecords) {
       const record = parts.join("");
       if (record.toLowerCase().startsWith("v=spf1")) {
@@ -54,14 +66,15 @@ async function queryDns(domain: string, _timeout: number): Promise<EmailSecurity
         }
       }
     }
-  } catch { /* No TXT records */ }
+  } catch { /* No TXT records or timeout */ }
   if (!result.spf.found) {
     result.spf.issues.push("No SPF record found — email spoofing is trivial");
   }
 
   // DMARC
   try {
-    const dmarcRecords = await resolveTxt(`_dmarc.${domain}`);
+    if (signal?.aborted) throw new Error('Aborted');
+    const dmarcRecords = await dnsWithTimeout(() => resolveTxt(`_dmarc.${domain}`), DNS_TIMEOUT);
     for (const parts of dmarcRecords) {
       const record = parts.join("");
       if (record.toLowerCase().startsWith("v=dmarc1")) {
@@ -81,17 +94,18 @@ async function queryDns(domain: string, _timeout: number): Promise<EmailSecurity
         }
       }
     }
-  } catch { /* No DMARC record */ }
+  } catch { /* No DMARC record or timeout */ }
   if (!result.dmarc.found) {
     result.dmarc.issues.push("No DMARC record found — email spoofing protection is absent");
   }
 
-  // DKIM — check common selectors
+  // DKIM — check common selectors (with abort checks between selectors)
   const commonSelectors = ["default", "google", "selector1", "selector2", "k1", "k2", "mail", "dkim", "s1", "s2"];
   result.dkim.selectorsChecked = commonSelectors;
   for (const sel of commonSelectors) {
+    if (signal?.aborted) break;
     try {
-      const dkimRecords = await resolveTxt(`${sel}._domainkey.${domain}`);
+      const dkimRecords = await dnsWithTimeout(() => resolveTxt(`${sel}._domainkey.${domain}`), DNS_TIMEOUT);
       for (const parts of dkimRecords) {
         const record = parts.join("");
         if (record.includes("v=DKIM1") || record.includes("p=")) {
@@ -99,7 +113,7 @@ async function queryDns(domain: string, _timeout: number): Promise<EmailSecurity
           break;
         }
       }
-    } catch { /* Selector not found */ }
+    } catch { /* Selector not found or timeout */ }
   }
   if (result.dkim.found.length === 0) {
     result.dkim.issues.push("No DKIM selectors found among common selectors — email authentication may be weak");
@@ -107,7 +121,8 @@ async function queryDns(domain: string, _timeout: number): Promise<EmailSecurity
 
   // MX records
   try {
-    const mxRecords = await resolveMx(domain);
+    if (signal?.aborted) throw new Error('Aborted');
+    const mxRecords = await dnsWithTimeout(() => resolveMx(domain), DNS_TIMEOUT);
     result.mx.records = mxRecords.map(r => ({ exchange: r.exchange, priority: r.priority }));
     if (mxRecords.length === 0) {
       result.mx.issues.push("No MX records found — domain may not receive email");
@@ -130,10 +145,16 @@ export const emailSecurityConnector: PassiveConnector = {
     const errors: string[] = [];
     const observations: AssetObservation[] = [];
     const timeout = config?.timeout ?? 15000;
+    const signal = config?.signal;
     const now = new Date();
 
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: "email_security", domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
+
     try {
-      const result = await queryDns(domain, timeout);
+      const result = await queryDns(domain, timeout, signal);
 
       // SPF observation
       observations.push({

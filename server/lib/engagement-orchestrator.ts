@@ -7771,7 +7771,47 @@ export async function executeVulnDetection(state: EngagementOpsState, engagement
             addLog(state, { phase: "vuln_detection", type: attempt < ZAP_RETRY_DELAYS.length - 1 ? "warning" : "error", title: `ZAP Start Error${attempt > 0 ? ` (attempt ${attempt + 1})` : ''}: ${targetUrl}`, detail: zapStartErr.message });
           }
         }
-        if (!zapStarted) continue;
+        if (!zapStarted) {
+          // ── BURP FALLBACK: When ZAP fails, attempt direct Burp scan ──
+          addLog(state, {
+            phase: "vuln_detection", type: "warning",
+            title: `ZAP Failed — Attempting Burp Suite Fallback: ${targetUrl}`,
+            detail: `ZAP could not start after ${ZAP_RETRY_DELAYS.length} attempts. Launching Burp Suite as fallback scanner.`,
+          });
+          try {
+            const { onEngagementVulnDetectionPhase } = await import("./burp-auto-scan");
+            const burpFallbackResults = await onEngagementVulnDetectionPhase(
+              state.engagementId,
+              operatorCtx.id,
+              engagement.handle || engagement.name || `eng-${state.engagementId}`,
+              [targetUrl],
+              state.scanMode || 'active',
+              hasConfirmedCreds ? { username: webCreds[0].username, password: webCreds[0].password } : undefined,
+              techHints,
+            );
+            if (burpFallbackResults.length > 0 && burpFallbackResults[0].status !== 'failed') {
+              addLog(state, {
+                phase: "vuln_detection", type: "info",
+                title: `✅ Burp Fallback Launched: ${targetUrl}`,
+                detail: `Burp Suite scan started (ID: ${burpFallbackResults[0].scanId || 'pending'}). Edition: ${burpFallbackResults[0].edition}.`,
+              });
+            } else {
+              const fallbackErr = burpFallbackResults[0]?.error || 'No Burp credentials available';
+              addLog(state, {
+                phase: "vuln_detection", type: "warning",
+                title: `Burp Fallback Also Failed: ${targetUrl}`,
+                detail: `Neither ZAP nor Burp could scan this target. Error: ${fallbackErr}. Consider checking scanner connectivity.`,
+              });
+            }
+          } catch (burpFallbackErr: any) {
+            addLog(state, {
+              phase: "vuln_detection", type: "warning",
+              title: `Burp Fallback Error: ${targetUrl}`,
+              detail: `Burp fallback failed: ${burpFallbackErr.message}. Target will be skipped for DAST scanning.`,
+            });
+          }
+          continue;
+        }
 
         // Configure ZAP authentication with confirmed credentials AFTER scan context is created
         if (hasConfirmedCreds && zapScanResult?.scanId) {

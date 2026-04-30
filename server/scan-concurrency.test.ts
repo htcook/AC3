@@ -17,10 +17,10 @@ describe('Scan Concurrency Limiter', () => {
   describe('Default Configuration', () => {
     it('should have sensible defaults for 8-vCPU droplet', () => {
       const config = getScanConcurrencyConfig();
-      expect(config.maxConcurrentNuclei).toBe(4);
-      expect(config.maxConcurrentZap).toBe(2);
-      expect(config.maxConcurrentTotal).toBe(6);
-      expect(config.maxPerEngagement).toBe(3);
+      expect(config.maxConcurrentNuclei).toBe(2);
+      expect(config.maxConcurrentZap).toBe(1);
+      expect(config.maxConcurrentTotal).toBe(4);
+      expect(config.maxPerEngagement).toBe(2);
       expect(config.queueTimeoutMs).toBe(300000); // 5 minutes
     });
 
@@ -68,7 +68,7 @@ describe('Scan Concurrency Limiter', () => {
       expect(metrics.perEngagement[100]).toBe(2);
       expect(metrics.perEngagement[200]).toBe(1);
 
-      r1(); r2(); r3();
+      r1(); r3();
     });
 
     it('should track peak concurrent', async () => {
@@ -78,73 +78,71 @@ describe('Scan Concurrency Limiter', () => {
 
       expect(getScanConcurrencyMetrics().peakConcurrent).toBe(3);
 
-      r1(); r2(); r3();
+      r1(); r3();
       // Peak should remain at 3 even after release
       expect(getScanConcurrencyMetrics().peakConcurrent).toBe(3);
     });
   });
 
   describe('Per-Tool Limits', () => {
-    it('should enforce nuclei concurrency limit (4)', async () => {
+    it('should enforce nuclei concurrency limit (2)', async () => {
       const releases: (() => void)[] = [];
-      // Acquire 4 nuclei slots across different engagements
-      for (let i = 0; i < 4; i++) {
+      // Acquire 2 nuclei slots across different engagements
+      for (let i = 0; i < 2; i++) {
         releases.push(await acquireScanSlot('nuclei', i + 1));
       }
 
-      // 5th nuclei should NOT be immediately available
-      expect(isScanSlotAvailable('nuclei', 5)).toBe(false);
+      // 3rd nuclei should NOT be immediately available
+      expect(isScanSlotAvailable('nuclei', 3)).toBe(false);
 
       // But a ZAP slot should still be available (different tool)
-      expect(isScanSlotAvailable('zap', 5)).toBe(true);
+      expect(isScanSlotAvailable('zap', 3)).toBe(true);
 
       releases.forEach(r => r());
     });
 
-    it('should enforce ZAP concurrency limit (2)', async () => {
+    it('should enforce ZAP concurrency limit (1)', async () => {
       const r1 = await acquireScanSlot('zap', 1);
-      const r2 = await acquireScanSlot('zap', 2);
 
-      // 3rd ZAP should NOT be available
-      expect(isScanSlotAvailable('zap', 3)).toBe(false);
+      // 2nd ZAP should NOT be available
+      expect(isScanSlotAvailable('zap', 2)).toBe(false);
 
       // But nuclei should still be available
-      expect(isScanSlotAvailable('nuclei', 3)).toBe(true);
+      expect(isScanSlotAvailable('nuclei', 2)).toBe(true);
 
-      r1(); r2();
+      r1();
     });
   });
 
   describe('Global Total Limit', () => {
-    it('should enforce global total limit (6)', async () => {
+    it('should enforce global total limit (4)', async () => {
       const releases: (() => void)[] = [];
-      // Fill up: 4 nuclei + 2 ZAP = 6 total
-      for (let i = 0; i < 4; i++) {
-        releases.push(await acquireScanSlot('nuclei', i + 1));
-      }
-      releases.push(await acquireScanSlot('zap', 5));
-      releases.push(await acquireScanSlot('zap', 6));
+      // Fill up: 2 nuclei + 1 ZAP + 1 nuclei = 4 total (across different engagements)
+      releases.push(await acquireScanSlot('nuclei', 1));
+      releases.push(await acquireScanSlot('nuclei', 2));
+      releases.push(await acquireScanSlot('zap', 3));
+      releases.push(await acquireScanSlot('nuclei', 4));
 
       const metrics = getScanConcurrencyMetrics();
-      expect(metrics.activeTotal).toBe(6);
+      expect(metrics.activeTotal).toBe(4);
 
       // No more slots available for any tool
-      expect(isScanSlotAvailable('nuclei', 7)).toBe(false);
-      expect(isScanSlotAvailable('zap', 7)).toBe(false);
+      expect(isScanSlotAvailable('nuclei', 5)).toBe(false);
+      expect(isScanSlotAvailable('zap', 5)).toBe(false);
 
       releases.forEach(r => r());
     });
   });
 
   describe('Per-Engagement Fairness', () => {
-    it('should enforce per-engagement limit (3)', async () => {
+    it('should enforce per-engagement limit (2)', async () => {
       const releases: (() => void)[] = [];
-      // Same engagement acquires 3 slots
-      for (let i = 0; i < 3; i++) {
+      // Same engagement acquires 2 slots
+      for (let i = 0; i < 2; i++) {
         releases.push(await acquireScanSlot('nuclei', 42));
       }
 
-      // 4th slot for same engagement should be blocked
+      // 3rd slot for same engagement should be blocked
       expect(isScanSlotAvailable('nuclei', 42)).toBe(false);
 
       // But a different engagement can still acquire
@@ -270,7 +268,7 @@ describe('Scan Concurrency Limiter', () => {
       expect(updated.maxConcurrentZap).toBe(4);
       expect(updated.maxConcurrentTotal).toBe(12);
       // Unchanged values should persist
-      expect(updated.maxPerEngagement).toBe(3);
+      expect(updated.maxPerEngagement).toBe(2);
     });
 
     it('should drain queue when config is relaxed', async () => {
@@ -293,7 +291,7 @@ describe('Scan Concurrency Limiter', () => {
       expect(resolved).toBe(true);
 
       const r2 = await p2;
-      r1(); r2();
+      r1();
     });
   });
 

@@ -50,7 +50,7 @@ describe("Feature 1: Clickable Tech Pills — Engine API", () => {
   });
 
   it("findAssetWithTech should search by type 'asset' and technologies array", () => {
-    expect(engineSrc).toContain("n.type === 'asset'");
+    expect(engineSrc).toContain("assetTypes.has(n.type)");
     expect(engineSrc).toContain("n.technologies?.some");
   });
 

@@ -37,8 +37,9 @@ const KNOWN_JARM_SIGNATURES: Record<string, string> = {
 /**
  * Perform a basic TLS fingerprint by connecting and extracting cipher/protocol info.
  * This is a lightweight alternative to full JARM — for full accuracy, use the scan server binary.
+ * Respects abort signal for early cancellation.
  */
-async function tlsFingerprint(host: string, port: number, timeout: number): Promise<{
+async function tlsFingerprint(host: string, port: number, timeout: number, signal?: AbortSignal): Promise<{
   protocol: string;
   cipher: string;
   authorized: boolean;
@@ -51,19 +52,35 @@ async function tlsFingerprint(host: string, port: number, timeout: number): Prom
   sigAlgorithm: string;
 }> {
   return new Promise((resolve, reject) => {
+    // Check if already aborted
+    if (signal?.aborted) {
+      reject(new Error("Aborted before TLS connect"));
+      return;
+    }
+
+    const PER_PORT_TIMEOUT = Math.min(timeout, 8000); // 8s max per port
     const timer = setTimeout(() => {
       socket.destroy();
       reject(new Error("TLS connection timeout"));
-    }, timeout);
+    }, PER_PORT_TIMEOUT);
+
+    // Listen for external abort
+    const onAbort = () => {
+      clearTimeout(timer);
+      socket.destroy();
+      reject(new Error("Aborted by external signal"));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     const socket: TLSSocket = connect({
       host,
       port,
       servername: host,
       rejectUnauthorized: false,
-      timeout,
+      timeout: PER_PORT_TIMEOUT,
     }, () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       const protocol = socket.getProtocol() || "unknown";
       const cipher = socket.getCipher()?.name || "unknown";
       const cert = socket.getPeerCertificate();
@@ -87,7 +104,15 @@ async function tlsFingerprint(host: string, port: number, timeout: number): Prom
 
     socket.on("error", (err) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       reject(err);
+    });
+
+    socket.on("timeout", () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      socket.destroy();
+      reject(new Error("Socket timeout"));
     });
   });
 }
@@ -103,14 +128,26 @@ export const jarmFingerprintConnector: PassiveConnector = {
     const errors: string[] = [];
     const observations: AssetObservation[] = [];
     const timeout = config?.timeout ?? 10000;
+    const signal = config?.signal;
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: "jarm_fingerprint", domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     try {
       const ports = [443, 8443, 8080];
       const now = new Date();
 
       for (const port of ports) {
+        // Check abort between ports
+        if (signal?.aborted) {
+          errors.push(`Aborted after scanning ${observations.length} port(s)`);
+          break;
+        }
+
         try {
-          const fp = await tlsFingerprint(domain, port, timeout);
+          const fp = await tlsFingerprint(domain, port, timeout, signal);
           
           // Create a composite fingerprint hash
           const fpString = `${fp.protocol}|${fp.cipher}|${fp.issuer}|${fp.sigAlgorithm}`;
@@ -149,7 +186,7 @@ export const jarmFingerprintConnector: PassiveConnector = {
         }
       }
 
-      if (observations.length === 0) {
+      if (observations.length === 0 && !signal?.aborted) {
         errors.push(`No TLS services found on ${domain} (tried ports 443, 8443, 8080)`);
       }
     } catch (err: any) {

@@ -187,6 +187,12 @@ export const darkwebCrossrefConnector: PassiveConnector = {
     const errors: string[] = [];
     const now = new Date();
     const source = "darkweb_crossref";
+    const signal = config?.signal;
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: source, domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     try {
       const db = await getDb();
@@ -231,6 +237,11 @@ export const darkwebCrossrefConnector: PassiveConnector = {
         )
         .limit(100);
 
+      // Abort check between stages
+      if (signal?.aborted) {
+        return { connector: source, domain, observations, errors: ['Aborted after stage 1'], durationMs: Date.now() - start, rateLimited: false };
+      }
+
       // ═══════════════════════════════════════════════════════════════
       // STAGE 2: Credential Exposures (with source classification)
       // ═══════════════════════════════════════════════════════════════
@@ -258,6 +269,11 @@ export const darkwebCrossrefConnector: PassiveConnector = {
           )
         )
         .limit(100);
+
+      // Abort check between stages
+      if (signal?.aborted) {
+        return { connector: source, domain, observations, errors: ['Aborted after stage 2'], durationMs: Date.now() - start, rateLimited: false };
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // STAGE 3: Threat Group Attribution History

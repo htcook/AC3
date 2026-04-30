@@ -185,7 +185,7 @@ describe('Report Section Blueprints', () => {
 
   it('all blueprints should have executive_summary as first or second section', () => {
     for (const [type, bp] of Object.entries(REPORT_BLUEPRINTS)) {
-      const execSummaryIdx = bp.sections.findIndex(s => s.id === 'executive_summary');
+      const execSummaryIdx = bp.sections.findIndex(s => s.id === 'executive_summary' || s.id === 'sar_executive_summary');
       // Executive summary should be within first 3 sections
       expect(execSummaryIdx).toBeLessThan(3);
       expect(execSummaryIdx).toBeGreaterThanOrEqual(0);

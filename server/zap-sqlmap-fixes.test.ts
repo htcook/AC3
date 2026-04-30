@@ -180,7 +180,7 @@ describe("Training Lab Injectable Endpoints", () => {
 
 describe("ZAP Timeout Increase for Training Labs", () => {
   it("should use 45 minutes for training labs instead of 5", () => {
-    expect(orchestratorSource).toContain("zapTimeoutMinutes = state.trainingLabMode ? 45 : 5");
+    expect(orchestratorSource).toContain("zapTimeoutMinutes = isKnownTrainingLab ? 90 : 30");
   });
 
   it("should use the dynamic timeout in the polling loop", () => {
@@ -419,10 +419,10 @@ describe("AJAX Spider Duration Cap", () => {
 
 describe("Orchestrator ZAP Timeout Increase", () => {
   it("should use 45-minute timeout for training labs", () => {
-    expect(orchestratorSource).toContain("state.trainingLabMode ? 45 : 5");
+    expect(orchestratorSource).toContain("isKnownTrainingLab ? 90 : 30");
   });
 
   it("should use 5-minute timeout for non-training lab engagements", () => {
-    expect(orchestratorSource).toContain("state.trainingLabMode ? 45 : 5");
+    expect(orchestratorSource).toContain("isKnownTrainingLab ? 90 : 30");
   });
 });

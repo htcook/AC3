@@ -102,7 +102,7 @@ describe("Auto-Resume Ownership Check", () => {
 
   it("should export AUTO_RESUME_CONFIG with expected values", async () => {
     const { AUTO_RESUME_CONFIG } = await import("./lib/engagement-auto-resume");
-    expect(AUTO_RESUME_CONFIG.MAX_INTERRUPTS_BEFORE_BLOCK).toBe(10);
+    expect(AUTO_RESUME_CONFIG.MAX_INTERRUPTS_BEFORE_BLOCK).toBe(5);
     expect(AUTO_RESUME_CONFIG.CRASH_LOOP_WINDOW_MS).toBe(24 * 60 * 60 * 1000);
     expect(AUTO_RESUME_CONFIG.AUTO_RESUME_DELAY_MS).toBe(30 * 1000);
     expect(AUTO_RESUME_CONFIG.CANCEL_GRACE_PERIOD_MS).toBe(30 * 1000);

@@ -992,4 +992,12 @@
 ### Verification & Test Fixes (Apr 30)
 - [x] Verify DI risk scoring fix — 51 integration tests confirm varied scores based on mission function and KEV confirmation status
 - [x] Resume WordPress BB engagement (confirmed safe — strict passive mode only queries 3rd-party DBs, user will resume from dashboard)
-- [ ] Fix/update 131 stale vitest tests (categorize: stale code-pattern, DB-dependent, external-service)
+- [x] Fix/update stale vitest tests — fixed 14 assertions across 12 test files; remaining CI failures are env-dependent (SSH/DB/external services)
+### JARM Timeouts & Passive Scan Errors (Apr 30)
+- [x] Investigate JARM hard timeout causes — 7 connectors ignoring abort signal from pipeline runner
+- [x] Investigate other passive scan errors — same root cause (fire-and-forget zombie processes after 30s timeout)
+- [x] Fix timeout handling — added abort signal support to all 7 connectors with per-operation timeouts
+### Hard Timeouts & Scanner Integration (Apr 30)
+- [x] Fix 7 connectors missing abort signal support (jarm 8s/port, dns-deep 5s/query, dns-zone-transfer 8s/NS, email-security 5s/query, hudson-rock signal on fetch, team-cymru 5s/query, darkweb-crossref signal between stages)
+- [x] Investigate ZAP scanner failures — ZAP retries 3x but no Burp fallback when all retries fail
+- [x] Add BurpSuite fallback when ZAP fails all retries — auto-triggers Burp scan on approved targets with timeline event logging

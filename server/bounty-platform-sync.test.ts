@@ -16,7 +16,9 @@ describe("Bug Bounty Multi-Platform Sync Engine", () => {
 
   it("supports HackerOne platform via env fallback", () => {
     expect(syncContent).toContain("hackerone");
-    expect(syncContent).toContain("HACKERONE_API_KEY");
+    // HACKERONE_API_KEY was refactored into credential-service.ts
+    const credService = fs.readFileSync(path.join(__dirname, "lib/credential-service.ts"), "utf-8");
+    expect(credService).toContain("HACKERONE_API_KEY");
   });
 
   it("supports Bugcrowd platform", () => {

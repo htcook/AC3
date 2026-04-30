@@ -156,7 +156,7 @@ describe("ZAP Scan Optimization — Focused Fast Playbook", () => {
 
   describe("Orchestrator timeout", () => {
     it("should set ZAP timeout to 45 minutes for training labs", () => {
-      expect(orchestratorCode).toContain("trainingLabMode ? 45 : 5");
+      expect(orchestratorCode).toContain("isKnownTrainingLab ? 90 : 30");
     });
 
     it("should NOT use the old 25-minute timeout", () => {

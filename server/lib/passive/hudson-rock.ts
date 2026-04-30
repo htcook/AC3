@@ -48,6 +48,12 @@ export const hudsonRockConnector: PassiveConnector = {
     const errors: string[] = [];
     let rateLimited = false;
     const now = new Date();
+    const signal = config?.signal;
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: 'hudson_rock', domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     const apiKey = config?.apiKey;
     if (!apiKey) {
@@ -62,12 +68,16 @@ export const hudsonRockConnector: PassiveConnector = {
     }
 
     try {
+      const fetchTimeout = Math.min(config?.timeout ?? 15000, 20000);
+      
       const responses = await Promise.allSettled([
         fetch(`${HUDSON_ROCK_BASE}/osint-tools/search-by-domain?domain=${encodeURIComponent(domain)}`, {
           headers: { 'api-key': apiKey, 'Accept': 'application/json' },
+          signal: signal || AbortSignal.timeout(fetchTimeout),
         }),
         fetch(`${HUDSON_ROCK_BASE}/osint-tools/search-by-domain?domain=${encodeURIComponent(domain)}&type=thirdparty`, {
           headers: { 'api-key': apiKey, 'Accept': 'application/json' },
+          signal: signal || AbortSignal.timeout(fetchTimeout),
         }),
       ]);
 
@@ -78,9 +88,15 @@ export const hudsonRockConnector: PassiveConnector = {
         const empData = await employeeResp.value.json();
         employees = Array.isArray(empData) ? empData : (empData?.stealers || empData?.data || []);
       } else if (employeeResp.status === 'fulfilled') {
+        if (employeeResp.value.status === 429) rateLimited = true;
         errors.push(`Hudson Rock employee API returned status ${employeeResp.value.status}`);
       } else {
         errors.push(`Hudson Rock employee API fetch failed: ${employeeResp.reason}`);
+      }
+
+      // Check abort between API calls
+      if (signal?.aborted) {
+        return { connector: 'hudson_rock', domain, observations, errors: ['Aborted mid-execution'], durationMs: Date.now() - start, rateLimited };
       }
 
       let thirdParty: HudsonRockThirdParty[] = [];
@@ -88,6 +104,7 @@ export const hudsonRockConnector: PassiveConnector = {
         const tpData = await thirdPartyResp.value.json();
         thirdParty = Array.isArray(tpData) ? tpData : (tpData?.stealers || tpData?.data || []);
       } else if (thirdPartyResp.status === 'fulfilled') {
+        if (thirdPartyResp.value.status === 429) rateLimited = true;
         errors.push(`Hudson Rock third-party API returned status ${thirdPartyResp.value.status}`);
       } else {
         errors.push(`Hudson Rock third-party API fetch failed: ${thirdPartyResp.reason}`);

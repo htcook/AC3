@@ -20,13 +20,23 @@ function makeAssetId(domain: string, name: string, source: string): string {
   return createHash("sha256").update(`${domain}|${name}|${source}`).digest("hex").slice(0, 20);
 }
 
+/** Wrap a DNS query with a per-query timeout */
+async function dnsWithTimeout<T>(queryFn: () => Promise<T>, timeoutMs: number = 5000): Promise<T> {
+  return Promise.race([
+    queryFn(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 /**
  * Resolve domain to IP addresses using DNS
  */
 async function resolveToIPs(domain: string): Promise<string[]> {
   const resolveA = promisify(dnsResolve) as unknown as (hostname: string, rrtype: "A") => Promise<string[]>;
   try {
-    const ips = await resolveA(domain, "A");
+    const ips = await dnsWithTimeout(() => resolveA(domain, "A"), 5000);
     return ips || [];
   } catch {
     return [];
@@ -35,18 +45,15 @@ async function resolveToIPs(domain: string): Promise<string[]> {
 
 /**
  * Query Team Cymru DNS for IP-to-ASN mapping
- * Format: reversed IP octets + .origin.asn.cymru.com
- * Response: "ASN | IP/CIDR | CC | Registry | Allocated"
  */
 async function queryOriginASN(ip: string): Promise<{ asn: string; cidr: string; cc: string; registry: string; allocated: string } | null> {
   try {
     const reversed = ip.split(".").reverse().join(".");
     const hostname = `${reversed}.origin.asn.cymru.com`;
-    const records = await resolveTxt(hostname, "TXT");
+    const records = await dnsWithTimeout(() => resolveTxt(hostname, "TXT"), 5000);
     
     if (records && records.length > 0) {
       const txt = records[0].join("").trim();
-      // Format: "ASN | IP/CIDR | CC | Registry | Allocated"
       const parts = txt.split("|").map((s: string) => s.trim());
       return {
         asn: parts[0] || "",
@@ -57,21 +64,19 @@ async function queryOriginASN(ip: string): Promise<{ asn: string; cidr: string; 
       };
     }
   } catch {
-    // DNS query failed
+    // DNS query failed or timeout
   }
   return null;
 }
 
 /**
  * Query Team Cymru for ASN details (name, country)
- * Format: AS<number>.asn.cymru.com TXT
- * Response: "ASN | CC | Registry | Allocated | AS Name"
  */
 async function queryASNDetails(asn: string): Promise<{ name: string; cc: string; registry: string; allocated: string } | null> {
   try {
     const asnNum = asn.replace(/^AS/i, "").trim();
     const hostname = `AS${asnNum}.asn.cymru.com`;
-    const records = await resolveTxt(hostname, "TXT");
+    const records = await dnsWithTimeout(() => resolveTxt(hostname, "TXT"), 5000);
     
     if (records && records.length > 0) {
       const txt = records[0].join("").trim();
@@ -84,7 +89,7 @@ async function queryASNDetails(asn: string): Promise<{ name: string; cc: string;
       };
     }
   } catch {
-    // DNS query failed
+    // DNS query failed or timeout
   }
   return null;
 }
@@ -101,6 +106,12 @@ export const teamCymruConnector: PassiveConnector = {
     const errors: string[] = [];
     let rateLimited = false;
     const now = new Date();
+    const signal = config?.signal;
+
+    // Early abort check
+    if (signal?.aborted) {
+      return { connector: "team_cymru", domain, observations: [], errors: ['Aborted before start'], durationMs: 0, rateLimited: false };
+    }
 
     try {
       // Resolve domain to IPs
@@ -130,6 +141,11 @@ export const teamCymruConnector: PassiveConnector = {
       const asnDetails: Map<string, { name: string; cc: string; registry: string; allocated: string }> = new Map();
 
       for (const ip of ips.slice(0, 10)) {
+        if (signal?.aborted) {
+          errors.push('Aborted mid-execution');
+          break;
+        }
+
         const origin = await queryOriginASN(ip);
         if (!origin) continue;
 
@@ -137,9 +153,11 @@ export const teamCymruConnector: PassiveConnector = {
         const asnNum = origin.asn.split(" ")[0]; // Handle multi-origin ASNs
         if (asnNum && !seenASNs.has(asnNum)) {
           seenASNs.add(asnNum);
-          const details = await queryASNDetails(asnNum);
-          if (details) {
-            asnDetails.set(asnNum, details);
+          if (!signal?.aborted) {
+            const details = await queryASNDetails(asnNum);
+            if (details) {
+              asnDetails.set(asnNum, details);
+            }
           }
         }
 
@@ -176,7 +194,7 @@ export const teamCymruConnector: PassiveConnector = {
       }
 
       // Summary observation with all unique ASNs
-      if (seenASNs.size > 0) {
+      if (seenASNs.size > 0 && !signal?.aborted) {
         const asnSummary = [...seenASNs].map(asn => {
           const details = asnDetails.get(asn);
           return `AS${asn} (${details?.name || 'unknown'}, ${details?.cc || '??'})`;
