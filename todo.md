@@ -1093,3 +1093,22 @@
 - [x] Update ZAP_BASE_URL to http://137.184.211.238:8092 (caldera-scan-server droplet)
 - [x] Update SCAN_SERVER_HOST to 137.184.211.238
 - [x] Verify ZAP connectivity after fix (5 tests passing, ZAP v2.17.0 responding)
+
+### HackerOne Ineligible Findings Filter + BB RoE Enforcement (Apr 30)
+- [x] Research HackerOne core ineligible findings list (from official docs)
+- [x] Build bb-roe-enforcement.ts module with full type system (948 lines)
+- [x] Implement H1 Core Ineligible Patterns (15+ regex patterns covering all 4 categories)
+- [x] Create program-specific RoE configs: Priceline, Nextcloud, WordPress, Node.js
+- [x] Implement scan-time enforcement (enforceScanAction) — blocks prohibited actions before execution
+- [x] Implement report-time filtering (filterFindingsForProgram) — filters ineligible findings from reports
+- [x] Implement operator briefing generator (generateOperatorBriefing)
+- [x] Implement custom HTTP header builder (buildScanHeaders) — X-Bug-Bounty injection for Priceline
+- [x] Integrate into engagement orchestrator (bbRoeConfig field + initialization at recon start)
+- [x] Integrate into pentest-report-pipeline (Step 2.5 BB RoE filter after signal translation)
+- [x] Apply full program RoE configs to all 5 existing BB engagements in database
+- [x] Priceline: custom headers, excluded targets, Penny sub-target rules, inventory blocking prohibition
+- [x] Nextcloud: no automated scanning, no cloud AI/LLM, no third-party apps, no SaaS leaking
+- [x] WordPress: no production WordPress.com, no DoS, local testing preferred
+- [x] Node.js: open source tools only, no DoS, signal score requirement
+- [x] Write 41 tests covering all enforcement paths (all passing)
+- [ ] Add UI indicator for filtered findings in report view (future)

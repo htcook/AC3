@@ -597,6 +597,8 @@ export interface EngagementOpsState {
     /** Timestamp of last checkpoint */
     lastCheckpointAt: number;
   };
+  /** Bug Bounty RoE enforcement config — loaded from program-specific rules at engagement start */
+  bbRoeConfig?: import('./bb-roe-enforcement').BugBountyProgramRoE;
   stats: {
     hostsScanned: number;
     portsFound: number;
@@ -2690,6 +2692,92 @@ async function executeRecon(state: EngagementOpsState, engagement: any, operator
     title: "🛡️ RoE Scope Guard Activated",
     detail: `Authorized targets: ${domains.join(", ")}${ipRanges.length ? " | IPs: " + ipRanges.join(", ") : ""}\nOnly these targets will be actively scanned. Discovered assets outside scope will be tagged but NOT probed.`,
   });
+
+  // ═══ BUG BOUNTY RoE ENFORCEMENT ═══
+  // For bug_bounty engagements, load program-specific RoE config and enforce at scan-time
+  if ((state.engagementType as string) === 'bug_bounty' || engagement.engagementType === 'bug_bounty') {
+    try {
+      const { getProgramRoE, generateOperatorBriefing, enforceScanAction } = await import('./bb-roe-enforcement');
+      // Extract program handle from engagement's roeScope or name
+      const roeScope = engagement.roeScope || engagement.roe_scope;
+      const parsedScope = typeof roeScope === 'string' ? JSON.parse(roeScope) : roeScope;
+      const programHandle = parsedScope?.programHandle || parsedScope?.platform_handle || engagement.name?.toLowerCase().replace(/[^a-z0-9]/g, '_').split('_')[0] || '';
+      const programRoE = getProgramRoE(programHandle);
+      if (programRoE) {
+        state.bbRoeConfig = programRoE;
+        // Add excluded targets from program RoE to the scope guard
+        const excludedTargets = programRoE.testingRestrictions.excludedTargets;
+        if (excludedTargets.length > 0) {
+          addLog(state, {
+            phase: 'recon', type: 'info',
+            title: `🚫 BB RoE: ${excludedTargets.length} Excluded Targets`,
+            detail: `Program "${programHandle}" excludes:\n${excludedTargets.map(t => `  • ${t}`).join('\n')}\nThese will be blocked from all active scanning.`,
+          });
+        }
+        // Log operator briefing
+        const briefing = generateOperatorBriefing(programHandle);
+        if (briefing) {
+          addLog(state, {
+            phase: 'recon', type: 'info',
+            title: `🎯 BB Program RoE Loaded: ${programHandle.toUpperCase()}`,
+            detail: [
+              `Platform: ${briefing.platform} | Policy: ${briefing.policyUrl}`,
+              '',
+              '--- CRITICAL RULES ---',
+              ...briefing.criticalRules,
+              '',
+              '--- IDENTIFICATION SETUP ---',
+              ...briefing.identificationSetup,
+              '',
+              '--- EXCLUDED TARGETS ---',
+              ...briefing.excludedTargets.map(t => `  • ${t}`),
+              '',
+              '--- DO NOT SUBMIT ---',
+              ...briefing.doNotSubmit,
+              '',
+              '--- CLEANUP REQUIRED ---',
+              ...briefing.cleanupActions,
+            ].join('\n'),
+          });
+        }
+        // Apply custom headers to DAST config
+        if (Object.keys(programRoE.identification.customHeaders).length > 0) {
+          if (!state.dastConfig) {
+            state.dastConfig = { enabled: true, crawlDepth: 3, crawlScope: 'subdomain', templateCategories: [], timeout: 300, maxRequests: 5000, rateLimit: programRoE.testingRestrictions.rateLimiting?.maxRequestsPerSecond || 10, headless: true };
+          }
+          state.dastConfig.customHeaders = { ...(state.dastConfig.customHeaders || {}), ...programRoE.identification.customHeaders };
+          // Replace empty header values with operator username
+          const opUsername = (operatorCtx as any).h1Username || operatorCtx.name || 'ac3-operator';
+          for (const [key, val] of Object.entries(state.dastConfig.customHeaders)) {
+            if (val === '') state.dastConfig.customHeaders[key] = opUsername;
+          }
+          addLog(state, {
+            phase: 'recon', type: 'info',
+            title: '🆔 BB Custom Headers Configured',
+            detail: `Injecting identification headers into all scan requests:\n${Object.entries(state.dastConfig.customHeaders).map(([k, v]) => `  ${k}: ${v}`).join('\n')}`,
+          });
+        }
+        // Apply rate limiting from program RoE
+        if (programRoE.testingRestrictions.rateLimiting && state.dastConfig) {
+          state.dastConfig.rateLimit = programRoE.testingRestrictions.rateLimiting.maxRequestsPerSecond || state.dastConfig.rateLimit;
+          addLog(state, {
+            phase: 'recon', type: 'info',
+            title: '⏱️ BB Rate Limiting Applied',
+            detail: `Max ${state.dastConfig.rateLimit} req/s per program RoE requirements`,
+          });
+        }
+      } else {
+        addLog(state, {
+          phase: 'recon', type: 'info',
+          title: '⚠️ BB Program RoE: No Config Found',
+          detail: `No program-specific RoE config found for "${programHandle}". Engagement will proceed with general H1 Core Ineligible filtering only. Consider importing the program's policy page.`,
+        });
+      }
+    } catch (e: any) {
+      console.error('[BBRoE] Failed to load program RoE:', e.message);
+      addLog(state, { phase: 'recon', type: 'info', title: '⚠️ BB RoE Load Warning', detail: `Non-fatal: ${e.message}` });
+    }
+  }
 
   // Initialize assets from scope
   for (const domain of domains) {
