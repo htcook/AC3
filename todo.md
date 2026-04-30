@@ -1087,3 +1087,9 @@
 - [ ] Feature Guide — Platform overview with screenshots of each major page
 - [ ] User Guide — Step-by-step for Dashboard, running a DI scan, creating/running an engagement
 - [ ] Master Threat Catalog Guide — How threat catalog data flows through the platform, AC3 value vs. commercial tools
+
+### ZAP IP Connection Fix (Apr 30)
+- [x] Diagnose ZAP_BASE_URL IP mismatch (was 159.223.152.190:8090, not on DO account)
+- [x] Update ZAP_BASE_URL to http://137.184.211.238:8092 (caldera-scan-server droplet)
+- [x] Update SCAN_SERVER_HOST to 137.184.211.238
+- [x] Verify ZAP connectivity after fix (5 tests passing, ZAP v2.17.0 responding)
