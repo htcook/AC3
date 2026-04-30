@@ -1036,3 +1036,14 @@
 - [x] Verify zero client-side Manus storage dependencies
 - [x] Add architecture documentation to do-storage.ts (customer data isolation model, FedRAMP High boundary)
 - [x] Screenshot capture confirmed using doStoragePut (customer's own bucket)
+
+### Storage Abstraction for Multi-Provider S3 (Apr 30)
+- [x] Audit current do-storage.ts module and all env var references
+- [x] Design generic S3-compatible storage interface (provider-agnostic)
+- [x] Implement new storage module with configurable endpoint/bucket/key/secret/region
+- [x] Support AWS S3, DO Spaces, MinIO, and any S3-compatible backend via env vars
+- [x] Zero caller updates needed — same doStoragePut/doStorageGet exports maintained
+- [x] Maintain backward compatibility with existing DO_SPACES_* env vars (fallback priority)
+- [x] Write tests for the storage abstraction (19 tests passing)
+- [x] Update architecture documentation (header comment + env.ts comments)
+- [x] Added new capabilities: doStorageGetSigned, doStorageExists, doStorageDelete, getStorageInfo, resetStorageClient

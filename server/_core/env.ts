@@ -86,7 +86,18 @@ export const ENV = {
   HACKERONE_API_USERNAME: process.env.HACKERONE_API_USERNAME ?? "",
   // DigitalOcean — domain purchasing
   DIGITALOCEAN_ACCESS_TOKEN: process.env.DIGITALOCEAN_ACCESS_TOKEN ?? "",
-  // DigitalOcean Spaces — report & evidence storage
+  // S3-Compatible Storage (generic — preferred for new deployments)
+  // Set these to use AWS S3, MinIO, or any S3-compatible provider.
+  // If not set, falls back to DO_SPACES_* vars below.
+  S3_ENDPOINT: process.env.S3_ENDPOINT ?? "",
+  S3_REGION: process.env.S3_REGION ?? "",
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY ?? "",
+  S3_SECRET_KEY: process.env.S3_SECRET_KEY ?? "",
+  S3_BUCKET: process.env.S3_BUCKET ?? "",
+  S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE ?? "false",
+  S3_PUBLIC_URL_BASE: process.env.S3_PUBLIC_URL_BASE ?? "",
+  // DigitalOcean Spaces — legacy storage config (backward compat)
+  // These are used if S3_* vars above are not set.
   DO_SPACES_KEY: process.env.DO_SPACES_KEY ?? "",
   DO_SPACES_SECRET: process.env.DO_SPACES_SECRET ?? "",
   DO_SPACES_BUCKET: process.env.DO_SPACES_BUCKET ?? "aceofcloud-reports",
