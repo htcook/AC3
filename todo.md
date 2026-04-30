@@ -971,4 +971,17 @@
 - [x] Create daily scheduled task (6AM UTC) for automated threat intel monitoring
 - [x] Scheduled task: trigger internal feeds + deep research new APT campaigns + NVD CVE refresh + POST findings
 - [x] Write vitest tests (10 tests passing)
-- [ ] Push checkpoint to GitHub
+- [x] Push checkpoint to htcook/caldera-dashboard
+
+### Publish + Ransomware Leak Monitoring + Stack Profile Diff View (Apr 30)
+- [x] Publish the site so daily scheduled task can reach /api/scheduled/threat-intel-daily (calderadash-vmwwcxqy.manus.space)
+- [x] Build ransomware-leak-monitor.ts module (20 groups, ransomware.live API, dedup, victim recording)
+- [x] Add ransomware victim event creation to threat catalog when new victims are posted
+- [x] Integrate ransomware monitoring into /api/scheduled/threat-intel-daily as Phase 6+7
+- [x] Add ingestExternalVictims for scheduled task POST of externally-researched victims
+- [x] Build stack profile diff view: diffWithScan tRPC procedure (compare profile vs scan techs)
+- [x] Add diffing logic: detect new/removed technologies, version drift, new CVE exposure
+- [x] Add DiffViewer frontend component to profile cards (engagement-linked profiles)
+- [x] Add generateDiffRecommendation helper with actionable text
+- [x] Write vitest tests for ransomware monitoring and stack profile diff (13 tests passing)
+- [ ] Push checkpoint to GitHub (htcook + aceofcloud)

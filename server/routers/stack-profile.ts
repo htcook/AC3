@@ -196,6 +196,32 @@ function matchScannersToStack(stack: string[]): {
   return { matched, coveragePercent, gaps };
 }
 
+function generateDiffRecommendation(
+  newTechs: string[],
+  removedTechs: string[],
+  versionDrift: { technology: string; profileVersion: string; scanVersion: string }[],
+  newCves: { technology: string; cveId: string; severity: string }[]
+): string {
+  const parts: string[] = [];
+  if (newTechs.length > 0) {
+    parts.push(`${newTechs.length} new technolog${newTechs.length === 1 ? 'y' : 'ies'} detected (${newTechs.slice(0, 5).join(', ')}${newTechs.length > 5 ? '...' : ''}). Consider updating the stack profile and adding scanner coverage.`);
+  }
+  if (removedTechs.length > 0) {
+    parts.push(`${removedTechs.length} technolog${removedTechs.length === 1 ? 'y' : 'ies'} no longer detected (${removedTechs.slice(0, 5).join(', ')}${removedTechs.length > 5 ? '...' : ''}). May have been decommissioned or migrated.`);
+  }
+  if (versionDrift.length > 0) {
+    parts.push(`${versionDrift.length} version change${versionDrift.length === 1 ? '' : 's'} detected. Review for security implications.`);
+  }
+  if (newCves.length > 0) {
+    const critCount = newCves.filter(c => c.severity === 'critical' || c.severity === 'high').length;
+    parts.push(`${newCves.length} new CVE exposure${newCves.length === 1 ? '' : 's'} from version drift${critCount > 0 ? ` (${critCount} critical/high)` : ''}. Immediate review recommended.`);
+  }
+  if (parts.length === 0) {
+    return 'No significant drift detected. Stack profile is current with scan results.';
+  }
+  return parts.join(' ');
+}
+
 function flattenStack(profile: {
   languages?: string[] | null;
   webFrameworks?: string[] | null;
@@ -725,6 +751,134 @@ Return ONLY a JSON array of objects with these fields.`;
     }),
 
   /** Auto-create a stack profile from DI scan results */
+  /** Compare a stack profile against the latest DI scan results to show drift */
+  diffWithScan: protectedProcedure
+    .input(z.object({
+      profileId: z.number(),
+      scanId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      // Get the stack profile
+      const profiles = await db.select().from(customerStackProfiles)
+        .where(eq(customerStackProfiles.id, input.profileId))
+        .limit(1);
+      if (!profiles.length) throw new Error("Stack profile not found");
+      const profile = profiles[0];
+
+      // Get scan assets and their technologies
+      const { discoveredAssets } = await import("../../drizzle/schema");
+      const assets = await db.select().from(discoveredAssets)
+        .where(eq(discoveredAssets.scanId, input.scanId));
+
+      // Collect all technologies detected in the scan
+      const scanTechs = new Set<string>();
+      const scanVersions: Record<string, string> = {};
+      for (const asset of assets) {
+        const techs = (asset.technologies as string[] | null) || [];
+        for (const t of techs) {
+          // Parse "TechName/version" format
+          const parts = t.split("/");
+          const name = parts[0].trim();
+          const version = parts.length > 1 ? parts.slice(1).join("/").trim() : undefined;
+          scanTechs.add(name.toLowerCase());
+          if (version) scanVersions[name.toLowerCase()] = version;
+        }
+      }
+
+      // Get all profile technologies
+      const profileTechs = flattenStack(profile).map(t => t.toLowerCase());
+      const profileVersions = (profile.technologyVersions as Record<string, string> | null) || {};
+      const profileVersionsLower: Record<string, string> = {};
+      for (const [k, v] of Object.entries(profileVersions)) {
+        profileVersionsLower[k.toLowerCase()] = v;
+      }
+
+      // Compute diff
+      const profileTechSet = new Set(profileTechs);
+      const newTechnologies: string[] = []; // In scan but not in profile
+      const removedTechnologies: string[] = []; // In profile but not in scan
+      const unchangedTechnologies: string[] = []; // In both
+      const versionDrift: { technology: string; profileVersion: string; scanVersion: string }[] = [];
+
+      // Find new technologies (in scan, not in profile)
+      for (const tech of scanTechs) {
+        if (!profileTechSet.has(tech)) {
+          newTechnologies.push(tech);
+        } else {
+          unchangedTechnologies.push(tech);
+        }
+      }
+
+      // Find removed technologies (in profile, not in scan)
+      for (const tech of profileTechSet) {
+        if (!scanTechs.has(tech)) {
+          removedTechnologies.push(tech);
+        }
+      }
+
+      // Find version drift
+      for (const tech of unchangedTechnologies) {
+        const profileVer = profileVersionsLower[tech];
+        const scanVer = scanVersions[tech];
+        if (profileVer && scanVer && profileVer !== scanVer) {
+          versionDrift.push({
+            technology: tech,
+            profileVersion: profileVer,
+            scanVersion: scanVer,
+          });
+        } else if (!profileVer && scanVer) {
+          // Version newly detected
+          versionDrift.push({
+            technology: tech,
+            profileVersion: "(unknown)",
+            scanVersion: scanVer,
+          });
+        }
+      }
+
+      // Check for new CVE exposure from version drift
+      const newCveExposure: { technology: string; version: string; cveId: string; severity: string }[] = [];
+      if (versionDrift.length > 0) {
+        const driftVersions: Record<string, string> = {};
+        for (const d of versionDrift) {
+          driftVersions[d.technology] = d.scanVersion;
+        }
+        const cves = matchVersionCves(driftVersions);
+        for (const cve of cves) {
+          newCveExposure.push({
+            technology: cve.technology,
+            version: driftVersions[cve.technology.toLowerCase()] || "",
+            cveId: cve.cveId,
+            severity: cve.severity,
+          });
+        }
+      }
+
+      return {
+        profileId: input.profileId,
+        scanId: input.scanId,
+        profileName: profile.customerName,
+        summary: {
+          totalProfileTechs: profileTechs.length,
+          totalScanTechs: scanTechs.size,
+          newCount: newTechnologies.length,
+          removedCount: removedTechnologies.length,
+          unchangedCount: unchangedTechnologies.length,
+          versionDriftCount: versionDrift.length,
+          newCveCount: newCveExposure.length,
+        },
+        newTechnologies,
+        removedTechnologies,
+        unchangedTechnologies,
+        versionDrift,
+        newCveExposure,
+        recommendation: generateDiffRecommendation(newTechnologies, removedTechnologies, versionDrift, newCveExposure),
+      };
+    }),
+
   createFromScan: protectedProcedure
     .input(z.object({
       scanId: z.number(),

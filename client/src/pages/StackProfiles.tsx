@@ -21,7 +21,8 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Search, Layers, Shield, Zap, AlertTriangle,
   ChevronDown, ChevronRight, Loader2, Radar, FileText, X,
-  CheckCircle2, XCircle, Target, Link2, Unlink, Bug,
+  CheckCircle2, XCircle, Target, Link2, Unlink, Bug, GitCompare,
+  ArrowUpDown, TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 
 // ─── Technology Categories ──────────────────────────────────────────────────
@@ -829,8 +830,178 @@ function ProfileCard({
           </button>
           {showTestPlan && <TestPlanViewer profileId={profile.id} />}
         </div>
+
+        {/* Diff with Scan */}
+        {profile.engagementId && (
+          <DiffViewer profileId={profile.id} engagementId={profile.engagementId} />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Diff Viewer Component ─────────────────────────────────────────────────
+
+function DiffViewer({ profileId, engagementId }: { profileId: number; engagementId: number }) {
+  const [showDiff, setShowDiff] = useState(false);
+  const [scanId, setScanId] = useState<number | null>(null);
+  const [scanIdInput, setScanIdInput] = useState("");
+
+  const diffQuery = trpc.stackProfile.diffWithScan.useQuery(
+    { profileId, scanId: scanId! },
+    { enabled: !!scanId }
+  );
+
+  return (
+    <div className="pt-1 border-t border-border/50">
+      <button
+        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+        onClick={() => setShowDiff(!showDiff)}
+      >
+        {showDiff ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <GitCompare className="h-3 w-3" />
+        Compare with Scan
+      </button>
+
+      {showDiff && (
+        <div className="mt-2 space-y-2">
+          {!scanId ? (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter Scan ID"
+                value={scanIdInput}
+                onChange={(e) => setScanIdInput(e.target.value)}
+                className="h-7 text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const id = parseInt(scanIdInput);
+                  if (!isNaN(id)) setScanId(id);
+                }}
+                disabled={!scanIdInput}
+              >
+                Compare
+              </Button>
+            </div>
+          ) : diffQuery.isLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Analyzing drift...
+            </div>
+          ) : diffQuery.error ? (
+            <div className="text-xs text-destructive">
+              Error: {diffQuery.error.message}
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] ml-2" onClick={() => setScanId(null)}>Try another</Button>
+            </div>
+          ) : diffQuery.data ? (
+            <div className="space-y-2">
+              {/* Summary stats */}
+              <div className="grid grid-cols-4 gap-1">
+                <div className="bg-emerald-500/10 rounded p-1.5 text-center">
+                  <div className="text-sm font-bold text-emerald-400">{diffQuery.data.summary.newCount}</div>
+                  <div className="text-[9px] text-muted-foreground">New</div>
+                </div>
+                <div className="bg-red-500/10 rounded p-1.5 text-center">
+                  <div className="text-sm font-bold text-red-400">{diffQuery.data.summary.removedCount}</div>
+                  <div className="text-[9px] text-muted-foreground">Removed</div>
+                </div>
+                <div className="bg-amber-500/10 rounded p-1.5 text-center">
+                  <div className="text-sm font-bold text-amber-400">{diffQuery.data.summary.versionDriftCount}</div>
+                  <div className="text-[9px] text-muted-foreground">Drift</div>
+                </div>
+                <div className="bg-purple-500/10 rounded p-1.5 text-center">
+                  <div className="text-sm font-bold text-purple-400">{diffQuery.data.summary.newCveCount}</div>
+                  <div className="text-[9px] text-muted-foreground">CVEs</div>
+                </div>
+              </div>
+
+              {/* New technologies */}
+              {diffQuery.data.newTechnologies.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium text-emerald-400 flex items-center gap-1 mb-1">
+                    <TrendingUp className="h-2.5 w-2.5" /> New Technologies
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {diffQuery.data.newTechnologies.map((t: string) => (
+                      <Badge key={t} className="text-[9px] bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                        + {t}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Removed technologies */}
+              {diffQuery.data.removedTechnologies.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium text-red-400 flex items-center gap-1 mb-1">
+                    <TrendingDown className="h-2.5 w-2.5" /> Removed Technologies
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {diffQuery.data.removedTechnologies.map((t: string) => (
+                      <Badge key={t} className="text-[9px] bg-red-500/20 text-red-300 border-red-500/30">
+                        - {t}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Version drift */}
+              {diffQuery.data.versionDrift.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium text-amber-400 flex items-center gap-1 mb-1">
+                    <ArrowUpDown className="h-2.5 w-2.5" /> Version Drift
+                  </div>
+                  <div className="space-y-0.5">
+                    {diffQuery.data.versionDrift.map((d: any) => (
+                      <div key={d.technology} className="flex items-center gap-1 text-[10px]">
+                        <span className="text-muted-foreground">{d.technology}:</span>
+                        <span className="text-red-300 line-through">{d.profileVersion}</span>
+                        <Minus className="h-2 w-2 text-muted-foreground" />
+                        <span className="text-emerald-300">{d.scanVersion}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* New CVE exposure */}
+              {diffQuery.data.newCveExposure.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium text-purple-400 flex items-center gap-1 mb-1">
+                    <Bug className="h-2.5 w-2.5" /> New CVE Exposure
+                  </div>
+                  <div className="space-y-0.5">
+                    {diffQuery.data.newCveExposure.map((cve: any) => (
+                      <div key={cve.cveId} className="flex items-center gap-1 text-[10px]">
+                        <Badge className={`text-[8px] ${
+                          cve.severity === 'critical' ? 'bg-red-600 text-white' :
+                          cve.severity === 'high' ? 'bg-orange-600 text-white' :
+                          'bg-amber-600 text-white'
+                        }`}>{cve.severity}</Badge>
+                        <span className="font-mono">{cve.cveId}</span>
+                        <span className="text-muted-foreground">({cve.technology})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendation */}
+              <div className="text-[10px] text-muted-foreground bg-muted/30 rounded p-2 mt-1">
+                {diffQuery.data.recommendation}
+              </div>
+
+              <Button variant="ghost" size="sm" className="h-5 text-[10px]" onClick={() => setScanId(null)}>
+                Compare another scan
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 

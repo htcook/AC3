@@ -858,6 +858,24 @@ async function startServer() {
         }
       }
 
+      // Phase 6: Ransomware leak site monitoring (ransomware.live API)
+      try {
+        const { runLeakSiteMonitor } = await import("../lib/ransomware-leak-monitor");
+        const leakResult = await runLeakSiteMonitor();
+        results.phases.push({ phase: 'ransomware_leak_monitor', success: true, ...leakResult });
+      } catch (err: any) {
+        results.phases.push({ phase: 'ransomware_leak_monitor', success: false, error: err.message });
+      }
+      // Phase 7: Ingest externally-researched ransomware victims from scheduled task
+      if (req.body.ransomwareVictims && Array.isArray(req.body.ransomwareVictims)) {
+        try {
+          const { ingestExternalVictims } = await import("../lib/ransomware-leak-monitor");
+          const victimResult = await ingestExternalVictims(req.body.ransomwareVictims);
+          results.phases.push({ phase: 'external_ransomware_victims', success: true, ...victimResult });
+        } catch (err: any) {
+          results.phases.push({ phase: 'external_ransomware_victims', success: false, error: err.message });
+        }
+      }
       const successCount = results.phases.filter((p: any) => p.success).length;
       results.summary = `${successCount}/${results.phases.length} phases completed successfully`;
       console.log(`[ThreatIntelDaily] ${results.summary}`);
